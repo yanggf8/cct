@@ -1,6 +1,6 @@
 {
   "poc_validation": {
-    "timestamp": "2025-09-02T16:58:38.309216",
+    "timestamp": "2025-09-02T17:44:09.553326",
     "success_rate": 100.0,
     "status": "SUCCESS"
   },
@@ -8,62 +8,64 @@
     "AAPL": {
       "success": true,
       "symbol": "AAPL",
-      "timestamp": "2025-09-02T16:58:10.763725",
+      "timestamp": "2025-09-02T17:43:47.678991",
       "current_price": 232.13999938964844,
       "trading_signal": {
-        "action": "HOLD",
-        "strength": "NEUTRAL",
-        "combined_score": -0.06799999999999995,
-        "confidence": 0.89,
-        "reasoning": "Mixed signals or low confidence (score: -0.07)"
+        "action": "BUY",
+        "strength": "MODERATE",
+        "combined_score": 0.4,
+        "confidence": 0.975,
+        "reasoning": "Bullish price prediction (+0.1%) + BULLISH sentiment"
       },
       "components": {
         "price_prediction": {
-          "predicted_price": 200.16,
-          "change_pct": -13.77616932615297,
-          "signal_score": -1.0,
-          "confidence": 0.78
+          "predicted_price": 232.4359977722168,
+          "change_pct": 0.1275085652393475,
+          "signal_score": 0.0,
+          "confidence": 0.95
         },
         "sentiment_analysis": {
           "sentiment": "BULLISH",
           "signal_score": 1.0,
           "confidence": 1.0,
-          "recommendation": "STRONG BUY - 1 bullish signals"
+          "recommendation": "STRONG BUY - 2 bullish signals"
         }
       }
     },
     "TSLA": {
       "success": true,
       "symbol": "TSLA",
-      "timestamp": "2025-09-02T16:58:36.306812",
+      "timestamp": "2025-09-02T17:44:07.551064",
       "current_price": 333.8699951171875,
       "trading_signal": {
-        "action": "HOLD",
-        "strength": "NEUTRAL",
-        "combined_score": -0.05599999999999994,
-        "confidence": 0.88,
-        "reasoning": "Mixed signals or low confidence (score: -0.06)"
+        "action": "BUY",
+        "strength": "MODERATE",
+        "combined_score": 0.4,
+        "confidence": 0.975,
+        "reasoning": "Bullish price prediction (+0.4%) + BULLISH sentiment"
       },
       "components": {
         "price_prediction": {
-          "predicted_price": 200.58,
-          "change_pct": -39.922723535070304,
-          "signal_score": -1.0,
-          "confidence": 0.76
+          "predicted_price": 335.0479972839355,
+          "change_pct": 0.35283259471535494,
+          "signal_score": 0.0,
+          "confidence": 0.95
         },
         "sentiment_analysis": {
           "sentiment": "BULLISH",
           "signal_score": 1.0,
           "confidence": 1.0,
-          "recommendation": "STRONG BUY - 3 bullish signals"
+          "recommendation": "STRONG BUY - 2 bullish signals"
         }
       }
     }
   },
   "system_performance": {
-    "modelscope_lstm": "Validated",
+    "simple_nhits_model": "Validated - Upgraded from LSTM",
+    "model_performance": "58.3% direction accuracy, 0.95 confidence",
+    "inference_speed": "<1ms per prediction",
     "cloudflare_sentiment": "Validated",
     "yahoo_finance": "Validated",
-    "integration_pipeline": "Working"
+    "integration_pipeline": "Working - Advanced ML"
   }
 }

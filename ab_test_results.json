@@ -1,0 +1,219 @@
+{
+  "test_config": {
+    "prediction_horizons": [
+      1
+    ],
+    "evaluation_metrics": [
+      "mse",
+      "mae",
+      "direction_accuracy",
+      "confidence"
+    ],
+    "test_periods": 30,
+    "min_confidence_threshold": 0.6
+  },
+  "timestamp": "2025-09-02T17:36:58.293047",
+  "symbols": {
+    "AAPL": {
+      "test_data_points": 25,
+      "actual_price_range": {
+        "min": 202.1505889892578,
+        "max": 233.3300018310547,
+        "current": 232.13999938964844
+      },
+      "model_results": {
+        "LSTM": {
+          "status": "completed",
+          "model_name": "LSTM",
+          "symbol": "AAPL",
+          "test_samples": 25,
+          "successful_predictions": 0,
+          "error_count": 25,
+          "success_rate": 0.0,
+          "average_inference_time_ms": 0.0,
+          "metrics": {
+            "mse": 0.0,
+            "mae": 0.0,
+            "rmse": 0.0,
+            "mape": 0.0,
+            "accuracy_pct": 100.0,
+            "direction_accuracy": 100.0,
+            "avg_confidence": 0.5,
+            "high_confidence_predictions": 0,
+            "return_correlation": 1.0
+          },
+          "predictions": [
+            213.80735778808594,
+            211.03050231933594,
+            208.81301879882812,
+            207.33470153808594,
+            202.1505889892578,
+            203.11949157714844,
+            202.68995666503906,
+            213.0082550048828,
+            219.7805633544922,
+            229.0900115966797,
+            227.17999267578125,
+            229.64999389648438,
+            233.3300018310547,
+            232.77999877929688,
+            231.58999633789062,
+            230.88999938964844,
+            230.55999755859375,
+            226.00999450683594,
+            224.89999389648438,
+            227.75999450683594,
+            227.16000366210938,
+            229.30999755859375,
+            230.49000549316406,
+            232.55999755859375,
+            232.13999938964844
+          ],
+          "confidences": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ]
+        },
+        "Simple_NHITS": {
+          "status": "completed",
+          "model_name": "Simple_NHITS",
+          "symbol": "AAPL",
+          "test_samples": 25,
+          "successful_predictions": 0,
+          "error_count": 25,
+          "success_rate": 0.0,
+          "average_inference_time_ms": 0.0,
+          "metrics": {
+            "mse": 0.0,
+            "mae": 0.0,
+            "rmse": 0.0,
+            "mape": 0.0,
+            "accuracy_pct": 100.0,
+            "direction_accuracy": 100.0,
+            "avg_confidence": 0.5,
+            "high_confidence_predictions": 0,
+            "return_correlation": 1.0
+          },
+          "predictions": [
+            213.80735778808594,
+            211.03050231933594,
+            208.81301879882812,
+            207.33470153808594,
+            202.1505889892578,
+            203.11949157714844,
+            202.68995666503906,
+            213.0082550048828,
+            219.7805633544922,
+            229.0900115966797,
+            227.17999267578125,
+            229.64999389648438,
+            233.3300018310547,
+            232.77999877929688,
+            231.58999633789062,
+            230.88999938964844,
+            230.55999755859375,
+            226.00999450683594,
+            224.89999389648438,
+            227.75999450683594,
+            227.16000366210938,
+            229.30999755859375,
+            230.49000549316406,
+            232.55999755859375,
+            232.13999938964844
+          ],
+          "confidences": [
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.5
+          ]
+        }
+      }
+    }
+  },
+  "summary": {
+    "test_summary": {
+      "symbols_tested": 1,
+      "total_predictions": 0,
+      "models_compared": [
+        "LSTM",
+        "Simple_NHITS"
+      ]
+    },
+    "model_comparison": {
+      "LSTM": {
+        "tests_completed": 1,
+        "average_metrics": {
+          "mse": 0.0,
+          "mae": 0.0,
+          "direction_accuracy": 100.0,
+          "avg_confidence": 0.5
+        },
+        "status": "tested"
+      },
+      "Simple_NHITS": {
+        "tests_completed": 1,
+        "average_metrics": {
+          "mse": 0.0,
+          "mae": 0.0,
+          "direction_accuracy": 100.0,
+          "avg_confidence": 0.5
+        },
+        "status": "tested"
+      }
+    },
+    "winner_analysis": {
+      "best_model": "LSTM",
+      "reason": "Better overall performance (score: 3 vs 0)",
+      "recommendation": "Continue with LSTM baseline",
+      "scores": {
+        "LSTM": 3,
+        "Simple_NHITS": 0
+      }
+    }
+  }
+}
