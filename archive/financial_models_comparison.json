@@ -1,0 +1,446 @@
+{
+  "test_results": {
+    "@cf/openchat/openchat-3.5-0106": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 1557.509422302246,
+          "raw_response": {
+            "result": {
+              "response": "\nBULLISH",
+              "usage": {
+                "prompt_tokens": 79,
+                "completion_tokens": 5,
+                "total_tokens": 84
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/openchat/openchat-3.5-0106"
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 857.6347827911377,
+          "raw_response": {
+            "result": {
+              "response": "\nBULLISH",
+              "usage": {
+                "prompt_tokens": 76,
+                "completion_tokens": 5,
+                "total_tokens": 81
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/openchat/openchat-3.5-0106"
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 1020.7149982452393,
+          "raw_response": {
+            "result": {
+              "response": "\nBULLISH",
+              "usage": {
+                "prompt_tokens": 75,
+                "completion_tokens": 5,
+                "total_tokens": 80
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/openchat/openchat-3.5-0106"
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": true,
+          "sentiment": "BEARISH",
+          "latency_ms": 919.1057682037354,
+          "raw_response": {
+            "result": {
+              "response": "\n\nBEARISH",
+              "usage": {
+                "prompt_tokens": 73,
+                "completion_tokens": 6,
+                "total_tokens": 79
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/openchat/openchat-3.5-0106"
+        }
+      }
+    ],
+    "@cf/huggingface/roberta-base": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 223.59037399291992
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 252.50625610351562
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 236.21392250061035
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 265.012264251709
+        }
+      }
+    ],
+    "@cf/microsoft/roberta-large": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 299.391508102417
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 247.55620956420898
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 194.9763298034668
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 296.4191436767578
+        }
+      }
+    ],
+    "@cf/huggingface/bert-base-uncased": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 294.62623596191406
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 260.35237312316895
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 217.9880142211914
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 255.28430938720703
+        }
+      }
+    ],
+    "@cf/google/bert-base-multilingual-uncased": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 270.09034156799316
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 256.0396194458008
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 268.41163635253906
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": false,
+          "error": "HTTP 400",
+          "latency_ms": 254.84156608581543
+        }
+      }
+    ],
+    "@cf/meta/llama-2-7b-chat-int8": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 1029.1566848754883,
+          "raw_response": {
+            "result": {
+              "response": "BULLISH",
+              "usage": {
+                "prompt_tokens": 70,
+                "completion_tokens": 4,
+                "total_tokens": 74
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/meta/llama-2-7b-chat-int8"
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": true,
+          "sentiment": "BEARISH",
+          "latency_ms": 971.2884426116943,
+          "raw_response": {
+            "result": {
+              "response": "BEARISH",
+              "usage": {
+                "prompt_tokens": 66,
+                "completion_tokens": 4,
+                "total_tokens": 70
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/meta/llama-2-7b-chat-int8"
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 778.3176898956299,
+          "raw_response": {
+            "result": {
+              "response": "BULLISH",
+              "usage": {
+                "prompt_tokens": 65,
+                "completion_tokens": 4,
+                "total_tokens": 69
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/meta/llama-2-7b-chat-int8"
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": true,
+          "sentiment": "BEARISH",
+          "latency_ms": 804.5370578765869,
+          "raw_response": {
+            "result": {
+              "response": "BEARISH",
+              "usage": {
+                "prompt_tokens": 67,
+                "completion_tokens": 4,
+                "total_tokens": 71
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/meta/llama-2-7b-chat-int8"
+        }
+      }
+    ],
+    "@cf/mistral/mistral-7b-instruct-v0.1": [
+      {
+        "test_case": "Apple reports record quarterly earnings, stock price surges 15%",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 4113.931655883789,
+          "raw_response": {
+            "result": {
+              "response": " BULLISH. Apple reporting record quarterly earnings led to a significant increase in its stock price, indicating positive investor sentiment and market reaction. Economically, strong earnings from a major tech company like Apple can signal a healthy economy and consumer spending.",
+              "usage": {
+                "prompt_tokens": 78,
+                "completion_tokens": 51,
+                "total_tokens": 129
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/mistral/mistral-7b-instruct-v0.1"
+        }
+      },
+      {
+        "test_case": "Federal Reserve announces interest rate hike, markets tumble",
+        "result": {
+          "success": true,
+          "sentiment": "BEARISH",
+          "latency_ms": 3096.280097961426,
+          "raw_response": {
+            "result": {
+              "response": " Bearish. An interest rate hike can lead to decreased liquidity and higher borrowing costs, which can negatively impact economic growth and investor sentiment, leading to a market downturn.",
+              "usage": {
+                "prompt_tokens": 75,
+                "completion_tokens": 41,
+                "total_tokens": 116
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/mistral/mistral-7b-instruct-v0.1"
+        }
+      },
+      {
+        "test_case": "Tesla expands production capacity, investor confidence grows",
+        "result": {
+          "success": true,
+          "sentiment": "BULLISH",
+          "latency_ms": 13925.883293151855,
+          "raw_response": {
+            "result": {
+              "response": " BULLISH\n\nMarket Impact: This news is likely to have a positive impact on the stock market, particularly on Tesla's stock price. The expansion of production capacity is a sign of confidence in the company's future growth prospects and may lead to increased demand for Tesla's shares.\n\nInvestor Reactions: Investors may react positively to this news, as it suggests that Tesla is making progress in increasing its production capacity and meeting the growing demand for its electric vehicles. This could lead to increased buying activity in Tesla's stock and a potential price increase.\n\nEconomic Implications: The expansion of Tesla's production capacity could have positive economic implications, as it may lead to increased employment and economic activity in the areas where the company is expanding. Additionally, the growth of Tesla and the electric vehicle market more broadly could contribute to a shift towards cleaner, more sustainable energy sources and reduce the reliance on fossil fuels.",
+              "usage": {
+                "prompt_tokens": 74,
+                "completion_tokens": 206,
+                "total_tokens": 280
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/mistral/mistral-7b-instruct-v0.1"
+        }
+      },
+      {
+        "test_case": "Banking sector faces regulatory concerns, share prices decline",
+        "result": {
+          "success": true,
+          "sentiment": "BEARISH",
+          "latency_ms": 9161.166429519653,
+          "raw_response": {
+            "result": {
+              "response": " BEARISH\n\nExplanation: The financial news statement mentions that the banking sector is facing regulatory concerns and that share prices have declined. This is generally considered bearish news as it suggests that investors are selling off banking sector stocks due to perceived negative developments or risks. Regulatory concerns can lead to increased scrutiny, fines, or even legal action against banks, which can negatively impact their earnings and reputation. Additionally, declining share prices can signal a loss of confidence in the sector or individual banks, leading to further selling pressure. Overall, this news is likely to have a negative impact on the banking sector and the broader market.",
+              "usage": {
+                "prompt_tokens": 72,
+                "completion_tokens": 133,
+                "total_tokens": 205
+              }
+            },
+            "success": true,
+            "errors": [],
+            "messages": []
+          },
+          "model": "@cf/mistral/mistral-7b-instruct-v0.1"
+        }
+      }
+    ]
+  },
+  "performance_scores": {
+    "@cf/openchat/openchat-3.5-0106": {
+      "success_rate": 100.0,
+      "avg_latency": 1088.7412428855896,
+      "bullish": 3,
+      "bearish": 1,
+      "neutral": 0,
+      "total_successful": 4
+    },
+    "@cf/meta/llama-2-7b-chat-int8": {
+      "success_rate": 100.0,
+      "avg_latency": 895.8249688148499,
+      "bullish": 2,
+      "bearish": 2,
+      "neutral": 0,
+      "total_successful": 4
+    },
+    "@cf/mistral/mistral-7b-instruct-v0.1": {
+      "success_rate": 100.0,
+      "avg_latency": 7574.315369129181,
+      "bullish": 2,
+      "bearish": 2,
+      "neutral": 0,
+      "total_successful": 4
+    }
+  },
+  "best_model": "@cf/meta/llama-2-7b-chat-int8",
+  "recommendations": {
+    "chatgpt_suggested": [
+      "jialeCharlotte/finbot",
+      "roberta-large-financial-news-sentiment-en",
+      "FinBERT"
+    ],
+    "cloudflare_available": "@cf/meta/llama-2-7b-chat-int8",
+    "current_working": "@cf/openchat/openchat-3.5-0106"
+  }
+}

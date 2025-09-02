@@ -1,0 +1,48 @@
+{
+  "step1_data_collection": true,
+  "step2_basic_processing": true,
+  "step3_deployment_prep": true,
+  "errors": [],
+  "recommendations": [
+    "Install yfinance: pip install yfinance"
+  ],
+  "mock_data": {
+    "symbol": "AAPL",
+    "prices": [
+      150.0,
+      151.2,
+      149.8,
+      152.1,
+      153.0
+    ],
+    "dates": [
+      "2025-01-01",
+      "2025-01-02",
+      "2025-01-03",
+      "2025-01-04",
+      "2025-01-05"
+    ],
+    "source": "mock_data"
+  },
+  "processing_results": {
+    "mean_price": 151.22,
+    "std_price": 1.22,
+    "min_price": 149.8,
+    "max_price": 153.0,
+    "simple_prediction": 151.63,
+    "processing_method": "numpy"
+  },
+  "deployment_files": [
+    "simple_inference.py",
+    "basic_requirements.txt",
+    "deployment_metadata.json"
+  ],
+  "local_test_result": {
+    "predicted_price": 150.33,
+    "confidence": 0.6,
+    "model_type": "simple_moving_average",
+    "version": "poc_v1.0"
+  },
+  "success_rate": 100.0,
+  "timestamp": "2025-09-02T14:10:44.400651"
+}

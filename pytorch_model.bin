@@ -1,0 +1,20 @@
+# This file represents the model weights
+# For our numpy-based model, we'll create a placeholder that references our actual weights
+
+import json
+import os
+
+# Load our actual model weights
+def load_model_weights():
+    with open('lstm_model_weights.json', 'r') as f:
+        return json.load(f)
+
+# This is a placeholder binary file for ModelScope compatibility
+# The actual weights are in lstm_model_weights.json
+model_info = {
+    "model_type": "custom_lstm",
+    "weights_file": "lstm_model_weights.json",
+    "framework": "custom_numpy"
+}
+
+print("Model weights placeholder - actual weights in lstm_model_weights.json")

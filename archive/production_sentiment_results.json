@@ -1,0 +1,150 @@
+{
+  "stock_symbol": "AAPL",
+  "individual_results": [
+    {
+      "news": "Apple reports record Q4 earnings of $1.64 per share, beating estimates",
+      "analysis": {
+        "success": true,
+        "sentiment": "BULLISH",
+        "confidence": 0.7,
+        "latency_ms": 1533.9164733886719,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "BULLISH 0.7",
+        "trading_signal": {
+          "action": "BUY",
+          "strength": "STRONG",
+          "weight": 0.7
+        }
+      }
+    },
+    {
+      "news": "iPhone 15 sales exceed expectations, driving Apple revenue growth",
+      "analysis": {
+        "success": true,
+        "sentiment": "BULLISH",
+        "confidence": 0.7,
+        "latency_ms": 904.4990539550781,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "BULLISH 0.7",
+        "trading_signal": {
+          "action": "BUY",
+          "strength": "STRONG",
+          "weight": 0.7
+        }
+      }
+    },
+    {
+      "news": "Apple faces supply chain challenges in China manufacturing",
+      "analysis": {
+        "success": true,
+        "sentiment": "BEARISH",
+        "confidence": 0.6,
+        "latency_ms": 2770.6778049468994,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "BEARISH 0.6\n\nReasoning: The news that Apple is facing supply chain challenges in China, a major manufacturing hub, could negatively impact its production and potentially lead to a decline in stock pri",
+        "trading_signal": {
+          "action": "SELL",
+          "strength": "WEAK",
+          "weight": 0.6
+        }
+      }
+    },
+    {
+      "news": "Warren Buffett increases Berkshire's Apple stake, showing confidence",
+      "analysis": {
+        "success": true,
+        "sentiment": "BULLISH",
+        "confidence": 0.7,
+        "latency_ms": 1165.0657653808594,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "BULLISH 0.7",
+        "trading_signal": {
+          "action": "BUY",
+          "strength": "STRONG",
+          "weight": 0.7
+        }
+      }
+    },
+    {
+      "news": "Apple announces $110 billion share buyback program",
+      "analysis": {
+        "success": true,
+        "sentiment": "BULLISH",
+        "confidence": 0.7,
+        "latency_ms": 3684.0286254882812,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "BULLISH 0.7\n\nReasoning: Apple's announcement of a $110 billion share buyback program is a significant development that can have a positive impact on the company's stock price and overall market sentim",
+        "trading_signal": {
+          "action": "BUY",
+          "strength": "STRONG",
+          "weight": 0.7
+        }
+      }
+    },
+    {
+      "news": "Regulatory concerns emerge over Apple App Store policies",
+      "analysis": {
+        "success": true,
+        "sentiment": "BEARISH",
+        "confidence": 0.5,
+        "latency_ms": 4031.235694885254,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "NEUTRAL (0.5)\n\nReasoning: While the emergence of regulatory concerns over Apple's App Store policies may have some short-term implications for the company's stock price, it is unlikely to have a signi",
+        "trading_signal": {
+          "action": "SELL",
+          "strength": "WEAK",
+          "weight": 0.5
+        }
+      }
+    },
+    {
+      "news": "Apple Intelligence AI features boost premium iPhone demand",
+      "analysis": {
+        "success": true,
+        "sentiment": "NEUTRAL",
+        "confidence": 0.7,
+        "latency_ms": 2998.516798019409,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "POSITIVE (0.7)\n\nReasoning: The article highlights a significant boost in demand for Apple's premium iPhones due to the introduction of new AI features. This news is likely to have a positive impact on",
+        "trading_signal": {
+          "action": "HOLD",
+          "strength": "NEUTRAL",
+          "weight": 0.7
+        }
+      }
+    },
+    {
+      "news": "Competition intensifies as Samsung launches new flagship phones",
+      "analysis": {
+        "success": true,
+        "sentiment": "NEUTRAL",
+        "confidence": 0.5,
+        "latency_ms": 2327.3515701293945,
+        "model": "@cf/meta/llama-2-7b-chat-int8",
+        "raw_response": "NEUTRAL (0.5)\n\nThe news that Samsung has launched new flagship phones may not have a significant impact on the market sentiment, as it is a normal part of the company's product cycle. However, it may ",
+        "trading_signal": {
+          "action": "HOLD",
+          "strength": "NEUTRAL",
+          "weight": 0.5
+        }
+      }
+    }
+  ],
+  "aggregate_sentiment": {
+    "overall_sentiment": "BULLISH",
+    "confidence": 0.717948717948718,
+    "recommendation": "STRONG BUY - 4 bullish signals",
+    "bullish_strength": 2.8,
+    "bearish_strength": 1.1,
+    "signal_count": 6
+  },
+  "summary": {
+    "total_news": 8,
+    "successful_analyses": 8,
+    "success_rate": 100.0,
+    "average_latency_ms": 2426.911473274231,
+    "bullish_count": 4,
+    "bearish_count": 2,
+    "model_used": "@cf/meta/llama-2-7b-chat-int8"
+  }
+}

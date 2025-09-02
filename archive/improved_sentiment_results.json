@@ -1,0 +1,99 @@
+{
+  "results": [
+    {
+      "text": "Apple reports record quarterly earnings, stock soars 15%",
+      "result": {
+        "success": true,
+        "sentiment": "POSITIVE",
+        "confidence": 0.95,
+        "latency_ms": 1627.298355102539,
+        "raw_response": "POSITIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "Federal Reserve raises interest rates, markets decline sharply",
+      "result": {
+        "success": true,
+        "sentiment": "NEGATIVE",
+        "confidence": 0.95,
+        "latency_ms": 935.687780380249,
+        "raw_response": "NEGATIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "Tesla announces new factory expansion, investors optimistic",
+      "result": {
+        "success": true,
+        "sentiment": "POSITIVE",
+        "confidence": 0.95,
+        "latency_ms": 1296.1068153381348,
+        "raw_response": "POSITIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "Inflation data shows concerning trends, tech stocks fall",
+      "result": {
+        "success": true,
+        "sentiment": "NEGATIVE",
+        "confidence": 0.95,
+        "latency_ms": 1113.663673400879,
+        "raw_response": "NEGATIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "Strong jobs report boosts market confidence significantly",
+      "result": {
+        "success": true,
+        "sentiment": "POSITIVE",
+        "confidence": 0.95,
+        "latency_ms": 865.2286529541016,
+        "raw_response": "POSITIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "Major bank reports loan defaults rising, shares drop",
+      "result": {
+        "success": true,
+        "sentiment": "NEGATIVE",
+        "confidence": 0.95,
+        "latency_ms": 1206.1007022857666,
+        "raw_response": "NEGATIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "AI breakthrough announced, tech sector rallies strongly",
+      "result": {
+        "success": true,
+        "sentiment": "POSITIVE",
+        "confidence": 0.95,
+        "latency_ms": 918.4174537658691,
+        "raw_response": "POSITIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    },
+    {
+      "text": "Recession fears grow as economic indicators weaken",
+      "result": {
+        "success": true,
+        "sentiment": "NEGATIVE",
+        "confidence": 0.95,
+        "latency_ms": 1015.5284404754639,
+        "raw_response": "NEGATIVE",
+        "model": "@cf/openchat/openchat-3.5-0106"
+      }
+    }
+  ],
+  "summary": {
+    "total_analyzed": 8,
+    "successful": 8,
+    "success_rate": 100.0,
+    "average_latency_ms": 1122.2539842128754,
+    "model_used": "@cf/openchat/openchat-3.5-0106"
+  }
+}
