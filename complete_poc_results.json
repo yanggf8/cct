@@ -1,6 +1,6 @@
 {
   "poc_validation": {
-    "timestamp": "2025-09-02T17:44:09.553326",
+    "timestamp": "2025-09-03T12:13:10.287685",
     "success_rate": 100.0,
     "status": "SUCCESS"
   },
@@ -8,19 +8,19 @@
     "AAPL": {
       "success": true,
       "symbol": "AAPL",
-      "timestamp": "2025-09-02T17:43:47.678991",
-      "current_price": 232.13999938964844,
+      "timestamp": "2025-09-03T12:12:51.448054",
+      "current_price": 229.72000122070312,
       "trading_signal": {
         "action": "BUY",
         "strength": "MODERATE",
         "combined_score": 0.4,
         "confidence": 0.975,
-        "reasoning": "Bullish price prediction (+0.1%) + BULLISH sentiment"
+        "reasoning": "Bullish price prediction (+0.0%) + BULLISH sentiment"
       },
       "components": {
         "price_prediction": {
-          "predicted_price": 232.4359977722168,
-          "change_pct": 0.1275085652393475,
+          "predicted_price": 229.74125213623046,
+          "change_pct": 0.009250790272683135,
           "signal_score": 0.0,
           "confidence": 0.95
         },
@@ -35,27 +35,27 @@
     "TSLA": {
       "success": true,
       "symbol": "TSLA",
-      "timestamp": "2025-09-02T17:44:07.551064",
-      "current_price": 333.8699951171875,
+      "timestamp": "2025-09-03T12:13:08.285416",
+      "current_price": 329.3599853515625,
       "trading_signal": {
         "action": "BUY",
         "strength": "MODERATE",
         "combined_score": 0.4,
-        "confidence": 0.975,
-        "reasoning": "Bullish price prediction (+0.4%) + BULLISH sentiment"
+        "confidence": 0.9740865683851405,
+        "reasoning": "Bullish price prediction (-0.1%) + BULLISH sentiment"
       },
       "components": {
         "price_prediction": {
-          "predicted_price": 335.0479972839355,
-          "change_pct": 0.35283259471535494,
+          "predicted_price": 328.9892333984375,
+          "change_pct": -0.11256739422345978,
           "signal_score": 0.0,
-          "confidence": 0.95
+          "confidence": 0.9481731367702811
         },
         "sentiment_analysis": {
           "sentiment": "BULLISH",
           "signal_score": 1.0,
           "confidence": 1.0,
-          "recommendation": "STRONG BUY - 2 bullish signals"
+          "recommendation": "STRONG BUY - 3 bullish signals"
         }
       }
     }

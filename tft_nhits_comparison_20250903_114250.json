@@ -1,0 +1,29 @@
+{
+  "comparison_started": "2025-09-03T11:42:48.031941",
+  "symbols": [
+    "AAPL",
+    "TSLA"
+  ],
+  "parameters": {
+    "training_days": 120,
+    "test_predictions": 3
+  },
+  "results": {
+    "AAPL": {
+      "error": "'performance_metrics'"
+    },
+    "TSLA": {
+      "error": "'performance_metrics'"
+    }
+  },
+  "summary": {
+    "total_symbols_tested": 2,
+    "successful_tests": 0,
+    "winner_counts": {
+      "TFT": 0,
+      "N-HITS": 0
+    },
+    "overall_recommendation": "No recommendation",
+    "recommendation_distribution": {}
+  }
+}
