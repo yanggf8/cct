@@ -128,6 +128,7 @@ When working on this project, prioritize validation of core technical assumption
 - **100% Success Rate**: All 5 symbols (AAPL, TSLA, MSFT, GOOGL, NVDA) analyzed successfully
 - **Cloud-Native Execution**: Zero local machine dependency, runs on Cloudflare edge
 - **KV Storage**: Results stored with 24h TTL for local sync
-- **Multi-Platform Alerts**: Email, Slack, Facebook Messenger, LINE (Taiwan) ready
+- **Facebook Messenger Integration**: LIVE and tested - instant mobile trading alerts
+- **Rich Mobile Notifications**: Company logos, action buttons, detailed reasoning
 - **Health Monitoring**: /health, /analyze, /results endpoints operational
 - **Standalone Worker**: `cloudflare-worker-standalone.js` deployed with configured KV namespaces and resource limits optimized for free plan
