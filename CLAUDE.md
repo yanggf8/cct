@@ -55,10 +55,10 @@ The project prioritizes **validation over feature building**:
 - `system_monitor.py`: Production system health monitoring and alerting
 
 ### Cloudflare Worker Automation
-- `cloudflare-worker-standalone.js`: Standalone worker with automated pre-market analysis and alert system
-- `cloudflare-worker-scheduler.js`: Previous version (deprecated)
+- `cloudflare-worker-standalone.js`: **LIVE** standalone worker (https://tft-trading-system.yanggf.workers.dev)
+- `cloudflare-worker-scheduler.js`: Modular version with external imports (future enhancement)
 - `messenger-alerts.js`: Facebook Messenger and LINE integration functions
-- `wrangler.toml`: Cloudflare Worker deployment configuration with KV namespaces
+- `wrangler.toml`: Production deployment configuration (5 cron triggers for free plan)
 - `cloudflare-worker-local-client.py`: Python client for result synchronization
 - `monitoring_config.json`: Production monitoring and alert configuration
 
@@ -121,13 +121,13 @@ When working on this project, prioritize validation of core technical assumption
 - Complete scaling analysis: 188 symbols/minute capacity, 33k analyses in pre-market window
 - **Dependency Resolution**: ModelScope v1.29.2 + datasets v4.0.0 + simplejson compatibility established
 
-**CLOUDFLARE WORKER AUTOMATION: COMPLETED ✅**
-- **Automated Pre-Market Analysis**: Cloudflare Workers with cron triggers (6:30-9:30 AM EST)
-- **Cloud-Native Execution**: No local machine dependency, runs entirely in Cloudflare's edge network
-- **Scheduled Analysis**: Every 30 minutes during pre-market hours (Mon-Fri)
-- **Result Storage**: Cloudflare KV storage with local sync via REST API
-- **Multi-Platform Alerts**: Email, Slack, Facebook Messenger, LINE (Taiwan) integration
-- **Rich Messaging**: Interactive cards, company logos, Traditional Chinese support for LINE
-- **Production Components**: Paper trading tracker, risk management, system monitoring
-- **Local Client**: Python client for result retrieval and paper trading sync when machine comes online
+**CLOUDFLARE WORKER AUTOMATION: LIVE DEPLOYMENT ✅**
+- **Production URL**: https://tft-trading-system.yanggf.workers.dev
+- **Automated Pre-Market Analysis**: 5 cron triggers (6:30, 7:00, 8:00, 8:30, 9:00 AM EST)
+- **Real-Time Analysis**: Live Yahoo Finance data + N-HITS prediction model
+- **100% Success Rate**: All 5 symbols (AAPL, TSLA, MSFT, GOOGL, NVDA) analyzed successfully
+- **Cloud-Native Execution**: Zero local machine dependency, runs on Cloudflare edge
+- **KV Storage**: Results stored with 24h TTL for local sync
+- **Multi-Platform Alerts**: Email, Slack, Facebook Messenger, LINE (Taiwan) ready
+- **Health Monitoring**: /health, /analyze, /results endpoints operational
 - **Standalone Worker**: `cloudflare-worker-standalone.js` deployed with configured KV namespaces and resource limits optimized for free plan
