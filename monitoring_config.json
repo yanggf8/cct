@@ -1,0 +1,48 @@
+{
+  "email": {
+    "enabled": false,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "sender_email": "your-email@gmail.com",
+    "sender_password": "your-app-password",
+    "recipient_emails": ["alerts@yourcompany.com", "trader@yourcompany.com"]
+  },
+  "slack": {
+    "enabled": false,
+    "webhook_url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  },
+  "monitoring_interval": 300,
+  "critical_alerts": true,
+  "performance_logging": true,
+  "thresholds": {
+    "cpu_percent": 80,
+    "memory_percent": 85,
+    "disk_percent": 90,
+    "api_timeout_seconds": 10,
+    "max_consecutive_failures": 3,
+    "analysis_staleness_hours": 24
+  },
+  "trading_system": {
+    "pre_market_start": "06:30",
+    "market_open": "09:30",
+    "production_symbols": ["AAPL", "TSLA", "MSFT", "GOOGL", "NVDA"],
+    "risk_management": {
+      "max_position_size": 0.05,
+      "max_portfolio_risk": 0.20,
+      "stop_loss_percent": 0.08,
+      "take_profit_percent": 0.15,
+      "min_confidence_threshold": 0.65
+    }
+  },
+  "notifications": {
+    "high_confidence_threshold": 0.85,
+    "send_daily_summary": true,
+    "send_critical_alerts": true,
+    "send_performance_reports": true
+  },
+  "paper_trading": {
+    "initial_capital": 100000,
+    "track_performance": true,
+    "generate_reports": true
+  }
+}

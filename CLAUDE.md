@@ -47,17 +47,24 @@ The project prioritizes **validation over feature building**:
 
 ## Key Files
 
-- `cloud-trading-plan.md`: Complete system architecture and implementation plan
-- `trading-system-poc-plan.md`: 3-week validation-first POC approach
+### Core Trading System
 - `integrated_trading_system.py`: Main system upgraded to TFT Primary with N-HITS backup
 - `lightweight_tft.py`: TFT implementation with Neural/Statistical modes
 - `simple_nhits_model.py`: N-HITS backup model with hierarchical interpolation
-- `tft_nhits_comparison.py`: TFT vs N-HITS performance comparison framework
-- `tft_deployment_summary.md`: Complete TFT deployment documentation
-- `tft_modelscope_inference.py`: ModelScope cloud deployment script (TFT + N-HITS)
-- `tft_modelscope_config.json`: ModelScope configuration and API documentation
-- `modelscope_deployment_guide.md`: Complete ModelScope deployment instructions
-- `modelscope_deployment_success.md`: Live deployment status and next steps
+- `paper_trading_tracker.py`: Complete paper trading simulation and performance tracking
+- `system_monitor.py`: Production system health monitoring and alerting
+
+### Cloudflare Worker Automation
+- `cloudflare-worker-scheduler.js`: Main worker with automated pre-market analysis
+- `messenger-alerts.js`: Facebook Messenger and LINE integration functions
+- `wrangler.toml`: Cloudflare Worker deployment configuration
+- `cloudflare-worker-local-client.py`: Python client for result synchronization
+- `monitoring_config.json`: Production monitoring and alert configuration
+
+### Documentation and Guides
+- `CLOUDFLARE_WORKER_DEPLOYMENT.md`: Complete Cloudflare Worker deployment guide
+- `MESSENGER_SETUP_GUIDE.md`: Facebook Messenger and LINE Taiwan setup instructions
+- `modelscope_integration_complete.md`: ModelScope cloud integration documentation
 - `complete_poc_results.json`: Final validation results showing 100% success rate
 
 ## Technology Stack
@@ -112,3 +119,13 @@ When working on this project, prioritize validation of core technical assumption
 - **ModelScope API Ready**: Core model loading and inference functional, custom pipeline registered
 - Complete scaling analysis: 188 symbols/minute capacity, 33k analyses in pre-market window
 - **Dependency Resolution**: ModelScope v1.29.2 + datasets v4.0.0 + simplejson compatibility established
+
+**CLOUDFLARE WORKER AUTOMATION: COMPLETED ✅**
+- **Automated Pre-Market Analysis**: Cloudflare Workers with cron triggers (6:30-9:30 AM EST)
+- **Cloud-Native Execution**: No local machine dependency, runs entirely in Cloudflare's edge network
+- **Scheduled Analysis**: Every 30 minutes during pre-market hours (Mon-Fri)
+- **Result Storage**: Cloudflare KV storage with local sync via REST API
+- **Multi-Platform Alerts**: Email, Slack, Facebook Messenger, LINE (Taiwan) integration
+- **Rich Messaging**: Interactive cards, company logos, Traditional Chinese support for LINE
+- **Production Components**: Paper trading tracker, risk management, system monitoring
+- **Local Client**: Python client for result retrieval and paper trading sync when machine comes online

@@ -1,0 +1,63 @@
+# Wrangler configuration for TFT Trading System Worker
+
+name = "tft-trading-system"
+main = "cloudflare-worker-scheduler.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cron triggers for pre-market analysis (6:30-9:30 AM EST)
+[triggers]
+crons = [
+  "30 11 * * 1-5",  # 6:30 AM EST (11:30 UTC) Mon-Fri
+  "0 12 * * 1-5",   # 7:00 AM EST (12:00 UTC) Mon-Fri  
+  "30 12 * * 1-5",  # 7:30 AM EST (12:30 UTC) Mon-Fri
+  "0 13 * * 1-5",   # 8:00 AM EST (13:00 UTC) Mon-Fri
+  "30 13 * * 1-5",  # 8:30 AM EST (13:30 UTC) Mon-Fri
+  "0 14 * * 1-5"    # 9:00 AM EST (14:00 UTC) Mon-Fri
+]
+
+# KV namespace for storing analysis results
+[[kv_namespaces]]
+binding = "TRADING_RESULTS"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# Environment variables
+[vars]
+# Public configuration
+EMAIL_ENABLED = "false"
+WORKER_VERSION = "1.0"
+TIMEZONE = "America/New_York"
+
+# Development environment
+[env.development]
+name = "tft-trading-system-dev"
+vars = { EMAIL_ENABLED = "false" }
+
+# Production environment  
+[env.production]
+name = "tft-trading-system-prod"
+vars = { EMAIL_ENABLED = "true" }
+
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# Required secrets:
+# - MODELSCOPE_API_TOKEN: ModelScope API access token
+# - CLOUDFLARE_ACCOUNT_ID: Your Cloudflare account ID
+# - CLOUDFLARE_API_TOKEN: Cloudflare API token for AI access
+# - SLACK_WEBHOOK_URL: Slack webhook for alerts (optional)
+# - ALERT_EMAIL: Email address for trading alerts (optional)
+
+# Resource limits
+[limits]
+cpu_ms = 30000      # 30 seconds max execution time
+memory_mb = 256     # 256MB memory limit
+
+# AI binding for Cloudflare AI
+[ai]
+binding = "AI"
+
+# Custom routes for API access
+[routes]
+pattern = "trading-api.yourdomain.com/*"
+zone_name = "yourdomain.com"
+custom_domain = true
