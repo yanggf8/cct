@@ -43,14 +43,14 @@ class LightweightTFT:
         
         # TFT Configuration
         self.config = {
-            'sequence_length': 60,      # Look back 60 days
-            'hidden_size': 128,         # Hidden layer size
-            'num_heads': 8,             # Attention heads
-            'num_layers': 3,            # Transformer layers
+            'sequence_length': 20,      # Look back 20 days (reduced for small datasets)
+            'hidden_size': 64,          # Hidden layer size (reduced for stability)
+            'num_heads': 4,             # Attention heads (reduced)
+            'num_layers': 2,            # Transformer layers (reduced)
             'dropout': 0.1,             # Dropout rate
             'learning_rate': 0.001,     # Learning rate
-            'epochs': 100,              # Training epochs
-            'batch_size': 32,           # Batch size
+            'epochs': 50,               # Training epochs (reduced for speed)
+            'batch_size': 16,           # Batch size (reduced)
         }
         
         print(f"🚀 Lightweight TFT initialized for {symbol}")
@@ -62,24 +62,36 @@ class LightweightTFT:
         
         features = []
         
+        # Handle both uppercase (Yahoo Finance) and lowercase column names
+        open_col = 'Open' if 'Open' in df.columns else 'open'
+        high_col = 'High' if 'High' in df.columns else 'high'
+        low_col = 'Low' if 'Low' in df.columns else 'low'
+        close_col = 'Close' if 'Close' in df.columns else 'close'
+        volume_col = 'Volume' if 'Volume' in df.columns else 'volume'
+        
         # Price features
         features.extend([
-            df['open'].values,
-            df['high'].values, 
-            df['low'].values,
-            df['close'].values,
-            np.log(df['volume'].values + 1),  # Log transform volume
+            df[open_col].values,
+            df[high_col].values, 
+            df[low_col].values,
+            df[close_col].values,
+            np.log(df[volume_col].values + 1),  # Log transform volume
         ])
         
-        # Technical indicators
+        # Technical indicators with forward-fill for small datasets
+        sma5 = df[close_col].rolling(5, min_periods=1).mean().values
+        sma10 = df[close_col].rolling(10, min_periods=1).mean().values  
+        sma20 = df[close_col].rolling(20, min_periods=1).mean().values
+        rsi = self._calculate_rsi(df[close_col], min_periods=1).values
+        
         features.extend([
-            df['close'].rolling(5).mean().values,   # SMA 5
-            df['close'].rolling(10).mean().values,  # SMA 10
-            df['close'].rolling(20).mean().values,  # SMA 20
-            self._calculate_rsi(df['close']).values,
-            df['close'].pct_change().values,        # Daily returns
-            df['close'].pct_change(5).values,       # 5-day returns
-            df['close'].rolling(20).std().values,   # Volatility
+            sma5,   # SMA 5 with min_periods=1
+            sma10,  # SMA 10 with min_periods=1
+            sma20,  # SMA 20 with min_periods=1
+            rsi,    # RSI with min_periods=1
+            df[close_col].pct_change().fillna(0).values,        # Daily returns (fill NaN with 0)
+            df[close_col].pct_change(5).fillna(0).values,       # 5-day returns (fill NaN with 0)
+            df[close_col].rolling(20, min_periods=1).std().values,   # Volatility with min_periods=1
         ])
         
         # Time features
@@ -92,20 +104,44 @@ class LightweightTFT:
         # Stack features
         feature_matrix = np.column_stack(features)
         
-        # Remove NaN rows
+        # Remove NaN rows (should be minimal now)
         valid_mask = ~np.isnan(feature_matrix).any(axis=1)
         feature_matrix = feature_matrix[valid_mask]
+        
+        # If still no valid samples, use simplified features
+        if len(feature_matrix) == 0:
+            print("⚠️ No valid samples after NaN removal, using simplified features")
+            # Just use OHLCV + time features (no technical indicators)
+            simplified_features = [
+                df[open_col].values,
+                df[high_col].values, 
+                df[low_col].values,
+                df[close_col].values,
+                np.log(df[volume_col].values + 1),
+                df.index.dayofweek.values,
+                df.index.month.values,
+                df.index.quarter.values,
+            ]
+            feature_matrix = np.column_stack(simplified_features)
         
         print(f"📊 Prepared features: {feature_matrix.shape[1]} features, {feature_matrix.shape[0]} samples")
         return feature_matrix
     
-    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
-        """Calculate RSI"""
+    def _calculate_rsi(self, prices: pd.Series, period: int = 14, min_periods: int = None) -> pd.Series:
+        """Calculate RSI with min_periods support"""
+        if min_periods is None:
+            min_periods = period
+        
         delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
+        gain = (delta.where(delta > 0, 0)).rolling(window=period, min_periods=min_periods).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=min_periods).mean()
+        
+        # Handle division by zero
+        rs = gain / loss.replace(0, 1e-10)
+        rsi = 100 - (100 / (1 + rs))
+        
+        # Fill remaining NaN with 50 (neutral)
+        return rsi.fillna(50)
     
     def create_sequences(self, data: np.ndarray, target: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Create sequences for TFT training"""
@@ -231,14 +267,15 @@ class LightweightTFTModel(LightweightTFT):
         # Evaluation
         self.model.eval()
         with torch.no_grad():
-            train_pred = self.model(X_tensor).numpy().flatten()
+            train_pred = self.model(X_tensor).detach().numpy().flatten()
             
         # Metrics
         mse = mean_squared_error(y, train_pred)
         mae = mean_absolute_error(y, train_pred)
         
-        # Direction accuracy
-        actual_direction = np.sign(np.diff(y, prepend=y[0]))
+        # Direction accuracy - ensure y is 1D
+        y_flat = y.flatten() if hasattr(y, 'flatten') else y
+        actual_direction = np.sign(np.diff(y_flat, prepend=y_flat[0]))
         pred_direction = np.sign(np.diff(train_pred, prepend=train_pred[0]))
         direction_accuracy = np.mean(actual_direction == pred_direction)
         
@@ -327,8 +364,13 @@ class LightweightTFTModel(LightweightTFT):
     def _predict_neural(self, sequence: np.ndarray) -> Dict[str, Any]:
         """Neural TFT prediction"""
         
-        # Scale input
-        sequence_scaled = self.scaler.transform(sequence.reshape(-1, sequence.shape[-1])).reshape(sequence.shape)
+        # Scale input - ensure proper dimensions
+        if sequence.ndim == 1:
+            # If 1D, reshape to 2D for scaler
+            sequence_scaled = self.scaler.transform(sequence.reshape(1, -1)).flatten()
+        else:
+            # If 2D, reshape for scaler then back to original shape
+            sequence_scaled = self.scaler.transform(sequence.reshape(-1, sequence.shape[-1])).reshape(sequence.shape)
         
         # Convert to tensor
         X_tensor = torch.FloatTensor(sequence_scaled).unsqueeze(0)
@@ -403,7 +445,7 @@ class LightweightTFTModel(LightweightTFT):
             # Create sequences
             X, y = self.create_sequences(feature_matrix, target)
             
-            if len(X) < 50:
+            if len(X) < 30:  # Reduced minimum requirement
                 raise ValueError("Insufficient data for training")
             
             print(f"📊 Training data: {len(X)} sequences, {X.shape[1]} timesteps, {X.shape[2]} features")
@@ -440,13 +482,23 @@ class LightweightTFTModel(LightweightTFT):
             df = pd.DataFrame(sequence_data, columns=['open', 'high', 'low', 'close', 'volume'])
             df.index = pd.date_range(end=datetime.now(), periods=len(df))
             
+            # Get current price from original data (before scaling)
+            current_price = df['close'].iloc[-1]
+            
             # Prepare features (same as training)
             feature_matrix = self.prepare_features(df)
             
-            # Use last sequence for prediction
-            if len(feature_matrix) >= self.config['sequence_length']:
-                sequence = feature_matrix[-self.config['sequence_length']:]
-                return self.predict_with_tft(sequence)
+            # Use last sequence for prediction (adapt to available data)
+            available_length = min(len(feature_matrix), self.config['sequence_length'])
+            if available_length >= 5:  # Minimum viable sequence length
+                sequence = feature_matrix[-available_length:]
+                result = self.predict_with_tft(sequence)
+                # Override current_price with the correct unscaled value
+                result['current_price'] = current_price
+                result['price_change'] = result['predicted_price'] - current_price
+                result['price_change_percent'] = (result['price_change'] / current_price) * 100
+                result['direction'] = 'UP' if result['price_change'] > 0 else 'DOWN'
+                return result
             else:
                 raise ValueError("Insufficient data for prediction")
                 

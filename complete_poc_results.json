@@ -1,6 +1,6 @@
 {
   "poc_validation": {
-    "timestamp": "2025-09-03T12:13:10.287685",
+    "timestamp": "2025-09-03T16:03:43.419153",
     "success_rate": 100.0,
     "status": "SUCCESS"
   },
@@ -8,54 +8,54 @@
     "AAPL": {
       "success": true,
       "symbol": "AAPL",
-      "timestamp": "2025-09-03T12:12:51.448054",
+      "timestamp": "2025-09-03T16:03:19.457812",
       "current_price": 229.72000122070312,
       "trading_signal": {
-        "action": "BUY",
-        "strength": "MODERATE",
-        "combined_score": 0.4,
+        "action": "HOLD",
+        "strength": "NEUTRAL",
+        "combined_score": -0.16999999999999993,
         "confidence": 0.975,
-        "reasoning": "Bullish price prediction (+0.0%) + BULLISH sentiment"
+        "reasoning": "Mixed signals or low confidence (score: -0.17)"
       },
       "components": {
         "price_prediction": {
-          "predicted_price": 229.74125213623046,
-          "change_pct": 0.009250790272683135,
-          "signal_score": 0.0,
+          "predicted_price": 7.668634414672852,
+          "change_pct": -96.66174718182018,
+          "signal_score": -1.0,
           "confidence": 0.95
         },
         "sentiment_analysis": {
           "sentiment": "BULLISH",
           "signal_score": 1.0,
           "confidence": 1.0,
-          "recommendation": "STRONG BUY - 2 bullish signals"
+          "recommendation": "STRONG BUY - 3 bullish signals"
         }
       }
     },
     "TSLA": {
       "success": true,
       "symbol": "TSLA",
-      "timestamp": "2025-09-03T12:13:08.285416",
+      "timestamp": "2025-09-03T16:03:41.416698",
       "current_price": 329.3599853515625,
       "trading_signal": {
-        "action": "BUY",
-        "strength": "MODERATE",
-        "combined_score": 0.4,
-        "confidence": 0.9740865683851405,
-        "reasoning": "Bullish price prediction (-0.1%) + BULLISH sentiment"
+        "action": "HOLD",
+        "strength": "NEUTRAL",
+        "combined_score": -0.29,
+        "confidence": 0.825,
+        "reasoning": "Mixed signals or low confidence (score: -0.29)"
       },
       "components": {
         "price_prediction": {
-          "predicted_price": 328.9892333984375,
-          "change_pct": -0.11256739422345978,
-          "signal_score": 0.0,
-          "confidence": 0.9481731367702811
+          "predicted_price": 15.050433158874512,
+          "change_pct": -95.43040022217346,
+          "signal_score": -1.0,
+          "confidence": 0.95
         },
         "sentiment_analysis": {
           "sentiment": "BULLISH",
-          "signal_score": 1.0,
-          "confidence": 1.0,
-          "recommendation": "STRONG BUY - 3 bullish signals"
+          "signal_score": 0.7,
+          "confidence": 0.7,
+          "recommendation": "STRONG BUY - 2 bullish signals"
         }
       }
     }

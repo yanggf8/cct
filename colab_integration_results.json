@@ -1,0 +1,80 @@
+{
+  "colab_integration_validation": {
+    "timestamp": "2025-09-03T13:16:46.709170",
+    "success_rate": 100.0,
+    "api_mode": "MOCK",
+    "platform": "Google Colab",
+    "status": "SUCCESS"
+  },
+  "individual_results": {
+    "AAPL": {
+      "success": true,
+      "action": "HOLD NEUTRAL",
+      "signal_score": -0.14226077703449957,
+      "confidence": 0.928,
+      "reasoning": "DOWN price prediction (-0.0%) + BULLISH sentiment",
+      "symbol": "AAPL",
+      "current_price": 229.72000122070312,
+      "timestamp": "2025-09-03T13:16:28.123204",
+      "system_version": "5.0-Colab-Integrated",
+      "deployment_type": "Hybrid-Cloud-Colab",
+      "api_mode": "MOCK",
+      "platform": "Google Colab + Cloudflare",
+      "components": {
+        "price_prediction": {
+          "signal_score": -0.9037679617241661,
+          "confidence": 0.88,
+          "model_used": "TFT-Colab-T4",
+          "gpu_inference_time": 45.0,
+          "api_latency": 0.014781951904296875
+        },
+        "sentiment_analysis": {
+          "signal_score": 1.0,
+          "confidence": 1.0,
+          "recommendation": "STRONG BUY - 1 bullish signals"
+        }
+      }
+    },
+    "TSLA": {
+      "success": true,
+      "action": "BUY STRONG",
+      "signal_score": 0.9285919128043728,
+      "confidence": 0.928,
+      "reasoning": "UP price prediction (+0.0%) + BULLISH sentiment",
+      "symbol": "TSLA",
+      "current_price": 329.3599853515625,
+      "timestamp": "2025-09-03T13:16:46.709107",
+      "system_version": "5.0-Colab-Integrated",
+      "deployment_type": "Hybrid-Cloud-Colab",
+      "api_mode": "MOCK",
+      "platform": "Google Colab + Cloudflare",
+      "components": {
+        "price_prediction": {
+          "signal_score": 0.8809865213406214,
+          "confidence": 0.88,
+          "model_used": "TFT-Colab-T4",
+          "gpu_inference_time": 45.0,
+          "api_latency": 0.011682510375976562
+        },
+        "sentiment_analysis": {
+          "signal_score": 1.0,
+          "confidence": 1.0,
+          "recommendation": "STRONG BUY - 2 bullish signals"
+        }
+      }
+    }
+  },
+  "api_performance": {
+    "api_mode": "MOCK",
+    "platform": "Google Colab",
+    "stats_available": false,
+    "message": "Performance stats available only for real Colab API"
+  },
+  "system_info": {
+    "version": "5.0-Colab-Integrated",
+    "deployment_type": "Hybrid-Cloud-Colab",
+    "colab_notebook": "/home/yanggf/a/cct/colab_tft_deployment.ipynb",
+    "migration_from": "ModelScope",
+    "migration_to": "Google Colab"
+  }
+}

@@ -47,9 +47,9 @@ class IntegratedTradingSystem:
             if hist.empty:
                 return {'success': False, 'error': 'No market data available'}
             
-            # Get latest OHLCV data for LSTM prediction
+            # Get latest OHLCV data for TFT/N-HITS prediction
             latest_data = []
-            for i in range(min(10, len(hist))):  # Last 10 days for LSTM sequence
+            for i in range(min(30, len(hist))):  # Last 30 days for TFT sequence
                 row = hist.iloc[-(i+1)]
                 latest_data.insert(0, [
                     float(row['Open']),
