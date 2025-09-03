@@ -55,9 +55,10 @@ The project prioritizes **validation over feature building**:
 - `system_monitor.py`: Production system health monitoring and alerting
 
 ### Cloudflare Worker Automation
-- `cloudflare-worker-scheduler.js`: Main worker with automated pre-market analysis
+- `cloudflare-worker-standalone.js`: Standalone worker with automated pre-market analysis and alert system
+- `cloudflare-worker-scheduler.js`: Previous version (deprecated)
 - `messenger-alerts.js`: Facebook Messenger and LINE integration functions
-- `wrangler.toml`: Cloudflare Worker deployment configuration
+- `wrangler.toml`: Cloudflare Worker deployment configuration with KV namespaces
 - `cloudflare-worker-local-client.py`: Python client for result synchronization
 - `monitoring_config.json`: Production monitoring and alert configuration
 
@@ -129,3 +130,4 @@ When working on this project, prioritize validation of core technical assumption
 - **Rich Messaging**: Interactive cards, company logos, Traditional Chinese support for LINE
 - **Production Components**: Paper trading tracker, risk management, system monitoring
 - **Local Client**: Python client for result retrieval and paper trading sync when machine comes online
+- **Standalone Worker**: `cloudflare-worker-standalone.js` deployed with configured KV namespaces and resource limits optimized for free plan

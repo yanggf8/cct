@@ -1,7 +1,7 @@
 # Wrangler configuration for TFT Trading System Worker
 
 name = "tft-trading-system"
-main = "cloudflare-worker-scheduler.js"
+main = "cloudflare-worker-standalone.js"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -19,8 +19,8 @@ crons = [
 # KV namespace for storing analysis results
 [[kv_namespaces]]
 binding = "TRADING_RESULTS"
-id = "your-kv-namespace-id"
-preview_id = "your-preview-kv-namespace-id"
+id = "321593c6717448dfb24ea2bd48cde1fa"
+preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
 # Environment variables
 [vars]
@@ -47,17 +47,16 @@ vars = { EMAIL_ENABLED = "true" }
 # - SLACK_WEBHOOK_URL: Slack webhook for alerts (optional)
 # - ALERT_EMAIL: Email address for trading alerts (optional)
 
-# Resource limits
-[limits]
-cpu_ms = 30000      # 30 seconds max execution time
-memory_mb = 256     # 256MB memory limit
+# Resource limits (removed for free plan)
+# [limits]
+# cpu_ms = 30000      # 30 seconds max execution time - requires paid plan
+# memory_mb = 256     # 256MB memory limit
 
 # AI binding for Cloudflare AI
 [ai]
 binding = "AI"
 
-# Custom routes for API access
-[routes]
-pattern = "trading-api.yourdomain.com/*"
-zone_name = "yourdomain.com"
-custom_domain = true
+# Custom routes for API access (uncomment and configure if you have a custom domain)
+# [[routes]]
+# pattern = "trading-api.yourdomain.com/*" 
+# zone_name = "yourdomain.com"
