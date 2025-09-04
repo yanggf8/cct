@@ -85,8 +85,17 @@ export default {
   async scheduled(controller, env, ctx) {
     const scheduledTime = new Date(controller.scheduledTime);
     const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const currentHour = estTime.getHours();
+    const currentMinute = estTime.getMinutes();
     
-    console.log(`🚀 Scheduled analysis triggered at ${estTime.toISOString()}`);
+    // Determine if this is the final daily report (9:00 AM EST = 14:00 UTC)
+    const isFinalDailyReport = (currentHour === 9 || (currentHour === 14 && currentMinute === 0));
+    
+    console.log(`🚀 Scheduled analysis triggered at ${estTime.toISOString()}`, {
+      hour: currentHour,
+      minute: currentMinute, 
+      isFinalDailyReport
+    });
     
     // Reset circuit breakers if in recovery period
     Object.keys(circuitBreaker).forEach(service => {
@@ -94,7 +103,7 @@ export default {
     });
     
     try {
-      const analysisResult = await runPreMarketAnalysis(env);
+      const analysisResult = await runPreMarketAnalysis(env, { isFinalDailyReport });
       
       // Validate analysis result
       if (!analysisResult || !analysisResult.symbols_analyzed || analysisResult.symbols_analyzed.length === 0) {
@@ -196,7 +205,8 @@ export default {
 /**
  * Run complete pre-market analysis for all symbols
  */
-async function runPreMarketAnalysis(env) {
+async function runPreMarketAnalysis(env, options = {}) {
+  const { isFinalDailyReport = false } = options;
   const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'NVDA'];
   const analysisResults = {
     run_id: `worker_${new Date().toISOString().replace(/[:.]/g, '_')}`,
@@ -1197,9 +1207,113 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
 }
 
 /**
+ * Send message via Facebook Messenger (helper function)
+ */
+async function sendFacebookMessage(messageText, env) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
+      },
+      body: JSON.stringify({
+        recipient: { id: env.FACEBOOK_RECIPIENT_ID },
+        message: { text: messageText },
+        messaging_type: 'UPDATE'
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Facebook API error response:', errorText);
+      throw new Error(`Facebook API HTTP ${response.status}: Request failed`);
+    }
+    
+    const responseData = await response.json();
+    console.log('✅ Facebook message sent successfully:', {
+      message_id: responseData.message_id,
+      recipient_id: responseData.recipient_id
+    });
+    
+    return responseData;
+    
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
+/**
  * Send daily summary via Facebook Messenger - ENHANCED DEBUGGING
  */
-async function sendFacebookDailySummary(analysisResults, env) {
+// Send high-confidence alerts only (for intermediate triggers)
+async function sendFacebookHighConfidenceAlert(analysisResults, env) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log('⚠️ Facebook Messenger not configured for alerts');
+    return;
+  }
+
+  const alerts = analysisResults.alerts || [];
+  if (alerts.length === 0) {
+    console.log('ℹ️ No high-confidence alerts to send');
+    return;
+  }
+
+  // Create alert message
+  let alertText = `🚨 HIGH CONFIDENCE TRADING ALERT\n\n`;
+  alertText += `📊 ${alerts.length} Strong Signal${alerts.length > 1 ? 's' : ''} Detected:\n\n`;
+
+  alerts.forEach(alert => {
+    alertText += `📈 ${alert.symbol}: ${alert.action}\n`;
+    alertText += `• Confidence: ${(alert.confidence * 100).toFixed(1)}%\n`;
+    alertText += `• Signal: ${alert.reasoning}\n`;
+    alertText += `• Price: $${alert.current_price}\n\n`;
+  });
+
+  alertText += `⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST\n`;
+  alertText += `🤖 TFT Trading System Alert`;
+
+  await sendFacebookMessage(alertText, env);
+}
+
+// Generate candle chart ASCII art
+function generateCandleChart(symbol, currentPrice, tftPrice, nhitsPrice) {
+  const prices = [currentPrice, tftPrice, nhitsPrice];
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 0.01; // avoid division by zero
+  
+  // Simple ASCII candle representation
+  let chart = `📊 ${symbol} Price Chart:\n`;
+  chart += `┌─────────────────────────┐\n`;
+  
+  // Current price bar
+  const currentPos = Math.round(((currentPrice - min) / range) * 20);
+  chart += `│Current: ${' '.repeat(currentPos)}█${' '.repeat(20-currentPos)}│ $${currentPrice.toFixed(2)}\n`;
+  
+  // TFT prediction bar
+  const tftPos = Math.round(((tftPrice - min) / range) * 20);
+  chart += `│TFT:     ${' '.repeat(tftPos)}▓${' '.repeat(20-tftPos)}│ $${tftPrice.toFixed(2)}\n`;
+  
+  // N-HITS prediction bar
+  const nhitsPos = Math.round(((nhitsPrice - min) / range) * 20);
+  chart += `│N-HITS:  ${' '.repeat(nhitsPos)}░${' '.repeat(20-nhitsPos)}│ $${nhitsPrice.toFixed(2)}\n`;
+  
+  chart += `└─────────────────────────┘\n`;
+  chart += `Range: $${min.toFixed(2)} - $${max.toFixed(2)}`;
+  
+  return chart;
+}
+
+// Send comprehensive daily report with candle charts (for 9:00 AM trigger only)
+async function sendFacebookDailyReport(analysisResults, env, includeCharts = false) {
   console.log('🔍 sendFacebookDailySummary called with:', {
     has_analysis_results: !!analysisResults,
     has_trading_signals: !!(analysisResults?.trading_signals),
@@ -1221,7 +1335,9 @@ async function sendFacebookDailySummary(analysisResults, env) {
     const date = new Date().toLocaleDateString('en-US');
     const signals = Object.entries(analysisResults.trading_signals || {});
     
-    let summaryText = `📊 Daily Trading Summary - ${date}\n\n`;
+    let summaryText = includeCharts 
+      ? `📊 FINAL DAILY REPORT - ${date}\n🕘 Pre-Market Analysis Complete\n\n`
+      : `📊 Daily Trading Summary - ${date}\n\n`;
     
     if (signals.length > 0) {
       summaryText += `📈 Today's Analysis (${signals.length} symbols):\n\n`;
@@ -1230,7 +1346,19 @@ async function sendFacebookDailySummary(analysisResults, env) {
         const confidenceEmoji = signal.confidence > 0.8 ? '🔥' : signal.confidence > 0.6 ? '📈' : '💭';
         summaryText += `${confidenceEmoji} ${symbol}: ${signal.action}\n`;
         summaryText += `   💰 $${signal.current_price.toFixed(2)} | ${(signal.confidence * 100).toFixed(1)}%\n`;
-        summaryText += `   ${signal.reasoning.substring(0, 50)}...\n\n`;
+        summaryText += `   ${signal.reasoning.substring(0, 50)}...\n`;
+        
+        // Add candle chart if this is the final daily report
+        if (includeCharts && signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
+          const modelComp = signal.components.price_prediction.model_comparison;
+          const currentPrice = signal.current_price;
+          const tftPrice = modelComp.tft_prediction?.price || currentPrice;
+          const nhitsPrice = modelComp.nhits_prediction?.price || currentPrice;
+          
+          summaryText += `\n${generateCandleChart(symbol, currentPrice, tftPrice, nhitsPrice)}\n`;
+        }
+        
+        summaryText += `\n`;
       });
       
       // Add performance metrics
@@ -1245,44 +1373,23 @@ async function sendFacebookDailySummary(analysisResults, env) {
       summaryText += `No trading signals generated today.\n\nSystem Status: Operational ✅`;
     }
 
+    // Add final report timestamp and signature
+    if (includeCharts) {
+      summaryText += `\n\n⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST`;
+      summaryText += `\n🤖 TFT Trading System - Daily Report Complete`;
+    } else {
+      summaryText += `\n\n⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST`;
+      summaryText += `\n🤖 TFT Trading System Summary`;
+    }
+
     console.log('📤 Sending Facebook daily summary...', {
       message_length: summaryText.length,
-      signal_count: signals.length
+      signal_count: signals.length,
+      include_charts: includeCharts
     });
 
-    // Send daily summary with timeout and proper error handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-    
-    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
-      },
-      body: JSON.stringify({
-        recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-        message: { text: summaryText },
-        messaging_type: 'UPDATE'
-      }),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-
-    console.log('📡 Facebook API response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Facebook API error response:', errorText);
-      throw new Error(`Facebook API HTTP ${response.status}: Request failed`);
-    }
-    
-    const responseData = await response.json();
-    console.log('✅ Facebook daily summary sent successfully:', {
-      message_id: responseData.message_id,
-      recipient_id: responseData.recipient_id
-    });
+    // Use helper function to send message
+    const responseData = await sendFacebookMessage(summaryText, env);
     
     return { success: true, message_id: responseData.message_id };
 
@@ -1599,22 +1706,35 @@ async function handleManualAnalysis(request, env) {
       await sendAlerts(result, env);
     }
 
-    // Always send daily summary to Facebook (regardless of confidence) with enhanced debugging
-    console.log('🔍 Checking Facebook configuration...');
+    // Send Facebook notifications based on analysis type
+    console.log('🔍 Checking Facebook notification logic...');
     console.log('🔍 Facebook configuration check:', {
       token_status: env.FACEBOOK_PAGE_TOKEN ? 'Validated ✅' : 'Missing ❌',
       recipient_status: env.FACEBOOK_RECIPIENT_ID ? 'Configured ✅' : 'Missing ❌',
-      recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+      isFinalDailyReport,
+      highConfidenceSignals: result.alerts ? result.alerts.length : 0
     });
     
     if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
-      console.log('✅ Facebook tokens available, sending daily summary...');
       try {
-        await sendFacebookDailySummary(result, env);
-        console.log('✅ Facebook daily summary completed successfully');
+        if (isFinalDailyReport) {
+          // Send comprehensive daily report with candle charts at 9:00 AM
+          console.log('📊 Sending final daily report with candle charts...');
+          await sendFacebookDailyReport(result, env, true); // true = include candle charts
+          console.log('✅ Facebook daily report completed successfully');
+        } else {
+          // Send high-confidence alerts only during other triggers
+          const highConfidenceAlerts = result.alerts || [];
+          if (highConfidenceAlerts.length > 0) {
+            console.log('🚨 Sending high-confidence alerts...', { count: highConfidenceAlerts.length });
+            await sendFacebookHighConfidenceAlert(result, env);
+            console.log('✅ Facebook high-confidence alert sent successfully');
+          } else {
+            console.log('ℹ️ No high-confidence signals, skipping notification');
+          }
+        }
       } catch (fbError) {
-        console.error('❌ Facebook daily summary failed:', fbError.message);
-        // Don't fail the entire request, but add error to result
+        console.error('❌ Facebook notification failed:', fbError.message);
         result.facebook_error = fbError.message;
       }
     } else {
