@@ -3,6 +3,7 @@
 name = "tft-trading-system"
 main = "cloudflare-worker-standalone.js"
 compatibility_date = "2024-01-01"
+# account_id moved to environment variable for security
 
 # Cron triggers for pre-market analysis (6:30-9:00 AM EST) + Sunday weekly reports - Limited to 5 triggers on free plan
 [triggers]
