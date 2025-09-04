@@ -161,17 +161,36 @@ async function runPreMarketAnalysis(env) {
         throw new Error(`Market data failed: ${marketData.error}`);
       }
       
-      // Get TFT prediction (primary) - for initial deployment, we'll use N-HITS
-      let priceSignal;
-      try {
-        priceSignal = await getNHITSPrediction(symbol, marketData.data, env);
-        priceSignal.model_used = 'N-HITS-Backup';
-      } catch (error) {
-        console.log(`   ❌ N-HITS failed for ${symbol}: ${error.message}`);
-        // Fallback to simple prediction
-        priceSignal = await getSimplePrediction(symbol, marketData.data);
-        priceSignal.model_used = 'Simple-Fallback';
+      // Run DUAL ACTIVE models: TFT + N-HITS in parallel
+      console.log(`   🔄 Running dual models (TFT + N-HITS) for ${symbol}...`);
+      
+      const [tftResult, nhitsResult] = await Promise.allSettled([
+        getTFTPrediction(symbol, marketData.data, env),
+        getNHITSPrediction(symbol, marketData.data, env)
+      ]);
+      
+      // Process TFT results
+      let tftPrediction = null;
+      if (tftResult.status === 'fulfilled') {
+        tftPrediction = tftResult.value;
+        tftPrediction.model_name = 'TFT-Primary';
+        console.log(`   ✅ TFT: ${tftPrediction.direction} ${tftPrediction.current_price?.toFixed(2)} → ${tftPrediction.predicted_price?.toFixed(2)}`);
+      } else {
+        console.log(`   ❌ TFT failed for ${symbol}: ${tftResult.reason?.message || 'Unknown error'}`);
       }
+      
+      // Process N-HITS results  
+      let nhitsPrediction = null;
+      if (nhitsResult.status === 'fulfilled') {
+        nhitsPrediction = nhitsResult.value;
+        nhitsPrediction.model_name = 'N-HITS-Active';
+        console.log(`   ✅ N-HITS: ${nhitsPrediction.direction} ${nhitsPrediction.current_price?.toFixed(2)} → ${nhitsPrediction.predicted_price?.toFixed(2)}`);
+      } else {
+        console.log(`   ❌ N-HITS failed for ${symbol}: ${nhitsResult.reason?.message || 'Unknown error'}`);
+      }
+      
+      // Combine dual model predictions
+      const priceSignal = combineDualModelPredictions(tftPrediction, nhitsPrediction, symbol, marketData.current_price);
       
       // Get sentiment analysis
       const sentimentSignal = await getSentimentAnalysis(symbol, env);
@@ -287,18 +306,18 @@ async function getMarketData(symbol) {
 }
 
 /**
- * Get ModelScope prediction (TFT Primary + N-HITS Backup)
+ * Get TFT prediction (Temporal Fusion Transformer)
  */
-async function getNHITSPrediction(symbol, ohlcv_data, env) {
+async function getTFTPrediction(symbol, ohlcv_data, env) {
   try {
     const current_price = ohlcv_data[ohlcv_data.length - 1][3];
     
-    // First try ModelScope API if configured
+    // First try ModelScope API for TFT if configured
     if (env.MODELSCOPE_API_URL && env.MODELSCOPE_API_KEY) {
       try {
-        console.log(`   🌐 Calling ModelScope API for ${symbol}...`);
+        console.log(`   🌐 Calling ModelScope TFT API for ${symbol}...`);
         
-        const modelScopeResult = await callModelScopeAPI(symbol, ohlcv_data, env);
+        const modelScopeResult = await callModelScopeAPI(symbol, ohlcv_data, env, 'TFT');
         
         if (modelScopeResult.success) {
           return {
@@ -308,17 +327,119 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
             current_price: modelScopeResult.current_price,
             direction: modelScopeResult.direction,
             model_latency: modelScopeResult.inference_time_ms || 0,
-            model_used: modelScopeResult.model_used,
+            model_used: 'TFT-ModelScope',
             api_source: 'ModelScope'
           };
         }
       } catch (apiError) {
-        console.log(`   ⚠️ ModelScope API failed for ${symbol}: ${apiError.message}`);
+        console.log(`   ⚠️ ModelScope TFT API failed for ${symbol}: ${apiError.message}`);
+      }
+    }
+    
+    // Fallback to local TFT-style calculation (enhanced temporal patterns)
+    console.log(`   🔄 Using local TFT calculation for ${symbol}`);
+    
+    const closes = ohlcv_data.map(d => d[3]);
+    const volumes = ohlcv_data.map(d => d[4]);
+    const highs = ohlcv_data.map(d => d[1]);
+    const lows = ohlcv_data.map(d => d[2]);
+    
+    // TFT-style multi-scale temporal analysis
+    const short_window = 5;
+    const medium_window = 10;
+    const long_window = 20;
+    
+    // Price momentum at different scales
+    const short_momentum = calculateMomentum(closes, short_window);
+    const medium_momentum = calculateMomentum(closes, medium_window);
+    const long_momentum = calculateMomentum(closes, long_window);
+    
+    // Volume-weighted price analysis
+    const vwap = calculateVWAP(closes, volumes, 10);
+    const price_vs_vwap = (current_price - vwap) / vwap;
+    
+    // Volatility analysis
+    const volatility = calculateVolatility(closes, 10);
+    const volatility_factor = Math.min(1.0, volatility / 0.02); // Normalize to 2%
+    
+    // TFT-style attention mechanism simulation (weighted combination)
+    const temporal_weights = {
+      short: 0.5,    // Recent trends matter most
+      medium: 0.3,   // Medium-term context
+      long: 0.2      // Long-term baseline
+    };
+    
+    const combined_momentum = (
+      short_momentum * temporal_weights.short +
+      medium_momentum * temporal_weights.medium +
+      long_momentum * temporal_weights.long
+    );
+    
+    // Factor in volume and volatility
+    const final_signal = combined_momentum * (1 + price_vs_vwap * 0.3) * volatility_factor;
+    
+    // TFT tends to be more conservative, cap at ±3%
+    const predicted_change = Math.max(-0.03, Math.min(0.03, final_signal * 0.02));
+    const predicted_price = current_price * (1 + predicted_change);
+    
+    const confidence = Math.min(0.90, 0.65 + Math.abs(final_signal) * 0.15);
+    
+    return {
+      signal_score: Math.max(-0.9, Math.min(0.9, final_signal)),
+      confidence: confidence,
+      predicted_price: predicted_price,
+      current_price: current_price,
+      direction: final_signal > 0 ? 'UP' : 'DOWN',
+      model_latency: 12, // TFT is typically slower
+      model_used: 'TFT-Local',
+      api_source: 'Local',
+      components: {
+        short_momentum: short_momentum,
+        medium_momentum: medium_momentum, 
+        long_momentum: long_momentum,
+        vwap_signal: price_vs_vwap,
+        volatility_factor: volatility_factor
+      }
+    };
+    
+  } catch (error) {
+    throw new Error(`TFT prediction failed: ${error.message}`);
+  }
+}
+
+/**
+ * Get N-HITS prediction (Neural Hierarchical Interpolation)
+ */
+async function getNHITSPrediction(symbol, ohlcv_data, env) {
+  try {
+    const current_price = ohlcv_data[ohlcv_data.length - 1][3];
+    
+    // First try ModelScope API for N-HITS if configured
+    if (env.MODELSCOPE_API_URL && env.MODELSCOPE_API_KEY) {
+      try {
+        console.log(`   🌐 Calling ModelScope N-HITS API for ${symbol}...`);
+        
+        const modelScopeResult = await callModelScopeAPI(symbol, ohlcv_data, env, 'N-HITS');
+        
+        if (modelScopeResult.success) {
+          return {
+            signal_score: modelScopeResult.direction === 'UP' ? Math.abs(modelScopeResult.price_change_percent) / 10 : -Math.abs(modelScopeResult.price_change_percent) / 10,
+            confidence: modelScopeResult.confidence,
+            predicted_price: modelScopeResult.predicted_price,
+            current_price: modelScopeResult.current_price,
+            direction: modelScopeResult.direction,
+            model_latency: modelScopeResult.inference_time_ms || 0,
+            model_used: 'N-HITS-ModelScope',
+            api_source: 'ModelScope'
+          };
+        }
+      } catch (apiError) {
+        console.log(`   ⚠️ ModelScope N-HITS API failed for ${symbol}: ${apiError.message}`);
       }
     }
     
     // Fallback to local N-HITS calculation
-    console.log(`   🔄 Using fallback N-HITS calculation for ${symbol}`);
+    console.log(`   🔄 Using local N-HITS calculation for ${symbol}`);
     
     const closes = ohlcv_data.map(d => d[3]);
     
@@ -353,9 +474,162 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
 }
 
 /**
+ * Helper functions for TFT calculations
+ */
+function calculateMomentum(prices, window) {
+  if (prices.length < window + 1) return 0;
+  
+  const recent = prices.slice(-window);
+  const older = prices.slice(-(window + 1), -1);
+  
+  const recent_avg = recent.reduce((a, b) => a + b) / recent.length;
+  const older_avg = older.reduce((a, b) => a + b) / older.length;
+  
+  return (recent_avg - older_avg) / older_avg;
+}
+
+function calculateVWAP(prices, volumes, window) {
+  const length = Math.min(window, prices.length);
+  const recent_prices = prices.slice(-length);
+  const recent_volumes = volumes.slice(-length);
+  
+  let totalVolume = 0;
+  let totalVolumePrice = 0;
+  
+  for (let i = 0; i < length; i++) {
+    const volume = recent_volumes[i] || 1; // Default volume if missing
+    totalVolume += volume;
+    totalVolumePrice += recent_prices[i] * volume;
+  }
+  
+  return totalVolume > 0 ? totalVolumePrice / totalVolume : recent_prices[recent_prices.length - 1];
+}
+
+function calculateVolatility(prices, window) {
+  const length = Math.min(window, prices.length);
+  const recent_prices = prices.slice(-length);
+  
+  if (length < 2) return 0.01; // Default low volatility
+  
+  const returns = [];
+  for (let i = 1; i < length; i++) {
+    returns.push((recent_prices[i] - recent_prices[i-1]) / recent_prices[i-1]);
+  }
+  
+  const mean_return = returns.reduce((a, b) => a + b) / returns.length;
+  const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - mean_return, 2), 0) / returns.length;
+  
+  return Math.sqrt(variance);
+}
+
+/**
+ * Combine dual model predictions (TFT + N-HITS)
+ */
+function combineDualModelPredictions(tftPrediction, nhitsPrediction, symbol, currentPrice) {
+  console.log(`   🔄 Combining dual model predictions for ${symbol}`);
+  
+  // Handle cases where one or both models failed
+  if (!tftPrediction && !nhitsPrediction) {
+    console.log(`   ❌ Both models failed for ${symbol}, using fallback`);
+    return {
+      signal_score: 0,
+      confidence: 0.4,
+      predicted_price: currentPrice,
+      current_price: currentPrice,
+      direction: 'NEUTRAL',
+      model_latency: 2,
+      model_used: 'Fallback-Both-Failed',
+      api_source: 'Local'
+    };
+  }
+  
+  if (!tftPrediction) {
+    console.log(`   ⚠️ TFT failed, using N-HITS only for ${symbol}`);
+    nhitsPrediction.model_used = 'N-HITS-Only';
+    return nhitsPrediction;
+  }
+  
+  if (!nhitsPrediction) {
+    console.log(`   ⚠️ N-HITS failed, using TFT only for ${symbol}`);
+    tftPrediction.model_used = 'TFT-Only';
+    return tftPrediction;
+  }
+  
+  // Both models succeeded - combine intelligently
+  console.log(`   ✅ Both models succeeded for ${symbol}, combining predictions`);
+  
+  // Model-specific weights based on their strengths
+  const tftWeight = 0.55;     // TFT slightly favored for complex patterns
+  const nhitsWeight = 0.45;   // N-HITS good for trend continuation
+  
+  // Combine signal scores
+  const combinedSignalScore = (tftPrediction.signal_score * tftWeight) + (nhitsPrediction.signal_score * nhitsWeight);
+  
+  // Combine confidence (higher confidence models get more weight)
+  const confidenceWeightedAvg = (
+    (tftPrediction.confidence * tftWeight) + 
+    (nhitsPrediction.confidence * nhitsWeight)
+  );
+  
+  // Consensus bonus: if both models agree on direction, boost confidence
+  const directionsAgree = tftPrediction.direction === nhitsPrediction.direction;
+  const consensusBonus = directionsAgree ? 0.1 : -0.05;
+  const finalConfidence = Math.min(0.95, Math.max(0.3, confidenceWeightedAvg + consensusBonus));
+  
+  // Combine predicted prices (weighted average)
+  const combinedPredictedPrice = (
+    (tftPrediction.predicted_price * tftWeight) + 
+    (nhitsPrediction.predicted_price * nhitsWeight)
+  );
+  
+  // Final direction based on combined signal
+  const finalDirection = combinedSignalScore > 0.05 ? 'UP' : (combinedSignalScore < -0.05 ? 'DOWN' : 'NEUTRAL');
+  
+  // Combined model latency
+  const combinedLatency = Math.max(tftPrediction.model_latency, nhitsPrediction.model_latency);
+  
+  const result = {
+    signal_score: combinedSignalScore,
+    confidence: finalConfidence,
+    predicted_price: combinedPredictedPrice,
+    current_price: currentPrice,
+    direction: finalDirection,
+    model_latency: combinedLatency,
+    model_used: 'TFT+N-HITS-Ensemble',
+    api_source: 'Dual',
+    model_comparison: {
+      tft_prediction: {
+        price: tftPrediction.predicted_price,
+        direction: tftPrediction.direction,
+        confidence: tftPrediction.confidence,
+        signal_score: tftPrediction.signal_score,
+        source: tftPrediction.model_used
+      },
+      nhits_prediction: {
+        price: nhitsPrediction.predicted_price,
+        direction: nhitsPrediction.direction,
+        confidence: nhitsPrediction.confidence,
+        signal_score: nhitsPrediction.signal_score,
+        source: nhitsPrediction.model_used
+      },
+      agreement: {
+        directional_consensus: directionsAgree,
+        confidence_boost: consensusBonus,
+        prediction_spread: Math.abs(tftPrediction.predicted_price - nhitsPrediction.predicted_price),
+        signal_correlation: Math.abs(tftPrediction.signal_score - nhitsPrediction.signal_score)
+      }
+    }
+  };
+  
+  console.log(`   📊 Combined: ${finalDirection} (TFT: ${tftPrediction.direction}, N-HITS: ${nhitsPrediction.direction}) - Consensus: ${directionsAgree ? '✅' : '❌'}`);
+  
+  return result;
+}
+
+/**
  * Call ModelScope API for TFT + N-HITS prediction with circuit breaker
  */
-async function callModelScopeAPI(symbol, ohlcv_data, env) {
+async function callModelScopeAPI(symbol, ohlcv_data, env, modelType = 'TFT') {
   if (isCircuitBreakerOpen('modelScope')) {
     console.log(`   🔴 ModelScope circuit breaker open for ${symbol}`);
     updateCircuitBreaker('modelScope', false);
@@ -632,7 +906,7 @@ function combineSignals(priceSignal, sentimentSignal, symbol, currentPrice) {
     current_price: currentPrice,
     reasoning: `${priceSignal.direction} price prediction (${priceSignal.model_used}) + ${sentimentSignal.sentiment} sentiment`,
     timestamp: new Date().toISOString(),
-    system_version: '1.0-Cloudflare-Worker-Production',
+    system_version: '2.0-Dual-Model-Production',
     components: {
       price_prediction: {
         signal_score: priceSignal.signal_score,
@@ -640,13 +914,27 @@ function combineSignals(priceSignal, sentimentSignal, symbol, currentPrice) {
         model_used: priceSignal.model_used,
         predicted_price: priceSignal.predicted_price,
         direction: priceSignal.direction,
-        latency_ms: priceSignal.model_latency
+        latency_ms: priceSignal.model_latency,
+        model_comparison: priceSignal.model_comparison || null
       },
       sentiment_analysis: {
         signal_score: sentimentSignal.signal_score,
         confidence: sentimentSignal.confidence,
         sentiment: sentimentSignal.sentiment,
-        recommendation: sentimentSignal.recommendation
+        recommendation: sentimentSignal.recommendation,
+        news_articles: sentimentSignal.news_articles || 0,
+        source: sentimentSignal.source || 'unknown'
+      },
+      dual_model_analytics: priceSignal.model_comparison ? {
+        both_models_active: true,
+        directional_consensus: priceSignal.model_comparison.agreement.directional_consensus,
+        prediction_spread_pct: ((priceSignal.model_comparison.agreement.prediction_spread / currentPrice) * 100).toFixed(3),
+        signal_correlation: priceSignal.model_comparison.agreement.signal_correlation.toFixed(3),
+        ensemble_confidence_boost: priceSignal.model_comparison.agreement.confidence_boost
+      } : {
+        both_models_active: false,
+        active_model: priceSignal.model_used,
+        fallback_reason: priceSignal.model_used.includes('Only') ? 'single_model_failure' : 'unknown'
       }
     }
   };

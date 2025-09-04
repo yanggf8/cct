@@ -67,15 +67,43 @@ class AccuracyTracker:
         
         for symbol, signal in prediction_data.get("trading_signals", {}).items():
             if signal.get("success"):
-                daily_prediction["predictions"][symbol] = {
+                price_comp = signal.get("components", {}).get("price_prediction", {})
+                dual_analytics = signal.get("components", {}).get("dual_model_analytics", {})
+                
+                prediction_entry = {
                     "current_price": signal.get("current_price"),
-                    "predicted_price": signal.get("components", {}).get("price_prediction", {}).get("predicted_price"),
-                    "direction": signal.get("components", {}).get("price_prediction", {}).get("direction"),
+                    "predicted_price": price_comp.get("predicted_price"),
+                    "direction": price_comp.get("direction"),
                     "action": signal.get("action"),
                     "confidence": signal.get("confidence"),
                     "signal_score": signal.get("signal_score"),
-                    "sentiment": signal.get("components", {}).get("sentiment_analysis", {}).get("sentiment")
+                    "sentiment": signal.get("components", {}).get("sentiment_analysis", {}).get("sentiment"),
+                    "model_used": price_comp.get("model_used"),
+                    "dual_model_active": dual_analytics.get("both_models_active", False)
                 }
+                
+                # Add dual model comparison data if available
+                if price_comp.get("model_comparison"):
+                    comparison = price_comp["model_comparison"]
+                    prediction_entry["dual_model_comparison"] = {
+                        "tft": {
+                            "price": comparison["tft_prediction"]["price"],
+                            "direction": comparison["tft_prediction"]["direction"],
+                            "confidence": comparison["tft_prediction"]["confidence"],
+                            "source": comparison["tft_prediction"]["source"]
+                        },
+                        "nhits": {
+                            "price": comparison["nhits_prediction"]["price"],
+                            "direction": comparison["nhits_prediction"]["direction"],
+                            "confidence": comparison["nhits_prediction"]["confidence"],
+                            "source": comparison["nhits_prediction"]["source"]
+                        },
+                        "consensus": comparison["agreement"]["directional_consensus"],
+                        "prediction_spread": comparison["agreement"]["prediction_spread"],
+                        "confidence_boost": comparison["agreement"]["confidence_boost"]
+                    }
+                
+                daily_prediction["predictions"][symbol] = prediction_entry
         
         # Store prediction
         self.tracking_data["predictions"].append(daily_prediction)
@@ -129,6 +157,14 @@ class AccuracyTracker:
         correct_directions = 0
         total_symbols = 0
         
+        # Dual model tracking
+        tft_correct = 0
+        nhits_correct = 0
+        ensemble_correct = 0
+        dual_active_count = 0
+        consensus_correct = 0
+        consensus_total = 0
+        
         print(f"📈 Validating {len(prediction['predictions'])} symbols...")
         
         for symbol, pred in prediction["predictions"].items():
@@ -152,6 +188,49 @@ class AccuracyTracker:
                 
                 if direction_correct:
                     correct_directions += 1
+                    if pred.get("model_used", "").startswith("TFT+N-HITS"):
+                        ensemble_correct += 1
+                
+                # Track dual model performance if available
+                dual_model_results = {}
+                if pred.get("dual_model_comparison"):
+                    dual_active_count += 1
+                    comparison = pred["dual_model_comparison"]
+                    
+                    tft_direction_correct = comparison["tft"]["direction"] == actual_direction
+                    nhits_direction_correct = comparison["nhits"]["direction"] == actual_direction
+                    
+                    if tft_direction_correct:
+                        tft_correct += 1
+                    if nhits_direction_correct:
+                        nhits_correct += 1
+                    
+                    # Track consensus accuracy
+                    if comparison["consensus"]:
+                        consensus_total += 1
+                        if direction_correct:
+                            consensus_correct += 1
+                    
+                    dual_model_results = {
+                        "tft_prediction": {
+                            "price": comparison["tft"]["price"],
+                            "direction": comparison["tft"]["direction"],
+                            "direction_correct": tft_direction_correct
+                        },
+                        "nhits_prediction": {
+                            "price": comparison["nhits"]["price"],
+                            "direction": comparison["nhits"]["direction"], 
+                            "direction_correct": nhits_direction_correct
+                        },
+                        "consensus_agreement": comparison["consensus"],
+                        "prediction_spread": comparison["prediction_spread"],
+                        "both_models_correct": tft_direction_correct and nhits_direction_correct,
+                        "ensemble_vs_individuals": {
+                            "ensemble_correct": direction_correct,
+                            "tft_correct": tft_direction_correct,
+                            "nhits_correct": nhits_direction_correct
+                        }
+                    }
                 
                 validation_results["results"][symbol] = {
                     "predicted_price": predicted_price,
@@ -162,10 +241,22 @@ class AccuracyTracker:
                     "actual_direction": actual_direction,
                     "actual_change_pct": actual_change_pct,
                     "direction_correct": direction_correct,
-                    "action_taken": pred.get("action", "UNKNOWN")
+                    "action_taken": pred.get("action", "UNKNOWN"),
+                    "model_used": pred.get("model_used", "UNKNOWN"),
+                    "dual_model_active": pred.get("dual_model_active", False),
+                    "dual_model_results": dual_model_results
                 }
                 
-                print(f"   {symbol}: {predicted_direction} pred vs {actual_direction} actual - {'✅' if direction_correct else '❌'}")
+                status_icon = '✅' if direction_correct else '❌'
+                model_info = f"({pred.get('model_used', 'Unknown')})"
+                print(f"   {symbol}: {predicted_direction} pred vs {actual_direction} actual {status_icon} {model_info}")
+                
+                # Show dual model breakdown if available
+                if dual_model_results:
+                    tft_icon = '✅' if dual_model_results['tft_prediction']['direction_correct'] else '❌'
+                    nhits_icon = '✅' if dual_model_results['nhits_prediction']['direction_correct'] else '❌'
+                    consensus_note = ' (consensus)' if dual_model_results['consensus_agreement'] else ' (disagreement)'
+                    print(f"      TFT: {dual_model_results['tft_prediction']['direction']} {tft_icon}, N-HITS: {dual_model_results['nhits_prediction']['direction']} {nhits_icon}{consensus_note}")
                 
                 total_symbols += 1
         
@@ -173,13 +264,43 @@ class AccuracyTracker:
         if total_symbols > 0:
             validation_results["directional_accuracy"] = (correct_directions / total_symbols) * 100
             validation_results["overall_accuracy"] = validation_results["directional_accuracy"]  # For now, same as directional
+            
+            # Add dual model analytics
+            validation_results["dual_model_analytics"] = {
+                "dual_active_symbols": dual_active_count,
+                "dual_active_percentage": (dual_active_count / total_symbols) * 100 if total_symbols > 0 else 0,
+                "model_accuracies": {
+                    "ensemble": (ensemble_correct / dual_active_count) * 100 if dual_active_count > 0 else 0,
+                    "tft_individual": (tft_correct / dual_active_count) * 100 if dual_active_count > 0 else 0,
+                    "nhits_individual": (nhits_correct / dual_active_count) * 100 if dual_active_count > 0 else 0
+                },
+                "consensus_performance": {
+                    "consensus_cases": consensus_total,
+                    "consensus_accuracy": (consensus_correct / consensus_total) * 100 if consensus_total > 0 else 0,
+                    "consensus_vs_disagreement": {
+                        "when_agree": (consensus_correct / consensus_total) * 100 if consensus_total > 0 else 0,
+                        "when_disagree": ((correct_directions - consensus_correct) / (total_symbols - consensus_total)) * 100 if (total_symbols - consensus_total) > 0 else 0
+                    }
+                }
+            }
         
         # Store validation results
         self.tracking_data["accuracy_history"].append(validation_results)
         self.save_tracking_data()
         
         print(f"📊 Validation Results:")
-        print(f"   Directional Accuracy: {validation_results['directional_accuracy']:.1f}% ({correct_directions}/{total_symbols})")
+        print(f"   Overall Directional Accuracy: {validation_results['directional_accuracy']:.1f}% ({correct_directions}/{total_symbols})")
+        
+        # Show dual model analytics if available
+        if dual_active_count > 0:
+            dual_analytics = validation_results["dual_model_analytics"]
+            print(f"   Dual Model Performance:")
+            print(f"      Ensemble (TFT+N-HITS): {dual_analytics['model_accuracies']['ensemble']:.1f}%")
+            print(f"      TFT Individual: {dual_analytics['model_accuracies']['tft_individual']:.1f}%")
+            print(f"      N-HITS Individual: {dual_analytics['model_accuracies']['nhits_individual']:.1f}%")
+            print(f"      Consensus Cases: {consensus_total}/{dual_active_count} ({(consensus_total/dual_active_count)*100:.1f}%)")
+            if consensus_total > 0:
+                print(f"      Consensus Accuracy: {dual_analytics['consensus_performance']['consensus_accuracy']:.1f}%")
         
         return validation_results
     
