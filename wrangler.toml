@@ -31,6 +31,10 @@ WORKER_VERSION = "1.0"
 TIMEZONE = "America/New_York"
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
+# Required for production:
+# - MODELSCOPE_API_URL: ModelScope deployment endpoint (e.g., https://your-modelscope-endpoint.com)
+# - MODELSCOPE_API_KEY: ModelScope API authentication key
+# 
 # Optional secrets:
 # - SLACK_WEBHOOK_URL: Slack webhook for alerts
 # - ALERT_EMAIL: Email address for trading alerts  
@@ -38,3 +42,8 @@ TIMEZONE = "America/New_York"
 # - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
 # - LINE_CHANNEL_TOKEN: LINE messaging API token
 # - LINE_USER_ID: Your LINE user ID
+#
+# Example deployment commands:
+# wrangler secret put MODELSCOPE_API_URL
+# wrangler secret put MODELSCOPE_API_KEY
+# wrangler secret put SLACK_WEBHOOK_URL
