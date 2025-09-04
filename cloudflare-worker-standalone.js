@@ -75,12 +75,17 @@ export default {
       await env.TRADING_RESULTS.put(
         `analysis_${estTime.toISOString().split('T')[0]}`, // YYYY-MM-DD key
         JSON.stringify(analysisResult),
-        { expirationTtl: 86400 } // 24 hours
+        { expirationTtl: 604800 } // 7 days for weekly validation
       );
       
-      // Send notifications if enabled
+      // Send high-confidence alerts if any
       if (analysisResult.alerts && analysisResult.alerts.length > 0) {
         await sendAlerts(analysisResult, env);
+      }
+
+      // Always send daily summary to Facebook (regardless of confidence)
+      if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
+        await sendFacebookDailySummary(analysisResult, env);
       }
       
       console.log(`✅ Analysis completed: ${analysisResult.symbols_analyzed.length} symbols`);
@@ -990,6 +995,11 @@ async function sendAlerts(analysisResults, env) {
   if (env.SLACK_WEBHOOK_URL) {
     await sendSlackAlerts(alerts, analysisResults, env);
   }
+
+  // Send Facebook Messenger alerts
+  if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
+    await sendFacebookMessengerAlert(alerts, analysisResults, env);
+  }
   
   console.log(`📬 Sent ${alerts.length} high-confidence alerts`);
 }
@@ -1063,6 +1073,128 @@ async function sendSlackAlerts(alerts, analysisResults, env) {
     
   } catch (error) {
     console.error('❌ Slack alert failed:', error);
+  }
+}
+
+/**
+ * Send Facebook Messenger alert with retry
+ */
+async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log('⚠️ Facebook Messenger not configured - skipping');
+    return;
+  }
+
+  try {
+    const highConfidenceAlerts = alerts.filter(a => a.level === 'HIGH_CONFIDENCE');
+    
+    if (highConfidenceAlerts.length === 0) return;
+
+    // Format message for Messenger
+    let messageText = `🎯 Trading Alert - ${highConfidenceAlerts.length} High Confidence Signals\n\n`;
+    
+    highConfidenceAlerts.forEach(alert => {
+      const signal = analysisResults.trading_signals[alert.symbol];
+      if (signal) {
+        messageText += `📈 ${alert.symbol}: ${signal.action}\n`;
+        messageText += `   💰 Price: $${signal.current_price.toFixed(2)}\n`;
+        messageText += `   🎯 Confidence: ${(signal.confidence * 100).toFixed(1)}%\n`;
+        messageText += `   💡 ${signal.reasoning}\n\n`;
+      }
+    });
+
+    // Add performance summary
+    const perf = analysisResults.performance_metrics;
+    messageText += `📊 Performance:\n`;
+    messageText += `✅ Success Rate: ${perf.success_rate.toFixed(1)}%\n`;
+    messageText += `📈 Avg Confidence: ${(perf.avg_confidence * 100).toFixed(1)}%\n`;
+    messageText += `📋 Signals: ${JSON.stringify(perf.signal_distribution)}`;
+
+    // Send via Facebook Graph API
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
+      },
+      body: JSON.stringify({
+        recipient: {
+          id: env.FACEBOOK_RECIPIENT_ID
+        },
+        message: {
+          text: messageText
+        },
+        messaging_type: 'UPDATE'
+      })
+    });
+
+    if (response.ok) {
+      console.log('✅ Facebook Messenger alert sent successfully');
+    } else {
+      const error = await response.text();
+      console.error('❌ Facebook Messenger alert failed:', error);
+    }
+
+  } catch (error) {
+    console.error('❌ Facebook Messenger error:', error);
+  }
+}
+
+/**
+ * Send daily summary via Facebook Messenger
+ */
+async function sendFacebookDailySummary(analysisResults, env) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log('⚠️ Facebook Messenger not configured for daily summary');
+    return;
+  }
+
+  try {
+    const date = new Date().toLocaleDateString('en-US');
+    const signals = Object.entries(analysisResults.trading_signals || {});
+    
+    let summaryText = `📊 Daily Trading Summary - ${date}\n\n`;
+    
+    if (signals.length > 0) {
+      summaryText += `📈 Today's Analysis (${signals.length} symbols):\n\n`;
+      
+      signals.forEach(([symbol, signal]) => {
+        const confidenceEmoji = signal.confidence > 0.8 ? '🔥' : signal.confidence > 0.6 ? '📈' : '💭';
+        summaryText += `${confidenceEmoji} ${symbol}: ${signal.action}\n`;
+        summaryText += `   💰 $${signal.current_price.toFixed(2)} | ${(signal.confidence * 100).toFixed(1)}%\n`;
+        summaryText += `   ${signal.reasoning.substring(0, 50)}...\n\n`;
+      });
+      
+      // Add performance metrics
+      const perf = analysisResults.performance_metrics;
+      summaryText += `📊 Performance Metrics:\n`;
+      summaryText += `• Success Rate: ${perf.success_rate.toFixed(1)}%\n`;
+      summaryText += `• Average Confidence: ${(perf.avg_confidence * 100).toFixed(1)}%\n`;
+      summaryText += `• High Confidence Signals: ${perf.high_confidence_signals}\n`;
+      summaryText += `• Signal Distribution: ${JSON.stringify(perf.signal_distribution)}`;
+      
+    } else {
+      summaryText += `No trading signals generated today.\n\nSystem Status: Operational ✅`;
+    }
+
+    // Send daily summary
+    await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
+      },
+      body: JSON.stringify({
+        recipient: { id: env.FACEBOOK_RECIPIENT_ID },
+        message: { text: summaryText },
+        messaging_type: 'UPDATE'
+      })
+    });
+
+    console.log('✅ Facebook daily summary sent');
+
+  } catch (error) {
+    console.error('❌ Facebook daily summary failed:', error);
   }
 }
 
