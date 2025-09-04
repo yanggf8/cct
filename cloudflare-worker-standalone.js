@@ -88,13 +88,34 @@ export default {
     const currentHour = estTime.getHours();
     const currentMinute = estTime.getMinutes();
     
-    // Determine if this is the final daily report (9:00 AM EST)
-    const isFinalDailyReport = (currentHour === 9 && currentMinute === 0);
+    // Determine trigger mode and prediction horizons
+    let triggerMode, predictionHorizons;
+    
+    if (currentHour === 8 && currentMinute === 30) {
+      // 8:30 AM - Phase 1: 2-horizon predictions + high-confidence alerts
+      triggerMode = 'morning_prediction_alerts';
+      predictionHorizons = [1, 24]; // 1-hour and 24-hour forecasts
+    } else if (currentHour === 12 && currentMinute === 0) {
+      // 12:00 PM - Validate morning predictions + afternoon forecasts
+      triggerMode = 'midday_validation_prediction';
+      predictionHorizons = [8, 24]; // 8-hour (market close) + next-day
+    } else if (currentHour === 16 && currentMinute === 5) {
+      // 4:05 PM - Daily validation report + next-day predictions
+      triggerMode = 'daily_validation_report'; 
+      predictionHorizons = [18, 24]; // Next morning + next day
+    } else {
+      // Fallback or future expansion
+      triggerMode = 'unknown';
+      predictionHorizons = [];
+    }
+    
+    const isFinalDailyReport = false; // Not used in new system
     
     console.log(`🚀 Scheduled analysis triggered at ${estTime.toISOString()}`, {
       hour: currentHour,
       minute: currentMinute, 
-      isFinalDailyReport
+      triggerMode,
+      predictionHorizons
     });
     
     // Reset circuit breakers if in recovery period
@@ -103,7 +124,11 @@ export default {
     });
     
     try {
-      const analysisResult = await runPreMarketAnalysis(env, { isFinalDailyReport });
+      const analysisResult = await runPreMarketAnalysis(env, { 
+        triggerMode, 
+        predictionHorizons,
+        currentTime: estTime
+      });
       
       // Validate analysis result
       if (!analysisResult || !analysisResult.symbols_analyzed || analysisResult.symbols_analyzed.length === 0) {
@@ -702,7 +727,7 @@ function combineDualModelPredictions(tftPrediction, nhitsPrediction, symbol, cur
 /**
  * Call ModelScope API for TFT + N-HITS prediction with circuit breaker
  */
-async function callModelScopeAPI(symbol, ohlcv_data, env, modelType = 'TFT') {
+async function callModelScopeAPI(symbol, ohlcv_data, env, modelType = 'TFT', horizons = [1]) {
   if (isCircuitBreakerOpen('modelScope')) {
     console.log(`   🔴 ModelScope circuit breaker open for ${symbol}`);
     updateCircuitBreaker('modelScope', false);
@@ -714,7 +739,10 @@ async function callModelScopeAPI(symbol, ohlcv_data, env, modelType = 'TFT') {
     symbol: symbol,
     request_id: `${symbol}_${Date.now()}`,
     timestamp: new Date().toISOString(),
-    client_version: 'cloudflare-worker-1.0'
+    client_version: 'cloudflare-worker-2.0-multi-horizon',
+    model_type: modelType,
+    prediction_horizons: horizons, // [1, 4, 7, 24] for 1h, 4h, 7h, 24h ahead
+    max_predictions: horizons.length
   };
   
   const headers = {
@@ -1338,17 +1366,18 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
     const signals = Object.entries(analysisResults.trading_signals || {});
     
     let summaryText = includeCharts 
-      ? `📊 FINAL DAILY REPORT - ${date}\n🕘 Pre-Market Analysis Complete\n\n`
-      : `📊 Daily Trading Summary - ${date}\n\n`;
+      ? `🧪 PREDICTION VALIDATION REPORT - ${date}\n📈 Model Performance Analysis\n\n`
+      : `🧪 Model Prediction Summary - ${date}\n\n`;
     
     if (signals.length > 0) {
-      summaryText += `📈 Today's Analysis (${signals.length} symbols):\n\n`;
+      summaryText += `🎯 Today's Predictions (${signals.length} symbols):\n\n`;
       
       signals.forEach(([symbol, signal]) => {
-        const confidenceEmoji = signal.confidence > 0.8 ? '🔥' : signal.confidence > 0.6 ? '📈' : '💭';
-        summaryText += `${confidenceEmoji} ${symbol}: ${signal.action}\n`;
-        summaryText += `   💰 $${signal.current_price.toFixed(2)} | ${(signal.confidence * 100).toFixed(1)}%\n`;
-        summaryText += `   ${signal.reasoning.substring(0, 50)}...\n`;
+        const confidenceEmoji = signal.confidence > 0.8 ? '🎯' : signal.confidence > 0.6 ? '📊' : '🔍';
+        summaryText += `${confidenceEmoji} ${symbol} Forecast:\n`;
+        summaryText += `   💰 Current: $${signal.current_price.toFixed(2)}\n`;
+        summaryText += `   🔮 Predicted: ${signal.reasoning.includes('UP') ? '↗️' : signal.reasoning.includes('DOWN') ? '↘️' : '➡️'} (${(signal.confidence * 100).toFixed(1)}% confidence)\n`;
+        summaryText += `   🤖 Models: ${signal.reasoning.substring(0, 40)}...\n`;
         
         // Add candle chart if this is the final daily report
         if (includeCharts && signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
@@ -1363,25 +1392,25 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
         summaryText += `\n`;
       });
       
-      // Add performance metrics
+      // Add model validation metrics
       const perf = analysisResults.performance_metrics;
-      summaryText += `📊 Performance Metrics:\n`;
-      summaryText += `• Success Rate: ${perf.success_rate.toFixed(1)}%\n`;
-      summaryText += `• Average Confidence: ${(perf.avg_confidence * 100).toFixed(1)}%\n`;
-      summaryText += `• High Confidence Signals: ${perf.high_confidence_signals}\n`;
-      summaryText += `• Signal Distribution: ${JSON.stringify(perf.signal_distribution)}`;
+      summaryText += `🎯 Model Performance:\n`;
+      summaryText += `• Prediction Success Rate: ${perf.success_rate.toFixed(1)}%\n`;
+      summaryText += `• Average Model Confidence: ${(perf.avg_confidence * 100).toFixed(1)}%\n`;
+      summaryText += `• Predictions Generated: ${perf.total_symbols}\n`;
+      summaryText += `• Forecast Distribution: ${JSON.stringify(perf.signal_distribution).replace(/"/g, '').replace('BUY', '↗️Up').replace('SELL', '↘️Down').replace('HOLD', '➡️Neutral')}`;
       
     } else {
-      summaryText += `No trading signals generated today.\n\nSystem Status: Operational ✅`;
+      summaryText += `No predictions generated today.\n\n🔄 System Status: Operational ✅\n📊 Model Training: Active`;
     }
 
     // Add final report timestamp and signature
     if (includeCharts) {
       summaryText += `\n\n⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST`;
-      summaryText += `\n🤖 TFT Trading System - Daily Report Complete`;
+      summaryText += `\n🧪 TFT+N-HITS Model Validation System`;
     } else {
       summaryText += `\n\n⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST`;
-      summaryText += `\n🤖 TFT Trading System Summary`;
+      summaryText += `\n🤖 AI Prediction Tracking System`;
     }
 
     console.log('📤 Sending Facebook daily summary...', {

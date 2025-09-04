@@ -5,14 +5,12 @@ main = "cloudflare-worker-standalone.js"
 compatibility_date = "2024-01-01"
 # account_id moved to environment variable for security
 
-# Cron triggers for pre-market analysis (6:30-9:00 AM EST) + Sunday weekly reports - Limited to 5 triggers on free plan
+# Phase 1: Conservative dual-purpose system (prediction + validation)
 [triggers]
 crons = [
-  "30 11 * * 1-5",  # 6:30 AM EST (11:30 UTC) Mon-Fri
-  "0 12 * * 1-5",   # 7:00 AM EST (12:00 UTC) Mon-Fri  
-  "0 13 * * 1-5",   # 8:00 AM EST (13:00 UTC) Mon-Fri
-  "30 13 * * 1-5",  # 8:30 AM EST (13:30 UTC) Mon-Fri
-  "0 14 * * *"      # 9:00 AM EST (14:00 UTC) daily (includes Sunday for weekly reports)
+  "30 13 * * 1-5",  # 8:30 AM EST - Generate 2-horizon predictions (1h + 24h) + high-confidence alerts
+  "0 17 * * 1-5",   # 12:00 PM EST - Validate morning predictions + generate afternoon forecasts
+  "5 21 * * 1-5",   # 4:05 PM EST - Daily validation report + next-day predictions
 ]
 
 # KV namespace for storing analysis results
