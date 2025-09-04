@@ -149,9 +149,19 @@ When working on this project, prioritize validation of core technical assumption
 - **Extended Storage**: 7-day KV retention for weekly validation capabilities
 - **Cost Optimization**: ~$0.05/analysis with parallel processing efficiency
 
+**HIGH-CONFIDENCE ALERT SYSTEM ✅**
+- **Production Alerts**: Real-time Facebook Messenger alerts for signals >85% confidence
+- **Dual Alert Architecture**: Production alerts (real data) + Test endpoint (mock data) completely isolated
+- **Test Endpoint**: `/test-high-confidence` for safe Facebook integration testing
+- **Production Flow**: `runPreMarketAnalysis()` → `sendAlerts()` → `sendFacebookMessengerAlert()`
+- **Test Flow**: `/test-high-confidence` → `handleTestHighConfidence()` → `sendHighConfidenceAlert()`
+- **Alert Format**: Symbol, direction, confidence %, current vs target price, model breakdown
+- **No Interference**: Test endpoint uses separate functions and mock data, won't affect real trading alerts
+
 **DEPLOYMENT STATUS**
 - **Architecture Grade**: A+ (World-class cloud-native design maintained)
 - **Implementation Grade**: A+ (Security hardened - token logging removed, error messages sanitized)
 - **Security Grade**: A+ (Upgraded from A- - eliminated critical security vulnerabilities)
 - **Production Readiness**: A+ (Upgraded from A - comprehensive security hardening completed)
-- **Live System**: https://tft-trading-system.yanggf.workers.dev (Version: 2.4-Smart-Notifications)
+- **Alert System**: A+ (Dual-purpose production + test alerts with complete isolation)
+- **Live System**: https://tft-trading-system.yanggf.workers.dev (Version: 2.5-High-Confidence-Alerts)

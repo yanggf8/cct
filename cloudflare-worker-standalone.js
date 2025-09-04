@@ -103,6 +103,10 @@ export default {
       // 4:05 PM - Daily validation report + next-day predictions
       triggerMode = 'daily_validation_report'; 
       predictionHorizons = [18, 24]; // Next morning + next day
+    } else if (currentHour === 10 && currentMinute === 0 && estTime.getDay() === 0) {
+      // Sunday 10:00 AM - Weekly accuracy report
+      triggerMode = 'weekly_accuracy_report';
+      predictionHorizons = []; // No new predictions, just analysis
     } else {
       // Fallback or future expansion
       triggerMode = 'unknown';
@@ -220,8 +224,10 @@ export default {
       return handleWeeklyReport(request, env);
     } else if (url.pathname === '/test-daily-report') {
       return handleTestDailyReport(request, env);
+    } else if (url.pathname === '/test-high-confidence') {
+      return handleTestHighConfidence(request, env);
     } else {
-      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report', { 
+      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report, /test-high-confidence', { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
@@ -1379,14 +1385,19 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
         summaryText += `   🔮 Predicted: ${signal.reasoning.includes('UP') ? '↗️' : signal.reasoning.includes('DOWN') ? '↘️' : '➡️'} (${(signal.confidence * 100).toFixed(1)}% confidence)\n`;
         summaryText += `   🤖 Models: ${signal.reasoning.substring(0, 40)}...\n`;
         
-        // Add candle chart if this is the final daily report
+        // Add prediction range if this is the final daily report
         if (includeCharts && signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
           const modelComp = signal.components.price_prediction.model_comparison;
           const currentPrice = signal.current_price;
           const tftPrice = modelComp.tft_prediction?.price || currentPrice;
           const nhitsPrice = modelComp.nhits_prediction?.price || currentPrice;
           
-          summaryText += `\n${generateCandleChart(symbol, currentPrice, tftPrice, nhitsPrice)}\n`;
+          const minPrice = Math.min(currentPrice, tftPrice, nhitsPrice);
+          const maxPrice = Math.max(currentPrice, tftPrice, nhitsPrice);
+          const rangePct = ((maxPrice - minPrice) / currentPrice * 100).toFixed(2);
+          
+          summaryText += `   📊 TFT: $${tftPrice.toFixed(2)} | N-HITS: $${nhitsPrice.toFixed(2)}\n`;
+          summaryText += `   📈 Range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)} (±${rangePct}%)\n`;
         }
         
         summaryText += `\n`;
@@ -1592,14 +1603,16 @@ function formatWeeklyAccuracyReport(accuracyData, currentDate) {
   const weekEnd = currentDate.toLocaleDateString('en-US');
   const weekStart = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US');
   
-  let reportText = `📊 **WEEKLY ACCURACY REPORT**\n`;
-  reportText += `📅 Period: ${weekStart} - ${weekEnd}\n\n`;
+  let reportText = `🧪 **WEEKLY MODEL VALIDATION REPORT**\n`;
+  reportText += `📅 Period: ${weekStart} - ${weekEnd}\n`;
+  reportText += `🔬 Phase 1: Multi-Horizon Prediction Analysis\n\n`;
   
-  // Overview statistics
-  reportText += `📈 **System Performance:**\n`;
-  reportText += `• Active Days: ${accuracyData.total_days}/7\n`;
+  // Phase 1 performance metrics
+  reportText += `🎯 **Prediction Performance:**\n`;
+  reportText += `• Active Trading Days: ${accuracyData.total_days}/5\n`;
   reportText += `• Total Predictions: ${accuracyData.total_predictions}\n`;
-  reportText += `• Average Confidence: ${(accuracyData.average_confidence * 100).toFixed(1)}%\n\n`;
+  reportText += `• Multi-Horizon Forecasts: 1h + 24h ahead\n`;
+  reportText += `• Average Model Confidence: ${(accuracyData.average_confidence * 100).toFixed(1)}%\n\n`;
   
   // Model usage breakdown
   const totalModels = accuracyData.model_performance.tft_count + 
@@ -2058,4 +2071,109 @@ async function handleTestDailyReport(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
   }
+}
+
+/**
+ * Test endpoint for high-confidence alert messaging
+ */
+async function handleTestHighConfidence(request, env) {
+  try {
+    console.log('🚨 Testing high-confidence alert system...');
+    
+    // Create mock high-confidence prediction data
+    const mockData = {
+      timestamp: new Date().toISOString(),
+      symbol: 'AAPL',
+      tft_prediction: {
+        price: 178.45,
+        confidence: 87.3,
+        direction: 'BUY',
+        horizon: '1h'
+      },
+      nhits_prediction: {
+        price: 178.52,
+        confidence: 89.1,
+        direction: 'BUY',
+        horizon: '1h'
+      },
+      ensemble: {
+        price: 178.48,
+        confidence: 88.2,
+        direction: 'BUY'
+      },
+      current_price: 177.80,
+      change_pct: 0.38
+    };
+    
+    const result = {
+      test: 'high_confidence_alert',
+      confidence_threshold: 85.0,
+      mock_confidence: mockData.ensemble.confidence,
+      triggered: mockData.ensemble.confidence > 85.0
+    };
+    
+    // Test Facebook high-confidence alert if configured
+    if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
+      try {
+        console.log('📱 Sending high-confidence alert to Facebook...');
+        await sendHighConfidenceAlert(mockData, env);
+        result.facebook_alert = 'High-confidence alert sent successfully';
+      } catch (fbError) {
+        result.facebook_alert = `Error: ${fbError.message}`;
+      }
+    } else {
+      result.facebook_alert = 'Facebook not configured (set FACEBOOK_PAGE_TOKEN and FACEBOOK_RECIPIENT_ID)';
+    }
+    
+    return new Response(JSON.stringify(result, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ High-confidence alert test failed:', error.message);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      test: 'high_confidence_alert'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Send high-confidence alert to Facebook Messenger
+ */
+async function sendHighConfidenceAlert(data, env) {
+  const symbol = data.symbol;
+  const confidence = data.ensemble.confidence;
+  const direction = data.ensemble.direction;
+  const currentPrice = data.current_price;
+  const predictedPrice = data.ensemble.price;
+  const changePct = data.change_pct;
+  
+  const alertMessage = `🚨 HIGH CONFIDENCE SIGNAL 🚨
+
+📈 ${symbol} ${direction} Signal
+⚡ Confidence: ${confidence.toFixed(1)}%
+💰 Current: $${currentPrice.toFixed(2)}
+🎯 Target: $${predictedPrice.toFixed(2)}
+📊 Expected: ${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%
+
+🤖 TFT: ${data.tft_prediction.confidence.toFixed(1)}% confidence
+🎯 N-HITS: ${data.nhits_prediction.confidence.toFixed(1)}% confidence
+
+⏰ ${new Date().toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short'
+  })}`;
+
+  await sendFacebookMessage(alertMessage, env);
+  console.log(`📱 High-confidence alert sent for ${symbol} (${confidence.toFixed(1)}%)`);
 }
