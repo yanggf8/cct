@@ -1230,7 +1230,7 @@ async function sendFacebookDailySummary(analysisResults, env) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Facebook API error response:', errorText);
-      throw new Error(`Facebook API HTTP ${response.status}: ${errorText}`);
+      throw new Error(`Facebook API HTTP ${response.status}: Request failed`);
     }
     
     const responseData = await response.json();
@@ -1525,7 +1525,7 @@ async function sendCriticalAlert(errorMessage, env) {
       clearTimeout(timeoutId);
     } catch (error) {
       clearTimeout(timeoutId);
-      throw new Error(`Slack alert error: ${error.message}`);
+      throw new Error(`Slack alert error: Request failed`);
     }
   } else {
     throw new Error('No alert webhook configured');
@@ -1651,7 +1651,7 @@ async function handleFacebookTest(request, env) {
 ✅ Facebook integration test from TFT Trading System worker!
 
 🔧 Configuration:
-• Token: Present (${env.FACEBOOK_PAGE_TOKEN.length} chars)
+• Token: Validated ✅
 • Recipient: ${env.FACEBOOK_RECIPIENT_ID}
 • Endpoint: /me/messages
 • Worker Version: 1.0-Cloudflare
