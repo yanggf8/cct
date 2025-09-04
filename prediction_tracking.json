@@ -1,0 +1,58 @@
+{
+  "predictions": [
+    {
+      "date": "2025-09-04",
+      "timestamp": "2025-09-04T14:16:54.739916",
+      "run_id": "worker_2025-09-04T06_16_48_406Z",
+      "predictions": {
+        "AAPL": {
+          "current_price": 238.47000122070312,
+          "predicted_price": 238.7147791748047,
+          "direction": "UP",
+          "action": "HOLD NEUTRAL",
+          "confidence": null,
+          "signal_score": -0.10000000000000003,
+          "sentiment": "BEARISH"
+        },
+        "TSLA": {
+          "current_price": 334.0899963378906,
+          "predicted_price": 333.03482397460937,
+          "direction": "DOWN",
+          "action": "SELL STRONG",
+          "confidence": null,
+          "signal_score": -0.7,
+          "sentiment": "BEARISH"
+        },
+        "MSFT": {
+          "current_price": 505.3500061035156,
+          "predicted_price": 505.61070703124994,
+          "direction": "UP",
+          "action": "HOLD NEUTRAL",
+          "confidence": null,
+          "signal_score": -0.10000000000000003,
+          "sentiment": "BEARISH"
+        },
+        "GOOGL": {
+          "current_price": 230.66000366210938,
+          "predicted_price": 231.12347900390625,
+          "direction": "UP",
+          "action": "HOLD NEUTRAL",
+          "confidence": null,
+          "signal_score": -0.10000000000000003,
+          "sentiment": "BEARISH"
+        },
+        "NVDA": {
+          "current_price": 170.6199951171875,
+          "predicted_price": 170.91058117675783,
+          "direction": "UP",
+          "action": "HOLD NEUTRAL",
+          "confidence": null,
+          "signal_score": -0.10000000000000003,
+          "sentiment": "BEARISH"
+        }
+      },
+      "system_version": "1.0-Cloudflare"
+    }
+  ],
+  "accuracy_history": []
+}
