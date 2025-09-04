@@ -1302,15 +1302,17 @@ async function generateWeeklyAccuracyData(env, currentDate) {
     const accuracyResults = [];
     const weekDays = [];
     
-    // Get last 7 days of stored results
-    for (let i = 1; i <= 7; i++) {
+    // Get last 7 days of stored results (including today)
+    for (let i = 0; i <= 6; i++) {
       const checkDate = new Date(currentDate);
       checkDate.setDate(checkDate.getDate() - i);
       const dateStr = checkDate.toISOString().split('T')[0]; // YYYY-MM-DD
       weekDays.push(dateStr);
       
+      console.log(`🔍 Checking for data on date: ${dateStr} (key: analysis_${dateStr})`);
       const storedResult = await env.TRADING_RESULTS.get(`analysis_${dateStr}`);
       if (storedResult) {
+        console.log(`✅ Found data for ${dateStr}, size: ${storedResult.length} bytes`);
         try {
           const analysisData = JSON.parse(storedResult);
           accuracyResults.push({
@@ -1318,8 +1320,10 @@ async function generateWeeklyAccuracyData(env, currentDate) {
             analysis: analysisData
           });
         } catch (parseError) {
-          console.log(`⚠️ Failed to parse stored result for ${dateStr}`);
+          console.log(`⚠️ Failed to parse stored result for ${dateStr}: ${parseError.message}`);
         }
+      } else {
+        console.log(`❌ No data found for ${dateStr}`);
       }
     }
     
@@ -1535,6 +1539,15 @@ async function handleManualAnalysis(request, env) {
   try {
     console.log('🔄 Manual analysis requested');
     const result = await runPreMarketAnalysis(env);
+    
+    // Store results in KV for weekly accuracy tracking (same as scheduled function)
+    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    await env.TRADING_RESULTS.put(
+      `analysis_${currentDate}`,
+      JSON.stringify(result),
+      { expirationTtl: 604800 } // 7 days for weekly reports
+    );
+    console.log(`💾 Manual analysis results stored in KV for date: ${currentDate}`);
     
     // Send notifications same as scheduled function
     if (result.alerts && result.alerts.length > 0) {
