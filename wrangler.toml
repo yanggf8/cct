@@ -4,14 +4,14 @@ name = "tft-trading-system"
 main = "cloudflare-worker-standalone.js"
 compatibility_date = "2024-01-01"
 
-# Cron triggers for pre-market analysis (6:30-9:00 AM EST) - Limited to 5 triggers on free plan
+# Cron triggers for pre-market analysis (6:30-9:00 AM EST) + Sunday weekly reports - Limited to 5 triggers on free plan
 [triggers]
 crons = [
   "30 11 * * 1-5",  # 6:30 AM EST (11:30 UTC) Mon-Fri
   "0 12 * * 1-5",   # 7:00 AM EST (12:00 UTC) Mon-Fri  
   "0 13 * * 1-5",   # 8:00 AM EST (13:00 UTC) Mon-Fri
   "30 13 * * 1-5",  # 8:30 AM EST (13:30 UTC) Mon-Fri
-  "0 14 * * 1-5"    # 9:00 AM EST (14:00 UTC) Mon-Fri
+  "0 14 * * *"      # 9:00 AM EST (14:00 UTC) daily (includes Sunday for weekly reports)
 ]
 
 # KV namespace for storing analysis results

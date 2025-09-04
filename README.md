@@ -93,6 +93,22 @@ Dual Model Analytics → Comprehensive Performance Comparison
 - `complete_poc_results.json` - Final validation results
 - `daily_predictions.json` - Active predictions for validation
 
+## 📊 Weekly Accuracy Tracking
+
+The system now includes automated weekly accuracy reports sent via Facebook Messenger every Sunday at 9:00 AM EST. These reports provide:
+
+### **Weekly Report Features**
+- **System Performance**: Active days, total predictions, average confidence
+- **Model Usage Breakdown**: TFT vs N-HITS vs Ensemble usage percentages  
+- **Confidence Distribution**: High (>80%), Medium (60-80%), Low (<60%) signal counts
+- **Signal Distribution**: BUY/SELL/HOLD pattern analysis
+- **Data Retention**: 7-day historical analysis from stored predictions
+
+### **Accuracy Report Schedule**
+- **Automatic**: Every Sunday 9:00 AM EST via Facebook Messenger
+- **Manual**: Access via `/weekly-report` endpoint anytime
+- **Integration**: Works with existing daily summaries and alerts
+
 ## 🔧 Quick Start
 
 ### 1. Live System Access
@@ -105,6 +121,9 @@ curl https://tft-trading-system.yanggf.workers.dev/health
 
 # Test Facebook Messenger integration
 curl https://tft-trading-system.yanggf.workers.dev/test-facebook
+
+# Get weekly accuracy report via Facebook
+curl https://tft-trading-system.yanggf.workers.dev/weekly-report
 
 # View stored results
 curl https://tft-trading-system.yanggf.workers.dev/results?date=2025-09-04
@@ -188,7 +207,7 @@ python production_monitor.py health
 - [x] **Consensus Detection**: Intelligent ensemble with confidence boosting
 - [x] **Performance Tracking**: Comprehensive dual model analytics
 - [x] **Automated Monitoring**: Health checks and performance monitoring
-- [x] **Facebook Messenger Integration**: Automated alerts and daily summaries operational
+- [x] **Facebook Messenger Integration**: Automated alerts, daily summaries, and weekly accuracy reports operational
 
 ### 📊 Active Validation (Week 1-2)
 - [ ] Daily dual model prediction storage and tracking
@@ -216,7 +235,7 @@ python production_monitor.py health
 **System Status**: **Production Ready** with dual active neural networks + automated notifications  
 **Architecture**: World's first dual active TFT+N-HITS ensemble for financial prediction  
 
-**Key Innovation**: Successfully implemented parallel dual model execution with intelligent ensemble logic, achieving 100% directional consensus and superior confidence calibration through model comparison analytics. Enhanced with Facebook Messenger integration for automated high-confidence alerts and daily summaries.
+**Key Innovation**: Successfully implemented parallel dual model execution with intelligent ensemble logic, achieving 100% directional consensus and superior confidence calibration through model comparison analytics. Enhanced with Facebook Messenger integration for automated high-confidence alerts, daily summaries, and weekly accuracy tracking reports.
 
 **System Grade**: **A+ Implementation** - Industry-leading cloud-native dual neural network architecture with comprehensive model performance validation capabilities and automated notification system.
 

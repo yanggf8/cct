@@ -86,13 +86,6 @@ export default {
       // Always send daily summary to Facebook (regardless of confidence)
       if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
         await sendFacebookDailySummary(analysisResult, env);
-        
-        // Check if it's Sunday for weekly accuracy report
-        const dayOfWeek = estTime.getDay(); // 0 = Sunday
-        if (dayOfWeek === 0) {
-          console.log('📊 Sunday detected - sending weekly accuracy report...');
-          await sendWeeklyAccuracyReport(env);
-        }
       }
       
       console.log(`✅ Analysis completed: ${analysisResult.symbols_analyzed.length} symbols`);
@@ -135,12 +128,8 @@ export default {
       return handleGetResults(request, env);
     } else if (url.pathname === '/health') {
       return handleHealthCheck(request, env);
-    } else if (url.pathname === '/test-facebook') {
-      return handleFacebookTest(request, env);
-    } else if (url.pathname === '/weekly-report') {
-      return handleWeeklyReport(request, env);
     } else {
-      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report', { 
+      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health', { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
@@ -1152,27 +1141,15 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
 }
 
 /**
- * Send daily summary via Facebook Messenger - ENHANCED DEBUGGING
+ * Send daily summary via Facebook Messenger
  */
 async function sendFacebookDailySummary(analysisResults, env) {
-  console.log('🔍 sendFacebookDailySummary called with:', {
-    has_analysis_results: !!analysisResults,
-    has_trading_signals: !!(analysisResults?.trading_signals),
-    signal_count: Object.keys(analysisResults?.trading_signals || {}).length,
-    has_facebook_token: !!env.FACEBOOK_PAGE_TOKEN,
-    has_recipient_id: !!env.FACEBOOK_RECIPIENT_ID
-  });
-  
   if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-    console.log('⚠️ Facebook Messenger not configured for daily summary:', {
-      token_available: !!env.FACEBOOK_PAGE_TOKEN,
-      recipient_available: !!env.FACEBOOK_RECIPIENT_ID
-    });
-    throw new Error('Facebook configuration missing - check environment variables');
+    console.log('⚠️ Facebook Messenger not configured for daily summary');
+    return;
   }
 
   try {
-    console.log('📝 Building Facebook message content...');
     const date = new Date().toLocaleDateString('en-US');
     const signals = Object.entries(analysisResults.trading_signals || {});
     
@@ -1200,16 +1177,8 @@ async function sendFacebookDailySummary(analysisResults, env) {
       summaryText += `No trading signals generated today.\n\nSystem Status: Operational ✅`;
     }
 
-    console.log('📤 Sending Facebook daily summary...', {
-      message_length: summaryText.length,
-      signal_count: signals.length
-    });
-
-    // Send daily summary with timeout and proper error handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-    
-    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+    // Send daily summary
+    await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1219,255 +1188,14 @@ async function sendFacebookDailySummary(analysisResults, env) {
         recipient: { id: env.FACEBOOK_RECIPIENT_ID },
         message: { text: summaryText },
         messaging_type: 'UPDATE'
-      }),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-
-    console.log('📡 Facebook API response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Facebook API error response:', errorText);
-      throw new Error(`Facebook API HTTP ${response.status}: ${errorText}`);
-    }
-    
-    const responseData = await response.json();
-    console.log('✅ Facebook daily summary sent successfully:', {
-      message_id: responseData.message_id,
-      recipient_id: responseData.recipient_id
-    });
-    
-    return { success: true, message_id: responseData.message_id };
-
-  } catch (error) {
-    console.error('❌ Facebook daily summary failed:', {
-      error_name: error.name,
-      error_message: error.message,
-      stack: error.stack?.substring(0, 200)
-    });
-    throw error; // Re-throw to be caught by caller
-  }
-}
-
-/**
- * Send weekly accuracy report via Facebook Messenger
- */
-async function sendWeeklyAccuracyReport(env) {
-  try {
-    console.log('📊 Generating weekly accuracy report...');
-    
-    const today = new Date();
-    const accuracyData = await generateWeeklyAccuracyData(env, today);
-    
-    if (!accuracyData) {
-      console.log('⚠️ No accuracy data available for weekly report');
-      return;
-    }
-    
-    const reportText = formatWeeklyAccuracyReport(accuracyData, today);
-    
-    // Send via Facebook Messenger
-    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
-      },
-      body: JSON.stringify({
-        recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-        message: { text: reportText },
-        messaging_type: 'UPDATE'
       })
     });
 
-    if (response.ok) {
-      console.log('✅ Weekly accuracy report sent successfully');
-    } else {
-      const error = await response.json();
-      console.error('❌ Weekly accuracy report failed:', error);
-    }
-    
-  } catch (error) {
-    console.error('❌ Weekly accuracy report error:', error.message);
-  }
-}
+    console.log('✅ Facebook daily summary sent');
 
-/**
- * Generate weekly accuracy data from stored predictions
- */
-async function generateWeeklyAccuracyData(env, currentDate) {
-  try {
-    const accuracyResults = [];
-    const weekDays = [];
-    
-    // Get last 7 days of stored results
-    for (let i = 1; i <= 7; i++) {
-      const checkDate = new Date(currentDate);
-      checkDate.setDate(checkDate.getDate() - i);
-      const dateStr = checkDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      weekDays.push(dateStr);
-      
-      const storedResult = await env.TRADING_RESULTS.get(`analysis_${dateStr}`);
-      if (storedResult) {
-        try {
-          const analysisData = JSON.parse(storedResult);
-          accuracyResults.push({
-            date: dateStr,
-            analysis: analysisData
-          });
-        } catch (parseError) {
-          console.log(`⚠️ Failed to parse stored result for ${dateStr}`);
-        }
-      }
-    }
-    
-    if (accuracyResults.length === 0) {
-      return null;
-    }
-    
-    // Calculate accuracy metrics
-    const weeklyStats = {
-      total_days: accuracyResults.length,
-      total_predictions: 0,
-      successful_predictions: 0,
-      model_performance: {
-        tft_count: 0,
-        nhits_count: 0,
-        ensemble_count: 0
-      },
-      confidence_distribution: { high: 0, medium: 0, low: 0 },
-      signal_distribution: { BUY: 0, SELL: 0, HOLD: 0 },
-      average_confidence: 0,
-      days_with_data: weekDays.filter(day => 
-        accuracyResults.some(result => result.date === day)
-      )
-    };
-    
-    let totalConfidence = 0;
-    let totalSignals = 0;
-    
-    // Analyze each day's results
-    accuracyResults.forEach(dayResult => {
-      const signals = dayResult.analysis.trading_signals || {};
-      
-      Object.values(signals).forEach(signal => {
-        if (signal.success) {
-          weeklyStats.total_predictions++;
-          totalSignals++;
-          
-          // Track model usage
-          const modelUsed = signal.components?.price_prediction?.model_used || 'unknown';
-          if (modelUsed.includes('TFT+N-HITS')) {
-            weeklyStats.model_performance.ensemble_count++;
-          } else if (modelUsed.includes('TFT')) {
-            weeklyStats.model_performance.tft_count++;
-          } else if (modelUsed.includes('N-HITS')) {
-            weeklyStats.model_performance.nhits_count++;
-          }
-          
-          // Track confidence distribution
-          const confidence = signal.confidence || 0;
-          totalConfidence += confidence;
-          
-          if (confidence > 0.8) {
-            weeklyStats.confidence_distribution.high++;
-          } else if (confidence > 0.6) {
-            weeklyStats.confidence_distribution.medium++;
-          } else {
-            weeklyStats.confidence_distribution.low++;
-          }
-          
-          // Track signal distribution
-          const action = signal.action?.split(' ')[0] || 'HOLD';
-          if (action in weeklyStats.signal_distribution) {
-            weeklyStats.signal_distribution[action]++;
-          }
-        }
-      });
-    });
-    
-    weeklyStats.average_confidence = totalSignals > 0 ? (totalConfidence / totalSignals) : 0;
-    
-    return weeklyStats;
-    
   } catch (error) {
-    console.error('❌ Error generating weekly accuracy data:', error.message);
-    return null;
+    console.error('❌ Facebook daily summary failed:', error);
   }
-}
-
-/**
- * Format weekly accuracy report text for Facebook
- */
-function formatWeeklyAccuracyReport(accuracyData, currentDate) {
-  const weekEnd = currentDate.toLocaleDateString('en-US');
-  const weekStart = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US');
-  
-  let reportText = `📊 **WEEKLY ACCURACY REPORT**\n`;
-  reportText += `📅 Period: ${weekStart} - ${weekEnd}\n\n`;
-  
-  // Overview statistics
-  reportText += `📈 **System Performance:**\n`;
-  reportText += `• Active Days: ${accuracyData.total_days}/7\n`;
-  reportText += `• Total Predictions: ${accuracyData.total_predictions}\n`;
-  reportText += `• Average Confidence: ${(accuracyData.average_confidence * 100).toFixed(1)}%\n\n`;
-  
-  // Model usage breakdown
-  const totalModels = accuracyData.model_performance.tft_count + 
-                      accuracyData.model_performance.nhits_count + 
-                      accuracyData.model_performance.ensemble_count;
-                      
-  if (totalModels > 0) {
-    reportText += `🤖 **Model Usage:**\n`;
-    if (accuracyData.model_performance.ensemble_count > 0) {
-      const ensemblePercent = (accuracyData.model_performance.ensemble_count / totalModels * 100).toFixed(0);
-      reportText += `• TFT+N-HITS Ensemble: ${accuracyData.model_performance.ensemble_count} (${ensemblePercent}%)\n`;
-    }
-    if (accuracyData.model_performance.tft_count > 0) {
-      const tftPercent = (accuracyData.model_performance.tft_count / totalModels * 100).toFixed(0);
-      reportText += `• TFT Primary: ${accuracyData.model_performance.tft_count} (${tftPercent}%)\n`;
-    }
-    if (accuracyData.model_performance.nhits_count > 0) {
-      const nhitsPercent = (accuracyData.model_performance.nhits_count / totalModels * 100).toFixed(0);
-      reportText += `• N-HITS Backup: ${accuracyData.model_performance.nhits_count} (${nhitsPercent}%)\n`;
-    }
-    reportText += `\n`;
-  }
-  
-  // Confidence distribution
-  const totalConfidence = accuracyData.confidence_distribution.high + 
-                          accuracyData.confidence_distribution.medium + 
-                          accuracyData.confidence_distribution.low;
-                          
-  if (totalConfidence > 0) {
-    reportText += `🎯 **Confidence Distribution:**\n`;
-    reportText += `• High (>80%): ${accuracyData.confidence_distribution.high} signals\n`;
-    reportText += `• Medium (60-80%): ${accuracyData.confidence_distribution.medium} signals\n`;
-    reportText += `• Low (<60%): ${accuracyData.confidence_distribution.low} signals\n\n`;
-  }
-  
-  // Signal distribution
-  const totalSignals = accuracyData.signal_distribution.BUY + 
-                       accuracyData.signal_distribution.SELL + 
-                       accuracyData.signal_distribution.HOLD;
-                       
-  if (totalSignals > 0) {
-    reportText += `📊 **Signal Distribution:**\n`;
-    reportText += `• BUY: ${accuracyData.signal_distribution.BUY}\n`;
-    reportText += `• SELL: ${accuracyData.signal_distribution.SELL}\n`;
-    reportText += `• HOLD: ${accuracyData.signal_distribution.HOLD}\n\n`;
-  }
-  
-  // System status
-  reportText += `⚙️ **System Status:** Operational ✅\n`;
-  reportText += `🔄 **Data Retention:** 7 days active\n\n`;
-  
-  reportText += `📝 *Note: Actual prediction accuracy requires 7+ day validation period. This report shows prediction patterns and system performance.*\n\n`;
-  reportText += `🤖 Generated by TFT+N-HITS Trading System`;
-  
-  return reportText;
 }
 
 /**
@@ -1533,38 +1261,7 @@ async function sendCriticalAlert(errorMessage, env) {
  */
 async function handleManualAnalysis(request, env) {
   try {
-    console.log('🔄 Manual analysis requested');
     const result = await runPreMarketAnalysis(env);
-    
-    // Send notifications same as scheduled function
-    if (result.alerts && result.alerts.length > 0) {
-      await sendAlerts(result, env);
-    }
-
-    // Always send daily summary to Facebook (regardless of confidence) with enhanced debugging
-    console.log('🔍 Checking Facebook configuration...');
-    console.log('🔍 Facebook secrets debug:', {
-      token_type: typeof env.FACEBOOK_PAGE_TOKEN,
-      token_length: env.FACEBOOK_PAGE_TOKEN ? env.FACEBOOK_PAGE_TOKEN.length : 0,
-      recipient_type: typeof env.FACEBOOK_RECIPIENT_ID,
-      recipient_length: env.FACEBOOK_RECIPIENT_ID ? env.FACEBOOK_RECIPIENT_ID.length : 0,
-      token_present: !!env.FACEBOOK_PAGE_TOKEN,
-      recipient_present: !!env.FACEBOOK_RECIPIENT_ID
-    });
-    
-    if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
-      console.log('✅ Facebook tokens available, sending daily summary...');
-      try {
-        await sendFacebookDailySummary(result, env);
-        console.log('✅ Facebook daily summary completed successfully');
-      } catch (fbError) {
-        console.error('❌ Facebook daily summary failed:', fbError.message);
-        // Don't fail the entire request, but add error to result
-        result.facebook_error = fbError.message;
-      }
-    } else {
-      console.log('⚠️ Facebook not configured - tokens missing or empty');
-    }
     
     return new Response(JSON.stringify(result, null, 2), {
       status: 200,
@@ -1572,7 +1269,6 @@ async function handleManualAnalysis(request, env) {
     });
     
   } catch (error) {
-    console.error('❌ Manual analysis failed:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -1611,143 +1307,6 @@ async function handleGetResults(request, env) {
 }
 
 /**
- * Handle Facebook messaging test
- */
-async function handleFacebookTest(request, env) {
-  try {
-    console.log('🧪 Facebook messaging test requested');
-    
-    // Check Facebook configuration
-    if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Facebook not configured - missing token or recipient ID',
-        debug: {
-          token_present: !!env.FACEBOOK_PAGE_TOKEN,
-          recipient_present: !!env.FACEBOOK_RECIPIENT_ID
-        }
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Create test message
-    const testMessage = `🧪 WORKER FACEBOOK TEST: ${new Date().toLocaleString()}
-
-✅ Facebook integration test from TFT Trading System worker!
-
-🔧 Configuration:
-• Token: Present (${env.FACEBOOK_PAGE_TOKEN.length} chars)
-• Recipient: ${env.FACEBOOK_RECIPIENT_ID}
-• Endpoint: /me/messages
-• Worker Version: 1.0-Cloudflare
-
-If you receive this message, the production worker Facebook integration is working perfectly! 🎉
-
-🤖 TFT Trading System`;
-
-    // Send test message using the same function as daily summaries
-    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
-      },
-      body: JSON.stringify({
-        recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-        message: { text: testMessage },
-        messaging_type: 'UPDATE'
-      })
-    });
-
-    const result = await response.json();
-
-    if (response.ok) {
-      console.log('✅ Facebook test message sent successfully');
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Facebook test message sent successfully!',
-        facebook_response: result,
-        timestamp: new Date().toISOString()
-      }, null, 2), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    } else {
-      console.error('❌ Facebook test message failed:', result);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Facebook API error',
-        facebook_error: result,
-        timestamp: new Date().toISOString()
-      }, null, 2), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-  } catch (error) {
-    console.error('❌ Facebook test handler error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-/**
- * Handle manual weekly accuracy report request
- */
-async function handleWeeklyReport(request, env) {
-  try {
-    console.log('📊 Weekly accuracy report manually requested');
-    
-    // Check Facebook configuration
-    if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Facebook not configured - cannot send weekly report',
-        debug: {
-          token_present: !!env.FACEBOOK_PAGE_TOKEN,
-          recipient_present: !!env.FACEBOOK_RECIPIENT_ID
-        }
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
-    // Generate and send weekly report
-    await sendWeeklyAccuracyReport(env);
-    
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Weekly accuracy report sent successfully!',
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-  } catch (error) {
-    console.error('❌ Weekly report handler error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
-/**
  * Handle health check
  */
 async function handleHealthCheck(request, env) {
@@ -1761,8 +1320,7 @@ async function handleHealthCheck(request, env) {
       modelscope_api: (env.MODELSCOPE_API_URL && env.MODELSCOPE_API_KEY) ? 'configured' : 'not_configured',
       yahoo_finance: 'available',
       email_alerts: env.ALERT_EMAIL ? 'configured' : 'not_configured',
-      slack_alerts: env.SLACK_WEBHOOK_URL ? 'configured' : 'not_configured',
-      facebook_messaging: (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) ? 'configured' : 'not_configured'
+      slack_alerts: env.SLACK_WEBHOOK_URL ? 'configured' : 'not_configured'
     },
     circuit_breakers: {
       modelScope: circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED',
@@ -1774,16 +1332,7 @@ async function handleHealthCheck(request, env) {
       cloudflare_ai_sentiment: 'enabled',
       circuit_breakers: 'enabled',
       hierarchical_nhits_fallback: 'enabled',
-      production_error_handling: 'enabled',
-      facebook_messaging: 'enabled'
-    },
-    facebook_config: {
-      page_token_present: !!env.FACEBOOK_PAGE_TOKEN,
-      page_token_length: env.FACEBOOK_PAGE_TOKEN ? env.FACEBOOK_PAGE_TOKEN.length : 0,
-      recipient_id_present: !!env.FACEBOOK_RECIPIENT_ID,
-      recipient_id: env.FACEBOOK_RECIPIENT_ID ? `${env.FACEBOOK_RECIPIENT_ID.substring(0, 8)}...` : 'not_set',
-      messaging_endpoint: '/me/messages',
-      messaging_type: 'UPDATE'
+      production_error_handling: 'enabled'
     }
   };
   
