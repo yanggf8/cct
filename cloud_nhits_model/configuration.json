@@ -1,0 +1,15 @@
+{
+  "framework": "PyTorch",
+  "task": "time-series-forecasting",
+  "model_type": "nhits-hierarchical",
+  "pipeline_tag": "time-series-forecasting",
+  "tags": [
+    "financial-prediction",
+    "hierarchical-trend-analysis",
+    "cloud-backup",
+    "statistical-model",
+    "tft-backup"
+  ],
+  "model-revision": "v1.0",
+  "preprocessor": null
+}

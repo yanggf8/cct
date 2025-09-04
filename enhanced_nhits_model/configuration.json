@@ -1,0 +1,14 @@
+{
+    "framework": "pytorch",
+    "task": "time-series-forecasting", 
+    "model": {
+        "type": "TFTNHITSModel"
+    },
+    "pipeline": {
+        "type": "TFTNHITSPipeline"
+    },
+    "preprocessor": {
+        "type": "TFTNHITSPreprocessor"  
+    },
+    "allow_remote": true
+}
