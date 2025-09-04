@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-Kozf4P/checked-fetch.js
+// .wrangler/tmp/bundle-4gJpID/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -26,473 +26,6 @@ globalThis.fetch = new Proxy(globalThis.fetch, {
     return Reflect.apply(target, thisArg, argArray);
   }
 });
-
-// messenger-alerts.js
-async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
-  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-    console.log("\u26A0\uFE0F Facebook Messenger not configured - skipping");
-    return;
-  }
-  try {
-    const highConfidenceAlerts = alerts.filter((a) => a.level === "HIGH_CONFIDENCE");
-    if (highConfidenceAlerts.length === 0) return;
-    let messageText = `\u{1F3AF} Trading Alert - ${highConfidenceAlerts.length} High Confidence Signals
-
-`;
-    highConfidenceAlerts.forEach((alert) => {
-      const signal = analysisResults.trading_signals[alert.symbol];
-      if (signal) {
-        messageText += `\u{1F4C8} ${alert.symbol}: ${signal.action}
-`;
-        messageText += `   \u{1F4B0} Price: $${signal.current_price.toFixed(2)}
-`;
-        messageText += `   \u{1F3AF} Confidence: ${(signal.confidence * 100).toFixed(1)}%
-`;
-        messageText += `   \u{1F4A1} ${signal.reasoning}
-
-`;
-      }
-    });
-    const perf = analysisResults.performance_metrics;
-    messageText += `\u{1F4CA} Performance:
-`;
-    messageText += `\u2705 Success Rate: ${perf.success_rate.toFixed(1)}%
-`;
-    messageText += `\u{1F4C8} Avg Confidence: ${(perf.avg_confidence * 100).toFixed(1)}%
-`;
-    messageText += `\u{1F4CB} Signals: ${JSON.stringify(perf.signal_distribution)}`;
-    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
-      },
-      body: JSON.stringify({
-        recipient: {
-          id: env.FACEBOOK_RECIPIENT_ID
-        },
-        message: {
-          text: messageText
-        },
-        messaging_type: "UPDATE"
-      })
-    });
-    if (response.ok) {
-      console.log("\u2705 Facebook Messenger alert sent successfully");
-      for (const alert of highConfidenceAlerts.slice(0, 3)) {
-        await sendFacebookSignalCard(alert, analysisResults.trading_signals[alert.symbol], env);
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
-      }
-    } else {
-      const error = await response.text();
-      console.error("\u274C Facebook Messenger alert failed:", error);
-    }
-  } catch (error) {
-    console.error("\u274C Facebook Messenger error:", error);
-  }
-}
-__name(sendFacebookMessengerAlert, "sendFacebookMessengerAlert");
-async function sendFacebookSignalCard(alert, signal, env) {
-  try {
-    const priceComp = signal.components?.price_prediction || {};
-    const sentComp = signal.components?.sentiment_analysis || {};
-    const cardTemplate = {
-      recipient: {
-        id: env.FACEBOOK_RECIPIENT_ID
-      },
-      message: {
-        attachment: {
-          type: "template",
-          payload: {
-            template_type: "generic",
-            elements: [
-              {
-                title: `${signal.symbol} - ${signal.action}`,
-                subtitle: `$${signal.current_price.toFixed(2)} | Confidence: ${(signal.confidence * 100).toFixed(1)}%`,
-                image_url: `https://logo.clearbit.com/${getCompanyDomain(signal.symbol)}`,
-                buttons: [
-                  {
-                    type: "web_url",
-                    url: `https://finance.yahoo.com/quote/${signal.symbol}`,
-                    title: "View Chart"
-                  },
-                  {
-                    type: "postback",
-                    title: "Get Analysis",
-                    payload: `ANALYSIS_${signal.symbol}`
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      },
-      messaging_type: "UPDATE"
-    };
-    await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
-      },
-      body: JSON.stringify(cardTemplate)
-    });
-  } catch (error) {
-    console.error("\u274C Facebook card send error:", error);
-  }
-}
-__name(sendFacebookSignalCard, "sendFacebookSignalCard");
-async function sendLINEAlert(alerts, analysisResults, env) {
-  if (!env.LINE_CHANNEL_TOKEN || !env.LINE_USER_ID) {
-    console.log("\u26A0\uFE0F LINE not configured - skipping");
-    return;
-  }
-  try {
-    const highConfidenceAlerts = alerts.filter((a) => a.level === "HIGH_CONFIDENCE");
-    if (highConfidenceAlerts.length === 0) return;
-    const flexMessage = createLINEFlexMessage(highConfidenceAlerts, analysisResults);
-    const response = await fetch("https://api.line.me/v2/bot/message/push", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.LINE_CHANNEL_TOKEN}`
-      },
-      body: JSON.stringify({
-        to: env.LINE_USER_ID,
-        messages: [flexMessage]
-      })
-    });
-    if (response.ok) {
-      console.log("\u2705 LINE alert sent successfully");
-      if (highConfidenceAlerts.length >= 3) {
-        await sendLINESticker(env.LINE_USER_ID, env.LINE_CHANNEL_TOKEN);
-      }
-    } else {
-      const error = await response.text();
-      console.error("\u274C LINE alert failed:", error);
-    }
-  } catch (error) {
-    console.error("\u274C LINE error:", error);
-  }
-}
-__name(sendLINEAlert, "sendLINEAlert");
-function createLINEFlexMessage(alerts, analysisResults) {
-  const perf = analysisResults.performance_metrics;
-  const signalBubbles = alerts.slice(0, 5).map((alert) => {
-    const signal = analysisResults.trading_signals[alert.symbol];
-    const actionColor = signal.action.includes("BUY") ? "#00C851" : signal.action.includes("SELL") ? "#FF4444" : "#33B5E5";
-    return {
-      type: "bubble",
-      hero: {
-        type: "image",
-        url: `https://logo.clearbit.com/${getCompanyDomain(signal.symbol)}`,
-        size: "sm",
-        aspectRatio: "20:13",
-        aspectMode: "cover"
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "text",
-            text: signal.symbol,
-            weight: "bold",
-            size: "xl"
-          },
-          {
-            type: "text",
-            text: signal.action,
-            size: "md",
-            color: actionColor,
-            weight: "bold"
-          },
-          {
-            type: "box",
-            layout: "vertical",
-            margin: "lg",
-            spacing: "sm",
-            contents: [
-              {
-                type: "box",
-                layout: "baseline",
-                spacing: "sm",
-                contents: [
-                  {
-                    type: "text",
-                    text: "\u50F9\u683C",
-                    color: "#aaaaaa",
-                    size: "sm",
-                    flex: 1
-                  },
-                  {
-                    type: "text",
-                    text: `$${signal.current_price.toFixed(2)}`,
-                    wrap: true,
-                    color: "#666666",
-                    size: "sm",
-                    flex: 2
-                  }
-                ]
-              },
-              {
-                type: "box",
-                layout: "baseline",
-                spacing: "sm",
-                contents: [
-                  {
-                    type: "text",
-                    text: "\u4FE1\u5FC3\u5EA6",
-                    color: "#aaaaaa",
-                    size: "sm",
-                    flex: 1
-                  },
-                  {
-                    type: "text",
-                    text: `${(signal.confidence * 100).toFixed(1)}%`,
-                    wrap: true,
-                    color: "#666666",
-                    size: "sm",
-                    flex: 2
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          {
-            type: "button",
-            style: "primary",
-            height: "sm",
-            action: {
-              type: "uri",
-              label: "\u67E5\u770B\u5716\u8868",
-              uri: `https://finance.yahoo.com/quote/${signal.symbol}`
-            },
-            color: actionColor
-          }
-        ],
-        flex: 0
-      }
-    };
-  });
-  const summaryBubble = {
-    type: "bubble",
-    body: {
-      type: "box",
-      layout: "vertical",
-      contents: [
-        {
-          type: "text",
-          text: "\u{1F4CA} \u4EA4\u6613\u5206\u6790\u6458\u8981",
-          weight: "bold",
-          size: "lg",
-          align: "center"
-        },
-        {
-          type: "separator",
-          margin: "lg"
-        },
-        {
-          type: "box",
-          layout: "vertical",
-          margin: "lg",
-          spacing: "md",
-          contents: [
-            {
-              type: "box",
-              layout: "baseline",
-              contents: [
-                {
-                  type: "text",
-                  text: "\u6210\u529F\u7387",
-                  color: "#aaaaaa",
-                  flex: 1
-                },
-                {
-                  type: "text",
-                  text: `${perf.success_rate.toFixed(1)}%`,
-                  color: "#00C851",
-                  weight: "bold",
-                  flex: 2
-                }
-              ]
-            },
-            {
-              type: "box",
-              layout: "baseline",
-              contents: [
-                {
-                  type: "text",
-                  text: "\u5E73\u5747\u4FE1\u5FC3\u5EA6",
-                  color: "#aaaaaa",
-                  flex: 1
-                },
-                {
-                  type: "text",
-                  text: `${(perf.avg_confidence * 100).toFixed(1)}%`,
-                  color: "#33B5E5",
-                  weight: "bold",
-                  flex: 2
-                }
-              ]
-            },
-            {
-              type: "box",
-              layout: "baseline",
-              contents: [
-                {
-                  type: "text",
-                  text: "\u8CB7\u5165\u4FE1\u865F",
-                  color: "#aaaaaa",
-                  flex: 1
-                },
-                {
-                  type: "text",
-                  text: `${perf.signal_distribution.BUY || 0}`,
-                  color: "#00C851",
-                  weight: "bold",
-                  flex: 2
-                }
-              ]
-            },
-            {
-              type: "box",
-              layout: "baseline",
-              contents: [
-                {
-                  type: "text",
-                  text: "\u8CE3\u51FA\u4FE1\u865F",
-                  color: "#aaaaaa",
-                  flex: 1
-                },
-                {
-                  type: "text",
-                  text: `${perf.signal_distribution.SELL || 0}`,
-                  color: "#FF4444",
-                  weight: "bold",
-                  flex: 2
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  };
-  return {
-    type: "flex",
-    altText: `\u{1F3AF} ${alerts.length} \u500B\u9AD8\u4FE1\u5FC3\u5EA6\u4EA4\u6613\u4FE1\u865F`,
-    contents: {
-      type: "carousel",
-      contents: [summaryBubble, ...signalBubbles]
-    }
-  };
-}
-__name(createLINEFlexMessage, "createLINEFlexMessage");
-async function sendLINESticker(userId, token) {
-  try {
-    await fetch("https://api.line.me/v2/bot/message/push", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        to: userId,
-        messages: [
-          {
-            type: "sticker",
-            packageId: "446",
-            // LINE basic stickers
-            stickerId: "1988"
-            // Money/success sticker
-          }
-        ]
-      })
-    });
-  } catch (error) {
-    console.error("\u274C LINE sticker error:", error);
-  }
-}
-__name(sendLINESticker, "sendLINESticker");
-function getCompanyDomain(symbol) {
-  const domainMap = {
-    "AAPL": "apple.com",
-    "TSLA": "tesla.com",
-    "MSFT": "microsoft.com",
-    "GOOGL": "google.com",
-    "NVDA": "nvidia.com",
-    "AMZN": "amazon.com",
-    "META": "meta.com",
-    "NFLX": "netflix.com"
-  };
-  return domainMap[symbol] || "yahoo.com";
-}
-__name(getCompanyDomain, "getCompanyDomain");
-async function sendCriticalMessengerAlert(errorMessage, env) {
-  const criticalMessage = `\u{1F6A8} CRITICAL ALERT
-
-\u4EA4\u6613\u7CFB\u7D71\u767C\u751F\u56B4\u91CD\u932F\u8AA4\uFF1A
-${errorMessage}
-
-\u8ACB\u7ACB\u5373\u6AA2\u67E5\u7CFB\u7D71\u72C0\u614B\u3002
-
-Time: ${(/* @__PURE__ */ new Date()).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}`;
-  if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
-    try {
-      await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
-        },
-        body: JSON.stringify({
-          recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-          message: { text: criticalMessage },
-          messaging_type: "UPDATE"
-        })
-      });
-    } catch (error) {
-      console.error("\u274C Critical Facebook alert failed:", error);
-    }
-  }
-  if (env.LINE_CHANNEL_TOKEN && env.LINE_USER_ID) {
-    try {
-      await fetch("https://api.line.me/v2/bot/message/push", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${env.LINE_CHANNEL_TOKEN}`
-        },
-        body: JSON.stringify({
-          to: env.LINE_USER_ID,
-          messages: [
-            {
-              type: "text",
-              text: criticalMessage
-            },
-            {
-              type: "sticker",
-              packageId: "446",
-              stickerId: "1990"
-              // Warning sticker
-            }
-          ]
-        })
-      });
-    } catch (error) {
-      console.error("\u274C Critical LINE alert failed:", error);
-    }
-  }
-}
-__name(sendCriticalMessengerAlert, "sendCriticalMessengerAlert");
 
 // cloudflare-worker-scheduler.js
 var cloudflare_worker_scheduler_default = {
@@ -569,8 +102,8 @@ async function runPreMarketAnalysis(env) {
         priceSignal.model_used = "TFT-Primary";
       } catch (tftError) {
         console.log(`   \u26A0\uFE0F TFT failed for ${symbol}, using N-HITS backup: ${tftError.message}`);
-        priceSignal = await getNHITSPrediction(symbol, marketData.data, env);
-        priceSignal.model_used = "N-HITS-Backup";
+        priceSignal = await getRealNHITSPrediction(symbol, marketData.data, env);
+        priceSignal.model_used = priceSignal.model_type || "Real-NHITS-Backup";
       }
       const sentimentSignal = await getSentimentAnalysis(symbol, env);
       const combinedSignal = combineSignals(priceSignal, sentimentSignal, symbol, marketData.current_price);
@@ -615,7 +148,7 @@ async function getMarketData(symbol) {
     }
     const quote = result.indicators.quote[0];
     const timestamps = result.timestamp;
-    const current_price = quote.close[quote.close.length - 1];
+    const current_price2 = quote.close[quote.close.length - 1];
     const ohlcv_data = [];
     const days_to_take = Math.min(30, timestamps.length);
     for (let i = timestamps.length - days_to_take; i < timestamps.length; i++) {
@@ -631,7 +164,7 @@ async function getMarketData(symbol) {
     }
     return {
       success: true,
-      current_price,
+      current_price: current_price2,
       data: ohlcv_data
     };
   } catch (error) {
@@ -673,28 +206,76 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
   }
 }
 __name(getTFTPrediction, "getTFTPrediction");
-async function getNHITSPrediction(symbol, ohlcv_data, env) {
+async function getRealNHITSPrediction(symbol, ohlcv_data, env) {
   try {
-    const closes = ohlcv_data.map((d) => d[3]);
-    const current_price = closes[closes.length - 1];
-    const short_ma = closes.slice(-5).reduce((a, b) => a + b) / 5;
-    const long_ma = closes.slice(-10).reduce((a, b) => a + b) / 10;
-    const momentum = (short_ma - long_ma) / long_ma;
-    const predicted_change = momentum * 0.02;
-    const predicted_price = current_price * (1 + predicted_change);
+    const nhits_api_url = env.NHITS_API_URL || "http://localhost:5000";
+    const response = await fetch(`${nhits_api_url}/predict`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        symbol
+      }),
+      timeout: 5e3
+      // 5 second timeout
+    });
+    if (!response.ok) {
+      throw new Error(`N-HITS API error: ${response.status}`);
+    }
+    const nhitsResult = await response.json();
     return {
-      signal_score: momentum > 0 ? 0.6 : -0.6,
-      confidence: 0.75,
-      predicted_price,
-      current_price,
-      direction: momentum > 0 ? "UP" : "DOWN",
-      model_latency: 8
+      signal_score: nhitsResult.signal_score || 0,
+      confidence: nhitsResult.confidence || 0.7,
+      predicted_price: nhitsResult.predicted_price,
+      current_price: nhitsResult.current_price,
+      direction: nhitsResult.direction || "NEUTRAL",
+      model_latency: nhitsResult.inference_time_ms || 50,
+      model_type: nhitsResult.model_used || "Real-NHITS-Neural",
+      is_neural: nhitsResult.is_neural || false,
+      architecture: nhitsResult.model_type || "Neural Hierarchical Interpolation"
     };
   } catch (error) {
-    throw new Error(`N-HITS prediction failed: ${error.message}`);
+    console.log(`   \u26A0\uFE0F N-HITS API failed for ${symbol}, using statistical fallback: ${error.message}`);
+    return getStatisticalFallback(symbol, ohlcv_data);
   }
 }
-__name(getNHITSPrediction, "getNHITSPrediction");
+__name(getRealNHITSPrediction, "getRealNHITSPrediction");
+function getStatisticalFallback(symbol, ohlcv_data) {
+  try {
+    const closes = ohlcv_data.map((d) => d[3]);
+    const current_price2 = closes[closes.length - 1];
+    const short_trend = closes.length >= 5 ? (closes.slice(-5).reduce((a, b) => a + b) / 5 - closes.slice(-10, -5).reduce((a, b) => a + b) / 5) / current_price2 : 0;
+    const medium_trend = closes.length >= 10 ? (closes.slice(-10).reduce((a, b) => a + b) / 10 - closes.slice(-20, -10).reduce((a, b) => a + b) / 10) / current_price2 : 0;
+    const combined_trend = 0.5 * short_trend + 0.3 * medium_trend;
+    const predicted_change = combined_trend * 0.8;
+    const predicted_price = current_price2 * (1 + predicted_change);
+    return {
+      signal_score: combined_trend > 0 ? 0.5 : -0.5,
+      confidence: 0.6,
+      // Moderate confidence for statistical model
+      predicted_price,
+      current_price: current_price2,
+      direction: combined_trend > 0 ? "UP" : "DOWN",
+      model_latency: 5,
+      model_type: "Statistical-Hierarchical-Fallback",
+      is_neural: false,
+      note: "Enhanced statistical model with hierarchical trend analysis"
+    };
+  } catch (error) {
+    return {
+      signal_score: 0,
+      confidence: 0.5,
+      predicted_price: current_price,
+      current_price,
+      direction: "NEUTRAL",
+      model_latency: 1,
+      model_type: "Neutral-Fallback",
+      error: error.message
+    };
+  }
+}
+__name(getStatisticalFallback, "getStatisticalFallback");
 async function getSentimentAnalysis(symbol, env) {
   try {
     console.log(`   \u{1F50D} Getting AI sentiment for ${symbol}...`);
@@ -998,7 +579,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-Kozf4P/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-4gJpID/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -1030,7 +611,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-Kozf4P/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-4gJpID/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

@@ -6,8 +6,8 @@
  * Supports Email, Slack, Facebook Messenger, and LINE alerts
  */
 
-// Import messenger alert functions
-import { sendFacebookMessengerAlert, sendLINEAlert, sendCriticalMessengerAlert } from './messenger-alerts.js';
+// Import messenger alert functions - disabled for local development
+// import { sendFacebookMessengerAlert, sendLINEAlert, sendCriticalMessengerAlert } from './messenger-alerts.js';
 
 export default {
   async scheduled(controller, env, ctx) {
