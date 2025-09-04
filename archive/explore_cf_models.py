@@ -190,8 +190,8 @@ Sentiment:"""
 
 def main():
     # Use the credentials
-    account_id = "ed01ccea0b8ee7138058c4378cc83e54"
-    api_token = "twU2VBUvYy3eUuVBwZ6HtqV4ms3TeW2SI2-0KGIT"
+    account_id = "REDACTED_ACCOUNT_ID"
+    api_token = "REDACTED_API_TOKEN"
     
     explorer = CloudflareModelExplorer(account_id, api_token)
     

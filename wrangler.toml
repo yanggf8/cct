@@ -1,7 +1,7 @@
 # Wrangler configuration for TFT Trading System Worker
 
 name = "tft-trading-system"
-main = "cloudflare-worker-standalone.js"
+main = "cloudflare-worker-scheduler.js"
 compatibility_date = "2024-01-01"
 
 # Cron triggers for pre-market analysis (6:30-9:00 AM EST) - Limited to 5 triggers on free plan
@@ -19,6 +19,10 @@ crons = [
 binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
+
+# AI binding for Cloudflare Workers AI
+[ai]
+binding = "AI"
 
 # Environment variables
 [vars]

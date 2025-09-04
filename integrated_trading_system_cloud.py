@@ -416,9 +416,14 @@ def run_cloud_integrated_validation():
     print("🌐 UPGRADE: Local models → Cloud API integration")
     print()
     
-    # Cloudflare credentials
-    account_id = "ed01ccea0b8ee7138058c4378cc83e54"
-    api_token = "twU2VBUvYy3eUuVBwZ6HtqV4ms3TeW2SI2-0KGIT"
+    # Cloudflare credentials - Load from environment variables
+    import os
+    account_id = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
+    api_token = os.environ.get('CLOUDFLARE_API_TOKEN')
+    
+    if not account_id or not api_token:
+        print("❌ ERROR: Missing CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN environment variables")
+        exit(1)
     
     # Initialize cloud-integrated system (using mock API for now)
     trading_system = CloudIntegratedTradingSystem(

@@ -1,6 +1,7 @@
 /**
  * Cloudflare Worker - Automated Pre-Market Trading Analysis
  * Runs TFT+N-HITS trading system analysis at scheduled times (6:30-9:30 AM EST)
+ * Uses real Neural Hierarchical Interpolation for Time Series as backup
  * Stores results in Cloudflare KV for retrieval by local system
  * Supports Email, Slack, Facebook Messenger, and LINE alerts
  */
@@ -106,9 +107,9 @@ async function runPreMarketAnalysis(env) {
         priceSignal.model_used = 'TFT-Primary';
       } catch (tftError) {
         console.log(`   ⚠️ TFT failed for ${symbol}, using N-HITS backup: ${tftError.message}`);
-        // Fallback to N-HITS
-        priceSignal = await getNHITSPrediction(symbol, marketData.data, env);
-        priceSignal.model_used = 'N-HITS-Backup';
+        // Fallback to real N-HITS neural network model
+        priceSignal = await getRealNHITSPrediction(symbol, marketData.data, env);
+        priceSignal.model_used = priceSignal.model_type || 'Real-NHITS-Backup';
       }
       
       // Get sentiment analysis
@@ -245,34 +246,97 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
 }
 
 /**
- * Get N-HITS prediction (backup model)
+ * Get Real N-HITS prediction (backup model)
+ * Uses local N-HITS API service for authentic neural network predictions
  */
-async function getNHITSPrediction(symbol, ohlcv_data, env) {
+async function getRealNHITSPrediction(symbol, ohlcv_data, env) {
   try {
-    // Simple N-HITS algorithm implementation
-    const closes = ohlcv_data.map(d => d[3]); // Close prices
-    const current_price = closes[closes.length - 1];
+    // Try to call local N-HITS API service
+    const nhits_api_url = env.NHITS_API_URL || 'http://localhost:5000';
     
-    // Calculate trend using simple moving averages
-    const short_ma = closes.slice(-5).reduce((a, b) => a + b) / 5;  // 5-day MA
-    const long_ma = closes.slice(-10).reduce((a, b) => a + b) / 10;  // 10-day MA
+    const response = await fetch(`${nhits_api_url}/predict`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        symbol: symbol
+      }),
+      timeout: 5000 // 5 second timeout
+    });
     
-    // Predict direction based on momentum
-    const momentum = (short_ma - long_ma) / long_ma;
-    const predicted_change = momentum * 0.02; // 2% max predicted move
-    const predicted_price = current_price * (1 + predicted_change);
+    if (!response.ok) {
+      throw new Error(`N-HITS API error: ${response.status}`);
+    }
     
+    const nhitsResult = await response.json();
+    
+    // Convert N-HITS API response to worker format
     return {
-      signal_score: momentum > 0 ? 0.6 : -0.6,
-      confidence: 0.75,
-      predicted_price: predicted_price,
-      current_price: current_price,
-      direction: momentum > 0 ? 'UP' : 'DOWN',
-      model_latency: 8
+      signal_score: nhitsResult.signal_score || 0,
+      confidence: nhitsResult.confidence || 0.7,
+      predicted_price: nhitsResult.predicted_price,
+      current_price: nhitsResult.current_price,
+      direction: nhitsResult.direction || 'NEUTRAL',
+      model_latency: nhitsResult.inference_time_ms || 50,
+      model_type: nhitsResult.model_used || 'Real-NHITS-Neural',
+      is_neural: nhitsResult.is_neural || false,
+      architecture: nhitsResult.model_type || 'Neural Hierarchical Interpolation'
     };
     
   } catch (error) {
-    throw new Error(`N-HITS prediction failed: ${error.message}`);
+    console.log(`   ⚠️ N-HITS API failed for ${symbol}, using statistical fallback: ${error.message}`);
+    
+    // Fallback to enhanced statistical model (better than simple moving average)
+    return getStatisticalFallback(symbol, ohlcv_data);
+  }
+}
+
+/**
+ * Enhanced statistical fallback (when N-HITS API is unavailable)
+ * Uses hierarchical trend analysis inspired by N-HITS architecture
+ */
+function getStatisticalFallback(symbol, ohlcv_data) {
+  try {
+    const closes = ohlcv_data.map(d => d[3]); // Close prices
+    const current_price = closes[closes.length - 1];
+    
+    // Multi-scale trend analysis (mimics N-HITS hierarchical structure)
+    const short_trend = closes.length >= 5 ? 
+      (closes.slice(-5).reduce((a, b) => a + b) / 5 - closes.slice(-10, -5).reduce((a, b) => a + b) / 5) / current_price : 0;
+    
+    const medium_trend = closes.length >= 10 ? 
+      (closes.slice(-10).reduce((a, b) => a + b) / 10 - closes.slice(-20, -10).reduce((a, b) => a + b) / 10) / current_price : 0;
+    
+    // Hierarchical combination (weighted like N-HITS stacks)
+    const combined_trend = 0.5 * short_trend + 0.3 * medium_trend;
+    const predicted_change = combined_trend * 0.8; // Conservative prediction
+    const predicted_price = current_price * (1 + predicted_change);
+    
+    return {
+      signal_score: combined_trend > 0 ? 0.5 : -0.5,
+      confidence: 0.6, // Moderate confidence for statistical model
+      predicted_price: predicted_price,
+      current_price: current_price,
+      direction: combined_trend > 0 ? 'UP' : 'DOWN',
+      model_latency: 5,
+      model_type: 'Statistical-Hierarchical-Fallback',
+      is_neural: false,
+      note: 'Enhanced statistical model with hierarchical trend analysis'
+    };
+    
+  } catch (error) {
+    // Ultimate fallback
+    return {
+      signal_score: 0,
+      confidence: 0.5,
+      predicted_price: current_price,
+      current_price: current_price,
+      direction: 'NEUTRAL',
+      model_latency: 1,
+      model_type: 'Neutral-Fallback',
+      error: error.message
+    };
   }
 }
 
@@ -281,14 +345,17 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
  */
 async function getSentimentAnalysis(symbol, env) {
   try {
+    console.log(`   🔍 Getting AI sentiment for ${symbol}...`);
+    
     // Generate financial news query
     const newsQuery = `${symbol} stock market news financial earnings revenue profit`;
     
     // Use Cloudflare AI for sentiment analysis
-    const ai = new Ai(env.AI);
-    const sentiment = await ai.run('@cf/huggingface/distilbert-sst-2-int8', {
+    const sentiment = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', {
       text: `Financial outlook for ${symbol}: Recent market performance and analyst sentiment`
     });
+    
+    console.log(`   ✅ AI sentiment for ${symbol}:`, sentiment);
     
     // Convert sentiment to signal
     const isPositive = sentiment.label === 'POSITIVE';
@@ -302,6 +369,7 @@ async function getSentimentAnalysis(symbol, env) {
     };
     
   } catch (error) {
+    console.error(`   ❌ Sentiment AI failed for ${symbol}:`, error.message);
     // Return neutral sentiment on error
     return {
       signal_score: 0.0,

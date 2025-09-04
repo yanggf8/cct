@@ -52,8 +52,8 @@ from integrated_trading_system_colab import ColabIntegratedTradingSystem
 
 # Configure with your ngrok URL (from Colab output)
 trading_system = ColabIntegratedTradingSystem(
-    cloudflare_account_id="ed01ccea0b8ee7138058c4378cc83e54",
-    cloudflare_token="twU2VBUvYy3eUuVBwZ6HtqV4ms3TeW2SI2-0KGIT",
+    cloudflare_account_id="REDACTED_ACCOUNT_ID",
+    cloudflare_token="REDACTED_API_TOKEN",
     colab_ngrok_url="https://your-ngrok-url.ngrok.io",  # From Colab
     use_mock_api=False
 )

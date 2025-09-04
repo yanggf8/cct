@@ -389,9 +389,18 @@ def run_complete_poc_validation():
     print("🆙 UPGRADE: TFT Primary with N-HITS Backup for maximum reliability")
     print()
     
-    # Cloudflare credentials
-    account_id = "ed01ccea0b8ee7138058c4378cc83e54"
-    api_token = "twU2VBUvYy3eUuVBwZ6HtqV4ms3TeW2SI2-0KGIT"
+    # Cloudflare credentials - Load from environment variables
+    import os
+    account_id = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
+    api_token = os.environ.get('CLOUDFLARE_API_TOKEN')
+    
+    if not account_id or not api_token:
+        print("❌ ERROR: Missing required environment variables")
+        print("   Please set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN")
+        print("   Example:")
+        print("   export CLOUDFLARE_ACCOUNT_ID='your-account-id'")
+        print("   export CLOUDFLARE_API_TOKEN='your-api-token'")
+        exit(1)
     
     # Initialize integrated system
     trading_system = IntegratedTradingSystem(account_id, api_token)

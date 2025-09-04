@@ -14,7 +14,7 @@ def run_real_cloudflare_test(api_token):
     
     # Initialize with real credentials
     tester = CloudflareAITester(
-        account_id="ed01ccea0b8ee7138058c4378cc83e54",
+        account_id="REDACTED_ACCOUNT_ID",
         api_token=api_token
     )
     

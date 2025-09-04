@@ -20,8 +20,8 @@ class CloudLocalComparison:
     
     def __init__(self):
         # Cloudflare credentials
-        self.account_id = "ed01ccea0b8ee7138058c4378cc83e54"
-        self.api_token = "twU2VBUvYy3eUuVBwZ6HtqV4ms3TeW2SI2-0KGIT"
+        self.account_id = "REDACTED_ACCOUNT_ID"
+        self.api_token = "REDACTED_API_TOKEN"
         
         # Initialize both systems
         print("🏗️ Initializing systems for comparison...")

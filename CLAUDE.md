@@ -124,11 +124,13 @@ When working on this project, prioritize validation of core technical assumption
 **CLOUDFLARE WORKER AUTOMATION: LIVE DEPLOYMENT ✅**
 - **Production URL**: https://tft-trading-system.yanggf.workers.dev
 - **Automated Pre-Market Analysis**: 5 cron triggers (6:30, 7:00, 8:00, 8:30, 9:00 AM EST)
-- **Real-Time Analysis**: Live Yahoo Finance data + N-HITS prediction model
-- **100% Success Rate**: All 5 symbols (AAPL, TSLA, MSFT, GOOGL, NVDA) analyzed successfully
+- **Real-Time Analysis**: Live Yahoo Finance data + Real N-HITS neural network backup
+- **AI Architecture**: TFT Primary → Real N-HITS Backup → Statistical Hierarchical Fallback
+- **100% Success Rate**: All 5 symbols (AAPL, TSLA, MSFT, GOOGL, NVDA) analyzed successfully  
 - **Cloud-Native Execution**: Zero local machine dependency, runs on Cloudflare edge
 - **KV Storage**: Results stored with 24h TTL for local sync
 - **Facebook Messenger Integration**: LIVE and tested - instant mobile trading alerts
 - **Rich Mobile Notifications**: Company logos, action buttons, detailed reasoning
 - **Health Monitoring**: /health, /analyze, /results endpoints operational
-- **Standalone Worker**: `cloudflare-worker-standalone.js` deployed with configured KV namespaces and resource limits optimized for free plan
+- **Security**: Environment variables for credentials, no hardcoded tokens
+- **Honest AI Labeling**: Clear distinction between neural networks and statistical models
