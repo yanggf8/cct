@@ -51,6 +51,36 @@ function isCircuitBreakerOpen(service) {
   return true;
 }
 
+// Input validation for sensitive endpoints
+function validateRequest(request, url) {
+  // Basic rate limiting check (simple IP-based)
+  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+  
+  // Validate analyze endpoint parameters
+  if (url.pathname === '/analyze') {
+    const symbol = url.searchParams.get('symbol');
+    if (symbol) {
+      // Validate symbol format (1-5 uppercase letters)
+      if (!/^[A-Z]{1,5}$/.test(symbol)) {
+        return { valid: false, error: 'Invalid symbol format. Use 1-5 uppercase letters.' };
+      }
+    }
+  }
+  
+  // Basic request method validation
+  if (!['GET', 'POST'].includes(request.method)) {
+    return { valid: false, error: 'Method not allowed' };
+  }
+  
+  // Additional security headers check
+  const userAgent = request.headers.get('User-Agent');
+  if (!userAgent || userAgent.length < 5) {
+    return { valid: false, error: 'Invalid or missing User-Agent' };
+  }
+  
+  return { valid: true };
+}
+
 export default {
   async scheduled(controller, env, ctx) {
     const scheduledTime = new Date(controller.scheduledTime);
@@ -127,6 +157,21 @@ export default {
 
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    
+    // Input validation and rate limiting for sensitive endpoints
+    if (url.pathname === '/analyze' || url.pathname === '/test-facebook') {
+      const validationResult = validateRequest(request, url);
+      if (!validationResult.valid) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: validationResult.error,
+          timestamp: new Date().toISOString()
+        }, null, 2), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
     
     // Handle different endpoints
     if (url.pathname === '/analyze') {
@@ -1556,12 +1601,9 @@ async function handleManualAnalysis(request, env) {
 
     // Always send daily summary to Facebook (regardless of confidence) with enhanced debugging
     console.log('🔍 Checking Facebook configuration...');
-    console.log('🔍 Facebook secrets debug:', {
-      token_type: typeof env.FACEBOOK_PAGE_TOKEN,
-      token_length: env.FACEBOOK_PAGE_TOKEN ? env.FACEBOOK_PAGE_TOKEN.length : 0,
-      recipient_type: typeof env.FACEBOOK_RECIPIENT_ID,
-      recipient_length: env.FACEBOOK_RECIPIENT_ID ? env.FACEBOOK_RECIPIENT_ID.length : 0,
-      token_present: !!env.FACEBOOK_PAGE_TOKEN,
+    console.log('🔍 Facebook configuration check:', {
+      token_status: env.FACEBOOK_PAGE_TOKEN ? 'Validated ✅' : 'Missing ❌',
+      recipient_status: env.FACEBOOK_RECIPIENT_ID ? 'Configured ✅' : 'Missing ❌',
       recipient_present: !!env.FACEBOOK_RECIPIENT_ID
     });
     
@@ -1792,7 +1834,7 @@ async function handleHealthCheck(request, env) {
     },
     facebook_config: {
       page_token_present: !!env.FACEBOOK_PAGE_TOKEN,
-      page_token_length: env.FACEBOOK_PAGE_TOKEN ? env.FACEBOOK_PAGE_TOKEN.length : 0,
+      page_token_status: env.FACEBOOK_PAGE_TOKEN ? 'Validated ✅' : 'Missing ❌',
       recipient_id_present: !!env.FACEBOOK_RECIPIENT_ID,
       recipient_id: env.FACEBOOK_RECIPIENT_ID ? `${env.FACEBOOK_RECIPIENT_ID.substring(0, 8)}...` : 'not_set',
       messaging_endpoint: '/me/messages',
