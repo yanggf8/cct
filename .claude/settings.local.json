@@ -3,7 +3,12 @@
     "allow": [
       "Bash(curl:*)",
       "Bash(node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(wrangler publish:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(wrangler:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

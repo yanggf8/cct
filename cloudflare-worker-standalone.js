@@ -88,8 +88,8 @@ export default {
     const currentHour = estTime.getHours();
     const currentMinute = estTime.getMinutes();
     
-    // Determine if this is the final daily report (9:00 AM EST = 14:00 UTC)
-    const isFinalDailyReport = (currentHour === 9 || (currentHour === 14 && currentMinute === 0));
+    // Determine if this is the final daily report (9:00 AM EST)
+    const isFinalDailyReport = (currentHour === 9 && currentMinute === 0);
     
     console.log(`🚀 Scheduled analysis triggered at ${estTime.toISOString()}`, {
       hour: currentHour,
@@ -193,8 +193,10 @@ export default {
       return handleFacebookTest(request, env);
     } else if (url.pathname === '/weekly-report') {
       return handleWeeklyReport(request, env);
+    } else if (url.pathname === '/test-daily-report') {
+      return handleTestDailyReport(request, env);
     } else {
-      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report', { 
+      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report', { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
@@ -1690,7 +1692,8 @@ async function sendCriticalAlert(errorMessage, env) {
 async function handleManualAnalysis(request, env) {
   try {
     console.log('🔄 Manual analysis requested');
-    const result = await runPreMarketAnalysis(env);
+    // Manual analysis simulates non-final daily report (for testing high-confidence alerts)
+    const result = await runPreMarketAnalysis(env, { isFinalDailyReport: false });
     
     // Store results in KV for weekly accuracy tracking (same as scheduled function)
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
@@ -1707,6 +1710,7 @@ async function handleManualAnalysis(request, env) {
     }
 
     // Send Facebook notifications based on analysis type
+    const isFinalDailyReport = false; // Manual analysis always tests high-confidence alerts
     console.log('🔍 Checking Facebook notification logic...');
     console.log('🔍 Facebook configuration check:', {
       token_status: env.FACEBOOK_PAGE_TOKEN ? 'Validated ✅' : 'Missing ❌',
@@ -1966,4 +1970,63 @@ async function handleHealthCheck(request, env) {
     status: 200,
     headers: { 'Content-Type': 'application/json' }
   });
+}
+
+/**
+ * Test daily report with candle charts (simulates 9:00 AM final report)
+ */
+async function handleTestDailyReport(request, env) {
+  try {
+    console.log('🧪 Testing daily report with candle charts');
+    const result = await runPreMarketAnalysis(env, { isFinalDailyReport: true });
+    
+    // Test the candle chart generation
+    console.log('📊 Testing candle chart generation...');
+    const signals = Object.entries(result.trading_signals || {});
+    let chartTest = '\n🧪 CANDLE CHART TEST:\n\n';
+    
+    signals.slice(0, 2).forEach(([symbol, signal]) => {
+      if (signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
+        const modelComp = signal.components.price_prediction.model_comparison;
+        const currentPrice = signal.current_price;
+        const tftPrice = modelComp.tft_prediction?.price || currentPrice;
+        const nhitsPrice = modelComp.nhits_prediction?.price || currentPrice;
+        
+        chartTest += generateCandleChart(symbol, currentPrice, tftPrice, nhitsPrice) + '\n\n';
+      }
+    });
+    
+    // Add chart test to result
+    result.candle_chart_test = chartTest;
+    result.test_mode = true;
+    result.simulates_final_daily_report = true;
+    
+    // If Facebook is configured, test the daily report sending
+    if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
+      try {
+        console.log('📱 Testing Facebook daily report with candle charts...');
+        await sendFacebookDailyReport(result, env, true); // true = include candle charts
+        result.facebook_test = 'Daily report with candle charts sent successfully';
+      } catch (fbError) {
+        result.facebook_test = `Error: ${fbError.message}`;
+      }
+    } else {
+      result.facebook_test = 'Facebook not configured (set FACEBOOK_PAGE_TOKEN and FACEBOOK_RECIPIENT_ID)';
+    }
+    
+    return new Response(JSON.stringify(result, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Daily report test failed:', error.message);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      test: 'daily_report_with_candle_charts'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
