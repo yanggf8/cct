@@ -128,8 +128,10 @@ export default {
       return handleGetResults(request, env);
     } else if (url.pathname === '/health') {
       return handleHealthCheck(request, env);
+    } else if (url.pathname === '/test-facebook') {
+      return handleFacebookTest(request, env);
     } else {
-      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health', { 
+      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook', { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
@@ -1141,15 +1143,27 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
 }
 
 /**
- * Send daily summary via Facebook Messenger
+ * Send daily summary via Facebook Messenger - ENHANCED DEBUGGING
  */
 async function sendFacebookDailySummary(analysisResults, env) {
+  console.log('🔍 sendFacebookDailySummary called with:', {
+    has_analysis_results: !!analysisResults,
+    has_trading_signals: !!(analysisResults?.trading_signals),
+    signal_count: Object.keys(analysisResults?.trading_signals || {}).length,
+    has_facebook_token: !!env.FACEBOOK_PAGE_TOKEN,
+    has_recipient_id: !!env.FACEBOOK_RECIPIENT_ID
+  });
+  
   if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-    console.log('⚠️ Facebook Messenger not configured for daily summary');
-    return;
+    console.log('⚠️ Facebook Messenger not configured for daily summary:', {
+      token_available: !!env.FACEBOOK_PAGE_TOKEN,
+      recipient_available: !!env.FACEBOOK_RECIPIENT_ID
+    });
+    throw new Error('Facebook configuration missing - check environment variables');
   }
 
   try {
+    console.log('📝 Building Facebook message content...');
     const date = new Date().toLocaleDateString('en-US');
     const signals = Object.entries(analysisResults.trading_signals || {});
     
@@ -1177,8 +1191,16 @@ async function sendFacebookDailySummary(analysisResults, env) {
       summaryText += `No trading signals generated today.\n\nSystem Status: Operational ✅`;
     }
 
-    // Send daily summary
-    await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+    console.log('📤 Sending Facebook daily summary...', {
+      message_length: summaryText.length,
+      signal_count: signals.length
+    });
+
+    // Send daily summary with timeout and proper error handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1188,13 +1210,35 @@ async function sendFacebookDailySummary(analysisResults, env) {
         recipient: { id: env.FACEBOOK_RECIPIENT_ID },
         message: { text: summaryText },
         messaging_type: 'UPDATE'
-      })
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
-    console.log('✅ Facebook daily summary sent');
+    console.log('📡 Facebook API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Facebook API error response:', errorText);
+      throw new Error(`Facebook API HTTP ${response.status}: ${errorText}`);
+    }
+    
+    const responseData = await response.json();
+    console.log('✅ Facebook daily summary sent successfully:', {
+      message_id: responseData.message_id,
+      recipient_id: responseData.recipient_id
+    });
+    
+    return { success: true, message_id: responseData.message_id };
 
   } catch (error) {
-    console.error('❌ Facebook daily summary failed:', error);
+    console.error('❌ Facebook daily summary failed:', {
+      error_name: error.name,
+      error_message: error.message,
+      stack: error.stack?.substring(0, 200)
+    });
+    throw error; // Re-throw to be caught by caller
   }
 }
 
@@ -1261,7 +1305,38 @@ async function sendCriticalAlert(errorMessage, env) {
  */
 async function handleManualAnalysis(request, env) {
   try {
+    console.log('🔄 Manual analysis requested');
     const result = await runPreMarketAnalysis(env);
+    
+    // Send notifications same as scheduled function
+    if (result.alerts && result.alerts.length > 0) {
+      await sendAlerts(result, env);
+    }
+
+    // Always send daily summary to Facebook (regardless of confidence) with enhanced debugging
+    console.log('🔍 Checking Facebook configuration...');
+    console.log('🔍 Facebook secrets debug:', {
+      token_type: typeof env.FACEBOOK_PAGE_TOKEN,
+      token_length: env.FACEBOOK_PAGE_TOKEN ? env.FACEBOOK_PAGE_TOKEN.length : 0,
+      recipient_type: typeof env.FACEBOOK_RECIPIENT_ID,
+      recipient_length: env.FACEBOOK_RECIPIENT_ID ? env.FACEBOOK_RECIPIENT_ID.length : 0,
+      token_present: !!env.FACEBOOK_PAGE_TOKEN,
+      recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+    });
+    
+    if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
+      console.log('✅ Facebook tokens available, sending daily summary...');
+      try {
+        await sendFacebookDailySummary(result, env);
+        console.log('✅ Facebook daily summary completed successfully');
+      } catch (fbError) {
+        console.error('❌ Facebook daily summary failed:', fbError.message);
+        // Don't fail the entire request, but add error to result
+        result.facebook_error = fbError.message;
+      }
+    } else {
+      console.log('⚠️ Facebook not configured - tokens missing or empty');
+    }
     
     return new Response(JSON.stringify(result, null, 2), {
       status: 200,
@@ -1269,6 +1344,7 @@ async function handleManualAnalysis(request, env) {
     });
     
   } catch (error) {
+    console.error('❌ Manual analysis failed:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -1307,6 +1383,96 @@ async function handleGetResults(request, env) {
 }
 
 /**
+ * Handle Facebook messaging test
+ */
+async function handleFacebookTest(request, env) {
+  try {
+    console.log('🧪 Facebook messaging test requested');
+    
+    // Check Facebook configuration
+    if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Facebook not configured - missing token or recipient ID',
+        debug: {
+          token_present: !!env.FACEBOOK_PAGE_TOKEN,
+          recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+        }
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Create test message
+    const testMessage = `🧪 WORKER FACEBOOK TEST: ${new Date().toLocaleString()}
+
+✅ Facebook integration test from TFT Trading System worker!
+
+🔧 Configuration:
+• Token: Present (${env.FACEBOOK_PAGE_TOKEN.length} chars)
+• Recipient: ${env.FACEBOOK_RECIPIENT_ID}
+• Endpoint: /me/messages
+• Worker Version: 1.0-Cloudflare
+
+If you receive this message, the production worker Facebook integration is working perfectly! 🎉
+
+🤖 TFT Trading System`;
+
+    // Send test message using the same function as daily summaries
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`
+      },
+      body: JSON.stringify({
+        recipient: { id: env.FACEBOOK_RECIPIENT_ID },
+        message: { text: testMessage },
+        messaging_type: 'UPDATE'
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      console.log('✅ Facebook test message sent successfully');
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Facebook test message sent successfully!',
+        facebook_response: result,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } else {
+      console.error('❌ Facebook test message failed:', result);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Facebook API error',
+        facebook_error: result,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Facebook test handler error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
  * Handle health check
  */
 async function handleHealthCheck(request, env) {
@@ -1320,7 +1486,8 @@ async function handleHealthCheck(request, env) {
       modelscope_api: (env.MODELSCOPE_API_URL && env.MODELSCOPE_API_KEY) ? 'configured' : 'not_configured',
       yahoo_finance: 'available',
       email_alerts: env.ALERT_EMAIL ? 'configured' : 'not_configured',
-      slack_alerts: env.SLACK_WEBHOOK_URL ? 'configured' : 'not_configured'
+      slack_alerts: env.SLACK_WEBHOOK_URL ? 'configured' : 'not_configured',
+      facebook_messaging: (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) ? 'configured' : 'not_configured'
     },
     circuit_breakers: {
       modelScope: circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED',
@@ -1332,7 +1499,16 @@ async function handleHealthCheck(request, env) {
       cloudflare_ai_sentiment: 'enabled',
       circuit_breakers: 'enabled',
       hierarchical_nhits_fallback: 'enabled',
-      production_error_handling: 'enabled'
+      production_error_handling: 'enabled',
+      facebook_messaging: 'enabled'
+    },
+    facebook_config: {
+      page_token_present: !!env.FACEBOOK_PAGE_TOKEN,
+      page_token_length: env.FACEBOOK_PAGE_TOKEN ? env.FACEBOOK_PAGE_TOKEN.length : 0,
+      recipient_id_present: !!env.FACEBOOK_RECIPIENT_ID,
+      recipient_id: env.FACEBOOK_RECIPIENT_ID ? `${env.FACEBOOK_RECIPIENT_ID.substring(0, 8)}...` : 'not_set',
+      messaging_endpoint: '/me/messages',
+      messaging_type: 'UPDATE'
     }
   };
   
