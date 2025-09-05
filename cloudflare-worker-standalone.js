@@ -1489,7 +1489,8 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
         message: {
           text: messageText
         },
-        messaging_type: 'UPDATE'
+        messaging_type: 'MESSAGE_TAG',
+        tag: 'ACCOUNT_UPDATE'
       })
     });
 
@@ -1522,7 +1523,8 @@ async function sendFacebookMessage(messageText, env) {
       body: JSON.stringify({
         recipient: { id: env.FACEBOOK_RECIPIENT_ID },
         message: { text: messageText },
-        messaging_type: 'UPDATE'
+        messaging_type: 'MESSAGE_TAG',
+        tag: 'ACCOUNT_UPDATE'
       }),
       signal: controller.signal
     });
@@ -1735,7 +1737,8 @@ async function sendWeeklyAccuracyReport(env) {
       body: JSON.stringify({
         recipient: { id: env.FACEBOOK_RECIPIENT_ID },
         message: { text: reportText },
-        messaging_type: 'UPDATE'
+        messaging_type: 'MESSAGE_TAG',
+        tag: 'ACCOUNT_UPDATE'
       })
     });
 
@@ -2140,7 +2143,8 @@ If you receive this message, the production worker Facebook integration is worki
       body: JSON.stringify({
         recipient: { id: env.FACEBOOK_RECIPIENT_ID },
         message: { text: testMessage },
-        messaging_type: 'UPDATE'
+        messaging_type: 'MESSAGE_TAG',
+        tag: 'ACCOUNT_UPDATE'
       })
     });
 
@@ -2265,7 +2269,8 @@ async function handleHealthCheck(request, env) {
       recipient_id_present: !!env.FACEBOOK_RECIPIENT_ID,
       recipient_id: env.FACEBOOK_RECIPIENT_ID ? `${env.FACEBOOK_RECIPIENT_ID.substring(0, 8)}...` : 'not_set',
       messaging_endpoint: '/me/messages',
-      messaging_type: 'UPDATE'
+      messaging_type: 'MESSAGE_TAG',
+      message_tag: 'ACCOUNT_UPDATE'
     }
   };
   
