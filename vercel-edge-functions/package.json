@@ -2,6 +2,7 @@
   "name": "tft-nhits-edge-predictor",
   "version": "1.0.0",
   "description": "TFT + N-HITS financial prediction models on Vercel Edge Functions",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "dev": "node test/test-client.js",

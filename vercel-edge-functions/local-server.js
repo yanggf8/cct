@@ -8,8 +8,9 @@ const http = require('http');
 const url = require('url');
 const path = require('path');
 
-// Import our Edge Function handlers (mock versions)
-const predictMock = require('./api/predict-mock.js');
+// Import our Edge Function handlers (real versions)
+const predict = require('./api/predict.js');
+const predictDual = require('./api/predict-dual.js');
 const health = require('./api/health.js');
 
 const PORT = process.env.PORT || 3000;
@@ -51,7 +52,10 @@ const server = http.createServer(async (req, res) => {
         response = await health.default(mockRequest);
         break;
       case '/api/predict':
-        response = await predictMock.default(mockRequest);
+        response = await predict.default(mockRequest);
+        break;
+      case '/api/predict-dual':
+        response = await predictDual.default(mockRequest);
         break;
       default:
         response = new Response(JSON.stringify({ error: 'Not Found' }), { 
