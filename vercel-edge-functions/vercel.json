@@ -1,15 +1,4 @@
 {
-  "functions": {
-    "api/predict.js": {
-      "runtime": "edge"
-    },
-    "api/predict-dual.js": {
-      "runtime": "edge"
-    },
-    "api/health.js": {
-      "runtime": "edge"
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
@@ -33,7 +22,6 @@
       ]
     }
   ],
-  "regions": ["iad1", "sfo1", "fra1", "hnd1", "syd1"],
   "github": {
     "silent": true
   }

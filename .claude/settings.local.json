@@ -14,7 +14,14 @@
       "WebFetch(domain:developers.cloudflare.com)",
       "mcp__gemini-cli__ask-gemini",
       "WebFetch(domain:community.cloudflare.com)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npm install)",
+      "Bash(npm audit:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vercel dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": [],
     "ask": []

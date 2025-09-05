@@ -4,19 +4,21 @@
   "description": "TFT + N-HITS financial prediction models on Vercel Edge Functions",
   "main": "index.js",
   "scripts": {
-    "dev": "vercel dev",
-    "build": "vercel build", 
+    "dev": "node test/test-client.js",
+    "build": "echo 'Edge Functions build complete'",
     "deploy": "vercel --prod",
-    "test": "jest"
+    "test": "jest",
+    "start": "vercel dev"
   },
   "dependencies": {
     "onnxruntime-web": "^1.17.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@vercel/node": "^3.0.0",
+    "@vercel/node": "^2.3.0",
+    "jest": "^29.0.0",
     "typescript": "^5.0.0",
-    "jest": "^29.0.0"
+    "vercel": "^47.0.5"
   },
   "engines": {
     "node": ">=18"

@@ -1,9 +1,16 @@
 /**
- * Vercel Edge Function: Single N-HITS Model Prediction
- * Ultra-fast financial time series prediction at the edge
+ * Mock Vercel Edge Function: Single N-HITS Model Prediction
+ * Test version without ONNX Runtime for local development
  */
 
-import { InferenceSession, Tensor } from 'onnxruntime-web/webassembly';
+// Mock Tensor class for testing
+class MockTensor {
+  constructor(type, data, dims) {
+    this.type = type;
+    this.data = data;
+    this.dims = dims;
+  }
+}
 
 // Model configuration
 const MODEL_CONFIG = {
@@ -13,61 +20,26 @@ const MODEL_CONFIG = {
   modelName: 'EdgeNHITS'
 };
 
-// Cache for model session (Edge Functions have limited memory)
-let modelSession = null;
-
-/**
- * Load ONNX model (cached for performance)
- */
-async function loadModel() {
-  if (modelSession) {
-    return modelSession;
-  }
-
-  try {
-    // In production, this would load from a CDN or bundled asset
-    // For POC, we'll simulate model loading
-    console.log('Loading N-HITS ONNX model...');
+// Mock model session
+const mockSession = {
+  run: async (feeds) => {
+    // Simulate N-HITS inference with realistic computation
+    const input = feeds.input;
+    const inputData = input.data;
+    const lastPrice = inputData[inputData.length - 3]; // Close price
     
-    // Note: In real implementation, you'd import the .onnx file
-    // const modelArrayBuffer = await import('./models/edge_nhits_financial.onnx');
-    // modelSession = await InferenceSession.create(modelArrayBuffer);
+    // Simulate N-HITS hierarchical prediction
+    const shortTrend = 0.001; // 0.1% trend
+    const mediumTrend = 0.0005; // 0.05% trend  
+    const longTrend = 0.0002; // 0.02% trend
     
-    // For POC, we'll create a mock session structure
-    modelSession = {
-      run: async (feeds) => {
-        // Simulate N-HITS inference with realistic computation
-        const input = feeds.input;
-        const batchSize = input.dims[0];
-        const seqLen = input.dims[1];
-        const features = input.dims[2];
-        
-        // Simple prediction logic (replace with actual ONNX inference)
-        const inputData = input.data;
-        const lastPrice = inputData[inputData.length - 3]; // Close price
-        
-        // Simulate N-HITS hierarchical prediction
-        const shortTrend = 0.001; // 0.1% trend
-        const mediumTrend = 0.0005; // 0.05% trend  
-        const longTrend = 0.0002; // 0.02% trend
-        
-        const prediction = lastPrice * (1 + shortTrend + mediumTrend + longTrend);
-        
-        return {
-          output: new Tensor('float32', new Float32Array([prediction]), [1, 1])
-        };
-      },
-      inputNames: ['input'],
-      outputNames: ['output']
+    const prediction = lastPrice * (1 + shortTrend + mediumTrend + longTrend);
+    
+    return {
+      output: new MockTensor('float32', new Float32Array([prediction]), [1, 1])
     };
-    
-    console.log('N-HITS model loaded successfully');
-    return modelSession;
-  } catch (error) {
-    console.error('Error loading model:', error);
-    throw new Error('Failed to load N-HITS model');
   }
-}
+};
 
 /**
  * Preprocess input data for model inference
@@ -92,7 +64,7 @@ function preprocessInput(ohlcvData) {
     
     // Flatten for ONNX input
     const inputData = new Float32Array(normalized.flat());
-    const inputTensor = new Tensor('float32', inputData, MODEL_CONFIG.inputShape);
+    const inputTensor = new MockTensor('float32', inputData, MODEL_CONFIG.inputShape);
     
     return { input: inputTensor };
   } catch (error) {
@@ -165,11 +137,6 @@ export default async function handler(request) {
       );
     }
     
-    // Load model
-    const modelLoadStart = performance.now();
-    const model = await loadModel();
-    const modelLoadTime = performance.now() - modelLoadStart;
-    
     // Preprocess input
     const preprocessStart = performance.now();
     const modelInput = preprocessInput(ohlcvData);
@@ -177,7 +144,7 @@ export default async function handler(request) {
     
     // Run inference
     const inferenceStart = performance.now();
-    const modelOutput = await model.run(modelInput);
+    const modelOutput = await mockSession.run(modelInput);
     const inferenceTime = performance.now() - inferenceStart;
     
     // Postprocess output
@@ -196,16 +163,16 @@ export default async function handler(request) {
         prediction: result,
         performance: {
           totalTimeMs: Math.round(totalTime * 100) / 100,
-          modelLoadTimeMs: Math.round(modelLoadTime * 100) / 100,
           preprocessTimeMs: Math.round(preprocessTime * 100) / 100,
           inferenceTimeMs: Math.round(inferenceTime * 100) / 100,
           postprocessTimeMs: Math.round(postprocessTime * 100) / 100
         },
         timestamp: new Date().toISOString(),
         edge: {
-          region: process.env.VERCEL_REGION || 'unknown',
-          runtime: 'edge'
-        }
+          region: process.env.VERCEL_REGION || 'dev',
+          runtime: 'edge-mock'
+        },
+        note: 'Mock version for local testing'
       }),
       {
         status: 200,
@@ -225,8 +192,8 @@ export default async function handler(request) {
         error: error.message,
         timestamp: new Date().toISOString(),
         edge: {
-          region: process.env.VERCEL_REGION || 'unknown',
-          runtime: 'edge'
+          region: process.env.VERCEL_REGION || 'dev',
+          runtime: 'edge-mock'
         }
       }),
       {

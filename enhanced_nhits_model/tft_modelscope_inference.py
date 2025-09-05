@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-TFT ModelScope Inference Script
-Deploy TFT Primary + N-HITS Backup to ModelScope Cloud Platform
+TFT ModelScope Inference Script - Updated with Latest Models
+Deploy Enhanced TFT + N-HITS to ModelScope Cloud Platform
+Cloud-optimized version of latest model architectures
 """
 
 import json
@@ -15,19 +16,284 @@ warnings.filterwarnings('ignore')
 try:
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.ensemble import GradientBoostingRegressor
 import pickle
 import os
 
+# ===== ENHANCED TFT COMPONENTS (Cloud-Optimized) =====
+
+class EnhancedTFTBlock(nn.Module):
+    """
+    Enhanced TFT block optimized for cloud deployment
+    More sophisticated than edge version, leveraging cloud compute power
+    """
+    
+    def __init__(self, input_size, hidden_size, dropout=0.1):
+        super(EnhancedTFTBlock, self).__init__()
+        
+        self.hidden_size = hidden_size
+        
+        # Enhanced Variable Selection Network
+        self.variable_selection = nn.Sequential(
+            nn.Linear(input_size, hidden_size * 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, input_size),
+            nn.Sigmoid()
+        )
+        
+        # Multi-layer LSTM for cloud deployment
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=2,  # More layers for cloud power
+            batch_first=True,
+            dropout=dropout if dropout > 0 else 0
+        )
+        
+        # Enhanced Gated Residual Network
+        self.grn = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size)
+        )
+        
+        # Attention mechanism for cloud deployment
+        self.attention = nn.MultiheadAttention(
+            embed_dim=hidden_size,
+            num_heads=4,
+            dropout=dropout,
+            batch_first=True
+        )
+        
+    def forward(self, x):
+        # Enhanced variable selection
+        selected_vars = self.variable_selection(x)
+        x_selected = x * selected_vars
+        
+        # LSTM processing
+        lstm_out, _ = self.lstm(x_selected)
+        
+        # Self-attention for temporal dependencies
+        attn_out, _ = self.attention(lstm_out, lstm_out, lstm_out)
+        
+        # Enhanced gated residual connection
+        grn_out = self.grn(attn_out)
+        output = attn_out + grn_out
+        
+        return output
+
+class EnhancedTFTModel(nn.Module):
+    """
+    Enhanced Temporal Fusion Transformer for cloud deployment
+    More sophisticated architecture leveraging cloud compute resources
+    """
+    
+    def __init__(self, input_size=5, hidden_size=128, num_layers=3, dropout=0.1):
+        super(EnhancedTFTModel, self).__init__()
+        
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        
+        # Input embedding for better feature representation
+        self.input_embedding = nn.Linear(input_size, hidden_size)
+        
+        # Stack of enhanced TFT blocks
+        self.tft_blocks = nn.ModuleList([
+            EnhancedTFTBlock(hidden_size, hidden_size, dropout)
+            for _ in range(num_layers)
+        ])
+        
+        # Enhanced output projection with multiple layers
+        self.output_projection = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size // 2, 1)
+        )
+        
+    def forward(self, x):
+        # Input embedding
+        x = self.input_embedding(x)
+        
+        # Process through enhanced TFT blocks
+        for tft_block in self.tft_blocks:
+            x = tft_block(x)
+        
+        # Final prediction
+        output = self.output_projection(x[:, -1, :])  # Use last timestep
+        
+        return output
+
+# ===== ENHANCED N-HITS COMPONENTS (Cloud-Optimized) =====
+
+class EnhancedPooling(nn.Module):
+    """
+    Enhanced pooling layer for cloud N-HITS
+    More sophisticated downsampling with learnable parameters
+    """
+    
+    def __init__(self, pooling_factor, input_size):
+        super(EnhancedPooling, self).__init__()
+        self.pooling_factor = pooling_factor
+        
+        # Learnable pooling weights
+        self.pooling_weights = nn.Parameter(torch.randn(input_size, input_size))
+        
+    def forward(self, x):
+        # Learnable weighted pooling
+        x_weighted = torch.matmul(x, self.pooling_weights)
+        return F.avg_pool1d(x_weighted.transpose(1, 2), self.pooling_factor, self.pooling_factor).transpose(1, 2)
+
+class EnhancedInterpolation(nn.Module):
+    """
+    Enhanced interpolation layer for cloud deployment
+    Learnable upsampling with neural networks
+    """
+    
+    def __init__(self, scale_factor, hidden_size):
+        super(EnhancedInterpolation, self).__init__()
+        self.scale_factor = scale_factor
+        
+        # Learnable interpolation network
+        self.interpolation_net = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * 2),
+            nn.ReLU(),
+            nn.Linear(hidden_size * 2, hidden_size)
+        )
+        
+    def forward(self, x):
+        # Neural interpolation
+        x_processed = self.interpolation_net(x)
+        return F.interpolate(
+            x_processed.transpose(1, 2), 
+            scale_factor=self.scale_factor, 
+            mode='linear', 
+            align_corners=False
+        ).transpose(1, 2)
+
+class EnhancedNHITSBlock(nn.Module):
+    """
+    Enhanced N-HITS block for cloud deployment
+    More sophisticated hierarchical interpolation
+    """
+    
+    def __init__(self, input_size, hidden_size, pooling_factor=2):
+        super(EnhancedNHITSBlock, self).__init__()
+        
+        self.pooling_factor = pooling_factor
+        
+        # Enhanced downsampling
+        self.pooling = EnhancedPooling(pooling_factor, input_size)
+        
+        # More sophisticated processing network
+        self.processing = nn.Sequential(
+            nn.Linear(input_size, hidden_size * 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size, input_size)
+        )
+        
+        # Enhanced upsampling
+        self.interpolation = EnhancedInterpolation(pooling_factor, input_size)
+        
+        # Residual connection with learnable weights
+        self.residual_weight = nn.Parameter(torch.tensor(0.5))
+        
+    def forward(self, x):
+        # Enhanced hierarchical processing
+        x_pooled = self.pooling(x)
+        x_processed = self.processing(x_pooled)
+        x_upsampled = self.interpolation(x_processed)
+        
+        # Learnable residual connection
+        if x_upsampled.shape == x.shape:
+            output = x * (1 - self.residual_weight) + x_upsampled * self.residual_weight
+        else:
+            output = x_upsampled
+            
+        return output
+
+class EnhancedNHITSModel(nn.Module):
+    """
+    Enhanced Neural Hierarchical Interpolation for cloud deployment
+    Multi-scale hierarchical forecasting with sophisticated architecture
+    """
+    
+    def __init__(self, input_size=5, hidden_size=128, num_blocks=4):
+        super(EnhancedNHITSModel, self).__init__()
+        
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        
+        # Input transformation
+        self.input_transform = nn.Linear(input_size, input_size)
+        
+        # Multi-scale enhanced N-HITS blocks
+        self.nhits_blocks = nn.ModuleList([
+            EnhancedNHITSBlock(input_size, hidden_size, pooling_factor=2**i)
+            for i in range(1, num_blocks + 1)
+        ])
+        
+        # Enhanced prediction head with attention
+        self.scale_attention = nn.MultiheadAttention(
+            embed_dim=input_size,
+            num_heads=1,
+            batch_first=True
+        )
+        
+        self.prediction_head = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(hidden_size, hidden_size // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_size // 2, 1)
+        )
+        
+    def forward(self, x):
+        # Input transformation
+        x = self.input_transform(x)
+        
+        # Multi-scale processing
+        scale_outputs = []
+        for nhits_block in self.nhits_blocks:
+            scale_output = nhits_block(x)
+            scale_outputs.append(scale_output[:, -1:, :])  # Keep sequence dimension
+        
+        # Stack and apply attention across scales
+        stacked_scales = torch.cat(scale_outputs, dim=1)  # [batch, num_scales, features]
+        attended_scales, _ = self.scale_attention(stacked_scales, stacked_scales, stacked_scales)
+        
+        # Aggregate and predict
+        aggregated = attended_scales.mean(dim=1)  # Average across scales
+        output = self.prediction_head(aggregated)
+        
+        return output
+
+# ===== ENHANCED MODELSCOPE TFT CLASS =====
+
 class ModelScopeTFT:
     """
-    TFT Primary + N-HITS Backup for ModelScope Cloud Deployment
-    Implements both Neural TFT and Statistical TFT with N-HITS fallback
+    Enhanced TFT Primary + N-HITS Backup for ModelScope Cloud Deployment
+    Updated with latest sophisticated architectures optimized for cloud compute
     """
     
     def __init__(self):
@@ -36,18 +302,261 @@ class ModelScopeTFT:
         self.scaler = StandardScaler()
         self.trained = False
         
-        # Model metadata
+        # Enhanced model metadata
         self.model_info = {
-            'name': 'TFT-Primary-NHITS-Backup',
-            'version': '1.0.0',
-            'type': 'Hybrid Time Series Forecasting',
-            'primary_model': 'TFT (Temporal Fusion Transformer)',
-            'backup_model': 'N-HITS (Neural Hierarchical Interpolation)',
+            'name': 'Enhanced-Cloud-TFT-NHITS',
+            'version': '2.1.0',
+            'type': 'Advanced Hybrid Time Series Forecasting',
+            'primary_model': 'Enhanced TFT (Cloud-Optimized Temporal Fusion Transformer)',
+            'backup_model': 'Enhanced N-HITS (Cloud-Optimized Neural Hierarchical Interpolation)',
             'deployment_date': datetime.now().isoformat(),
             'capabilities': [
                 'Multi-asset price prediction',
                 'Automatic fallback system',
-                'Attention-based forecasting',
+                'Multi-head attention mechanisms',
+                'Hierarchical multi-scale analysis with attention',
+                'Learnable pooling and interpolation',
+                'Enhanced feature representation'
+            ],
+            'cloud_optimizations': [
+                'Multi-layer LSTM networks',
+                'Multi-head attention mechanisms',
+                'Learnable pooling and interpolation',
+                'Enhanced residual connections',
+                'Sophisticated feature processing',
+                'Scale-wise attention aggregation'
+            ]
+        }
+        
+        print(f"🚀 Enhanced Cloud ModelScope TFT v2.1 initialized")
+        print(f"   Primary: Enhanced TFT (Cloud-Optimized)")
+        print(f"   Backup: Enhanced N-HITS (Multi-scale + Attention)")
+        
+    def train(self, data: np.ndarray, target: np.ndarray):
+        """
+        Train both enhanced TFT and N-HITS models
+        """
+        try:
+            # Prepare data
+            X_scaled = self.scaler.fit_transform(data)
+            
+            if TORCH_AVAILABLE:
+                # Train Enhanced Neural Models
+                print("🧠 Training Enhanced Cloud Neural Models...")
+                
+                # Convert to tensors
+                X_tensor = torch.FloatTensor(X_scaled).unsqueeze(0)
+                y_tensor = torch.FloatTensor(target).unsqueeze(0)
+                
+                # Initialize enhanced cloud models
+                input_size = X_scaled.shape[1]
+                self.tft_model = EnhancedTFTModel(input_size=input_size, hidden_size=128)
+                self.nhits_model = EnhancedNHITSModel(input_size=input_size, hidden_size=128)
+                
+                # Enhanced training with better optimizers
+                optimizer_tft = torch.optim.AdamW(self.tft_model.parameters(), lr=0.001, weight_decay=0.01)
+                optimizer_nhits = torch.optim.AdamW(self.nhits_model.parameters(), lr=0.001, weight_decay=0.01)
+                
+                scheduler_tft = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_tft, T_max=100)
+                scheduler_nhits = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_nhits, T_max=100)
+                
+                for epoch in range(100):  # More epochs for cloud training
+                    # Train Enhanced TFT
+                    optimizer_tft.zero_grad()
+                    tft_pred = self.tft_model(X_tensor)
+                    tft_loss = F.mse_loss(tft_pred, y_tensor)
+                    tft_loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.tft_model.parameters(), 1.0)
+                    optimizer_tft.step()
+                    scheduler_tft.step()
+                    
+                    # Train Enhanced N-HITS
+                    optimizer_nhits.zero_grad()
+                    nhits_pred = self.nhits_model(X_tensor)
+                    nhits_loss = F.mse_loss(nhits_pred, y_tensor)
+                    nhits_loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.nhits_model.parameters(), 1.0)
+                    optimizer_nhits.step()
+                    scheduler_nhits.step()
+                
+                print("✅ Enhanced cloud neural models trained successfully")
+                
+            else:
+                # Enhanced Statistical Fallback
+                print("📊 Training Enhanced Statistical Models...")
+                self.tft_model = GradientBoostingRegressor(
+                    n_estimators=200, 
+                    learning_rate=0.1,
+                    max_depth=6,
+                    random_state=42
+                )
+                self.nhits_model = GradientBoostingRegressor(
+                    n_estimators=150,
+                    learning_rate=0.1, 
+                    max_depth=5,
+                    random_state=42
+                )
+                
+                self.tft_model.fit(X_scaled, target)
+                self.nhits_model.fit(X_scaled, target)
+                
+                print("✅ Enhanced statistical models trained successfully")
+            
+            self.trained = True
+            return True
+            
+        except Exception as e:
+            print(f"❌ Training failed: {str(e)}")
+            return False
+    
+    def predict(self, data: np.ndarray) -> Dict[str, Any]:
+        """
+        Enhanced prediction with sophisticated TFT and N-HITS models
+        """
+        if not self.trained:
+            return {
+                'success': False,
+                'error': 'Model not trained',
+                'prediction': None
+            }
+        
+        try:
+            # Prepare data
+            X_scaled = self.scaler.transform(data)
+            
+            predictions = {}
+            
+            # Enhanced TFT Prediction
+            try:
+                if TORCH_AVAILABLE and hasattr(self.tft_model, 'forward'):
+                    X_tensor = torch.FloatTensor(X_scaled).unsqueeze(0)
+                    with torch.no_grad():
+                        tft_pred = self.tft_model(X_tensor).item()
+                else:
+                    tft_pred = self.tft_model.predict(X_scaled.reshape(1, -1))[0]
+                
+                predictions['tft'] = {
+                    'value': float(tft_pred),
+                    'model': 'Enhanced-Cloud-TFT',
+                    'confidence': 0.90
+                }
+                
+            except Exception as e:
+                print(f"⚠️ Enhanced TFT prediction failed: {e}")
+                predictions['tft'] = None
+            
+            # Enhanced N-HITS Prediction
+            try:
+                if TORCH_AVAILABLE and hasattr(self.nhits_model, 'forward'):
+                    X_tensor = torch.FloatTensor(X_scaled).unsqueeze(0)
+                    with torch.no_grad():
+                        nhits_pred = self.nhits_model(X_tensor).item()
+                else:
+                    nhits_pred = self.nhits_model.predict(X_scaled.reshape(1, -1))[0]
+                
+                predictions['nhits'] = {
+                    'value': float(nhits_pred),
+                    'model': 'Enhanced-Cloud-NHITS',
+                    'confidence': 0.88
+                }
+                
+            except Exception as e:
+                print(f"⚠️ Enhanced N-HITS prediction failed: {e}")
+                predictions['nhits'] = None
+            
+            # Enhanced ensemble prediction
+            if predictions['tft'] and predictions['nhits']:
+                ensemble_pred = (predictions['tft']['value'] * 0.65 + 
+                               predictions['nhits']['value'] * 0.35)
+                primary_model = 'Enhanced-Cloud-TFT-NHITS-Ensemble'
+                confidence = 0.93
+            elif predictions['tft']:
+                ensemble_pred = predictions['tft']['value']
+                primary_model = 'Enhanced-Cloud-TFT-Primary'
+                confidence = 0.90
+            elif predictions['nhits']:
+                ensemble_pred = predictions['nhits']['value']
+                primary_model = 'Enhanced-Cloud-NHITS-Backup'
+                confidence = 0.88
+            else:
+                raise Exception("Both enhanced models failed")
+            
+            return {
+                'success': True,
+                'prediction': float(ensemble_pred),
+                'model_used': primary_model,
+                'confidence': confidence,
+                'individual_predictions': predictions,
+                'model_info': self.model_info,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'prediction': None,
+                'model_info': self.model_info
+            }
+
+# ===== MODELSCOPE PIPELINE INTERFACE =====
+
+def model_fn(model_dir):
+    """ModelScope model loading function"""
+    model = ModelScopeTFT()
+    
+    # Load pre-trained weights if available
+    model_path = os.path.join(model_dir, 'model.pkl')
+    if os.path.exists(model_path):
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+            model.tft_model = model_data.get('tft_model')
+            model.nhits_model = model_data.get('nhits_model')
+            model.scaler = model_data.get('scaler', StandardScaler())
+            model.trained = True
+    
+    return model
+
+def input_fn(request_body, content_type='application/json'):
+    """ModelScope input processing function"""
+    if content_type == 'application/json':
+        input_data = json.loads(request_body)
+        return np.array(input_data['data'])
+    else:
+        raise ValueError(f"Unsupported content type: {content_type}")
+
+def predict_fn(input_data, model):
+    """ModelScope prediction function"""
+    return model.predict(input_data)
+
+def output_fn(prediction, accept='application/json'):
+    """ModelScope output processing function"""
+    if accept == 'application/json':
+        return json.dumps(prediction), accept
+    else:
+        raise ValueError(f"Unsupported accept type: {accept}")
+
+# ===== MAIN EXECUTION =====
+
+if __name__ == "__main__":
+    # Test the enhanced cloud model
+    print("🧪 Testing Enhanced Cloud ModelScope TFT...")
+    
+    # Create sample data
+    sample_data = np.random.randn(20, 5)
+    sample_target = np.random.randn(20)
+    
+    # Initialize and train
+    model = ModelScopeTFT()
+    model.train(sample_data, sample_target)
+    
+    # Test prediction
+    test_data = np.random.randn(20, 5)
+    result = model.predict(test_data)
+    
+    print("📊 Test Results:")
+    print(json.dumps(result, indent=2))
+    print("\n✅ Enhanced Cloud ModelScope TFT ready for deployment!")
                 'Hierarchical interpolation backup'
             ]
         }
