@@ -443,7 +443,7 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
     // Call Vercel Edge TFT API
     console.log(`   🚀 Calling Vercel Edge TFT API for ${symbol}...`);
     
-    // Prepare exactly 30 data points (pad if necessary)
+    // Prepare exactly 30 data points (pad if necessary) and convert to object format
     let apiData = ohlcv_data.slice(-30);
     if (apiData.length < 30) {
       const firstRow = apiData[0];
@@ -451,6 +451,16 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
         apiData.unshift(firstRow); // Pad with first row
       }
     }
+    
+    // Convert from [open, high, low, close, volume] arrays to {open, high, low, close, volume, date} objects
+    const convertedData = apiData.map((row, index) => ({
+      open: row[0],
+      high: row[1], 
+      low: row[2],
+      close: row[3],
+      volume: row[4] || 0,
+      date: new Date(Date.now() - (apiData.length - index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    }));
     
     // Create timeout signal
     const controller = new AbortController();
@@ -463,7 +473,7 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       },
       body: JSON.stringify({
         symbol: symbol,
-        ohlcvData: apiData
+        ohlcvData: convertedData
       }),
       signal: controller.signal
     });
@@ -534,7 +544,7 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
     // Call Vercel Edge N-HITS API
     console.log(`   🚀 Calling Vercel Edge N-HITS API for ${symbol}...`);
     
-    // Prepare exactly 30 data points (pad if necessary)
+    // Prepare exactly 30 data points (pad if necessary) and convert to object format
     let apiData = ohlcv_data.slice(-30);
     if (apiData.length < 30) {
       const firstRow = apiData[0];
@@ -543,18 +553,28 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       }
     }
     
+    // Convert from [open, high, low, close, volume] arrays to {open, high, low, close, volume, date} objects
+    const convertedData = apiData.map((row, index) => ({
+      open: row[0],
+      high: row[1], 
+      low: row[2],
+      close: row[3],
+      volume: row[4] || 0,
+      date: new Date(Date.now() - (apiData.length - index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    }));
+    
     // Create timeout signal
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
     
-    const vercelResponse = await fetch(`https://vercel-edge-functions-erhyn3h7k-yang-goufangs-projects.vercel.app/api/predict?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
+    const vercelResponse = await fetch(`https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         symbol: symbol,
-        ohlcvData: apiData
+        ohlcvData: convertedData
       }),
       signal: controller.signal
     });
@@ -567,15 +587,21 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
     
     const result = await vercelResponse.json();
     
+    // Extract prediction data from new N-HITS API format
+    const prediction = result.prediction;
+    const predictedPrice = prediction?.prediction || current_price;
+    const confidence = prediction?.confidence || 0.69;
+    
     return {
-      signal_score: result.signal_score || (result.predicted_price - current_price) / current_price,
-      confidence: result.confidence || 0.72,
-      predicted_price: result.predicted_price || current_price,
+      signal_score: (predictedPrice - current_price) / current_price,
+      confidence: confidence,
+      predicted_price: predictedPrice,
       current_price: current_price,
-      direction: result.direction || (result.predicted_price > current_price ? 'UP' : 'DOWN'),
-      model_latency: result.inference_time_ms || 45,
-      model_used: 'Real-NHITS-Vercel-Edge',
-      api_source: 'Vercel-Edge-ONNX'
+      direction: predictedPrice > current_price ? 'UP' : 'DOWN',
+      model_latency: result.performance?.inferenceTimeMs || 1,
+      model_used: prediction?.modelUsed || 'RealEdgeNHITS',
+      api_source: 'Vercel-Node-Real-NHITS',
+      technical_indicators: prediction?.technicalIndicators || {}
     };
     
   } catch (error) {
