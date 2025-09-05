@@ -145,10 +145,18 @@ async function testRealModelDirect() {
         console.log('   ⚠️  Confidence outside expected range');
       }
       
-      if (result.model?.implementation === 'mathematically_accurate_simulation') {
+      if (result.model?.implementation === 'real_nhits_hierarchical_interpolation') {
+        console.log('   ✅ Using real N-HITS hierarchical interpolation');
+      } else if (result.model?.implementation === 'mathematically_accurate_simulation') {
         console.log('   ✅ Using real N-HITS mathematical simulation');
       } else {
         console.log('   ❌ Not using real model simulation');
+      }
+      
+      if (result.model?.features?.multiRateDecomposition && result.model?.features?.hierarchicalInterpolation) {
+        console.log('   ✅ N-HITS core features implemented (multi-rate decomposition + hierarchical interpolation)');
+      } else {
+        console.log('   ⚠️  Missing N-HITS core features');
       }
       
       console.log('\n🎯 Overall Assessment: ✅ REAL MODEL VALIDATED');
