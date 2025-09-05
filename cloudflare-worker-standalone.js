@@ -197,7 +197,7 @@ export default {
     const url = new URL(request.url);
     
     // Input validation and rate limiting for sensitive endpoints
-    if (url.pathname === '/analyze' || url.pathname === '/test-facebook') {
+    if (url.pathname === '/analyze' || url.pathname === '/test-facebook' || url.pathname === '/test-high-confidence') {
       const validationResult = validateRequest(request, url);
       if (!validationResult.valid) {
         return new Response(JSON.stringify({
@@ -758,7 +758,7 @@ async function callModelScopeAPI(symbol, ohlcv_data, env, modelType = 'TFT', hor
   };
   
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+  const timeoutId = setTimeout(() => controller.abort(), CIRCUIT_BREAKER_CONFIG.timeoutMs);
   
   try {
     const response = await fetch(`${env.MODELSCOPE_API_URL}/predict`, {
@@ -1247,7 +1247,7 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
  */
 async function sendFacebookMessage(messageText, env) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  const timeoutId = setTimeout(() => controller.abort(), CIRCUIT_BREAKER_CONFIG.timeoutMs);
   
   try {
     const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
@@ -1268,7 +1268,7 @@ async function sendFacebookMessage(messageText, env) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Facebook API error response:', errorText);
+      console.error(`❌ Facebook API error: HTTP ${response.status} - Response received but request failed`);
       throw new Error(`Facebook API HTTP ${response.status}: Request failed`);
     }
     
@@ -1695,7 +1695,7 @@ async function sendCriticalAlertWithRetry(errorMessage, env, maxRetries = 3) {
 async function sendCriticalAlert(errorMessage, env) {
   if (env.SLACK_WEBHOOK_URL) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+    const timeoutId = setTimeout(() => controller.abort(), CIRCUIT_BREAKER_CONFIG.timeoutMs);
     
     try {
       await fetch(env.SLACK_WEBHOOK_URL, {
