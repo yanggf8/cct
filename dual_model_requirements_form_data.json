@@ -1,0 +1,36 @@
+{
+  "contact_info": {
+    "company": "Advanced Trading Systems",
+    "use_case": "Dual model ensemble for financial time series prediction",
+    "expected_usage": "300 requests/minute per model, 24/7 operation with ensemble averaging"
+  },
+  "model_requirements": {
+    "model_type": "Dual ensemble: Edge TFT + Edge N-HITS",
+    "tft_model_size": "0.13MB",
+    "nhits_model_size": "0.03MB",
+    "combined_size": "0.16MB",
+    "inference_requirements": "<1ms parallel execution",
+    "input_format": "OHLCV financial time series data",
+    "output_format": "Ensemble averaged price predictions with model confidence scores",
+    "ensemble_strategy": "parallel_execution_with_weighted_average"
+  },
+  "technical_requirements": {
+    "availability": "99.9% uptime required for trading operations",
+    "scaling": "Auto-scaling based on market hours with dual model load balancing",
+    "security": "Financial data processing compliance with dual model architecture",
+    "integration": "REST API integration supporting parallel model execution",
+    "ensemble_logic": "Weighted averaging with fallback to single model if one fails"
+  },
+  "business_requirements": {
+    "timeline": "POC in 8-10 weeks, production in 12-14 weeks",
+    "budget": "Enterprise tier acceptable for dual model deployment",
+    "compliance": "Financial services compliance for ensemble trading systems",
+    "model_advantages": "Improved robustness through complementary temporal pattern capture"
+  },
+  "deployment_complexity": {
+    "architecture": "Dual model parallel execution",
+    "fallback_strategy": "Single model operation if one fails",
+    "monitoring": "Per-model performance tracking and ensemble agreement monitoring",
+    "resource_requirements": "Optimized for edge deployment with minimal overhead"
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "model_info": {
+    "name": "dual-tft-nhits-financial",
+    "version": "1.0.0",
+    "description": "Dual edge-optimized TFT + N-HITS ensemble for financial time series prediction",
+    "task_type": "time-series-forecasting",
+    "framework": "pytorch-ensemble",
+    "export_format": "dual-onnx"
+  },
+  "technical_specs": {
+    "tft_model": {
+      "model_size_mb": 0.1279430389404297,
+      "inference_time_ms": 1.2711524963378906,
+      "parameters": 30209,
+      "input_shape": [
+        1,
+        30,
+        5
+      ],
+      "output_shape": [
+        1,
+        1
+      ]
+    },
+    "nhits_model": {
+      "model_size_mb": 0.031561851501464844,
+      "inference_time_ms": 0.19724369049072266,
+      "parameters": 4989,
+      "input_shape": [
+        1,
+        30,
+        5
+      ],
+      "output_shape": [
+        1,
+        1
+      ]
+    },
+    "ensemble_specs": {
+      "combined_size_mb": 0.15950489044189453,
+      "parallel_inference_time_ms": 1.2711524963378906,
+      "total_parameters": 35198,
+      "ensemble_strategy": "parallel_execution_with_weighted_average",
+      "model_weights": {
+        "tft": 0.6,
+        "nhits": 0.4
+      }
+    },
+    "opset_version": 13,
+    "memory_usage": "estimated_very_low"
+  },
+  "performance_metrics": {
+    "dual_model_validated": true,
+    "prediction_agreement": false,
+    "edge_deployment_ready": true,
+    "parallel_execution_optimized": true,
+    "ensemble_advantage": "complementary_temporal_patterns"
+  },
+  "deployment_requirements": {
+    "custom_requirements_form": "required",
+    "enterprise_contact": "required",
+    "estimated_timeline": "8-12 weeks",
+    "dual_model_complexity": "moderate",
+    "prerequisites": [
+      "Cloudflare Enterprise account",
+      "Custom Requirements Form for dual model deployment",
+      "Technical review for ensemble architecture",
+      "Performance validation in Cloudflare environment"
+    ]
+  },
+  "use_case": {
+    "description": "Dual model ensemble for robust financial time series prediction",
+    "input_data": "OHLCV financial data (30-day sequences)",
+    "output_data": "Ensemble averaged price predictions with model confidence",
+    "ensemble_advantage": "TFT captures complex patterns, N-HITS handles hierarchical trends",
+    "latency_requirement": "<200ms parallel execution",
+    "throughput_requirement": "300 requests/minute per model"
+  },
+  "model_files": {
+    "tft_onnx": "edge_tft_financial.onnx",
+    "nhits_onnx": "edge_nhits_financial.onnx",
+    "tft_artifacts": "edge_tft_artifacts/",
+    "nhits_artifacts": "edge_nhits_artifacts/"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "sequence_length": 30,
+  "feature_columns": [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
+  ],
+  "model_type": "EdgeNHITS",
+  "model_params": {
+    "input_size": 5,
+    "hidden_size": 32,
+    "num_blocks": 3,
+    "sequence_length": 30
+  }
+}

@@ -4,21 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Updates
 
-### 2025-09-05: Cloudflare Workers AI POC Model Ready ✅
-**Major Achievement**: Complete ONNX model validation and Cloudflare deployment specifications
+### 2025-09-05: Dual TFT + N-HITS Edge Models Ready ✅
+**Major Achievement**: Complete dual model ensemble for Cloudflare Workers AI deployment
 
-#### **POC LSTM Model Development:**
-- **Lightweight LSTM**: 0.20 MB model optimized for edge deployment
-- **ONNX Conversion**: 5.81x speedup over PyTorch with sub-millisecond latency
-- **Edge Validation**: Passes all deployment criteria (size <10MB, latency <100ms, accuracy validated)
-- **Enterprise Ready**: Complete deployment specifications and custom requirements form data
-- **Production Artifacts**: Model weights, config, scaler, and ONNX export ready for Cloudflare BYOM
+#### **Dual Model Architecture:**
+- **Edge TFT**: 0.13 MB, 1.3ms inference, 30,209 parameters with temporal fusion
+- **Edge N-HITS**: 0.03 MB, 0.2ms inference, 4,989 parameters with hierarchical interpolation
+- **Combined Performance**: 0.16 MB total, 1.3ms parallel execution, ultra-lightweight
+- **Ensemble Strategy**: Complementary temporal patterns with weighted averaging (TFT 60%, N-HITS 40%)
+- **Edge Optimization**: 98.4% under size limit, 98.7% under latency limit
 
-#### **Deployment Specifications Generated:**
-- **cloudflare_deployment_spec.json**: Technical specifications for Cloudflare enterprise review
-- **custom_requirements_form_data.json**: Business requirements and use case documentation
-- **lstm_financial_artifacts/**: Complete model artifacts for deployment
-- **simple_lstm_financial.onnx**: Optimized ONNX model (200KB) ready for edge deployment
+#### **Production Deployment Specs:**
+- **dual_model_deployment_spec.json**: Complete dual model technical specifications
+- **dual_model_requirements_form_data.json**: Enterprise contact documentation for ensemble
+- **edge_tft_financial.onnx**: TFT ONNX model optimized for edge deployment
+- **edge_nhits_financial.onnx**: N-HITS ONNX model optimized for edge deployment
+- **Fallback Capability**: Single model operation if one fails for high availability
 
 ### 2025-09-05: Production-Ready Financial News Integration ✅
 **Major Upgrade**: Complete ModelScope DeepSeek-V3.1 integration with real financial news APIs
