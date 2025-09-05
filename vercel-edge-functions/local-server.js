@@ -10,6 +10,7 @@ const path = require('path');
 
 // Import our Edge Function handlers (real versions)
 const predict = require('./api/predict.js');
+const predictTft = require('./api/predict-tft.js');
 const predictDual = require('./api/predict-dual.js');
 const health = require('./api/health.js');
 
@@ -53,6 +54,9 @@ const server = http.createServer(async (req, res) => {
         break;
       case '/api/predict':
         response = await predict.default(mockRequest);
+        break;
+      case '/api/predict-tft':
+        response = await predictTft.default(mockRequest);
         break;
       case '/api/predict-dual':
         response = await predictDual.default(mockRequest);
@@ -100,6 +104,7 @@ server.listen(PORT, () => {
   console.log('📍 Available Endpoints:');
   console.log(`   GET  http://localhost:${PORT}/api/health`);
   console.log(`   POST http://localhost:${PORT}/api/predict`);
+  console.log(`   POST http://localhost:${PORT}/api/predict-tft`);
   console.log(`   POST http://localhost:${PORT}/api/predict-dual`);
   console.log('');
   console.log('🧪 To test, run:');
