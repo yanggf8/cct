@@ -1,0 +1,35 @@
+{
+  "name": "tft-nhits-edge-predictor",
+  "version": "1.0.0",
+  "description": "TFT + N-HITS financial prediction models on Vercel Edge Functions",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "vercel build", 
+    "deploy": "vercel --prod",
+    "test": "jest"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vercel/node": "^3.0.0",
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "machine-learning",
+    "edge-computing",
+    "financial-prediction",
+    "tft",
+    "n-hits",
+    "onnx",
+    "vercel"
+  ],
+  "author": "Trading System",
+  "license": "MIT"
+}
