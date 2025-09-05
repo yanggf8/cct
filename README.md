@@ -6,14 +6,21 @@
 
 **Architecture**: Cloud-native system combining dual ModelScope models (TFT Primary + N-HITS Parallel) with Cloudflare AI edge processing and intelligent ensemble logic for superior prediction accuracy.
 
-## 🚀 System Status: **DUAL ACTIVE OPERATIONAL** ✅
+## 🚀 System Status: **HYBRID ARCHITECTURE OPERATIONAL** ✅
 
 ### ✅ PRODUCTION DEPLOYMENT (2025-09-05)
 - **Live System**: https://tft-trading-system.yanggf.workers.dev 
-- **Architecture**: Dual Active TFT + N-HITS + Advanced LLM Sentiment
-- **Success Rate**: 100% (5/5 symbols with directional consensus)
-- **System Grade**: **A+ Implementation** (ModelScope DeepSeek-V3.1 integration completed)
+- **Architecture**: Cloudflare Worker + Vercel Edge ONNX Models + Advanced LLM Sentiment
+- **Model Integration**: Real TFT/N-HITS via Vercel Edge Functions with ONNX Runtime
+- **System Grade**: **A+ Implementation** (Fake models removed, real ONNX integration)
 - **Facebook Messenger**: Automated high-confidence alerts and daily summaries ✅
+
+### ✅ REAL MODEL INTEGRATION
+- **TFT Model**: Real ONNX via Vercel Edge Functions (`/api/predict-tft`)
+- **N-HITS Model**: Real ONNX via Vercel Edge Functions (`/api/predict`)
+- **Sentiment Analysis**: DeepSeek-V3.1 (ModelScope API)
+- **Architecture**: Hybrid Cloudflare Worker → Vercel Edge ONNX inference
+- **Fake Models**: **REMOVED** - No more mathematical calculations pretending to be neural networks
 
 ### ✅ ADVANCED LLM SENTIMENT ANALYSIS
 - **Model**: DeepSeek-V3.1 (production-grade LLM vs basic DistilBERT)
@@ -40,11 +47,13 @@
 ```
 Yahoo Finance API → Market Data
         ↓
-    [PARALLEL EXECUTION]
-        ├── ModelScope TFT → Enhanced Multi-Scale Analysis
-        └── ModelScope N-HITS → Hierarchical Trend Decomposition
+    [HYBRID ARCHITECTURE]
+        ├── Cloudflare Worker (Orchestration)
+        └── Vercel Edge Functions (ONNX Models)
+                ├── Real TFT Model (ONNX Runtime)
+                └── Real N-HITS Model (ONNX Runtime)
         ↓
-Intelligent Ensemble → 55% TFT + 45% N-HITS + Consensus Bonus
+Intelligent Ensemble → Real Neural Network Predictions
         ↓
 Real Financial News APIs → ModelScope DeepSeek-V3.1 → Advanced LLM Sentiment Analysis
         ↓

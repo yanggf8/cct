@@ -7,6 +7,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 2025-09-05: Vercel Edge Functions Real TFT + N-HITS Production Deployment ✅
 **Major Achievement**: Complete dual model deployment with REAL TFT and N-HITS implementations
 
+## Recent Updates
+
+### 2025-09-05: Vercel Edge ONNX Integration ✅
+**Major Architecture Update**: Removed fake models and integrated real ONNX inference
+
+#### **Key Changes:**
+- **Fake Models Removed**: Eliminated mathematical calculations pretending to be neural networks
+- **Real ONNX Integration**: Cloudflare Worker now calls Vercel Edge Functions with real ONNX models
+- **Hybrid Architecture**: Cloudflare Worker (orchestration) + Vercel Edge (ONNX inference)
+- **Security**: Vercel bypass secret stored securely in Cloudflare environment
+
+#### **Technical Implementation:**
+```javascript
+// Real TFT Model Call
+const vercelResponse = await fetch(`https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict-tft?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    symbol: symbol,
+    ohlcvData: apiData // Exactly 30 OHLCV records
+  })
+});
+```
+
+#### **Architecture Benefits:**
+- ✅ **No More Fake Models**: System is honest about capabilities
+- ✅ **Real Neural Networks**: Actual PyTorch models exported to ONNX
+- ✅ **Hybrid Deployment**: Best of both platforms (Cloudflare + Vercel)
+- ✅ **Production Ready**: Graceful fallback when models fail
+
 #### **Dual Model Production Deployment:**
 - **TFT Production URL**: https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict-tft
 - **N-HITS Production URL**: https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict  

@@ -452,6 +452,10 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       }
     }
     
+    // Create timeout signal
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
     const vercelResponse = await fetch(`https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict-tft?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
       method: 'POST',
       headers: {
@@ -460,8 +464,11 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       body: JSON.stringify({
         symbol: symbol,
         ohlcvData: apiData
-      })
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!vercelResponse.ok) {
       throw new Error(`Vercel TFT API error: ${vercelResponse.status}`);
@@ -469,15 +476,22 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
     
     const result = await vercelResponse.json();
     
+    // Extract prediction data from new TFT API format
+    const prediction = result.prediction;
+    const predictedPrice = prediction?.prediction || current_price;
+    const confidence = prediction?.confidence || 0.75;
+    
     return {
-      signal_score: result.signal_score || (result.predicted_price - current_price) / current_price,
-      confidence: result.confidence || 0.75,
-      predicted_price: result.predicted_price || current_price,
+      signal_score: (predictedPrice - current_price) / current_price,
+      confidence: confidence,
+      predicted_price: predictedPrice,
       current_price: current_price,
-      direction: result.direction || (result.predicted_price > current_price ? 'UP' : 'DOWN'),
-      model_latency: result.inference_time_ms || 50,
-      model_used: 'Real-TFT-Vercel-Edge',
-      api_source: 'Vercel-Edge-ONNX'
+      direction: predictedPrice > current_price ? 'UP' : 'DOWN',
+      model_latency: result.performance?.inferenceTimeMs || 20,
+      model_used: prediction?.modelUsed || 'RealEdgeTFT',
+      api_source: 'Vercel-Edge-Real-TFT',
+      technical_indicators: prediction?.technicalIndicators || {},
+      attention_metrics: prediction?.attentionMetrics || {}
     };
     
   } catch (error) {
@@ -529,7 +543,11 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       }
     }
     
-    const vercelResponse = await fetch(`https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
+    // Create timeout signal
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
+    const vercelResponse = await fetch(`https://vercel-edge-functions-erhyn3h7k-yang-goufangs-projects.vercel.app/api/predict?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -537,8 +555,11 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       body: JSON.stringify({
         symbol: symbol,
         ohlcvData: apiData
-      })
+      }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!vercelResponse.ok) {
       throw new Error(`Vercel N-HITS API error: ${vercelResponse.status}`);
