@@ -12,7 +12,9 @@
       "Bash(grep:*)",
       "WebSearch",
       "WebFetch(domain:developers.cloudflare.com)",
-      "mcp__gemini-cli__ask-gemini"
+      "mcp__gemini-cli__ask-gemini",
+      "WebFetch(domain:community.cloudflare.com)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
