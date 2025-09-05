@@ -33,7 +33,7 @@ TIMEZONE = "America/New_York"
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Required for production:
 # - MODELSCOPE_API_URL: ModelScope deployment endpoint (e.g., https://your-modelscope-endpoint.com)
-# - MODELSCOPE_API_KEY: ModelScope API authentication key
+# - MODELSCOPE_API_KEY: ModelScope API authentication key (ms-2aa36b9a-e0d8-4b7f-ac59-1bf4ad3d9ec8)
 # 
 # Optional secrets:
 # - SLACK_WEBHOOK_URL: Slack webhook for alerts

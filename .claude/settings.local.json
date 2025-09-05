@@ -9,7 +9,10 @@
       "Bash(npx wrangler:*)",
       "Bash(wrangler:*)",
       "Bash(git commit:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "mcp__gemini-cli__ask-gemini"
     ],
     "deny": [],
     "ask": []
