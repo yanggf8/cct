@@ -2390,46 +2390,86 @@ async function handleTestDailyReport(request, env) {
  */
 async function handleTestHighConfidence(request, env) {
   try {
-    console.log('🚨 Testing high-confidence alert system...');
+    console.log('🚨 Testing high-confidence alert system with REAL DATA...');
     
-    // Create mock high-confidence prediction data
-    const mockData = {
-      timestamp: new Date().toISOString(),
-      symbol: 'AAPL',
-      tft_prediction: {
-        price: 178.45,
-        confidence: 87.3,
-        direction: 'BUY',
-        horizon: '1h'
-      },
-      nhits_prediction: {
-        price: 178.52,
-        confidence: 89.1,
-        direction: 'BUY',
-        horizon: '1h'
-      },
-      ensemble: {
-        price: 178.48,
-        confidence: 88.2,
-        direction: 'BUY'
-      },
-      current_price: 177.80,
-      change_pct: 0.38
-    };
+    // Use real prediction data instead of mock
+    const testSymbol = 'AAPL';
+    const marketData = await getMarketData(testSymbol);
+    
+    if (!marketData.success) {
+      throw new Error(`Failed to get real market data: ${marketData.error}`);
+    }
+    
+    console.log(`📊 Got real market data for ${testSymbol}: $${marketData.data.current_price}`);
+    
+    // Get real predictions from both models
+    const [tftResult, nhitsResult] = await Promise.allSettled([
+      getTFTPrediction(testSymbol, marketData.data, env),
+      getNHITSPrediction(testSymbol, marketData.data, env)
+    ]);
+    
+    // Process real results
+    let realData = null;
+    if (tftResult.status === 'fulfilled' && nhitsResult.status === 'fulfilled') {
+      const tftPred = tftResult.value;
+      const nhitsPred = nhitsResult.value;
+      
+      realData = {
+        timestamp: new Date().toISOString(),
+        symbol: testSymbol,
+        tft_prediction: {
+          price: tftPred.predicted_price,
+          confidence: tftPred.confidence * 100, // Convert to percentage
+          direction: tftPred.predicted_price > marketData.data.current_price ? 'BUY' : 'SELL',
+          horizon: '1h'
+        },
+        nhits_prediction: {
+          price: nhitsPred.predicted_price,
+          confidence: nhitsPred.confidence * 100, // Convert to percentage
+          direction: nhitsPred.predicted_price > marketData.data.current_price ? 'BUY' : 'SELL',
+          horizon: '1h'
+        },
+        current_price: marketData.data.current_price
+      };
+      
+      // Calculate real ensemble
+      realData.ensemble = {
+        price: (realData.tft_prediction.price + realData.nhits_prediction.price) / 2,
+        confidence: (realData.tft_prediction.confidence + realData.nhits_prediction.confidence) / 2,
+        direction: realData.tft_prediction.direction === realData.nhits_prediction.direction 
+                  ? realData.tft_prediction.direction 
+                  : 'HOLD'
+      };
+      
+      realData.change_pct = ((realData.ensemble.price - realData.current_price) / realData.current_price) * 100;
+      
+    } else {
+      // Fallback if predictions fail
+      throw new Error(`Prediction failed - TFT: ${tftResult.status}, N-HITS: ${nhitsResult.status}`);
+    }
     
     const result = {
       test: 'high_confidence_alert',
       confidence_threshold: 85.0,
-      mock_confidence: mockData.ensemble.confidence,
-      triggered: mockData.ensemble.confidence > 85.0
+      real_confidence: realData.ensemble.confidence,
+      triggered: realData.ensemble.confidence > 85.0,
+      data_source: 'REAL_PREDICTIONS',
+      symbol: testSymbol,
+      current_price: realData.current_price,
+      predicted_price: realData.ensemble.price,
+      direction: realData.ensemble.direction
     };
     
-    // Test Facebook high-confidence alert if configured
+    // Test Facebook high-confidence alert if confidence is high enough
     if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
       try {
-        console.log('📱 Sending high-confidence alert to Facebook...');
-        await sendHighConfidenceAlert(mockData, env);
-        result.facebook_alert = 'High-confidence alert sent successfully';
+        console.log('📱 Sending REAL high-confidence alert to Facebook...');
+        if (result.triggered) {
+          await sendHighConfidenceAlert(realData, env);
+          result.facebook_alert = 'Real high-confidence alert sent successfully';
+        } else {
+          result.facebook_alert = `Real confidence ${realData.ensemble.confidence.toFixed(1)}% below threshold (85%), no alert sent`;
+        }
       } catch (fbError) {
         result.facebook_alert = `Error: ${fbError.message}`;
       }
