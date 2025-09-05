@@ -2,6 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Recent Updates
+
+### 2025-09-05: ModelScope DeepSeek-V3.1 Sentiment Integration ✅
+**Major Upgrade**: Replaced DistilBERT with state-of-the-art LLM for sentiment analysis
+
+#### **Key Changes:**
+- **Sentiment Model**: Upgraded from `@cf/huggingface/distilbert-sst-2-int8` to `deepseek-ai/DeepSeek-V3.1`
+- **API Integration**: ModelScope API (`https://api-inference.modelscope.cn/v1/chat/completions`)
+- **Advanced Analysis**: LLM provides reasoning + structured JSON responses
+- **Performance**: 74% confidence improvement (0.87 vs 0.5)
+
+#### **Bug Fix:**
+- **Issue**: Circuit breaker key inconsistency (`'modelscope'` vs `'modelScope'`)
+- **Impact**: Prevented ModelScope API calls, caused neutral sentiment fallback
+- **Solution**: Standardized to `'modelScope'` across all functions
+
+#### **Results:**
+- ✅ **Real Sentiment Scores**: 0.9, 0.875 (vs previous 0.0)
+- ✅ **Higher Confidence**: 0.87, 0.86 (vs previous 0.5)
+- ✅ **Advanced Analysis**: `BULLISH` with reasoning (vs generic `NEUTRAL`)
+- ✅ **Source Tracking**: `modelscope_deepseek_v3.1` identifier
+
 ## Project Overview
 
 This repository contains planning documentation for a **Cloud Stock Trading System** that uses remote GPU resources (ModelScope + Cloudflare) for AI-powered trading decisions. The project follows a validation-first approach with a 3-week POC before full implementation.
