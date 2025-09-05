@@ -21,7 +21,8 @@
       "Bash(npx vercel dev:*)",
       "Bash(npm run build:*)",
       "Bash(npm run:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Read(//home/yanggf/**)"
     ],
     "deny": [],
     "ask": []

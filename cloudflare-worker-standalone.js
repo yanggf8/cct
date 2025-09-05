@@ -440,74 +440,14 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       }
     }
     
-    // Fallback to local TFT-style calculation (enhanced temporal patterns)
-    console.log(`   🔄 Using local TFT calculation for ${symbol}`);
+    // No real TFT model available in Cloudflare Workers
+    console.log(`   ❌ Real TFT model not available for ${symbol}`);
+    console.log(`   💡 Need external model API (Vercel Edge Functions with ONNX)`);
     
-    const closes = ohlcv_data.map(d => d[3]);
-    const volumes = ohlcv_data.map(d => d[4]);
-    const highs = ohlcv_data.map(d => d[1]);
-    const lows = ohlcv_data.map(d => d[2]);
-    
-    // TFT-style multi-scale temporal analysis
-    const short_window = 5;
-    const medium_window = 10;
-    const long_window = 20;
-    
-    // Price momentum at different scales
-    const short_momentum = calculateMomentum(closes, short_window);
-    const medium_momentum = calculateMomentum(closes, medium_window);
-    const long_momentum = calculateMomentum(closes, long_window);
-    
-    // Volume-weighted price analysis
-    const vwap = calculateVWAP(closes, volumes, 10);
-    const price_vs_vwap = (current_price - vwap) / vwap;
-    
-    // Volatility analysis
-    const volatility = calculateVolatility(closes, 10);
-    const volatility_factor = Math.min(1.0, volatility / 0.02); // Normalize to 2%
-    
-    // TFT-style attention mechanism simulation (weighted combination)
-    const temporal_weights = {
-      short: 0.5,    // Recent trends matter most
-      medium: 0.3,   // Medium-term context
-      long: 0.2      // Long-term baseline
-    };
-    
-    const combined_momentum = (
-      short_momentum * temporal_weights.short +
-      medium_momentum * temporal_weights.medium +
-      long_momentum * temporal_weights.long
-    );
-    
-    // Factor in volume and volatility
-    const final_signal = combined_momentum * (1 + price_vs_vwap * 0.3) * volatility_factor;
-    
-    // TFT tends to be more conservative, cap at ±3%
-    const predicted_change = Math.max(-0.03, Math.min(0.03, final_signal * 0.02));
-    const predicted_price = current_price * (1 + predicted_change);
-    
-    const confidence = Math.min(0.90, 0.65 + Math.abs(final_signal) * 0.15);
-    
-    return {
-      signal_score: Math.max(-0.9, Math.min(0.9, final_signal)),
-      confidence: confidence,
-      predicted_price: predicted_price,
-      current_price: current_price,
-      direction: final_signal > 0 ? 'UP' : 'DOWN',
-      model_latency: 12, // TFT is typically slower
-      model_used: 'TFT-Local',
-      api_source: 'Local',
-      components: {
-        short_momentum: short_momentum,
-        medium_momentum: medium_momentum, 
-        long_momentum: long_momentum,
-        vwap_signal: price_vs_vwap,
-        volatility_factor: volatility_factor
-      }
-    };
-    
+    throw new Error('Real TFT model not available - Cloudflare Workers cannot run ONNX models');
   } catch (error) {
-    throw new Error(`TFT prediction failed: ${error.message}`);
+    console.error(`   ❌ TFT prediction error for ${symbol}:`, error.message);
+    throw error;
   }
 }
 
@@ -542,35 +482,11 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       }
     }
     
-    // Fallback to local N-HITS calculation
-    console.log(`   🔄 Using local N-HITS calculation for ${symbol}`);
+    // No real N-HITS model available in Cloudflare Workers
+    console.log(`   ❌ Real N-HITS model not available for ${symbol}`);
+    console.log(`   💡 Need external model API (Vercel Edge Functions with ONNX)`);
     
-    const closes = ohlcv_data.map(d => d[3]);
-    
-    // Enhanced N-HITS with hierarchical analysis
-    const short_ma = closes.slice(-5).reduce((a, b) => a + b) / 5;
-    const medium_ma = closes.slice(-10).reduce((a, b) => a + b) / 10;
-    const long_ma = closes.slice(-15).reduce((a, b) => a + b) / Math.min(15, closes.length);
-    
-    // Multi-scale trend analysis
-    const short_trend = (short_ma - medium_ma) / medium_ma;
-    const long_trend = (medium_ma - long_ma) / long_ma;
-    
-    // Hierarchical interpolation
-    const momentum = (short_trend * 0.6) + (long_trend * 0.4);
-    const predicted_change = Math.max(-0.05, Math.min(0.05, momentum * 0.015)); // Cap at ±5%
-    const predicted_price = current_price * (1 + predicted_change);
-    
-    return {
-      signal_score: momentum > 0 ? Math.min(0.8, Math.abs(momentum) * 5) : Math.max(-0.8, -Math.abs(momentum) * 5),
-      confidence: Math.min(0.85, 0.6 + Math.abs(momentum) * 2),
-      predicted_price: predicted_price,
-      current_price: current_price,
-      direction: momentum > 0 ? 'UP' : 'DOWN',
-      model_latency: 5,
-      model_used: 'N-HITS-Hierarchical-Fallback',
-      api_source: 'Local'
-    };
+    throw new Error('Real N-HITS model not available - Cloudflare Workers cannot run ONNX models');
     
   } catch (error) {
     throw new Error(`Model prediction failed: ${error.message}`);
