@@ -8,8 +8,7 @@
 // Circuit breaker for external services
 const circuitBreaker = {
   modelScope: { failures: 0, lastFailTime: 0, isOpen: false },
-  yahooFinance: { failures: 0, lastFailTime: 0, isOpen: false },
-  cloudflareAI: { failures: 0, lastFailTime: 0, isOpen: false }
+  yahooFinance: { failures: 0, lastFailTime: 0, isOpen: false }
 };
 
 const CIRCUIT_BREAKER_CONFIG = {
@@ -164,7 +163,7 @@ export default {
       }
       
       console.log(`✅ Analysis completed: ${analysisResult.symbols_analyzed.length} symbols`);
-      console.log(`   Circuit breaker status: ModelScope=${circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED'}, Yahoo=${circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED'}, AI=${circuitBreaker.cloudflareAI.isOpen ? 'OPEN' : 'CLOSED'}`);
+      console.log(`   Circuit breaker status: ModelScope=${circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED'}, Yahoo=${circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED'}`);
       
     } catch (error) {
       console.error(`❌ Scheduled analysis failed:`, error);
@@ -177,8 +176,7 @@ export default {
         type: 'scheduled_analysis_failure',
         circuit_breaker_status: {
           modelScope: circuitBreaker.modelScope,
-          yahooFinance: circuitBreaker.yahooFinance,
-          cloudflareAI: circuitBreaker.cloudflareAI
+          yahooFinance: circuitBreaker.yahooFinance
         }
       };
       
@@ -416,29 +414,6 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
   try {
     const current_price = ohlcv_data[ohlcv_data.length - 1][3];
     
-    // First try ModelScope API for TFT if configured
-    if (env.MODELSCOPE_API_URL && env.MODELSCOPE_API_KEY) {
-      try {
-        console.log(`   🌐 Calling ModelScope TFT API for ${symbol}...`);
-        
-        const modelScopeResult = await callModelScopeAPI(symbol, ohlcv_data, env, 'TFT');
-        
-        if (modelScopeResult.success) {
-          return {
-            signal_score: modelScopeResult.direction === 'UP' ? Math.abs(modelScopeResult.price_change_percent) / 10 : -Math.abs(modelScopeResult.price_change_percent) / 10,
-            confidence: modelScopeResult.confidence,
-            predicted_price: modelScopeResult.predicted_price,
-            current_price: modelScopeResult.current_price,
-            direction: modelScopeResult.direction,
-            model_latency: modelScopeResult.inference_time_ms || 0,
-            model_used: 'TFT-ModelScope',
-            api_source: 'ModelScope'
-          };
-        }
-      } catch (apiError) {
-        console.log(`   ⚠️ ModelScope TFT API failed for ${symbol}: ${apiError.message}`);
-      }
-    }
     
     // Call Vercel Edge TFT API
     console.log(`   🚀 Calling Vercel Edge TFT API for ${symbol}...`);
@@ -517,29 +492,6 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
   try {
     const current_price = ohlcv_data[ohlcv_data.length - 1][3];
     
-    // First try ModelScope API for N-HITS if configured
-    if (env.MODELSCOPE_API_URL && env.MODELSCOPE_API_KEY) {
-      try {
-        console.log(`   🌐 Calling ModelScope N-HITS API for ${symbol}...`);
-        
-        const modelScopeResult = await callModelScopeAPI(symbol, ohlcv_data, env, 'N-HITS');
-        
-        if (modelScopeResult.success) {
-          return {
-            signal_score: modelScopeResult.direction === 'UP' ? Math.abs(modelScopeResult.price_change_percent) / 10 : -Math.abs(modelScopeResult.price_change_percent) / 10,
-            confidence: modelScopeResult.confidence,
-            predicted_price: modelScopeResult.predicted_price,
-            current_price: modelScopeResult.current_price,
-            direction: modelScopeResult.direction,
-            model_latency: modelScopeResult.inference_time_ms || 0,
-            model_used: 'N-HITS-ModelScope',
-            api_source: 'ModelScope'
-          };
-        }
-      } catch (apiError) {
-        console.log(`   ⚠️ ModelScope N-HITS API failed for ${symbol}: ${apiError.message}`);
-      }
-    }
     
     // Call Vercel Edge N-HITS API
     console.log(`   🚀 Calling Vercel Edge N-HITS API for ${symbol}...`);
@@ -762,66 +714,6 @@ function combineDualModelPredictions(tftPrediction, nhitsPrediction, symbol, cur
   return result;
 }
 
-/**
- * Call ModelScope API for TFT + N-HITS prediction with circuit breaker
- */
-async function callModelScopeAPI(symbol, ohlcv_data, env, modelType = 'TFT', horizons = [1]) {
-  if (isCircuitBreakerOpen('modelScope')) {
-    console.log(`   🔴 ModelScope circuit breaker open for ${symbol}`);
-    updateCircuitBreaker('modelScope', false);
-    throw new Error('ModelScope circuit breaker open');
-  }
-  
-  const payload = {
-    sequence_data: ohlcv_data,
-    symbol: symbol,
-    request_id: `${symbol}_${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    client_version: 'cloudflare-worker-2.0-multi-horizon',
-    model_type: modelType,
-    prediction_horizons: horizons, // [1, 4, 7, 24] for 1h, 4h, 7h, 24h ahead
-    max_predictions: horizons.length
-  };
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${env.MODELSCOPE_API_KEY}`,
-    'User-Agent': 'TFT-Trading-System-Worker/1.0'
-  };
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CIRCUIT_BREAKER_CONFIG.timeoutMs);
-  
-  try {
-    const response = await fetch(`${env.MODELSCOPE_API_URL}/predict`, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      throw new Error(`ModelScope API HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const result = await response.json();
-    console.log(`   ✅ ModelScope API success: ${result.model_used} (${result.inference_time_ms}ms)`);
-    
-    updateCircuitBreaker('modelScope', true);
-    return result;
-    
-  } catch (error) {
-    clearTimeout(timeoutId);
-    updateCircuitBreaker('modelScope', false);
-    
-    if (error.name === 'AbortError') {
-      throw new Error('ModelScope API timeout (8s)');
-    }
-    throw new Error(`ModelScope API error: ${error.message}`);
-  }
-}
 
 /**
  * Simple prediction fallback
@@ -2081,8 +1973,7 @@ async function sendCriticalAlert(errorMessage, env) {
               { title: 'Timestamp', value: new Date().toISOString(), short: true },
               { title: 'Circuit Breakers', value: JSON.stringify({
                 ModelScope: circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED',
-                Yahoo: circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED',
-                AI: circuitBreaker.cloudflareAI.isOpen ? 'OPEN' : 'CLOSED'
+                Yahoo: circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED'
               }), short: true }
             ]
           }]
@@ -2358,12 +2249,11 @@ async function handleHealthCheck(request, env) {
     },
     circuit_breakers: {
       modelScope: circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED',
-      yahooFinance: circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED', 
-      cloudflareAI: circuitBreaker.cloudflareAI.isOpen ? 'OPEN' : 'CLOSED'
+      yahooFinance: circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED'
     },
     features: {
-      real_modelscope_integration: 'enabled',
-      cloudflare_ai_sentiment: 'enabled',
+      vercel_model_integration: 'enabled',
+      modelscope_sentiment: 'enabled',
       circuit_breakers: 'enabled',
       hierarchical_nhits_fallback: 'enabled',
       production_error_handling: 'enabled',

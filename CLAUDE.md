@@ -4,6 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Updates
 
+### 2025-09-05: Architecture Cleanup - ModelScope Removed from Predictions ✅
+**Major Achievement**: Cleaned up hybrid architecture with proper separation of concerns
+
+#### **Architecture Optimization:**
+- **ModelScope Predictions**: ❌ Removed TFT/N-HITS prediction API calls from Cloudflare Worker
+- **ModelScope Sentiment**: ✅ Retained DeepSeek-V3.1 sentiment analysis (specialized use case)
+- **Vercel Predictions**: ✅ All TFT/N-HITS predictions now handled by Vercel Edge Functions
+- **CloudflareAI References**: ❌ Removed unused cloudflareAI circuit breaker code
+- **Yahoo Finance Optimization**: ✅ Confirmed single API call per symbol with efficient data reuse
+
+#### **Final Architecture:**
+- **Predictions**: Vercel Edge Functions (TFT + N-HITS ONNX models)
+- **Sentiment Analysis**: ModelScope DeepSeek-V3.1 API
+- **Market Data**: Yahoo Finance (single call per symbol, shared between models)
+- **Orchestration**: Cloudflare Worker (scheduling, alerts, data aggregation)
+
+#### **Efficiency Improvements:**
+- **Reduced API Calls**: Eliminated duplicate ModelScope prediction calls
+- **Optimized Data Flow**: Single Yahoo Finance call → dual Vercel model predictions
+- **Clean Circuit Breakers**: Only modelScope (sentiment) and yahooFinance
+- **Updated Health Check**: Shows `vercel_model_integration` + `modelscope_sentiment`
+
 ### 2025-09-05: Cloudflare Worker → Vercel Model API Integration Fixed ✅
 **Major Achievement**: Complete Cloudflare Worker integration with REAL TFT + N-HITS model APIs
 
