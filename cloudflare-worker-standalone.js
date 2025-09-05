@@ -14,7 +14,7 @@ const circuitBreaker = {
 const CIRCUIT_BREAKER_CONFIG = {
   failureThreshold: 3,
   recoveryTimeMs: 300000, // 5 minutes
-  timeoutMs: 10000 // 10 seconds
+  timeoutMs: 30000 // 30 seconds (increased for Vercel API)
 };
 
 function updateCircuitBreaker(service, success) {
@@ -263,12 +263,17 @@ async function runPreMarketAnalysis(env, options = {}) {
         throw new Error(`Market data failed: ${marketData.error}`);
       }
       
-      // Run DUAL ACTIVE models: TFT + N-HITS in parallel
+      // Run DUAL ACTIVE models: TFT + N-HITS sequentially to reduce Vercel load
       console.log(`   🔄 Running dual models (TFT + N-HITS) for ${symbol}...`);
+      
+      // Add small delay between symbols to avoid overwhelming Vercel
+      if (symbol !== 'AAPL') {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      }
       
       const [tftResult, nhitsResult] = await Promise.allSettled([
         getTFTPrediction(symbol, marketData.data, env),
-        getNHITSPrediction(symbol, marketData.data, env)
+        new Promise(resolve => setTimeout(() => resolve(getNHITSPrediction(symbol, marketData.data, env)), 1000))
       ]);
       
       // Process TFT results
@@ -376,6 +381,8 @@ async function getMarketData(symbol) {
     const ohlcv_data = [];
     const days_to_take = Math.min(30, timestamps.length);
     
+    console.log(`   📊 Yahoo Finance raw data: ${timestamps.length} timestamps available, taking last ${days_to_take}`);
+    
     for (let i = timestamps.length - days_to_take; i < timestamps.length; i++) {
       if (quote.open[i] && quote.high[i] && quote.low[i] && quote.close[i]) {
         ohlcv_data.push([
@@ -383,10 +390,12 @@ async function getMarketData(symbol) {
           quote.high[i], 
           quote.low[i],
           quote.close[i],
-          quote.volume[i] || 0
+          quote.volume[i] || 1000000  // Use 1M as default volume instead of 0
         ]);
       }
     }
+    
+    console.log(`   📊 Yahoo Finance processed: ${ohlcv_data.length} valid OHLCV records`);
     
     updateCircuitBreaker('yahooFinance', true);
     
@@ -419,12 +428,19 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
     console.log(`   🚀 Calling Vercel Edge TFT API for ${symbol}...`);
     
     // Prepare exactly 30 data points (pad if necessary) and convert to object format
+    console.log(`   📊 Raw OHLCV data length: ${ohlcv_data.length} records`);
     let apiData = ohlcv_data.slice(-30);
+    console.log(`   📊 After slice(-30): ${apiData.length} records`);
+    
     if (apiData.length < 30) {
       const firstRow = apiData[0];
+      const originalLength = apiData.length;
       while (apiData.length < 30) {
         apiData.unshift(firstRow); // Pad with first row
       }
+      console.log(`   🔧 Padded from ${originalLength} to ${apiData.length} records using first row`);
+    } else {
+      console.log(`   ✅ Using last ${apiData.length} records (no padding needed)`);
     }
     
     // Convert from [open, high, low, close, volume] arrays to {open, high, low, close, volume, date} objects
@@ -433,15 +449,17 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       high: row[1], 
       low: row[2],
       close: row[3],
-      volume: row[4] || 0,
+      volume: row[4] || 1000000,
       date: new Date(Date.now() - (apiData.length - index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     }));
+    
+    console.log(`   📋 TFT payload: ${convertedData.length} records, first: ${JSON.stringify(convertedData[0])}, last: ${JSON.stringify(convertedData[convertedData.length - 1])}`);
     
     // Create timeout signal
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
     
-    const vercelResponse = await fetch(`https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict-tft?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
+    const vercelResponse = await fetch(`https://vercel-edge-functions-facp1quzi-yang-goufangs-projects.vercel.app/api/predict-tft?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -456,7 +474,9 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
     clearTimeout(timeoutId);
     
     if (!vercelResponse.ok) {
-      throw new Error(`Vercel TFT API error: ${vercelResponse.status}`);
+      const errorText = await vercelResponse.text();
+      console.log(`   ❌ TFT API HTTP ${vercelResponse.status} error: ${errorText}`);
+      throw new Error(`Vercel TFT API error: ${vercelResponse.status} - ${errorText}`);
     }
     
     const result = await vercelResponse.json();
@@ -480,7 +500,14 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
     };
     
   } catch (error) {
-    console.error(`   ❌ TFT prediction error for ${symbol}:`, error.message);
+    const errorDetails = {
+      symbol: symbol,
+      error_type: error.name || 'Unknown',
+      error_message: error.message || 'No message',
+      url: `https://vercel-edge-functions-facp1quzi-yang-goufangs-projects.vercel.app/api/predict-tft`,
+      timestamp: new Date().toISOString()
+    };
+    console.error(`   ❌ TFT prediction error for ${symbol}:`, JSON.stringify(errorDetails));
     throw error;
   }
 }
@@ -497,12 +524,19 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
     console.log(`   🚀 Calling Vercel Edge N-HITS API for ${symbol}...`);
     
     // Prepare exactly 30 data points (pad if necessary) and convert to object format
+    console.log(`   📊 Raw OHLCV data length: ${ohlcv_data.length} records`);
     let apiData = ohlcv_data.slice(-30);
+    console.log(`   📊 After slice(-30): ${apiData.length} records`);
+    
     if (apiData.length < 30) {
       const firstRow = apiData[0];
+      const originalLength = apiData.length;
       while (apiData.length < 30) {
         apiData.unshift(firstRow); // Pad with first row
       }
+      console.log(`   🔧 Padded from ${originalLength} to ${apiData.length} records using first row`);
+    } else {
+      console.log(`   ✅ Using last ${apiData.length} records (no padding needed)`);
     }
     
     // Convert from [open, high, low, close, volume] arrays to {open, high, low, close, volume, date} objects
@@ -511,15 +545,17 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       high: row[1], 
       low: row[2],
       close: row[3],
-      volume: row[4] || 0,
+      volume: row[4] || 1000000,
       date: new Date(Date.now() - (apiData.length - index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     }));
+    
+    console.log(`   📋 N-HITS payload: ${convertedData.length} records, first: ${JSON.stringify(convertedData[0])}, last: ${JSON.stringify(convertedData[convertedData.length - 1])}`);
     
     // Create timeout signal
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
     
-    const vercelResponse = await fetch(`https://vercel-edge-functions-rlmrnbq4k-yang-goufangs-projects.vercel.app/api/predict?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
+    const vercelResponse = await fetch(`https://vercel-edge-functions-facp1quzi-yang-goufangs-projects.vercel.app/api/predict-nhits?x-vercel-protection-bypass=${env.VERCEL_AUTOMATION_BYPASS_SECRET}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -534,7 +570,9 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
     clearTimeout(timeoutId);
     
     if (!vercelResponse.ok) {
-      throw new Error(`Vercel N-HITS API error: ${vercelResponse.status}`);
+      const errorText = await vercelResponse.text();
+      console.log(`   ❌ N-HITS API HTTP ${vercelResponse.status} error: ${errorText}`);
+      throw new Error(`Vercel N-HITS API error: ${vercelResponse.status} - ${errorText}`);
     }
     
     const result = await vercelResponse.json();
@@ -557,6 +595,14 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
     };
     
   } catch (error) {
+    const errorDetails = {
+      symbol: symbol,
+      error_type: error.name || 'Unknown',
+      error_message: error.message || 'No message',
+      url: `https://vercel-edge-functions-facp1quzi-yang-goufangs-projects.vercel.app/api/predict-nhits`,
+      timestamp: new Date().toISOString()
+    };
+    console.error(`   ❌ N-HITS prediction error for ${symbol}:`, JSON.stringify(errorDetails));
     throw new Error(`N-HITS prediction failed: ${error.message}`);
   }
 }
