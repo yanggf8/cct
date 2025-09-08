@@ -5,13 +5,14 @@ main = "cloudflare-worker-standalone.js"
 compatibility_date = "2024-01-01"
 # account_id moved to environment variable for security
 
-# Phase 1: Conservative dual-purpose system (prediction + validation)
+# Enhanced multi-cron system with progressive KV state sharing
 [triggers]
 crons = [
   "30 13 * * 1-5",  # 8:30 AM EST - Generate 2-horizon predictions (1h + 24h) + high-confidence alerts
-  "0 17 * * 1-5",   # 12:00 PM EST - Validate morning predictions + generate afternoon forecasts
+  "0 17 * * 1-5",   # 12:00 PM EST - Validate morning predictions + generate afternoon forecasts  
   "5 21 * * 1-5",   # 4:05 PM EST - Daily validation report + next-day predictions
-  "0 15 * * SUN"    # 10:00 AM EST Sunday - Weekly accuracy report for Phase 1
+  "0 21 * * FRI",   # 4:00 PM EST Friday - Weekly market close report (comprehensive analysis)
+  "0 15 * * SUN"    # 10:00 AM EST Sunday - Weekly accuracy report and performance review
 ]
 
 # KV namespace for storing analysis results

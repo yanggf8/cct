@@ -98,6 +98,10 @@ export default {
       // 12:00 PM - Validate morning predictions + afternoon forecasts
       triggerMode = 'midday_validation_prediction';
       predictionHorizons = [8, 24]; // 8-hour (market close) + next-day
+    } else if (currentHour === 16 && currentMinute === 0 && estTime.getDay() === 5) {
+      // 4:00 PM Friday - Weekly market close comprehensive analysis
+      triggerMode = 'weekly_market_close_analysis';
+      predictionHorizons = [72, 168]; // Weekend + next week forecasts
     } else if (currentHour === 16 && currentMinute === 5) {
       // 4:05 PM - Daily validation report + next-day predictions
       triggerMode = 'daily_validation_report'; 
@@ -127,11 +131,17 @@ export default {
     });
     
     try {
-      const analysisResult = await runPreMarketAnalysis(env, { 
-        triggerMode, 
-        predictionHorizons,
-        currentTime: estTime
-      });
+      // Special handling for Friday weekly market close analysis
+      let analysisResult;
+      if (triggerMode === 'weekly_market_close_analysis') {
+        analysisResult = await runWeeklyMarketCloseAnalysis(env, estTime);
+      } else {
+        analysisResult = await runPreMarketAnalysis(env, { 
+          triggerMode, 
+          predictionHorizons,
+          currentTime: estTime
+        });
+      }
       
       // Validate analysis result
       if (!analysisResult || !analysisResult.symbols_analyzed || analysisResult.symbols_analyzed.length === 0) {
@@ -234,11 +244,28 @@ export default {
 };
 
 /**
- * Run complete pre-market analysis for all symbols
+ * Run complete pre-market analysis for all symbols with progressive state building
  */
 async function runPreMarketAnalysis(env, options = {}) {
-  const { isFinalDailyReport = false } = options;
+  const { isFinalDailyReport = false, triggerMode, predictionHorizons, currentTime } = options;
   const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'NVDA'];
+  
+  // Get today's date for KV key
+  const dateStr = (currentTime || new Date()).toISOString().split('T')[0];
+  const contextKey = `daily-context-${dateStr}`;
+  
+  // Load existing daily context from previous cron runs
+  let dailyContext = {};
+  try {
+    const storedContext = await env.TRADING_RESULTS.get(contextKey);
+    if (storedContext) {
+      dailyContext = JSON.parse(storedContext);
+      console.log(`📋 Loaded daily context: ${Object.keys(dailyContext).length} previous analyses`);
+    }
+  } catch (error) {
+    console.log(`📋 No previous context found for ${dateStr}, starting fresh`);
+  }
+  
   const analysisResults = {
     run_id: `worker_${new Date().toISOString().replace(/[:.]/g, '_')}`,
     timestamp: new Date().toISOString(),
@@ -247,7 +274,10 @@ async function runPreMarketAnalysis(env, options = {}) {
     alerts: [],
     performance_metrics: {},
     status: 'running',
-    worker_version: '1.0-Cloudflare'
+    worker_version: '2.0-Progressive-KV',
+    trigger_mode: triggerMode,
+    prediction_horizons: predictionHorizons,
+    daily_context: dailyContext // Include accumulated context
   };
   
   console.log(`📊 Starting analysis for ${symbols.length} symbols...`);
@@ -331,11 +361,456 @@ async function runPreMarketAnalysis(env, options = {}) {
     }
   }
   
-  // Generate performance metrics
+  // Generate performance metrics with advanced risk analysis
   analysisResults.performance_metrics = generatePerformanceMetrics(analysisResults);
+  analysisResults.risk_metrics = await generateRiskMetrics(analysisResults, dailyContext, env);
   analysisResults.status = 'completed';
   
+  // Update daily context with this analysis run
+  const currentHour = (currentTime || new Date()).getHours();
+  const cronTrigger = `${currentHour.toString().padStart(2, '0')}:${Math.floor(((currentTime || new Date()).getMinutes() / 30)) * 30}`;
+  
+  // Store progressive context for next cron execution
+  dailyContext[cronTrigger] = {
+    timestamp: analysisResults.timestamp,
+    trigger_mode: triggerMode,
+    symbols_count: analysisResults.symbols_analyzed.length,
+    alerts_count: analysisResults.alerts.length,
+    avg_confidence: analysisResults.symbols_analyzed.length > 0 ? 
+      analysisResults.symbols_analyzed.reduce((sum, s) => sum + (s.confidence || 0), 0) / analysisResults.symbols_analyzed.length : 0,
+    market_sentiment: analysisResults.trading_signals ? Object.values(analysisResults.trading_signals).reduce((acc, signal) => {
+      if (signal.direction === 'UP') acc.bullish++;
+      else if (signal.direction === 'DOWN') acc.bearish++;
+      return acc;
+    }, { bullish: 0, bearish: 0, neutral: 0 }) : { bullish: 0, bearish: 0, neutral: 0 },
+    circuit_breaker_status: {
+      modelScope: circuitBreaker.modelScope.isOpen,
+      yahooFinance: circuitBreaker.yahooFinance.isOpen
+    }
+  };
+  
+  // Save updated context to KV for next cron run
+  try {
+    await env.TRADING_RESULTS.put(
+      contextKey,
+      JSON.stringify(dailyContext),
+      { expirationTtl: 86400 } // 24 hours
+    );
+    console.log(`📋 Saved daily context: ${Object.keys(dailyContext).length} analyses accumulated`);
+  } catch (error) {
+    console.error(`❌ Failed to save daily context: ${error.message}`);
+  }
+  
   return analysisResults;
+}
+
+/**
+ * Run comprehensive weekly market close analysis using accumulated daily context
+ */
+async function runWeeklyMarketCloseAnalysis(env, currentTime) {
+  const fridayDateStr = currentTime.toISOString().split('T')[0];
+  
+  // Collect daily context from the entire week
+  const weeklyContext = {
+    friday_date: fridayDateStr,
+    daily_analyses: [],
+    weekly_trends: {},
+    accumulated_insights: {}
+  };
+  
+  // Gather context from Monday to Friday
+  for (let i = 4; i >= 0; i--) {
+    const dayDate = new Date(currentTime);
+    dayDate.setDate(dayDate.getDate() - i);
+    const dayDateStr = dayDate.toISOString().split('T')[0];
+    const contextKey = `daily-context-${dayDateStr}`;
+    
+    try {
+      const dailyContextJson = await env.TRADING_RESULTS.get(contextKey);
+      if (dailyContextJson) {
+        const dailyContext = JSON.parse(dailyContextJson);
+        weeklyContext.daily_analyses.push({
+          date: dayDateStr,
+          context: dailyContext,
+          day_name: dayDate.toLocaleDateString('en-US', { weekday: 'long' })
+        });
+      }
+    } catch (error) {
+      console.log(`📋 Could not load context for ${dayDateStr}: ${error.message}`);
+    }
+  }
+  
+  console.log(`📊 Weekly analysis: collected ${weeklyContext.daily_analyses.length} daily contexts`);
+  
+  // Generate weekly trends analysis
+  if (weeklyContext.daily_analyses.length > 0) {
+    const allDailyContexts = weeklyContext.daily_analyses.map(d => d.context);
+    weeklyContext.weekly_trends = {
+      avg_confidence_trend: calculateWeeklyConfidenceTrend(allDailyContexts),
+      market_sentiment_evolution: calculateMarketSentimentEvolution(allDailyContexts),
+      circuit_breaker_health: calculateWeeklySystemHealth(allDailyContexts),
+      prediction_consistency: calculatePredictionConsistency(allDailyContexts)
+    };
+  }
+  
+  // Run final predictions for weekend/next week with weekly context
+  const analysisResult = await runPreMarketAnalysis(env, {
+    triggerMode: 'weekly_market_close_analysis',
+    predictionHorizons: [72, 168], // Weekend + next week
+    currentTime,
+    weeklyContext // Pass accumulated context to enhance predictions
+  });
+  
+  // Add weekly insights to the result
+  analysisResult.weekly_analysis = weeklyContext;
+  analysisResult.worker_version = '2.0-Progressive-KV-Weekly';
+  
+  return analysisResult;
+}
+
+/**
+ * Calculate weekly confidence trend from daily contexts
+ */
+function calculateWeeklyConfidenceTrend(dailyContexts) {
+  const confidenceByDay = dailyContexts.map(context => {
+    const triggers = Object.keys(context);
+    return triggers.reduce((sum, trigger) => sum + (context[trigger].avg_confidence || 0), 0) / Math.max(triggers.length, 1);
+  });
+  
+  return {
+    daily_averages: confidenceByDay,
+    weekly_average: confidenceByDay.reduce((sum, c) => sum + c, 0) / Math.max(confidenceByDay.length, 1),
+    trend: confidenceByDay.length > 1 ? 
+      (confidenceByDay[confidenceByDay.length - 1] - confidenceByDay[0]) > 0 ? 'improving' : 'declining' : 'stable'
+  };
+}
+
+/**
+ * Calculate market sentiment evolution throughout the week
+ */
+function calculateMarketSentimentEvolution(dailyContexts) {
+  return dailyContexts.map((context, index) => {
+    const triggers = Object.keys(context);
+    const dailySentiment = triggers.reduce((acc, trigger) => {
+      const sentiment = context[trigger].market_sentiment || { bullish: 0, bearish: 0, neutral: 0 };
+      acc.bullish += sentiment.bullish;
+      acc.bearish += sentiment.bearish;
+      acc.neutral += sentiment.neutral;
+      return acc;
+    }, { bullish: 0, bearish: 0, neutral: 0 });
+    
+    const total = dailySentiment.bullish + dailySentiment.bearish + dailySentiment.neutral;
+    return {
+      day_index: index,
+      sentiment: dailySentiment,
+      dominant_sentiment: total > 0 ? 
+        (dailySentiment.bullish > dailySentiment.bearish ? 
+          (dailySentiment.bullish > dailySentiment.neutral ? 'bullish' : 'neutral') :
+          (dailySentiment.bearish > dailySentiment.neutral ? 'bearish' : 'neutral')
+        ) : 'neutral'
+    };
+  });
+}
+
+/**
+ * Calculate weekly system health from circuit breaker status
+ */
+function calculateWeeklySystemHealth(dailyContexts) {
+  const healthMetrics = { modelScope: [], yahooFinance: [] };
+  
+  dailyContexts.forEach(context => {
+    Object.keys(context).forEach(trigger => {
+      const status = context[trigger].circuit_breaker_status || {};
+      healthMetrics.modelScope.push(!status.modelScope);
+      healthMetrics.yahooFinance.push(!status.yahooFinance);
+    });
+  });
+  
+  return {
+    modelScope_uptime: (healthMetrics.modelScope.filter(Boolean).length / Math.max(healthMetrics.modelScope.length, 1)) * 100,
+    yahooFinance_uptime: (healthMetrics.yahooFinance.filter(Boolean).length / Math.max(healthMetrics.yahooFinance.length, 1)) * 100,
+    total_health_checks: healthMetrics.modelScope.length
+  };
+}
+
+/**
+ * Calculate prediction consistency across the week
+ */
+function calculatePredictionConsistency(dailyContexts) {
+  // Analyze how consistent predictions and alerts have been
+  const alertCounts = dailyContexts.map(context => {
+    return Object.keys(context).reduce((sum, trigger) => sum + (context[trigger].alerts_count || 0), 0);
+  });
+  
+  return {
+    daily_alert_counts: alertCounts,
+    average_daily_alerts: alertCounts.reduce((sum, c) => sum + c, 0) / Math.max(alertCounts.length, 1),
+    consistency_score: alertCounts.length > 1 ? 
+      (1 - (Math.max(...alertCounts) - Math.min(...alertCounts)) / Math.max(...alertCounts, 1)) : 1
+  };
+}
+
+/**
+ * Generate advanced risk metrics including VaR, drawdown, and portfolio risk analysis
+ */
+async function generateRiskMetrics(analysisResults, dailyContext, env) {
+  const symbols = analysisResults.symbols_analyzed || [];
+  
+  // Calculate Value at Risk (VaR) for each symbol
+  const varMetrics = await calculateValueAtRisk(symbols, env);
+  
+  // Calculate portfolio-level metrics
+  const portfolioMetrics = calculatePortfolioRiskMetrics(symbols);
+  
+  // Calculate maximum drawdown from historical context
+  const drawdownMetrics = calculateDrawdownMetrics(dailyContext);
+  
+  // Calculate position sizing recommendations based on risk
+  const positionSizing = calculateRiskAdjustedPositionSizing(symbols, varMetrics);
+  
+  return {
+    value_at_risk: varMetrics,
+    portfolio_risk: portfolioMetrics,
+    drawdown_analysis: drawdownMetrics,
+    position_sizing: positionSizing,
+    risk_score: calculateOverallRiskScore(varMetrics, portfolioMetrics, drawdownMetrics),
+    last_updated: new Date().toISOString()
+  };
+}
+
+/**
+ * Calculate Value at Risk (VaR) for each symbol using historical volatility
+ */
+async function calculateValueAtRisk(symbols, env) {
+  const varResults = {};
+  
+  for (const symbol of symbols) {
+    try {
+      // Estimate volatility from recent price movements (simplified)
+      const historicalVolatility = await estimateHistoricalVolatility(symbol.symbol, env);
+      
+      // Calculate 95% and 99% VaR using normal distribution assumption
+      const currentPrice = symbol.current_price || 100;
+      const confidence95VaR = currentPrice * historicalVolatility * 1.645; // 95% confidence
+      const confidence99VaR = currentPrice * historicalVolatility * 2.576; // 99% confidence
+      
+      varResults[symbol.symbol] = {
+        daily_var_95: confidence95VaR,
+        daily_var_99: confidence99VaR,
+        weekly_var_95: confidence95VaR * Math.sqrt(5), // Scale for weekly
+        volatility_estimate: historicalVolatility,
+        last_price: currentPrice
+      };
+      
+    } catch (error) {
+      console.log(`❌ VaR calculation failed for ${symbol.symbol}: ${error.message}`);
+      varResults[symbol.symbol] = {
+        daily_var_95: null,
+        daily_var_99: null,
+        error: error.message
+      };
+    }
+  }
+  
+  return varResults;
+}
+
+/**
+ * Estimate historical volatility from stored market data (simplified approach)
+ */
+async function estimateHistoricalVolatility(symbol, env) {
+  // Simplified volatility calculation using recent prediction spreads
+  // In production, this would use actual historical price data
+  
+  try {
+    // Get recent analysis results to estimate volatility
+    const recentAnalyses = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      try {
+        const analysisJson = await env.TRADING_RESULTS.get(`analysis_${dateStr}`);
+        if (analysisJson) {
+          const analysis = JSON.parse(analysisJson);
+          const symbolData = analysis.symbols_analyzed?.find(s => s.symbol === symbol);
+          if (symbolData && symbolData.predicted_price && symbolData.current_price) {
+            const priceChange = Math.abs(symbolData.predicted_price - symbolData.current_price) / symbolData.current_price;
+            recentAnalyses.push(priceChange);
+          }
+        }
+      } catch (error) {
+        // Skip this day if data unavailable
+      }
+    }
+    
+    if (recentAnalyses.length > 1) {
+      // Calculate standard deviation of price changes
+      const mean = recentAnalyses.reduce((sum, change) => sum + change, 0) / recentAnalyses.length;
+      const variance = recentAnalyses.reduce((sum, change) => sum + Math.pow(change - mean, 2), 0) / (recentAnalyses.length - 1);
+      return Math.sqrt(variance);
+    } else {
+      // Default volatility estimate if insufficient data
+      return 0.02; // 2% daily volatility
+    }
+    
+  } catch (error) {
+    console.log(`❌ Volatility estimation failed for ${symbol}: ${error.message}`);
+    return 0.025; // Conservative default 2.5%
+  }
+}
+
+/**
+ * Calculate portfolio-level risk metrics
+ */
+function calculatePortfolioRiskMetrics(symbols) {
+  if (!symbols || symbols.length === 0) {
+    return { concentration_risk: 0, sector_exposure: {}, total_positions: 0 };
+  }
+  
+  // Calculate position concentration (assuming equal weights for simplicity)
+  const equalWeight = 1 / symbols.length;
+  const maxConcentration = Math.max(...symbols.map(() => equalWeight));
+  
+  // Basic sector analysis (simplified - in production would use sector data)
+  const sectorMap = {
+    'AAPL': 'Technology',
+    'MSFT': 'Technology', 
+    'GOOGL': 'Technology',
+    'TSLA': 'Automotive',
+    'NVDA': 'Technology'
+  };
+  
+  const sectorExposure = {};
+  symbols.forEach(symbol => {
+    const sector = sectorMap[symbol.symbol] || 'Unknown';
+    sectorExposure[sector] = (sectorExposure[sector] || 0) + equalWeight;
+  });
+  
+  return {
+    concentration_risk: maxConcentration,
+    max_single_position: maxConcentration,
+    sector_exposure: sectorExposure,
+    total_positions: symbols.length,
+    diversification_score: Object.keys(sectorExposure).length / Math.max(symbols.length, 1)
+  };
+}
+
+/**
+ * Calculate maximum drawdown metrics from daily context
+ */
+function calculateDrawdownMetrics(dailyContext) {
+  const contextEntries = Object.keys(dailyContext);
+  if (contextEntries.length < 2) {
+    return { max_drawdown: 0, current_drawdown: 0, drawdown_duration: 0 };
+  }
+  
+  // Analyze confidence trends as proxy for performance
+  const confidenceValues = contextEntries.map(trigger => dailyContext[trigger].avg_confidence || 0);
+  
+  let maxDrawdown = 0;
+  let currentDrawdown = 0;
+  let peak = Math.max(...confidenceValues);
+  let drawdownDuration = 0;
+  let currentDuration = 0;
+  
+  for (let i = 1; i < confidenceValues.length; i++) {
+    if (confidenceValues[i] > peak) {
+      peak = confidenceValues[i];
+      currentDuration = 0; // Reset duration on new peak
+    } else {
+      const drawdown = (peak - confidenceValues[i]) / peak;
+      currentDrawdown = drawdown;
+      currentDuration++;
+      
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+        drawdownDuration = currentDuration;
+      }
+    }
+  }
+  
+  return {
+    max_drawdown: maxDrawdown,
+    current_drawdown: currentDrawdown,
+    drawdown_duration: drawdownDuration,
+    confidence_peak: peak,
+    confidence_current: confidenceValues[confidenceValues.length - 1] || 0
+  };
+}
+
+/**
+ * Calculate risk-adjusted position sizing recommendations
+ */
+function calculateRiskAdjustedPositionSizing(symbols, varMetrics) {
+  const positionRecommendations = {};
+  
+  // Portfolio risk budget (2% daily portfolio VaR target)
+  const portfolioRiskBudget = 0.02;
+  const basePositionSize = portfolioRiskBudget / Math.max(symbols.length, 1);
+  
+  symbols.forEach(symbol => {
+    const symbolVaR = varMetrics[symbol.symbol];
+    
+    if (symbolVaR && symbolVaR.daily_var_95) {
+      // Kelly criterion approximation for position sizing
+      const symbolVolatility = symbolVaR.volatility_estimate || 0.02;
+      const expectedReturn = 0.001; // Assume 0.1% daily expected return
+      const kellyFraction = expectedReturn / (symbolVolatility * symbolVolatility);
+      
+      // Conservative position sizing (25% of Kelly)
+      const recommendedSize = Math.min(kellyFraction * 0.25, 0.1); // Max 10% position
+      
+      positionRecommendations[symbol.symbol] = {
+        recommended_position_size: recommendedSize,
+        base_position_size: basePositionSize,
+        kelly_fraction: kellyFraction,
+        risk_adjustment: recommendedSize / basePositionSize,
+        max_position_value: symbol.current_price ? recommendedSize * 10000 : null // Assume $10k portfolio
+      };
+    } else {
+      // Default sizing if VaR calculation failed
+      positionRecommendations[symbol.symbol] = {
+        recommended_position_size: basePositionSize,
+        base_position_size: basePositionSize,
+        risk_adjustment: 1.0,
+        error: 'VaR calculation unavailable'
+      };
+    }
+  });
+  
+  return positionRecommendations;
+}
+
+/**
+ * Calculate overall portfolio risk score
+ */
+function calculateOverallRiskScore(varMetrics, portfolioMetrics, drawdownMetrics) {
+  // Risk score from 0 (low risk) to 100 (high risk)
+  let riskScore = 0;
+  
+  // VaR component (0-40 points)
+  const avgVaR = Object.values(varMetrics).reduce((sum, var_data) => {
+    return sum + (var_data.volatility_estimate || 0.02);
+  }, 0) / Math.max(Object.keys(varMetrics).length, 1);
+  riskScore += Math.min(avgVaR * 2000, 40); // Scale volatility to 0-40
+  
+  // Concentration risk (0-30 points)
+  riskScore += portfolioMetrics.concentration_risk * 100 * 0.3;
+  
+  // Drawdown risk (0-30 points) 
+  riskScore += drawdownMetrics.max_drawdown * 30;
+  
+  return {
+    total_score: Math.min(Math.round(riskScore), 100),
+    risk_level: riskScore < 30 ? 'Low' : riskScore < 60 ? 'Medium' : 'High',
+    components: {
+      volatility_risk: Math.min(avgVaR * 2000, 40),
+      concentration_risk: portfolioMetrics.concentration_risk * 30,
+      drawdown_risk: drawdownMetrics.max_drawdown * 30
+    }
+  };
 }
 
 /**
