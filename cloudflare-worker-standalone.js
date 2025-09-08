@@ -1976,8 +1976,26 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
     
     if (highConfidenceAlerts.length === 0) return;
 
+    // Determine message title based on trigger mode
+    const currentTime = new Date();
+    const currentHour = currentTime.getUTCHours() - 5; // Convert to EST
+    const currentMinute = currentTime.getUTCMinutes();
+    
+    let messageTitle = '🎯 Trading Alert';
+    if (currentHour === 8 && currentMinute === 30) {
+      messageTitle = '🌅 Morning Predictions + Alerts';
+    } else if (currentHour === 12 && currentMinute === 0) {
+      messageTitle = '🔄 Midday Validation';
+    } else if (currentHour === 16 && currentMinute === 5) {
+      messageTitle = '📊 Daily Validation Reports';
+    } else if (currentHour === 16 && currentMinute === 0 && currentTime.getDay() === 5) {
+      messageTitle = '📈 Weekly Market Close';
+    } else if (currentHour === 10 && currentMinute === 0 && currentTime.getDay() === 0) {
+      messageTitle = '📋 Weekly Accuracy Reports';
+    }
+    
     // Format message for Messenger
-    let messageText = `🎯 Trading Alert - ${highConfidenceAlerts.length} High Confidence Signals\n\n`;
+    let messageText = `${messageTitle} - ${highConfidenceAlerts.length} High Confidence Signals\n\n`;
     
     highConfidenceAlerts.forEach(alert => {
       const signal = analysisResults.trading_signals[alert.symbol];
@@ -2157,9 +2175,27 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
     const date = new Date().toLocaleDateString('en-US');
     const signals = Object.entries(analysisResults.trading_signals || {});
     
+    // Determine title based on trigger mode and time
+    const currentTime = new Date();
+    const currentHour = currentTime.getUTCHours() - 5; // Convert to EST
+    const currentMinute = currentTime.getUTCMinutes();
+    
+    let reportTitle = '🧪 Model Prediction Summary';
+    if (currentHour === 8 && currentMinute === 30) {
+      reportTitle = '🌅 Morning Predictions + Alerts';
+    } else if (currentHour === 12 && currentMinute === 0) {
+      reportTitle = '🔄 Midday Validation';
+    } else if (currentHour === 16 && currentMinute === 5) {
+      reportTitle = '📊 Daily Validation Reports';
+    } else if (currentHour === 16 && currentMinute === 0 && currentTime.getDay() === 5) {
+      reportTitle = '📈 Weekly Market Close';
+    } else if (currentHour === 10 && currentMinute === 0 && currentTime.getDay() === 0) {
+      reportTitle = '📋 Weekly Accuracy Reports';
+    }
+    
     let summaryText = includeCharts 
-      ? `🧪 PREDICTION VALIDATION REPORT - ${date}\n📈 Model Performance Analysis\n\n`
-      : `🧪 Model Prediction Summary - ${date}\n\n`;
+      ? `${reportTitle} - ${date}\n📈 Model Performance Analysis\n\n`
+      : `${reportTitle} - ${date}\n\n`;
     
     if (signals.length > 0) {
       summaryText += `🎯 Today's Predictions (${signals.length} symbols):\n\n`;
@@ -2390,9 +2426,9 @@ function formatWeeklyAccuracyReport(accuracyData, currentDate) {
   const weekEnd = currentDate.toLocaleDateString('en-US');
   const weekStart = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US');
   
-  let reportText = `🧪 **WEEKLY MODEL VALIDATION REPORT**\n`;
+  let reportText = `📋 **Weekly Accuracy Reports**\n`;
   reportText += `📅 Period: ${weekStart} - ${weekEnd}\n`;
-  reportText += `🔬 Phase 1: Multi-Horizon Prediction Analysis\n\n`;
+  reportText += `🔬 Multi-Horizon Prediction Analysis\n\n`;
   
   // Phase 1 performance metrics
   reportText += `🎯 **Prediction Performance:**\n`;
@@ -2980,7 +3016,23 @@ async function sendHighConfidenceAlert(data, env) {
   const predictedPrice = data.ensemble.price;
   const changePct = data.change_pct;
   
-  const alertMessage = `🚨 HIGH CONFIDENCE SIGNAL 🚨
+  // Determine alert title based on trigger mode
+  const currentTime = new Date();
+  const currentHour = currentTime.getUTCHours() - 5; // Convert to EST
+  const currentMinute = currentTime.getUTCMinutes();
+  
+  let alertTitle = '🚨 HIGH CONFIDENCE SIGNAL 🚨';
+  if (currentHour === 8 && currentMinute === 30) {
+    alertTitle = '🌅 Morning Predictions + Alerts';
+  } else if (currentHour === 12 && currentMinute === 0) {
+    alertTitle = '🔄 Midday Validation';
+  } else if (currentHour === 16 && currentMinute === 5) {
+    alertTitle = '📊 Daily Validation Reports';
+  } else if (currentHour === 16 && currentMinute === 0 && currentTime.getDay() === 5) {
+    alertTitle = '📈 Weekly Market Close';
+  }
+  
+  const alertMessage = `${alertTitle}
 
 📈 ${symbol} ${direction} Signal
 ⚡ Confidence: ${confidence.toFixed(1)}%

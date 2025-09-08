@@ -24,7 +24,8 @@
       "Bash(npx vercel:*)",
       "Read(//home/yanggf/**)",
       "Bash(vercel deploy:*)",
-      "Bash(vercel:*)"
+      "Bash(vercel:*)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler deploy)"
     ],
     "deny": [],
     "ask": []
