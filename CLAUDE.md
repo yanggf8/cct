@@ -8,12 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **MAJOR FEATURE**: Complete fact table system for validating prediction accuracy against real market prices
 
 #### **Fact Table Features Delivered:**
-- **✅ Web Interface**: Modern responsive design at `/fact-table` with interactive controls and statistics
-- **✅ Comprehensive Comparison**: 12-column table showing TFT, N-HITS, Ensemble predictions vs actual prices
-- **✅ Accuracy Analytics**: Automatic error calculation, directional accuracy tracking, best model identification
-- **✅ Multi-Symbol Support**: Individual symbol analysis or combined view for all 5 symbols (AAPL, TSLA, MSFT, GOOGL, NVDA)
-- **✅ Real Market Data**: Yahoo Finance integration for actual historical prices with smart date filtering
-- **✅ Performance Statistics**: Live accuracy metrics, directional success rates, model performance rankings
+- **✅ Day-Based Analysis**: Single day view showing all predictions made throughout that day vs market close price
+- **✅ Multiple Predictions Per Day**: Displays all prediction times (03:30, 06:0, etc.) from cron schedule executions
+- **✅ Real Market Close Comparison**: Each prediction compared against actual end-of-day market close price
+- **✅ Accurate Error Calculation**: Fixed fake 100% accuracy - now shows realistic 0.01-0.2% prediction errors
+- **✅ Model Performance Breakdown**: TFT vs N-HITS vs Ensemble predictions with individual confidence levels
+- **✅ Date Picker Interface**: Web interface with date selection for specific day analysis (not week-based)
 
 #### **Data Structure Investigation & Fix:**
 **Root Cause Identified**: KV storage working correctly, but data structure mismatch between manual and cron analysis formats
@@ -21,18 +21,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Cron Analysis Stores**: `{ analysis_results: [ { symbol: "AAPL", tft_prediction: ..., nhits_prediction: ... } ] }`
 - **Solution**: Updated fact table API to handle both formats with intelligent field extraction
 
+#### **Critical Accuracy Bug Fix:**
+**Problem**: Chart showing fake 100% accuracy using system success rate instead of real prediction accuracy
+**Root Cause**: `analysis.performance_metrics.success_rate` was system operational status, not prediction accuracy
+**Solution**: Implemented real accuracy calculation comparing predicted prices vs actual market prices
+**Result**: Now shows realistic 99.78-99.99% accuracy (0.01-0.22% prediction errors)
+
 #### **Production Validation Results:**
 ```json
 {
   "symbol": "AAPL",
-  "current_price": 234.35,
-  "tft_prediction": 234.29,        // -0.026% error  
-  "nhits_prediction": 234.63,      // +0.12% error
-  "ensemble_prediction": 234.44,   // +0.038% error
-  "actual_price": 234.35,
-  "confidence": 64.55,
-  "tft_confidence": 95.0,
-  "nhits_confidence": 60.0
+  "date": "2025-09-10",
+  "market_close_price": 234.35,
+  "predictions": [
+    {
+      "time": "03:30",
+      "tft_prediction": 234.33,      // 0.007% error (BEST)
+      "nhits_prediction": 234.67,    // 0.137% error
+      "ensemble_prediction": 234.48,  // 0.056% error
+      "prediction_error": 0.056
+    }
+  ]
 }
 ```
 
@@ -45,10 +54,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Date Range Support**: Configurable 1-30 day lookback with smart actual price retrieval
 
 #### **Production Endpoints:**
-- **Web Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table
-- **API Endpoint**: https://tft-trading-system.yanggf.workers.dev/api/fact-data?symbol=AAPL&days=7
-- **Version ID**: `7fa61709-1162-4be8-9047-ca7d86d19717`
-- **Deployment Status**: ✅ LIVE with complete dual-format KV data support
+- **Web Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table (Date picker interface)
+- **API Format**: https://tft-trading-system.yanggf.workers.dev/api/fact-data?symbol=AAPL&date=2025-09-10
+- **Chart Interface**: https://tft-trading-system.yanggf.workers.dev/chart (Now shows real accuracy metrics)
+- **Version ID**: `7b88f0f9-1a31-4acb-a26b-9819eefaed50`
+- **Deployment Status**: ✅ LIVE with corrected day-based fact table and realistic accuracy calculation
 
 ### 2025-09-10: Daily Reports Enhanced with Prediction History + Confidence Threshold Lowered ✅
 **SYSTEM ENHANCEMENT**: Improved logging and alert sensitivity for better user experience

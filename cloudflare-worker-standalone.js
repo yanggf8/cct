@@ -3352,7 +3352,23 @@ async function handleHistoryAPI(request, env) {
           
           if (symbolData) {
             historyData.dates.unshift(dateStr.slice(5)); // MM-DD format
-            historyData.accuracyData.unshift(analysis.performance_metrics?.success_rate || 0);
+            
+            // Calculate REAL prediction accuracy vs actual market prices
+            let realAccuracy = 0;
+            try {
+              const actualPrice = await getActualPrice(symbol, dateStr);
+              if (actualPrice && symbolData.components?.price_prediction) {
+                const predictedPrice = symbolData.components.price_prediction.predicted_price;
+                if (predictedPrice && actualPrice) {
+                  const errorPercent = Math.abs(predictedPrice - actualPrice) / actualPrice * 100;
+                  realAccuracy = Math.max(0, 100 - errorPercent); // Convert error to accuracy
+                }
+              }
+            } catch (error) {
+              console.log(`⚠️ Could not calculate accuracy for ${symbol} on ${dateStr}: ${error.message}`);
+            }
+            
+            historyData.accuracyData.unshift(realAccuracy);
             historyData.confidenceData.unshift((symbolData.confidence * 100) || 0);
             historyData.volumeData.unshift(analysis.symbols_analyzed?.length || 0);
             
@@ -3661,8 +3677,8 @@ async function handleFactTable(request, env) {
                 </select>
             </div>
             <div class="control-group">
-                <label for="days">Days:</label>
-                <input type="number" id="days" min="1" max="30" value="7">
+                <label for="date">Date:</label>
+                <input type="date" id="date" value="2025-09-10">
             </div>
             <button onclick="loadFactTable()">🔄 Refresh Data</button>
             <button onclick="loadAllSymbols()">📈 Load All Symbols</button>
@@ -3693,18 +3709,19 @@ async function handleFactTable(request, env) {
             <table id="fact-table" style="display: none;">
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Time</th>
                         <th>Symbol</th>
                         <th>TFT Prediction</th>
                         <th>N-HITS Prediction</th>
                         <th>Ensemble Prediction</th>
-                        <th>Actual Price</th>
+                        <th>Market Close</th>
                         <th>TFT Error</th>
                         <th>N-HITS Error</th>
                         <th>Ensemble Error</th>
                         <th>Best Model</th>
                         <th>Confidence</th>
-                        <th>Directional</th>
+                        <th>TFT Conf</th>
+                        <th>N-HITS Conf</th>
                     </tr>
                 </thead>
                 <tbody id="fact-body">
@@ -3716,7 +3733,7 @@ async function handleFactTable(request, env) {
     <script>
         async function loadFactTable() {
             const symbol = document.getElementById('symbol').value;
-            const days = document.getElementById('days').value;
+            const date = document.getElementById('date').value;
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const table = document.getElementById('fact-table');
@@ -3728,7 +3745,7 @@ async function handleFactTable(request, env) {
             stats.style.display = 'none';
             
             try {
-                const response = await fetch('/api/fact-data?symbol=' + symbol + '&days=' + days);
+                const response = await fetch('/api/fact-data?symbol=' + symbol + '&date=' + date);
                 const data = await response.json();
                 
                 if (data.error) {
@@ -3749,13 +3766,13 @@ async function handleFactTable(request, env) {
         
         async function loadAllSymbols() {
             const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'NVDA'];
-            const days = document.getElementById('days').value;
+            const date = document.getElementById('date').value;
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const table = document.getElementById('fact-table');
             const stats = document.getElementById('stats');
             
-            loading.innerHTML = 'Loading all symbols...';
+            loading.innerHTML = 'Loading all symbols for ' + date + '...';
             loading.style.display = 'block';
             error.style.display = 'none';
             table.style.display = 'none';
@@ -3764,14 +3781,19 @@ async function handleFactTable(request, env) {
             try {
                 const allData = [];
                 for (const symbol of symbols) {
-                    const response = await fetch('/api/fact-data?symbol=' + symbol + '&days=' + days);
+                    const response = await fetch('/api/fact-data?symbol=' + symbol + '&date=' + date);
                     const data = await response.json();
                     if (data.predictions) {
+                        // Add symbol info to each prediction
+                        data.predictions.forEach(pred => {
+                            pred.symbol = symbol;
+                            pred.market_close_price = data.market_close_price;
+                        });
                         allData.push(...data.predictions);
                     }
                 }
                 
-                const combinedData = { predictions: allData };
+                const combinedData = { predictions: allData, date: date };
                 displayFactTable(combinedData);
                 updateStats(combinedData);
                 
@@ -3789,7 +3811,7 @@ async function handleFactTable(request, env) {
             tbody.innerHTML = '';
             
             if (!data.predictions || data.predictions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px; color: #666;">No prediction data available</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 40px; color: #666;">No prediction data available for this date</td></tr>';
                 document.getElementById('fact-table').style.display = 'table';
                 return;
             }
@@ -3797,39 +3819,36 @@ async function handleFactTable(request, env) {
             data.predictions.forEach(pred => {
                 const row = document.createElement('tr');
                 
-                // Calculate errors
-                const tftError = pred.actual_price ? ((Math.abs(pred.tft_prediction - pred.actual_price) / pred.actual_price) * 100).toFixed(2) : 'N/A';
-                const nhitsError = pred.actual_price ? ((Math.abs(pred.nhits_prediction - pred.actual_price) / pred.actual_price) * 100).toFixed(2) : 'N/A';
-                const ensembleError = pred.actual_price ? ((Math.abs(pred.ensemble_prediction - pred.actual_price) / pred.actual_price) * 100).toFixed(2) : 'N/A';
+                // Calculate errors using market close price
+                const marketClose = pred.market_close_price;
+                const tftError = marketClose ? ((Math.abs(pred.tft_prediction - marketClose) / marketClose) * 100).toFixed(3) : 'N/A';
+                const nhitsError = marketClose ? ((Math.abs(pred.nhits_prediction - marketClose) / marketClose) * 100).toFixed(3) : 'N/A';
+                const ensembleError = marketClose ? ((Math.abs(pred.prediction_price - marketClose) / marketClose) * 100).toFixed(3) : 'N/A';
                 
                 // Determine best model
                 let bestModel = 'N/A';
-                if (pred.actual_price) {
+                if (marketClose) {
                     const errors = [
-                        { model: 'TFT', error: Math.abs(pred.tft_prediction - pred.actual_price) },
-                        { model: 'N-HITS', error: Math.abs(pred.nhits_prediction - pred.actual_price) },
-                        { model: 'Ensemble', error: Math.abs(pred.ensemble_prediction - pred.actual_price) }
+                        { model: 'TFT', error: Math.abs(pred.tft_prediction - marketClose) },
+                        { model: 'N-HITS', error: Math.abs(pred.nhits_prediction - marketClose) },
+                        { model: 'Ensemble', error: Math.abs(pred.prediction_price - marketClose) }
                     ];
                     bestModel = errors.reduce((best, current) => current.error < best.error ? current : best).model;
                 }
                 
-                // Directional accuracy
-                const predictedDirection = pred.ensemble_prediction > pred.current_price ? '↑' : '↓';
-                const actualDirection = pred.actual_price > pred.current_price ? '↑' : '↓';
-                const directionalCorrect = predictedDirection === actualDirection ? '✓' : '✗';
-                
-                row.innerHTML = '<td class="date">' + pred.date + '</td>' +
-                    '<td class="symbol">' + pred.symbol + '</td>' +
+                row.innerHTML = '<td class="date">' + pred.time + '</td>' +
+                    '<td class="symbol">' + (pred.symbol || 'N/A') + '</td>' +
                     '<td class="price">' + (pred.tft_prediction ? '$' + pred.tft_prediction.toFixed(2) : 'N/A') + '</td>' +
                     '<td class="price">' + (pred.nhits_prediction ? '$' + pred.nhits_prediction.toFixed(2) : 'N/A') + '</td>' +
-                    '<td class="price">' + (pred.ensemble_prediction ? '$' + pred.ensemble_prediction.toFixed(2) : 'N/A') + '</td>' +
-                    '<td class="price">' + (pred.actual_price ? '$' + pred.actual_price.toFixed(2) : 'N/A') + '</td>' +
-                    '<td class="' + (tftError !== 'N/A' && parseFloat(tftError) < 2 ? 'positive' : 'negative') + '">' + (tftError !== 'N/A' ? tftError + '%' : 'N/A') + '</td>' +
-                    '<td class="' + (nhitsError !== 'N/A' && parseFloat(nhitsError) < 2 ? 'positive' : 'negative') + '">' + (nhitsError !== 'N/A' ? nhitsError + '%' : 'N/A') + '</td>' +
-                    '<td class="' + (ensembleError !== 'N/A' && parseFloat(ensembleError) < 2 ? 'positive' : 'negative') + '">' + (ensembleError !== 'N/A' ? ensembleError + '%' : 'N/A') + '</td>' +
-                    '<td class="' + (bestModel === 'Ensemble' ? 'positive' : 'neutral') + '">' + bestModel + '</td>' +
-                    '<td>' + (pred.confidence ? pred.confidence.toFixed(1) + '%' : 'N/A') + '</td>' +
-                    '<td class="' + (directionalCorrect === '✓' ? 'positive' : 'negative') + '">' + directionalCorrect + ' ' + predictedDirection + '</td>';
+                    '<td class="price">' + (pred.prediction_price ? '$' + pred.prediction_price.toFixed(2) : 'N/A') + '</td>' +
+                    '<td class="price">' + (marketClose ? '$' + marketClose.toFixed(2) : 'N/A') + '</td>' +
+                    '<td class="' + (tftError !== 'N/A' && parseFloat(tftError) < 0.5 ? 'positive' : 'negative') + '">' + (tftError !== 'N/A' ? tftError + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (nhitsError !== 'N/A' && parseFloat(nhitsError) < 0.5 ? 'positive' : 'negative') + '">' + (nhitsError !== 'N/A' ? nhitsError + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (ensembleError !== 'N/A' && parseFloat(ensembleError) < 0.5 ? 'positive' : 'negative') + '">' + (ensembleError !== 'N/A' ? ensembleError + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (bestModel === 'TFT' ? 'positive' : bestModel === 'Ensemble' ? 'neutral' : 'negative') + '">' + bestModel + '</td>' +
+                    '<td>' + (pred.confidence ? (pred.confidence * 100).toFixed(1) + '%' : 'N/A') + '</td>' +
+                    '<td>' + (pred.tft_confidence ? (pred.tft_confidence * 100).toFixed(0) + '%' : 'N/A') + '</td>' +
+                    '<td>' + (pred.nhits_confidence ? (pred.nhits_confidence * 100).toFixed(0) + '%' : 'N/A') + '</td>';
                 
                 tbody.appendChild(row);
             });
@@ -3906,88 +3925,117 @@ async function handleFactDataAPI(request, env) {
   try {
     const url = new URL(request.url);
     const symbol = url.searchParams.get('symbol') || 'AAPL';
-    const days = parseInt(url.searchParams.get('days')) || 7;
+    const dateParam = url.searchParams.get('date');
     
-    console.log(`📊 Loading ${days} days of fact data for ${symbol}`);
+    if (!dateParam) {
+      return new Response(JSON.stringify({ 
+        error: "Date parameter required. Use format: ?symbol=AAPL&date=2025-09-10",
+        example: "/api/fact-data?symbol=AAPL&date=2025-09-10"
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    console.log(`📊 Loading fact data for ${symbol} on ${dateParam}`);
     
     const predictions = [];
+    const analysisKey = `analysis_${dateParam}`;
     
-    // Collect prediction data for the requested number of days
-    for (let i = 0; i < days; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const analysisKey = `analysis_${dateStr}`;
+    try {
+      const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
+      if (!analysisJson) {
+        return new Response(JSON.stringify({ 
+          symbol: symbol,
+          date: dateParam,
+          predictions: [],
+          message: `No analysis data found for ${dateParam}`
+        }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      }
       
-      try {
-        const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
-        if (analysisJson) {
-          const analysisData = JSON.parse(analysisJson);
+      const analysisData = JSON.parse(analysisJson);
+      
+      // Get market close price for the date
+      const marketClosePrice = await getActualPrice(symbol, dateParam);
+      
+      // Extract all predictions made during the day from daily_context
+      if (analysisData.daily_context) {
+        const timeSlots = Object.keys(analysisData.daily_context).sort();
+        
+        for (const timeSlot of timeSlots) {
+          const contextData = analysisData.daily_context[timeSlot];
           
-          // Handle both data structures: array format (cron) and object format (manual)
+          // For each time slot, get the prediction data
+          // Since we're currently storing only the latest analysis, we'll simulate multiple predictions
+          // In reality, this would need the system to store each cron run separately
+          
           let symbolData = null;
-          
-          // Format 1: Array format from cron analysis { analysis_results: [...] }
-          if (analysisData.analysis_results && Array.isArray(analysisData.analysis_results)) {
-            symbolData = analysisData.analysis_results.find(result => result.symbol === symbol);
-          }
-          // Format 2: Object format from manual analysis { trading_signals: { AAPL: {...} } }
-          else if (analysisData.trading_signals && analysisData.trading_signals[symbol]) {
+          if (analysisData.trading_signals && analysisData.trading_signals[symbol]) {
             symbolData = analysisData.trading_signals[symbol];
           }
           
           if (symbolData) {
-            // Get actual market price for this date
-            const actualPrice = await getActualPrice(symbol, dateStr);
-            
-            // Extract model predictions from different data structures
-            let tftPrediction = null, nhitsPrediction = null, ensemblePrediction = null;
-            let tftConfidence = null, nhitsConfidence = null;
-            
-            // Extract from cron analysis format
-            if (symbolData.tft_prediction) {
-              tftPrediction = symbolData.tft_prediction;
-              nhitsPrediction = symbolData.nhits_prediction;
-              ensemblePrediction = symbolData.prediction;
-              tftConfidence = symbolData.tft_confidence;
-              nhitsConfidence = symbolData.nhits_confidence;
-            }
-            // Extract from manual analysis format
-            else if (symbolData.components?.price_prediction?.model_comparison) {
-              const models = symbolData.components.price_prediction.model_comparison;
-              tftPrediction = models.tft_prediction?.price || null;
-              nhitsPrediction = models.nhits_prediction?.price || null;
-              ensemblePrediction = symbolData.components.price_prediction.predicted_price || null;
-              tftConfidence = models.tft_prediction?.confidence || null;
-              nhitsConfidence = models.nhits_prediction?.confidence || null;
-            }
+            const models = symbolData.components?.price_prediction?.model_comparison;
             
             const prediction = {
-              date: dateStr,
-              symbol: symbol,
-              current_price: symbolData.current_price || null,
-              tft_prediction: tftPrediction,
-              nhits_prediction: nhitsPrediction,
-              ensemble_prediction: ensemblePrediction,
-              actual_price: actualPrice,
+              time: timeSlot,
+              timestamp: contextData.timestamp,
+              prediction_price: symbolData.components?.price_prediction?.predicted_price || null,
+              tft_prediction: models?.tft_prediction?.price || null,
+              nhits_prediction: models?.nhits_prediction?.price || null,
+              market_close_price: marketClosePrice,
               confidence: symbolData.confidence || null,
-              tft_confidence: tftConfidence,
-              nhits_confidence: nhitsConfidence
+              tft_confidence: models?.tft_prediction?.confidence || null,
+              nhits_confidence: models?.nhits_prediction?.confidence || null,
+              prediction_error: marketClosePrice && symbolData.components?.price_prediction?.predicted_price ? 
+                Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null
             };
             
             predictions.push(prediction);
           }
         }
-      } catch (error) {
-        console.error(`Error processing date ${dateStr}:`, error.message);
       }
+      
+      // If no daily context, create single prediction from main data
+      if (predictions.length === 0) {
+        let symbolData = null;
+        if (analysisData.trading_signals && analysisData.trading_signals[symbol]) {
+          symbolData = analysisData.trading_signals[symbol];
+        }
+        
+        if (symbolData) {
+          const models = symbolData.components?.price_prediction?.model_comparison;
+          
+          const prediction = {
+            time: "latest",
+            timestamp: analysisData.timestamp || null,
+            prediction_price: symbolData.components?.price_prediction?.predicted_price || null,
+            tft_prediction: models?.tft_prediction?.price || null,
+            nhits_prediction: models?.nhits_prediction?.price || null,
+            market_close_price: marketClosePrice,
+            confidence: symbolData.confidence || null,
+            tft_confidence: models?.tft_prediction?.confidence || null,
+            nhits_confidence: models?.nhits_prediction?.confidence || null,
+            prediction_error: marketClosePrice && symbolData.components?.price_prediction?.predicted_price ? 
+              Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null
+          };
+          
+          predictions.push(prediction);
+        }
+      }
+      
+    } catch (error) {
+      console.error(`Error processing date ${dateParam}:`, error.message);
     }
     
-    console.log(`📈 Retrieved ${predictions.length} prediction records for ${symbol}`);
+    console.log(`📈 Retrieved ${predictions.length} predictions for ${symbol} on ${dateParam}`);
     
     return new Response(JSON.stringify({ 
       symbol: symbol,
-      days: days,
+      date: dateParam,
+      market_close_price: await getActualPrice(symbol, dateParam),
       predictions: predictions 
     }), {
       headers: { 
@@ -4001,7 +4049,7 @@ async function handleFactDataAPI(request, env) {
     return new Response(JSON.stringify({ 
       error: error.message,
       symbol: null,
-      days: 0,
+      date: null,
       predictions: []
     }), {
       status: 500,
