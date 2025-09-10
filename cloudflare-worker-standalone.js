@@ -376,7 +376,7 @@ async function runPreMarketAnalysis(env, options = {}) {
   
   // Update daily context with this analysis run
   const currentHour = (currentTime || new Date()).getHours();
-  const cronTrigger = `${currentHour.toString().padStart(2, '0')}:${Math.floor(((currentTime || new Date()).getMinutes() / 30)) * 30}`;
+  const cronTrigger = `${currentHour.toString().padStart(2, '0')}:${(Math.floor(((currentTime || new Date()).getMinutes() / 30)) * 30).toString().padStart(2, '0')}`;
   
   // Store progressive context for next cron execution
   dailyContext[cronTrigger] = {
@@ -3709,8 +3709,8 @@ async function handleFactTable(request, env) {
             <table id="fact-table" style="display: none;">
                 <thead>
                     <tr>
-                        <th>Time</th>
-                        <th>Symbol</th>
+                        <th>Timestamp (UTC)</th>
+                        <th>Market Time (EST)</th>
                         <th>TFT Prediction</th>
                         <th>N-HITS Prediction</th>
                         <th>Ensemble Prediction</th>
@@ -3811,7 +3811,7 @@ async function handleFactTable(request, env) {
             tbody.innerHTML = '';
             
             if (!data.predictions || data.predictions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 40px; color: #666;">No prediction data available for this date</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px; color: #666;">No prediction data available for this date</td></tr>';
                 document.getElementById('fact-table').style.display = 'table';
                 return;
             }
@@ -3836,8 +3836,21 @@ async function handleFactTable(request, env) {
                     bestModel = errors.reduce((best, current) => current.error < best.error ? current : best).model;
                 }
                 
-                row.innerHTML = '<td class="date">' + pred.time + '</td>' +
-                    '<td class="symbol">' + (pred.symbol || 'N/A') + '</td>' +
+                // Use actual timestamp and convert to EST
+                const timestamp = pred.timestamp ? new Date(pred.timestamp) : null;
+                const utcTime = timestamp ? timestamp.toISOString().substr(11, 8) + ' UTC' : (pred.time || 'N/A');
+                
+                // Convert to EST market time
+                const estTime = timestamp ? 
+                    timestamp.toLocaleString('en-US', {
+                        timeZone: 'America/New_York',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                    }) + ' EST' : 'N/A';
+                
+                row.innerHTML = '<td class="date">' + utcTime + '</td>' +
+                    '<td class="date">' + estTime + '</td>' +
                     '<td class="price">' + (pred.tft_prediction ? '$' + pred.tft_prediction.toFixed(2) : 'N/A') + '</td>' +
                     '<td class="price">' + (pred.nhits_prediction ? '$' + pred.nhits_prediction.toFixed(2) : 'N/A') + '</td>' +
                     '<td class="price">' + (pred.prediction_price ? '$' + pred.prediction_price.toFixed(2) : 'N/A') + '</td>' +

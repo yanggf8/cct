@@ -53,12 +53,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Best Model Detection**: Automatically identifies which model has lowest prediction error for each symbol/date
 - **Date Range Support**: Configurable 1-30 day lookback with smart actual price retrieval
 
+#### **Fact Table Interface Enhancements:**
+- **✅ Timestamp Clarity**: Shows both UTC timestamps and EST market time for clear timezone differentiation
+- **✅ Removed Symbol Column**: Streamlined interface since single symbol is already selected
+- **✅ Market Time Conversion**: Proper UTC to EST conversion using actual timestamps instead of time slots
+- **✅ Prediction Source Tracking**: Identifies whether predictions came from scheduled crons vs manual testing
+- **✅ Time Format Consistency**: Fixed "06:0" → "06:00" formatting issues throughout the system
+
 #### **Production Endpoints:**
-- **Web Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table (Date picker interface)
+- **Web Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table (Enhanced timestamp display)
 - **API Format**: https://tft-trading-system.yanggf.workers.dev/api/fact-data?symbol=AAPL&date=2025-09-10
-- **Chart Interface**: https://tft-trading-system.yanggf.workers.dev/chart (Now shows real accuracy metrics)
-- **Version ID**: `7b88f0f9-1a31-4acb-a26b-9819eefaed50`
-- **Deployment Status**: ✅ LIVE with corrected day-based fact table and realistic accuracy calculation
+- **Chart Interface**: https://tft-trading-system.yanggf.workers.dev/chart (Real accuracy metrics)
+- **Version ID**: `7a860838-78b5-4251-b4a1-fdf716f0f63d`
+- **Deployment Status**: ✅ LIVE with enhanced timestamp clarity and timezone handling
 
 ### 2025-09-10: Daily Reports Enhanced with Prediction History + Confidence Threshold Lowered ✅
 **SYSTEM ENHANCEMENT**: Improved logging and alert sensitivity for better user experience
