@@ -4,6 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Updates
 
+### 2025-09-10: Fact Table Implementation Complete - Prediction vs Actual Price Comparison ✅
+**MAJOR FEATURE**: Complete fact table system for validating prediction accuracy against real market prices
+
+#### **Fact Table Features Delivered:**
+- **✅ Web Interface**: Modern responsive design at `/fact-table` with interactive controls and statistics
+- **✅ Comprehensive Comparison**: 12-column table showing TFT, N-HITS, Ensemble predictions vs actual prices
+- **✅ Accuracy Analytics**: Automatic error calculation, directional accuracy tracking, best model identification
+- **✅ Multi-Symbol Support**: Individual symbol analysis or combined view for all 5 symbols (AAPL, TSLA, MSFT, GOOGL, NVDA)
+- **✅ Real Market Data**: Yahoo Finance integration for actual historical prices with smart date filtering
+- **✅ Performance Statistics**: Live accuracy metrics, directional success rates, model performance rankings
+
+#### **Data Structure Investigation & Fix:**
+**Root Cause Identified**: KV storage working correctly, but data structure mismatch between manual and cron analysis formats
+- **Manual Analysis Stores**: `{ trading_signals: { AAPL: { components: { price_prediction: { model_comparison: {...} } } } } }`
+- **Cron Analysis Stores**: `{ analysis_results: [ { symbol: "AAPL", tft_prediction: ..., nhits_prediction: ... } ] }`
+- **Solution**: Updated fact table API to handle both formats with intelligent field extraction
+
+#### **Production Validation Results:**
+```json
+{
+  "symbol": "AAPL",
+  "current_price": 234.35,
+  "tft_prediction": 234.29,        // -0.026% error  
+  "nhits_prediction": 234.63,      // +0.12% error
+  "ensemble_prediction": 234.44,   // +0.038% error
+  "actual_price": 234.35,
+  "confidence": 64.55,
+  "tft_confidence": 95.0,
+  "nhits_confidence": 60.0
+}
+```
+
+#### **Technical Implementation:**
+- **Dual Format Support**: Automatically detects and parses both manual (`trading_signals`) and cron (`analysis_results`) data structures
+- **Yahoo Finance Integration**: `getActualPrice()` function retrieves historical market data with proper error handling
+- **Real-time Statistics**: Automatic calculation of accuracy rates, directional success, and model performance rankings
+- **Error Analysis**: Percentage error calculations for TFT, N-HITS, and Ensemble predictions vs actual prices
+- **Best Model Detection**: Automatically identifies which model has lowest prediction error for each symbol/date
+- **Date Range Support**: Configurable 1-30 day lookback with smart actual price retrieval
+
+#### **Production Endpoints:**
+- **Web Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table
+- **API Endpoint**: https://tft-trading-system.yanggf.workers.dev/api/fact-data?symbol=AAPL&days=7
+- **Version ID**: `7fa61709-1162-4be8-9047-ca7d86d19717`
+- **Deployment Status**: ✅ LIVE with complete dual-format KV data support
+
 ### 2025-09-10: Daily Reports Enhanced with Prediction History + Confidence Threshold Lowered ✅
 **SYSTEM ENHANCEMENT**: Improved logging and alert sensitivity for better user experience
 

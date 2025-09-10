@@ -234,8 +234,16 @@ export default {
       return handleTestDailyReport(request, env);
     } else if (url.pathname === '/test-high-confidence') {
       return handleTestHighConfidence(request, env);
+    } else if (url.pathname === '/chart') {
+      return handleChartViewer(request, env);
+    } else if (url.pathname === '/api/history') {
+      return handleHistoryAPI(request, env);
+    } else if (url.pathname === '/fact-table') {
+      return handleFactTable(request, env);
+    } else if (url.pathname === '/api/fact-data') {
+      return handleFactDataAPI(request, env);
     } else {
-      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report, /test-high-confidence', { 
+      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report, /test-high-confidence, /chart, /api/history, /fact-table, /api/fact-data', { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
@@ -3082,4 +3090,975 @@ async function sendHighConfidenceAlert(data, env) {
 
   await sendFacebookMessage(alertMessage, env);
   console.log(`📱 High-confidence alert sent for ${symbol} (${confidence.toFixed(1)}%)`);
+}
+
+/**
+ * Serve interactive chart viewer web interface
+ */
+async function handleChartViewer(request, env) {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TFT Trading System - Prediction History</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 20px; background: #f5f5f7; 
+        }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { color: #1d1d1f; margin-bottom: 10px; }
+        .subtitle { color: #6e6e73; margin-bottom: 30px; }
+        .controls { margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        select, button { 
+            padding: 10px 15px; border: 1px solid #d2d2d7; border-radius: 8px; 
+            background: white; font-size: 14px; 
+        }
+        button { background: #007aff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
+        .chart-container { background: #fafafa; padding: 20px; border-radius: 10px; }
+        .chart-title { font-weight: 600; margin-bottom: 15px; color: #1d1d1f; }
+        canvas { max-height: 400px; }
+        .status { padding: 10px; background: #e3f2fd; border-radius: 6px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .loading { background: #fff3e0; color: #e65100; }
+        @media (max-width: 768px) { 
+            .charts-grid { grid-template-columns: 1fr; }
+            .controls { flex-direction: column; align-items: stretch; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 TFT Trading System</h1>
+        <p class="subtitle">Interactive Prediction History & Model Performance Charts</p>
+        
+        <div class="controls">
+            <select id="symbolSelect">
+                <option value="AAPL">AAPL</option>
+                <option value="TSLA">TSLA</option>
+                <option value="MSFT">MSFT</option>
+                <option value="GOOGL">GOOGL</option>
+                <option value="NVDA">NVDA</option>
+            </select>
+            <select id="daysSelect">
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+            </select>
+            <button onclick="loadCharts()">Load Charts</button>
+            <button onclick="loadCharts(true)">Auto Refresh (10s)</button>
+        </div>
+        
+        <div id="status" class="status" style="display:none;"></div>
+        
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-title">📈 Prediction Accuracy Trend</div>
+                <canvas id="accuracyChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">🎯 Model Confidence Over Time</div>
+                <canvas id="confidenceChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">⚡ TFT vs N-HITS Performance</div>
+                <canvas id="modelsChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">📊 Daily Prediction Volume</div>
+                <canvas id="volumeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let refreshInterval;
+        let charts = {};
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+
+        async function loadCharts(autoRefresh = false) {
+            const symbol = document.getElementById('symbolSelect').value;
+            const days = document.getElementById('daysSelect').value;
+            
+            showStatus('Loading prediction history...', 'loading');
+            
+            try {
+                const response = await fetch('/api/history?symbol=' + symbol + '&days=' + days);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load data');
+                }
+                
+                createCharts(data, symbol);
+                showStatus('Loaded ' + data.dates.length + ' days of data for ' + symbol, 'info');
+                
+                if (autoRefresh) {
+                    if (refreshInterval) clearInterval(refreshInterval);
+                    refreshInterval = setInterval(() => loadCharts(false), 10000);
+                    showStatus('Auto-refresh enabled for ' + symbol + ' (every 10s)', 'info');
+                }
+                
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+                console.error('Chart loading error:', error);
+            }
+        }
+
+        function createCharts(data, symbol) {
+            // Destroy existing charts
+            Object.values(charts).forEach(chart => chart?.destroy());
+            
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { beginAtZero: true },
+                    x: { ticks: { maxTicksLimit: 10 } }
+                }
+            };
+
+            // Accuracy Chart
+            charts.accuracy = new Chart(document.getElementById('accuracyChart'), {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Success Rate %',
+                        data: data.accuracyData,
+                        borderColor: '#007aff',
+                        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: { min: 0, max: 100 } } }
+            });
+
+            // Confidence Chart
+            charts.confidence = new Chart(document.getElementById('confidenceChart'), {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Avg Confidence %',
+                        data: data.confidenceData,
+                        borderColor: '#34c759',
+                        backgroundColor: 'rgba(52, 199, 89, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: { min: 0, max: 100 } } }
+            });
+
+            // Models Comparison Chart
+            charts.models = new Chart(document.getElementById('modelsChart'), {
+                type: 'bar',
+                data: {
+                    labels: data.dates,
+                    datasets: [
+                        {
+                            label: 'TFT Confidence %',
+                            data: data.tftConfidenceData,
+                            backgroundColor: 'rgba(255, 45, 85, 0.8)',
+                            borderColor: '#ff2d55'
+                        },
+                        {
+                            label: 'N-HITS Confidence %',
+                            data: data.nhitsConfidenceData,
+                            backgroundColor: 'rgba(255, 149, 0, 0.8)',
+                            borderColor: '#ff9500'
+                        }
+                    ]
+                },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: { min: 0, max: 100 } } }
+            });
+
+            // Volume Chart
+            charts.volume = new Chart(document.getElementById('volumeChart'), {
+                type: 'bar',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Predictions Count',
+                        data: data.volumeData,
+                        backgroundColor: 'rgba(88, 86, 214, 0.8)',
+                        borderColor: '#5856d6'
+                    }]
+                },
+                options: commonOptions
+            });
+        }
+
+        // Load initial charts
+        window.onload = () => loadCharts();
+        
+        // Cleanup on page unload
+        window.onbeforeunload = () => {
+            if (refreshInterval) clearInterval(refreshInterval);
+        };
+    </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html' }
+  });
+}
+
+/**
+ * API endpoint to retrieve prediction history from KV storage
+ */
+async function handleHistoryAPI(request, env) {
+  try {
+    const url = new URL(request.url);
+    const symbol = url.searchParams.get('symbol') || 'AAPL';
+    const days = parseInt(url.searchParams.get('days')) || 7;
+    
+    console.log(`📊 Loading ${days} days of prediction history for ${symbol}`);
+    
+    const historyData = {
+      dates: [],
+      accuracyData: [],
+      confidenceData: [],
+      tftConfidenceData: [],
+      nhitsConfidenceData: [],
+      volumeData: []
+    };
+    
+    // Collect data for the requested number of days
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const analysisKey = `analysis_${dateStr}`;
+      
+      try {
+        const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
+        if (analysisJson) {
+          const analysis = JSON.parse(analysisJson);
+          const symbolData = analysis.trading_signals?.[symbol];
+          
+          if (symbolData) {
+            historyData.dates.unshift(dateStr.slice(5)); // MM-DD format
+            historyData.accuracyData.unshift(analysis.performance_metrics?.success_rate || 0);
+            historyData.confidenceData.unshift((symbolData.confidence * 100) || 0);
+            historyData.volumeData.unshift(analysis.symbols_analyzed?.length || 0);
+            
+            // Extract model-specific data if available
+            const modelComp = symbolData.components?.price_prediction?.model_comparison;
+            historyData.tftConfidenceData.unshift(modelComp?.tft_prediction?.confidence * 100 || 0);
+            historyData.nhitsConfidenceData.unshift(modelComp?.nhits_prediction?.confidence * 100 || 0);
+          } else {
+            // No data for this symbol on this date
+            historyData.dates.unshift(dateStr.slice(5));
+            historyData.accuracyData.unshift(0);
+            historyData.confidenceData.unshift(0);
+            historyData.tftConfidenceData.unshift(0);
+            historyData.nhitsConfidenceData.unshift(0);
+            historyData.volumeData.unshift(0);
+          }
+        } else {
+          // No analysis data for this date
+          historyData.dates.unshift(dateStr.slice(5));
+          historyData.accuracyData.unshift(0);
+          historyData.confidenceData.unshift(0);
+          historyData.tftConfidenceData.unshift(0);
+          historyData.nhitsConfidenceData.unshift(0);
+          historyData.volumeData.unshift(0);
+        }
+      } catch (error) {
+        console.error(`Error processing date ${dateStr}:`, error.message);
+      }
+    }
+    
+    console.log(`📈 Retrieved ${historyData.dates.length} data points for ${symbol}`);
+    
+    return new Response(JSON.stringify(historyData), {
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ History API error:', error.message);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      dates: [],
+      accuracyData: [],
+      confidenceData: [],
+      tftConfidenceData: [],
+      nhitsConfidenceData: [],
+      volumeData: []
+    }), {
+      status: 500,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+}
+
+/**
+ * Handle fact table request - shows predictions vs actual market prices
+ */
+async function handleFactTable(request, env) {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading System - Fact Table</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        select, input {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+            font-size: 14px;
+        }
+        
+        th {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+        
+        tr:hover td {
+            background-color: #f8f9fa;
+        }
+        
+        .symbol {
+            font-weight: 700;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .date {
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .price {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+        }
+        
+        .positive {
+            color: #28a745;
+        }
+        
+        .negative {
+            color: #dc3545;
+        }
+        
+        .neutral {
+            color: #6c757d;
+        }
+        
+        .accuracy {
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .high-accuracy {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .medium-accuracy {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .low-accuracy {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+        
+        .stat-card:hover {
+            border-color: #667eea;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Prediction Accuracy Fact Table</h1>
+            <p>Compare predicted prices vs actual market prices</p>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="symbol">Symbol:</label>
+                <select id="symbol">
+                    <option value="AAPL">AAPL</option>
+                    <option value="TSLA">TSLA</option>
+                    <option value="MSFT">MSFT</option>
+                    <option value="GOOGL">GOOGL</option>
+                    <option value="NVDA">NVDA</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="days">Days:</label>
+                <input type="number" id="days" min="1" max="30" value="7">
+            </div>
+            <button onclick="loadFactTable()">🔄 Refresh Data</button>
+            <button onclick="loadAllSymbols()">📈 Load All Symbols</button>
+        </div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-value" id="total-predictions">0</div>
+                <div class="stat-label">Total Predictions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avg-accuracy">0%</div>
+                <div class="stat-label">Average Accuracy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="best-model">-</div>
+                <div class="stat-label">Best Model</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="directional-accuracy">0%</div>
+                <div class="stat-label">Directional Accuracy</div>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <div id="loading" class="loading">Click "Refresh Data" to load fact table...</div>
+            <div id="error" class="error" style="display: none;"></div>
+            <table id="fact-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Symbol</th>
+                        <th>TFT Prediction</th>
+                        <th>N-HITS Prediction</th>
+                        <th>Ensemble Prediction</th>
+                        <th>Actual Price</th>
+                        <th>TFT Error</th>
+                        <th>N-HITS Error</th>
+                        <th>Ensemble Error</th>
+                        <th>Best Model</th>
+                        <th>Confidence</th>
+                        <th>Directional</th>
+                    </tr>
+                </thead>
+                <tbody id="fact-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function loadFactTable() {
+            const symbol = document.getElementById('symbol').value;
+            const days = document.getElementById('days').value;
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const table = document.getElementById('fact-table');
+            const stats = document.getElementById('stats');
+            
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            table.style.display = 'none';
+            stats.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/fact-data?symbol=' + symbol + '&days=' + days);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                displayFactTable(data);
+                updateStats(data);
+                
+            } catch (err) {
+                console.error('Error loading fact table:', err);
+                error.textContent = 'Error loading data: ' + err.message;
+                error.style.display = 'block';
+            }
+            
+            loading.style.display = 'none';
+        }
+        
+        async function loadAllSymbols() {
+            const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'NVDA'];
+            const days = document.getElementById('days').value;
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const table = document.getElementById('fact-table');
+            const stats = document.getElementById('stats');
+            
+            loading.innerHTML = 'Loading all symbols...';
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            table.style.display = 'none';
+            stats.style.display = 'none';
+            
+            try {
+                const allData = [];
+                for (const symbol of symbols) {
+                    const response = await fetch('/api/fact-data?symbol=' + symbol + '&days=' + days);
+                    const data = await response.json();
+                    if (data.predictions) {
+                        allData.push(...data.predictions);
+                    }
+                }
+                
+                const combinedData = { predictions: allData };
+                displayFactTable(combinedData);
+                updateStats(combinedData);
+                
+            } catch (err) {
+                console.error('Error loading all symbols:', err);
+                error.textContent = 'Error loading data: ' + err.message;
+                error.style.display = 'block';
+            }
+            
+            loading.style.display = 'none';
+        }
+        
+        function displayFactTable(data) {
+            const tbody = document.getElementById('fact-body');
+            tbody.innerHTML = '';
+            
+            if (!data.predictions || data.predictions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px; color: #666;">No prediction data available</td></tr>';
+                document.getElementById('fact-table').style.display = 'table';
+                return;
+            }
+            
+            data.predictions.forEach(pred => {
+                const row = document.createElement('tr');
+                
+                // Calculate errors
+                const tftError = pred.actual_price ? ((Math.abs(pred.tft_prediction - pred.actual_price) / pred.actual_price) * 100).toFixed(2) : 'N/A';
+                const nhitsError = pred.actual_price ? ((Math.abs(pred.nhits_prediction - pred.actual_price) / pred.actual_price) * 100).toFixed(2) : 'N/A';
+                const ensembleError = pred.actual_price ? ((Math.abs(pred.ensemble_prediction - pred.actual_price) / pred.actual_price) * 100).toFixed(2) : 'N/A';
+                
+                // Determine best model
+                let bestModel = 'N/A';
+                if (pred.actual_price) {
+                    const errors = [
+                        { model: 'TFT', error: Math.abs(pred.tft_prediction - pred.actual_price) },
+                        { model: 'N-HITS', error: Math.abs(pred.nhits_prediction - pred.actual_price) },
+                        { model: 'Ensemble', error: Math.abs(pred.ensemble_prediction - pred.actual_price) }
+                    ];
+                    bestModel = errors.reduce((best, current) => current.error < best.error ? current : best).model;
+                }
+                
+                // Directional accuracy
+                const predictedDirection = pred.ensemble_prediction > pred.current_price ? '↑' : '↓';
+                const actualDirection = pred.actual_price > pred.current_price ? '↑' : '↓';
+                const directionalCorrect = predictedDirection === actualDirection ? '✓' : '✗';
+                
+                row.innerHTML = '<td class="date">' + pred.date + '</td>' +
+                    '<td class="symbol">' + pred.symbol + '</td>' +
+                    '<td class="price">' + (pred.tft_prediction ? '$' + pred.tft_prediction.toFixed(2) : 'N/A') + '</td>' +
+                    '<td class="price">' + (pred.nhits_prediction ? '$' + pred.nhits_prediction.toFixed(2) : 'N/A') + '</td>' +
+                    '<td class="price">' + (pred.ensemble_prediction ? '$' + pred.ensemble_prediction.toFixed(2) : 'N/A') + '</td>' +
+                    '<td class="price">' + (pred.actual_price ? '$' + pred.actual_price.toFixed(2) : 'N/A') + '</td>' +
+                    '<td class="' + (tftError !== 'N/A' && parseFloat(tftError) < 2 ? 'positive' : 'negative') + '">' + (tftError !== 'N/A' ? tftError + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (nhitsError !== 'N/A' && parseFloat(nhitsError) < 2 ? 'positive' : 'negative') + '">' + (nhitsError !== 'N/A' ? nhitsError + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (ensembleError !== 'N/A' && parseFloat(ensembleError) < 2 ? 'positive' : 'negative') + '">' + (ensembleError !== 'N/A' ? ensembleError + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (bestModel === 'Ensemble' ? 'positive' : 'neutral') + '">' + bestModel + '</td>' +
+                    '<td>' + (pred.confidence ? pred.confidence.toFixed(1) + '%' : 'N/A') + '</td>' +
+                    '<td class="' + (directionalCorrect === '✓' ? 'positive' : 'negative') + '">' + directionalCorrect + ' ' + predictedDirection + '</td>';
+                
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('fact-table').style.display = 'table';
+        }
+        
+        function updateStats(data) {
+            if (!data.predictions || data.predictions.length === 0) return;
+            
+            const validPredictions = data.predictions.filter(p => p.actual_price);
+            
+            document.getElementById('total-predictions').textContent = data.predictions.length;
+            
+            if (validPredictions.length > 0) {
+                const avgAccuracy = validPredictions.reduce((sum, pred) => {
+                    const error = Math.abs(pred.ensemble_prediction - pred.actual_price) / pred.actual_price * 100;
+                    return sum + (100 - error);
+                }, 0) / validPredictions.length;
+                
+                document.getElementById('avg-accuracy').textContent = avgAccuracy.toFixed(1) + '%';
+                
+                // Directional accuracy
+                let directionalCorrect = 0;
+                validPredictions.forEach(pred => {
+                    const predictedDirection = pred.ensemble_prediction > pred.current_price;
+                    const actualDirection = pred.actual_price > pred.current_price;
+                    if (predictedDirection === actualDirection) directionalCorrect++;
+                });
+                
+                const directionalAccuracy = (directionalCorrect / validPredictions.length * 100).toFixed(1);
+                document.getElementById('directional-accuracy').textContent = directionalAccuracy + '%';
+                
+                // Best model analysis
+                const modelPerformance = { TFT: 0, 'N-HITS': 0, Ensemble: 0 };
+                validPredictions.forEach(pred => {
+                    const errors = [
+                        { model: 'TFT', error: Math.abs(pred.tft_prediction - pred.actual_price) },
+                        { model: 'N-HITS', error: Math.abs(pred.nhits_prediction - pred.actual_price) },
+                        { model: 'Ensemble', error: Math.abs(pred.ensemble_prediction - pred.actual_price) }
+                    ];
+                    const bestModel = errors.reduce((best, current) => current.error < best.error ? current : best).model;
+                    modelPerformance[bestModel]++;
+                });
+                
+                const bestOverallModel = Object.keys(modelPerformance).reduce((a, b) => 
+                    modelPerformance[a] > modelPerformance[b] ? a : b
+                );
+                
+                document.getElementById('best-model').textContent = bestOverallModel;
+            }
+            
+            document.getElementById('stats').style.display = 'grid';
+        }
+        
+        // Load data on page load
+        window.onload = () => {
+            // Auto-load default data
+            // loadFactTable();
+        };
+    </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html' }
+  });
+}
+
+/**
+ * API endpoint for fact table data - compares predictions vs actual prices
+ */
+async function handleFactDataAPI(request, env) {
+  try {
+    const url = new URL(request.url);
+    const symbol = url.searchParams.get('symbol') || 'AAPL';
+    const days = parseInt(url.searchParams.get('days')) || 7;
+    
+    console.log(`📊 Loading ${days} days of fact data for ${symbol}`);
+    
+    const predictions = [];
+    
+    // Collect prediction data for the requested number of days
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const analysisKey = `analysis_${dateStr}`;
+      
+      try {
+        const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
+        if (analysisJson) {
+          const analysisData = JSON.parse(analysisJson);
+          
+          // Handle both data structures: array format (cron) and object format (manual)
+          let symbolData = null;
+          
+          // Format 1: Array format from cron analysis { analysis_results: [...] }
+          if (analysisData.analysis_results && Array.isArray(analysisData.analysis_results)) {
+            symbolData = analysisData.analysis_results.find(result => result.symbol === symbol);
+          }
+          // Format 2: Object format from manual analysis { trading_signals: { AAPL: {...} } }
+          else if (analysisData.trading_signals && analysisData.trading_signals[symbol]) {
+            symbolData = analysisData.trading_signals[symbol];
+          }
+          
+          if (symbolData) {
+            // Get actual market price for this date
+            const actualPrice = await getActualPrice(symbol, dateStr);
+            
+            // Extract model predictions from different data structures
+            let tftPrediction = null, nhitsPrediction = null, ensemblePrediction = null;
+            let tftConfidence = null, nhitsConfidence = null;
+            
+            // Extract from cron analysis format
+            if (symbolData.tft_prediction) {
+              tftPrediction = symbolData.tft_prediction;
+              nhitsPrediction = symbolData.nhits_prediction;
+              ensemblePrediction = symbolData.prediction;
+              tftConfidence = symbolData.tft_confidence;
+              nhitsConfidence = symbolData.nhits_confidence;
+            }
+            // Extract from manual analysis format
+            else if (symbolData.components?.price_prediction?.model_comparison) {
+              const models = symbolData.components.price_prediction.model_comparison;
+              tftPrediction = models.tft_prediction?.price || null;
+              nhitsPrediction = models.nhits_prediction?.price || null;
+              ensemblePrediction = symbolData.components.price_prediction.predicted_price || null;
+              tftConfidence = models.tft_prediction?.confidence || null;
+              nhitsConfidence = models.nhits_prediction?.confidence || null;
+            }
+            
+            const prediction = {
+              date: dateStr,
+              symbol: symbol,
+              current_price: symbolData.current_price || null,
+              tft_prediction: tftPrediction,
+              nhits_prediction: nhitsPrediction,
+              ensemble_prediction: ensemblePrediction,
+              actual_price: actualPrice,
+              confidence: symbolData.confidence || null,
+              tft_confidence: tftConfidence,
+              nhits_confidence: nhitsConfidence
+            };
+            
+            predictions.push(prediction);
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing date ${dateStr}:`, error.message);
+      }
+    }
+    
+    console.log(`📈 Retrieved ${predictions.length} prediction records for ${symbol}`);
+    
+    return new Response(JSON.stringify({ 
+      symbol: symbol,
+      days: days,
+      predictions: predictions 
+    }), {
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Fact Data API error:', error.message);
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      symbol: null,
+      days: 0,
+      predictions: []
+    }), {
+      status: 500,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+}
+
+/**
+ * Get actual market price for a specific date using Yahoo Finance
+ */
+async function getActualPrice(symbol, dateStr) {
+  try {
+    // Convert date string to Date object
+    const targetDate = new Date(dateStr);
+    const currentDate = new Date();
+    
+    // Don't fetch actual price for future dates or today (market might not be closed)
+    if (targetDate >= currentDate) {
+      return null;
+    }
+    
+    // Calculate days ago for Yahoo Finance period calculation
+    const daysAgo = Math.ceil((currentDate - targetDate) / (1000 * 60 * 60 * 24));
+    
+    // Yahoo Finance API call
+    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${Math.floor(targetDate.getTime()/1000)}&period2=${Math.floor((targetDate.getTime() + 24*60*60*1000)/1000)}&interval=1d`;
+    
+    const response = await fetch(yahooUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      console.log(`⚠️ Yahoo Finance API returned ${response.status} for ${symbol} on ${dateStr}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.length > 0) {
+      const closePrices = data.chart.result[0].indicators.quote[0].close;
+      const actualPrice = closePrices[closePrices.length - 1]; // Get the last (most recent) close price
+      
+      console.log(`✅ Retrieved actual price for ${symbol} on ${dateStr}: $${actualPrice?.toFixed(2)}`);
+      return actualPrice;
+    }
+    
+    console.log(`⚠️ No price data available for ${symbol} on ${dateStr}`);
+    return null;
+    
+  } catch (error) {
+    console.error(`❌ Error fetching actual price for ${symbol} on ${dateStr}:`, error.message);
+    return null;
+  }
 }
