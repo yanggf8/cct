@@ -4,6 +4,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Updates
 
+### 2025-09-10: Daily Reports Enhanced with Prediction History + Confidence Threshold Lowered ✅
+**SYSTEM ENHANCEMENT**: Improved logging and alert sensitivity for better user experience
+
+#### **Enhanced Daily Report Features:**
+- **✅ Prediction History Timeline**: Shows cron execution timeline with prediction counts and confidence levels
+- **✅ Detailed Model Breakdown**: Individual TFT vs N-HITS predictions with percentage changes and current prices
+- **✅ Model Agreement Analysis**: Directional consensus indicators with correlation scores
+- **✅ Candle Charts Removed**: Streamlined reports focus on prediction data rather than ASCII visualizations
+- **✅ Confidence Threshold Lowered**: Alert threshold reduced from 85% to 75% for more frequent notifications
+
+#### **New Daily Report Format:**
+```
+📈 Daily Prediction History - 9/10/2025
+
+🎯 Today's Predictions (5 symbols):
+
+🔍 AAPL Forecast:
+   💰 Current: $234.35
+   🔮 Predicted: ➡️ (64.6% confidence)
+   🤖 Models: NEUTRAL price prediction (TFT+N-HITS...
+   🔮 TFT Model: $234.24 (-0.05%)
+   🔮 N-HITS Model: $234.63 (+0.12%)
+   📊 Model Agreement: ❌ (0.002)
+
+📅 Today's Prediction Timeline:
+• 03:30: 5 predictions, 70.5% avg confidence
+
+⏰ 11:38 PM EST
+🧪 TFT+N-HITS Model Validation System
+```
+
+#### **Technical Implementation:**
+- **Daily Context Logging**: Comprehensive timeline of all cron executions with prediction metrics
+- **Model Comparison Display**: Side-by-side TFT vs N-HITS predictions with percentage changes
+- **Agreement Indicators**: Visual consensus indicators (✅/❌) with numerical correlation scores
+- **Confidence Threshold Update**: Changed from `> 0.85` to `> 0.75` across all alert functions
+- **Deprecated Features**: Removed `generateCandleChart()` and all ASCII chart generation
+
+#### **Production Deployment:**
+- **Version ID**: `33574f3c-fa4d-4968-8922-93f650495914`
+- **Deployment Date**: 2025-09-10 03:38 UTC
+- **OAuth Status**: ✅ Successfully authenticated and deployed
+- **Alert Sensitivity**: Improved with 75% threshold for more responsive notifications
+- **Report Enhancement**: Users now receive detailed prediction history instead of basic charts
+
 ### 2025-09-08: Enhanced Trading System - Institutional-Grade Risk Management Deployed ✅
 **MAJOR MILESTONE**: Complete transformation from basic predictions to sophisticated financial risk management platform
 

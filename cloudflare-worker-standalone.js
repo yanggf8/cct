@@ -339,7 +339,7 @@ async function runPreMarketAnalysis(env, options = {}) {
       analysisResults.trading_signals[symbol] = combinedSignal;
       
       // Check for high-confidence signals
-      if (combinedSignal.confidence > 0.85 && (combinedSignal.action.includes('BUY') || combinedSignal.action.includes('SELL'))) {
+      if (combinedSignal.confidence > 0.75 && (combinedSignal.action.includes('BUY') || combinedSignal.action.includes('SELL'))) {
         analysisResults.alerts.push({
           level: 'HIGH_CONFIDENCE',
           symbol: symbol,
@@ -1858,7 +1858,7 @@ function generatePerformanceMetrics(analysisResults) {
     success_rate: (successfulAnalyses / analysisResults.symbols_analyzed.length) * 100,
     signal_distribution: signalCounts,
     avg_confidence: avgConfidence,
-    high_confidence_signals: confidenceScores.filter(c => c > 0.85).length,
+    high_confidence_signals: confidenceScores.filter(c => c > 0.75).length,
     total_symbols: analysisResults.symbols_analyzed.length,
     successful_analyses: successfulAnalyses
   };
@@ -2152,8 +2152,8 @@ function generateCandleChart(symbol, currentPrice, tftPrice, nhitsPrice) {
   return chart;
 }
 
-// Send comprehensive daily report with candle charts (for 9:00 AM trigger only)
-async function sendFacebookDailyReport(analysisResults, env, includeCharts = false) {
+// Send comprehensive daily report with prediction history
+async function sendFacebookDailyReport(analysisResults, env, includeHistory = false) {
   console.log('🔍 sendFacebookDailySummary called with:', {
     has_analysis_results: !!analysisResults,
     has_trading_signals: !!(analysisResults?.trading_signals),
@@ -2193,8 +2193,8 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
       reportTitle = '📋 Weekly Accuracy Reports';
     }
     
-    let summaryText = includeCharts 
-      ? `${reportTitle} - ${date}\n📈 Model Performance Analysis\n\n`
+    let summaryText = includeHistory 
+      ? `${reportTitle} - ${date}\n📈 Daily Prediction History\n\n`
       : `${reportTitle} - ${date}\n\n`;
     
     if (signals.length > 0) {
@@ -2207,19 +2207,19 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
         summaryText += `   🔮 Predicted: ${signal.reasoning.includes('UP') ? '↗️' : signal.reasoning.includes('DOWN') ? '↘️' : '➡️'} (${(signal.confidence * 100).toFixed(1)}% confidence)\n`;
         summaryText += `   🤖 Models: ${signal.reasoning.substring(0, 40)}...\n`;
         
-        // Add prediction range if this is the final daily report
-        if (includeCharts && signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
+        // Add detailed model predictions for the final daily report
+        if (includeHistory && signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
           const modelComp = signal.components.price_prediction.model_comparison;
           const currentPrice = signal.current_price;
           const tftPrice = modelComp.tft_prediction?.price || currentPrice;
           const nhitsPrice = modelComp.nhits_prediction?.price || currentPrice;
           
-          const minPrice = Math.min(currentPrice, tftPrice, nhitsPrice);
-          const maxPrice = Math.max(currentPrice, tftPrice, nhitsPrice);
-          const rangePct = ((maxPrice - minPrice) / currentPrice * 100).toFixed(2);
+          const tftChange = ((tftPrice - currentPrice) / currentPrice * 100).toFixed(2);
+          const nhitsChange = ((nhitsPrice - currentPrice) / currentPrice * 100).toFixed(2);
           
-          summaryText += `   📊 TFT: $${tftPrice.toFixed(2)} | N-HITS: $${nhitsPrice.toFixed(2)}\n`;
-          summaryText += `   📈 Range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)} (±${rangePct}%)\n`;
+          summaryText += `   🔮 TFT Model: $${tftPrice.toFixed(2)} (${tftChange > 0 ? '+' : ''}${tftChange}%)\n`;
+          summaryText += `   🔮 N-HITS Model: $${nhitsPrice.toFixed(2)} (${nhitsChange > 0 ? '+' : ''}${nhitsChange}%)\n`;
+          summaryText += `   📊 Model Agreement: ${modelComp.agreement?.directional_consensus ? '✅' : '❌'} (${(modelComp.agreement?.signal_correlation || 0).toFixed(3)})\n`;
         }
         
         summaryText += `\n`;
@@ -2233,12 +2233,23 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
       summaryText += `• Predictions Generated: ${perf.total_symbols}\n`;
       summaryText += `• Forecast Distribution: ${JSON.stringify(perf.signal_distribution).replace(/"/g, '').replace('BUY', '↗️Up').replace('SELL', '↘️Down').replace('HOLD', '➡️Neutral')}`;
       
+      // Add today's prediction history if available
+      if (includeHistory && analysisResults.daily_context) {
+        summaryText += `\n\n📅 Today's Prediction Timeline:\n`;
+        const contextEntries = Object.entries(analysisResults.daily_context);
+        contextEntries.forEach(([time, context]) => {
+          if (context.symbols_count && context.avg_confidence) {
+            const timeFormatted = time.replace(':', ':');
+            summaryText += `• ${timeFormatted}: ${context.symbols_count} predictions, ${(context.avg_confidence * 100).toFixed(1)}% avg confidence\n`;
+          }
+        });
+      }
     } else {
       summaryText += `No predictions generated today.\n\n🔄 System Status: Operational ✅\n📊 Model Training: Active`;
     }
 
     // Add final report timestamp and signature
-    if (includeCharts) {
+    if (includeHistory) {
       summaryText += `\n\n⏰ ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST`;
       summaryText += `\n🧪 TFT+N-HITS Model Validation System`;
     } else {
@@ -2249,7 +2260,7 @@ async function sendFacebookDailyReport(analysisResults, env, includeCharts = fal
     console.log('📤 Sending Facebook daily summary...', {
       message_length: summaryText.length,
       signal_count: signals.length,
-      include_charts: includeCharts
+      include_history: includeHistory
     });
 
     // Use helper function to send message
@@ -2586,9 +2597,9 @@ async function handleManualAnalysis(request, env) {
     if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
       try {
         if (isFinalDailyReport) {
-          // Send comprehensive daily report with candle charts at 9:00 AM
-          console.log('📊 Sending final daily report with candle charts...');
-          await sendFacebookDailyReport(result, env, true); // true = include candle charts
+          // Send comprehensive daily report with prediction history at 9:00 AM
+          console.log('📊 Sending final daily report with prediction history...');
+          await sendFacebookDailyReport(result, env, true); // true = include history
           console.log('✅ Facebook daily report completed successfully');
         } else {
           // Send high-confidence alerts only during other triggers
@@ -2838,18 +2849,30 @@ async function handleHealthCheck(request, env) {
 }
 
 /**
- * Test daily report with candle charts (simulates 9:00 AM final report)
+ * Test daily report with prediction history (simulates 9:00 AM final report)
  */
 async function handleTestDailyReport(request, env) {
   try {
-    console.log('🧪 Testing daily report with candle charts');
+    console.log('🧪 Testing daily report with prediction history');
     const result = await runPreMarketAnalysis(env, { isFinalDailyReport: true });
     
-    // Test the candle chart generation
-    console.log('📊 Testing candle chart generation...');
+    // Test the prediction history logging
+    console.log('📊 Testing prediction history logging...');
     const signals = Object.entries(result.trading_signals || {});
-    let chartTest = '\n🧪 CANDLE CHART TEST:\n\n';
+    let historyTest = '\n🧪 PREDICTION HISTORY TEST:\n\n';
     
+    // Add daily context summary
+    if (result.daily_context) {
+      historyTest += '📅 Today\'s Cron Executions:\n';
+      Object.entries(result.daily_context).forEach(([time, context]) => {
+        if (context.symbols_count) {
+          historyTest += `• ${time}: ${context.symbols_count} symbols analyzed, ${(context.avg_confidence * 100).toFixed(1)}% avg confidence\n`;
+        }
+      });
+      historyTest += '\n';
+    }
+    
+    // Add model prediction details
     signals.slice(0, 2).forEach(([symbol, signal]) => {
       if (signal.components && signal.components.price_prediction && signal.components.price_prediction.model_comparison) {
         const modelComp = signal.components.price_prediction.model_comparison;
@@ -2857,21 +2880,25 @@ async function handleTestDailyReport(request, env) {
         const tftPrice = modelComp.tft_prediction?.price || currentPrice;
         const nhitsPrice = modelComp.nhits_prediction?.price || currentPrice;
         
-        chartTest += generateCandleChart(symbol, currentPrice, tftPrice, nhitsPrice) + '\n\n';
+        historyTest += `📊 ${symbol} Model Breakdown:\n`;
+        historyTest += `  Current: $${currentPrice.toFixed(2)}\n`;
+        historyTest += `  TFT: $${tftPrice.toFixed(2)} (${((tftPrice-currentPrice)/currentPrice*100).toFixed(2)}%)\n`;
+        historyTest += `  N-HITS: $${nhitsPrice.toFixed(2)} (${((nhitsPrice-currentPrice)/currentPrice*100).toFixed(2)}%)\n`;
+        historyTest += `  Agreement: ${modelComp.agreement?.directional_consensus ? '✅' : '❌'}\n\n`;
       }
     });
     
-    // Add chart test to result
-    result.candle_chart_test = chartTest;
+    // Add history test to result
+    result.prediction_history_test = historyTest;
     result.test_mode = true;
     result.simulates_final_daily_report = true;
     
     // If Facebook is configured, test the daily report sending
     if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
       try {
-        console.log('📱 Testing Facebook daily report with candle charts...');
-        await sendFacebookDailyReport(result, env, true); // true = include candle charts
-        result.facebook_test = 'Daily report with candle charts sent successfully';
+        console.log('📱 Testing Facebook daily report with prediction history...');
+        await sendFacebookDailyReport(result, env, true); // true = include history
+        result.facebook_test = 'Daily report with prediction history sent successfully';
       } catch (fbError) {
         result.facebook_test = `Error: ${fbError.message}`;
       }
@@ -2888,7 +2915,7 @@ async function handleTestDailyReport(request, env) {
     console.error('❌ Daily report test failed:', error.message);
     return new Response(JSON.stringify({ 
       error: error.message,
-      test: 'daily_report_with_candle_charts'
+      test: 'daily_report_with_prediction_history'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -2961,9 +2988,9 @@ async function handleTestHighConfidence(request, env) {
     
     const result = {
       test: 'high_confidence_alert',
-      confidence_threshold: 85.0,
+      confidence_threshold: 75.0,
       real_confidence: realData.ensemble.confidence,
-      triggered: realData.ensemble.confidence > 85.0,
+      triggered: realData.ensemble.confidence > 75.0,
       data_source: 'REAL_PREDICTIONS',
       symbol: testSymbol,
       current_price: realData.current_price,
@@ -2979,7 +3006,7 @@ async function handleTestHighConfidence(request, env) {
           await sendHighConfidenceAlert(realData, env);
           result.facebook_alert = 'Real high-confidence alert sent successfully';
         } else {
-          result.facebook_alert = `Real confidence ${realData.ensemble.confidence.toFixed(1)}% below threshold (85%), no alert sent`;
+          result.facebook_alert = `Real confidence ${realData.ensemble.confidence.toFixed(1)}% below threshold (75%), no alert sent`;
         }
       } catch (fbError) {
         result.facebook_alert = `Error: ${fbError.message}`;
