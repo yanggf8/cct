@@ -33,7 +33,9 @@
       "Bash(env -u CLOUDFLARE_API_TOKEN wrangler kv:key list --binding=TRADING_RESULTS)",
       "Bash(env -u CLOUDFLARE_API_TOKEN wrangler kv key list --binding=TRADING_RESULTS)",
       "Bash(env -u CLOUDFLARE_API_TOKEN wrangler tail --format=pretty)",
-      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler kv key get analysis_2025-09-10 --binding=TRADING_RESULTS)"
+      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler kv key get analysis_2025-09-10 --binding=TRADING_RESULTS)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler deploy)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty)"
     ],
     "deny": [],
     "ask": []

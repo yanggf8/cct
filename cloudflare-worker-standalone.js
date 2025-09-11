@@ -118,11 +118,18 @@ export default {
     
     const isFinalDailyReport = false; // Not used in new system
     
-    console.log(`🚀 Scheduled analysis triggered at ${estTime.toISOString()}`, {
+    // Enhanced cron execution logging
+    const cronExecutionId = `cron_${Date.now()}_${triggerMode}`;
+    const cronStartTime = Date.now();
+    
+    console.log(`🚀 [CRON-START] ${cronExecutionId}`, {
+      scheduled_time_utc: controller.scheduledTime,
+      scheduled_time_est: estTime.toISOString(),
+      trigger_mode: triggerMode,
+      prediction_horizons: predictionHorizons,
+      execution_id: cronExecutionId,
       hour: currentHour,
-      minute: currentMinute, 
-      triggerMode,
-      predictionHorizons
+      minute: currentMinute
     });
     
     // Reset circuit breakers if in recovery period
@@ -139,7 +146,8 @@ export default {
         analysisResult = await runPreMarketAnalysis(env, { 
           triggerMode, 
           predictionHorizons,
-          currentTime: estTime
+          currentTime: estTime,
+          cronExecutionId // Pass through cronExecutionId for tracking
         });
       }
       
@@ -149,31 +157,49 @@ export default {
       }
       
       // Store results in KV for local system retrieval
+      const kvKey = `analysis_${estTime.toISOString().split('T')[0]}`;
+      console.log(`💾 [CRON-KV] ${cronExecutionId} storing results with key: ${kvKey}`);
       await env.TRADING_RESULTS.put(
-        `analysis_${estTime.toISOString().split('T')[0]}`, // YYYY-MM-DD key
+        kvKey,
         JSON.stringify(analysisResult),
         { expirationTtl: 604800 } // 7 days for weekly validation
       );
       
       // Send high-confidence alerts if any
       if (analysisResult.alerts && analysisResult.alerts.length > 0) {
+        console.log(`📢 [CRON-ALERTS] ${cronExecutionId} sending ${analysisResult.alerts.length} high-confidence alerts`);
         await sendAlerts(analysisResult, env);
+      } else {
+        console.log(`🔇 [CRON-ALERTS] ${cronExecutionId} no high-confidence alerts to send`);
       }
 
       // Always send daily summary to Facebook (regardless of confidence)
       if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
-        await sendFacebookDailySummary(analysisResult, env);
+        console.log(`📱 [CRON-FB-START] ${cronExecutionId} sending Facebook daily summary`);
+        const fbResult = await sendFacebookDailySummaryWithTracking(analysisResult, env, cronExecutionId);
+        console.log(`📱 [CRON-FB-RESULT] ${cronExecutionId}`, fbResult);
         
         // Check if it's Sunday for weekly accuracy report
         const dayOfWeek = estTime.getDay(); // 0 = Sunday
         if (dayOfWeek === 0) {
-          console.log('📊 Sunday detected - sending weekly accuracy report...');
-          await sendWeeklyAccuracyReport(env);
+          console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Sunday detected - sending weekly accuracy report`);
+          const weeklyResult = await sendWeeklyAccuracyReportWithTracking(env, cronExecutionId);
+          console.log(`📊 [CRON-WEEKLY-RESULT] ${cronExecutionId}`, weeklyResult);
         }
+      } else {
+        console.log(`⚠️ [CRON-FB-SKIP] ${cronExecutionId} Facebook not configured - skipping daily summary`);
       }
       
-      console.log(`✅ Analysis completed: ${analysisResult.symbols_analyzed.length} symbols`);
-      console.log(`   Circuit breaker status: ModelScope=${circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED'}, Yahoo=${circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED'}`);
+      const cronDuration = Date.now() - cronStartTime;
+      console.log(`✅ [CRON-COMPLETE] ${cronExecutionId}`, {
+        symbols_analyzed: analysisResult.symbols_analyzed.length,
+        duration_ms: cronDuration,
+        alerts_sent: analysisResult.alerts?.length || 0,
+        circuit_breaker_status: {
+          modelScope: circuitBreaker.modelScope.isOpen ? 'OPEN' : 'CLOSED',
+          yahooFinance: circuitBreaker.yahooFinance.isOpen ? 'OPEN' : 'CLOSED'
+        }
+      });
       
     } catch (error) {
       console.error(`❌ Scheduled analysis failed:`, error);
@@ -285,7 +311,8 @@ async function runPreMarketAnalysis(env, options = {}) {
     worker_version: '2.0-Progressive-KV',
     trigger_mode: triggerMode,
     prediction_horizons: predictionHorizons,
-    daily_context: dailyContext // Include accumulated context
+    daily_context: dailyContext, // Include accumulated context
+    cronExecutionId: options.cronExecutionId // Pass through cronExecutionId for tracking
   };
   
   console.log(`📊 Starting analysis for ${symbols.length} symbols...`);
@@ -1890,9 +1917,10 @@ async function sendAlerts(analysisResults, env) {
     await sendSlackAlerts(alerts, analysisResults, env);
   }
 
-  // Send Facebook Messenger alerts
+  // Send Facebook Messenger alerts with tracking
   if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
-    await sendFacebookMessengerAlert(alerts, analysisResults, env);
+    const cronExecutionId = analysisResults.cronExecutionId || `alert_${Date.now()}`;
+    await sendFacebookMessengerAlertWithTracking(alerts, analysisResults, env, cronExecutionId);
   }
   
   console.log(`📬 Sent ${alerts.length} high-confidence alerts`);
@@ -2607,8 +2635,8 @@ async function handleManualAnalysis(request, env) {
         if (isFinalDailyReport) {
           // Send comprehensive daily report with prediction history at 9:00 AM
           console.log('📊 Sending final daily report with prediction history...');
-          await sendFacebookDailyReport(result, env, true); // true = include history
-          console.log('✅ Facebook daily report completed successfully');
+          await sendFacebookDailySummaryWithTracking(result, env, cronExecutionId, true); // true = include history
+          console.log('✅ Facebook daily report with tracking completed successfully');
         } else {
           // Send high-confidence alerts only during other triggers
           const highConfidenceAlerts = result.alerts || [];
@@ -2785,8 +2813,9 @@ async function handleWeeklyReport(request, env) {
       });
     }
     
-    // Generate and send weekly report
-    await sendWeeklyAccuracyReport(env);
+    // Generate and send weekly report with tracking
+    const weeklyTestCronId = `weekly_test_${Date.now()}`;
+    await sendWeeklyAccuracyReportWithTracking(env, weeklyTestCronId);
     
     return new Response(JSON.stringify({
       success: true,
@@ -2905,8 +2934,9 @@ async function handleTestDailyReport(request, env) {
     if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
       try {
         console.log('📱 Testing Facebook daily report with prediction history...');
-        await sendFacebookDailyReport(result, env, true); // true = include history
-        result.facebook_test = 'Daily report with prediction history sent successfully';
+        const testCronId = `test_${Date.now()}`;
+        await sendFacebookDailySummaryWithTracking(result, env, testCronId, true); // true = include history
+        result.facebook_test = 'Daily report with prediction history sent successfully with tracking';
       } catch (fbError) {
         result.facebook_test = `Error: ${fbError.message}`;
       }
@@ -3011,8 +3041,9 @@ async function handleTestHighConfidence(request, env) {
       try {
         console.log('📱 Sending REAL high-confidence alert to Facebook...');
         if (result.triggered) {
-          await sendHighConfidenceAlert(realData, env);
-          result.facebook_alert = 'Real high-confidence alert sent successfully';
+          const testCronId = `high_conf_test_${Date.now()}`;
+          await sendHighConfidenceAlertWithTracking(realData, env, testCronId);
+          result.facebook_alert = 'Real high-confidence alert sent successfully with tracking';
         } else {
           result.facebook_alert = `Real confidence ${realData.ensemble.confidence.toFixed(1)}% below threshold (75%), no alert sent`;
         }
@@ -3037,6 +3068,163 @@ async function handleTestHighConfidence(request, env) {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+}
+
+/**
+ * Enhanced Facebook messaging functions with comprehensive tracking
+ */
+
+// Enhanced tracking wrapper for Facebook daily reports
+async function sendFacebookDailySummaryWithTracking(analysisResults, env, cronExecutionId, includeHistory = false) {
+  const trackingId = `fb_daily_${Date.now()}`;
+  const messageType = includeHistory ? 'daily_history' : 'daily_summary';
+  
+  console.log(`📱 [FB-DAILY-START] ${cronExecutionId} ${trackingId}`, {
+    message_type: messageType,
+    include_history: includeHistory,
+    analysis_symbols: Object.keys(analysisResults?.trading_signals || {}).length,
+    timestamp_utc: new Date().toISOString()
+  });
+
+  try {
+    // Send the actual Facebook message
+    await sendFacebookDailyReport(analysisResults, env, includeHistory);
+    
+    console.log(`📱 [FB-DAILY-SUCCESS] ${cronExecutionId} ${trackingId}`, {
+      message_type: messageType,
+      delivery_status: 'sent_successfully',
+      symbols_included: Object.keys(analysisResults?.trading_signals || {}),
+      message_length_estimate: `~${JSON.stringify(analysisResults).length} chars`
+    });
+    
+    return { success: true, trackingId, messageType };
+    
+  } catch (error) {
+    console.log(`📱 [FB-DAILY-ERROR] ${cronExecutionId} ${trackingId}`, {
+      message_type: messageType,
+      error_type: error.name || 'Unknown',
+      error_message: error.message,
+      facebook_config_status: {
+        token_present: !!env.FACEBOOK_PAGE_TOKEN,
+        recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+      }
+    });
+    
+    throw error;
+  }
+}
+
+// Enhanced tracking wrapper for Facebook weekly accuracy reports
+async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId) {
+  const trackingId = `fb_weekly_${Date.now()}`;
+  
+  console.log(`📱 [FB-WEEKLY-START] ${cronExecutionId} ${trackingId}`, {
+    message_type: 'weekly_accuracy',
+    requested_at: new Date().toISOString(),
+    day_of_week: new Date().getDay() // 0=Sunday
+  });
+
+  try {
+    // Send the actual weekly report
+    await sendWeeklyAccuracyReport(env);
+    
+    console.log(`📱 [FB-WEEKLY-SUCCESS] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'weekly_accuracy',
+      delivery_status: 'sent_successfully',
+      report_type: 'accuracy_analysis'
+    });
+    
+    return { success: true, trackingId, messageType: 'weekly_accuracy' };
+    
+  } catch (error) {
+    console.log(`📱 [FB-WEEKLY-ERROR] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'weekly_accuracy',
+      error_type: error.name || 'Unknown',
+      error_message: error.message,
+      facebook_config_status: {
+        token_present: !!env.FACEBOOK_PAGE_TOKEN,
+        recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+      }
+    });
+    
+    throw error;
+  }
+}
+
+// Enhanced tracking wrapper for high-confidence alerts
+async function sendHighConfidenceAlertWithTracking(data, env, cronExecutionId) {
+  const trackingId = `fb_alert_${Date.now()}`;
+  
+  console.log(`📱 [FB-ALERT-START] ${cronExecutionId} ${trackingId}`, {
+    message_type: 'high_confidence_alert',
+    symbol: data.symbol,
+    confidence: data.ensemble?.confidence || data.confidence,
+    direction: data.ensemble?.direction || data.direction,
+    trigger_threshold: 75.0
+  });
+
+  try {
+    // Send the actual high-confidence alert
+    await sendHighConfidenceAlert(data, env);
+    
+    console.log(`📱 [FB-ALERT-SUCCESS] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'high_confidence_alert',
+      symbol: data.symbol,
+      delivery_status: 'sent_successfully',
+      confidence_level: data.ensemble?.confidence || data.confidence
+    });
+    
+    return { success: true, trackingId, messageType: 'high_confidence_alert' };
+    
+  } catch (error) {
+    console.log(`📱 [FB-ALERT-ERROR] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'high_confidence_alert',
+      symbol: data.symbol,
+      error_type: error.name || 'Unknown',
+      error_message: error.message,
+      confidence_that_failed: data.ensemble?.confidence || data.confidence
+    });
+    
+    throw error;
+  }
+}
+
+// Enhanced tracking wrapper for Facebook Messenger alerts (multiple alerts)
+async function sendFacebookMessengerAlertWithTracking(alerts, analysisResults, env, cronExecutionId) {
+  const trackingId = `fb_messenger_${Date.now()}`;
+  
+  console.log(`📱 [FB-MESSENGER-START] ${cronExecutionId} ${trackingId}`, {
+    message_type: 'messenger_alerts',
+    alert_count: alerts.length,
+    symbols: alerts.map(a => a.symbol),
+    confidence_levels: alerts.map(a => a.confidence || 'unknown'),
+    trigger_threshold: 75.0
+  });
+
+  try {
+    // Send the actual Facebook messenger alert
+    await sendFacebookMessengerAlert(alerts, analysisResults, env);
+    
+    console.log(`📱 [FB-MESSENGER-SUCCESS] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'messenger_alerts',
+      alert_count: alerts.length,
+      delivery_status: 'sent_successfully',
+      symbols_alerted: alerts.map(a => a.symbol)
+    });
+    
+    return { success: true, trackingId, messageType: 'messenger_alerts', alertCount: alerts.length };
+    
+  } catch (error) {
+    console.log(`📱 [FB-MESSENGER-ERROR] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'messenger_alerts',
+      alert_count: alerts.length,
+      error_type: error.name || 'Unknown',
+      error_message: error.message,
+      failed_symbols: alerts.map(a => a.symbol)
+    });
+    
+    throw error;
   }
 }
 
@@ -4123,3 +4311,4 @@ async function getActualPrice(symbol, dateStr) {
     return null;
   }
 }
+
