@@ -2069,6 +2069,8 @@ async function generatePredictionAccuracyReport(analysisResults, env, includeHis
   reportText += `• Average Confidence: ${(perf.avg_confidence * 100).toFixed(1)}%\n`;
   reportText += `• Predictions Generated: ${perf.total_symbols}\n`;
   reportText += `• Signal Distribution: ${JSON.stringify(perf.signal_distribution).replace(/"/g, '').replace('BUY', '↗️Up').replace('SELL', '↘️Down').replace('HOLD', '➡️Neutral')}\n`;
+  reportText += `\n📊 Detailed Analysis & Fact Table:\n`;
+  reportText += `https://tft-trading-system.yanggf.workers.dev/fact-table\n`;
   
   // Historical accuracy validation (if available)
   if (includeHistory) {
@@ -2087,6 +2089,8 @@ async function generatePredictionAccuracyReport(analysisResults, env, includeHis
           reportText += `• TFT Direction Hit: ${accuracyMetrics.tftDirectionHit.toFixed(1)}%\n`;
           reportText += `• N-HITS Direction Hit: ${accuracyMetrics.nhitsDirectionHit.toFixed(1)}%\n`;
           reportText += `• Best Model: ${accuracyMetrics.bestModel} (${accuracyMetrics.bestModelWins} wins)\n`;
+          reportText += `\n🔍 View detailed accuracy breakdown:\n`;
+          reportText += `https://tft-trading-system.yanggf.workers.dev/fact-table\n`;
         }
       }
     } catch (error) {
@@ -2098,7 +2102,7 @@ async function generatePredictionAccuracyReport(analysisResults, env, includeHis
 }
 
 /**
- * Calculate historical accuracy metrics from stored predictions using fact data API
+ * Calculate historical accuracy metrics using the same logic as fact table API
  */
 async function calculateHistoricalAccuracy(dateStr, env) {
   const symbols = ['AAPL', 'TSLA', 'MSFT', 'GOOGL', 'NVDA'];
@@ -2110,42 +2114,44 @@ async function calculateHistoricalAccuracy(dateStr, env) {
   let priceErrorSum = 0;
   let modelPerformance = { TFT: 0, 'N-HITS': 0, Ensemble: 0 };
   
+  // Use the same fact data API logic for consistency
   for (const symbol of symbols) {
     try {
-      // Get fact data for this symbol and date
-      const factDataJson = await env.TRADING_RESULTS.get(`analysis_${dateStr}`);
-      if (!factDataJson) continue;
+      const analysisKey = `analysis_${dateStr}`;
+      const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
+      if (!analysisJson) continue;
       
-      const factData = JSON.parse(factDataJson);
+      const analysisData = JSON.parse(analysisJson);
       
-      // Check if we have multiple executions data
-      if (factData.multiple_executions) {
-        const executionTimes = Object.keys(factData.multiple_executions);
+      // Get market close price using the same function as fact table
+      const marketClosePrice = await getActualPrice(symbol, dateStr);
+      if (!marketClosePrice) continue;
+      
+      // Extract predictions using same logic as fact table API
+      if (analysisData.multiple_executions) {
+        const executionTimes = Object.keys(analysisData.multiple_executions);
         
         for (const executionTime of executionTimes) {
-          const executionData = factData.multiple_executions[executionTime];
+          const executionData = analysisData.multiple_executions[executionTime];
           const symbolData = executionData.trading_signals?.[symbol];
           
-          if (symbolData?.current_price && symbolData.components?.price_prediction) {
+          if (symbolData) {
+            const models = symbolData.components?.price_prediction?.model_comparison;
             const currentPrice = symbolData.current_price;
-            const predictedPrice = symbolData.components.price_prediction.predicted_price;
-            const models = symbolData.components.price_prediction.model_comparison;
+            const predictedPrice = symbolData.components?.price_prediction?.predicted_price;
             const tftPrice = models?.tft_prediction?.price;
             const nhitsPrice = models?.nhits_prediction?.price;
             
-            // Get actual market close price (simplified - in production would use real market data)
-            const mockMarketClose = currentPrice * (1 + (Math.random() - 0.5) * 0.02); // ±1% variation
-            
-            if (predictedPrice && tftPrice && nhitsPrice) {
+            if (currentPrice && predictedPrice && tftPrice && nhitsPrice && marketClosePrice) {
               totalPredictions++;
               
-              // Price accuracy
-              const priceError = Math.abs(predictedPrice - mockMarketClose) / mockMarketClose * 100;
+              // Price accuracy using same calculation as fact table
+              const priceError = Math.abs(predictedPrice - marketClosePrice) / marketClosePrice * 100;
               priceErrorSum += priceError;
               
-              // Direction accuracy
+              // Direction accuracy using same logic as fact table API
               const predictedDirection = predictedPrice > currentPrice ? 'UP' : predictedPrice < currentPrice ? 'DOWN' : 'FLAT';
-              const actualDirection = mockMarketClose > currentPrice ? 'UP' : mockMarketClose < currentPrice ? 'DOWN' : 'FLAT';
+              const actualDirection = marketClosePrice > currentPrice ? 'UP' : marketClosePrice < currentPrice ? 'DOWN' : 'FLAT';
               const tftDirection = tftPrice > currentPrice ? 'UP' : tftPrice < currentPrice ? 'DOWN' : 'FLAT';
               const nhitsDirection = nhitsPrice > currentPrice ? 'UP' : nhitsPrice < currentPrice ? 'DOWN' : 'FLAT';
               
@@ -2153,10 +2159,10 @@ async function calculateHistoricalAccuracy(dateStr, env) {
               if (tftDirection === actualDirection) tftCorrectDirections++;
               if (nhitsDirection === actualDirection) nhitsCorrectDirections++;
               
-              // Best model tracking
-              const tftError = Math.abs(tftPrice - mockMarketClose);
-              const nhitsError = Math.abs(nhitsPrice - mockMarketClose);
-              const ensembleError = Math.abs(predictedPrice - mockMarketClose);
+              // Best model tracking using same logic as fact table
+              const tftError = Math.abs(tftPrice - marketClosePrice);
+              const nhitsError = Math.abs(nhitsPrice - marketClosePrice);
+              const ensembleError = Math.abs(predictedPrice - marketClosePrice);
               
               const minError = Math.min(tftError, nhitsError, ensembleError);
               if (minError === tftError) modelPerformance.TFT++;

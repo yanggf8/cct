@@ -35,10 +35,11 @@ Ensemble Direction: ✓/✗ accuracy indicator with color coding
 - **Performance Analytics**: Enhanced validation of model effectiveness for actual trading signal generation
 
 #### **Production Deployment:**
-- **Version ID**: `f661d73f-0ffd-48a9-9755-39f108d61c21`  
+- **Version ID**: `1fd50e44-b9df-4a29-a1f8-f9431704a5a2`  
 - **Fact Table Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table (Enhanced with direction columns)
 - **API Endpoint**: `/api/fact-data` now returns direction accuracy fields for each prediction
-- **Facebook Messages**: Enhanced with comprehensive prediction accuracy reporting
+- **Facebook Messages**: Enhanced with comprehensive prediction accuracy reporting + Fact Table links
+- **Data Consistency**: Facebook accuracy reports now use identical logic as fact table API
 - **Deployment Status**: ✅ LIVE with complete direction accuracy validation system
 
 ### 2025-09-12: Facebook Prediction Accuracy Reporting Enhanced ✅
@@ -70,6 +71,9 @@ Ensemble Direction: ✓/✗ accuracy indicator with color coding
 #### **Technical Implementation:**
 - **New Functions**: `generatePredictionAccuracyReport()` and `calculateHistoricalAccuracy()`
 - **Enhanced Daily Reports**: Include historical validation when available
+- **Data Consistency**: Facebook accuracy calculations now use identical logic as fact table API
+- **Fact Table Integration**: Direct links to detailed fact table analysis in Facebook messages
+- **Real Market Data**: Uses same `getActualPrice()` function for consistent market close prices
 - **Model Performance Tracking**: Track TFT vs N-HITS vs Ensemble accuracy over time
 - **Direction Hit Rate Calculation**: Real validation of signal quality vs actual market movement
 - **Best Model Identification**: Dynamic tracking of which model performs best
