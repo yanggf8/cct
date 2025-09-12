@@ -157,11 +157,57 @@ export default {
       }
       
       // Store results in KV for local system retrieval
-      const kvKey = `analysis_${estTime.toISOString().split('T')[0]}`;
-      console.log(`💾 [CRON-KV] ${cronExecutionId} storing results with key: ${kvKey}`);
+      const dateStr = estTime.toISOString().split('T')[0];
+      const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, ''); // HHMMSS format
+      
+      // Store with timestamp to preserve multiple predictions per day
+      const timestampedKey = `analysis_${dateStr}_${timeStr}`;
+      const dailyKey = `analysis_${dateStr}`;
+      
+      console.log(`💾 [CRON-KV] ${cronExecutionId} storing results with keys: ${timestampedKey} and updating ${dailyKey}`);
+      
+      // Store the timestamped analysis
       await env.TRADING_RESULTS.put(
-        kvKey,
+        timestampedKey,
         JSON.stringify(analysisResult),
+        { expirationTtl: 604800 } // 7 days for weekly validation
+      );
+      
+      // Update/merge the daily summary with this new analysis
+      let dailyAnalysis = null;
+      try {
+        const existingDaily = await env.TRADING_RESULTS.get(dailyKey);
+        if (existingDaily) {
+          dailyAnalysis = JSON.parse(existingDaily);
+        }
+      } catch (err) {
+        console.log(`📋 No existing daily analysis found for ${dateStr}, creating new`);
+      }
+      
+      // If no existing daily analysis, use current as base
+      if (!dailyAnalysis) {
+        dailyAnalysis = { ...analysisResult };
+        dailyAnalysis.multiple_executions = {};
+      }
+      
+      // Add this execution to the daily summary
+      const executionTime = estTime.toISOString().substr(11, 5); // HH:MM format
+      dailyAnalysis.multiple_executions[executionTime] = {
+        timestamp: analysisResult.timestamp,
+        trading_signals: analysisResult.trading_signals,
+        performance_metrics: analysisResult.performance_metrics,
+        cron_execution_id: cronExecutionId
+      };
+      
+      // Update daily analysis with latest data but preserve all executions
+      dailyAnalysis.timestamp = analysisResult.timestamp;
+      dailyAnalysis.daily_context = analysisResult.daily_context;
+      dailyAnalysis.latest_execution = executionTime;
+      
+      // Store the updated daily summary
+      await env.TRADING_RESULTS.put(
+        dailyKey,
+        JSON.stringify(dailyAnalysis),
         { expirationTtl: 604800 } // 7 days for weekly validation
       );
       
@@ -3866,7 +3912,7 @@ async function handleFactTable(request, env) {
             </div>
             <div class="control-group">
                 <label for="date">Date:</label>
-                <input type="date" id="date" value="2025-09-10">
+                <input type="date" id="date" value="">
             </div>
             <button onclick="loadFactTable()">🔄 Refresh Data</button>
             <button onclick="loadAllSymbols()">📈 Load All Symbols</button>
@@ -4106,10 +4152,50 @@ async function handleFactTable(request, env) {
         }
         
         // Load data on page load
-        window.onload = () => {
+        window.onload = async () => {
+            // Set date input to latest available data date
+            await setLatestDataDate();
             // Auto-load default data
             // loadFactTable();
         };
+        
+        // Function to find and set the latest available data date
+        async function setLatestDataDate() {
+            const dateInput = document.getElementById('date');
+            let latestDate = null;
+            
+            // Check the last 30 days to find the latest available data
+            for (let i = 0; i < 30; i++) {
+                const checkDate = new Date();
+                checkDate.setDate(checkDate.getDate() - i);
+                const dateStr = checkDate.toISOString().split('T')[0];
+                
+                try {
+                    const response = await fetch('/api/fact-data?symbol=AAPL&date=' + dateStr);
+                    const data = await response.json();
+                    
+                    // If we found data with predictions, this is our latest date
+                    if (data.predictions && data.predictions.length > 0) {
+                        latestDate = dateStr;
+                        break;
+                    }
+                } catch (err) {
+                    // Continue checking previous days
+                    continue;
+                }
+            }
+            
+            // Set the date input to the latest available date or today if none found
+            if (latestDate) {
+                dateInput.value = latestDate;
+                console.log('📅 Set date input to latest data date:', latestDate);
+            } else {
+                // Fallback to today's date
+                const today = new Date().toISOString().split('T')[0];
+                dateInput.value = today;
+                console.log('📅 No historical data found, using today:', today);
+            }
+        }
     </script>
 </body>
 </html>`;
@@ -4161,17 +4247,50 @@ async function handleFactDataAPI(request, env) {
       // Get market close price for the date
       const marketClosePrice = await getActualPrice(symbol, dateParam);
       
-      // Extract all predictions made during the day from daily_context
-      if (analysisData.daily_context) {
+      // Extract all predictions made during the day from multiple_executions
+      if (analysisData.multiple_executions) {
+        const executionTimes = Object.keys(analysisData.multiple_executions).sort();
+        
+        for (const executionTime of executionTimes) {
+          const executionData = analysisData.multiple_executions[executionTime];
+          
+          // Get the prediction data for this specific execution
+          let symbolData = null;
+          if (executionData.trading_signals && executionData.trading_signals[symbol]) {
+            symbolData = executionData.trading_signals[symbol];
+          }
+          
+          if (symbolData) {
+            const models = symbolData.components?.price_prediction?.model_comparison;
+            
+            const prediction = {
+              time: executionTime,
+              timestamp: executionData.timestamp,
+              prediction_price: symbolData.components?.price_prediction?.predicted_price || null,
+              tft_prediction: models?.tft_prediction?.price || null,
+              nhits_prediction: models?.nhits_prediction?.price || null,
+              market_close_price: marketClosePrice,
+              confidence: symbolData.confidence || null,
+              tft_confidence: models?.tft_prediction?.confidence || null,
+              nhits_confidence: models?.nhits_prediction?.confidence || null,
+              prediction_error: marketClosePrice && symbolData.components?.price_prediction?.predicted_price ? 
+                Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null,
+              cron_execution_id: executionData.cron_execution_id
+            };
+            
+            predictions.push(prediction);
+          }
+        }
+      }
+      
+      // Fallback: try to extract from daily_context (legacy compatibility)
+      else if (analysisData.daily_context) {
         const timeSlots = Object.keys(analysisData.daily_context).sort();
         
         for (const timeSlot of timeSlots) {
           const contextData = analysisData.daily_context[timeSlot];
           
-          // For each time slot, get the prediction data
-          // Since we're currently storing only the latest analysis, we'll simulate multiple predictions
-          // In reality, this would need the system to store each cron run separately
-          
+          // Use the latest trading signals for all time slots (legacy behavior)
           let symbolData = null;
           if (analysisData.trading_signals && analysisData.trading_signals[symbol]) {
             symbolData = analysisData.trading_signals[symbol];
@@ -4191,7 +4310,8 @@ async function handleFactDataAPI(request, env) {
               tft_confidence: models?.tft_prediction?.confidence || null,
               nhits_confidence: models?.nhits_prediction?.confidence || null,
               prediction_error: marketClosePrice && symbolData.components?.price_prediction?.predicted_price ? 
-                Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null
+                Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null,
+              source: 'legacy_daily_context'
             };
             
             predictions.push(prediction);

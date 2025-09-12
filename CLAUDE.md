@@ -4,6 +4,75 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Updates
 
+### 2025-09-12: Multiple Predictions Per Day Fixed - Real Prediction Evolution Throughout Trading Day ✅
+**MAJOR SYSTEM FIX**: Resolved issue where predictions showed no change throughout the day by fixing analysis storage system
+
+#### **Root Cause Analysis:**
+**Problem Identified**: Each cron execution (8:30 AM, 12:00 PM, 4:05 PM) was **overwriting** the previous analysis for the same day, causing fact table to show identical predictions across all time slots.
+
+```javascript
+// BEFORE: Single daily storage (overwrites)
+const kvKey = `analysis_2025-09-12`; // Same key for all executions
+await env.TRADING_RESULTS.put(kvKey, analysisResult); // Overwrites previous
+```
+
+**Result**: All times showed same prediction (230.17185873486054) because only latest execution data survived.
+
+#### **Enhanced Storage System Implemented:**
+- **✅ Timestamped Storage**: Each cron execution now stored separately (`analysis_2025-09-12_083000`, `analysis_2025-09-12_120000`, `analysis_2025-09-12_160500`)
+- **✅ Daily Summary Aggregation**: `multiple_executions` object preserves all predictions made throughout the day
+- **✅ Legacy Compatibility**: Old data still works with `"source": "legacy_daily_context"` indicators
+- **✅ Enhanced Fact Table API**: Updated to extract real predictions from each execution time
+
+#### **New Data Structure:**
+```javascript
+{
+  "multiple_executions": {
+    "08:30": { 
+      "timestamp": "2025-09-12T13:30:00Z", 
+      "trading_signals": { "AAPL": { prediction: 230.15 } },
+      "cron_execution_id": "cron_1726142200000_morning_predictions_alerts"
+    },
+    "12:00": { 
+      "timestamp": "2025-09-12T17:00:00Z", 
+      "trading_signals": { "AAPL": { prediction: 230.32 } },
+      "cron_execution_id": "cron_1726154400000_midday_validation"
+    }
+  }
+}
+```
+
+#### **Date Picker Enhancement:**
+- **✅ Smart Default**: Date input now defaults to **latest available data date** instead of hardcoded "2025-09-10"
+- **✅ Automatic Detection**: System checks last 30 days to find most recent data with predictions
+- **✅ Fallback Logic**: Uses today's date if no historical data found
+
+```javascript
+// Enhanced date picker logic
+for (let i = 0; i < 30; i++) {
+  const checkDate = new Date();
+  checkDate.setDate(checkDate.getDate() - i);
+  const response = await fetch('/api/fact-data?symbol=AAPL&date=' + dateStr);
+  if (data.predictions && data.predictions.length > 0) {
+    latestDate = dateStr; // Found latest data!
+    break;
+  }
+}
+```
+
+#### **Impact & Benefits:**
+- **🎯 Real Prediction Evolution**: Users now see actual prediction changes throughout trading day (morning vs midday vs evening)
+- **📊 Enhanced Analysis**: Each time slot shows genuine prediction from that moment, not cached/reused data
+- **🔍 Better Insights**: Can track how market conditions affect prediction accuracy at different times
+- **⚡ Improved UX**: Date picker automatically starts with most relevant date
+
+#### **Production Deployment:**
+- **Version ID**: `5e5b5384-d2d6-416d-80a8-87b66fe22741`
+- **Deployment Date**: 2025-09-12 01:30 UTC
+- **Worker Size**: 147.36 KiB (29.54 KiB compressed)
+- **Backward Compatibility**: All existing data preserved with legacy indicators
+- **Live System**: https://tft-trading-system.yanggf.workers.dev/fact-table
+
 ### 2025-09-11: Enhanced Logging System - Complete Cron Job and Facebook Message Traceability ✅
 **SYSTEM ENHANCEMENT**: Comprehensive logging system for complete cron job execution and Facebook message delivery tracking
 
