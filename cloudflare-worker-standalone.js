@@ -3969,6 +3969,10 @@ async function handleFactTable(request, env) {
                         <th>Confidence</th>
                         <th>TFT Conf</th>
                         <th>N-HITS Conf</th>
+                        <th>Direction</th>
+                        <th>TFT Direction</th>
+                        <th>N-HITS Direction</th>
+                        <th>Ensemble Direction</th>
                     </tr>
                 </thead>
                 <tbody id="fact-body">
@@ -4058,7 +4062,7 @@ async function handleFactTable(request, env) {
             tbody.innerHTML = '';
             
             if (!data.predictions || data.predictions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; padding: 40px; color: #666;">No prediction data available for this date</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="17" style="text-align: center; padding: 40px; color: #666;">No prediction data available for this date</td></tr>';
                 document.getElementById('fact-table').style.display = 'table';
                 return;
             }
@@ -4099,6 +4103,23 @@ async function handleFactTable(request, env) {
                 // Add indicator for next-day predictions
                 const predictionTypeIndicator = pred.prediction_type === 'next_day' ? ' (Next Day)' : '';
                 
+                // Direction accuracy indicators
+                const directionIndicators = {
+                    predicted: pred.predicted_direction || '➡️',
+                    actual: pred.actual_direction || '➡️'
+                };
+                
+                // Direction accuracy status
+                const directionAccuracyClass = (accuracy) => {
+                    if (accuracy === null || accuracy === undefined) return 'neutral';
+                    return accuracy ? 'positive' : 'negative';
+                };
+                
+                const directionText = (accuracy) => {
+                    if (accuracy === null || accuracy === undefined) return 'N/A';
+                    return accuracy ? '✓' : '✗';
+                };
+
                 row.innerHTML = '<td class="date">' + utcTime + predictionTypeIndicator + '</td>' +
                     '<td class="date">' + estTime + predictionTypeIndicator + '</td>' +
                     '<td class="price">' + (pred.tft_prediction ? '$' + pred.tft_prediction.toFixed(2) : 'N/A') + '</td>' +
@@ -4111,7 +4132,11 @@ async function handleFactTable(request, env) {
                     '<td class="' + (bestModel === 'TFT' ? 'positive' : bestModel === 'Ensemble' ? 'neutral' : 'negative') + '">' + bestModel + '</td>' +
                     '<td>' + (pred.confidence ? (pred.confidence * 100).toFixed(1) + '%' : 'N/A') + '</td>' +
                     '<td>' + (pred.tft_confidence ? (pred.tft_confidence * 100).toFixed(0) + '%' : 'N/A') + '</td>' +
-                    '<td>' + (pred.nhits_confidence ? (pred.nhits_confidence * 100).toFixed(0) + '%' : 'N/A') + '</td>';
+                    '<td>' + (pred.nhits_confidence ? (pred.nhits_confidence * 100).toFixed(0) + '%' : 'N/A') + '</td>' +
+                    '<td>' + directionIndicators.predicted + ' → ' + directionIndicators.actual + '</td>' +
+                    '<td class="' + directionAccuracyClass(pred.tft_direction_accuracy) + '">' + directionText(pred.tft_direction_accuracy) + '</td>' +
+                    '<td class="' + directionAccuracyClass(pred.nhits_direction_accuracy) + '">' + directionText(pred.nhits_direction_accuracy) + '</td>' +
+                    '<td class="' + directionAccuracyClass(pred.direction_accuracy) + '">' + directionText(pred.direction_accuracy) + '</td>';
                 
                 tbody.appendChild(row);
             });
@@ -4282,18 +4307,58 @@ async function handleFactDataAPI(request, env) {
             // Check if this is a next-day prediction by looking at the cron execution ID
             const isNextDayPrediction = executionData.cron_execution_id?.includes('next_day_market_prediction');
             
+            // Get the current price at prediction time (baseline for direction calculation)
+            const currentPrice = symbolData.current_price || null;
+            const predictedPrice = symbolData.components?.price_prediction?.predicted_price || null;
+            const tftPrice = models?.tft_prediction?.price || null;
+            const nhitsPrice = models?.nhits_prediction?.price || null;
+            
+            // Calculate direction accuracy (prediction vs actual)
+            let directionAccuracy = null;
+            let tftDirectionAccuracy = null; 
+            let nhitsDirectionAccuracy = null;
+            
+            if (currentPrice && predictedPrice && marketClosePrice) {
+              // Calculate predicted vs actual directions
+              const predictedDirection = predictedPrice > currentPrice ? 'UP' : predictedPrice < currentPrice ? 'DOWN' : 'FLAT';
+              const actualDirection = marketClosePrice > currentPrice ? 'UP' : marketClosePrice < currentPrice ? 'DOWN' : 'FLAT';
+              directionAccuracy = predictedDirection === actualDirection;
+              
+              // TFT direction accuracy
+              if (tftPrice) {
+                const tftDirection = tftPrice > currentPrice ? 'UP' : tftPrice < currentPrice ? 'DOWN' : 'FLAT';
+                tftDirectionAccuracy = tftDirection === actualDirection;
+              }
+              
+              // N-HITS direction accuracy
+              if (nhitsPrice) {
+                const nhitsDirection = nhitsPrice > currentPrice ? 'UP' : nhitsPrice < currentPrice ? 'DOWN' : 'FLAT';
+                nhitsDirectionAccuracy = nhitsDirection === actualDirection;
+              }
+            }
+            
             const prediction = {
               time: executionTime,
               timestamp: executionData.timestamp,
-              prediction_price: symbolData.components?.price_prediction?.predicted_price || null,
-              tft_prediction: models?.tft_prediction?.price || null,
-              nhits_prediction: models?.nhits_prediction?.price || null,
+              current_price: currentPrice, // Baseline price for direction calculation
+              prediction_price: predictedPrice,
+              tft_prediction: tftPrice,
+              nhits_prediction: nhitsPrice,
               market_close_price: marketClosePrice,
               confidence: symbolData.confidence || null,
               tft_confidence: models?.tft_prediction?.confidence || null,
               nhits_confidence: models?.nhits_prediction?.confidence || null,
-              prediction_error: marketClosePrice && symbolData.components?.price_prediction?.predicted_price ? 
-                Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null,
+              prediction_error: marketClosePrice && predictedPrice ? 
+                Math.abs(predictedPrice - marketClosePrice) / marketClosePrice * 100 : null,
+              // Direction accuracy metrics
+              direction_accuracy: directionAccuracy,
+              tft_direction_accuracy: tftDirectionAccuracy,
+              nhits_direction_accuracy: nhitsDirectionAccuracy,
+              // Direction indicators for display
+              predicted_direction: currentPrice && predictedPrice ? 
+                (predictedPrice > currentPrice ? '↗️' : predictedPrice < currentPrice ? '↘️' : '➡️') : null,
+              actual_direction: currentPrice && marketClosePrice ? 
+                (marketClosePrice > currentPrice ? '↗️' : marketClosePrice < currentPrice ? '↘️' : '➡️') : null,
               cron_execution_id: executionData.cron_execution_id,
               prediction_type: isNextDayPrediction ? 'next_day' : 'same_day'
             };
