@@ -314,6 +314,10 @@ export default {
       return handleFactTable(request, env);
     } else if (url.pathname === '/api/fact-data') {
       return handleFactDataAPI(request, env);
+    } else if (url.pathname === '/api/kv-cleanup') {
+      return handleKVCleanup(request, env);
+    } else if (url.pathname === '/api/kv-list') {
+      return handleKVList(request, env);
     } else {
       return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report, /test-high-confidence, /chart, /api/history, /fact-table, /api/fact-data', { 
         status: 200,
@@ -4429,6 +4433,136 @@ async function getActualPrice(symbol, dateStr) {
   } catch (error) {
     console.error(`❌ Error fetching actual price for ${symbol} on ${dateStr}:`, error.message);
     return null;
+  }
+}
+
+/**
+ * Handle KV list - show all stored keys
+ */
+async function handleKVList(request, env) {
+  try {
+    // Get all keys from KV storage
+    const list = await env.TRADING_RESULTS.list();
+    
+    const kvData = {
+      total_keys: list.keys.length,
+      keys: list.keys.map(key => ({
+        name: key.name,
+        expiration: key.expiration || 'no_expiration',
+        metadata: key.metadata || null
+      }))
+    };
+    
+    // Group keys by type for better organization
+    const grouped = {
+      analysis_keys: [],
+      daily_context_keys: [],
+      error_keys: [],
+      other_keys: []
+    };
+    
+    kvData.keys.forEach(key => {
+      if (key.name.startsWith('analysis_')) {
+        grouped.analysis_keys.push(key);
+      } else if (key.name.startsWith('daily-context-')) {
+        grouped.daily_context_keys.push(key);
+      } else if (key.name.startsWith('error_')) {
+        grouped.error_keys.push(key);
+      } else {
+        grouped.other_keys.push(key);
+      }
+    });
+    
+    return new Response(JSON.stringify({
+      ...kvData,
+      grouped_by_type: grouped,
+      cleanup_endpoint: '/api/kv-cleanup?type=all (or analysis, daily-context, error)'
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      error: 'Failed to list KV keys',
+      message: error.message
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle KV cleanup - delete old prediction data
+ */
+async function handleKVCleanup(request, env) {
+  try {
+    const url = new URL(request.url);
+    const type = url.searchParams.get('type') || 'analysis';
+    const confirm = url.searchParams.get('confirm');
+    
+    if (confirm !== 'yes') {
+      return new Response(JSON.stringify({
+        warning: 'This will permanently delete KV data',
+        message: 'Add ?confirm=yes to proceed with cleanup',
+        types: ['all', 'analysis', 'daily-context', 'error'],
+        example: '/api/kv-cleanup?type=analysis&confirm=yes'
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Get all keys
+    const list = await env.TRADING_RESULTS.list();
+    let keysToDelete = [];
+    
+    // Filter keys based on type
+    if (type === 'all') {
+      keysToDelete = list.keys;
+    } else if (type === 'analysis') {
+      keysToDelete = list.keys.filter(key => key.name.startsWith('analysis_'));
+    } else if (type === 'daily-context') {
+      keysToDelete = list.keys.filter(key => key.name.startsWith('daily-context-'));
+    } else if (type === 'error') {
+      keysToDelete = list.keys.filter(key => key.name.startsWith('error_'));
+    } else {
+      return new Response(JSON.stringify({
+        error: 'Invalid type parameter',
+        valid_types: ['all', 'analysis', 'daily-context', 'error']
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    console.log(`🗑️ KV Cleanup: Deleting ${keysToDelete.length} keys of type '${type}'`);
+    
+    // Delete keys in batches
+    const deletePromises = keysToDelete.map(key => 
+      env.TRADING_RESULTS.delete(key.name)
+    );
+    
+    await Promise.all(deletePromises);
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Successfully deleted ${keysToDelete.length} keys`,
+      type: type,
+      deleted_keys: keysToDelete.map(key => key.name),
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ KV cleanup failed:', error);
+    return new Response(JSON.stringify({
+      error: 'KV cleanup failed',
+      message: error.message
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
