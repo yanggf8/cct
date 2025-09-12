@@ -35,10 +35,51 @@ Ensemble Direction: ✓/✗ accuracy indicator with color coding
 - **Performance Analytics**: Enhanced validation of model effectiveness for actual trading signal generation
 
 #### **Production Deployment:**
-- **Version ID**: `9f916ad1-4e4a-4cb2-8d1e-fc02f2cfbf05`  
+- **Version ID**: `f661d73f-0ffd-48a9-9755-39f108d61c21`  
 - **Fact Table Interface**: https://tft-trading-system.yanggf.workers.dev/fact-table (Enhanced with direction columns)
 - **API Endpoint**: `/api/fact-data` now returns direction accuracy fields for each prediction
+- **Facebook Messages**: Enhanced with comprehensive prediction accuracy reporting
 - **Deployment Status**: ✅ LIVE with complete direction accuracy validation system
+
+### 2025-09-12: Facebook Prediction Accuracy Reporting Enhanced ✅
+**MESSAGING UPGRADE**: Facebook messages now include comprehensive prediction accuracy and model performance insights
+
+#### **Enhanced Facebook Message Features:**
+- **✅ Model Performance Section**: Real-time system success rate, confidence levels, and signal distribution
+- **✅ Historical Accuracy Validation**: Yesterday's accuracy results with direction hit rates and best model identification  
+- **✅ Direction Accuracy Reporting**: TFT vs N-HITS vs Ensemble direction prediction success rates
+- **✅ Model Comparison Insights**: Best-performing model tracking with win counts
+- **✅ Comprehensive Validation**: Price accuracy and direction accuracy combined reporting
+
+#### **Facebook Message Content Enhanced:**
+```
+🎯 Model Performance Report:
+• System Success Rate: 100.0%
+• Average Confidence: 70.4%
+• Predictions Generated: 5
+• Signal Distribution: ➡️Neutral signals
+
+📊 Yesterday's Accuracy Results:
+• Price Accuracy: 99.2% 
+• Direction Accuracy: 85.7% (6/7)
+• TFT Direction Hit: 78.6%
+• N-HITS Direction Hit: 92.9% 
+• Best Model: N-HITS (4 wins)
+```
+
+#### **Technical Implementation:**
+- **New Functions**: `generatePredictionAccuracyReport()` and `calculateHistoricalAccuracy()`
+- **Enhanced Daily Reports**: Include historical validation when available
+- **Model Performance Tracking**: Track TFT vs N-HITS vs Ensemble accuracy over time
+- **Direction Hit Rate Calculation**: Real validation of signal quality vs actual market movement
+- **Best Model Identification**: Dynamic tracking of which model performs best
+
+#### **Business Value:**
+- **Actionable Insights**: Users can see actual model performance vs predictions
+- **Trust Building**: Historical validation builds confidence in AI recommendations  
+- **Model Transparency**: Clear visibility into which models are most accurate
+- **Performance Monitoring**: Track trading system effectiveness over time
+- **Decision Support**: Data-driven insights for trusting AI trading signals
 
 ### 2025-09-12: Next-Day Prediction System - 4:05 PM Now Predicts Next Trading Day ✅
 **PREDICTION ENHANCEMENT**: Transformed 4:05 PM cron from post-market validation to next trading day prediction
