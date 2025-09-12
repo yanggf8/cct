@@ -103,9 +103,9 @@ export default {
       triggerMode = 'weekly_market_close_analysis';
       predictionHorizons = [72, 168]; // Weekend + next week forecasts
     } else if (currentHour === 16 && currentMinute === 5) {
-      // 4:05 PM - Daily validation report + next-day predictions
-      triggerMode = 'daily_validation_report'; 
-      predictionHorizons = [18, 24]; // Next morning + next day
+      // 4:05 PM - Next trading day market close predictions (after current market closes)
+      triggerMode = 'next_day_market_prediction'; 
+      predictionHorizons = [24]; // Next trading day market close
     } else if (currentHour === 10 && currentMinute === 0 && estTime.getDay() === 0) {
       // Sunday 10:00 AM - Weekly accuracy report
       triggerMode = 'weekly_accuracy_report';
@@ -157,8 +157,15 @@ export default {
       }
       
       // Store results in KV for local system retrieval
-      const dateStr = estTime.toISOString().split('T')[0];
+      let dateStr = estTime.toISOString().split('T')[0];
       const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, ''); // HHMMSS format
+      
+      // For next-day predictions (4:05 PM), store under next trading day's date
+      if (triggerMode === 'next_day_market_prediction') {
+        const nextTradingDay = getNextTradingDay(estTime);
+        dateStr = nextTradingDay.toISOString().split('T')[0];
+        console.log(`📅 Next-day prediction: storing under ${dateStr} (next trading day)`);
+      }
       
       // Store with timestamp to preserve multiple predictions per day
       const timestampedKey = `analysis_${dateStr}_${timeStr}`;
@@ -318,6 +325,8 @@ export default {
       return handleKVCleanup(request, env);
     } else if (url.pathname === '/api/kv-list') {
       return handleKVList(request, env);
+    } else if (url.pathname === '/test-next-day-prediction') {
+      return handleTestNextDayPrediction(request, env);
     } else {
       return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report, /test-high-confidence, /chart, /api/history, /fact-table, /api/fact-data', { 
         status: 200,
@@ -2073,7 +2082,7 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
     } else if (currentHour === 12 && currentMinute === 0) {
       messageTitle = '🔄 Midday Validation';
     } else if (currentHour === 16 && currentMinute === 5) {
-      messageTitle = '📊 Daily Validation Reports';
+      messageTitle = '🔮 Next Trading Day Predictions';
     } else if (currentHour === 16 && currentMinute === 0 && currentTime.getDay() === 5) {
       messageTitle = '📈 Weekly Market Close';
     } else if (currentHour === 10 && currentMinute === 0 && currentTime.getDay() === 0) {
@@ -2272,7 +2281,7 @@ async function sendFacebookDailyReport(analysisResults, env, includeHistory = fa
     } else if (currentHour === 12 && currentMinute === 0) {
       reportTitle = '🔄 Midday Validation';
     } else if (currentHour === 16 && currentMinute === 5) {
-      reportTitle = '📊 Daily Validation Reports';
+      reportTitle = '🔮 Next Trading Day Predictions';
     } else if (currentHour === 16 && currentMinute === 0 && currentTime.getDay() === 5) {
       reportTitle = '📈 Weekly Market Close';
     } else if (currentHour === 10 && currentMinute === 0 && currentTime.getDay() === 0) {
@@ -3300,7 +3309,7 @@ async function sendHighConfidenceAlert(data, env) {
   } else if (currentHour === 12 && currentMinute === 0) {
     alertTitle = '🔄 Midday Validation';
   } else if (currentHour === 16 && currentMinute === 5) {
-    alertTitle = '📊 Daily Validation Reports';
+    alertTitle = '🔮 Next Trading Day Predictions';
   } else if (currentHour === 16 && currentMinute === 0 && currentTime.getDay() === 5) {
     alertTitle = '📈 Weekly Market Close';
   }
@@ -4087,8 +4096,11 @@ async function handleFactTable(request, env) {
                         hour12: true
                     }) + ' EST' : 'N/A';
                 
-                row.innerHTML = '<td class="date">' + utcTime + '</td>' +
-                    '<td class="date">' + estTime + '</td>' +
+                // Add indicator for next-day predictions
+                const predictionTypeIndicator = pred.prediction_type === 'next_day' ? ' (Next Day)' : '';
+                
+                row.innerHTML = '<td class="date">' + utcTime + predictionTypeIndicator + '</td>' +
+                    '<td class="date">' + estTime + predictionTypeIndicator + '</td>' +
                     '<td class="price">' + (pred.tft_prediction ? '$' + pred.tft_prediction.toFixed(2) : 'N/A') + '</td>' +
                     '<td class="price">' + (pred.nhits_prediction ? '$' + pred.nhits_prediction.toFixed(2) : 'N/A') + '</td>' +
                     '<td class="price">' + (pred.prediction_price ? '$' + pred.prediction_price.toFixed(2) : 'N/A') + '</td>' +
@@ -4267,6 +4279,9 @@ async function handleFactDataAPI(request, env) {
           if (symbolData) {
             const models = symbolData.components?.price_prediction?.model_comparison;
             
+            // Check if this is a next-day prediction by looking at the cron execution ID
+            const isNextDayPrediction = executionData.cron_execution_id?.includes('next_day_market_prediction');
+            
             const prediction = {
               time: executionTime,
               timestamp: executionData.timestamp,
@@ -4279,7 +4294,8 @@ async function handleFactDataAPI(request, env) {
               nhits_confidence: models?.nhits_prediction?.confidence || null,
               prediction_error: marketClosePrice && symbolData.components?.price_prediction?.predicted_price ? 
                 Math.abs(symbolData.components.price_prediction.predicted_price - marketClosePrice) / marketClosePrice * 100 : null,
-              cron_execution_id: executionData.cron_execution_id
+              cron_execution_id: executionData.cron_execution_id,
+              prediction_type: isNextDayPrediction ? 'next_day' : 'same_day'
             };
             
             predictions.push(prediction);
@@ -4433,6 +4449,75 @@ async function getActualPrice(symbol, dateStr) {
   } catch (error) {
     console.error(`❌ Error fetching actual price for ${symbol} on ${dateStr}:`, error.message);
     return null;
+  }
+}
+
+/**
+ * Get the next trading day (skips weekends)
+ */
+function getNextTradingDay(currentDate) {
+  const nextDay = new Date(currentDate);
+  nextDay.setDate(nextDay.getDate() + 1);
+  
+  // If next day is Saturday (6), skip to Monday
+  if (nextDay.getDay() === 6) {
+    nextDay.setDate(nextDay.getDate() + 2);
+  }
+  // If next day is Sunday (0), skip to Monday  
+  else if (nextDay.getDay() === 0) {
+    nextDay.setDate(nextDay.getDate() + 1);
+  }
+  
+  return nextDay;
+}
+
+/**
+ * Test next-day prediction logic
+ */
+async function handleTestNextDayPrediction(request, env) {
+  try {
+    console.log('🧪 Testing next-day prediction logic...');
+    
+    // Simulate 4:05 PM execution
+    const simulatedTime = new Date();
+    simulatedTime.setHours(16, 5, 0, 0); // 4:05 PM
+    
+    const nextTradingDay = getNextTradingDay(simulatedTime);
+    
+    const result = {
+      test_type: 'next_day_prediction_logic',
+      current_time: simulatedTime.toISOString(),
+      current_date: simulatedTime.toISOString().split('T')[0],
+      next_trading_day: nextTradingDay.toISOString(),
+      next_trading_date: nextTradingDay.toISOString().split('T')[0],
+      trigger_mode: 'next_day_market_prediction',
+      prediction_horizons: [24],
+      day_mapping: {
+        current_day: simulatedTime.getDay(), // 0=Sunday, 1=Monday, etc.
+        current_day_name: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][simulatedTime.getDay()],
+        next_day: nextTradingDay.getDay(),
+        next_day_name: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][nextTradingDay.getDay()]
+      },
+      kv_storage_keys: {
+        current_execution_timestamped: `analysis_${simulatedTime.toISOString().split('T')[0]}_${simulatedTime.toISOString().substr(11, 8).replace(/:/g, '')}`,
+        next_day_daily_key: `analysis_${nextTradingDay.toISOString().split('T')[0]}`,
+        explanation: "4:05 PM predictions will be stored under next trading day's date"
+      },
+      facebook_message_title: '🔮 Next Trading Day Predictions'
+    };
+    
+    return new Response(JSON.stringify(result, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      error: 'Next-day prediction test failed',
+      message: error.message
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 

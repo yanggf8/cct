@@ -4,6 +4,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Updates
 
+### 2025-09-12: Next-Day Prediction System - 4:05 PM Now Predicts Next Trading Day ✅
+**PREDICTION ENHANCEMENT**: Transformed 4:05 PM cron from post-market validation to next trading day prediction
+
+#### **Enhanced Prediction Timeline:**
+**Before (Same-Day Only):**
+- 8:30 AM: Predict today's market close
+- 12:00 PM: Predict today's market close (updated)
+- 4:05 PM: Predict today's market close (post-market validation - less valuable)
+
+**After (Mixed Timeline):**
+- **8:30 AM**: Predict **today's** market close
+- **12:00 PM**: Predict **today's** market close (updated with midday data)
+- **4:05 PM**: Predict **next trading day's** market close (genuine prediction)
+
+#### **Smart Weekend Handling:**
+```javascript
+// Friday 4:05 PM → Predicts Monday's close (skips weekend)
+// Thursday 4:05 PM → Predicts Friday's close (next day)
+// Wednesday 4:05 PM → Predicts Thursday's close (next day)
+```
+
+#### **Technical Implementation:**
+- **Trigger Mode**: Changed from `daily_validation_report` to `next_day_market_prediction`
+- **KV Storage Logic**: Next-day predictions stored under future trading day's date
+- **Weekend Logic**: `getNextTradingDay()` function automatically skips Saturday/Sunday
+- **Fact Table**: Shows "(Next Day)" indicator for 4:05 PM predictions
+- **Facebook Messaging**: Updated title to "🔮 Next Trading Day Predictions"
+
+#### **Storage Architecture:**
+```javascript
+// Example: Friday 4:05 PM execution
+current_date = "2025-09-12"          // Friday
+next_trading_day = "2025-09-15"      // Monday (skips weekend)
+
+// Storage keys:
+timestamped = "analysis_2025-09-12_210500"  // Execution timestamp
+daily_key = "analysis_2025-09-15"           // Stored under Monday's date
+```
+
+#### **Fact Table Display:**
+```
+Time (UTC)    | Time (EST)              | Prediction Type
+08:30:00 UTC  | 4:30 AM EST            | Same-day
+12:00:00 UTC  | 8:00 AM EST            | Same-day  
+21:05:00 UTC  | 4:05 PM EST (Next Day) | Next-day
+```
+
+#### **Benefits:**
+- **🎯 Real Predictions**: 4:05 PM now makes genuine predictions instead of validating known prices
+- **📅 Future-Focused**: Provides next trading day insights after current market closes
+- **🔍 Better Analysis**: All three time slots now provide valuable prediction data
+- **📊 Enhanced Validation**: Can compare next-day predictions against actual results the following day
+- **🤖 Weekend Intelligence**: Friday predictions automatically target Monday's market
+
+#### **Production Deployment:**
+- **Version ID**: `8c236176-c5a6-421b-9e73-fb7f6f8b7bf4`
+- **Worker Size**: 154.18 KiB (31.02 KiB compressed)
+- **Weekend Logic**: Tested and validated (Friday → Monday predictions)
+- **Test Endpoint**: `/test-next-day-prediction` for validation
+- **Live System**: Ready for enhanced prediction timeline
+
 ### 2025-09-12: KV Storage Cleanup - Old Predictions Cleared ✅
 **SYSTEM CLEANUP**: Successfully removed all old prediction data from KV storage as requested
 
