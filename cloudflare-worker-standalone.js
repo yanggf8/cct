@@ -450,8 +450,12 @@ export default {
       return handleKVCleanup(request, env);
     } else if (url.pathname === '/debug-weekend-message') {
       return handleDebugWeekendMessage(request, env);
-    } else if (url.pathname === '/test-kv') {
-      return handleTestKV(request, env);
+    } else if (url.pathname === '/kv-get') {
+      return handleKVGet(request, env);
+    } else if (url.pathname === '/weekly-analysis') {
+      return handleWeeklyAnalysisPage(request, env);
+    } else if (url.pathname === '/api/weekly-data') {
+      return handleWeeklyAnalysisData(request, env);
     } else if (url.pathname === '/api/kv-list') {
       return handleKVList(request, env);
     } else if (url.pathname === '/test-next-day-prediction') {
@@ -5646,3 +5650,62 @@ async function handleDebugWeekendMessage(request, env) {
   }
 }
 
+// KV retrieval endpoint - get specific log by key
+async function handleKVGet(request, env) {
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key');
+  
+  if (!key) {
+    return new Response(JSON.stringify({
+      error: 'Missing key parameter',
+      usage: 'GET /kv-get?key=YOUR_KEY_NAME',
+      example: '/kv-get?key=fb_friday_messaging_1757874945667'
+    }, null, 2), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  
+  try {
+    const value = await env.TRADING_RESULTS.get(key);
+    
+    if (value === null) {
+      return new Response(JSON.stringify({
+        key: key,
+        found: false,
+        message: 'Key not found in KV store'
+      }, null, 2), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Try to parse as JSON, if it fails return as string
+    let parsedValue;
+    try {
+      parsedValue = JSON.parse(value);
+    } catch (e) {
+      parsedValue = value; // Return as string if not JSON
+    }
+    
+    return new Response(JSON.stringify({
+      key: key,
+      found: true,
+      value: parsedValue,
+      raw_value: value,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      key: key,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}

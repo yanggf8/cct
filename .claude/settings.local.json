@@ -47,7 +47,9 @@
       "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" wrangler whoami)",
       "Bash(for i in {1..3})",
       "Bash(do echo \"Test $i:\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"simple_test_key\" --binding=TRADING_RESULTS)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"simple_test_key\" --binding=TRADING_RESULTS --preview false)"
     ],
     "deny": [],
     "ask": []

@@ -1,7 +1,7 @@
 # Wrangler configuration for TFT Trading System Worker
 
 name = "tft-trading-system"
-main = "cloudflare-worker-standalone.js"
+main = "src/index.js"
 compatibility_date = "2024-01-01"
 # account_id moved to environment variable for security
 

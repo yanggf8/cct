@@ -4,13 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-14 (Temporal Context & Dynamic Predictions System)
+**Current Version**: 2025-09-14 (Modular Architecture & Weekly Analysis Dashboard)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **System Status**: ✅ 100% Real Data Production System
+- **System Status**: ✅ 100% Real Data Production System with Modular Architecture
 - **Models**: Dual TFT + N-HITS with ensemble predictions
 - **Data Sources**: Yahoo Finance (market data), Real model APIs, 4 financial news sources
+- **New Features**: 📊 Weekly Analysis Dashboard at `/weekly-analysis`
 
 ## Recent Key Updates
+
+### 2025-09-14: Modular Worker Architecture & Weekly Analysis Dashboard ✅
+**MAJOR MILESTONE**: Complete transformation from monolithic worker to clean modular architecture
+
+#### **Modular Architecture Implementation:**
+- **✅ Clean Separation**: Split massive 5,700-line worker into focused modules
+- **✅ New Entry Point**: `src/index.js` with modular imports
+- **✅ Module Structure**: Routes, handlers, weekly-analysis, scheduler, data modules
+- **✅ Weekly Analysis Dashboard**: Dedicated `/weekly-analysis` page with interactive charts
+- **✅ Weekly Data API**: `/api/weekly-data` endpoint providing JSON data for visualizations
+- **✅ Seamless Deployment**: Zero downtime transition maintaining all existing functionality
+
+#### **New Module Structure:**
+```
+src/
+├── index.js                 # Main entry point
+└── modules/
+    ├── routes.js            # HTTP request routing
+    ├── handlers.js          # HTTP request handlers  
+    ├── weekly-analysis.js   # Weekly analysis page & API
+    ├── scheduler.js         # Cron event handling
+    └── data.js              # KV data access functions
+```
+
+#### **Weekly Analysis Dashboard Features:**
+- **📈 Interactive Charts**: Daily accuracy trends using Chart.js
+- **📊 Comprehensive Data Table**: Prediction vs actual price comparison
+- **🎯 Symbol Breakdown**: Individual performance metrics per stock symbol  
+- **🤖 Model Performance**: TFT vs N-HITS vs Ensemble comparison
+- **📋 Real-time Data**: Direct integration with fact table via KV storage
+- **🔄 Live Updates**: Refresh button for latest data retrieval
+
+#### **Technical Benefits:**
+- **🔧 Maintainability**: Easy to modify individual components without affecting others
+- **📊 Dedicated Features**: Weekly analysis isolated from core trading logic
+- **🛠️ Developer Experience**: Clear module boundaries and responsibilities
+- **🚀 Scalability**: Simple to add new features as separate modules
+- **✅ Backward Compatibility**: All existing endpoints preserved and functional
+
+#### **Production Validation:**
+- **✅ All Endpoints Working**: Health, analyze, results, fact-table, etc.
+- **✅ Cron Scheduling**: All 5 cron triggers operational
+- **✅ Weekly Dashboard**: https://tft-trading-system.yanggf.workers.dev/weekly-analysis
+- **✅ API Integration**: `/api/weekly-data` providing structured analytics
+- **✅ Zero Issues**: Seamless production deployment with no downtime
 
 ### 2025-09-15: Weekend Reports System Operational ✅
 **STATUS UPDATE**: Weekend reports confirmed working via Facebook message delivery
