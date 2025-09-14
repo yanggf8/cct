@@ -60,29 +60,49 @@ convertedData[lastIndex].temporal_context = predictionTimeContext;
 - **Enhanced Fact Table API**: Dynamic comparison prices based on prediction timing
 - **Market Context Storage**: Each prediction includes `baseline_price`, `comparison_price`, `price_type`
 
-### 2025-09-14: Friday Next-Day Cron Issue Identified ❌
-**CRITICAL ISSUE**: Daily report delivery inconsistency diagnosed via log analysis
+### 2025-09-14: Weekend Analysis System Fixed ✅
+**MAJOR FIX**: Resolved Friday cron trigger issues and implemented comprehensive weekend reporting
 
-#### **Problem Analysis:**
-- **Friday 4:05 PM Cron Not Executing**: `"5 21 * * 1-5"` trigger inactive since system deployment
-- **Missing Monday Predictions**: Next-day predictions not generated for Monday market open
-- **Data Gap Evidence**: Historical analysis shows system only active since Sept 12th
-- **Impact**: Incomplete daily report schedule affecting weekend market preparation
+#### **Problems Resolved:**
+- **Friday 4:00 PM Cron**: Fixed trigger logic for `weekly_market_close_analysis` 
+- **Friday 4:05 PM Cron**: Added specific `friday_weekend_prediction` trigger mode
+- **Weekend Report Gap**: Implemented dual Friday weekend reports + Sunday accuracy report
+- **Missing Monday Predictions**: Enhanced weekend → Monday market transition analysis
 
-#### **Technical Evidence:**
+#### **Implementation Details:**
+- **Enhanced Cron Logic**: Added Friday-specific trigger detection (`estTime.getDay() === 5`)
+- **New Analysis Function**: `runFridayWeekendAnalysis()` for Monday market predictions
+- **Weekend Report System**: `sendFridayWeekendReportWithTracking()` with specialized formatting
+- **Dual Friday Reports**: 
+  - 4:00 PM: Weekly market close comprehensive analysis
+  - 4:05 PM: Monday market open predictions (72-hour horizon)
+
+#### **Weekend Report Schedule Now Active:**
 ```bash
-# Historical Data Pattern (09-07 to 09-13)
-Days 09-07 to 09-11: No data (0 accuracy, 0 confidence, 0 volume)
-Day 09-12: ✅ Active (98.35% accuracy, 73.55% confidence, 5 predictions)
-Day 09-13: ✅ Active (99.95% accuracy, 64.55% confidence, 5 predictions)
+Friday 4:00 PM EST → 📊 Weekly Market Close Analysis
+Friday 4:05 PM EST → 🌅 Monday Market Predictions  
+Sunday 10:00 AM EST → 📊 Weekly Accuracy Report
 ```
 
-#### **Root Cause:**
-- **Cron Schedule**: Friday evening trigger not executing as designed
-- **Next-Day Logic**: Weekend prediction generation failing
-- **OAuth Authentication**: ✅ Resolved for log access and system monitoring
+#### **Technical Implementation:**
+```javascript
+// Friday weekend cron triggers
+if (triggerMode === 'weekly_market_close_analysis' || triggerMode === 'friday_weekend_prediction') {
+  const weekendReportResult = await sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode);
+}
 
-#### **Status**: ❌ **REQUIRES IMMEDIATE FIX** - Friday cron trigger needs debugging
+// Weekend analysis function
+async function runFridayWeekendAnalysis(env, currentTime) {
+  const analysisResult = await runPreMarketAnalysis(env, { 
+    triggerMode: 'friday_weekend_prediction',
+    predictionHorizons: [72], // Monday market open
+    currentTime,
+    weeklyContext: weeklyCloseContext?.weekly_analysis
+  });
+}
+```
+
+#### **Deployment Status**: ✅ **LIVE** - Version ID: `9145594a-58cd-4b8d-b3f1-8063456b72be`
 
 ### 2025-09-12: Direction Accuracy & Real Data Validation ✅
 - **Direction Hit Rate Calculation**: Real-time predicted vs actual price movement direction

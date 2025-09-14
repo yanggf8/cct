@@ -102,6 +102,10 @@ export default {
       // 4:00 PM Friday - Weekly market close comprehensive analysis
       triggerMode = 'weekly_market_close_analysis';
       predictionHorizons = [72, 168]; // Weekend + next week forecasts
+    } else if (currentHour === 16 && currentMinute === 5 && estTime.getDay() === 5) {
+      // 4:05 PM Friday - Next trading day predictions for Monday (weekend analysis)
+      triggerMode = 'friday_weekend_prediction'; 
+      predictionHorizons = [72]; // Monday market open (3 days including weekend)
     } else if (currentHour === 16 && currentMinute === 5) {
       // 4:05 PM - Next trading day market close predictions (after current market closes)
       triggerMode = 'next_day_market_prediction'; 
@@ -138,10 +142,12 @@ export default {
     });
     
     try {
-      // Special handling for Friday weekly market close analysis
+      // Special handling for Friday analysis and weekend predictions
       let analysisResult;
       if (triggerMode === 'weekly_market_close_analysis') {
         analysisResult = await runWeeklyMarketCloseAnalysis(env, estTime);
+      } else if (triggerMode === 'friday_weekend_prediction') {
+        analysisResult = await runFridayWeekendAnalysis(env, estTime);
       } else {
         analysisResult = await runPreMarketAnalysis(env, { 
           triggerMode, 
@@ -232,12 +238,21 @@ export default {
         const fbResult = await sendFacebookDailySummaryWithTracking(analysisResult, env, cronExecutionId);
         console.log(`📱 [CRON-FB-RESULT] ${cronExecutionId}`, fbResult);
         
-        // Check if it's Sunday for weekly accuracy report
-        const dayOfWeek = estTime.getDay(); // 0 = Sunday
+        // Check for weekend reports
+        const dayOfWeek = estTime.getDay(); // 0 = Sunday, 5 = Friday
+        
+        // Sunday weekly accuracy report
         if (dayOfWeek === 0) {
           console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Sunday detected - sending weekly accuracy report`);
           const weeklyResult = await sendWeeklyAccuracyReportWithTracking(env, cronExecutionId);
           console.log(`📊 [CRON-WEEKLY-RESULT] ${cronExecutionId}`, weeklyResult);
+        }
+        
+        // Friday weekend analysis reports
+        if (triggerMode === 'weekly_market_close_analysis' || triggerMode === 'friday_weekend_prediction') {
+          console.log(`📊 [CRON-FRIDAY] ${cronExecutionId} Friday weekend analysis - sending additional weekend report`);
+          const weekendReportResult = await sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode);
+          console.log(`📊 [CRON-FRIDAY-RESULT] ${cronExecutionId}`, weekendReportResult);
         }
       } else {
         console.log(`⚠️ [CRON-FB-SKIP] ${cronExecutionId} Facebook not configured - skipping daily summary`);
@@ -565,6 +580,50 @@ async function runWeeklyMarketCloseAnalysis(env, currentTime) {
   // Add weekly insights to the result
   analysisResult.weekly_analysis = weeklyContext;
   analysisResult.worker_version = '2.0-Progressive-KV-Weekly';
+  
+  return analysisResult;
+}
+
+/**
+ * Run Friday weekend analysis with Monday predictions
+ */
+async function runFridayWeekendAnalysis(env, currentTime) {
+  const fridayDateStr = currentTime.toISOString().split('T')[0];
+  
+  console.log(`📊 Running Friday weekend analysis for ${fridayDateStr}`);
+  
+  // Get the weekly market close context from Friday 4:00 PM analysis if available
+  const weeklyCloseKey = `analysis_${fridayDateStr}`;
+  let weeklyCloseContext = null;
+  
+  try {
+    const weeklyCloseData = await env.TRADING_RESULTS.get(weeklyCloseKey);
+    if (weeklyCloseData) {
+      weeklyCloseContext = JSON.parse(weeklyCloseData);
+      console.log(`✅ Found Friday market close context for weekend analysis`);
+    }
+  } catch (error) {
+    console.log(`⚠️ No Friday market close context available: ${error.message}`);
+  }
+  
+  // Run standard analysis with weekend prediction horizons
+  const analysisResult = await runPreMarketAnalysis(env, { 
+    triggerMode: 'friday_weekend_prediction',
+    predictionHorizons: [72], // Monday market open
+    currentTime,
+    weeklyContext: weeklyCloseContext?.weekly_analysis // Use weekly context if available
+  });
+  
+  // Add weekend-specific analysis
+  analysisResult.weekend_analysis = {
+    friday_market_close: weeklyCloseContext ? 'available' : 'not_available',
+    monday_market_prediction: true,
+    weekend_duration_hours: 72,
+    next_trading_day: 'Monday',
+    analysis_type: 'friday_weekend_transition'
+  };
+  
+  analysisResult.worker_version = '2.0-Progressive-KV-Weekend';
   
   return analysisResult;
 }
@@ -2774,6 +2833,84 @@ function formatWeeklyAccuracyReport(accuracyData, currentDate) {
 }
 
 /**
+ * Format Friday weekend analysis report text for Facebook
+ */
+function formatFridayWeekendReport(analysisResult, triggerMode) {
+  const now = new Date();
+  const friday = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  
+  let reportText = '';
+  
+  if (triggerMode === 'weekly_market_close_analysis') {
+    reportText += `📊 **WEEKLY MARKET CLOSE ANALYSIS**\n`;
+    reportText += `🗓️ ${friday} 4:00 PM EST\n\n`;
+    reportText += `🏁 **Market Close Summary:**\n`;
+  } else if (triggerMode === 'friday_weekend_prediction') {
+    reportText += `🌅 **MONDAY MARKET PREDICTIONS**\n`;
+    reportText += `🗓️ ${friday} 4:05 PM EST\n\n`;
+    reportText += `📈 **Weekend → Monday Analysis:**\n`;
+  }
+  
+  // Analysis results
+  const symbols = analysisResult.symbols_analyzed || [];
+  const signals = analysisResult.trading_signals || {};
+  
+  symbols.forEach(symbol => {
+    const signal = signals[symbol];
+    if (signal) {
+      const direction = signal.predicted_price > signal.current_price ? '↗️' : 
+                       signal.predicted_price < signal.current_price ? '↘️' : '➡️';
+      
+      reportText += `${symbol}: ${direction} $${signal.current_price?.toFixed(2)} → $${signal.predicted_price?.toFixed(2)} (${(signal.confidence * 100).toFixed(1)}%)\n`;
+    }
+  });
+  
+  reportText += `\n`;
+  
+  // Weekend-specific insights
+  if (analysisResult.weekend_analysis) {
+    reportText += `🧭 **Weekend Context:**\n`;
+    reportText += `• Next Trading: ${analysisResult.weekend_analysis.next_trading_day}\n`;
+    reportText += `• Analysis Duration: ${analysisResult.weekend_analysis.weekend_duration_hours}h\n`;
+    
+    if (analysisResult.weekend_analysis.friday_market_close === 'available') {
+      reportText += `• Market Close Data: ✅ Integrated\n`;
+    }
+  }
+  
+  // Weekly insights if available
+  if (analysisResult.weekly_analysis) {
+    const weeklyData = analysisResult.weekly_analysis;
+    reportText += `\n📈 **Weekly Insights:**\n`;
+    reportText += `• Days Analyzed: ${weeklyData.days_with_data || 0}\n`;
+    reportText += `• Avg Confidence: ${((weeklyData.average_confidence || 0) * 100).toFixed(1)}%\n`;
+    
+    if (weeklyData.market_sentiment) {
+      const sentiment = weeklyData.market_sentiment;
+      reportText += `• Weekly Sentiment: ${sentiment.trend || 'Neutral'}\n`;
+    }
+  }
+  
+  // Performance metrics
+  const metrics = analysisResult.performance_metrics;
+  if (metrics) {
+    reportText += `\n⚡ **System Performance:**\n`;
+    reportText += `• Success Rate: ${metrics.success_rate}%\n`;
+    reportText += `• Symbols Analyzed: ${metrics.total_symbols}\n`;
+    
+    if (metrics.high_confidence_signals > 0) {
+      reportText += `• High Confidence Signals: ${metrics.high_confidence_signals}\n`;
+    }
+  }
+  
+  reportText += `\n📊 Live Data: https://tft-trading-system.yanggf.workers.dev/fact-table\n`;
+  reportText += `⏰ ${now.toLocaleString('en-US', { timeZone: 'America/New_York' })} EST\n`;
+  reportText += `🤖 TFT+N-HITS Weekend Analysis System`;
+  
+  return reportText;
+}
+
+/**
  * Send critical error alert with retry
  */
 async function sendCriticalAlertWithRetry(errorMessage, env, maxRetries = 3) {
@@ -3379,6 +3516,46 @@ async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId) {
         token_present: !!env.FACEBOOK_PAGE_TOKEN,
         recipient_present: !!env.FACEBOOK_RECIPIENT_ID
       }
+    });
+    
+    throw error;
+  }
+}
+
+// Enhanced tracking wrapper for Friday weekend analysis reports
+async function sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode) {
+  const trackingId = `fb_weekend_${Date.now()}`;
+  
+  console.log(`📱 [FB-WEEKEND-START] ${cronExecutionId} ${trackingId}`, {
+    message_type: 'friday_weekend_analysis',
+    trigger_mode: triggerMode,
+    requested_at: new Date().toISOString(),
+    day_of_week: new Date().getDay() // 5=Friday
+  });
+
+  try {
+    // Generate weekend analysis report
+    const weekendReportText = formatFridayWeekendReport(analysisResult, triggerMode);
+    
+    // Send via Facebook Messenger
+    await sendFacebookMessage(weekendReportText, env);
+    
+    console.log(`📱 [FB-WEEKEND-SUCCESS] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'friday_weekend_analysis',
+      trigger_mode: triggerMode,
+      delivery_status: 'sent_successfully',
+      symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
+      weekend_analysis_type: analysisResult.weekend_analysis?.analysis_type || 'unknown'
+    });
+
+    return { success: true, trackingId, messageType: 'friday_weekend_analysis' };
+    
+  } catch (error) {
+    console.log(`📱 [FB-WEEKEND-ERROR] ${cronExecutionId} ${trackingId}`, {
+      message_type: 'friday_weekend_analysis',
+      trigger_mode: triggerMode,
+      error_type: error.name || 'Unknown',
+      error_message: error.message
     });
     
     throw error;
