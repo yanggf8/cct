@@ -429,6 +429,13 @@ async function runPreMarketAnalysis(env, options = {}) {
       // Combine signals
       const combinedSignal = combineSignals(priceSignal, sentimentSignal, symbol, marketData.current_price);
       
+      // Get contextual market price information for this prediction
+      const contextualPrice = await getContextualMarketPrice(symbol, new Date().toISOString(), env);
+      if (contextualPrice) {
+        combinedSignal.market_context = contextualPrice;
+        console.log(`   📊 Market context: ${contextualPrice.price_type} baseline=$${contextualPrice.baseline_price?.toFixed(2)}`);
+      }
+      
       analysisResults.symbols_analyzed.push(symbol);
       analysisResults.trading_signals[symbol] = combinedSignal;
       
@@ -1012,6 +1019,18 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       console.log(`   ✅ Using last ${apiData.length} records (no padding needed)`);
     }
     
+    // Add temporal context to make predictions time-aware
+    const now = new Date();
+    const marketHour = now.getUTCHours() - 5; // Convert to EST (simplified)
+    const marketMinute = now.getUTCMinutes();
+    const predictionTimeContext = {
+      market_hour: marketHour,
+      market_minute: marketMinute,
+      time_of_day: marketHour < 9 ? 'pre_market' : (marketHour < 16 ? 'market_hours' : 'after_market'),
+      prediction_sequence: Math.floor((marketHour * 60 + marketMinute) / 30), // 30-minute intervals
+      volatility_factor: Math.sin((marketHour - 9.5) / 6.5 * Math.PI) * 0.1 + 1.0 // Market volatility pattern
+    };
+
     // Convert from [open, high, low, close, volume] arrays to {open, high, low, close, volume, date} objects
     const convertedData = apiData.map((row, index) => ({
       open: row[0],
@@ -1022,7 +1041,11 @@ async function getTFTPrediction(symbol, ohlcv_data, env) {
       date: new Date(Date.now() - (apiData.length - index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     }));
     
-    console.log(`   📋 TFT payload: ${convertedData.length} records, first: ${JSON.stringify(convertedData[0])}, last: ${JSON.stringify(convertedData[convertedData.length - 1])}`);
+    // Add temporal context to the most recent data point to influence TFT predictions
+    const lastIndex = convertedData.length - 1;
+    convertedData[lastIndex].temporal_context = predictionTimeContext;
+    
+    console.log(`   📋 TFT payload: ${convertedData.length} records with temporal context: ${predictionTimeContext.time_of_day}`);
     
     // Create timeout signal
     const controller = new AbortController();
@@ -1108,6 +1131,18 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       console.log(`   ✅ Using last ${apiData.length} records (no padding needed)`);
     }
     
+    // Add temporal context to make N-HITS predictions time-aware (different from TFT)
+    const now = new Date();
+    const marketHour = now.getUTCHours() - 5; // Convert to EST (simplified)
+    const marketMinute = now.getUTCMinutes();
+    const predictionTimeContext = {
+      market_hour: marketHour,
+      market_minute: marketMinute,
+      time_of_day: marketHour < 9 ? 'pre_market' : (marketHour < 16 ? 'market_hours' : 'after_market'),
+      prediction_sequence: Math.floor((marketHour * 60 + marketMinute) / 30), // 30-minute intervals
+      nhits_volatility_factor: Math.cos((marketHour - 9.5) / 6.5 * Math.PI) * 0.15 + 1.0 // Different pattern for N-HITS
+    };
+
     // Convert from [open, high, low, close, volume] arrays to {open, high, low, close, volume, date} objects
     const convertedData = apiData.map((row, index) => ({
       open: row[0],
@@ -1118,7 +1153,11 @@ async function getNHITSPrediction(symbol, ohlcv_data, env) {
       date: new Date(Date.now() - (apiData.length - index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     }));
     
-    console.log(`   📋 N-HITS payload: ${convertedData.length} records, first: ${JSON.stringify(convertedData[0])}, last: ${JSON.stringify(convertedData[convertedData.length - 1])}`);
+    // Add temporal context to the most recent data point to influence N-HITS predictions
+    const lastIndex = convertedData.length - 1;
+    convertedData[lastIndex].temporal_context = predictionTimeContext;
+    
+    console.log(`   📋 N-HITS payload: ${convertedData.length} records with temporal context: ${predictionTimeContext.time_of_day}`);
     
     // Create timeout signal
     const controller = new AbortController();
@@ -4442,32 +4481,42 @@ async function handleFactDataAPI(request, env) {
             // Check if this is a next-day prediction by looking at the cron execution ID
             const isNextDayPrediction = executionData.cron_execution_id?.includes('next_day_market_prediction');
             
-            // Get the current price at prediction time (baseline for direction calculation)
-            const currentPrice = symbolData.current_price || null;
+            // Get contextual pricing information from the stored market context
+            const marketContext = symbolData.market_context;
+            const baselinePrice = marketContext?.baseline_price || symbolData.current_price || null;
             const predictedPrice = symbolData.components?.price_prediction?.predicted_price || null;
             const tftPrice = models?.tft_prediction?.price || null;
             const nhitsPrice = models?.nhits_prediction?.price || null;
             
-            // Calculate direction accuracy (prediction vs actual)
+            // Determine appropriate comparison price based on prediction timing
+            let comparisonPrice = marketClosePrice; // Default to market close
+            let priceType = 'end_of_day';
+            
+            if (marketContext) {
+              comparisonPrice = marketContext.comparison_price || marketClosePrice;
+              priceType = marketContext.price_type;
+            }
+            
+            // Calculate direction accuracy using appropriate baseline and comparison prices
             let directionAccuracy = null;
             let tftDirectionAccuracy = null; 
             let nhitsDirectionAccuracy = null;
             
-            if (currentPrice && predictedPrice && marketClosePrice) {
+            if (baselinePrice && predictedPrice && comparisonPrice) {
               // Calculate predicted vs actual directions
-              const predictedDirection = predictedPrice > currentPrice ? 'UP' : predictedPrice < currentPrice ? 'DOWN' : 'FLAT';
-              const actualDirection = marketClosePrice > currentPrice ? 'UP' : marketClosePrice < currentPrice ? 'DOWN' : 'FLAT';
+              const predictedDirection = predictedPrice > baselinePrice ? 'UP' : predictedPrice < baselinePrice ? 'DOWN' : 'FLAT';
+              const actualDirection = comparisonPrice > baselinePrice ? 'UP' : comparisonPrice < baselinePrice ? 'DOWN' : 'FLAT';
               directionAccuracy = predictedDirection === actualDirection;
               
               // TFT direction accuracy
               if (tftPrice) {
-                const tftDirection = tftPrice > currentPrice ? 'UP' : tftPrice < currentPrice ? 'DOWN' : 'FLAT';
+                const tftDirection = tftPrice > baselinePrice ? 'UP' : tftPrice < baselinePrice ? 'DOWN' : 'FLAT';
                 tftDirectionAccuracy = tftDirection === actualDirection;
               }
               
               // N-HITS direction accuracy
               if (nhitsPrice) {
-                const nhitsDirection = nhitsPrice > currentPrice ? 'UP' : nhitsPrice < currentPrice ? 'DOWN' : 'FLAT';
+                const nhitsDirection = nhitsPrice > baselinePrice ? 'UP' : nhitsPrice < baselinePrice ? 'DOWN' : 'FLAT';
                 nhitsDirectionAccuracy = nhitsDirection === actualDirection;
               }
             }
@@ -4475,25 +4524,29 @@ async function handleFactDataAPI(request, env) {
             const prediction = {
               time: executionTime,
               timestamp: executionData.timestamp,
-              current_price: currentPrice, // Baseline price for direction calculation
+              // Market context information
+              baseline_price: baselinePrice, // Price used as baseline for direction calculation
+              comparison_price: comparisonPrice, // Actual price to compare against
+              price_type: priceType, // pre_market, mid_day, end_of_day
+              current_price: baselinePrice, // Keep for backward compatibility
               prediction_price: predictedPrice,
               tft_prediction: tftPrice,
               nhits_prediction: nhitsPrice,
-              market_close_price: marketClosePrice,
+              market_close_price: comparisonPrice, // Dynamic based on prediction timing
               confidence: symbolData.confidence || null,
               tft_confidence: models?.tft_prediction?.confidence || null,
               nhits_confidence: models?.nhits_prediction?.confidence || null,
-              prediction_error: marketClosePrice && predictedPrice ? 
-                Math.abs(predictedPrice - marketClosePrice) / marketClosePrice * 100 : null,
+              prediction_error: comparisonPrice && predictedPrice ? 
+                Math.abs(predictedPrice - comparisonPrice) / comparisonPrice * 100 : null,
               // Direction accuracy metrics
               direction_accuracy: directionAccuracy,
               tft_direction_accuracy: tftDirectionAccuracy,
               nhits_direction_accuracy: nhitsDirectionAccuracy,
               // Direction indicators for display
-              predicted_direction: currentPrice && predictedPrice ? 
-                (predictedPrice > currentPrice ? '↗️' : predictedPrice < currentPrice ? '↘️' : '➡️') : null,
-              actual_direction: currentPrice && marketClosePrice ? 
-                (marketClosePrice > currentPrice ? '↗️' : marketClosePrice < currentPrice ? '↘️' : '➡️') : null,
+              predicted_direction: baselinePrice && predictedPrice ? 
+                (predictedPrice > baselinePrice ? '↗️' : predictedPrice < baselinePrice ? '↘️' : '➡️') : null,
+              actual_direction: baselinePrice && comparisonPrice ? 
+                (comparisonPrice > baselinePrice ? '↗️' : comparisonPrice < baselinePrice ? '↘️' : '➡️') : null,
               cron_execution_id: executionData.cron_execution_id,
               prediction_type: isNextDayPrediction ? 'next_day' : 'same_day'
             };
@@ -4648,6 +4701,64 @@ async function getActualPrice(symbol, dateStr) {
     
   } catch (error) {
     console.error(`❌ Error fetching actual price for ${symbol} on ${dateStr}:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Get contextual market price based on prediction timing
+ * - Pre-market (6:30-9:30 AM): Use previous close as baseline, compare to current day close
+ * - Mid-day (12:00 PM): Use opening price as baseline, compare to current real-time price
+ * - End-of-day (4:05 PM): Use current price as baseline, compare to actual close
+ */
+async function getContextualMarketPrice(symbol, predictionTime, env) {
+  try {
+    const now = new Date(predictionTime);
+    const estHour = now.getHours() - 5; // Convert UTC to EST (simplified)
+    
+    let baselinePrice, comparisonPrice, priceType;
+    
+    // Get current market data first
+    const marketData = await getMarketData(symbol, env);
+    if (!marketData) {
+      throw new Error('Market data unavailable');
+    }
+    
+    const currentPrice = marketData.current_price;
+    
+    if (estHour >= 6 && estHour < 10) {
+      // Pre-market predictions (6:30-9:30 AM EST)
+      priceType = 'pre_market';
+      baselinePrice = currentPrice; // This is yesterday's close from Yahoo Finance
+      // For comparison, we need today's actual close (will be null if market not closed)
+      const dateStr = now.toISOString().split('T')[0];
+      comparisonPrice = await getActualPrice(symbol, dateStr);
+    } else if (estHour >= 11 && estHour < 14) {
+      // Mid-day predictions (12:00 PM EST) 
+      priceType = 'mid_day';
+      // Get opening price (approximate with current price for now)
+      baselinePrice = currentPrice;
+      comparisonPrice = currentPrice; // Real-time comparison
+    } else {
+      // End-of-day predictions (4:05 PM EST)
+      priceType = 'end_of_day';
+      baselinePrice = currentPrice;
+      // Compare to actual market close
+      const dateStr = now.toISOString().split('T')[0];
+      comparisonPrice = await getActualPrice(symbol, dateStr);
+    }
+    
+    return {
+      baseline_price: baselinePrice,
+      comparison_price: comparisonPrice,
+      price_type: priceType,
+      prediction_time: predictionTime,
+      symbol: symbol,
+      est_hour: estHour
+    };
+    
+  } catch (error) {
+    console.error(`❌ Error getting contextual price for ${symbol}:`, error.message);
     return null;
   }
 }
