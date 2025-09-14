@@ -6,14 +6,15 @@
 
 **Architecture**: Cloud-native system combining dual ModelScope models (TFT Primary + N-HITS Parallel) with Cloudflare AI edge processing and intelligent ensemble logic for superior prediction accuracy.
 
-## 🚀 System Status: **HYBRID ARCHITECTURE OPERATIONAL** ✅
+## 🚀 System Status: **MODULAR ARCHITECTURE OPERATIONAL** ✅
 
-### ✅ PRODUCTION DEPLOYMENT (2025-09-05)
+### ✅ PRODUCTION DEPLOYMENT (2025-09-14)
 - **Live System**: https://tft-trading-system.yanggf.workers.dev 
-- **Architecture**: Cloudflare Worker + Vercel Edge ONNX Models + Advanced LLM Sentiment
+- **Architecture**: Modular Cloudflare Worker + Vercel Edge ONNX Models + Advanced LLM Sentiment
 - **Model Integration**: Real TFT/N-HITS via Vercel Edge Functions with ONNX Runtime
-- **System Grade**: **A+ Implementation** (Fake models removed, real ONNX integration)
+- **System Grade**: **A+ Implementation** (Clean modular architecture with dedicated dashboard)
 - **Facebook Messenger**: Automated high-confidence alerts and daily summaries ✅
+- **📊 NEW**: Weekly Analysis Dashboard at `/weekly-analysis` with interactive charts
 
 ### ✅ REAL MODEL INTEGRATION
 - **TFT Model**: Real ONNX via Vercel Edge Functions (`/api/predict-tft`)
@@ -92,11 +93,28 @@ Dual Model Analytics → Comprehensive Performance Comparison
 
 ## 📁 Project Structure
 
+### ✅ Modular Worker Architecture Complete
+
+**New Structure:**
+```
+src/
+├── index.js                 # Main entry point
+└── modules/
+    ├── routes.js            # HTTP request routing
+    ├── handlers.js          # HTTP request handlers
+    ├── weekly-analysis.js   # Weekly analysis page & API
+    ├── scheduler.js         # Cron event handling
+    └── data.js              # KV data access functions
+```
+
 ### Dual Model Production System
-- `cloudflare-worker-standalone.js` - **LIVE** dual active TFT+N-HITS worker
+- `src/index.js` - **NEW** modular entry point for clean architecture
+- `src/modules/` - **NEW** organized modules for maintainability
+- `cloudflare-worker-standalone.js` - **LEGACY** original monolithic worker (preserved for compatibility)
+- `weekly-analysis.html` - **NEW** standalone HTML dashboard file
 - `accuracy_tracker.py` - Comprehensive dual model performance tracking
 - `production_monitor.py` - Live system health and performance monitoring
-- `wrangler.toml` - Production deployment configuration
+- `wrangler.toml` - Production deployment configuration (updated to use `src/index.js`)
 - `DUAL_MODEL_SUCCESS.md` - Complete dual model implementation documentation
 
 ### Legacy POC Files (Historical Reference)
@@ -143,6 +161,12 @@ curl https://tft-trading-system.yanggf.workers.dev/analyze
 
 # Check system health (includes Facebook integration status)
 curl https://tft-trading-system.yanggf.workers.dev/health
+
+# 📊 NEW: Access Weekly Analysis Dashboard (interactive charts)
+curl https://tft-trading-system.yanggf.workers.dev/weekly-analysis
+
+# 📊 NEW: Get weekly analysis data (JSON API for charts)
+curl https://tft-trading-system.yanggf.workers.dev/api/weekly-data
 
 # Test Facebook Messenger integration
 curl https://tft-trading-system.yanggf.workers.dev/test-facebook
