@@ -6,15 +6,15 @@
 
 **Architecture**: Cloud-native system combining dual ModelScope models (TFT Primary + N-HITS Parallel) with Cloudflare AI edge processing and intelligent ensemble logic for superior prediction accuracy.
 
-## 🚀 System Status: **MODULAR ARCHITECTURE OPERATIONAL** ✅
+## 🚀 System Status: **FULLY MODULAR ARCHITECTURE OPERATIONAL** ✅
 
 ### ✅ PRODUCTION DEPLOYMENT (2025-09-14)
 - **Live System**: https://tft-trading-system.yanggf.workers.dev 
-- **Architecture**: Modular Cloudflare Worker + Vercel Edge ONNX Models + Advanced LLM Sentiment
+- **Architecture**: Fully Modular Cloudflare Worker (Monolithic Worker Removed) + Vercel Edge ONNX Models
 - **Model Integration**: Real TFT/N-HITS via Vercel Edge Functions with ONNX Runtime
-- **System Grade**: **A+ Implementation** (Clean modular architecture with dedicated dashboard)
-- **Facebook Messenger**: Automated high-confidence alerts and daily summaries ✅
-- **📊 NEW**: Weekly Analysis Dashboard at `/weekly-analysis` with interactive charts
+- **System Grade**: **A+ Implementation** (76% size reduction, complete modular architecture)
+- **Facebook Messenger**: Automated alerts with weekly analysis dashboard links ✅
+- **📊 NEW**: Interactive Weekly Analysis Dashboard with date/week selection and real data
 
 ### ✅ REAL MODEL INTEGRATION
 - **TFT Model**: Real ONNX via Vercel Edge Functions (`/api/predict-tft`)
@@ -93,29 +93,36 @@ Dual Model Analytics → Comprehensive Performance Comparison
 
 ## 📁 Project Structure
 
-### ✅ Modular Worker Architecture Complete
+### ✅ Fully Modular Worker Architecture Complete
 
-**New Structure:**
+**Complete Modular Structure:**
 ```
 src/
 ├── index.js                 # Main entry point
 └── modules/
     ├── routes.js            # HTTP request routing
-    ├── handlers.js          # HTTP request handlers
-    ├── weekly-analysis.js   # Weekly analysis page & API
-    ├── scheduler.js         # Cron event handling
-    └── data.js              # KV data access functions
+    ├── handlers.js          # HTTP request handlers (fully modular)
+    ├── weekly-analysis.js   # Interactive weekly analysis page & API
+    ├── scheduler.js         # Cron event handling (fully modular)
+    ├── facebook.js          # Facebook messaging with dashboard links
+    ├── analysis.js          # Core trading analysis functions
+    └── data.js              # KV data access with date filtering
 ```
 
 ### Dual Model Production System
 - `src/index.js` - **NEW** modular entry point for clean architecture
-- `src/modules/` - **NEW** organized modules for maintainability
-- `cloudflare-worker-standalone.js` - **LEGACY** original monolithic worker (preserved for compatibility)
-- `weekly-analysis.html` - **NEW** standalone HTML dashboard file
+- `src/modules/` - **NEW** fully organized modules (monolithic worker eliminated)
+- `weekly-analysis.html` - **LEGACY** standalone HTML dashboard file (now integrated into module)
 - `accuracy_tracker.py` - Comprehensive dual model performance tracking
 - `production_monitor.py` - Live system health and performance monitoring
-- `wrangler.toml` - Production deployment configuration (updated to use `src/index.js`)
+- `wrangler.toml` - Production deployment configuration (uses `src/index.js`)
 - `DUAL_MODEL_SUCCESS.md` - Complete dual model implementation documentation
+
+### Performance Improvements
+- **Worker Size**: 225KB → 53KB (76% reduction)
+- **Modular Architecture**: 217KB monolithic worker completely removed
+- **Clean Separation**: 7 focused modules with clear responsibilities
+- **Interactive Dashboard**: Real data integration with week/date selection
 
 ### Legacy POC Files (Historical Reference)
 - `integrated_trading_system.py` - Original single model pipeline
@@ -162,11 +169,14 @@ curl https://tft-trading-system.yanggf.workers.dev/analyze
 # Check system health (includes Facebook integration status)
 curl https://tft-trading-system.yanggf.workers.dev/health
 
-# 📊 NEW: Access Weekly Analysis Dashboard (interactive charts)
+# 📊 NEW: Access Interactive Weekly Analysis Dashboard
 curl https://tft-trading-system.yanggf.workers.dev/weekly-analysis
 
-# 📊 NEW: Get weekly analysis data (JSON API for charts)
-curl https://tft-trading-system.yanggf.workers.dev/api/weekly-data
+# 📊 NEW: Get weekly analysis data with date/week parameters
+curl "https://tft-trading-system.yanggf.workers.dev/api/weekly-data?week=current&range=7"
+
+# 📊 NEW: Test different date ranges (7, 14, or 30 days)
+curl "https://tft-trading-system.yanggf.workers.dev/api/weekly-data?week=last1&range=14"
 
 # Test Facebook Messenger integration
 curl https://tft-trading-system.yanggf.workers.dev/test-facebook

@@ -3,7 +3,7 @@
  * Handles the dedicated weekly market close analysis page and data API
  */
 
-import { getFactTableData } from './data.js';
+import { getFactTableData, getFactTableDataWithRange } from './data.js';
 
 /**
  * Serve the Weekly Analysis HTML page
@@ -83,7 +83,31 @@ export async function handleWeeklyAnalysisPage(request, env) {
         <div class="header">
             <h1>📊 Weekly Market Close Analysis</h1>
             <p>Comprehensive prediction accuracy and model performance review</p>
-            <button class="refresh-button" onclick="loadData()">🔄 Refresh Data</button>
+            
+            <div style="margin: 20px 0; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="weekSelect" style="color: #4facfe; font-weight: 600;">📅 Select Week:</label>
+                    <select id="weekSelect" onchange="loadData()" style="
+                        padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3);
+                        background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+                        <option value="current">Current Week</option>
+                        <option value="last1">Last Week</option>
+                        <option value="last2">2 Weeks Ago</option>
+                        <option value="last3">3 Weeks Ago</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label for="dateRange" style="color: #4facfe; font-weight: 600;">📊 Date Range:</label>
+                    <select id="dateRange" onchange="loadData()" style="
+                        padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3);
+                        background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+                        <option value="7">Last 7 Days</option>
+                        <option value="14">Last 14 Days</option>
+                        <option value="30">Last 30 Days</option>
+                    </select>
+                </div>
+                <button class="refresh-button" onclick="loadData()" style="margin: 0;">🔄 Refresh Data</button>
+            </div>
         </div>
 
         <div id="loading" class="loading">Loading weekly analysis data...</div>
@@ -165,9 +189,17 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 document.getElementById('error').style.display = 'none';
                 document.getElementById('content').style.display = 'none';
 
-                const response = await fetch('/api/weekly-data');
+                // Get selected parameters
+                const weekSelect = document.getElementById('weekSelect');
+                const dateRange = document.getElementById('dateRange');
+                const selectedWeek = weekSelect ? weekSelect.value : 'current';
+                const selectedRange = dateRange ? dateRange.value : '7';
+
+                // Build API URL with parameters
+                const apiUrl = '/api/weekly-data?week=' + selectedWeek + '&range=' + selectedRange;
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
-                    throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
+                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }
 
                 const data = await response.json();
@@ -309,11 +341,26 @@ export async function handleWeeklyAnalysisPage(request, env) {
  */
 export async function handleWeeklyDataAPI(request, env) {
   try {
-    // Get the last 7 days of fact table data
-    const factTableData = await getFactTableData(env);
+    // Get URL parameters for date filtering
+    const url = new URL(request.url);
+    const weekParam = url.searchParams.get('week') || 'current';
+    const rangeParam = parseInt(url.searchParams.get('range')) || 7;
+    
+    console.log(`📊 Weekly data requested: week=${weekParam}, range=${rangeParam}`);
+    
+    // Get fact table data with custom date range
+    const factTableData = await getFactTableDataWithRange(env, rangeParam, weekParam);
     
     // Process the data to create charts and analytics
     const weeklyData = await processWeeklyAnalysisData(factTableData, env);
+    
+    // Add metadata about the request
+    weeklyData.metadata = {
+      week_selected: weekParam,
+      date_range_days: rangeParam,
+      data_points: factTableData.length,
+      generated_at: new Date().toISOString()
+    };
     
     return new Response(JSON.stringify(weeklyData, null, 2), {
       headers: { 'Content-Type': 'application/json' }
