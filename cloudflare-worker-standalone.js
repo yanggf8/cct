@@ -142,12 +142,77 @@ export default {
     });
     
     try {
-      // Special handling for Friday analysis and weekend predictions
+      // Special handling for Friday analysis, weekend predictions, and Sunday reports
       let analysisResult;
       if (triggerMode === 'weekly_market_close_analysis') {
         analysisResult = await runWeeklyMarketCloseAnalysis(env, estTime);
       } else if (triggerMode === 'friday_weekend_prediction') {
         analysisResult = await runFridayWeekendAnalysis(env, estTime);
+      } else if (triggerMode === 'weekly_accuracy_report') {
+        // Sunday weekly accuracy report - skip market analysis, go directly to Facebook report
+        console.log(`📊 [CRON-SUNDAY] ${cronExecutionId} Sunday weekly accuracy report - skipping market analysis`);
+        
+        // Store execution tracking in KV
+        const sundayReportKey = `sunday_weekly_report_${estTime.toISOString().split('T')[0]}`;
+        const executionRecord = {
+          execution_id: cronExecutionId,
+          trigger_mode: 'weekly_accuracy_report',
+          scheduled_time: controller.scheduledTime,
+          est_time: estTime.toISOString(),
+          facebook_configured: !!(env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID),
+          status: 'started',
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log(`💾 [KV-STORE] ${cronExecutionId} Storing Sunday report execution record`);
+        await env.TRADING_RESULTS.put(
+          sundayReportKey,
+          JSON.stringify(executionRecord),
+          { expirationTtl: 604800 } // 7 days
+        );
+        
+        // Send weekly accuracy report directly
+        if (env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID) {
+          console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Sunday detected - sending weekly accuracy report`);
+          const weeklyResult = await sendWeeklyAccuracyReportWithTracking(env, cronExecutionId);
+          console.log(`📊 [CRON-WEEKLY-RESULT] ${cronExecutionId}`, weeklyResult);
+          
+          // Update execution record with success
+          executionRecord.status = 'completed';
+          executionRecord.facebook_result = weeklyResult;
+          executionRecord.completion_time = new Date().toISOString();
+          
+          await env.TRADING_RESULTS.put(
+            sundayReportKey,
+            JSON.stringify(executionRecord),
+            { expirationTtl: 604800 } // 7 days
+          );
+          console.log(`💾 [KV-UPDATE] ${cronExecutionId} Updated Sunday report execution record with success`);
+        } else {
+          console.log(`⚠️ [CRON-FB-SKIP] ${cronExecutionId} Facebook not configured - skipping weekly report`);
+          
+          // Update execution record with skip
+          executionRecord.status = 'skipped';
+          executionRecord.skip_reason = 'facebook_not_configured';
+          executionRecord.completion_time = new Date().toISOString();
+          
+          await env.TRADING_RESULTS.put(
+            sundayReportKey,
+            JSON.stringify(executionRecord),
+            { expirationTtl: 604800 } // 7 days
+          );
+          console.log(`💾 [KV-UPDATE] ${cronExecutionId} Updated Sunday report execution record with skip status`);
+        }
+        
+        const cronDuration = Date.now() - cronStartTime;
+        console.log(`✅ [CRON-COMPLETE-WEEKLY] ${cronExecutionId}`, {
+          trigger_mode: 'weekly_accuracy_report',
+          duration_ms: cronDuration,
+          facebook_status: env.FACEBOOK_PAGE_TOKEN ? 'sent' : 'skipped',
+          kv_record_stored: sundayReportKey
+        });
+        
+        return; // Exit early for Sunday reports
       } else {
         analysisResult = await runPreMarketAnalysis(env, { 
           triggerMode, 
@@ -238,21 +303,58 @@ export default {
         const fbResult = await sendFacebookDailySummaryWithTracking(analysisResult, env, cronExecutionId);
         console.log(`📱 [CRON-FB-RESULT] ${cronExecutionId}`, fbResult);
         
-        // Check for weekend reports
+        // Check for Friday weekend analysis reports
         const dayOfWeek = estTime.getDay(); // 0 = Sunday, 5 = Friday
         
-        // Sunday weekly accuracy report
-        if (dayOfWeek === 0) {
-          console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Sunday detected - sending weekly accuracy report`);
-          const weeklyResult = await sendWeeklyAccuracyReportWithTracking(env, cronExecutionId);
-          console.log(`📊 [CRON-WEEKLY-RESULT] ${cronExecutionId}`, weeklyResult);
-        }
-        
-        // Friday weekend analysis reports
+        // Friday weekend analysis reports with logging and KV tracking
         if (triggerMode === 'weekly_market_close_analysis' || triggerMode === 'friday_weekend_prediction') {
           console.log(`📊 [CRON-FRIDAY] ${cronExecutionId} Friday weekend analysis - sending additional weekend report`);
+          
+          // Store Friday execution tracking in KV
+          const fridayReportKey = `friday_${triggerMode}_${estTime.toISOString().split('T')[0]}`;
+          const fridayExecutionRecord = {
+            execution_id: cronExecutionId,
+            trigger_mode: triggerMode,
+            scheduled_time: controller.scheduledTime,
+            est_time: estTime.toISOString(),
+            symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
+            facebook_configured: !!(env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID),
+            status: 'sending_report',
+            timestamp: new Date().toISOString()
+          };
+          
+          console.log(`💾 [KV-STORE] ${cronExecutionId} Storing Friday ${triggerMode} execution record`);
+          await env.TRADING_RESULTS.put(
+            fridayReportKey,
+            JSON.stringify(fridayExecutionRecord),
+            { expirationTtl: 604800 } // 7 days
+          );
+          
           const weekendReportResult = await sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode);
           console.log(`📊 [CRON-FRIDAY-RESULT] ${cronExecutionId}`, weekendReportResult);
+          
+          // Update Friday execution record with results
+          fridayExecutionRecord.status = 'completed';
+          fridayExecutionRecord.facebook_result = weekendReportResult;
+          fridayExecutionRecord.completion_time = new Date().toISOString();
+          
+          if (triggerMode === 'weekly_market_close_analysis' && analysisResult.weekly_analysis) {
+            fridayExecutionRecord.weekly_analysis_data = {
+              days_with_data: analysisResult.weekly_analysis.days_with_data,
+              average_confidence: analysisResult.weekly_analysis.average_confidence
+            };
+          }
+          
+          if (triggerMode === 'friday_weekend_prediction' && analysisResult.weekend_analysis) {
+            fridayExecutionRecord.weekend_analysis_data = analysisResult.weekend_analysis;
+          }
+          
+          await env.TRADING_RESULTS.put(
+            fridayReportKey,
+            JSON.stringify(fridayExecutionRecord),
+            { expirationTtl: 604800 } // 7 days
+          );
+          console.log(`💾 [KV-UPDATE] ${cronExecutionId} Updated Friday ${triggerMode} execution record with results`);
         }
       } else {
         console.log(`⚠️ [CRON-FB-SKIP] ${cronExecutionId} Facebook not configured - skipping daily summary`);
@@ -324,6 +426,14 @@ export default {
       return handleFacebookTest(request, env);
     } else if (url.pathname === '/weekly-report') {
       return handleWeeklyReport(request, env);
+    } else if (url.pathname === '/friday-market-close-report') {
+      return handleFridayMarketCloseReport(request, env);
+    } else if (url.pathname === '/friday-monday-predictions-report') {
+      return handleFridayMondayPredictionsReport(request, env);
+    } else if (url.pathname === '/sunday-weekly-accuracy-report') {
+      return handleSundayWeeklyAccuracyReport(request, env);
+    } else if (url.pathname === '/weekend-reports-status') {
+      return handleWeekendReportsStatus(request, env);
     } else if (url.pathname === '/test-daily-report') {
       return handleTestDailyReport(request, env);
     } else if (url.pathname === '/test-high-confidence') {
@@ -338,12 +448,16 @@ export default {
       return handleFactDataAPI(request, env);
     } else if (url.pathname === '/api/kv-cleanup') {
       return handleKVCleanup(request, env);
+    } else if (url.pathname === '/debug-weekend-message') {
+      return handleDebugWeekendMessage(request, env);
+    } else if (url.pathname === '/test-kv') {
+      return handleTestKV(request, env);
     } else if (url.pathname === '/api/kv-list') {
       return handleKVList(request, env);
     } else if (url.pathname === '/test-next-day-prediction') {
       return handleTestNextDayPrediction(request, env);
     } else {
-      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /test-daily-report, /test-high-confidence, /chart, /api/history, /fact-table, /api/fact-data', { 
+      return new Response('TFT Trading System Worker API\nEndpoints: /analyze, /results, /health, /test-facebook, /weekly-report, /friday-market-close-report, /friday-monday-predictions-report, /sunday-weekly-accuracy-report, /weekend-reports-status, /test-daily-report, /test-high-confidence, /chart, /api/history, /fact-table, /api/fact-data', { 
         status: 200,
         headers: { 'Content-Type': 'text/plain' }
       });
@@ -1987,6 +2101,8 @@ function combineSignals(priceSignal, sentimentSignal, symbol, currentPrice) {
     signal_score: combinedScore,
     confidence: avgConfidence,
     current_price: currentPrice,
+    predicted_price: priceSignal.predicted_price, // Add predicted_price to top level
+    direction: priceSignal.direction, // Add direction to top level for Facebook messaging
     reasoning: `${priceSignal.direction} price prediction (${priceSignal.model_used}) + ${sentimentSignal.sentiment} sentiment`,
     timestamp: new Date().toISOString(),
     system_version: '2.0-Dual-Model-Production',
@@ -3210,6 +3326,274 @@ async function handleWeeklyReport(request, env) {
 }
 
 /**
+ * Handle Friday 4:00 PM Weekly Market Close Report
+ */
+async function handleFridayMarketCloseReport(request, env) {
+  try {
+    console.log('📊 Friday weekly market close report manually requested');
+    
+    if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Facebook not configured - cannot send weekly market close report',
+        debug: {
+          token_present: !!env.FACEBOOK_PAGE_TOKEN,
+          recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+        }
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Run Friday weekly market close analysis
+    const currentTime = new Date();
+    const analysisResult = await runWeeklyMarketCloseAnalysis(env, currentTime);
+    
+    // Send Friday weekend report
+    const fridayTestCronId = `friday_market_close_test_${Date.now()}`;
+    await sendFridayWeekendReportWithTracking(analysisResult, env, fridayTestCronId, 'weekly_market_close_analysis');
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Friday weekly market close report sent successfully!',
+      timestamp: new Date().toISOString(),
+      analysis_result: {
+        symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
+        trigger_mode: 'weekly_market_close_analysis'
+      }
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Friday market close report handler error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle Friday 4:05 PM Monday Predictions Report
+ */
+async function handleFridayMondayPredictionsReport(request, env) {
+  try {
+    console.log('🌅 Friday Monday predictions report manually requested');
+    
+    if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Facebook not configured - cannot send Monday predictions report',
+        debug: {
+          token_present: !!env.FACEBOOK_PAGE_TOKEN,
+          recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+        }
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Run Friday weekend analysis (Monday predictions)
+    const currentTime = new Date();
+    const analysisResult = await runFridayWeekendAnalysis(env, currentTime);
+    
+    // Send Friday weekend report
+    const fridayTestCronId = `friday_monday_predictions_test_${Date.now()}`;
+    await sendFridayWeekendReportWithTracking(analysisResult, env, fridayTestCronId, 'friday_weekend_prediction');
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Friday Monday predictions report sent successfully!',
+      timestamp: new Date().toISOString(),
+      analysis_result: {
+        symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
+        weekend_analysis: analysisResult.weekend_analysis,
+        trigger_mode: 'friday_weekend_prediction'
+      }
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Friday Monday predictions report handler error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle Sunday Weekly Accuracy Report
+ */
+async function handleSundayWeeklyAccuracyReport(request, env) {
+  try {
+    console.log('📊 Sunday weekly accuracy report manually requested');
+    
+    if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Facebook not configured - cannot send Sunday weekly accuracy report',
+        debug: {
+          token_present: !!env.FACEBOOK_PAGE_TOKEN,
+          recipient_present: !!env.FACEBOOK_RECIPIENT_ID
+        }
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Send Sunday weekly accuracy report directly
+    const sundayTestCronId = `sunday_weekly_accuracy_test_${Date.now()}`;
+    await sendWeeklyAccuracyReportWithTracking(env, sundayTestCronId);
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Sunday weekly accuracy report sent successfully!',
+      timestamp: new Date().toISOString(),
+      trigger_mode: 'weekly_accuracy_report'
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Sunday weekly accuracy report handler error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle Weekend Reports Status Check - shows KV logs and execution history
+ */
+async function handleWeekendReportsStatus(request, env) {
+  try {
+    console.log('📊 Weekend reports status check requested');
+    
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get('days')) || 7; // Default to 7 days
+    
+    // Get recent weekend report execution records from KV
+    const list = await env.TRADING_RESULTS.list();
+    const weekendReports = [];
+    const messagingLogs = [];
+    
+    for (const key of list.keys) {
+      if (key.name.includes('sunday_weekly_report_') || 
+          key.name.includes('friday_weekly_market_close_analysis_') || 
+          key.name.includes('friday_friday_weekend_prediction_')) {
+        try {
+          const data = await env.TRADING_RESULTS.get(key.name);
+          if (data) {
+            const record = JSON.parse(data);
+            weekendReports.push({
+              key: key.name,
+              ...record
+            });
+          }
+        } catch (error) {
+          console.log(`⚠️ Error reading weekend report record ${key.name}: ${error.message}`);
+        }
+      }
+      
+      if (key.name.includes('fb_weekly_messaging_') || 
+          key.name.includes('fb_friday_messaging_')) {
+        try {
+          const data = await env.TRADING_RESULTS.get(key.name);
+          if (data) {
+            const log = JSON.parse(data);
+            messagingLogs.push({
+              key: key.name,
+              ...log
+            });
+          }
+        } catch (error) {
+          console.log(`⚠️ Error reading messaging log ${key.name}: ${error.message}`);
+        }
+      }
+    }
+    
+    // Sort by timestamp
+    weekendReports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    messagingLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Group by report type
+    const reportsByType = {
+      sunday_weekly_accuracy: weekendReports.filter(r => r.trigger_mode === 'weekly_accuracy_report'),
+      friday_market_close: weekendReports.filter(r => r.trigger_mode === 'weekly_market_close_analysis'),
+      friday_monday_predictions: weekendReports.filter(r => r.trigger_mode === 'friday_weekend_prediction')
+    };
+    
+    const messagingByType = {
+      weekly_accuracy: messagingLogs.filter(l => l.message_type === 'weekly_accuracy'),
+      friday_weekend: messagingLogs.filter(l => l.message_type === 'friday_weekend_analysis')
+    };
+    
+    return new Response(JSON.stringify({
+      success: true,
+      timestamp: new Date().toISOString(),
+      summary: {
+        total_weekend_reports: weekendReports.length,
+        total_messaging_logs: messagingLogs.length,
+        reports_by_type: {
+          sunday_weekly_accuracy: reportsByType.sunday_weekly_accuracy.length,
+          friday_market_close: reportsByType.friday_market_close.length,
+          friday_monday_predictions: reportsByType.friday_monday_predictions.length
+        },
+        messaging_by_type: {
+          weekly_accuracy_messages: messagingByType.weekly_accuracy.length,
+          friday_weekend_messages: messagingByType.friday_weekend.length
+        }
+      },
+      recent_reports: {
+        sunday_weekly_accuracy: reportsByType.sunday_weekly_accuracy.slice(0, 5),
+        friday_market_close: reportsByType.friday_market_close.slice(0, 5),
+        friday_monday_predictions: reportsByType.friday_monday_predictions.slice(0, 5)
+      },
+      recent_messaging: {
+        weekly_accuracy: messagingByType.weekly_accuracy.slice(0, 5),
+        friday_weekend: messagingByType.friday_weekend.slice(0, 5)
+      }
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Weekend reports status handler error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
  * Handle health check
  */
 async function handleHealthCheck(request, env) {
@@ -3496,16 +3880,44 @@ async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId) {
   });
 
   try {
+    // Store Facebook messaging tracking in KV
+    const messagingLogKey = `fb_weekly_messaging_${Date.now()}`;
+    const messagingLog = {
+      tracking_id: trackingId,
+      cron_execution_id: cronExecutionId,
+      message_type: 'weekly_accuracy',
+      status: 'sending',
+      timestamp: new Date().toISOString()
+    };
+    
+    await env.TRADING_RESULTS.put(
+      messagingLogKey,
+      JSON.stringify(messagingLog),
+      { expirationTtl: 604800 } // 7 days
+    );
+    console.log(`💾 [KV-FB-LOG] ${cronExecutionId} ${trackingId} Stored Facebook messaging log`);
+    
     // Send the actual weekly report
     await sendWeeklyAccuracyReport(env);
+    
+    // Update messaging log with success
+    messagingLog.status = 'sent_successfully';
+    messagingLog.completion_time = new Date().toISOString();
+    
+    await env.TRADING_RESULTS.put(
+      messagingLogKey,
+      JSON.stringify(messagingLog),
+      { expirationTtl: 604800 } // 7 days
+    );
     
     console.log(`📱 [FB-WEEKLY-SUCCESS] ${cronExecutionId} ${trackingId}`, {
       message_type: 'weekly_accuracy',
       delivery_status: 'sent_successfully',
-      report_type: 'accuracy_analysis'
+      report_type: 'accuracy_analysis',
+      kv_log_key: messagingLogKey
     });
     
-    return { success: true, trackingId, messageType: 'weekly_accuracy' };
+    return { success: true, trackingId, messageType: 'weekly_accuracy', kvLogKey: messagingLogKey };
     
   } catch (error) {
     console.log(`📱 [FB-WEEKLY-ERROR] ${cronExecutionId} ${trackingId}`, {
@@ -3534,21 +3946,77 @@ async function sendFridayWeekendReportWithTracking(analysisResult, env, cronExec
   });
 
   try {
+    // Store Friday weekend messaging tracking in KV
+    const fridayMessagingLogKey = `fb_friday_messaging_${Date.now()}`;
+    const fridayMessagingLog = {
+      tracking_id: trackingId,
+      cron_execution_id: cronExecutionId,
+      message_type: 'friday_weekend_analysis',
+      trigger_mode: triggerMode,
+      symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
+      status: 'generating_report',
+      timestamp: new Date().toISOString()
+    };
+    
+    try {
+      await env.TRADING_RESULTS.put(
+        fridayMessagingLogKey,
+        JSON.stringify(fridayMessagingLog),
+        { expirationTtl: 604800 } // 7 days
+      );
+      console.log(`✅ [KV-SUCCESS] ${cronExecutionId} ${trackingId} Successfully stored KV log: ${fridayMessagingLogKey}`);
+    } catch (kvError) {
+      console.error(`❌ [KV-ERROR] ${cronExecutionId} ${trackingId} Failed to store KV log:`, kvError);
+    }
+    console.log(`💾 [KV-FB-LOG] ${cronExecutionId} ${trackingId} Stored Friday messaging log`);
+    
     // Generate weekend analysis report
     const weekendReportText = formatFridayWeekendReport(analysisResult, triggerMode);
     
+    // Update status to sending
+    fridayMessagingLog.status = 'sending';
+    fridayMessagingLog.report_generated_time = new Date().toISOString();
+    
+    try {
+      await env.TRADING_RESULTS.put(
+        fridayMessagingLogKey,
+        JSON.stringify(fridayMessagingLog),
+        { expirationTtl: 604800 } // 7 days
+      );
+      console.log(`✅ [KV-SUCCESS] ${cronExecutionId} ${trackingId} Successfully stored KV log: ${fridayMessagingLogKey}`);
+    } catch (kvError) {
+      console.error(`❌ [KV-ERROR] ${cronExecutionId} ${trackingId} Failed to store KV log:`, kvError);
+    }
+    
     // Send via Facebook Messenger
     await sendFacebookMessage(weekendReportText, env);
+    
+    // Update messaging log with success
+    fridayMessagingLog.status = 'sent_successfully';
+    fridayMessagingLog.completion_time = new Date().toISOString();
+    fridayMessagingLog.weekend_analysis_type = analysisResult.weekend_analysis?.analysis_type || 'unknown';
+    
+    try {
+      await env.TRADING_RESULTS.put(
+        fridayMessagingLogKey,
+        JSON.stringify(fridayMessagingLog),
+        { expirationTtl: 604800 } // 7 days
+      );
+      console.log(`✅ [KV-SUCCESS] ${cronExecutionId} ${trackingId} Successfully stored KV log: ${fridayMessagingLogKey}`);
+    } catch (kvError) {
+      console.error(`❌ [KV-ERROR] ${cronExecutionId} ${trackingId} Failed to store KV log:`, kvError);
+    }
     
     console.log(`📱 [FB-WEEKEND-SUCCESS] ${cronExecutionId} ${trackingId}`, {
       message_type: 'friday_weekend_analysis',
       trigger_mode: triggerMode,
       delivery_status: 'sent_successfully',
       symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
-      weekend_analysis_type: analysisResult.weekend_analysis?.analysis_type || 'unknown'
+      weekend_analysis_type: analysisResult.weekend_analysis?.analysis_type || 'unknown',
+      kv_log_key: fridayMessagingLogKey
     });
 
-    return { success: true, trackingId, messageType: 'friday_weekend_analysis' };
+    return { success: true, trackingId, messageType: 'friday_weekend_analysis', kvLogKey: fridayMessagingLogKey };
     
   } catch (error) {
     console.log(`📱 [FB-WEEKEND-ERROR] ${cronExecutionId} ${trackingId}`, {
@@ -5132,6 +5600,45 @@ async function handleKVCleanup(request, env) {
     return new Response(JSON.stringify({
       error: 'KV cleanup failed',
       message: error.message
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Debug endpoint to show the actual Facebook message content without sending
+ */
+async function handleDebugWeekendMessage(request, env) {
+  try {
+    // Run Friday market close analysis
+    const currentTime = new Date();
+    const analysisResult = await runWeeklyMarketCloseAnalysis(env, currentTime);
+    
+    // Generate the Facebook message content without sending
+    const messageContent = formatFridayWeekendReport(analysisResult, 'weekly_market_close_analysis');
+    
+    return new Response(JSON.stringify({
+      debug_info: 'Generated Facebook message content (not sent)',
+      timestamp: new Date().toISOString(),
+      analysis_summary: {
+        symbols_analyzed: analysisResult.symbols_analyzed?.length || 0,
+        trading_signals_count: Object.keys(analysisResult.trading_signals || {}).length,
+        trigger_mode: 'weekly_market_close_analysis'
+      },
+      facebook_message_content: messageContent,
+      raw_trading_signals: analysisResult.trading_signals
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('❌ Debug weekend message error:', error);
+    return new Response(JSON.stringify({
+      error: error.message,
+      timestamp: new Date().toISOString()
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

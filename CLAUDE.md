@@ -12,6 +12,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Key Updates
 
+### 2025-09-15: Weekend Reports System Operational ✅
+**STATUS UPDATE**: Weekend reports confirmed working via Facebook message delivery
+
+#### **System Verification:**
+- **Weekend Reports Working**: ✅ User receiving Facebook messages from all weekend reports
+- **Cron Execution Active**: ✅ Friday 4:00 PM, Friday 4:05 PM, and Sunday 10:00 AM triggers operational
+- **Prediction Values Fixed**: ✅ Resolved undefined `predicted_price` values in weekend message formatting
+- **Message Content Enhanced**: ✅ All weekend reports now show proper price predictions and analysis
+
+#### **Technical Fixes Applied:**
+- **Signal Object Structure**: Added `predicted_price` and `direction` to top level of combined signals
+- **Facebook Message Formatting**: Fixed price display showing proper current → predicted values
+- **KV Logging Enhanced**: Added comprehensive error handling and tracking for all weekend operations
+
+#### **Production Evidence:**
+```javascript
+// Fixed signal structure in combineSignals function
+return {
+  success: true,
+  symbol: symbol,
+  current_price: currentPrice,
+  predicted_price: priceSignal.predicted_price, // Now accessible for Facebook messaging
+  direction: priceSignal.direction, // Added for proper message formatting
+  confidence: avgConfidence,
+  // ... rest of signal object
+};
+```
+
+#### **Weekend Report Schedule Confirmed:**
+- **Friday 4:00 PM EST**: Weekly market close analysis ✅ Working
+- **Friday 4:05 PM EST**: Monday market predictions ✅ Working  
+- **Sunday 10:00 AM EST**: Weekly accuracy reports ✅ Working
+
+#### **Status**: ✅ **FULLY OPERATIONAL** - All weekend reports delivering successfully
+
 ### 2025-09-14: Temporal Context Solution - Dynamic Predictions System ✅
 **MAJOR FIX**: Resolved identical prediction issue with time-aware model inputs
 
