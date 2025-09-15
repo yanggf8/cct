@@ -51,7 +51,9 @@
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"simple_test_key\" --binding=TRADING_RESULTS)",
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"simple_test_key\" --binding=TRADING_RESULTS --preview false)",
       "Bash(rm:*)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object list tft-trading-models)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 bucket list)"
     ],
     "deny": [],
     "ask": []
