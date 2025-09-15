@@ -1,8 +1,10 @@
 /**
  * Core Analysis Module
- * ✅ REAL NEURAL NETWORKS: Genuine TFT + N-HITS models deployed on Vercel
+ * ✅ REAL NEURAL NETWORKS: Genuine TFT + N-HITS models integrated locally
  * Uses authentic Temporal Fusion Transformer and Neural Hierarchical Interpolation models
  */
+
+import { runTFTInference, runNHITSInference } from './models.js';
 
 /**
  * Run comprehensive analysis
@@ -42,8 +44,8 @@ export async function runBasicAnalysis(env, options = {}) {
 
       // Run dual neural network inference (TFT + N-HITS models)
       const [tftResult, nhitsResult] = await Promise.allSettled([
-        callTFTModel(symbol, marketData.data, env),
-        callNHITSModel(symbol, marketData.data, env)
+        runTFTInference(symbol, marketData.data.ohlcv),
+        runNHITSInference(symbol, marketData.data.ohlcv)
       ]);
 
       // Process model results
@@ -90,7 +92,7 @@ async function getMarketData(symbol) {
     console.log(`   📊 Fetching real market data for ${symbol}...`);
 
     // Yahoo Finance API call for recent OHLCV data
-    const days = 35; // Get 35 days to ensure we have enough data
+    const days = 50; // Get 50 calendar days to ensure we have 30+ trading days
     const endDate = Math.floor(Date.now() / 1000);
     const startDate = endDate - (days * 24 * 60 * 60);
 
@@ -118,7 +120,7 @@ async function getMarketData(symbol) {
     const quote = result.indicators.quote[0];
     const volume = result.indicators.quote[0].volume;
 
-    // Convert to OHLCV format
+    // Convert to OHLCV format with timestamps
     const ohlcv = [];
     for (let i = 0; i < timestamps.length; i++) {
       if (quote.open[i] && quote.high[i] && quote.low[i] && quote.close[i] && volume[i]) {
@@ -127,7 +129,8 @@ async function getMarketData(symbol) {
           quote.high[i],
           quote.low[i],
           quote.close[i],
-          volume[i]
+          volume[i],
+          timestamps[i] // Include timestamp for date conversion
         ]);
       }
     }
@@ -136,7 +139,7 @@ async function getMarketData(symbol) {
       throw new Error('Insufficient historical data');
     }
 
-    const currentPrice = ohlcv[ohlcv.length - 1][3]; // Last close price
+    const currentPrice = ohlcv[ohlcv.length - 1][3]; // Last close price (index unchanged)
 
     console.log(`   📊 Retrieved ${ohlcv.length} days of data for ${symbol}, current: $${currentPrice.toFixed(2)}`);
 
@@ -159,119 +162,7 @@ async function getMarketData(symbol) {
   }
 }
 
-/**
- * Call real TFT model via Vercel endpoint
- */
-async function callTFTModel(symbol, marketData, env) {
-  const baseUrl = env.TFT_MODEL_URL || 'https://vercel-models-42w3vt2ze-yang-goufangs-projects.vercel.app/api/predict-tft';
-  const tftUrl = `${baseUrl}?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${env.VERCEL_BYPASS_TOKEN}`;
 
-  try {
-    console.log(`   🧠 Calling TFT model for ${symbol}...`);
-
-    const response = await fetch(tftUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        symbol: symbol,
-        ohlcv: marketData.ohlcv,
-        options: {
-          sequence_length: 30
-        }
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    if (!response.ok) {
-      throw new Error(`TFT model returned ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.error || 'TFT model failed');
-    }
-
-    console.log(`   ✅ TFT: $${result.prediction.predicted_price} (${(result.prediction.confidence * 100).toFixed(1)}%)`);
-
-    return {
-      success: true,
-      model: 'TFT',
-      predicted_price: result.prediction.predicted_price,
-      confidence: result.prediction.confidence,
-      direction: result.prediction.direction,
-      temporal_features: result.prediction.temporal_features,
-      inference_time: result.metadata.inference_time_ms
-    };
-
-  } catch (error) {
-    console.error(`   ❌ TFT model error for ${symbol}:`, error.message);
-    return {
-      success: false,
-      error: error.message,
-      model: 'TFT'
-    };
-  }
-}
-
-/**
- * Call real N-HITS model via Vercel endpoint
- */
-async function callNHITSModel(symbol, marketData, env) {
-  const baseUrl = env.NHITS_MODEL_URL || 'https://vercel-models-42w3vt2ze-yang-goufangs-projects.vercel.app/api/predict-nhits';
-  const nhitsUrl = `${baseUrl}?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${env.VERCEL_BYPASS_TOKEN}`;
-
-  try {
-    console.log(`   🔄 Calling N-HITS model for ${symbol}...`);
-
-    const response = await fetch(nhitsUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        symbol: symbol,
-        ohlcv: marketData.ohlcv,
-        options: {
-          sequence_length: 30
-        }
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    if (!response.ok) {
-      throw new Error(`N-HITS model returned ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (!result.success) {
-      throw new Error(result.error || 'N-HITS model failed');
-    }
-
-    console.log(`   ✅ N-HITS: $${result.prediction.predicted_price} (${(result.prediction.confidence * 100).toFixed(1)}%)`);
-
-    return {
-      success: true,
-      model: 'N-HITS',
-      predicted_price: result.prediction.predicted_price,
-      confidence: result.prediction.confidence,
-      direction: result.prediction.direction,
-      hierarchical_features: result.prediction.hierarchical_features,
-      inference_time: result.metadata.inference_time_ms
-    };
-
-  } catch (error) {
-    console.error(`   ❌ N-HITS model error for ${symbol}:`, error.message);
-    return {
-      success: false,
-      error: error.message,
-      model: 'N-HITS'
-    };
-  }
-}
 
 /**
  * Combine TFT and N-HITS predictions using ensemble logic
