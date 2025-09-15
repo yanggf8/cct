@@ -50,7 +50,8 @@
       "Bash(done)",
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"simple_test_key\" --binding=TRADING_RESULTS)",
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"simple_test_key\" --binding=TRADING_RESULTS --preview false)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(unzip:*)"
     ],
     "deny": [],
     "ask": []
