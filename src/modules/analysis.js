@@ -163,7 +163,8 @@ async function getMarketData(symbol) {
  * Call real TFT model via Vercel endpoint
  */
 async function callTFTModel(symbol, marketData, env) {
-  const tftUrl = env.TFT_MODEL_URL || 'https://cct-grzm1e1gb-yang-goufangs-projects.vercel.app/api/predict-tft';
+  const baseUrl = env.TFT_MODEL_URL || 'https://vercel-models-42w3vt2ze-yang-goufangs-projects.vercel.app/api/predict-tft';
+  const tftUrl = `${baseUrl}?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${env.VERCEL_BYPASS_TOKEN}`;
 
   try {
     console.log(`   🧠 Calling TFT model for ${symbol}...`);
@@ -219,7 +220,8 @@ async function callTFTModel(symbol, marketData, env) {
  * Call real N-HITS model via Vercel endpoint
  */
 async function callNHITSModel(symbol, marketData, env) {
-  const nhitsUrl = env.NHITS_MODEL_URL || 'https://cct-grzm1e1gb-yang-goufangs-projects.vercel.app/api/predict-nhits';
+  const baseUrl = env.NHITS_MODEL_URL || 'https://vercel-models-42w3vt2ze-yang-goufangs-projects.vercel.app/api/predict-nhits';
+  const nhitsUrl = `${baseUrl}?x-vercel-set-bypass-cookie=true&x-vercel-protection-bypass=${env.VERCEL_BYPASS_TOKEN}`;
 
   try {
     console.log(`   🔄 Calling N-HITS model for ${symbol}...`);
