@@ -43,16 +43,27 @@ export async function runBasicAnalysis(env, options = {}) {
       }
 
       // Run dual neural network inference (TFT + N-HITS models)
+      console.log(`   🔀 Starting dual model inference for ${symbol}...`);
       const [tftResult, nhitsResult] = await Promise.allSettled([
-        runTFTInference(symbol, marketData.data.ohlcv),
-        runNHITSInference(symbol, marketData.data.ohlcv)
+        runTFTInference(symbol, marketData.data.ohlcv, env),
+        runNHITSInference(symbol, marketData.data.ohlcv, env)
       ]);
+      console.log(`   🔀 Dual model inference completed for ${symbol}: TFT=${tftResult.status}, N-HITS=${nhitsResult.status}`);
 
-      // Process model results
+      // Process model results with debug logging
       const tftPrediction = tftResult.status === 'fulfilled' ? tftResult.value : null;
       const nhitsPrediction = nhitsResult.status === 'fulfilled' ? nhitsResult.value : null;
 
+      // Log failures for debugging
+      if (tftResult.status === 'rejected') {
+        console.error(`   ❌ TFT model failed for ${symbol}:`, tftResult.reason?.message || tftResult.reason);
+      }
+      if (nhitsResult.status === 'rejected') {
+        console.error(`   ❌ N-HITS model failed for ${symbol}:`, nhitsResult.reason?.message || nhitsResult.reason);
+      }
+
       if (!tftPrediction && !nhitsPrediction) {
+        console.error(`   ❌ BOTH models failed for ${symbol} - analysis cannot continue`);
         throw new Error('Both TFT and N-HITS models failed');
       }
 

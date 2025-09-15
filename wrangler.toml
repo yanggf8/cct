@@ -3,7 +3,7 @@
 name = "tft-trading-system"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
-# account_id moved to environment variable for security
+account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 
 # Enhanced multi-cron system with progressive KV state sharing
 [triggers]
@@ -24,6 +24,11 @@ preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 # AI binding for Cloudflare Workers AI
 [ai]
 binding = "AI"
+
+# R2 bucket for trained model files
+[[r2_buckets]]
+bucket_name = "tft-trading-models"
+binding = "TRAINED_MODELS"
 
 # Environment variables
 [vars]

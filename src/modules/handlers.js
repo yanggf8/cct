@@ -6,6 +6,7 @@
 import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 import { getFactTableData } from './data.js';
+import { runTFTInference, runNHITSInference } from './models.js';
 
 /**
  * Handle manual analysis requests

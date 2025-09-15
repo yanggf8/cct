@@ -3,9 +3,9 @@
  */
 
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
-import { 
-  handleManualAnalysis, 
-  handleGetResults, 
+import {
+  handleManualAnalysis,
+  handleGetResults,
   handleHealthCheck,
   handleFacebookTest,
   handleWeeklyReport,
