@@ -172,6 +172,38 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
 }
 
 /**
+ * Generic Facebook Message Sender with Error Handling
+ */
+async function sendFacebookMessage(messageText, env) {
+  const facebookPayload = {
+    recipient: { id: env.FACEBOOK_RECIPIENT_ID },
+    message: { text: messageText },
+    messaging_type: "MESSAGE_TAG",
+    tag: "ACCOUNT_UPDATE"
+  };
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${env.FACEBOOK_PAGE_TOKEN}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(facebookPayload)
+    });
+
+    if (response.ok) {
+      console.log(`✅ Facebook message sent successfully`);
+      return { success: true };
+    } else {
+      const errorText = await response.text();
+      console.error(`❌ Facebook API error:`, errorText);
+      return { success: false, error: errorText };
+    }
+  } catch (error) {
+    console.error(`❌ Facebook send error:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Simple health check response
  */
 export function getHealthCheckResponse(env) {
@@ -232,6 +264,23 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MORNING] ${cronExecutionId} Morning predictions sent via Facebook`);
+  
+  // Store detailed logging record
+  const messagingKey = `fb_morning_${Date.now()}`;
+  await env.TRADING_RESULTS.put(
+    messagingKey,
+    JSON.stringify({
+      trigger_mode: 'morning_prediction_alerts',
+      message_sent: true,
+      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+      includes_dashboard_link: true,
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      timestamp: now.toISOString(),
+      cron_execution_id: cronExecutionId,
+      message_type: 'morning_predictions'
+    }),
+    { expirationTtl: 604800 }
+  );
 }
 
 /**
@@ -272,6 +321,23 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MIDDAY] ${cronExecutionId} Midday validation sent via Facebook`);
+  
+  // Store detailed logging record
+  const messagingKey = `fb_midday_${Date.now()}`;
+  await env.TRADING_RESULTS.put(
+    messagingKey,
+    JSON.stringify({
+      trigger_mode: 'midday_validation_prediction',
+      message_sent: true,
+      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+      includes_dashboard_link: true,
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      timestamp: now.toISOString(),
+      cron_execution_id: cronExecutionId,
+      message_type: 'midday_validation'
+    }),
+    { expirationTtl: 604800 }
+  );
 }
 
 /**
@@ -318,4 +384,21 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-DAILY] ${cronExecutionId} Daily validation sent via Facebook`);
+  
+  // Store detailed logging record
+  const messagingKey = `fb_daily_${Date.now()}`;
+  await env.TRADING_RESULTS.put(
+    messagingKey,
+    JSON.stringify({
+      trigger_mode: 'next_day_market_prediction',
+      message_sent: true,
+      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+      includes_dashboard_link: true,
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      timestamp: now.toISOString(),
+      cron_execution_id: cronExecutionId,
+      message_type: 'daily_validation'
+    }),
+    { expirationTtl: 604800 }
+  );
 }

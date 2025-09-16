@@ -5,6 +5,9 @@
  * FREE: 10,000 neurons per day
  */
 
+// Import free news pipeline
+import { getFreeStockNews as getNewsData } from './free_sentiment_pipeline.js';
+
 // Cloudflare AI Configuration
 const CLOUDFLARE_AI_CONFIG = {
   models: {
@@ -399,12 +402,9 @@ async function runCloudflareAISentimentAnalysis(symbol, env) {
   }
 }
 
-// Helper function to get free news (reuse from previous implementation)
+// Helper function to get free news - use imported function
 async function getFreeStockNews(symbol, env) {
-  // This would use the free news APIs we defined earlier
-  // (Financial Modeling Prep, NewsAPI.org, Yahoo Finance)
-  // Implementation same as in free_sentiment_pipeline.js
-  return [];
+  return await getNewsData(symbol, env);
 }
 
 // Export for Cloudflare Workers

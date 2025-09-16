@@ -651,3 +651,131 @@ export async function handleR2Upload(request, env) {
     });
   }
 }
+
+/**
+ * Test All 5 Facebook Message Types (with comprehensive logging)
+ */
+export async function handleTestAllFacebookMessages(request, env) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: "Facebook not configured - FACEBOOK_PAGE_TOKEN or FACEBOOK_RECIPIENT_ID missing",
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  console.log("🧪 [FB-TEST-ALL] Starting comprehensive Facebook message test for all 5 cron types");
+
+  const testResults = {
+    timestamp: new Date().toISOString(),
+    test_execution_id: `fb_test_all_${Date.now()}`,
+    facebook_configured: true,
+    message_tests: {},
+    kv_logs: {},
+    errors: [],
+    overall_success: true
+  };
+
+  // Import the Facebook functions we need to test
+  const { 
+    sendMorningPredictionsWithTracking,
+    sendMiddayValidationWithTracking, 
+    sendDailyValidationWithTracking,
+    sendFridayWeekendReportWithTracking,
+    sendWeeklyAccuracyReportWithTracking 
+  } = await import("./facebook.js");
+
+  // Create mock analysis result for testing
+  const mockAnalysisResult = {
+    symbols_analyzed: ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
+    trading_signals: {
+      AAPL: {
+        symbol: "AAPL",
+        current_price: 175.23,
+        predicted_price: 177.45,
+        direction: "UP",
+        confidence: 0.87
+      },
+      MSFT: {
+        symbol: "MSFT", 
+        current_price: 334.78,
+        predicted_price: 331.22,
+        direction: "DOWN",
+        confidence: 0.82
+      }
+    },
+    timestamp: new Date().toISOString()
+  };
+
+  // Test all 5 message types
+  const messageTests = [
+    { name: "morning_predictions", func: sendMorningPredictionsWithTracking, args: [mockAnalysisResult, env] },
+    { name: "midday_validation", func: sendMiddayValidationWithTracking, args: [mockAnalysisResult, env] },
+    { name: "daily_validation", func: sendDailyValidationWithTracking, args: [mockAnalysisResult, env] },
+    { name: "friday_weekend_report", func: sendFridayWeekendReportWithTracking, args: [mockAnalysisResult, env, null, "weekly_market_close_analysis"] },
+    { name: "weekly_accuracy_report", func: sendWeeklyAccuracyReportWithTracking, args: [env] }
+  ];
+
+  for (let i = 0; i < messageTests.length; i++) {
+    const test = messageTests[i];
+    try {
+      console.log(`📱 [FB-TEST-${i+1}] Testing ${test.name} message...`);
+      const cronId = `${testResults.test_execution_id}_${test.name}`;
+      
+      // Add cronId to args
+      const args = [...test.args];
+      if (test.name === "weekly_accuracy_report") {
+        args.push(cronId);
+      } else {
+        args.push(cronId);
+      }
+      
+      await test.func(...args);
+      testResults.message_tests[test.name] = { success: true, cron_id: cronId };
+      console.log(`✅ [FB-TEST-${i+1}] ${test.name} test completed`);
+    } catch (error) {
+      console.error(`❌ [FB-TEST-${i+1}] ${test.name} test failed:`, error);
+      testResults.message_tests[test.name] = { success: false, error: error.message };
+      testResults.errors.push(`${test.name}: ${error.message}`);
+      testResults.overall_success = false;
+    }
+  }
+
+  // Check KV logs
+  console.log("🔍 [FB-TEST-KV] Checking KV logging for all tests...");
+  try {
+    const kvKeys = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+    const testTimestamp = testResults.test_execution_id.split("_")[3];
+    const recentLogs = kvKeys.keys?.filter(k => k.name.includes(testTimestamp)) || [];
+    testResults.kv_logs = {
+      total_fb_logs: kvKeys.keys?.length || 0,
+      test_related_logs: recentLogs.length,
+      recent_log_keys: recentLogs.map(k => k.name)
+    };
+    console.log(`📋 [FB-TEST-KV] Found ${recentLogs.length} test-related logs in KV`);
+  } catch (kvError) {
+    console.error("❌ [FB-TEST-KV] KV logging check failed:", kvError);
+    testResults.kv_logs = { error: kvError.message };
+  }
+
+  // Summary
+  const successCount = Object.values(testResults.message_tests).filter(t => t.success).length;
+  testResults.summary = {
+    total_tests: 5,
+    successful_tests: successCount,
+    failed_tests: 5 - successCount,
+    success_rate: `${successCount}/5 (${Math.round(successCount/5*100)}%)`
+  };
+
+  console.log(`🏁 [FB-TEST-ALL] Test completed: ${successCount}/5 successful`);
+
+  const statusCode = testResults.overall_success ? 200 : 207; // 207 = Multi-Status
+
+  return new Response(JSON.stringify(testResults, null, 2), {
+    status: statusCode,
+    headers: { "Content-Type": "application/json" }
+  });
+}

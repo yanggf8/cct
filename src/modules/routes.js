@@ -18,7 +18,8 @@ import {
   handleKVGet,
   handleSentimentTest,
   handleModelHealth,
-  handleR2Upload
+  handleR2Upload,
+  handleTestAllFacebookMessages
 } from './handlers.js';
 
 /**
@@ -26,7 +27,7 @@ import {
  */
 function validateRequest(request, url, env) {
   // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment'];
+  const sensitiveEndpoints = ['/analyze', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -105,6 +106,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleModelHealth(request, env);
     case '/r2-upload':
       return handleR2Upload(request, env);
+    case '/test-all-facebook':
+      return handleTestAllFacebookMessages(request, env);
     default:
       // Default response for root and unknown paths
       if (url.pathname === '/' || url.pathname === '/status') {

@@ -78,7 +78,8 @@
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get tft-trading-models/enhanced_tft_weights.json --pipe)",
       "Bash(env -u CLOUDFLARE_API_TOKEN wrangler r2 object get tft-trading-models/metadata.json --pipe)",
       "Bash(env:*)",
-      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler r2 object put tft-trading-models/enhanced_nhits_weights.json --file=nhits_weights.json)"
+      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler r2 object put tft-trading-models/enhanced_nhits_weights.json --file=nhits_weights.json)",
+      "Bash(TZ=America/New_York date)"
     ],
     "deny": [],
     "ask": []
