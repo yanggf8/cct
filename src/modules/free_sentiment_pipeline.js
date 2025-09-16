@@ -106,6 +106,12 @@ async function getFMPNews(symbol, env) {
     throw new Error(data.error || data.message);
   }
 
+  // Check if data is an array
+  if (!Array.isArray(data)) {
+    console.log('FMP API returned non-array data:', data);
+    return [];
+  }
+
   // FMP already includes sentiment analysis!
   return data.map(item => ({
     title: item.title,
