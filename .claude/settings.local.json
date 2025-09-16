@@ -53,7 +53,15 @@
       "Bash(rm:*)",
       "Bash(unzip:*)",
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object list tft-trading-models)",
-      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 bucket list)"
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 bucket list)",
+      "Bash(npm rebuild:*)",
+      "Bash(find:*)",
+      "WebFetch(domain:vercel-models-42w3vt2ze-yang-goufangs-projects.vercel.app)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search=\"TFT\\|N-HITS\\|predict\")",
+      "WebFetch(domain:vercel-models-qwv7ip0qa-yang-goufangs-projects.vercel.app)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler secret list)",
+      "Bash(cp:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []

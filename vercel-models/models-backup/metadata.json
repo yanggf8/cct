@@ -1,0 +1,27 @@
+{
+  "tft": {
+    "loss": 0.0010510944994166493,
+    "mae": 0.023177603259682655,
+    "direction_accuracy": 0.62,
+    "parameters": 37099
+  },
+  "nhits": {
+    "loss": 0.0010560699738562107,
+    "mae": 0.023616952821612358,
+    "direction_accuracy": 0.62,
+    "parameters": 108289
+  },
+  "training_info": {
+    "sequence_length": 30,
+    "num_features": 6,
+    "training_samples": 1888,
+    "test_samples": 472,
+    "symbols": [
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "TSLA",
+      "NVDA"
+    ]
+  }
+}
