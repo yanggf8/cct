@@ -367,3 +367,287 @@ export async function handleSentimentTest(request, env) {
     });
   }
 }
+
+/**
+ * Handle model health check - verify R2 model files accessibility
+ */
+export async function handleModelHealth(request, env) {
+  try {
+    console.log('🏥 Running model health check...');
+
+    const healthResult = {
+      timestamp: new Date().toISOString(),
+      enhanced_models_bucket: env.ENHANCED_MODELS_BUCKET || 'Not configured',
+      r2_binding: {
+        enhanced_models: !!env.ENHANCED_MODELS,
+        trained_models: !!env.TRAINED_MODELS,
+        binding_types: {
+          enhanced: typeof env.ENHANCED_MODELS,
+          trained: typeof env.TRAINED_MODELS
+        }
+      },
+      model_files: {},
+      bucket_contents: [],
+      errors: []
+    };
+
+    if (!env.ENHANCED_MODELS) {
+      healthResult.errors.push('ENHANCED_MODELS R2 binding not available');
+      return new Response(JSON.stringify(healthResult, null, 2), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // List all objects in bucket
+    try {
+      const listResponse = await env.ENHANCED_MODELS.list();
+      healthResult.bucket_contents = listResponse.objects?.map(obj => ({
+        key: obj.key,
+        size: obj.size,
+        modified: obj.uploaded
+      })) || [];
+      console.log(`📋 Found ${healthResult.bucket_contents.length} objects in R2 bucket`);
+    } catch (listError) {
+      healthResult.errors.push(`Failed to list bucket contents: ${listError.message}`);
+    }
+
+    // Test access to enhanced model files
+    const filesToTest = [
+      'deployment_metadata.json',
+      'tft_weights.json',
+      'nhits_weights.json'
+    ];
+
+    for (const fileName of filesToTest) {
+      try {
+        console.log(`🔍 Testing access to ${fileName}...`);
+        const fileResponse = await env.ENHANCED_MODELS.get(fileName);
+
+        if (fileResponse) {
+          // Read first 200 characters to verify content
+          const headContent = await fileResponse.text();
+          const head = headContent.substring(0, 200);
+
+          healthResult.model_files[fileName] = {
+            accessible: true,
+            size: headContent.length,
+            head_preview: head,
+            content_type: typeof headContent
+          };
+          console.log(`✅ ${fileName}: ${headContent.length} bytes`);
+        } else {
+          healthResult.model_files[fileName] = {
+            accessible: false,
+            error: 'File not found'
+          };
+          console.log(`❌ ${fileName}: Not found`);
+        }
+      } catch (fileError) {
+        healthResult.model_files[fileName] = {
+          accessible: false,
+          error: fileError.message
+        };
+        console.log(`❌ ${fileName}: ${fileError.message}`);
+      }
+    }
+
+    // Calculate health score
+    const accessibleFiles = Object.values(healthResult.model_files).filter(f => f.accessible).length;
+    const totalFiles = filesToTest.length;
+    healthResult.health_score = `${accessibleFiles}/${totalFiles}`;
+    healthResult.overall_status = accessibleFiles === totalFiles ? 'healthy' :
+                                 accessibleFiles > 0 ? 'partial' : 'unhealthy';
+
+    const statusCode = accessibleFiles === totalFiles ? 200 : 206;
+
+    return new Response(JSON.stringify(healthResult, null, 2), {
+      status: statusCode,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Model health check error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle R2 upload for enhanced model files
+ */
+export async function handleR2Upload(request, env) {
+  try {
+    console.log('📤 R2 upload API called...');
+
+    if (request.method !== 'POST') {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Method not allowed - use POST',
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 405,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!env.ENHANCED_MODELS) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'ENHANCED_MODELS R2 binding not available',
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Parse form data for file uploads
+    const formData = await request.formData();
+    const uploadResults = {};
+    const errors = [];
+
+    console.log('📋 Form data entries:', Array.from(formData.keys()));
+
+    // Handle multiple file uploads
+    for (const [fieldName, file] of formData.entries()) {
+      if (file instanceof File) {
+        try {
+          console.log(`📤 Uploading ${fieldName}: ${file.name} (${file.size} bytes)`);
+
+          // Determine the R2 key based on field name
+          let r2Key;
+          switch (fieldName) {
+            case 'deployment_metadata':
+              r2Key = 'deployment_metadata.json';
+              break;
+            case 'tft_weights':
+              r2Key = 'enhanced_tft_weights.json';
+              break;
+            case 'nhits_weights':
+              r2Key = 'enhanced_nhits_weights.json';
+              break;
+            default:
+              r2Key = file.name;
+          }
+
+          // Upload to R2
+          const fileData = await file.arrayBuffer();
+          const uploadResponse = await env.ENHANCED_MODELS.put(r2Key, fileData, {
+            httpMetadata: {
+              contentType: file.type || 'application/json'
+            }
+          });
+
+          uploadResults[fieldName] = {
+            success: true,
+            filename: file.name,
+            r2_key: r2Key,
+            size: file.size,
+            content_type: file.type,
+            upload_response: uploadResponse
+          };
+
+          console.log(`✅ Successfully uploaded ${r2Key}: ${file.size} bytes`);
+
+        } catch (uploadError) {
+          console.error(`❌ Upload failed for ${fieldName}:`, uploadError);
+          uploadResults[fieldName] = {
+            success: false,
+            filename: file.name,
+            error: uploadError.message
+          };
+          errors.push(`Failed to upload ${fieldName}: ${uploadError.message}`);
+        }
+      } else {
+        // Handle non-file form fields (like JSON strings)
+        try {
+          const content = file.toString();
+          let r2Key;
+
+          switch (fieldName) {
+            case 'deployment_metadata_json':
+              r2Key = 'deployment_metadata.json';
+              break;
+            case 'tft_weights_json':
+              r2Key = 'enhanced_tft_weights.json';
+              break;
+            case 'nhits_weights_json':
+              r2Key = 'enhanced_nhits_weights.json';
+              break;
+            default:
+              continue; // Skip unknown text fields
+          }
+
+          console.log(`📤 Uploading text content for ${fieldName} to ${r2Key} (${content.length} chars)`);
+
+          const uploadResponse = await env.ENHANCED_MODELS.put(r2Key, content, {
+            httpMetadata: {
+              contentType: 'application/json'
+            }
+          });
+
+          uploadResults[fieldName] = {
+            success: true,
+            r2_key: r2Key,
+            size: content.length,
+            content_type: 'application/json',
+            upload_response: uploadResponse
+          };
+
+          console.log(`✅ Successfully uploaded ${r2Key}: ${content.length} chars`);
+
+        } catch (uploadError) {
+          console.error(`❌ Text upload failed for ${fieldName}:`, uploadError);
+          uploadResults[fieldName] = {
+            success: false,
+            error: uploadError.message
+          };
+          errors.push(`Failed to upload ${fieldName}: ${uploadError.message}`);
+        }
+      }
+    }
+
+    // Verify uploads by checking bucket contents
+    try {
+      const listResponse = await env.ENHANCED_MODELS.list();
+      const currentFiles = listResponse.objects?.map(obj => obj.key) || [];
+      console.log(`📋 Current R2 bucket contents after upload: ${currentFiles.join(', ')}`);
+    } catch (listError) {
+      console.error('❌ Failed to list bucket after upload:', listError);
+    }
+
+    const response = {
+      timestamp: new Date().toISOString(),
+      success: errors.length === 0,
+      uploads: uploadResults,
+      errors: errors,
+      total_uploads: Object.keys(uploadResults).length,
+      successful_uploads: Object.values(uploadResults).filter(r => r.success).length
+    };
+
+    const statusCode = errors.length === 0 ? 200 : 207; // 207 = Multi-Status (partial success)
+
+    return new Response(JSON.stringify(response, null, 2), {
+      status: statusCode,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ R2 upload API error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}

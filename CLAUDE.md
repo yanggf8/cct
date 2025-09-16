@@ -14,6 +14,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Recent Key Updates
 
+### 2025-09-16: API Security Protection & Enhanced Model Health Monitoring ✅
+**SECURITY MILESTONE**: Implemented production-grade API key protection for sensitive endpoints
+
+#### **API Security Implementation:**
+- **✅ Protected Endpoints**: `/analyze`, `/r2-upload`, `/test-*` now require `X-API-KEY` header
+- **✅ Public Endpoints**: `/health`, `/model-health`, `/weekly-analysis` remain accessible for monitoring
+- **✅ Authentication Logic**: Simple but effective header-based API key validation
+- **✅ Error Handling**: Clear 401 Unauthorized responses with detailed error messages
+- **✅ Configuration**: API key stored as `WORKER_API_KEY` secret in Cloudflare Workers
+
+#### **Enhanced Model Health Monitoring:**
+- **✅ Bucket Configuration Display**: Model health endpoint now shows `enhanced_models_bucket` from environment variable
+- **✅ Complete File Verification**: All enhanced model files (deployment_metadata.json, tft_weights.json, nhits_weights.json) accessible
+- **✅ Health Score**: `3/3` healthy status with file size and content validation
+- **✅ R2 Binding Status**: Both enhanced and trained model bindings verified and operational
+
+#### **Security Benefits:**
+- **🛡️ Unauthorized Access Prevention**: Blocks public access to resource-intensive analysis endpoints
+- **🛡️ R2 Upload Protection**: Prevents malicious file uploads that could overwrite production models
+- **🛡️ Cost Control**: Prevents abuse of sentiment analysis APIs and computational resources
+- **🛡️ Production Ready**: Simple API key approach perfect for cron job and automated system access
+
+#### **Technical Implementation:**
+```javascript
+// API key validation in routes.js
+const sensitiveEndpoints = ['/analyze', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment'];
+if (sensitiveEndpoints.includes(url.pathname)) {
+  const apiKey = request.headers.get('X-API-KEY');
+  if (!apiKey || apiKey !== env.WORKER_API_KEY) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Invalid or missing API key',
+      timestamp: new Date().toISOString()
+    }), { status: 401 });
+  }
+}
+```
+
+#### **Deployment Status**: ✅ **LIVE** - Version ID: `cb939053-a3d1-4af0-b4cc-88ec40d07cb4`
+
 ### 2025-09-16: Phase 1 Sentiment Enhancement DEPLOYED & VALIDATED ✅
 **MILESTONE ACHIEVED**: Complete deployment and validation of hybrid sentiment analysis system
 **INNOVATION**: Live production system combining neural networks + Cloudflare AI sentiment analysis

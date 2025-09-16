@@ -16,21 +16,37 @@ import {
   handleKVCleanup,
   handleDebugWeekendMessage,
   handleKVGet,
-  handleSentimentTest
+  handleSentimentTest,
+  handleModelHealth,
+  handleR2Upload
 } from './handlers.js';
 
 /**
  * Validate request for sensitive endpoints
  */
-function validateRequest(request, url) {
-  // Basic validation - can be enhanced with rate limiting, API keys, etc.
+function validateRequest(request, url, env) {
+  // Check API key for sensitive endpoints
+  const sensitiveEndpoints = ['/analyze', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment'];
+
+  if (sensitiveEndpoints.includes(url.pathname)) {
+    const apiKey = request.headers.get('X-API-KEY');
+    const validApiKey = env.WORKER_API_KEY;
+
+    if (!validApiKey) {
+      return { valid: false, error: 'API key not configured' };
+    }
+
+    if (!apiKey || apiKey !== validApiKey) {
+      return { valid: false, error: 'Invalid or missing API key' };
+    }
+  }
+
+  // Basic user agent validation for additional protection
   const userAgent = request.headers.get('User-Agent') || '';
-  
-  // Block obviously malicious requests
   if (userAgent.includes('bot') && !userAgent.includes('Googlebot')) {
     return { valid: false, error: 'Blocked user agent' };
   }
-  
+
   return { valid: true };
 }
 
@@ -40,19 +56,17 @@ function validateRequest(request, url) {
 export async function handleHttpRequest(request, env, ctx) {
   const url = new URL(request.url);
   
-  // Input validation and rate limiting for sensitive endpoints
-  if (url.pathname === '/analyze' || url.pathname === '/test-facebook' || url.pathname === '/test-high-confidence') {
-    const validationResult = validateRequest(request, url);
-    if (!validationResult.valid) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: validationResult.error,
-        timestamp: new Date().toISOString()
-      }, null, 2), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+  // Input validation and API key check for sensitive endpoints
+  const validationResult = validateRequest(request, url, env);
+  if (!validationResult.valid) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: validationResult.error,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: validationResult.error.includes('API key') ? 401 : 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
   
   // Route requests to appropriate handlers
@@ -87,6 +101,10 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyDataAPI(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
+    case '/model-health':
+      return handleModelHealth(request, env);
+    case '/r2-upload':
+      return handleR2Upload(request, env);
     default:
       // Default response for root and unknown paths
       if (url.pathname === '/' || url.pathname === '/status') {
@@ -97,6 +115,8 @@ export async function handleHttpRequest(request, env, ctx) {
           version: env.WORKER_VERSION || '2.0-Modular',
           endpoints: [
             '/health - Health check',
+            '/model-health - Model files R2 accessibility check',
+            '/r2-upload - R2 enhanced model files upload API',
             '/analyze - Enhanced analysis (Neural Networks + Sentiment)',
             '/results - Get latest results',
             '/fact-table - Prediction accuracy table',
@@ -115,7 +135,7 @@ export async function handleHttpRequest(request, env, ctx) {
         requested_path: url.pathname,
         timestamp: new Date().toISOString(),
         available_endpoints: [
-          '/', '/health', '/analyze', '/results', '/fact-table',
+          '/', '/health', '/model-health', '/analyze', '/results', '/fact-table',
           '/weekly-analysis', '/api/weekly-data', '/test-sentiment'
         ]
       }, null, 2), {
