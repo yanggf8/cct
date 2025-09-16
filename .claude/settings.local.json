@@ -69,7 +69,16 @@
       "Bash(FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2 node test_sentiment_local.js)",
       "Bash(FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2 NEWSAPI_KEY=00e6b11b1e5f452db92a40fa64434680 node test_sentiment_local.js)",
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler secret put FMP_API_KEY)",
-      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler secret put NEWSAPI_KEY)"
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler secret put NEWSAPI_KEY)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object put tft-trading-models/deployment_metadata.json --file=deployment_metadata.json)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object put tft-trading-models/enhanced_tft_weights.json --file=tft_weights.json)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object put tft-trading-models/enhanced_nhits_weights.json --file=nhits_weights.json)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get --bucket=tft-trading-models deployment_metadata.json)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get tft-trading-models/deployment_metadata.json --pipe)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get tft-trading-models/enhanced_tft_weights.json --pipe)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler r2 object get tft-trading-models/metadata.json --pipe)",
+      "Bash(env:*)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN wrangler r2 object put tft-trading-models/enhanced_nhits_weights.json --file=nhits_weights.json)"
     ],
     "deny": [],
     "ask": []

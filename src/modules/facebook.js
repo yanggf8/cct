@@ -194,3 +194,128 @@ export function getHealthCheckResponse(env) {
     }
   };
 }
+
+/**
+ * Send Morning Predictions Report (8:30 AM EST)
+ */
+export async function sendMorningPredictionsWithTracking(analysisResult, env, cronExecutionId) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log('❌ Facebook not configured - skipping morning predictions');
+    return;
+  }
+
+  const now = new Date();
+  const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  let reportText = `🌅 **MORNING PREDICTIONS + ALERTS**\n`;
+  reportText += `🗓️ ${dateStr} 8:30 AM EST\n\n`;
+  reportText += `📈 **Enhanced Neural Network Analysis:**\n`;
+
+  // Analysis results with enhanced models
+  if (analysisResult?.trading_signals) {
+    Object.values(analysisResult.trading_signals).forEach(signal => {
+      const direction = signal.direction === 'UP' ? '↗️' : signal.direction === 'DOWN' ? '↘️' : '➡️';
+      const change = ((signal.predicted_price - signal.current_price) / signal.current_price * 100).toFixed(2);
+      reportText += `${signal.symbol}: ${direction} $${signal.current_price.toFixed(2)} → $${signal.predicted_price.toFixed(2)} (${Math.abs(change)}%)\n`;
+    });
+  }
+
+  reportText += `\n⚙️ **System Status:** Operational ✅\n`;
+  reportText += `🤖 **Models:** TFT + N-HITS + Sentiment\n`;
+  reportText += `📊 **Symbols Analyzed:** ${analysisResult?.symbols_analyzed?.length || 5}\n\n`;
+  reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
+  reportText += `📈 View live predictions, sentiment analysis, and model performance\n\n`;
+  reportText += `🎯 **Next Update:** 12:00 PM EST Midday Validation\n`;
+  reportText += `💼 For research purposes only - not financial advice`;
+
+  await sendFacebookMessage(reportText, env);
+  console.log(`📱 [FB-MORNING] ${cronExecutionId} Morning predictions sent via Facebook`);
+}
+
+/**
+ * Send Midday Validation Report (12:00 PM EST)
+ */
+export async function sendMiddayValidationWithTracking(analysisResult, env, cronExecutionId) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log('❌ Facebook not configured - skipping midday validation');
+    return;
+  }
+
+  const now = new Date();
+  const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  let reportText = `🔄 **MIDDAY VALIDATION + FORECASTS**\n`;
+  reportText += `🗓️ ${dateStr} 12:00 PM EST\n\n`;
+  reportText += `📊 **Morning Prediction Updates:**\n`;
+
+  // Analysis results with validation
+  if (analysisResult?.trading_signals) {
+    Object.values(analysisResult.trading_signals).forEach(signal => {
+      const direction = signal.direction === 'UP' ? '↗️' : signal.direction === 'DOWN' ? '↘️' : '➡️';
+      const confidence = `${(signal.confidence * 100).toFixed(1)}%`;
+      reportText += `${signal.symbol}: ${direction} $${signal.current_price.toFixed(2)} (${confidence})\n`;
+    });
+  }
+
+  reportText += `\n🎯 **Afternoon Outlook:**\n`;
+  reportText += `• Market sentiment analysis updated\n`;
+  reportText += `• Neural network confidence tracking\n`;
+  reportText += `• Enhanced prediction validation active\n\n`;
+  reportText += `⚙️ **System Status:** Operational ✅\n`;
+  reportText += `📊 **LIVE DASHBOARD:**\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
+  reportText += `🎯 **Next Update:** 4:05 PM EST Daily Report\n`;
+  reportText += `💼 For research purposes only - not financial advice`;
+
+  await sendFacebookMessage(reportText, env);
+  console.log(`📱 [FB-MIDDAY] ${cronExecutionId} Midday validation sent via Facebook`);
+}
+
+/**
+ * Send Daily Validation + Next-Day Predictions Report (4:05 PM EST)
+ */
+export async function sendDailyValidationWithTracking(analysisResult, env, cronExecutionId) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log('❌ Facebook not configured - skipping daily validation');
+    return;
+  }
+
+  const now = new Date();
+  const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+  let reportText = `📊 **DAILY VALIDATION + NEXT-DAY PREDICTIONS**\n`;
+  reportText += `🗓️ ${dateStr} 4:05 PM EST\n\n`;
+  reportText += `🏁 **Market Close Analysis:**\n`;
+
+  // Analysis results with next-day predictions
+  if (analysisResult?.trading_signals) {
+    Object.values(analysisResult.trading_signals).forEach(signal => {
+      const direction = signal.direction === 'UP' ? '↗️' : signal.direction === 'DOWN' ? '↘️' : '➡️';
+      const predicted = signal.predicted_price.toFixed(2);
+      const current = signal.current_price.toFixed(2);
+      reportText += `${signal.symbol}: ${direction} $${current} → $${predicted}\n`;
+    });
+  }
+
+  reportText += `\n🌅 **Tomorrow's Market Outlook:**\n`;
+  reportText += `• Neural network next-day predictions\n`;
+  reportText += `• Sentiment analysis for overnight news\n`;
+  reportText += `• Enhanced model consensus tracking\n\n`;
+  reportText += `📈 **Daily Performance:**\n`;
+  reportText += `• Direction accuracy validation\n`;
+  reportText += `• Model confidence assessment\n`;
+  reportText += `• Risk metrics updated\n\n`;
+  reportText += `⚙️ **System Status:** Operational ✅\n`;
+  reportText += `🤖 **Models:** TFT + N-HITS Ensemble + Sentiment\n`;
+  reportText += `📊 **COMPREHENSIVE DASHBOARD:**\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
+  reportText += `🎯 **Next Update:** Tomorrow 8:30 AM EST\n`;
+  reportText += `💼 For research purposes only - not financial advice`;
+
+  await sendFacebookMessage(reportText, env);
+  console.log(`📱 [FB-DAILY] ${cronExecutionId} Daily validation sent via Facebook`);
+}

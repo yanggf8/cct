@@ -1,0 +1,50 @@
+{
+  "training_info": {
+    "date": "2025-09-16T04:57:12.704238",
+    "symbols": [
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "TSLA",
+      "NVDA"
+    ],
+    "sequence_length": 30,
+    "num_features": 6,
+    "training_samples": 1800,
+    "validation_samples": 450,
+    "epochs_trained": {
+      "tft": 19,
+      "nhits": 21
+    },
+    "data_period": "2y",
+    "tensorflow_version": "2.19.0"
+  },
+  "model_performance": {
+    "tft": {
+      "parameters": 53803,
+      "final_loss": 0.0010826110374182463,
+      "final_mae": 0.023547526448965073,
+      "direction_accuracy": 0.5533333333333333,
+      "strong_prediction_accuracy": 0.584070796460177,
+      "correlation": 0.08077277877590362,
+      "architecture": "Temporal Fusion Transformer"
+    },
+    "nhits": {
+      "parameters": 29825,
+      "final_loss": 0.0011091138003394008,
+      "final_mae": 0.02391696907579899,
+      "direction_accuracy": 0.4666666666666667,
+      "strong_prediction_accuracy": 0.4247787610619469,
+      "correlation": -0.042498563366807074,
+      "architecture": "Neural Hierarchical Interpolation"
+    }
+  },
+  "deployment": {
+    "cloudflare_compatible": true,
+    "inference_type": "genuine_neural_network",
+    "recommended_ensemble_weights": {
+      "tft": 0.55,
+      "nhits": 0.45
+    }
+  }
+}

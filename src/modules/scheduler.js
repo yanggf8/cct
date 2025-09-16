@@ -5,7 +5,13 @@
 
 import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
-import { sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
+import {
+  sendFridayWeekendReportWithTracking,
+  sendWeeklyAccuracyReportWithTracking,
+  sendMorningPredictionsWithTracking,
+  sendMiddayValidationWithTracking,
+  sendDailyValidationWithTracking
+} from './facebook.js';
 
 /**
  * Handle scheduled cron events
@@ -83,6 +89,15 @@ export async function handleScheduledEvent(controller, env, ctx) {
         currentTime: estTime,
         cronExecutionId
       });
+
+      // Send Facebook messages for daily cron jobs
+      if (triggerMode === 'morning_prediction_alerts') {
+        await sendMorningPredictionsWithTracking(analysisResult, env, cronExecutionId);
+      } else if (triggerMode === 'midday_validation_prediction') {
+        await sendMiddayValidationWithTracking(analysisResult, env, cronExecutionId);
+      } else if (triggerMode === 'next_day_market_prediction') {
+        await sendDailyValidationWithTracking(analysisResult, env, cronExecutionId);
+      }
     }
     
     // Store results in KV
