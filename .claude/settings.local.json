@@ -61,7 +61,11 @@
       "WebFetch(domain:vercel-models-qwv7ip0qa-yang-goufangs-projects.vercel.app)",
       "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler secret list)",
       "Bash(cp:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get metadata.json --bucket=tft-trading-models)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get tft-trading-models/metadata.json --pipe)",
+      "Bash(env -u CLOUDFLARE_API_TOKEN npx wrangler r2 object get tft-trading-models/tft-trained/model.json --pipe)",
+      "Bash(pip install:*)"
     ],
     "deny": [],
     "ask": []

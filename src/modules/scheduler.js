@@ -4,6 +4,7 @@
  */
 
 import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
+import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
 import { sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 
 /**
@@ -74,9 +75,10 @@ export async function handleScheduledEvent(controller, env, ctx) {
       await sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode);
       
     } else {
-      // Regular pre-market analysis
-      analysisResult = await runPreMarketAnalysis(env, { 
-        triggerMode, 
+      // Enhanced pre-market analysis with sentiment
+      console.log(`🚀 [CRON-ENHANCED] ${cronExecutionId} Running enhanced analysis with sentiment...`);
+      analysisResult = await runEnhancedPreMarketAnalysis(env, {
+        triggerMode,
         predictionHorizons,
         currentTime: estTime,
         cronExecutionId

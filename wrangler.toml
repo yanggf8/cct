@@ -5,6 +5,13 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 
+# Allow nodejs_compat for TensorFlow.js compatibility
+compatibility_flags = ["nodejs_compat"]
+
+# External dependencies for TensorFlow.js
+[build]
+external = ["@tensorflow/tfjs", "@tensorflow/tfjs-backend-cpu"]
+
 # Enhanced multi-cron system with progressive KV state sharing
 [triggers]
 crons = [
@@ -37,13 +44,20 @@ WORKER_VERSION = "1.0"
 TIMEZONE = "America/New_York"
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
-# Optional secrets:
-# - SLACK_WEBHOOK_URL: Slack webhook for alerts
-# - ALERT_EMAIL: Email address for trading alerts  
+# Core secrets:
 # - FACEBOOK_PAGE_TOKEN: Facebook Messenger bot token
 # - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
+#
+# Free News API keys (Phase 1 Sentiment Enhancement):
+# - FMP_API_KEY: Financial Modeling Prep free API key (financialmodelingprep.com)
+# - NEWSAPI_KEY: NewsAPI.org free development key (newsapi.org)
+#
+# Optional secrets:
+# - SLACK_WEBHOOK_URL: Slack webhook for alerts
+# - ALERT_EMAIL: Email address for trading alerts
 # - LINE_CHANNEL_TOKEN: LINE messaging API token
 # - LINE_USER_ID: Your LINE user ID
 #
 # Example deployment commands:
-# wrangler secret put SLACK_WEBHOOK_URL
+# wrangler secret put FMP_API_KEY
+# wrangler secret put NEWSAPI_KEY

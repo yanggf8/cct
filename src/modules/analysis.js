@@ -44,10 +44,26 @@ export async function runBasicAnalysis(env, options = {}) {
 
       // Run dual neural network inference (TFT + N-HITS models)
       console.log(`   🔀 Starting dual model inference for ${symbol}...`);
+      console.log(`   📊 Market data length: ${marketData.data.ohlcv.length} candles`);
+      console.log(`   📊 Current price: $${marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3].toFixed(2)}`);
+
       const [tftResult, nhitsResult] = await Promise.allSettled([
         runTFTInference(symbol, marketData.data.ohlcv, env),
         runNHITSInference(symbol, marketData.data.ohlcv, env)
       ]);
+
+      console.log(`   🔍 TFT result status: ${tftResult.status}`);
+      console.log(`   🔍 N-HITS result status: ${nhitsResult.status}`);
+
+      if (tftResult.status === 'rejected') {
+        console.error(`   ❌ TFT inference failed for ${symbol}:`, tftResult.reason?.message || tftResult.reason);
+        console.error(`   ❌ TFT error details:`, JSON.stringify(tftResult.reason, Object.getOwnPropertyNames(tftResult.reason || {})));
+      }
+
+      if (nhitsResult.status === 'rejected') {
+        console.error(`   ❌ N-HITS inference failed for ${symbol}:`, nhitsResult.reason?.message || nhitsResult.reason);
+        console.error(`   ❌ N-HITS error details:`, JSON.stringify(nhitsResult.reason, Object.getOwnPropertyNames(nhitsResult.reason || {})));
+      }
       console.log(`   🔀 Dual model inference completed for ${symbol}: TFT=${tftResult.status}, N-HITS=${nhitsResult.status}`);
 
       // Process model results with debug logging
@@ -82,7 +98,16 @@ export async function runBasicAnalysis(env, options = {}) {
       console.log(`   ✅ ${symbol}: ${combinedSignal.direction} $${combinedSignal.current_price.toFixed(2)} → $${combinedSignal.predicted_price.toFixed(2)} (${(combinedSignal.confidence * 100).toFixed(1)}%)`);
 
     } catch (error) {
-      console.error(`   ❌ ${symbol} analysis failed:`, error.message);
+      console.error(`   ❌ CRITICAL: ${symbol} analysis failed:`, error.message);
+      console.error(`   ❌ Error name:`, error.name);
+      console.error(`   ❌ Error stack:`, error.stack);
+      console.error(`   ❌ Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
+
+      // Add detailed context about where the failure occurred
+      console.error(`   🔍 Analysis context for ${symbol}:`);
+      console.error(`      - Current time: ${new Date().toISOString()}`);
+      console.error(`      - Env bindings available: TRADING_RESULTS=${!!env.TRADING_RESULTS}, TRAINED_MODELS=${!!env.TRAINED_MODELS}`);
+
       analysisResults.performance_metrics.failed_analyses++;
     }
   }

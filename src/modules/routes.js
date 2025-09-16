@@ -15,7 +15,8 @@ import {
   handleFactTable,
   handleKVCleanup,
   handleDebugWeekendMessage,
-  handleKVGet
+  handleKVGet,
+  handleSentimentTest
 } from './handlers.js';
 
 /**
@@ -84,6 +85,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyAnalysisPage(request, env);
     case '/api/weekly-data':
       return handleWeeklyDataAPI(request, env);
+    case '/test-sentiment':
+      return handleSentimentTest(request, env);
     default:
       // Default response for root and unknown paths
       if (url.pathname === '/' || url.pathname === '/status') {
@@ -94,11 +97,12 @@ export async function handleHttpRequest(request, env, ctx) {
           version: env.WORKER_VERSION || '2.0-Modular',
           endpoints: [
             '/health - Health check',
-            '/analyze - Manual analysis',
+            '/analyze - Enhanced analysis (Neural Networks + Sentiment)',
             '/results - Get latest results',
             '/fact-table - Prediction accuracy table',
             '/weekly-analysis - Weekly analysis dashboard',
-            '/api/weekly-data - Weekly analysis data API'
+            '/api/weekly-data - Weekly analysis data API',
+            '/test-sentiment - Sentiment enhancement validation'
           ]
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }
@@ -111,8 +115,8 @@ export async function handleHttpRequest(request, env, ctx) {
         requested_path: url.pathname,
         timestamp: new Date().toISOString(),
         available_endpoints: [
-          '/', '/health', '/analyze', '/results', '/fact-table', 
-          '/weekly-analysis', '/api/weekly-data'
+          '/', '/health', '/analyze', '/results', '/fact-table',
+          '/weekly-analysis', '/api/weekly-data', '/test-sentiment'
         ]
       }, null, 2), {
         status: 404,

@@ -4,33 +4,47 @@
  */
 
 import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
+import { runEnhancedAnalysis, validateSentimentEnhancement } from './enhanced_analysis.js';
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 import { getFactTableData } from './data.js';
 import { runTFTInference, runNHITSInference } from './models.js';
 
 /**
- * Handle manual analysis requests
+ * Handle manual analysis requests (Phase 1: Enhanced with sentiment)
  */
 export async function handleManualAnalysis(request, env) {
   try {
-    console.log('🔍 Manual analysis requested');
-    
-    const analysis = await runBasicAnalysis(env, { triggerMode: 'manual_analysis' });
-    
+    console.log('🚀 Enhanced analysis requested (Neural Networks + Sentiment)');
+
+    // Use enhanced analysis with sentiment integration
+    const analysis = await runEnhancedAnalysis(env, { triggerMode: 'manual_analysis_enhanced' });
+
     return new Response(JSON.stringify(analysis, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
-    console.error('❌ Manual analysis error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.error('❌ Enhanced analysis error, falling back to basic:', error);
+
+    try {
+      // Fallback to basic analysis if enhanced fails
+      const basicAnalysis = await runBasicAnalysis(env, { triggerMode: 'manual_analysis_fallback' });
+      basicAnalysis.fallback_reason = error.message;
+
+      return new Response(JSON.stringify(basicAnalysis, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (fallbackError) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: fallbackError.message,
+        original_error: error.message,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 }
 
@@ -316,6 +330,38 @@ export async function handleKVGet(request, env) {
     return new Response(JSON.stringify({
       error: error.message
     }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle sentiment enhancement testing (Phase 1 validation)
+ */
+export async function handleSentimentTest(request, env) {
+  try {
+    console.log('🧪 Testing sentiment enhancement...');
+
+    const validationResult = await validateSentimentEnhancement(env);
+
+    return new Response(JSON.stringify({
+      success: true,
+      sentiment_enhancement: validationResult,
+      phase: 'Phase 1 - Free Integration',
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Sentiment test error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      phase: 'Phase 1 - Free Integration',
+      timestamp: new Date().toISOString()
+    }, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
