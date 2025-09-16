@@ -5,6 +5,8 @@
 
 import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, validateSentimentEnhancement } from './enhanced_analysis.js';
+import { runEnhancedFeatureAnalysis } from './enhanced_feature_analysis.js';
+import { runIndependentTechnicalAnalysis } from './independent_technical_analysis.js';
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 import { getFactTableData } from './data.js';
 import { runTFTInference, runNHITSInference } from './models.js';
@@ -97,6 +99,93 @@ export async function handleHealthCheck(request, env) {
   return new Response(JSON.stringify(healthData, null, 2), {
     headers: { 'Content-Type': 'application/json' }
   });
+}
+
+/**
+ * Handle Enhanced Feature Analysis requests (Neural Networks + 33 Technical Indicators + Sentiment)
+ */
+export async function handleEnhancedFeatureAnalysis(request, env) {
+  try {
+    console.log('🔬 Enhanced Feature Analysis requested (Neural Networks + Technical Indicators + Sentiment)');
+
+    // Get symbols from request or use default
+    let symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+    
+    if (request.method === 'POST') {
+      try {
+        const requestData = await request.json();
+        if (requestData.symbols && Array.isArray(requestData.symbols)) {
+          symbols = requestData.symbols;
+        }
+      } catch (error) {
+        console.log('Using default symbols (JSON parse error)');
+      }
+    }
+
+    // Run enhanced feature analysis
+    const analysis = await runEnhancedFeatureAnalysis(symbols, env);
+
+    return new Response(JSON.stringify(analysis, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Enhanced Feature Analysis error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      fallback_available: true,
+      message: 'Enhanced Feature Analysis failed. Use /analyze for basic neural network analysis.'
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle Independent Technical Analysis requests (33 Technical Indicators Only)
+ */
+export async function handleIndependentTechnicalAnalysis(request, env) {
+  try {
+    console.log('🔧 Independent Technical Analysis requested (33 Indicators Only - No Neural Networks)');
+
+    // Get symbols from request or use default
+    let symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+    
+    if (request.method === 'POST') {
+      try {
+        const requestData = await request.json();
+        if (requestData.symbols && Array.isArray(requestData.symbols)) {
+          symbols = requestData.symbols;
+        }
+      } catch (error) {
+        console.log('Using default symbols (JSON parse error)');
+      }
+    }
+
+    // Run independent technical analysis (NO neural networks)
+    const analysis = await runIndependentTechnicalAnalysis(symbols, env);
+
+    return new Response(JSON.stringify(analysis, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Independent Technical Analysis error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      message: 'Independent Technical Analysis failed. This endpoint only uses technical indicators.'
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 /**

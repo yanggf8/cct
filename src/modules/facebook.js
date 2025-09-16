@@ -221,6 +221,8 @@ export function getHealthCheckResponse(env) {
       facebook_dashboard_links: "enabled"
     },
     endpoints: {
+      basic_analysis: "/analyze",
+      enhanced_feature_analysis: "/enhanced-feature-analysis",
       weekly_analysis: "/weekly-analysis",
       weekly_data_api: "/api/weekly-data"
     }

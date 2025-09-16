@@ -5,6 +5,8 @@
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
 import {
   handleManualAnalysis,
+  handleEnhancedFeatureAnalysis,
+  handleIndependentTechnicalAnalysis,
   handleGetResults,
   handleHealthCheck,
   handleFacebookTest,
@@ -27,7 +29,7 @@ import {
  */
 function validateRequest(request, url, env) {
   // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook'];
+  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -74,6 +76,10 @@ export async function handleHttpRequest(request, env, ctx) {
   switch (url.pathname) {
     case '/analyze':
       return handleManualAnalysis(request, env);
+    case '/enhanced-feature-analysis':
+      return handleEnhancedFeatureAnalysis(request, env);
+    case '/technical-analysis':
+      return handleIndependentTechnicalAnalysis(request, env);
     case '/results':
       return handleGetResults(request, env);
     case '/health':
