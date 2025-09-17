@@ -35,7 +35,7 @@ const CLOUDFLARE_AI_CONFIG = {
 };
 
 /**
- * Main Cloudflare AI sentiment analysis function with validation approach
+ * Direct GPT-OSS-120B sentiment analysis (no DistilBERT needed)
  */
 async function getCloudflareAISentiment(symbol, newsData, env) {
   if (!newsData || newsData.length === 0) {
@@ -44,67 +44,46 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
       sentiment: 'neutral',
       confidence: 0,
       reasoning: 'No news data available',
-      source: 'cloudflare_ai',
+      source: 'cloudflare_ai_direct',
       cost_estimate: { total_cost: 0, neurons_estimate: 0 }
     };
   }
 
   try {
-    // 1. Primary sentiment analysis with DistilBERT (fast & cheap)
-    const quickSentiments = await analyzeBatchSentiment(newsData, env);
-    const primarySentiment = aggregateQuickSentiments(quickSentiments);
+    console.log(`   🧠 Using GPT-OSS-120B directly for ${symbol} sentiment analysis...`);
 
-    console.log(`   🤖 DistilBERT sentiment: ${primarySentiment.label} (${(primarySentiment.confidence * 100).toFixed(1)}%)`);
+    // Direct GPT-OSS-120B analysis (skip DistilBERT entirely)
+    const gptResult = await getGPTDirectSentiment(symbol, newsData, env);
 
-    // 2. Validation logic: Use GPT-OSS-120B only when DistilBERT is uncertain
-    let validationResult = null;
-    let finalSentiment = primarySentiment;
-    let modelsUsed = ['distilbert'];
-    let costEstimate = calculateCostEstimate(newsData.length, false);
-
-    if (primarySentiment.confidence < CLOUDFLARE_AI_CONFIG.sentiment_thresholds.needs_validation) {
-      console.log(`   ⚠️  Low confidence (${(primarySentiment.confidence * 100).toFixed(1)}%), requesting GPT validation...`);
-
-      validationResult = await getGPTValidation(symbol, newsData, primarySentiment, env);
-
-      if (validationResult) {
-        finalSentiment = resolveWithValidation(primarySentiment, validationResult);
-        modelsUsed = ['distilbert', 'gpt-oss-120b'];
-        costEstimate = calculateCostEstimate(newsData.length, true);
-
-        console.log(`   ✅ Validation complete: ${finalSentiment.sentiment} (${(finalSentiment.confidence * 100).toFixed(1)}%)`);
-      }
-    } else {
-      console.log(`   ✅ High confidence, using DistilBERT result directly`);
+    if (!gptResult) {
+      throw new Error('GPT-OSS-120B analysis failed');
     }
+
+    console.log(`   ✅ GPT sentiment complete: ${gptResult.sentiment} (${(gptResult.confidence * 100).toFixed(1)}%)`);
 
     return {
       symbol: symbol,
-      sentiment: finalSentiment.sentiment || finalSentiment.label,
-      confidence: finalSentiment.confidence,
-      score: finalSentiment.score,
-      reasoning: finalSentiment.reasoning,
+      sentiment: gptResult.sentiment,
+      confidence: gptResult.confidence,
+      score: gptResult.sentiment === 'bullish' ? gptResult.confidence :
+             gptResult.sentiment === 'bearish' ? -gptResult.confidence : 0,
+      reasoning: gptResult.reasoning,
 
-      // Validation details
-      primary_sentiment: primarySentiment,
-      validation_result: validationResult,
-      validation_triggered: !!validationResult,
-
-      // Technical details
-      quick_sentiments: quickSentiments,
-      source: 'cloudflare_ai_validation',
-      models_used: modelsUsed,
-      cost_estimate: costEstimate,
+      // GPT details
+      analysis_details: gptResult,
+      source: 'cloudflare_ai_direct_gpt',
+      models_used: ['gpt-oss-120b'],
+      cost_estimate: calculateGPTCost(800, 300), // Estimated tokens
       timestamp: new Date().toISOString()
     };
 
   } catch (error) {
-    console.error(`   ❌ Cloudflare AI sentiment failed for ${symbol}:`, error);
+    console.error(`   ❌ GPT sentiment analysis failed for ${symbol}:`, error);
     return {
       symbol: symbol,
       sentiment: 'neutral',
       confidence: 0,
-      reasoning: 'AI analysis failed: ' + error.message,
+      reasoning: 'GPT analysis failed: ' + error.message,
       source: 'cloudflare_ai_error',
       cost_estimate: { total_cost: 0, neurons_estimate: 0 }
     };
@@ -207,7 +186,82 @@ function aggregateQuickSentiments(quickSentiments) {
 }
 
 /**
- * GPT-OSS-120B validation for uncertain DistilBERT results
+ * Direct GPT-OSS-120B sentiment analysis (primary engine)
+ */
+async function getGPTDirectSentiment(symbol, newsData, env) {
+  try {
+    // Prepare context for GPT-OSS-120B
+    const newsContext = newsData
+      .slice(0, 10) // Top 10 news items
+      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
+      .join('\n\n');
+
+    const prompt = `Analyze financial sentiment for ${symbol} stock based on recent news:
+
+${newsContext}
+
+As a financial sentiment expert, provide your analysis in JSON format:
+{
+  "sentiment": "bullish|bearish|neutral",
+  "confidence": 0.85,
+  "price_impact": "high|medium|low",
+  "time_horizon": "hours|days|weeks",
+  "reasoning": "Brief explanation of key sentiment drivers",
+  "key_factors": ["factor1", "factor2", "factor3"],
+  "market_context": "Brief market condition assessment"
+}
+
+Focus on market-moving information and institutional sentiment. Be precise and confident.`;
+
+    // Call GPT-OSS-120B directly
+    const response = await env.AI.run(
+      CLOUDFLARE_AI_CONFIG.models.reasoning,
+      {
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a senior financial analyst specializing in sentiment analysis. Provide precise, actionable sentiment analysis in JSON format only.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 400,
+        temperature: 0.1 // Low temperature for consistent analysis
+      }
+    );
+
+    // Parse the response
+    let analysisData;
+    try {
+      // Extract JSON from response
+      const jsonMatch = response.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysisData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.error('Failed to parse GPT-OSS-120B JSON response:', parseError);
+      return null;
+    }
+
+    return {
+      ...analysisData,
+      model: 'gpt-oss-120b',
+      analysis_type: 'direct_sentiment',
+      cost_estimate: calculateGPTCost(prompt.length, response.response.length)
+    };
+
+  } catch (error) {
+    console.error('Direct GPT sentiment analysis failed:', error);
+    return null;
+  }
+}
+
+/**
+ * GPT-OSS-120B validation for uncertain DistilBERT results (DEPRECATED - keeping for fallback)
  */
 async function getGPTValidation(symbol, newsData, primarySentiment, env) {
   try {
@@ -333,27 +387,34 @@ function resolveWithValidation(primarySentiment, validationResult) {
 }
 
 /**
- * Calculate estimated cost for Cloudflare AI usage
+ * Calculate estimated cost for direct GPT usage
  */
-function calculateCostEstimate(newsCount, usedGPT) {
-  // DistilBERT cost: $0.026 per M tokens
-  const avgTokensPerNews = 100; // Estimated tokens per news item
-  const distilbertTokens = newsCount * avgTokensPerNews;
-  const distilbertCost = (distilbertTokens / 1000000) * 0.026;
-
-  let gptCost = 0;
+function calculateCostEstimate(newsCount, usedGPT = true) {
+  // Direct GPT-OSS-120B cost only (no DistilBERT)
   if (usedGPT) {
     // GPT-OSS-120B cost: $0.35 input + $0.75 output per M tokens
-    const gptInputTokens = 800; // Estimated prompt tokens
-    const gptOutputTokens = 200; // Estimated response tokens
-    gptCost = (gptInputTokens / 1000000) * 0.35 + (gptOutputTokens / 1000000) * 0.75;
+    const avgTokensPerNews = 120; // More detailed analysis per news item
+    const basePromptTokens = 300; // System prompt + instructions
+    const gptInputTokens = basePromptTokens + (newsCount * avgTokensPerNews);
+    const gptOutputTokens = 300; // Detailed JSON response
+
+    const inputCost = (gptInputTokens / 1000000) * 0.35;
+    const outputCost = (gptOutputTokens / 1000000) * 0.75;
+    const totalCost = inputCost + outputCost;
+
+    return {
+      input_tokens: gptInputTokens,
+      output_tokens: gptOutputTokens,
+      input_cost: inputCost,
+      output_cost: outputCost,
+      total_cost: totalCost,
+      neurons_estimate: Math.ceil((gptInputTokens + gptOutputTokens) / 100) // Rough neurons estimate
+    };
   }
 
   return {
-    distilbert_cost: distilbertCost,
-    gpt_cost: gptCost,
-    total_cost: distilbertCost + gptCost,
-    neurons_estimate: Math.ceil((distilbertTokens + (usedGPT ? 1000 : 0)) / 100) // Rough neurons estimate
+    total_cost: 0,
+    neurons_estimate: 0
   };
 }
 

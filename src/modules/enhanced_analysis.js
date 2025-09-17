@@ -209,58 +209,106 @@ function getSourceWeight(sourceType) {
  * Combine technical and sentiment signals
  */
 function combineSignals(technicalSignal, sentimentSignal, symbol) {
-  // Phase 1 weights: Enhanced approach with validation-based sentiment
-  const TECHNICAL_WEIGHT = 0.60;
-  const SENTIMENT_WEIGHT = 0.40;
+  // Sentiment-First Approach: Sentiment drives decisions, technical as reference/confirmation
 
-  // Extract technical prediction
+  // Extract signals
   const technicalDirection = technicalSignal.ensemble?.direction || technicalSignal.tft?.direction || 'NEUTRAL';
   const technicalConfidence = technicalSignal.ensemble?.confidence || technicalSignal.tft?.confidence || 0.5;
-
-  // Convert to numerical scores
-  const technicalScore = mapDirectionToScore(technicalDirection);
-  const sentimentScore = sentimentSignal.score || 0;
-
-  // Calculate weighted combination
-  const combinedScore = (technicalScore * TECHNICAL_WEIGHT) + (sentimentScore * SENTIMENT_WEIGHT);
-  const combinedDirection = combinedScore > 0.1 ? 'UP' : combinedScore < -0.1 ? 'DOWN' : 'NEUTRAL';
-
-  // Calculate hybrid confidence
+  const sentimentDirection = sentimentSignal.sentiment?.toUpperCase() || 'NEUTRAL';
   const sentimentConfidence = sentimentSignal.confidence || 0;
-  const hybridConfidence = (technicalConfidence * TECHNICAL_WEIGHT) + (sentimentConfidence * SENTIMENT_WEIGHT);
+
+  // PRIMARY DECISION: Sentiment drives the prediction
+  let finalDirection = mapSentimentToDirection(sentimentDirection);
+  let finalConfidence = sentimentConfidence;
+  let reasoning = `Sentiment-driven: ${sentimentDirection} (${(sentimentConfidence * 100).toFixed(1)}%)`;
+
+  // REFERENCE CHECK: Technical analysis as confirmation
+  const technicalAgreement = checkDirectionAgreement(finalDirection, technicalDirection);
+
+  if (technicalAgreement) {
+    // Technical confirms sentiment → boost confidence
+    finalConfidence = Math.min(0.95, finalConfidence + 0.10);
+    reasoning += ` + Technical confirms (${technicalDirection})`;
+  } else {
+    // Technical disagrees with sentiment → note disagreement but keep sentiment decision
+    reasoning += ` (Technical disagrees: ${technicalDirection})`;
+  }
+
+  // Calculate combined score (sentiment-based with technical reference)
+  const sentimentScore = mapDirectionToScore(finalDirection);
+  const combinedScore = sentimentScore; // Sentiment drives the score
 
   return {
     symbol: symbol,
-    direction: combinedDirection,
-    confidence: hybridConfidence,
+    direction: finalDirection,
+    confidence: finalConfidence,
     combined_score: combinedScore,
 
     components: {
-      technical: {
+      primary_sentiment: {
+        direction: sentimentDirection,
+        confidence: sentimentConfidence,
+        role: 'primary_decision_maker',
+        source_count: sentimentSignal.source_count,
+        models_used: sentimentSignal.models_used
+      },
+      reference_technical: {
         direction: technicalDirection,
         confidence: technicalConfidence,
-        weight: TECHNICAL_WEIGHT
-      },
-      sentiment: {
-        direction: sentimentSignal.sentiment,
-        confidence: sentimentConfidence,
-        weight: SENTIMENT_WEIGHT,
-        source_count: sentimentSignal.source_count
+        role: 'reference_confirmation',
+        agreement: technicalAgreement
       }
     },
 
-    reasoning: `Technical: ${technicalDirection} (${(technicalConfidence * 100).toFixed(1)}%), Sentiment: ${sentimentSignal.sentiment} (${(sentimentConfidence * 100).toFixed(1)}%) ${sentimentSignal.models_used ? 'using ' + sentimentSignal.models_used.join(' + ') : 'from ' + (sentimentSignal.source_count || 0) + ' sources'}`,
+    reasoning: reasoning,
 
     enhancement_details: {
-      method: 'phase1_validation_hybrid',
+      method: 'sentiment_first_approach',
+      primary_signal: 'sentiment',
+      reference_signal: 'technical',
       sentiment_method: sentimentSignal.method || (sentimentSignal.models_used ? 'cloudflare_ai_validation' : 'rule_based'),
-      weights: { technical: TECHNICAL_WEIGHT, sentiment: SENTIMENT_WEIGHT },
+      technical_agreement: technicalAgreement,
       validation_triggered: sentimentSignal.validation_triggered,
       models_used: sentimentSignal.models_used
     },
 
     timestamp: new Date().toISOString()
   };
+}
+
+/**
+ * Map sentiment to trading direction
+ */
+function mapSentimentToDirection(sentiment) {
+  const mapping = {
+    'BULLISH': 'UP',
+    'BEARISH': 'DOWN',
+    'NEUTRAL': 'NEUTRAL',
+    'POSITIVE': 'UP',
+    'NEGATIVE': 'DOWN'
+  };
+  return mapping[sentiment?.toUpperCase()] || 'NEUTRAL';
+}
+
+/**
+ * Check if technical direction agrees with sentiment direction
+ */
+function checkDirectionAgreement(sentimentDirection, technicalDirection) {
+  // Normalize directions for comparison
+  const normalizeSentiment = sentimentDirection?.toUpperCase();
+  const normalizeTechnical = technicalDirection?.toUpperCase();
+
+  // Direct agreement
+  if (normalizeSentiment === normalizeTechnical) return true;
+
+  // Cross-format agreement
+  if ((normalizeSentiment === 'UP' && normalizeTechnical === 'BULLISH') ||
+      (normalizeSentiment === 'DOWN' && normalizeTechnical === 'BEARISH') ||
+      (normalizeSentiment === 'NEUTRAL' && (normalizeTechnical === 'FLAT' || normalizeTechnical === 'NEUTRAL'))) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
