@@ -43,7 +43,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
       const sentimentConfidence = Math.round((sentiment?.confidence || 0) * 100);
 
       reportText += `${symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
-      reportText += `   💰 $${signal.current_price?.toFixed(2)} → $${signal.predicted_price?.toFixed(2)} | GPT-driven\n`;
+      reportText += `   💰 $${signal.current_price?.toFixed(2)} → $${signal.predicted_price?.toFixed(2)} | AI-Informed\n`;
     }
   });
   
@@ -60,7 +60,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   reportText += `📈 View detailed charts, trends, and model performance analysis\n\n`;
   
   reportText += `🎯 **Next Update:** Monday 8:30 AM EST\n`;
-  reportText += `💼 *For research purposes only - not financial advice*`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.`;
 
   // Send Facebook message
   const facebookPayload = {
@@ -119,9 +119,9 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
   
   // System performance summary
   reportText += `🎯 **Sentiment-First System Performance:**\n`;
-  reportText += `• GPT-OSS-120B Sentiment Accuracy: Real-time tracking active\n`;
+  reportText += `• AI Sentiment Accuracy: Real-time tracking active\n`;
   reportText += `• Direction Accuracy: Sentiment vs reality validation\n`;
-  reportText += `• Model Performance: GPT-OSS-120B + Neural Reference analysis\n`;
+  reportText += `• Model Performance: AI Sentiment + Neural Reference analysis\n`;
   reportText += `• AI Cost Efficiency: $0.0003 per analysis achieved\n\n`;
   
   // 📊 NEW: Add Weekly Analysis Dashboard Link  
@@ -129,13 +129,13 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `📈 Interactive charts showing:\n`;
   reportText += `• Daily sentiment accuracy trends\n`;
-  reportText += `• GPT-OSS-120B vs Neural model comparison\n`;
+  reportText += `• AI Sentiment vs Neural model comparison\n`;
   reportText += `• Bullish/Bearish/Neutral analysis\n`;
   reportText += `• Sentiment-driven prediction visualization\n\n`;
   
   reportText += `⚙️ **System Status:** Operational ✅\n`;
   reportText += `🔄 **Next Report:** Next Sunday 10:00 AM EST\n\n`;
-  reportText += `💼 *For research purposes only - not financial advice*`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.`;
 
   const facebookPayload = {
     recipient: { id: env.FACEBOOK_RECIPIENT_ID },
@@ -251,7 +251,7 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
 
   let reportText = `🌅 **MORNING PREDICTIONS + ALERTS**\n`;
   reportText += `🗓️ ${dateStr} 8:30 AM EST\n\n`;
-  reportText += `💭 **Sentiment-First Analysis (GPT-OSS-120B):**\n`;
+  reportText += `💭 **AI Sentiment Analysis:**\n`;
 
   // Analysis results with sentiment-first approach
   if (analysisResult?.trading_signals) {
@@ -272,13 +272,13 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
   }
 
   reportText += `\n⚙️ **System Status:** Operational ✅\n`;
-  reportText += `🤖 **Models:** GPT-OSS-120B Sentiment-First + Neural Reference\n`;
+  reportText += `🤖 **Models:** AI Sentiment Analysis + Neural Reference\n`;
   reportText += `📊 **Symbols Analyzed:** ${analysisResult?.symbols_analyzed?.length || 5}\n\n`;
   reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `📈 View live sentiment analysis, predictions, and model performance\n\n`;
   reportText += `🎯 **Next Update:** 12:00 PM EST Midday Validation\n`;
-  reportText += `💼 For research purposes only - not financial advice`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MORNING] ${cronExecutionId} Morning predictions sent via Facebook`);
@@ -329,20 +329,24 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
       const sentimentLabel = sentiment?.sentiment || 'neutral';
       const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
 
+      const sentimentConf = Math.round((sentiment?.confidence || 0) * 100);
+      const technicalConf = Math.round((signal.confidence || 0.5) * 100);
+      const conflictIndicator = Math.abs(sentimentConf - technicalConf) > 20 ? ' ⚠️ CONFLICT' : ' ✅ ALIGNED';
+
       reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-      reportText += `   📊 GPT: ${Math.round((sentiment?.confidence || 0) * 100)}% | Neural: ${Math.round((signal.confidence || 0.5) * 100)}%\n`;
+      reportText += `   📊 Sentiment: ${sentimentConf}% | Technical: ${technicalConf}%${conflictIndicator}\n`;
     });
   }
 
   reportText += `\n🎯 **Afternoon Outlook:**\n`;
-  reportText += `• GPT-OSS-120B sentiment analysis driving decisions\n`;
+  reportText += `• AI sentiment signals informing analysis\n`;
   reportText += `• Neural networks providing technical reference\n`;
   reportText += `• Real-time market sentiment validation active\n\n`;
   reportText += `⚙️ **System Status:** Operational ✅\n`;
   reportText += `📊 **LIVE DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `🎯 **Next Update:** 4:05 PM EST Daily Report\n`;
-  reportText += `💼 For research purposes only - not financial advice`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MIDDAY] ${cronExecutionId} Midday validation sent via Facebook`);
@@ -396,12 +400,12 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
       const sentimentConfidence = Math.round((sentiment?.confidence || 0) * 100);
 
       reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
-      reportText += `   💰 $${current} → $${predicted} | GPT-driven prediction\n`;
+      reportText += `   💰 $${current} → $${predicted} | AI-Informed outlook\n`;
     });
   }
 
   reportText += `\n🌅 **Tomorrow's Market Outlook:**\n`;
-  reportText += `• GPT-OSS-120B sentiment analysis for overnight news\n`;
+  reportText += `• AI sentiment analysis for overnight news\n`;
   reportText += `• Neural networks as technical reference\n`;
   reportText += `• Real-time sentiment-driven predictions\n\n`;
   reportText += `📈 **Daily Performance:**\n`;
@@ -413,7 +417,7 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
   reportText += `📊 **COMPREHENSIVE DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `🎯 **Next Update:** Tomorrow 8:30 AM EST\n`;
-  reportText += `💼 For research purposes only - not financial advice`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-DAILY] ${cronExecutionId} Daily validation sent via Facebook`);
