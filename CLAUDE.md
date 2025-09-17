@@ -4,45 +4,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-17 (Sentiment-First GPT-OSS-120B System)
+**Current Version**: 2025-09-17 (GPT-OSS-120B API Format Fixed)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **System Status**: ✅ 100% Working Sentiment-First System + Neural Reference
-- **Models**: GPT-OSS-120B Sentiment Analysis (Primary) + Enhanced TFT + N-HITS (Reference)
-- **Critical Achievement**: ✅ Sentiment-first system operational - GPT-OSS-120B drives decisions, neural networks provide reference
-- **Current Performance**: GPT-OSS-120B superior reasoning with bullish/bearish/neutral analysis driving predictions
+- **System Status**: ✅ GPT-OSS-120B API Calls Now Successful - Text Extraction in Progress
+- **Models**: GPT-OSS-120B Sentiment Analysis + Enhanced TFT + N-HITS Neural Networks
+- **Critical Achievement**: ✅ GPT-OSS-120B API format issue resolved - successful completions with 479 tokens
+- **Current Performance**: API calls completing successfully, working on response text extraction
 - **Architecture**: Modular Cloudflare Worker with R2 storage, GPT-OSS-120B AI integration, and complete 5-cron automation
-- **Cost Efficiency**: $0.35/$0.75 per M tokens - superior intelligence with GPT-OSS-120B reasoning capability
+- **Technical Progress**: Fixed input-only format for non-agent GPT-OSS-120B usage
 
 ## Recent Critical Updates
 
-### 2025-09-17: Sentiment-First GPT-OSS-120B System - Production Implementation ✅
-**CRITICAL UPDATE**: GPT-OSS-120B sentiment analysis implementation with proper instructions+input API format
-**SYSTEM ENHANCEMENT**: All 5 Facebook message types updated, cron triggers active, complete automation
+### 2025-09-17: GPT-OSS-120B API Format Fixed - Critical Debugging Session ✅
+**BREAKTHROUGH**: Resolved GPT-OSS-120B API format errors preventing sentiment analysis functionality
+**TECHNICAL FIX**: Corrected from `instructions+input` to `input`-only format for non-agent GPT-OSS-120B usage
 
-#### **GPT-OSS-120B Sentiment Implementation:**
-- **✅ Superior AI Reasoning**: GPT-OSS-120B provides advanced bullish/bearish/neutral analysis
-- **✅ Sentiment-First Architecture**: GPT sentiment drives predictions (primary), neural networks as technical reference
-- **✅ API Format Corrected**: Proper instructions+input format for GPT-OSS-120B compatibility
-- **✅ Intelligence Priority**: $0.35/$0.75 per M tokens for superior reasoning over cheaper alternatives
-- **✅ Complete Automation**: All 5 cron triggers active with GPT-enhanced Facebook messages
+#### **GPT-OSS-120B API Fix Implementation:**
+- **✅ API Format Corrected**: Changed from `{instructions, input}` to `{input}` only for non-agent mode
+- **✅ Successful API Calls**: GPT-OSS-120B now completes with `status: 'completed'` and proper token usage
+- **✅ Enhanced Logging**: Added comprehensive debugging to track API call success and response structure
+- **✅ Error Resolution**: Eliminated `oneOf at '/' not met` and `8001: Invalid input` errors
+- **✅ Response Analysis**: Identified `output: [ [Object], [Object] ]` array structure in successful responses
 
-#### **GPT-OSS-120B Capabilities:**
-- **Advanced Reasoning**: Superior financial analysis beyond simple sentiment classification
-- **Market Context**: Deep understanding of institutional behavior and market dynamics
-- **Risk Assessment**: Comprehensive price impact and time horizon analysis
-- **Confidence Scoring**: Precise confidence metrics based on news quality and market conditions
-- **Reference Signal**: Technical analysis (TFT + N-HITS) provides confirmation/disagreement flags
-- **Agreement Boost**: Technical confirms sentiment → +10% confidence boost
-- **Disagreement Noted**: Technical disagrees → keep sentiment decision, flag disagreement
-- **Clean Output**: Clear reasoning showing sentiment-driven decisions with technical reference
+#### **Technical Details:**
+- **Problem**: GPT-OSS-120B was failing with API format validation errors
+- **Root Cause**: Using agent-style `instructions+input` format for non-agent text generation
+- **Solution**: User correctly identified input-only format for non-agent GPT-OSS-120B usage
+- **Result**: API calls now generate 479 completion tokens successfully
+- **Next Step**: Extract actual text content from response output array structure
 
-#### **Performance Improvements:**
-- **Accuracy Target**: 75%+ (direct GPT intelligence vs 70% DistilBERT baseline)
-- **Execution Speed**: Faster single-call approach vs multi-step validation
-- **Code Simplicity**: Eliminated 200+ lines of complex validation logic
-- **Decision Transparency**: Clear sentiment-first approach with technical confirmation
+#### **API Call Success Evidence:**
+```javascript
+✅ AI.run call completed successfully with input-only format
+status: 'completed'
+usage: { prompt_tokens: 567, completion_tokens: 479, total_tokens: 1046 }
+```
 
-#### **Deployment Status**: ✅ **LIVE** - Version ID: `9652c716-12fe-4423-81b2-359397c0c6c7`
+#### **Deployment Status**: ✅ **LIVE** - Version ID: `394e217d-7378-4c0a-8874-4ba9d3fe60f0`
 
 ### 2025-09-17: Phase 1 Enhanced - Validation-Based Sentiment System ✅
 **CRITICAL ENHANCEMENT**: Redesigned sentiment analysis from weighted mixing to validation-based approach

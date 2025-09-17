@@ -224,6 +224,12 @@ function aggregateQuickSentiments(quickSentiments) {
 async function getGPTDirectSentiment(symbol, newsData, env) {
   try {
     console.log(`   🧠 Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
+    console.log(`   🔧 Debug info:`, {
+      symbol: symbol,
+      news_count: newsData.length,
+      ai_binding: !!env.AI,
+      model_config: CLOUDFLARE_AI_CONFIG.models.reasoning
+    });
 
     // Prepare context for GPT-OSS-120B
     const newsContext = newsData
@@ -232,6 +238,7 @@ async function getGPTDirectSentiment(symbol, newsData, env) {
       .join('\n\n');
 
     console.log(`   📰 Processing ${newsData.length} news items (showing top 10)`);
+    console.log(`   📝 News context length: ${newsContext.length} characters`);
 
     const instructions = "You are a senior financial analyst specializing in sentiment analysis. Provide precise, actionable sentiment analysis in JSON format only. Focus on market-moving information and institutional sentiment.";
 
@@ -258,30 +265,47 @@ Provide your analysis in this exact JSON format:
     let formatUsed;
 
     try {
-      // GPT-OSS-120B format: instructions + input
+      // GPT-OSS-120B without agent mode - just input parameter
+      const combinedInput = `${instructions}\n\n${input}`;
+
       apiParams = {
-        instructions: instructions,
-        input: input,
+        input: combinedInput,
         max_tokens: 400,
         temperature: 0.1
       };
 
-      console.log(`   📡 Using GPT-OSS-120B with instructions+input format:`, {
+      console.log(`   📡 Using GPT-OSS-120B with input-only format (non-agent):`, {
         model: CLOUDFLARE_AI_CONFIG.models.reasoning,
-        instructions_length: instructions.length,
-        input_length: input.length,
-        max_tokens: apiParams.max_tokens,
-        temperature: apiParams.temperature
+        combined_input_length: combinedInput.length,
+        api_params: apiParams
       });
 
+      console.log(`   🚀 Making AI.run call with input-only format...`);
       response = await env.AI.run(
         CLOUDFLARE_AI_CONFIG.models.reasoning,
         apiParams
       );
-      formatUsed = 'gpt_instructions_input';
+      console.log(`   ✅ AI.run call completed successfully with input-only format`);
+
+      console.log(`   📊 Raw response received:`, {
+        response_type: typeof response,
+        response_constructor: response?.constructor?.name,
+        response_keys: Object.keys(response || {}),
+        response_has_data: !!response,
+        raw_response: response
+      });
+      formatUsed = 'gpt_input_only_non_agent';
 
     } catch (gptError) {
-      console.log(`   ❌ GPT-OSS-120B failed:`, gptError.message);
+      console.error(`   ❌ GPT-OSS-120B API call failed:`, {
+        error_message: gptError.message,
+        error_name: gptError.name,
+        error_stack: gptError.stack,
+        error_details: gptError,
+        api_params_used: apiParams,
+        model_used: CLOUDFLARE_AI_CONFIG.models.reasoning,
+        ai_binding_available: !!env.AI
+      });
       throw new Error(`GPT-OSS-120B analysis failed: ${gptError.message}`);
     }
 
@@ -296,8 +320,32 @@ Provide your analysis in this exact JSON format:
     // Parse the GPT-OSS-120B response
     let analysisData;
     try {
-      // GPT-OSS-120B format: response.response contains the text
-      let responseText = response?.response;
+      // GPT-OSS-120B format: response.output array contains the text
+      let responseText = '';
+
+      if (typeof response === 'string') {
+        // Direct string response
+        responseText = response;
+        console.log(`   📊 Direct string response:`, responseText.substring(0, 200) + '...');
+      } else if (response?.response) {
+        // GPT-OSS-120B standard response format
+        responseText = response.response;
+        console.log(`   📊 Using response property:`, responseText.substring(0, 200) + '...');
+      } else if (response?.output && Array.isArray(response.output)) {
+        // Extract text from output array - check multiple possible properties
+        console.log(`   📊 Inspecting output array structure:`, response.output);
+        responseText = response.output.map(item => {
+          // Try multiple possible text properties
+          const text = item.content || item.text || item.message || item.response || JSON.stringify(item);
+          console.log(`   📋 Output item:`, item, `→ Extracted text:`, text);
+          return text;
+        }).join('');
+        console.log(`   📊 Extracted from output array:`, responseText.substring(0, 200) + '...');
+      } else if (typeof response === 'string') {
+        // Direct string response
+        responseText = response;
+        console.log(`   📊 Direct string response:`, responseText.substring(0, 200) + '...');
+      }
 
       if (!responseText) {
         throw new Error('No response text found in API response');
