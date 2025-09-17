@@ -28,14 +28,14 @@ const CLOUDFLARE_AI_CONFIG = {
   usage_strategy: 'hybrid', // Use cheap model first, expensive for complex analysis
 
   sentiment_thresholds: {
-    high_confidence: 0.85,  // Use GPT-OSS-120B for detailed analysis
-    medium_confidence: 0.70, // Trust DistilBERT result
-    low_confidence: 0.55    // Skip or use simple rules
+    needs_validation: 0.70,  // Use GPT-OSS-120B for validation when DistilBERT uncertain
+    trust_primary: 0.75,     // Trust DistilBERT alone
+    high_confidence: 0.85    // Flag for extra weight in final predictions
   }
 };
 
 /**
- * Main Cloudflare AI sentiment analysis function
+ * Main Cloudflare AI sentiment analysis function with validation approach
  */
 async function getCloudflareAISentiment(symbol, newsData, env) {
   if (!newsData || newsData.length === 0) {
@@ -45,45 +45,68 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
       confidence: 0,
       reasoning: 'No news data available',
       source: 'cloudflare_ai',
-      cost_estimate: 0
+      cost_estimate: { total_cost: 0, neurons_estimate: 0 }
     };
   }
 
   try {
-    // 1. Quick sentiment analysis with DistilBERT (cheap)
+    // 1. Primary sentiment analysis with DistilBERT (fast & cheap)
     const quickSentiments = await analyzeBatchSentiment(newsData, env);
+    const primarySentiment = aggregateQuickSentiments(quickSentiments);
 
-    // 2. Calculate overall sentiment
-    const aggregatedSentiment = aggregateQuickSentiments(quickSentiments);
+    console.log(`   🤖 DistilBERT sentiment: ${primarySentiment.label} (${(primarySentiment.confidence * 100).toFixed(1)}%)`);
 
-    // 3. If confidence is high enough, get detailed analysis with GPT-OSS-120B
-    let detailedAnalysis = null;
-    if (aggregatedSentiment.confidence > CLOUDFLARE_AI_CONFIG.sentiment_thresholds.high_confidence) {
-      detailedAnalysis = await getDetailedSentimentAnalysis(symbol, newsData, aggregatedSentiment, env);
+    // 2. Validation logic: Use GPT-OSS-120B only when DistilBERT is uncertain
+    let validationResult = null;
+    let finalSentiment = primarySentiment;
+    let modelsUsed = ['distilbert'];
+    let costEstimate = calculateCostEstimate(newsData.length, false);
+
+    if (primarySentiment.confidence < CLOUDFLARE_AI_CONFIG.sentiment_thresholds.needs_validation) {
+      console.log(`   ⚠️  Low confidence (${(primarySentiment.confidence * 100).toFixed(1)}%), requesting GPT validation...`);
+
+      validationResult = await getGPTValidation(symbol, newsData, primarySentiment, env);
+
+      if (validationResult) {
+        finalSentiment = resolveWithValidation(primarySentiment, validationResult);
+        modelsUsed = ['distilbert', 'gpt-oss-120b'];
+        costEstimate = calculateCostEstimate(newsData.length, true);
+
+        console.log(`   ✅ Validation complete: ${finalSentiment.sentiment} (${(finalSentiment.confidence * 100).toFixed(1)}%)`);
+      }
+    } else {
+      console.log(`   ✅ High confidence, using DistilBERT result directly`);
     }
 
     return {
       symbol: symbol,
-      sentiment: aggregatedSentiment.label,
-      confidence: aggregatedSentiment.confidence,
-      score: aggregatedSentiment.score,
-      reasoning: detailedAnalysis?.reasoning || aggregatedSentiment.reasoning,
-      detailed_analysis: detailedAnalysis,
+      sentiment: finalSentiment.sentiment || finalSentiment.label,
+      confidence: finalSentiment.confidence,
+      score: finalSentiment.score,
+      reasoning: finalSentiment.reasoning,
+
+      // Validation details
+      primary_sentiment: primarySentiment,
+      validation_result: validationResult,
+      validation_triggered: !!validationResult,
+
+      // Technical details
       quick_sentiments: quickSentiments,
-      source: 'cloudflare_ai',
-      models_used: detailedAnalysis ? ['distilbert', 'gpt-oss-120b'] : ['distilbert'],
-      cost_estimate: calculateCostEstimate(newsData.length, !!detailedAnalysis),
+      source: 'cloudflare_ai_validation',
+      models_used: modelsUsed,
+      cost_estimate: costEstimate,
       timestamp: new Date().toISOString()
     };
 
   } catch (error) {
-    console.error(`Cloudflare AI sentiment failed for ${symbol}:`, error);
+    console.error(`   ❌ Cloudflare AI sentiment failed for ${symbol}:`, error);
     return {
       symbol: symbol,
       sentiment: 'neutral',
       confidence: 0,
       reasoning: 'AI analysis failed: ' + error.message,
-      source: 'cloudflare_ai_error'
+      source: 'cloudflare_ai_error',
+      cost_estimate: { total_cost: 0, neurons_estimate: 0 }
     };
   }
 }
@@ -184,9 +207,9 @@ function aggregateQuickSentiments(quickSentiments) {
 }
 
 /**
- * Detailed sentiment analysis using GPT-OSS-120B for high-confidence cases
+ * GPT-OSS-120B validation for uncertain DistilBERT results
  */
-async function getDetailedSentimentAnalysis(symbol, newsData, quickSentiment, env) {
+async function getGPTValidation(symbol, newsData, primarySentiment, env) {
   try {
     // Prepare context for GPT-OSS-120B
     const newsContext = newsData
@@ -194,24 +217,23 @@ async function getDetailedSentimentAnalysis(symbol, newsData, quickSentiment, en
       .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
       .join('\n\n');
 
-    const prompt = `Analyze financial sentiment for ${symbol} stock based on recent news:
+    const prompt = `Validate sentiment analysis for ${symbol} stock. DistilBERT is uncertain.
 
 ${newsContext}
 
-Initial AI sentiment: ${quickSentiment.label} (${(quickSentiment.confidence * 100).toFixed(1)}% confidence)
+DistilBERT result: ${primarySentiment.label} (${(primarySentiment.confidence * 100).toFixed(1)}% confidence)
 
-Provide analysis in JSON format:
+As a validation expert, provide your independent analysis in JSON format:
 {
   "sentiment": "bullish|bearish|neutral",
-  "confidence": 0.85,
-  "price_impact": "high|medium|low",
-  "time_horizon": "hours|days|weeks",
-  "reasoning": "Brief explanation of key sentiment drivers",
-  "key_factors": ["factor1", "factor2"],
-  "risk_level": "low|medium|high"
+  "confidence": 0.80,
+  "agrees_with_primary": true,
+  "reasoning": "Brief explanation for validation decision",
+  "key_disagreements": ["reason1", "reason2"],
+  "validation_strength": "strong|moderate|weak"
 }
 
-Focus on market-moving information and institutional sentiment.`;
+Focus on confirming or correcting the primary analysis.`;
 
     // Call GPT-OSS-120B for detailed analysis
     const response = await env.AI.run(
@@ -250,12 +272,63 @@ Focus on market-moving information and institutional sentiment.`;
     return {
       ...analysisData,
       model: 'gpt-oss-120b',
+      validation_type: 'gpt_validation',
       cost_estimate: calculateGPTCost(prompt.length, response.response.length)
     };
 
   } catch (error) {
-    console.error('Detailed sentiment analysis failed:', error);
+    console.error('GPT validation failed:', error);
     return null;
+  }
+}
+
+/**
+ * Resolve sentiment using validation approach
+ */
+function resolveWithValidation(primarySentiment, validationResult) {
+  if (!validationResult) {
+    return primarySentiment;
+  }
+
+  // Check agreement between DistilBERT and GPT-OSS-120B
+  const primaryLabel = primarySentiment.label;
+  const validationLabel = validationResult.sentiment;
+  const agreementDetected = validationResult.agrees_with_primary ||
+    (primaryLabel === validationLabel) ||
+    (primaryLabel === 'bullish' && validationLabel === 'bullish') ||
+    (primaryLabel === 'bearish' && validationLabel === 'bearish');
+
+  if (agreementDetected) {
+    // Agreement: Boost confidence
+    const boostedConfidence = Math.min(0.90, Math.max(primarySentiment.confidence, validationResult.confidence) + 0.15);
+
+    return {
+      sentiment: validationResult.sentiment,
+      confidence: boostedConfidence,
+      score: validationResult.sentiment === 'bullish' ? boostedConfidence :
+             validationResult.sentiment === 'bearish' ? -boostedConfidence : 0,
+      reasoning: `Validated: ${validationResult.reasoning} (Models agree: DistilBERT + GPT-OSS-120B)`,
+      resolution_method: 'validation_agreement',
+      agreement_detected: true,
+      confidence_boost: 0.15
+    };
+  } else {
+    // Disagreement: Conservative neutral approach
+    console.log(`   ⚠️ Model disagreement: DistilBERT=${primaryLabel}, GPT=${validationLabel}`);
+
+    return {
+      sentiment: 'neutral',
+      confidence: 0.50,
+      score: 0,
+      reasoning: `Model disagreement detected (DistilBERT: ${primaryLabel}, GPT: ${validationLabel}). Using conservative neutral.`,
+      resolution_method: 'validation_disagreement',
+      agreement_detected: false,
+      disagreement_details: {
+        distilbert: primaryLabel,
+        gpt: validationLabel,
+        key_disagreements: validationResult.key_disagreements || []
+      }
+    };
   }
 }
 

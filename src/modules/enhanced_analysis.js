@@ -86,7 +86,9 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
         enhancement_method: 'phase1_basic'
       };
 
-      console.log(`   ✅ ${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)`);
+      const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
+      const modelsInfo = sentimentResult.models_used ? ` using ${sentimentResult.models_used.join(' + ')}` : '';
+      console.log(`   ✅ ${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)${validationInfo}${modelsInfo}`);
 
     } catch (error) {
       console.error(`   ❌ Sentiment analysis failed for ${symbol}:`, error.message);
@@ -207,9 +209,9 @@ function getSourceWeight(sourceType) {
  * Combine technical and sentiment signals
  */
 function combineSignals(technicalSignal, sentimentSignal, symbol) {
-  // Phase 1 weights: Conservative approach, trust technical more initially
-  const TECHNICAL_WEIGHT = 0.70;
-  const SENTIMENT_WEIGHT = 0.30;
+  // Phase 1 weights: Enhanced approach with validation-based sentiment
+  const TECHNICAL_WEIGHT = 0.60;
+  const SENTIMENT_WEIGHT = 0.40;
 
   // Extract technical prediction
   const technicalDirection = technicalSignal.ensemble?.direction || technicalSignal.tft?.direction || 'NEUTRAL';
@@ -247,12 +249,14 @@ function combineSignals(technicalSignal, sentimentSignal, symbol) {
       }
     },
 
-    reasoning: `Technical: ${technicalDirection} (${(technicalConfidence * 100).toFixed(1)}%), Sentiment: ${sentimentSignal.sentiment} (${(sentimentConfidence * 100).toFixed(1)}%) from ${sentimentSignal.source_count} sources`,
+    reasoning: `Technical: ${technicalDirection} (${(technicalConfidence * 100).toFixed(1)}%), Sentiment: ${sentimentSignal.sentiment} (${(sentimentConfidence * 100).toFixed(1)}%) ${sentimentSignal.models_used ? 'using ' + sentimentSignal.models_used.join(' + ') : 'from ' + (sentimentSignal.source_count || 0) + ' sources'}`,
 
     enhancement_details: {
-      method: 'phase1_hybrid',
-      sentiment_method: sentimentSignal.method,
-      weights: { technical: TECHNICAL_WEIGHT, sentiment: SENTIMENT_WEIGHT }
+      method: 'phase1_validation_hybrid',
+      sentiment_method: sentimentSignal.method || (sentimentSignal.models_used ? 'cloudflare_ai_validation' : 'rule_based'),
+      weights: { technical: TECHNICAL_WEIGHT, sentiment: SENTIMENT_WEIGHT },
+      validation_triggered: sentimentSignal.validation_triggered,
+      models_used: sentimentSignal.models_used
     },
 
     timestamp: new Date().toISOString()
