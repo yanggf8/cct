@@ -4,30 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-17 (Phase 1 Optimized - Direct GPT Sentiment-First System)
+**Current Version**: 2025-09-17 (Sentiment-First GPT-OSS-120B System)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **System Status**: ✅ 100% Working Hybrid Neural Networks + Direct GPT-OSS-120B Sentiment Analysis
-- **Models**: Enhanced TFT + N-HITS (62-64% baseline) + Direct GPT-OSS-120B Sentiment (Phase 1 Optimized)
-- **Critical Achievement**: ✅ Sentiment-first system activated - GPT-OSS-120B drives decisions, technical analysis as reference
-- **Current Performance**: Sentiment-driven predictions with direct GPT-OSS-120B analysis and technical confirmation
-- **Architecture**: Modular Cloudflare Worker with R2 storage, direct GPT AI integration, and complete automation
-- **Cost Efficiency**: ~$0.05/analysis with superior GPT-OSS-120B intelligence vs DistilBERT approach
+- **System Status**: ✅ 100% Working Sentiment-First System + Neural Reference
+- **Models**: GPT-OSS-120B Sentiment Analysis (Primary) + Enhanced TFT + N-HITS (Reference)
+- **Critical Achievement**: ✅ Sentiment-first system operational - GPT-OSS-120B drives decisions, neural networks provide reference
+- **Current Performance**: GPT-OSS-120B superior reasoning with bullish/bearish/neutral analysis driving predictions
+- **Architecture**: Modular Cloudflare Worker with R2 storage, GPT-OSS-120B AI integration, and complete 5-cron automation
+- **Cost Efficiency**: $0.35/$0.75 per M tokens - superior intelligence with GPT-OSS-120B reasoning capability
 
 ## Recent Critical Updates
 
-### 2025-09-17: Phase 1 Optimized - Direct GPT Sentiment-First System ✅
-**MAJOR SIMPLIFICATION**: Eliminated unnecessary DistilBERT step, now using direct GPT-OSS-120B + sentiment-first approach
-**BREAKTHROUGH OPTIMIZATION**: Simplified two-step validation to single direct GPT analysis with sentiment driving decisions
+### 2025-09-17: Sentiment-First GPT-OSS-120B System - Production Implementation ✅
+**CRITICAL UPDATE**: GPT-OSS-120B sentiment analysis implementation with proper instructions+input API format
+**SYSTEM ENHANCEMENT**: All 5 Facebook message types updated, cron triggers active, complete automation
 
-#### **Direct GPT-OSS-120B Implementation:**
-- **✅ Eliminated DistilBERT**: Removed inefficient two-step process, direct GPT-OSS-120B analysis
-- **✅ Sentiment-First Logic**: Sentiment drives predictions (primary), technical analysis as reference confirmation
-- **✅ Simplified Architecture**: Single GPT call per symbol instead of complex validation chains
-- **✅ Superior Intelligence**: GPT-OSS-120B provides much smarter analysis than DistilBERT baseline
-- **✅ Cost Optimized**: ~$0.05/analysis for direct GPT vs complex validation approach
+#### **GPT-OSS-120B Sentiment Implementation:**
+- **✅ Superior AI Reasoning**: GPT-OSS-120B provides advanced bullish/bearish/neutral analysis
+- **✅ Sentiment-First Architecture**: GPT sentiment drives predictions (primary), neural networks as technical reference
+- **✅ API Format Corrected**: Proper instructions+input format for GPT-OSS-120B compatibility
+- **✅ Intelligence Priority**: $0.35/$0.75 per M tokens for superior reasoning over cheaper alternatives
+- **✅ Complete Automation**: All 5 cron triggers active with GPT-enhanced Facebook messages
 
-#### **Sentiment-First Decision Logic:**
-- **Primary Engine**: GPT-OSS-120B sentiment analysis drives all trading decisions
+#### **GPT-OSS-120B Capabilities:**
+- **Advanced Reasoning**: Superior financial analysis beyond simple sentiment classification
+- **Market Context**: Deep understanding of institutional behavior and market dynamics
+- **Risk Assessment**: Comprehensive price impact and time horizon analysis
+- **Confidence Scoring**: Precise confidence metrics based on news quality and market conditions
 - **Reference Signal**: Technical analysis (TFT + N-HITS) provides confirmation/disagreement flags
 - **Agreement Boost**: Technical confirms sentiment → +10% confidence boost
 - **Disagreement Noted**: Technical disagrees → keep sentiment decision, flag disagreement

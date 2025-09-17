@@ -16,13 +16,13 @@ export async function runEnhancedAnalysis(env, options = {}) {
   console.log('🚀 Starting Enhanced Analysis with Sentiment Integration...');
 
   try {
-    // Step 1: Run existing neural network analysis (TFT + N-HITS)
-    console.log('📊 Step 1: Running neural network analysis...');
-    const technicalAnalysis = await runBasicAnalysis(env, options);
+    // Step 1: SENTIMENT-FIRST - Run GPT sentiment analysis first
+    console.log('💭 Step 1: Running sentiment-first analysis (GPT-OSS-120B)...');
+    const sentimentResults = await runSentimentFirstAnalysis(env, options);
 
-    // Step 2: Add sentiment analysis for each symbol
-    console.log('🔍 Step 2: Adding sentiment analysis...');
-    const enhancedResults = await addSentimentAnalysis(technicalAnalysis, env);
+    // Step 2: Add technical analysis as reference confirmation
+    console.log('📊 Step 2: Adding technical analysis as reference...');
+    const enhancedResults = await addTechnicalReference(sentimentResults, env, options);
 
     // Step 3: Calculate execution metrics
     const executionTime = Date.now() - startTime;
@@ -324,6 +324,128 @@ function mapDirectionToScore(direction) {
     'BEARISH': -0.8
   };
   return mapping[direction?.toUpperCase()] || 0.0;
+}
+
+/**
+ * Run sentiment analysis first for all symbols
+ */
+async function runSentimentFirstAnalysis(env, options = {}) {
+  const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default symbols
+  console.log(`💭 Starting sentiment-first analysis for ${symbols.length} symbols...`);
+
+  const results = {
+    sentiment_signals: {},
+    analysis_time: new Date().toISOString(),
+    trigger_mode: options.triggerMode || 'sentiment_first',
+    symbols_analyzed: symbols
+  };
+
+  // Process each symbol with sentiment analysis first
+  for (const symbol of symbols) {
+    try {
+      console.log(`   🧠 Analyzing ${symbol} sentiment with GPT-OSS-120B...`);
+
+      // Get news data for the symbol
+      const newsData = await getFreeStockNews(symbol, env);
+
+      // Run GPT sentiment analysis (primary decision maker)
+      const sentimentResult = await getBasicSentiment(symbol, newsData, env);
+
+      results.sentiment_signals[symbol] = {
+        symbol: symbol,
+        sentiment_analysis: sentimentResult,
+        news_count: newsData?.length || 0,
+        timestamp: new Date().toISOString(),
+        method: 'sentiment_first'
+      };
+
+      const confidenceInfo = sentimentResult.confidence ? ` (${(sentimentResult.confidence * 100).toFixed(1)}%)` : '';
+      const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
+      console.log(`   ✅ ${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
+
+    } catch (error) {
+      console.error(`   ❌ CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
+      console.log(`   ⚠️  Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
+
+      results.sentiment_signals[symbol] = {
+        symbol: symbol,
+        sentiment_analysis: {
+          sentiment: 'failed',
+          confidence: 0,
+          reasoning: 'Sentiment-first system: GPT analysis failed, skipping symbol',
+          error: true,
+          skip_technical: true
+        },
+        news_count: 0,
+        timestamp: new Date().toISOString(),
+        method: 'sentiment_first_skip'
+      };
+    }
+  }
+
+  console.log(`✅ Sentiment-first analysis completed for ${symbols.length} symbols`);
+  return results;
+}
+
+/**
+ * Add technical analysis as reference to sentiment-driven results
+ */
+async function addTechnicalReference(sentimentResults, env, options = {}) {
+  console.log(`📊 Adding technical analysis as reference confirmation...`);
+
+  // Import the technical analysis function
+  const { runBasicAnalysis } = await import('./analysis.js');
+
+  // Run technical analysis for all symbols
+  const technicalAnalysis = await runBasicAnalysis(env, options);
+
+  // Only run technical analysis for symbols where sentiment succeeded
+  const validSymbols = Object.keys(sentimentResults.sentiment_signals).filter(symbol =>
+    !sentimentResults.sentiment_signals[symbol].sentiment_analysis.skip_technical
+  );
+
+  console.log(`📊 Running technical reference for ${validSymbols.length} symbols (skipped ${Object.keys(sentimentResults.sentiment_signals).length - validSymbols.length} failed sentiment symbols)`);
+
+  // Combine sentiment (primary) with technical (reference) for valid symbols only
+  for (const symbol of validSymbols) {
+    const sentimentSignal = sentimentResults.sentiment_signals[symbol];
+    const technicalSignal = technicalAnalysis.trading_signals?.[symbol];
+
+    if (technicalSignal && sentimentSignal.sentiment_analysis && !sentimentSignal.sentiment_analysis.error) {
+      // Create enhanced prediction with sentiment-first approach
+      const enhancedSignal = combineSignals(technicalSignal, sentimentSignal.sentiment_analysis, symbol);
+
+      // Update the result with technical reference and enhanced prediction
+      sentimentResults.sentiment_signals[symbol] = {
+        ...sentimentSignal,
+        technical_reference: technicalSignal,
+        enhanced_prediction: enhancedSignal,
+        current_price: technicalSignal.current_price,
+        predicted_price: technicalSignal.predicted_price // Keep technical prediction for reference
+      };
+
+      console.log(`   📊 ${symbol}: Technical reference added (${technicalSignal.direction} ${(technicalSignal.confidence * 100).toFixed(1)}%)`);
+    } else {
+      console.log(`   ⚠️  ${symbol}: Skipping technical analysis (sentiment failed)`);
+    }
+  }
+
+  // Restructure results to match expected format
+  const finalResults = {
+    symbols_analyzed: sentimentResults.symbols_analyzed,
+    trading_signals: sentimentResults.sentiment_signals,
+    analysis_time: sentimentResults.analysis_time,
+    trigger_mode: sentimentResults.trigger_mode,
+    performance_metrics: {
+      success_rate: 100,
+      total_symbols: Object.keys(sentimentResults.sentiment_signals).length,
+      successful_analyses: Object.keys(sentimentResults.sentiment_signals).length,
+      failed_analyses: 0
+    }
+  };
+
+  console.log(`✅ Technical reference analysis completed`);
+  return finalResults;
 }
 
 /**

@@ -458,6 +458,118 @@ export async function handleSentimentTest(request, env) {
 }
 
 /**
+ * Public GPT-OSS-120B API format debug test (no API key required)
+ */
+export async function handleGPTDebugTest(request, env) {
+  try {
+    console.log('🔧 Testing GPT-OSS-120B API format fix...');
+
+    // Import required modules
+    const { getCloudflareAISentiment } = await import('./cloudflare_ai_sentiment_pipeline.js');
+
+    // Test with minimal news data
+    const testSymbol = 'AAPL';
+    const mockNewsData = [
+      {
+        title: "Apple Stock Hits New High on Strong Earnings",
+        summary: "Apple Inc. reports record quarterly revenue with strong iPhone sales and services growth.",
+        url: "test-url",
+        publishedAt: new Date().toISOString()
+      },
+      {
+        title: "iPhone Sales Surge in China Market",
+        summary: "Apple sees significant growth in Chinese market with latest iPhone models.",
+        url: "test-url-2",
+        publishedAt: new Date().toISOString()
+      }
+    ];
+
+    console.log(`   📰 Using mock news data: ${mockNewsData.length} articles`);
+    console.log(`   🔍 Testing environment - AI available: ${!!env.AI}`);
+
+    if (!env.AI) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Cloudflare AI not available in this environment',
+        ai_binding: !!env.AI,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Test multiple models to isolate the issue
+    console.log(`   🔍 Testing available AI models...`);
+
+    // Test 1: Working DistilBERT model
+    try {
+      const distilTest = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', {
+        text: "Apple stock is performing well"
+      });
+      console.log(`   ✅ DistilBERT test succeeded:`, distilTest);
+    } catch (distilError) {
+      console.log(`   ❌ DistilBERT test failed:`, distilError.message);
+    }
+
+    // Test 2: GPT-OSS-120B with basic input
+    try {
+      const gptTest = await env.AI.run('@cf/openai/gpt-oss-120b', {
+        input: "Hello, respond with 'Hello World'"
+      });
+      console.log(`   ✅ GPT-OSS-120B basic test succeeded:`, gptTest);
+    } catch (gptError) {
+      console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
+    }
+
+    // Test 3: Alternative model (LLaMA)
+    try {
+      const llamaTest = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          { role: "user", content: "Say hello in JSON format" }
+        ]
+      });
+      console.log(`   ✅ LLaMA test succeeded:`, llamaTest);
+    } catch (llamaError) {
+      console.log(`   ❌ LLaMA test failed:`, llamaError.message);
+    }
+
+    // Test GPT-OSS-120B sentiment analysis
+    const sentimentResult = await getCloudflareAISentiment(testSymbol, mockNewsData, env);
+
+    return new Response(JSON.stringify({
+      success: true,
+      gpt_api_test: {
+        symbol: testSymbol,
+        news_articles_processed: mockNewsData.length,
+        sentiment_result: sentimentResult,
+        api_format_fix: 'instructions + input format',
+        model_used: sentimentResult?.models_used || ['error'],
+        cost_estimate: sentimentResult?.cost_estimate || { total_cost: 0 }
+      },
+      debug_info: {
+        ai_available: !!env.AI,
+        timestamp: new Date().toISOString(),
+        test_type: 'gpt_oss_120b_api_format_validation'
+      }
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ GPT debug test error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      error_stack: error.stack,
+      api_format_fix: 'instructions + input format',
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
  * Handle model health check - verify R2 model files accessibility
  */
 export async function handleModelHealth(request, env) {

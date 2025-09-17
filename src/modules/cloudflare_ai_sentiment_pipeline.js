@@ -14,14 +14,11 @@ const CLOUDFLARE_AI_CONFIG = {
     // Fast sentiment analysis (cheap)
     sentiment: '@cf/huggingface/distilbert-sst-2-int8', // $0.026 per M tokens
 
-    // Advanced analysis (more expensive but powerful)
-    reasoning: '@cf/openai/gpt-oss-120b', // $0.35/$0.75 per M tokens
+    // Advanced analysis - GPT-OSS-120B for superior reasoning
+    reasoning: '@cf/openai/gpt-oss-120b', // $0.35/$0.75 per M tokens (superior intelligence)
 
-    // Alternative models
-    alternatives: {
-      llama: '@cf/meta/llama-3.1-8b-instruct', // $0.027/$0.027 per M tokens
-      mistral: '@cf/mistral/mistral-7b-instruct-v0.1' // Fast alternative
-    }
+    // Alternative models (removed - using GPT-OSS-120B directly)
+    alternatives: {}
   },
 
   // Free tier: 10,000 neurons per day
@@ -38,7 +35,10 @@ const CLOUDFLARE_AI_CONFIG = {
  * Direct GPT-OSS-120B sentiment analysis (no DistilBERT needed)
  */
 async function getCloudflareAISentiment(symbol, newsData, env) {
+  console.log(`🚀 Starting Cloudflare AI sentiment analysis for ${symbol}...`);
+
   if (!newsData || newsData.length === 0) {
+    console.log(`   ⚠️ No news data available for ${symbol}`);
     return {
       symbol: symbol,
       sentiment: 'neutral',
@@ -49,6 +49,9 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
     };
   }
 
+  console.log(`   📊 Processing ${newsData.length} news items for ${symbol}`);
+  console.log(`   🔍 Environment check: AI available = ${!!env.AI}`);
+
   try {
     console.log(`   🧠 Using GPT-OSS-120B directly for ${symbol} sentiment analysis...`);
 
@@ -56,12 +59,14 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
     const gptResult = await getGPTDirectSentiment(symbol, newsData, env);
 
     if (!gptResult) {
+      console.error(`   ❌ GPT-OSS-120B returned null result for ${symbol}`);
       throw new Error('GPT-OSS-120B analysis failed');
     }
 
     console.log(`   ✅ GPT sentiment complete: ${gptResult.sentiment} (${(gptResult.confidence * 100).toFixed(1)}%)`);
+    console.log(`   📈 GPT reasoning: ${gptResult.reasoning?.substring(0, 100)}...`);
 
-    return {
+    const finalResult = {
       symbol: symbol,
       sentiment: gptResult.sentiment,
       confidence: gptResult.confidence,
@@ -73,19 +78,47 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
       analysis_details: gptResult,
       source: 'cloudflare_ai_direct_gpt',
       models_used: ['gpt-oss-120b'],
-      cost_estimate: calculateGPTCost(800, 300), // Estimated tokens
-      timestamp: new Date().toISOString()
+      cost_estimate: gptResult.cost_estimate || calculateGPTCost(800, 300), // Use actual or estimated tokens
+      timestamp: new Date().toISOString(),
+
+      // Debug information
+      debug_info: {
+        news_count: newsData.length,
+        api_call_success: true,
+        processing_time: new Date().toISOString()
+      }
     };
 
+    console.log(`   🎯 Final sentiment result for ${symbol}:`, {
+      sentiment: finalResult.sentiment,
+      confidence: finalResult.confidence,
+      score: finalResult.score,
+      cost: finalResult.cost_estimate?.total_cost || 0,
+      models: finalResult.models_used
+    });
+
+    return finalResult;
+
   } catch (error) {
-    console.error(`   ❌ GPT sentiment analysis failed for ${symbol}:`, error);
+    console.error(`   ❌ GPT sentiment analysis failed for ${symbol}:`, {
+      error_message: error.message,
+      error_stack: error.stack,
+      news_available: !!newsData,
+      news_count: newsData?.length || 0,
+      ai_available: !!env.AI
+    });
+
     return {
       symbol: symbol,
       sentiment: 'neutral',
       confidence: 0,
       reasoning: 'GPT analysis failed: ' + error.message,
       source: 'cloudflare_ai_error',
-      cost_estimate: { total_cost: 0, neurons_estimate: 0 }
+      cost_estimate: { total_cost: 0, neurons_estimate: 0 },
+      error_details: {
+        error_message: error.message,
+        timestamp: new Date().toISOString()
+      }
     };
   }
 }
@@ -190,17 +223,23 @@ function aggregateQuickSentiments(quickSentiments) {
  */
 async function getGPTDirectSentiment(symbol, newsData, env) {
   try {
+    console.log(`   🧠 Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
+
     // Prepare context for GPT-OSS-120B
     const newsContext = newsData
       .slice(0, 10) // Top 10 news items
       .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
       .join('\n\n');
 
-    const prompt = `Analyze financial sentiment for ${symbol} stock based on recent news:
+    console.log(`   📰 Processing ${newsData.length} news items (showing top 10)`);
+
+    const instructions = "You are a senior financial analyst specializing in sentiment analysis. Provide precise, actionable sentiment analysis in JSON format only. Focus on market-moving information and institutional sentiment.";
+
+    const input = `Analyze financial sentiment for ${symbol} stock based on recent news:
 
 ${newsContext}
 
-As a financial sentiment expert, provide your analysis in JSON format:
+Provide your analysis in this exact JSON format:
 {
   "sentiment": "bullish|bearish|neutral",
   "confidence": 0.85,
@@ -209,53 +248,116 @@ As a financial sentiment expert, provide your analysis in JSON format:
   "reasoning": "Brief explanation of key sentiment drivers",
   "key_factors": ["factor1", "factor2", "factor3"],
   "market_context": "Brief market condition assessment"
-}
+}`;
 
-Focus on market-moving information and institutional sentiment. Be precise and confident.`;
+    // Try multiple API formats for GPT-OSS-120B
+    console.log(`   🔧 Testing GPT-OSS-120B API formats...`);
 
-    // Call GPT-OSS-120B directly
-    const response = await env.AI.run(
-      CLOUDFLARE_AI_CONFIG.models.reasoning,
-      {
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a senior financial analyst specializing in sentiment analysis. Provide precise, actionable sentiment analysis in JSON format only.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
+    let response;
+    let apiParams;
+    let formatUsed;
+
+    try {
+      // GPT-OSS-120B format: instructions + input
+      apiParams = {
+        instructions: instructions,
+        input: input,
         max_tokens: 400,
-        temperature: 0.1 // Low temperature for consistent analysis
-      }
-    );
+        temperature: 0.1
+      };
 
-    // Parse the response
+      console.log(`   📡 Using GPT-OSS-120B with instructions+input format:`, {
+        model: CLOUDFLARE_AI_CONFIG.models.reasoning,
+        instructions_length: instructions.length,
+        input_length: input.length,
+        max_tokens: apiParams.max_tokens,
+        temperature: apiParams.temperature
+      });
+
+      response = await env.AI.run(
+        CLOUDFLARE_AI_CONFIG.models.reasoning,
+        apiParams
+      );
+      formatUsed = 'gpt_instructions_input';
+
+    } catch (gptError) {
+      console.log(`   ❌ GPT-OSS-120B failed:`, gptError.message);
+      throw new Error(`GPT-OSS-120B analysis failed: ${gptError.message}`);
+    }
+
+    console.log(`   ✅ AI response received using ${formatUsed}:`, {
+      format_used: formatUsed,
+      response_type: typeof response,
+      response_keys: Object.keys(response || {}),
+      response_length: response?.response?.length || 0,
+      full_response: response
+    });
+
+    // Parse the GPT-OSS-120B response
     let analysisData;
     try {
+      // GPT-OSS-120B format: response.response contains the text
+      let responseText = response?.response;
+
+      if (!responseText) {
+        throw new Error('No response text found in API response');
+      }
+
+      console.log(`   🔍 Response text to parse (${formatUsed}):`, responseText.substring(0, 500) + '...');
+
       // Extract JSON from response
-      const jsonMatch = response.response.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
+        console.log(`   📋 JSON match found:`, jsonMatch[0].substring(0, 200) + '...');
         analysisData = JSON.parse(jsonMatch[0]);
+        console.log(`   ✅ JSON parsed successfully:`, analysisData);
       } else {
         throw new Error('No JSON found in response');
       }
     } catch (parseError) {
-      console.error('Failed to parse GPT-OSS-120B JSON response:', parseError);
+      console.error('   ❌ Failed to parse AI JSON response:', {
+        error: parseError.message,
+        format_used: formatUsed,
+        response_preview: response?.response?.substring(0, 300) || 'No response text',
+        response_structure: response
+      });
       return null;
     }
 
-    return {
+    // GPT-OSS-120B was used
+    const modelUsed = 'gpt-oss-120b';
+
+    const result = {
       ...analysisData,
-      model: 'gpt-oss-120b',
+      model: modelUsed,
       analysis_type: 'direct_sentiment',
-      cost_estimate: calculateGPTCost(prompt.length, response.response.length)
+      cost_estimate: calculateGPTCost(input.length, response.response?.length || 0),
+      api_debug: {
+        format_used: formatUsed,
+        model_used: modelUsed,
+        input_tokens_estimate: Math.ceil(input.length / 4),
+        response_length: response.response?.length || 0,
+        api_call_success: true,
+        final_api_params: apiParams
+      }
     };
 
+    console.log(`   🎯 Final GPT sentiment result:`, {
+      sentiment: result.sentiment,
+      confidence: result.confidence,
+      reasoning_preview: result.reasoning?.substring(0, 100) + '...',
+      cost_estimate: result.cost_estimate
+    });
+
+    return result;
+
   } catch (error) {
-    console.error('Direct GPT sentiment analysis failed:', error);
+    console.error('   ❌ Direct GPT sentiment analysis failed:', {
+      error_message: error.message,
+      error_stack: error.stack,
+      symbol: symbol,
+      news_count: newsData?.length || 0
+    });
     return null;
   }
 }
@@ -265,19 +367,26 @@ Focus on market-moving information and institutional sentiment. Be precise and c
  */
 async function getGPTValidation(symbol, newsData, primarySentiment, env) {
   try {
+    console.log(`   🔍 Starting GPT-OSS-120B validation for ${symbol}...`);
+
     // Prepare context for GPT-OSS-120B
     const newsContext = newsData
       .slice(0, 5) // Top 5 news items
       .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
       .join('\n\n');
 
-    const prompt = `Validate sentiment analysis for ${symbol} stock. DistilBERT is uncertain.
+    console.log(`   📰 Validation processing ${newsData.length} news items (showing top 5)`);
+    console.log(`   🎯 Primary sentiment to validate: ${primarySentiment.label} (${(primarySentiment.confidence * 100).toFixed(1)}%)`);
+
+    const instructions = "You are a financial sentiment analyst specializing in validation. Provide precise, actionable sentiment validation in JSON format only.";
+
+    const input = `Validate sentiment analysis for ${symbol} stock. DistilBERT is uncertain.
 
 ${newsContext}
 
 DistilBERT result: ${primarySentiment.label} (${(primarySentiment.confidence * 100).toFixed(1)}% confidence)
 
-As a validation expert, provide your independent analysis in JSON format:
+Provide your independent validation in this exact JSON format:
 {
   "sentiment": "bullish|bearish|neutral",
   "confidence": 0.80,
@@ -289,49 +398,149 @@ As a validation expert, provide your independent analysis in JSON format:
 
 Focus on confirming or correcting the primary analysis.`;
 
-    // Call GPT-OSS-120B for detailed analysis
-    const response = await env.AI.run(
-      CLOUDFLARE_AI_CONFIG.models.reasoning,
-      {
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a financial sentiment analyst. Provide precise, actionable sentiment analysis in JSON format only.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
+    // Try multiple API formats for GPT-OSS-120B validation
+    console.log(`   🔧 Testing GPT-OSS-120B validation API formats...`);
+
+    let response;
+    let apiParams;
+    let formatUsed;
+
+    try {
+      // Format 1: instructions + input (as documented)
+      apiParams = {
+        instructions: instructions,
+        input: input,
         max_tokens: 300,
-        temperature: 0.1 // Low temperature for consistent analysis
+        temperature: 0.1
+      };
+
+      console.log(`   📡 Validation Format 1 (instructions + input):`, {
+        model: CLOUDFLARE_AI_CONFIG.models.reasoning,
+        instructions_length: instructions.length,
+        input_length: input.length,
+        max_tokens: apiParams.max_tokens
+      });
+
+      response = await env.AI.run(
+        CLOUDFLARE_AI_CONFIG.models.reasoning,
+        apiParams
+      );
+      formatUsed = 'instructions_input';
+
+    } catch (format1Error) {
+      console.log(`   ⚠️ Validation Format 1 failed:`, format1Error.message);
+
+      try {
+        // Format 2: Just input (simple format)
+        apiParams = {
+          input: `${instructions}\n\n${input}`,
+          max_tokens: 300,
+          temperature: 0.1
+        };
+
+        console.log(`   📡 Validation Format 2 (input only):`, {
+          input_length: apiParams.input.length,
+          max_tokens: apiParams.max_tokens
+        });
+
+        response = await env.AI.run(
+          CLOUDFLARE_AI_CONFIG.models.reasoning,
+          apiParams
+        );
+        formatUsed = 'input_only';
+
+      } catch (format2Error) {
+        console.log(`   ⚠️ Validation Format 2 failed:`, format2Error.message);
+
+        // Format 3: requests array format
+        apiParams = {
+          requests: [{
+            input: input,
+            instructions: instructions,
+            max_tokens: 300,
+            temperature: 0.1
+          }]
+        };
+
+        console.log(`   📡 Validation Format 3 (requests array)`);
+
+        response = await env.AI.run(
+          CLOUDFLARE_AI_CONFIG.models.reasoning,
+          apiParams
+        );
+        formatUsed = 'requests_array';
       }
-    );
+    }
+
+    console.log(`   ✅ GPT-OSS-120B validation response received using ${formatUsed}:`, {
+      format_used: formatUsed,
+      response_type: typeof response,
+      response_keys: Object.keys(response || {}),
+      response_length: response?.response?.length || 0,
+      response_preview: response?.response?.substring(0, 200) + '...'
+    });
 
     // Parse the response
     let analysisData;
     try {
+      // Check response structure
+      const responseText = response?.response || response?.text || response;
+      if (!responseText) {
+        throw new Error('No response text found in validation API response');
+      }
+
+      console.log(`   🔍 Validation response text to parse:`, responseText.substring(0, 300) + '...');
+
       // Extract JSON from response
-      const jsonMatch = response.response.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
+        console.log(`   📋 Validation JSON match found:`, jsonMatch[0].substring(0, 150) + '...');
         analysisData = JSON.parse(jsonMatch[0]);
+        console.log(`   ✅ Validation JSON parsed successfully:`, analysisData);
       } else {
-        throw new Error('No JSON found in response');
+        throw new Error('No JSON found in validation response');
       }
     } catch (parseError) {
-      console.error('Failed to parse GPT-OSS-120B JSON response:', parseError);
+      console.error('   ❌ Failed to parse GPT-OSS-120B validation JSON response:', {
+        error: parseError.message,
+        response_preview: response?.response?.substring(0, 300) || 'No response text',
+        response_structure: response
+      });
       return null;
     }
 
-    return {
+    const result = {
       ...analysisData,
       model: 'gpt-oss-120b',
       validation_type: 'gpt_validation',
-      cost_estimate: calculateGPTCost(prompt.length, response.response.length)
+      cost_estimate: calculateGPTCost(input.length, response.response?.length || 0),
+      validation_debug: {
+        format_used: formatUsed,
+        primary_sentiment: primarySentiment.label,
+        primary_confidence: primarySentiment.confidence,
+        validation_success: true,
+        api_params_used: apiParams
+      }
     };
 
+    console.log(`   🎯 Final GPT validation result:`, {
+      sentiment: result.sentiment,
+      confidence: result.confidence,
+      agrees_with_primary: result.agrees_with_primary,
+      validation_strength: result.validation_strength,
+      cost_estimate: result.cost_estimate
+    });
+
+    return result;
+
   } catch (error) {
-    console.error('GPT validation failed:', error);
+    console.error('   ❌ GPT validation failed:', {
+      error_message: error.message,
+      error_stack: error.stack,
+      symbol: symbol,
+      primary_sentiment: primarySentiment?.label,
+      news_count: newsData?.length || 0
+    });
     return null;
   }
 }

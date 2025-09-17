@@ -19,6 +19,7 @@ import {
   handleDebugWeekendMessage,
   handleKVGet,
   handleSentimentTest,
+  handleGPTDebugTest,
   handleModelHealth,
   handleR2Upload,
   handleTestAllFacebookMessages
@@ -108,6 +109,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyDataAPI(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
+    case '/debug-gpt':
+      return handleGPTDebugTest(request, env);
     case '/model-health':
       return handleModelHealth(request, env);
     case '/r2-upload':
