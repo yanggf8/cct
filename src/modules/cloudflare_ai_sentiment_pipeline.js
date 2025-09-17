@@ -1,9 +1,11 @@
 /**
- * Cloudflare AI Sentiment Analysis Pipeline
+ * Cloudflare AI Sentiment Analysis Pipeline - ENHANCED VERSION 2025-09-17
  * Uses Cloudflare Workers AI for sentiment analysis
  * Cost: $0.026-$0.75 per M tokens (vs $150/month OpenAI)
  * FREE: 10,000 neurons per day
  */
+
+console.log('🔥 LOADING ENHANCED CLOUDFLARE AI SENTIMENT PIPELINE MODULE 2025-09-17');
 
 // Import free news pipeline
 import { getFreeStockNews as getNewsData } from './free_sentiment_pipeline.js';
@@ -223,7 +225,7 @@ function aggregateQuickSentiments(quickSentiments) {
  */
 async function getGPTDirectSentiment(symbol, newsData, env) {
   try {
-    console.log(`   🧠 Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
+    console.log(`   🧠 🔥 ENHANCED VERSION 2025-09-17 - Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
     console.log(`   🔧 Debug info:`, {
       symbol: symbol,
       news_count: newsData.length,
@@ -294,6 +296,34 @@ Provide your analysis in this exact JSON format:
         response_has_data: !!response,
         raw_response: response
       });
+
+      // DETAILED RESPONSE STRUCTURE INSPECTION
+      console.log(`   🔍 DETAILED RESPONSE STRUCTURE ANALYSIS:`);
+      console.log(`   📋 Full response object:`, JSON.stringify(response, null, 2));
+
+      if (response && typeof response === 'object') {
+        for (const [key, value] of Object.entries(response)) {
+          console.log(`   📝 Response.${key}:`, {
+            type: typeof value,
+            value: value,
+            is_array: Array.isArray(value),
+            length: value?.length,
+            constructor: value?.constructor?.name
+          });
+
+          if (Array.isArray(value)) {
+            console.log(`   📦 Array ${key} contents:`);
+            value.forEach((item, index) => {
+              console.log(`     [${index}]:`, {
+                type: typeof item,
+                value: item,
+                keys: typeof item === 'object' ? Object.keys(item) : null,
+                stringified: JSON.stringify(item)
+              });
+            });
+          }
+        }
+      }
       formatUsed = 'gpt_input_only_non_agent';
 
     } catch (gptError) {
@@ -319,32 +349,154 @@ Provide your analysis in this exact JSON format:
 
     // Parse the GPT-OSS-120B response
     let analysisData;
+    let responseText = '';
     try {
+      console.log(`   🔧 STARTING TEXT EXTRACTION PROCESS`);
+      console.log(`   📊 Response type: ${typeof response}`);
+      console.log(`   📊 Response structure: ${JSON.stringify(response, null, 2)}`);
+
       // GPT-OSS-120B format: response.output array contains the text
       let responseText = '';
 
       if (typeof response === 'string') {
         // Direct string response
         responseText = response;
-        console.log(`   📊 Direct string response:`, responseText.substring(0, 200) + '...');
+        console.log(`   📊 ✅ EXTRACTION METHOD: Direct string response`);
+        console.log(`   📊 Extracted text length: ${responseText.length}`);
+        console.log(`   📊 Text preview:`, responseText.substring(0, 200) + '...');
+
       } else if (response?.response) {
         // GPT-OSS-120B standard response format
         responseText = response.response;
-        console.log(`   📊 Using response property:`, responseText.substring(0, 200) + '...');
+        console.log(`   📊 ✅ EXTRACTION METHOD: Using response property`);
+        console.log(`   📊 Extracted text length: ${responseText.length}`);
+        console.log(`   📊 Text preview:`, responseText.substring(0, 200) + '...');
+
       } else if (response?.output && Array.isArray(response.output)) {
         // Extract text from output array - check multiple possible properties
-        console.log(`   📊 Inspecting output array structure:`, response.output);
-        responseText = response.output.map(item => {
+        console.log(`   📊 ✅ EXTRACTION METHOD: Output array processing`);
+        console.log(`   📦 Output array length: ${response.output.length}`);
+        console.log(`   📊 Full output array structure:`, JSON.stringify(response.output, null, 2));
+
+        const extractedTexts = response.output.map((item, index) => {
+          console.log(`   📋 Processing output[${index}]:`, {
+            type: typeof item,
+            keys: typeof item === 'object' ? Object.keys(item) : null,
+            full_item: item
+          });
+
           // Try multiple possible text properties
-          const text = item.content || item.text || item.message || item.response || JSON.stringify(item);
-          console.log(`   📋 Output item:`, item, `→ Extracted text:`, text);
-          return text;
-        }).join('');
-        console.log(`   📊 Extracted from output array:`, responseText.substring(0, 200) + '...');
-      } else if (typeof response === 'string') {
-        // Direct string response
-        responseText = response;
-        console.log(`   📊 Direct string response:`, responseText.substring(0, 200) + '...');
+          let extractedText = '';
+
+          if (typeof item === 'string') {
+            extractedText = item;
+            console.log(`     ✅ Found string directly: "${extractedText}"`);
+          } else if (item?.text) {
+            extractedText = String(item.text);
+            console.log(`     ✅ Found in .text: "${extractedText}"`);
+          } else if (item?.content) {
+            // Handle nested content array structure (GPT-OSS-120B format)
+            if (Array.isArray(item.content) && item.content.length > 0) {
+              console.log(`     🔍 Examining content array with ${item.content.length} items`);
+
+              // Look for the actual text in the content array
+              const contentItem = item.content.find(c => c?.text && (c.type === 'output_text' || c.type === 'reasoning_text'));
+              if (contentItem && contentItem.text) {
+                extractedText = String(contentItem.text);
+                console.log(`     ✅ Found in nested .content[].text (${contentItem.type}): "${extractedText.substring(0, 100)}..."`);
+              } else {
+                // Fallback: try any content item with text
+                const anyTextContent = item.content.find(c => c?.text);
+                if (anyTextContent && anyTextContent.text) {
+                  extractedText = String(anyTextContent.text);
+                  console.log(`     ✅ Found in fallback .content[].text: "${extractedText.substring(0, 100)}..."`);
+                } else {
+                  // Log what we found in content array for debugging
+                  console.log(`     🚨 Content array items:`, item.content.map((c, i) => ({
+                    index: i,
+                    keys: Object.keys(c || {}),
+                    hasText: !!c?.text,
+                    type: c?.type
+                  })));
+                  extractedText = '';
+                  console.log(`     ❌ No usable text found in content array`);
+                }
+              }
+            } else {
+              extractedText = String(item.content);
+              console.log(`     ✅ Found in .content (direct): "${extractedText}"`);
+            }
+          } else if (item?.message) {
+            extractedText = String(item.message);
+            console.log(`     ✅ Found in .message: "${extractedText}"`);
+          } else if (item?.response) {
+            extractedText = String(item.response);
+            console.log(`     ✅ Found in .response: "${extractedText}"`);
+          } else if (item?.generated_text) {
+            extractedText = String(item.generated_text);
+            console.log(`     ✅ Found in .generated_text: "${extractedText}"`);
+          } else if (item?.output) {
+            extractedText = String(item.output);
+            console.log(`     ✅ Found in .output: "${extractedText}"`);
+          } else if (item?.value) {
+            extractedText = String(item.value);
+            console.log(`     ✅ Found in .value: "${extractedText}"`);
+          } else if (item?.data) {
+            extractedText = String(item.data);
+            console.log(`     ✅ Found in .data: "${extractedText}"`);
+          } else {
+            // Try to find text in nested properties
+            for (const [key, value] of Object.entries(item || {})) {
+              console.log(`     🔍 Checking ${key}:`, typeof value, value);
+              if (typeof value === 'string' && value.length > 10) {
+                extractedText = value;
+                console.log(`     ✅ Found text in .${key}: "${extractedText}"`);
+                break;
+              }
+            }
+
+            if (!extractedText) {
+              // Try to find any string property that looks like generated text
+              const stringProps = Object.entries(item || {}).filter(([k, v]) => typeof v === 'string');
+              if (stringProps.length > 0) {
+                extractedText = stringProps[0][1]; // Take first string property
+                console.log(`     ✅ Using first string property ${stringProps[0][0]}: "${extractedText}"`);
+              } else {
+                // CRITICAL FIX: Convert object to string properly to see what we're missing
+                extractedText = '';
+                console.log(`     ❌ No text content found in object. Full object:`, JSON.stringify(item, null, 2));
+
+                // Additional diagnostic: check if this is the actual GPT output object
+                if (item && typeof item === 'object' && !Array.isArray(item)) {
+                  console.log(`     🚨 OBJECT ANALYSIS - Keys: ${Object.keys(item).join(', ')}`);
+                  for (const [key, value] of Object.entries(item)) {
+                    console.log(`     🚨 ${key}: ${typeof value} = ${value}`);
+                  }
+                }
+              }
+            }
+          }
+
+          // CRITICAL FIX: Ensure we always return a string, never an object
+          const finalText = String(extractedText || '');
+          console.log(`     📤 Final extracted text for [${index}]: "${finalText}" (type: ${typeof finalText})`);
+          return finalText;
+        }).filter(text => text.trim().length > 0);
+
+        // Prioritize JSON output over reasoning text
+        const jsonTexts = extractedTexts.filter(text => text.includes('"sentiment"') && text.includes('"confidence"'));
+        responseText = jsonTexts.length > 0 ? jsonTexts.join(' ') : extractedTexts.join(' ');
+
+        console.log(`   📊 ✅ Combined text from array:`, responseText.substring(0, 200) + '...');
+        console.log(`   📊 Total extracted length: ${responseText.length}`);
+
+      } else {
+        console.log(`   📊 ⚠️ EXTRACTION METHOD: Fallback - no recognized structure`);
+        console.log(`   📊 Available properties:`, Object.keys(response || {}));
+
+        // Try other possible response properties
+        responseText = response?.data || response?.result || response?.text || JSON.stringify(response);
+        console.log(`   📊 Fallback text:`, responseText.substring(0, 200) + '...');
       }
 
       if (!responseText) {
@@ -379,14 +531,15 @@ Provide your analysis in this exact JSON format:
       ...analysisData,
       model: modelUsed,
       analysis_type: 'direct_sentiment',
-      cost_estimate: calculateGPTCost(input.length, response.response?.length || 0),
+      cost_estimate: calculateGPTCost(input.length, responseText?.length || 0),
       api_debug: {
         format_used: formatUsed,
         model_used: modelUsed,
         input_tokens_estimate: Math.ceil(input.length / 4),
-        response_length: response.response?.length || 0,
+        response_length: responseText?.length || 0,
         api_call_success: true,
-        final_api_params: apiParams
+        final_api_params: apiParams,
+        text_extraction_success: !!responseText
       }
     };
 

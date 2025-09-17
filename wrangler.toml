@@ -8,9 +8,7 @@ account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 # Allow nodejs_compat for TensorFlow.js compatibility
 compatibility_flags = ["nodejs_compat"]
 
-# External dependencies for TensorFlow.js
-[build]
-external = ["@tensorflow/tfjs", "@tensorflow/tfjs-backend-cpu"]
+# Build configuration - TensorFlow.js handled automatically by modern Wrangler
 
 # Enhanced multi-cron system with progressive KV state sharing
 [triggers]
