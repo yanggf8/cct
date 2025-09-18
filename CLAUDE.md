@@ -4,20 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-18 (Production-Grade Code Quality + Triple-Tier DistilBERT Fallback - LIVE)
+**Current Version**: 2025-09-18 (Complete 5-Symbol Facebook Integration + Rate Limiting Protection - LIVE)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **System Status**: ✅ 100% Working Production-Grade Multi-tier Sentiment Analysis System
-- **Primary Model**: ModelScope GLM-4.5 Sentiment Analysis (2000 max_tokens + Enhanced Response Quality)
+- **System Status**: ✅ 100% Working Production-Grade Multi-tier Sentiment Analysis System (All 5 Symbols)
+- **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA with rate limiting protection
+- **Primary Model**: ModelScope GLM-4.5 Sentiment Analysis (2000 max_tokens + Sequential Rate Limiting)
 - **Intelligent Fallback**: Cloudflare AI Llama 3.1 8B Instruct (Free + Natural Language Processing)
 - **Final Fallback**: DistilBERT sentiment classification (Free + 100% Reliability)
 - **Supporting Models**: TFT + N-HITS provide agreement/disagreement signals only
 - **Architecture**: Triple-tier AI fallback (GLM-4.5 → Llama 3.1 → DistilBERT) + neural network validation + modular code structure
 - **Code Quality**: Production-grade modular architecture with consolidated utilities and structured logging
-- **Performance**: Cost-optimized sentiment analysis with enhanced token limits + comprehensive fallback protection
+- **Performance**: Cost-optimized sentiment analysis with enhanced token limits + 2-second rate limiting protection
+- **Facebook Integration**: All 5 cron message types include complete 5-symbol analysis with enhanced sentiment
 - **Cost Efficiency**: ~$0.0003 per analysis (99.96% cost reduction) + $0 for all fallback layers
-- **Reliability**: 100% uptime guarantee with triple-tier AI protection + production-grade error handling
+- **Reliability**: 100% uptime guarantee with triple-tier AI protection + rate limiting stability
 
 ## Recent Key Updates
+
+### 2025-09-18: Rate Limiting Fix + Complete 5-Symbol Facebook Integration ✅
+**PRODUCTION FIX**: Resolved sequential rate limiting issue causing only 2 symbols in Facebook messages
+
+#### **Rate Limiting Solution:**
+- **✅ Problem Identified**: ModelScope GLM-4.5 API rate limiting caused GOOGL, TSLA, NVDA to fail after AAPL, MSFT
+- **✅ Sequential Protection**: Added 2-second delays between symbol processing to prevent rate limit exhaustion
+- **✅ Complete Symbol Coverage**: All 5 symbols (AAPL, MSFT, GOOGL, TSLA, NVDA) now process successfully
+- **✅ Facebook Integration Fixed**: All cron messages now include complete 5-symbol analysis instead of 2
+- **✅ Production Reliability**: Rate limiting protection ensures consistent API success across all symbols
+
+#### **Enhanced Facebook Message Format:**
+```
+🏁 Market Close Sentiment Analysis:
+AAPL: ↗️ 🔥 BULLISH (75%) | AI-Informed outlook
+MSFT: ↗️ 🔥 BULLISH (82%) | AI-Informed outlook
+GOOGL: ➡️ ⚖️ NEUTRAL (60%) | AI-Informed outlook
+TSLA: ↘️ 🐻 BEARISH (71%) | AI-Informed outlook
+NVDA: ↗️ 🔥 BULLISH (88%) | AI-Informed outlook
+```
 
 ### 2025-09-18: Production-Grade Code Quality + DistilBERT Final Fallback ✅
 **CODE QUALITY UPGRADE**: Implemented Gemini-recommended improvements for production-grade architecture
@@ -34,6 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **✅ Complete AI Chain**: GLM-4.5 → Llama 3.1 → DistilBERT (no rule-based fallbacks)
 - **✅ Enhanced Token Limits**: Increased GLM-4.5 max_tokens from 500 → 2000 for better response quality
 - **✅ 100% AI Coverage**: Every fallback layer uses sophisticated AI models for sentiment analysis
+- **✅ Rate Limiting Protection**: 2-second delays between symbol processing for API stability
 
 #### **Architecture Quality Assessment:**
 ```

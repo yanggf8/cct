@@ -527,6 +527,12 @@ async function runSentimentFirstAnalysis(env, options = {}) {
       const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
       console.log(`   ✅ ${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
 
+      // Add delay between symbols to prevent rate limiting (ModelScope GLM-4.5 free tier protection)
+      if (symbols.indexOf(symbol) < symbols.length - 1) {
+        console.log(`   ⏱️  Rate limiting protection: 2-second delay before next symbol...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
     } catch (error) {
       console.error(`   ❌ CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
       console.log(`   ⚠️  Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
