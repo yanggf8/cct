@@ -20,6 +20,8 @@ import {
   handleKVGet,
   handleSentimentTest,
   handleGPTDebugTest,
+  handleModelScopeTest,
+  handleDebugEnvironment,
   handleModelHealth,
   handleR2Upload,
   handleTestAllFacebookMessages
@@ -111,6 +113,10 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleSentimentTest(request, env);
     case '/debug-gpt':
       return handleGPTDebugTest(request, env);
+    case '/test-modelscope':
+      return handleModelScopeTest(request, env);
+    case '/debug-env':
+      return handleDebugEnvironment(request, env);
     case '/model-health':
       return handleModelHealth(request, env);
     case '/r2-upload':

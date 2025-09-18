@@ -280,6 +280,13 @@ Be concise and focus on market-moving factors.`;
     });
 
     console.log(`   🚀 Making fetch call to ModelScope GLM-4.5...`);
+    console.log(`   🔐 API Key available: ${!!env.MODELSCOPE_API_KEY}`);
+    console.log(`   🔐 API Key length: ${env.MODELSCOPE_API_KEY?.length || 0} characters`);
+    console.log(`   🔐 API Key first 10 chars: ${env.MODELSCOPE_API_KEY?.substring(0, 10) || 'null'}...`);
+    console.log(`   📡 Request URL: ${MODELSCOPE_AI_CONFIG.models.endpoint}`);
+    console.log(`   📡 Request Model: ${MODELSCOPE_AI_CONFIG.models.primary}`);
+    console.log(`   📡 Request Body: ${JSON.stringify(apiParams).substring(0, 200)}...`);
+
     const response = await fetch(MODELSCOPE_AI_CONFIG.models.endpoint, {
       method: 'POST',
       headers: {
@@ -289,15 +296,46 @@ Be concise and focus on market-moving factors.`;
       body: JSON.stringify(apiParams)
     });
 
+    console.log(`   📨 Response status: ${response.status} ${response.statusText}`);
+    console.log(`   📨 Response headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
+
     if (!response.ok) {
       const errorText = await response.text();
+
+      // Enhanced rate limiting detection
+      const isRateLimit = response.status === 429 ||
+                         response.status === 503 ||
+                         errorText.toLowerCase().includes('rate limit') ||
+                         errorText.toLowerCase().includes('too many requests') ||
+                         errorText.toLowerCase().includes('quota exceeded');
+
+      const rateLimitHeaders = {
+        'x-ratelimit-limit': response.headers.get('x-ratelimit-limit'),
+        'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining'),
+        'x-ratelimit-reset': response.headers.get('x-ratelimit-reset'),
+        'retry-after': response.headers.get('retry-after')
+      };
+
       console.error(`   ❌ ModelScope API Error Response:`, {
         status: response.status,
         statusText: response.statusText,
+        is_rate_limit: isRateLimit,
+        rate_limit_headers: rateLimitHeaders,
         headers: Object.fromEntries(response.headers.entries()),
-        body: errorText
+        body: errorText,
+        diagnostic_hints: isRateLimit ? [
+          'RATE LIMITING DETECTED - ModelScope API quota exceeded',
+          'Consider implementing sequential calls instead of parallel',
+          'Check ModelScope dashboard for usage limits',
+          'Implement exponential backoff retry strategy'
+        ] : [
+          'API authentication - Check MODELSCOPE_API_KEY validity',
+          'Model availability - GLM-4.5 may be temporarily unavailable',
+          'Request format - Check API parameters and model name'
+        ]
       });
-      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}${isRateLimit ? ' [RATE_LIMIT_DETECTED]' : ''}`);
     }
 
     const responseData = await response.json();
@@ -307,8 +345,20 @@ Be concise and focus on market-moving factors.`;
       response_type: typeof responseData,
       has_choices: !!responseData.choices,
       choices_length: responseData.choices?.length || 0,
-      has_usage: !!responseData.usage
+      has_usage: !!responseData.usage,
+      full_response_preview: JSON.stringify(responseData).substring(0, 500) + '...'
     });
+
+    // Add comprehensive response validation logging
+    if (!responseData) {
+      console.error(`   ❌ GLM-4.5 returned null/undefined response`);
+      throw new Error('Null response from GLM-4.5 API');
+    }
+
+    if (typeof responseData !== 'object') {
+      console.error(`   ❌ GLM-4.5 returned non-object response:`, typeof responseData);
+      throw new Error('Invalid response type from GLM-4.5 API');
+    }
 
     // Parse GLM-4.5 response (OpenAI-compatible format)
     if (!responseData.choices || responseData.choices.length === 0) {

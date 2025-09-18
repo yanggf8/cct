@@ -111,8 +111,14 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
  * Get basic sentiment analysis (Phase 1 implementation)
  */
 async function getBasicSentiment(symbol, newsData, env) {
+  console.log(`🔍 SENTIMENT DEBUG: Starting getBasicSentiment for ${symbol}`);
+  console.log(`🔍 SENTIMENT DEBUG: News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
+  console.log(`🔍 SENTIMENT DEBUG: env.MODELSCOPE_API_KEY available: ${!!env.MODELSCOPE_API_KEY}`);
+  console.log(`🔍 SENTIMENT DEBUG: env.MODELSCOPE_API_KEY length: ${env.MODELSCOPE_API_KEY?.length || 0}`);
+
   // Phase 1: Start with free news APIs and rule-based sentiment
   if (!newsData || newsData.length === 0) {
+    console.log(`🔍 SENTIMENT DEBUG: Returning no_data - no news available`);
     return {
       sentiment: 'neutral',
       confidence: 0,
@@ -125,15 +131,32 @@ async function getBasicSentiment(symbol, newsData, env) {
   try {
     // Use ModelScope GLM-4.5 if API key available
     if (env.MODELSCOPE_API_KEY) {
+      console.log(`🔍 SENTIMENT DEBUG: ModelScope API key found, calling getModelScopeAISentiment...`);
       console.log(`   🤖 Using ModelScope GLM-4.5 sentiment analysis for ${symbol}...`);
-      return await getModelScopeAISentiment(symbol, newsData, env);
+      const result = await getModelScopeAISentiment(symbol, newsData, env);
+      console.log(`🔍 SENTIMENT DEBUG: ModelScope result:`, {
+        sentiment: result?.sentiment,
+        confidence: result?.confidence,
+        source: result?.source,
+        method: result?.method,
+        has_error: !!result?.error_details
+      });
+      return result;
     }
 
     // Fallback to rule-based sentiment (Phase 1 Week 1)
+    console.log(`🔍 SENTIMENT DEBUG: No ModelScope API key, using rule-based sentiment`);
     console.log(`   📝 Using rule-based sentiment analysis for ${symbol}...`);
-    return getRuleBasedSentiment(newsData);
+    const ruleResult = getRuleBasedSentiment(newsData);
+    console.log(`🔍 SENTIMENT DEBUG: Rule-based result:`, ruleResult);
+    return ruleResult;
 
   } catch (error) {
+    console.error(`🔍 SENTIMENT DEBUG: ModelScope failed, error:`, {
+      error_message: error.message,
+      error_stack: error.stack?.substring(0, 200),
+      symbol: symbol
+    });
     console.error(`   ❌ Advanced sentiment failed for ${symbol}, using rule-based:`, error.message);
     return getRuleBasedSentiment(newsData);
   }
@@ -506,21 +529,37 @@ export async function validateSentimentEnhancement(env) {
     const newsData = await getFreeStockNews(testSymbol, env);
     console.log(`   📰 News data: ${newsData.length} articles found`);
 
-    // Test sentiment analysis
+    // Test sentiment analysis (includes ModelScope GLM-4.5 with fallback)
     const sentimentResult = await getBasicSentiment(testSymbol, newsData, env);
     console.log(`   📊 Sentiment: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)`);
 
-    // Test Cloudflare AI availability
-    const aiAvailable = !!env.AI;
-    console.log(`   🤖 Cloudflare AI available: ${aiAvailable}`);
+    // Check if ModelScope GLM-4.5 actually succeeded (not fallback)
+    const modelScopeSuccess = sentimentResult &&
+                             sentimentResult.source === 'modelscope_glm45' &&
+                             !sentimentResult.error_details &&
+                             sentimentResult.confidence > 0 &&
+                             sentimentResult.method !== 'rule_based';
+
+    console.log(`   🤖 ModelScope GLM-4.5 success: ${modelScopeSuccess}`);
+    console.log(`   🔍 Sentiment method used: ${sentimentResult.method || sentimentResult.source}`);
+    console.log(`   🔍 ModelScope API key available: ${!!env.MODELSCOPE_API_KEY}`);
+    console.log(`   🔍 Cloudflare AI available: ${!!env.AI}`);
 
     return {
       success: true,
       news_count: newsData.length,
       sentiment: sentimentResult.sentiment,
       confidence: sentimentResult.confidence,
-      ai_available: aiAvailable,
-      method: sentimentResult.method
+      ai_available: modelScopeSuccess, // Check ModelScope success, not fallback methods
+      method: sentimentResult.method || sentimentResult.source || 'unknown',
+      debug_info: {
+        modelscope_key_available: !!env.MODELSCOPE_API_KEY,
+        modelscope_key_length: env.MODELSCOPE_API_KEY?.length || 0,
+        sentiment_source: sentimentResult.source,
+        sentiment_method: sentimentResult.method,
+        has_error_details: !!sentimentResult.error_details,
+        result_confidence: sentimentResult.confidence
+      }
     };
 
   } catch (error) {

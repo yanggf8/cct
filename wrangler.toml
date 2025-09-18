@@ -47,6 +47,11 @@ WORKER_VERSION = "1.0"
 TIMEZONE = "America/New_York"
 ENHANCED_MODELS_BUCKET = "enhanced-trading-models"
 
+# Explicit secret bindings (for troubleshooting)
+# Secrets are typically auto-available but adding explicit binding for ModelScope
+# [secrets]
+# MODELSCOPE_API_KEY = "MODELSCOPE_API_KEY"
+
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:
 # - WORKER_API_KEY: API key for protecting sensitive endpoints (REQUIRED)

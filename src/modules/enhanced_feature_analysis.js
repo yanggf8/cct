@@ -60,41 +60,46 @@ export async function runEnhancedFeatureAnalysis(symbols, env) {
 
   for (const symbol of symbols) {
     try {
-      console.log(`📊 Analyzing ${symbol} with enhanced features (PARALLEL EXECUTION)...`);
+      console.log(`📊 Analyzing ${symbol} with enhanced features (SEQUENTIAL EXECUTION - Rate Limit Safe)...`);
+
+      // **SEQUENTIAL EXECUTION** - Avoid ModelScope rate limiting by running components sequentially
+      console.log(`🔄 Starting sequential analysis for ${symbol}: Sentiment → Neural → Technical (Rate Limit Safe)`);
+
+      // 1. Sentiment analysis first (most critical, rate-limited API)
+      console.log(`💭 Step 1/3: Starting sentiment analysis for ${symbol}...`);
+      let sentimentData;
+      try {
+        sentimentData = await getStockSentiment(symbol, env);
+        console.log(`✅ Sentiment analysis complete for ${symbol}:`, sentimentData.sentiment_score);
+      } catch (error) {
+        console.error(`❌ Sentiment analysis failed for ${symbol}:`, error.message);
+        sentimentData = { sentiment_score: 0, confidence: 0.1, reasoning: 'Sentiment failed', error: error.message };
+      }
+
+      // 2. Neural network analysis (independent, can run after sentiment)
+      console.log(`🧠 Step 2/3: Starting neural analysis for ${symbol}...`);
+      let neuralAnalysis;
+      try {
+        const analysis = await runEnhancedAnalysis(env, { symbols: [symbol] });
+        neuralAnalysis = analysis.trading_signals[symbol];
+        console.log(`✅ Neural analysis complete for ${symbol}`);
+      } catch (error) {
+        console.error(`❌ Neural analysis failed for ${symbol}:`, error.message);
+        neuralAnalysis = null;
+      }
+
+      // 3. Technical indicators (independent, runs last)
+      console.log(`📈 Step 3/3: Starting market data fetch for ${symbol}...`);
+      let extendedData;
+      try {
+        extendedData = await fetchExtendedMarketData(symbol, env);
+        console.log(`✅ Market data fetched for ${symbol}:`, extendedData ? `${extendedData.length} points` : 'null');
+      } catch (error) {
+        console.error(`❌ Market data failed for ${symbol}:`, error.message);
+        extendedData = null;
+      }
       
-      // **DECOUPLED PARALLEL EXECUTION** - All three components run simultaneously
-      console.log(`🚀 Starting parallel analysis for ${symbol}: Neural + Technical + Sentiment`);
-      
-      const [neuralAnalysis, extendedData, sentimentData] = await Promise.all([
-        // 1. Neural network analysis (independent)
-        runEnhancedAnalysis(env, { symbols: [symbol] }).then(analysis => {
-          console.log(`🧠 Neural analysis complete for ${symbol}`);
-          return analysis.trading_signals[symbol];
-        }).catch(error => {
-          console.error(`❌ Neural analysis failed for ${symbol}:`, error.message);
-          return null;
-        }),
-        
-        // 2. Technical indicators (independent)
-        fetchExtendedMarketData(symbol, env).then(data => {
-          console.log(`📈 Market data fetched for ${symbol}:`, data ? `${data.length} points` : 'null');
-          return data;
-        }).catch(error => {
-          console.error(`❌ Market data failed for ${symbol}:`, error.message);
-          return null;
-        }),
-        
-        // 3. Sentiment analysis (independent)
-        getStockSentiment(symbol, env).then(sentiment => {
-          console.log(`💭 Sentiment analysis complete for ${symbol}:`, sentiment.sentiment_score);
-          return sentiment;
-        }).catch(error => {
-          console.error(`❌ Sentiment analysis failed for ${symbol}:`, error.message);
-          return { sentiment_score: 0, confidence: 0.1, reasoning: 'Sentiment failed', error: error.message };
-        })
-      ]);
-      
-      console.log(`✅ Parallel analysis complete for ${symbol}`);
+      console.log(`✅ Sequential analysis complete for ${symbol}`);
       
       // Calculate technical features from market data
       const technicalFeatures = extendedData ? createTechnicalFeatures(extendedData) : null;
@@ -117,7 +122,7 @@ export async function runEnhancedFeatureAnalysis(symbols, env) {
       }
       
     } catch (error) {
-      console.error(`❌ Error in parallel analysis for ${symbol}:`, error.message);
+      console.error(`❌ Error in sequential analysis for ${symbol}:`, error.message);
       
       // Fallback to basic neural network analysis only
       try {

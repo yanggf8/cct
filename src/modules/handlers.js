@@ -458,6 +458,174 @@ export async function handleSentimentTest(request, env) {
 }
 
 /**
+ * Debug environment variables and API keys
+ */
+export async function handleDebugEnvironment(request, env) {
+  // Additional debugging - check multiple ways to access the secret
+  const modelScopeKey = env.MODELSCOPE_API_KEY;
+  const allEnvKeys = Object.keys(env);
+  const secretKeys = allEnvKeys.filter(key => key.includes('MODELSCOPE') || key.includes('modelscope'));
+
+  return new Response(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    environment_debug: {
+      modelscope_api_key: {
+        available: !!env.MODELSCOPE_API_KEY,
+        length: env.MODELSCOPE_API_KEY?.length || 0,
+        first_10_chars: env.MODELSCOPE_API_KEY?.substring(0, 10) || 'null',
+        typeof: typeof env.MODELSCOPE_API_KEY,
+        direct_access: !!modelScopeKey,
+        is_empty_string: env.MODELSCOPE_API_KEY === '',
+        is_undefined: env.MODELSCOPE_API_KEY === undefined,
+        is_null: env.MODELSCOPE_API_KEY === null,
+        raw_value_debug: `"${env.MODELSCOPE_API_KEY}"`, // Show actual value in quotes
+        all_env_keys_count: allEnvKeys.length,
+        modelscope_related_keys: secretKeys,
+        all_env_keys: allEnvKeys.slice(0, 20) // First 20 for debugging
+      },
+      cloudflare_ai: {
+        available: !!env.AI,
+        binding_type: typeof env.AI
+      },
+      facebook: {
+        page_token_available: !!env.FACEBOOK_PAGE_TOKEN,
+        recipient_id_available: !!env.FACEBOOK_RECIPIENT_ID
+      },
+      api_keys: {
+        fmp_api_key: !!env.FMP_API_KEY,
+        newsapi_key: !!env.NEWSAPI_KEY,
+        worker_api_key: !!env.WORKER_API_KEY
+      },
+      r2_buckets: {
+        enhanced_models: !!env.ENHANCED_MODELS,
+        trained_models: !!env.TRAINED_MODELS
+      },
+      kv_namespace: {
+        trading_results: !!env.TRADING_RESULTS
+      }
+    }
+  }, null, 2), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+/**
+ * Test ModelScope API with parameter-provided key
+ */
+export async function handleModelScopeTest(request, env) {
+  try {
+    let apiKey;
+
+    // Accept API key via POST body (more secure) or URL parameter (convenience)
+    if (request.method === 'POST') {
+      try {
+        const body = await request.json();
+        apiKey = body.api_key;
+        console.log(`🔒 Received POST request with body keys: ${Object.keys(body)}`);
+      } catch (jsonError) {
+        console.error(`❌ JSON parsing error:`, jsonError.message);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Invalid JSON in request body',
+          details: jsonError.message
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 400
+        });
+      }
+    } else {
+      const url = new URL(request.url);
+      apiKey = url.searchParams.get('key');
+    }
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing API key',
+        usage: {
+          secure_method: 'POST {"api_key": "YOUR_MODELSCOPE_API_KEY"}',
+          quick_method: 'GET with ?key=YOUR_MODELSCOPE_API_KEY (less secure)'
+        }
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 400
+      });
+    }
+
+    console.log(`🔧 Testing ModelScope GLM-4.5 API with parameter key...`);
+    console.log(`🔐 API Key provided: ${!!apiKey}`);
+    console.log(`🔐 API Key length: ${apiKey.length}`);
+    console.log(`🔐 API Key first 10 chars: ${apiKey.substring(0, 10)}...`);
+
+    // Test ModelScope GLM-4.5 API directly
+    const testRequest = {
+      model: 'ZhipuAI/GLM-4.5',
+      messages: [
+        {
+          role: 'user',
+          content: 'Test sentiment analysis: Apple stock rises on strong iPhone sales. Is this bullish or bearish?'
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 100
+    };
+
+    console.log(`📡 Making direct ModelScope API call...`);
+    const response = await fetch('https://api-inference.modelscope.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(testRequest)
+    });
+
+    console.log(`📨 Response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ ModelScope API Error:`, errorText);
+      return new Response(JSON.stringify({
+        success: false,
+        error: `HTTP ${response.status}: ${errorText}`,
+        api_key_used: apiKey.substring(0, 10) + '...',
+        endpoint: 'https://api-inference.modelscope.cn/v1/chat/completions'
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const responseData = await response.json();
+    console.log(`✅ ModelScope API call successful`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      modelscope_test: {
+        api_key_used: apiKey.substring(0, 10) + '...',
+        response_received: !!responseData,
+        response_preview: JSON.stringify(responseData).substring(0, 300) + '...',
+        model_used: testRequest.model,
+        endpoint: 'https://api-inference.modelscope.cn/v1/chat/completions'
+      },
+      full_response: responseData
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ ModelScope parameter test error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 500
+    });
+  }
+}
+
+/**
  * Public ModelScope GLM-4.5 API test
  */
 export async function handleGPTDebugTest(request, env) {
@@ -521,8 +689,23 @@ export async function handleGPTDebugTest(request, env) {
       console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
     }
 
-    // Test GLM-4.5 sentiment analysis
+    // Test GLM-4.5 sentiment analysis with enhanced logging
+    console.log(`   🧪 Testing ModelScope GLM-4.5 sentiment analysis...`);
     const sentimentResult = await getModelScopeAISentiment(testSymbol, mockNewsData, env);
+
+    // Check if ModelScope GLM-4.5 actually succeeded
+    const modelScopeSuccess = sentimentResult &&
+                             sentimentResult.source === 'modelscope_glm45' &&
+                             !sentimentResult.error_details &&
+                             sentimentResult.confidence > 0;
+
+    console.log(`   ✅ ModelScope GLM-4.5 test result:`, {
+      success: modelScopeSuccess,
+      sentiment: sentimentResult?.sentiment,
+      confidence: sentimentResult?.confidence,
+      source: sentimentResult?.source,
+      has_error: !!sentimentResult?.error_details
+    });
 
     return new Response(JSON.stringify({
       success: true,
@@ -535,9 +718,11 @@ export async function handleGPTDebugTest(request, env) {
         cost_estimate: sentimentResult?.cost_estimate || { total_cost: 0 }
       },
       debug_info: {
-        ai_available: !!env.AI,
+        ai_available: modelScopeSuccess, // Fixed: Check ModelScope success, not Cloudflare AI
+        modelscope_available: !!env.MODELSCOPE_API_KEY,
+        cloudflare_ai_available: !!env.AI,
         timestamp: new Date().toISOString(),
-        test_type: 'gpt_oss_120b_api_format_validation'
+        test_type: 'modelscope_glm45_sentiment_validation'
       }
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
