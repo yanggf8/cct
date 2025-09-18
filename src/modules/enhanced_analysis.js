@@ -7,6 +7,7 @@ import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
+import { storeSymbolAnalysis } from './data.js';
 
 /**
  * Run enhanced analysis with sentiment integration
@@ -593,6 +594,47 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
         current_price: technicalSignal.current_price,
         predicted_price: technicalSignal.predicted_price // Keep technical prediction for reference
       };
+
+      // Store granular analysis data for this symbol
+      try {
+        const granularAnalysisData = {
+          symbol: symbol,
+          analysis_type: 'enhanced_sentiment_first',
+          timestamp: new Date().toISOString(),
+
+          // Primary sentiment signal (decision maker)
+          sentiment_analysis: sentimentSignal.sentiment_analysis,
+
+          // Technical reference signal (confirmation)
+          technical_reference: technicalSignal,
+
+          // Combined enhanced prediction
+          enhanced_prediction: enhancedSignal,
+
+          // Price data
+          current_price: technicalSignal.current_price,
+          predicted_price: technicalSignal.predicted_price,
+
+          // Analysis metadata
+          news_count: sentimentSignal.news_count || 0,
+          trigger_mode: sentimentResults.trigger_mode,
+          analysis_method: 'sentiment_first_with_technical_reference',
+
+          // Performance tracking data
+          confidence_metrics: {
+            sentiment_confidence: sentimentSignal.sentiment_analysis.confidence,
+            technical_confidence: technicalSignal.confidence,
+            enhanced_confidence: enhancedSignal.confidence,
+            neural_agreement: enhancedSignal.enhancement_details?.technical_agreement
+          }
+        };
+
+        await storeSymbolAnalysis(env, symbol, granularAnalysisData);
+        console.log(`   💾 ${symbol}: Granular analysis stored successfully`);
+      } catch (storageError) {
+        console.error(`   ❌ ${symbol}: Failed to store granular analysis:`, storageError.message);
+        // Continue processing - storage failure shouldn't break analysis
+      }
 
       console.log(`   📊 ${symbol}: Technical reference added (${technicalSignal.direction} ${(technicalSignal.confidence * 100).toFixed(1)}%)`);
     } else {

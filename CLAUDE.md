@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-18 (Complete 5-Symbol Facebook Integration + Rate Limiting Protection - LIVE)
+**Current Version**: 2025-09-19 (Enhanced KV Storage with Granular Symbol Tracking - LIVE)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ 100% Working Production-Grade Multi-tier Sentiment Analysis System (All 5 Symbols)
 - **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA with rate limiting protection
@@ -16,10 +16,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Code Quality**: Production-grade modular architecture with consolidated utilities and structured logging
 - **Performance**: Cost-optimized sentiment analysis with enhanced token limits + 2-second rate limiting protection
 - **Facebook Integration**: All 5 cron message types include complete 5-symbol analysis with enhanced sentiment
+- **Enhanced Storage**: Granular symbol-level tracking with individual analysis records and weekly accuracy rollups
 - **Cost Efficiency**: ~$0.0003 per analysis (99.96% cost reduction) + $0 for all fallback layers
 - **Reliability**: 100% uptime guarantee with triple-tier AI protection + rate limiting stability
 
 ## Recent Key Updates
+
+### 2025-09-19: Enhanced KV Storage with Granular Symbol Tracking ✅
+**STORAGE ENHANCEMENT**: Implemented comprehensive granular storage system for individual symbol analysis tracking
+
+#### **Enhanced Storage Architecture:**
+- **✅ Granular Symbol Storage**: Individual storage keys `analysis_${date}_${symbol}` for detailed tracking
+- **✅ Comprehensive Data Structure**: Complete analysis records including sentiment, technical, and enhanced predictions
+- **✅ Extended TTL**: 90-day retention for granular analysis data vs 7-day for aggregate data
+- **✅ Performance Metrics**: Individual confidence tracking, neural agreement scores, and direction accuracy
+- **✅ Facebook Integration**: New enhanced messaging functions using granular data for historical context
+
+#### **New Enhanced Facebook Functions:**
+- **`sendWeeklyAccuracyReportWithGranularData()`**: Symbol-by-symbol accuracy analysis with sentiment counts
+- **`sendDailyMessageWithHistoricalContext()`**: Today's predictions + yesterday's validation from granular storage
+- **Individual Symbol Retrieval**: `getSymbolAnalysisByDate()` for accessing specific symbol analysis records
+
+#### **Storage Structure Enhancement:**
+```javascript
+// Individual symbol analysis storage
+{
+  symbol: 'AAPL',
+  analysis_type: 'enhanced_sentiment_first',
+  sentiment_analysis: { sentiment: 'bullish', confidence: 0.78, reasoning: '...' },
+  technical_reference: { direction: 'UP', confidence: 0.65 },
+  enhanced_prediction: { direction: 'UP', confidence: 0.72, method: 'sentiment_first_approach' },
+  confidence_metrics: {
+    sentiment_confidence: 0.78,
+    technical_confidence: 0.65,
+    neural_agreement: true
+  }
+}
+```
+
+#### **Integration Benefits:**
+- **Weekly Accuracy Reports**: Detailed symbol-by-symbol performance analysis
+- **Historical Validation**: Yesterday's predictions vs today's reality comparison
+- **Enhanced Fact Table**: Real market price validation with granular tracking
+- **Improved Analytics**: Individual symbol confidence and agreement trend analysis
 
 ### 2025-09-18: Rate Limiting Fix + Complete 5-Symbol Facebook Integration ✅
 **PRODUCTION FIX**: Resolved sequential rate limiting issue causing only 2 symbols in Facebook messages

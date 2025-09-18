@@ -92,7 +92,9 @@
       "Bash(timeout 20 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")",
       "Bash(timeout 25 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")",
       "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/debug-env\")",
+      "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-facebook\")"
     ],
     "deny": [],
     "ask": []
