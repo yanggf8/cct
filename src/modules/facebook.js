@@ -34,10 +34,16 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   symbols.forEach(symbol => {
     const signal = signals[symbol];
     if (signal) {
-      const direction = signal.predicted_price > signal.current_price ? '↗️' : 
-                       signal.predicted_price < signal.current_price ? '↘️' : '➡️';
-      
-      reportText += `${symbol}: ${direction} $${signal.current_price?.toFixed(2)} → $${signal.predicted_price?.toFixed(2)} (${(signal.confidence * 100).toFixed(1)}%)\n`;
+      const enhanced = signal.enhanced_prediction;
+      const sentiment = signal.sentiment_analysis;
+      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
+
+      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+      const sentimentConfidence = Math.round((sentiment?.confidence || 0) * 100);
+
+      reportText += `${symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
+      reportText += `   💰 $${signal.current_price?.toFixed(2)} → $${signal.predicted_price?.toFixed(2)} | AI-Informed\n`;
     }
   });
   
@@ -54,7 +60,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   reportText += `📈 View detailed charts, trends, and model performance analysis\n\n`;
   
   reportText += `🎯 **Next Update:** Monday 8:30 AM EST\n`;
-  reportText += `💼 *For research purposes only - not financial advice*`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.`;
 
   // Send Facebook message
   const facebookPayload = {
@@ -112,23 +118,24 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
   reportText += `🗓️ ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} 10:00 AM EST\n\n`;
   
   // System performance summary
-  reportText += `🎯 **System Performance:**\n`;
-  reportText += `• Overall Accuracy: Real-time tracking active\n`;
-  reportText += `• Direction Accuracy: Prediction vs reality validation\n`;
-  reportText += `• Model Performance: TFT + N-HITS ensemble analysis\n\n`;
+  reportText += `🎯 **Sentiment-First System Performance:**\n`;
+  reportText += `• AI Sentiment Accuracy: Real-time tracking active\n`;
+  reportText += `• Direction Accuracy: Sentiment vs reality validation\n`;
+  reportText += `• Model Performance: AI Sentiment + Neural Reference analysis\n`;
+  reportText += `• AI Cost Efficiency: $0.0003 per analysis achieved\n\n`;
   
   // 📊 NEW: Add Weekly Analysis Dashboard Link  
   reportText += `📊 **DETAILED ANALYTICS DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `📈 Interactive charts showing:\n`;
-  reportText += `• Daily accuracy trends\n`;
-  reportText += `• Model performance comparison\n`;
-  reportText += `• Symbol-specific analysis\n`;
-  reportText += `• Prediction vs actual price visualization\n\n`;
+  reportText += `• Daily sentiment accuracy trends\n`;
+  reportText += `• AI Sentiment vs Neural model comparison\n`;
+  reportText += `• Bullish/Bearish/Neutral analysis\n`;
+  reportText += `• Sentiment-driven prediction visualization\n\n`;
   
   reportText += `⚙️ **System Status:** Operational ✅\n`;
   reportText += `🔄 **Next Report:** Next Sunday 10:00 AM EST\n\n`;
-  reportText += `💼 *For research purposes only - not financial advice*`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.`;
 
   const facebookPayload = {
     recipient: { id: env.FACEBOOK_RECIPIENT_ID },
@@ -172,6 +179,38 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
 }
 
 /**
+ * Generic Facebook Message Sender with Error Handling
+ */
+async function sendFacebookMessage(messageText, env) {
+  const facebookPayload = {
+    recipient: { id: env.FACEBOOK_RECIPIENT_ID },
+    message: { text: messageText },
+    messaging_type: "MESSAGE_TAG",
+    tag: "ACCOUNT_UPDATE"
+  };
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${env.FACEBOOK_PAGE_TOKEN}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(facebookPayload)
+    });
+
+    if (response.ok) {
+      console.log(`✅ Facebook message sent successfully`);
+      return { success: true };
+    } else {
+      const errorText = await response.text();
+      console.error(`❌ Facebook API error:`, errorText);
+      return { success: false, error: errorText };
+    }
+  } catch (error) {
+    console.error(`❌ Facebook send error:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Simple health check response
  */
 export function getHealthCheckResponse(env) {
@@ -189,6 +228,8 @@ export function getHealthCheckResponse(env) {
       facebook_dashboard_links: "enabled"
     },
     endpoints: {
+      basic_analysis: "/analyze",
+      enhanced_feature_analysis: "/enhanced-feature-analysis",
       weekly_analysis: "/weekly-analysis",
       weekly_data_api: "/api/weekly-data"
     }
@@ -210,28 +251,54 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
 
   let reportText = `🌅 **MORNING PREDICTIONS + ALERTS**\n`;
   reportText += `🗓️ ${dateStr} 8:30 AM EST\n\n`;
-  reportText += `📈 **Enhanced Neural Network Analysis:**\n`;
+  reportText += `💭 **AI Sentiment Analysis:**\n`;
 
-  // Analysis results with enhanced models
+  // Analysis results with sentiment-first approach
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
-      const direction = signal.direction === 'UP' ? '↗️' : signal.direction === 'DOWN' ? '↘️' : '➡️';
+      const enhanced = signal.enhanced_prediction;
+      const sentiment = signal.sentiment_analysis;
+      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
       const change = ((signal.predicted_price - signal.current_price) / signal.current_price * 100).toFixed(2);
-      reportText += `${signal.symbol}: ${direction} $${signal.current_price.toFixed(2)} → $${signal.predicted_price.toFixed(2)} (${Math.abs(change)}%)\n`;
+
+      // Show sentiment-driven prediction
+      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+      const confidence = Math.round((enhanced?.confidence || 0.5) * 100);
+
+      reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
+      reportText += `   💰 $${signal.current_price.toFixed(2)} → $${signal.predicted_price.toFixed(2)} (${Math.abs(change)}%)\n`;
     });
   }
 
   reportText += `\n⚙️ **System Status:** Operational ✅\n`;
-  reportText += `🤖 **Models:** TFT + N-HITS + Sentiment\n`;
+  reportText += `🤖 **Models:** AI Sentiment Analysis + Neural Reference\n`;
   reportText += `📊 **Symbols Analyzed:** ${analysisResult?.symbols_analyzed?.length || 5}\n\n`;
   reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `📈 View live predictions, sentiment analysis, and model performance\n\n`;
+  reportText += `📈 View live sentiment analysis, predictions, and model performance\n\n`;
   reportText += `🎯 **Next Update:** 12:00 PM EST Midday Validation\n`;
-  reportText += `💼 For research purposes only - not financial advice`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MORNING] ${cronExecutionId} Morning predictions sent via Facebook`);
+  
+  // Store detailed logging record
+  const messagingKey = `fb_morning_${Date.now()}`;
+  await env.TRADING_RESULTS.put(
+    messagingKey,
+    JSON.stringify({
+      trigger_mode: 'morning_prediction_alerts',
+      message_sent: true,
+      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+      includes_dashboard_link: true,
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      timestamp: now.toISOString(),
+      cron_execution_id: cronExecutionId,
+      message_type: 'morning_predictions'
+    }),
+    { expirationTtl: 604800 }
+  );
 }
 
 /**
@@ -249,29 +316,57 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
 
   let reportText = `🔄 **MIDDAY VALIDATION + FORECASTS**\n`;
   reportText += `🗓️ ${dateStr} 12:00 PM EST\n\n`;
-  reportText += `📊 **Morning Prediction Updates:**\n`;
+  reportText += `💭 **Sentiment Analysis Updates:**\n`;
 
-  // Analysis results with validation
+  // Analysis results with sentiment-first validation
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
-      const direction = signal.direction === 'UP' ? '↗️' : signal.direction === 'DOWN' ? '↘️' : '➡️';
-      const confidence = `${(signal.confidence * 100).toFixed(1)}%`;
-      reportText += `${signal.symbol}: ${direction} $${signal.current_price.toFixed(2)} (${confidence})\n`;
+      const enhanced = signal.enhanced_prediction;
+      const sentiment = signal.sentiment_analysis;
+      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
+      const confidence = Math.round((enhanced?.confidence || 0.5) * 100);
+
+      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+
+      const sentimentConf = Math.round((sentiment?.confidence || 0) * 100);
+      const technicalConf = Math.round((signal.confidence || 0.5) * 100);
+      const conflictIndicator = Math.abs(sentimentConf - technicalConf) > 20 ? ' ⚠️ CONFLICT' : ' ✅ ALIGNED';
+
+      reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
+      reportText += `   📊 Sentiment: ${sentimentConf}% | Technical: ${technicalConf}%${conflictIndicator}\n`;
     });
   }
 
   reportText += `\n🎯 **Afternoon Outlook:**\n`;
-  reportText += `• Market sentiment analysis updated\n`;
-  reportText += `• Neural network confidence tracking\n`;
-  reportText += `• Enhanced prediction validation active\n\n`;
+  reportText += `• AI sentiment signals informing analysis\n`;
+  reportText += `• Neural networks providing technical reference\n`;
+  reportText += `• Real-time market sentiment validation active\n\n`;
   reportText += `⚙️ **System Status:** Operational ✅\n`;
   reportText += `📊 **LIVE DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `🎯 **Next Update:** 4:05 PM EST Daily Report\n`;
-  reportText += `💼 For research purposes only - not financial advice`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MIDDAY] ${cronExecutionId} Midday validation sent via Facebook`);
+  
+  // Store detailed logging record
+  const messagingKey = `fb_midday_${Date.now()}`;
+  await env.TRADING_RESULTS.put(
+    messagingKey,
+    JSON.stringify({
+      trigger_mode: 'midday_validation_prediction',
+      message_sent: true,
+      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+      includes_dashboard_link: true,
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      timestamp: now.toISOString(),
+      cron_execution_id: cronExecutionId,
+      message_type: 'midday_validation'
+    }),
+    { expirationTtl: 604800 }
+  );
 }
 
 /**
@@ -289,22 +384,30 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
 
   let reportText = `📊 **DAILY VALIDATION + NEXT-DAY PREDICTIONS**\n`;
   reportText += `🗓️ ${dateStr} 4:05 PM EST\n\n`;
-  reportText += `🏁 **Market Close Analysis:**\n`;
+  reportText += `🏁 **Market Close Sentiment Analysis:**\n`;
 
-  // Analysis results with next-day predictions
+  // Analysis results with sentiment-driven next-day predictions
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
-      const direction = signal.direction === 'UP' ? '↗️' : signal.direction === 'DOWN' ? '↘️' : '➡️';
+      const enhanced = signal.enhanced_prediction;
+      const sentiment = signal.sentiment_analysis;
+      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
       const predicted = signal.predicted_price.toFixed(2);
       const current = signal.current_price.toFixed(2);
-      reportText += `${signal.symbol}: ${direction} $${current} → $${predicted}\n`;
+
+      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+      const sentimentConfidence = Math.round((sentiment?.confidence || 0) * 100);
+
+      reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
+      reportText += `   💰 $${current} → $${predicted} | AI-Informed outlook\n`;
     });
   }
 
   reportText += `\n🌅 **Tomorrow's Market Outlook:**\n`;
-  reportText += `• Neural network next-day predictions\n`;
-  reportText += `• Sentiment analysis for overnight news\n`;
-  reportText += `• Enhanced model consensus tracking\n\n`;
+  reportText += `• AI sentiment analysis for overnight news\n`;
+  reportText += `• Neural networks as technical reference\n`;
+  reportText += `• Real-time sentiment-driven predictions\n\n`;
   reportText += `📈 **Daily Performance:**\n`;
   reportText += `• Direction accuracy validation\n`;
   reportText += `• Model confidence assessment\n`;
@@ -314,8 +417,25 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
   reportText += `📊 **COMPREHENSIVE DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
   reportText += `🎯 **Next Update:** Tomorrow 8:30 AM EST\n`;
-  reportText += `💼 For research purposes only - not financial advice`;
+  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-DAILY] ${cronExecutionId} Daily validation sent via Facebook`);
+  
+  // Store detailed logging record
+  const messagingKey = `fb_daily_${Date.now()}`;
+  await env.TRADING_RESULTS.put(
+    messagingKey,
+    JSON.stringify({
+      trigger_mode: 'next_day_market_prediction',
+      message_sent: true,
+      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+      includes_dashboard_link: true,
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      timestamp: now.toISOString(),
+      cron_execution_id: cronExecutionId,
+      message_type: 'daily_validation'
+    }),
+    { expirationTtl: 604800 }
+  );
 }

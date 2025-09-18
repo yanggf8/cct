@@ -5,6 +5,8 @@
 
 import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, validateSentimentEnhancement } from './enhanced_analysis.js';
+import { runEnhancedFeatureAnalysis } from './enhanced_feature_analysis.js';
+import { runIndependentTechnicalAnalysis } from './independent_technical_analysis.js';
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 import { getFactTableData } from './data.js';
 import { runTFTInference, runNHITSInference } from './models.js';
@@ -97,6 +99,93 @@ export async function handleHealthCheck(request, env) {
   return new Response(JSON.stringify(healthData, null, 2), {
     headers: { 'Content-Type': 'application/json' }
   });
+}
+
+/**
+ * Handle Enhanced Feature Analysis requests (Neural Networks + 33 Technical Indicators + Sentiment)
+ */
+export async function handleEnhancedFeatureAnalysis(request, env) {
+  try {
+    console.log('🔬 Enhanced Feature Analysis requested (Neural Networks + Technical Indicators + Sentiment)');
+
+    // Get symbols from request or use default
+    let symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+    
+    if (request.method === 'POST') {
+      try {
+        const requestData = await request.json();
+        if (requestData.symbols && Array.isArray(requestData.symbols)) {
+          symbols = requestData.symbols;
+        }
+      } catch (error) {
+        console.log('Using default symbols (JSON parse error)');
+      }
+    }
+
+    // Run enhanced feature analysis
+    const analysis = await runEnhancedFeatureAnalysis(symbols, env);
+
+    return new Response(JSON.stringify(analysis, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Enhanced Feature Analysis error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      fallback_available: true,
+      message: 'Enhanced Feature Analysis failed. Use /analyze for basic neural network analysis.'
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle Independent Technical Analysis requests (33 Technical Indicators Only)
+ */
+export async function handleIndependentTechnicalAnalysis(request, env) {
+  try {
+    console.log('🔧 Independent Technical Analysis requested (33 Indicators Only - No Neural Networks)');
+
+    // Get symbols from request or use default
+    let symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+    
+    if (request.method === 'POST') {
+      try {
+        const requestData = await request.json();
+        if (requestData.symbols && Array.isArray(requestData.symbols)) {
+          symbols = requestData.symbols;
+        }
+      } catch (error) {
+        console.log('Using default symbols (JSON parse error)');
+      }
+    }
+
+    // Run independent technical analysis (NO neural networks)
+    const analysis = await runIndependentTechnicalAnalysis(symbols, env);
+
+    return new Response(JSON.stringify(analysis, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Independent Technical Analysis error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      message: 'Independent Technical Analysis failed. This endpoint only uses technical indicators.'
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 /**
@@ -363,6 +452,118 @@ export async function handleSentimentTest(request, env) {
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Public GPT-OSS-120B API format debug test (no API key required)
+ */
+export async function handleGPTDebugTest(request, env) {
+  try {
+    console.log('🔧 Testing GPT-OSS-120B API format fix...');
+
+    // Import required modules
+    const { getCloudflareAISentiment } = await import('./cloudflare_ai_sentiment_pipeline.js');
+
+    // Test with minimal news data
+    const testSymbol = 'AAPL';
+    const mockNewsData = [
+      {
+        title: "Apple Stock Hits New High on Strong Earnings",
+        summary: "Apple Inc. reports record quarterly revenue with strong iPhone sales and services growth.",
+        url: "test-url",
+        publishedAt: new Date().toISOString()
+      },
+      {
+        title: "iPhone Sales Surge in China Market",
+        summary: "Apple sees significant growth in Chinese market with latest iPhone models.",
+        url: "test-url-2",
+        publishedAt: new Date().toISOString()
+      }
+    ];
+
+    console.log(`   📰 Using mock news data: ${mockNewsData.length} articles`);
+    console.log(`   🔍 Testing environment - AI available: ${!!env.AI}`);
+
+    if (!env.AI) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Cloudflare AI not available in this environment',
+        ai_binding: !!env.AI,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Test multiple models to isolate the issue
+    console.log(`   🔍 Testing available AI models...`);
+
+    // Test 1: Working DistilBERT model
+    try {
+      const distilTest = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', {
+        text: "Apple stock is performing well"
+      });
+      console.log(`   ✅ DistilBERT test succeeded:`, distilTest);
+    } catch (distilError) {
+      console.log(`   ❌ DistilBERT test failed:`, distilError.message);
+    }
+
+    // Test 2: GPT-OSS-120B with basic input
+    try {
+      const gptTest = await env.AI.run('@cf/openai/gpt-oss-120b', {
+        input: "Hello, respond with 'Hello World'"
+      });
+      console.log(`   ✅ GPT-OSS-120B basic test succeeded:`, gptTest);
+    } catch (gptError) {
+      console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
+    }
+
+    // Test 3: Alternative model (LLaMA)
+    try {
+      const llamaTest = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          { role: "user", content: "Say hello in JSON format" }
+        ]
+      });
+      console.log(`   ✅ LLaMA test succeeded:`, llamaTest);
+    } catch (llamaError) {
+      console.log(`   ❌ LLaMA test failed:`, llamaError.message);
+    }
+
+    // Test GPT-OSS-120B sentiment analysis
+    const sentimentResult = await getCloudflareAISentiment(testSymbol, mockNewsData, env);
+
+    return new Response(JSON.stringify({
+      success: true,
+      gpt_api_test: {
+        symbol: testSymbol,
+        news_articles_processed: mockNewsData.length,
+        sentiment_result: sentimentResult,
+        api_format_fix: 'instructions + input format',
+        model_used: sentimentResult?.models_used || ['error'],
+        cost_estimate: sentimentResult?.cost_estimate || { total_cost: 0 }
+      },
+      debug_info: {
+        ai_available: !!env.AI,
+        timestamp: new Date().toISOString(),
+        test_type: 'gpt_oss_120b_api_format_validation'
+      }
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ GPT debug test error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      error_stack: error.stack,
+      api_format_fix: 'instructions + input format',
+      timestamp: new Date().toISOString()
+    }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
   }
@@ -650,4 +851,132 @@ export async function handleR2Upload(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
   }
+}
+
+/**
+ * Test All 5 Facebook Message Types (with comprehensive logging)
+ */
+export async function handleTestAllFacebookMessages(request, env) {
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: "Facebook not configured - FACEBOOK_PAGE_TOKEN or FACEBOOK_RECIPIENT_ID missing",
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  console.log("🧪 [FB-TEST-ALL] Starting comprehensive Facebook message test for all 5 cron types");
+
+  const testResults = {
+    timestamp: new Date().toISOString(),
+    test_execution_id: `fb_test_all_${Date.now()}`,
+    facebook_configured: true,
+    message_tests: {},
+    kv_logs: {},
+    errors: [],
+    overall_success: true
+  };
+
+  // Import the Facebook functions we need to test
+  const { 
+    sendMorningPredictionsWithTracking,
+    sendMiddayValidationWithTracking, 
+    sendDailyValidationWithTracking,
+    sendFridayWeekendReportWithTracking,
+    sendWeeklyAccuracyReportWithTracking 
+  } = await import("./facebook.js");
+
+  // Create mock analysis result for testing
+  const mockAnalysisResult = {
+    symbols_analyzed: ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
+    trading_signals: {
+      AAPL: {
+        symbol: "AAPL",
+        current_price: 175.23,
+        predicted_price: 177.45,
+        direction: "UP",
+        confidence: 0.87
+      },
+      MSFT: {
+        symbol: "MSFT", 
+        current_price: 334.78,
+        predicted_price: 331.22,
+        direction: "DOWN",
+        confidence: 0.82
+      }
+    },
+    timestamp: new Date().toISOString()
+  };
+
+  // Test all 5 message types
+  const messageTests = [
+    { name: "morning_predictions", func: sendMorningPredictionsWithTracking, args: [mockAnalysisResult, env] },
+    { name: "midday_validation", func: sendMiddayValidationWithTracking, args: [mockAnalysisResult, env] },
+    { name: "daily_validation", func: sendDailyValidationWithTracking, args: [mockAnalysisResult, env] },
+    { name: "friday_weekend_report", func: sendFridayWeekendReportWithTracking, args: [mockAnalysisResult, env, null, "weekly_market_close_analysis"] },
+    { name: "weekly_accuracy_report", func: sendWeeklyAccuracyReportWithTracking, args: [env] }
+  ];
+
+  for (let i = 0; i < messageTests.length; i++) {
+    const test = messageTests[i];
+    try {
+      console.log(`📱 [FB-TEST-${i+1}] Testing ${test.name} message...`);
+      const cronId = `${testResults.test_execution_id}_${test.name}`;
+      
+      // Add cronId to args
+      const args = [...test.args];
+      if (test.name === "weekly_accuracy_report") {
+        args.push(cronId);
+      } else {
+        args.push(cronId);
+      }
+      
+      await test.func(...args);
+      testResults.message_tests[test.name] = { success: true, cron_id: cronId };
+      console.log(`✅ [FB-TEST-${i+1}] ${test.name} test completed`);
+    } catch (error) {
+      console.error(`❌ [FB-TEST-${i+1}] ${test.name} test failed:`, error);
+      testResults.message_tests[test.name] = { success: false, error: error.message };
+      testResults.errors.push(`${test.name}: ${error.message}`);
+      testResults.overall_success = false;
+    }
+  }
+
+  // Check KV logs
+  console.log("🔍 [FB-TEST-KV] Checking KV logging for all tests...");
+  try {
+    const kvKeys = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+    const testTimestamp = testResults.test_execution_id.split("_")[3];
+    const recentLogs = kvKeys.keys?.filter(k => k.name.includes(testTimestamp)) || [];
+    testResults.kv_logs = {
+      total_fb_logs: kvKeys.keys?.length || 0,
+      test_related_logs: recentLogs.length,
+      recent_log_keys: recentLogs.map(k => k.name)
+    };
+    console.log(`📋 [FB-TEST-KV] Found ${recentLogs.length} test-related logs in KV`);
+  } catch (kvError) {
+    console.error("❌ [FB-TEST-KV] KV logging check failed:", kvError);
+    testResults.kv_logs = { error: kvError.message };
+  }
+
+  // Summary
+  const successCount = Object.values(testResults.message_tests).filter(t => t.success).length;
+  testResults.summary = {
+    total_tests: 5,
+    successful_tests: successCount,
+    failed_tests: 5 - successCount,
+    success_rate: `${successCount}/5 (${Math.round(successCount/5*100)}%)`
+  };
+
+  console.log(`🏁 [FB-TEST-ALL] Test completed: ${successCount}/5 successful`);
+
+  const statusCode = testResults.overall_success ? 200 : 207; // 207 = Multi-Status
+
+  return new Response(JSON.stringify(testResults, null, 2), {
+    status: statusCode,
+    headers: { "Content-Type": "application/json" }
+  });
 }

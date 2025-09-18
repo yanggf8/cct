@@ -66,7 +66,9 @@ export async function handleScheduledEvent(controller, env, ctx) {
       // Sunday 10:00 AM - Weekly accuracy report
       console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly accuracy report`);
       
+      console.log(`📱 [CRON-FB-WEEKLY] ${cronExecutionId} Sending weekly accuracy report via Facebook`);
       await sendWeeklyAccuracyReportWithTracking(env, cronExecutionId);
+      console.log(`✅ [CRON-FB-WEEKLY] ${cronExecutionId} Weekly Facebook message completed`);
       
       console.log(`✅ [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly accuracy report completed`);
       return new Response('Weekly accuracy report sent successfully', { status: 200 });
@@ -78,7 +80,9 @@ export async function handleScheduledEvent(controller, env, ctx) {
       analysisResult = await runWeeklyMarketCloseAnalysis(env, estTime);
       
       // Send Friday weekend report with dashboard link
+      console.log(`📱 [CRON-FB-FRIDAY] ${cronExecutionId} Sending Friday weekend report via Facebook`);
       await sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode);
+      console.log(`✅ [CRON-FB-FRIDAY] ${cronExecutionId} Friday Facebook message completed`);
       
     } else {
       // Enhanced pre-market analysis with sentiment
@@ -91,13 +95,21 @@ export async function handleScheduledEvent(controller, env, ctx) {
       });
 
       // Send Facebook messages for daily cron jobs
+      console.log(`📱 [CRON-FB] ${cronExecutionId} Attempting Facebook message for trigger: ${triggerMode}`);
       if (triggerMode === 'morning_prediction_alerts') {
+        console.log(`📱 [CRON-FB-MORNING] ${cronExecutionId} Sending morning predictions via Facebook`);
         await sendMorningPredictionsWithTracking(analysisResult, env, cronExecutionId);
+        console.log(`✅ [CRON-FB-MORNING] ${cronExecutionId} Morning Facebook message completed`);
       } else if (triggerMode === 'midday_validation_prediction') {
+        console.log(`📱 [CRON-FB-MIDDAY] ${cronExecutionId} Sending midday validation via Facebook`);
         await sendMiddayValidationWithTracking(analysisResult, env, cronExecutionId);
+        console.log(`✅ [CRON-FB-MIDDAY] ${cronExecutionId} Midday Facebook message completed`);
       } else if (triggerMode === 'next_day_market_prediction') {
+        console.log(`📱 [CRON-FB-DAILY] ${cronExecutionId} Sending daily validation via Facebook`);
         await sendDailyValidationWithTracking(analysisResult, env, cronExecutionId);
+        console.log(`✅ [CRON-FB-DAILY] ${cronExecutionId} Daily Facebook message completed`);
       }
+      console.log(`📱 [CRON-FB-COMPLETE] ${cronExecutionId} All Facebook messaging completed for ${triggerMode}`);
     }
     
     // Store results in KV

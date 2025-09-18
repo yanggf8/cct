@@ -1,4 +1,4 @@
-# Wrangler configuration for TFT Trading System Worker
+# Wrangler configuration for TFT Trading System Worker (Sentiment-First)
 
 name = "tft-trading-system"
 main = "src/index.js"
@@ -8,15 +8,13 @@ account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 # Allow nodejs_compat for TensorFlow.js compatibility
 compatibility_flags = ["nodejs_compat"]
 
-# External dependencies for TensorFlow.js
-[build]
-external = ["@tensorflow/tfjs", "@tensorflow/tfjs-backend-cpu"]
+# Build configuration - TensorFlow.js handled automatically by modern Wrangler
 
 # Enhanced multi-cron system with progressive KV state sharing
 [triggers]
 crons = [
   "30 13 * * 1-5",  # 8:30 AM EST - Generate 2-horizon predictions (1h + 24h) + high-confidence alerts
-  "0 17 * * 1-5",   # 12:00 PM EST - Validate morning predictions + generate afternoon forecasts  
+  "0 17 * * 1-5",   # 12:00 PM EST - Validate morning predictions + generate afternoon forecasts
   "5 21 * * 1-5",   # 4:05 PM EST - Daily validation report + next-day predictions
   "0 21 * * FRI",   # 4:00 PM EST Friday - Weekly market close report (comprehensive analysis)
   "0 15 * * SUN"    # 10:00 AM EST Sunday - Weekly accuracy report and performance review

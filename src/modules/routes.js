@@ -5,6 +5,8 @@
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
 import {
   handleManualAnalysis,
+  handleEnhancedFeatureAnalysis,
+  handleIndependentTechnicalAnalysis,
   handleGetResults,
   handleHealthCheck,
   handleFacebookTest,
@@ -17,8 +19,10 @@ import {
   handleDebugWeekendMessage,
   handleKVGet,
   handleSentimentTest,
+  handleGPTDebugTest,
   handleModelHealth,
-  handleR2Upload
+  handleR2Upload,
+  handleTestAllFacebookMessages
 } from './handlers.js';
 
 /**
@@ -26,7 +30,7 @@ import {
  */
 function validateRequest(request, url, env) {
   // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment'];
+  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -73,6 +77,10 @@ export async function handleHttpRequest(request, env, ctx) {
   switch (url.pathname) {
     case '/analyze':
       return handleManualAnalysis(request, env);
+    case '/enhanced-feature-analysis':
+      return handleEnhancedFeatureAnalysis(request, env);
+    case '/technical-analysis':
+      return handleIndependentTechnicalAnalysis(request, env);
     case '/results':
       return handleGetResults(request, env);
     case '/health':
@@ -101,10 +109,14 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyDataAPI(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
+    case '/debug-gpt':
+      return handleGPTDebugTest(request, env);
     case '/model-health':
       return handleModelHealth(request, env);
     case '/r2-upload':
       return handleR2Upload(request, env);
+    case '/test-all-facebook':
+      return handleTestAllFacebookMessages(request, env);
     default:
       // Default response for root and unknown paths
       if (url.pathname === '/' || url.pathname === '/status') {
