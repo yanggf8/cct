@@ -521,18 +521,6 @@ export async function handleGPTDebugTest(request, env) {
       console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
     }
 
-    // Test 3: Alternative model (LLaMA)
-    try {
-      const llamaTest = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-        messages: [
-          { role: "user", content: "Say hello in JSON format" }
-        ]
-      });
-      console.log(`   ✅ LLaMA test succeeded:`, llamaTest);
-    } catch (llamaError) {
-      console.log(`   ❌ LLaMA test failed:`, llamaError.message);
-    }
-
     // Test GPT-OSS-120B sentiment analysis
     const sentimentResult = await getCloudflareAISentiment(testSymbol, mockNewsData, env);
 

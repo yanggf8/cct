@@ -110,6 +110,15 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
       ai_available: !!env.AI
     });
 
+    // Enhanced diagnostic logging for GPT failures
+    console.error(`   🔍 GPT Failure Root Cause Analysis:`);
+    console.error(`     • Rate Limiting: Check if GPT-OSS-120B hit request/token limits`);
+    console.error(`     • Content Filtering: Financial news may trigger model content policies`);
+    console.error(`     • Token Limits: Input size may exceed GPT-OSS-120B context window`);
+    console.error(`     • Model Availability: GPT-OSS-120B service may be temporarily unavailable`);
+    console.error(`     • Network Issues: Cloudflare AI API connectivity problems`);
+    console.error(`   🔄 Fallback Active: DistilBERT sentiment analysis will be used instead`);
+
     return {
       symbol: symbol,
       sentiment: 'neutral',
@@ -119,7 +128,13 @@ async function getCloudflareAISentiment(symbol, newsData, env) {
       cost_estimate: { total_cost: 0, neurons_estimate: 0 },
       error_details: {
         error_message: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        diagnostic_hints: [
+          'Rate limiting - GPT-OSS-120B may have hit limits',
+          'Content filtering - Financial news content may be filtered',
+          'Token limits - Input may exceed context window',
+          'Model availability - GPT-OSS-120B may be temporarily unavailable'
+        ]
       }
     };
   }
@@ -542,6 +557,26 @@ Provide your analysis in this exact JSON format:
         text_extraction_success: !!responseText
       }
     };
+
+    // Enhanced diagnostics for empty response investigation
+    if (!responseText || responseText.length === 0) {
+      console.warn(`   ⚠️ EMPTY GPT RESPONSE DETECTED - Diagnostic Analysis:`);
+      console.warn(`   🔍 Possible Causes Analysis:`);
+      console.warn(`     1. Rate Limiting: GPT-OSS-120B may have hit rate limits (returns 200 but empty)`);
+      console.warn(`     2. Content Filtering: Financial news content may trigger model content filters`);
+      console.warn(`     3. Token Limits: Input length ${input.length} chars may exceed model context window`);
+      console.warn(`     4. Model Availability: GPT-OSS-120B may have intermittent availability issues`);
+      console.warn(`   📊 Response Analysis:`, {
+        api_success: true,
+        response_type: typeof response,
+        response_keys: Object.keys(response || {}),
+        input_token_estimate: Math.ceil(input.length / 4),
+        output_tokens: 0,
+        billing_charged: true,
+        fallback_active: 'DistilBERT sentiment analysis will be used'
+      });
+      console.warn(`   🔄 Fallback Strategy: Using DistilBERT (@cf/huggingface/distilbert-sst-2-int8) for sentiment analysis`);
+    }
 
     console.log(`   🎯 Final GPT sentiment result:`, {
       sentiment: result.sentiment,
