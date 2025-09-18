@@ -6,6 +6,7 @@
 import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
+import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
 
 /**
  * Run enhanced analysis with sentiment integration
@@ -29,7 +30,7 @@ export async function runEnhancedAnalysis(env, options = {}) {
     enhancedResults.execution_metrics = {
       total_time_ms: executionTime,
       enhancement_enabled: true,
-      sentiment_sources: ['free_news', 'rule_based_analysis'],
+      sentiment_sources: ['free_news', 'ai_sentiment_analysis'],
       cloudflare_ai_enabled: !!env.AI
     };
 
@@ -73,7 +74,7 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
       const newsData = await getFreeStockNews(symbol, env);
 
       // Phase 1: Basic sentiment analysis (rule-based + free APIs)
-      const sentimentResult = await getBasicSentiment(symbol, newsData, env);
+      const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
 
       // Combine technical and sentiment signals
       const enhancedSignal = combineSignals(technicalSignal, sentimentResult, symbol);
@@ -108,10 +109,11 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
 }
 
 /**
- * Get basic sentiment analysis (Phase 1 implementation)
+ * Get sentiment analysis with three-tier fallback chain
+ * Primary: ModelScope GLM-4.5 → Intelligent: Llama 3.1 → Final: DistilBERT
  */
-async function getBasicSentiment(symbol, newsData, env) {
-  console.log(`🔍 SENTIMENT DEBUG: Starting getBasicSentiment for ${symbol}`);
+async function getSentimentWithFallbackChain(symbol, newsData, env) {
+  console.log(`🔍 SENTIMENT DEBUG: Starting getSentimentWithFallbackChain for ${symbol}`);
   console.log(`🔍 SENTIMENT DEBUG: News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
   console.log(`🔍 SENTIMENT DEBUG: env.MODELSCOPE_API_KEY available: ${!!env.MODELSCOPE_API_KEY}`);
   console.log(`🔍 SENTIMENT DEBUG: env.MODELSCOPE_API_KEY length: ${env.MODELSCOPE_API_KEY?.length || 0}`);
@@ -165,64 +167,228 @@ async function getBasicSentiment(symbol, newsData, env) {
       console.log(`   ✅ Llama 3.1 fallback successful for ${symbol}`);
       return llamaFallback;
     } catch (llamaError) {
-      console.error(`   ❌ Llama 3.1 fallback also failed, using rule-based:`, llamaError.message);
-      return getRuleBasedSentiment(newsData);
+      console.error(`   ❌ Llama 3.1 fallback also failed, using DistilBERT final fallback:`, llamaError.message);
+
+      // Final fallback: DistilBERT sentiment classification
+      try {
+        const distilbertFallback = await getDistilBERTSentiment(symbol, newsData, env);
+        console.log(`   ✅ DistilBERT final fallback successful for ${symbol}`);
+        return distilbertFallback;
+      } catch (distilbertError) {
+        console.error(`   ❌ All sentiment analysis methods failed for ${symbol}:`, distilbertError.message);
+        throw new Error(`Complete sentiment analysis failure: ${distilbertError.message}`);
+      }
     }
   }
 }
 
 /**
- * Rule-based sentiment analysis (fallback method)
+ * Cloudflare AI Llama 3.1 sentiment analysis (intelligent fallback)
  */
-function getRuleBasedSentiment(newsData) {
+async function getLlama31Sentiment(symbol, newsData, env) {
+  console.log(`🦙 Starting Llama 3.1 sentiment analysis for ${symbol}...`);
+
+  if (!env.AI) {
+    throw new Error('Cloudflare AI binding not available for Llama 3.1 fallback');
+  }
+
   if (!newsData || newsData.length === 0) {
     return {
       sentiment: 'neutral',
       confidence: 0,
-      reasoning: 'No news data',
+      reasoning: 'No news data available',
       source_count: 0,
-      method: 'rule_based'
+      method: 'llama31_no_data'
     };
   }
 
-  let totalScore = 0;
-  let totalWeight = 0;
-  const sentimentCounts = { bullish: 0, bearish: 0, neutral: 0 };
+  try {
+    // Prepare news context for Llama 3.1
+    const newsContext = newsData
+      .slice(0, 8) // Limit for token efficiency
+      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
+      .join('\n\n');
 
-  newsData.forEach(item => {
-    // Analyze title and summary
-    const text = `${item.title} ${item.summary || ''}`;
-    const sentiment = analyzeTextSentiment(text);
+    const prompt = `Analyze the financial sentiment for ${symbol} stock based on these news headlines:
 
-    // Weight by source reliability
-    const weight = getSourceWeight(item.source_type || 'unknown');
+${newsContext}
 
-    totalScore += sentiment.score * weight;
-    totalWeight += weight;
+Provide a concise analysis with:
+1. Overall sentiment (bullish, bearish, or neutral)
+2. Confidence level (0.0 to 1.0)
+3. Brief reasoning
 
-    // Count sentiment types
-    if (sentiment.score > 0.1) sentimentCounts.bullish++;
-    else if (sentiment.score < -0.1) sentimentCounts.bearish++;
-    else sentimentCounts.neutral++;
-  });
+Be direct and focus on market-moving factors.`;
 
-  const avgScore = totalWeight > 0 ? totalScore / totalWeight : 0;
-  const confidence = Math.min(0.8, Math.abs(avgScore) + (newsData.length * 0.05));
+    console.log(`   🧠 Calling Cloudflare AI Llama 3.1 for ${symbol}...`);
 
-  let finalSentiment = 'neutral';
-  if (avgScore > 0.1) finalSentiment = 'bullish';
-  else if (avgScore < -0.1) finalSentiment = 'bearish';
+    const response = await env.AI.run(
+      '@cf/meta/llama-3.1-8b-instruct',
+      {
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 300
+      }
+    );
 
-  return {
-    sentiment: finalSentiment,
-    confidence: confidence,
-    score: avgScore,
-    reasoning: `${finalSentiment} from ${newsData.length} news sources (${sentimentCounts.bullish}+ ${sentimentCounts.bearish}- ${sentimentCounts.neutral}=)`,
-    source_count: newsData.length,
-    sentiment_distribution: sentimentCounts,
-    method: 'rule_based'
-  };
+    console.log(`   📝 Llama 3.1 response received:`, response);
+
+    if (!response || !response.response) {
+      throw new Error('Empty response from Llama 3.1');
+    }
+
+    const content = response.response;
+    console.log(`   📝 Llama 3.1 content:`, content);
+
+    // Parse Llama 3.1 response
+    const analysisData = parseNaturalLanguageResponse(content);
+
+    const result = {
+      ...analysisData,
+      source: 'cloudflare_llama31',
+      method: 'llama31_fallback',
+      model: 'llama-3.1-8b-instruct',
+      source_count: newsData.length,
+      analysis_type: 'intelligent_fallback',
+      cost_estimate: {
+        input_tokens: Math.ceil(prompt.length / 4),
+        output_tokens: Math.ceil(content.length / 4),
+        total_cost: 0 // Cloudflare AI included in plan
+      }
+    };
+
+    console.log(`   ✅ Llama 3.1 sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
+    return result;
+
+  } catch (error) {
+    console.error(`   ❌ Llama 3.1 sentiment analysis failed for ${symbol}:`, error);
+    throw new Error(`Llama 3.1 analysis failed: ${error.message}`);
+  }
 }
+
+/**
+ * DistilBERT sentiment analysis (final fallback)
+ */
+async function getDistilBERTSentiment(symbol, newsData, env) {
+  console.log(`🤖 Starting DistilBERT sentiment analysis for ${symbol}...`);
+
+  if (!env.AI) {
+    throw new Error('Cloudflare AI binding not available for DistilBERT fallback');
+  }
+
+  if (!newsData || newsData.length === 0) {
+    return {
+      sentiment: 'neutral',
+      confidence: 0,
+      reasoning: 'No news data available',
+      source_count: 0,
+      method: 'distilbert_no_data'
+    };
+  }
+
+  try {
+    // Process multiple news items with DistilBERT
+    const sentimentPromises = newsData.slice(0, 8).map(async (newsItem, index) => {
+      try {
+        // Combine title and summary for analysis
+        const text = `${newsItem.title}. ${newsItem.summary || ''}`.substring(0, 500);
+
+        // Use Cloudflare AI DistilBERT model
+        const response = await env.AI.run(
+          '@cf/huggingface/distilbert-sst-2-int8',
+          { text: text }
+        );
+
+        // DistilBERT returns array with label and score
+        const result = response[0];
+
+        return {
+          sentiment: result.label.toLowerCase(), // POSITIVE/NEGATIVE -> positive/negative
+          confidence: result.score,
+          score: result.label === 'POSITIVE' ? result.score : -result.score,
+          text_analyzed: text,
+          processing_order: index
+        };
+
+      } catch (error) {
+        console.error('Individual DistilBERT analysis failed:', error);
+        return {
+          sentiment: 'neutral',
+          confidence: 0,
+          score: 0,
+          error: error.message
+        };
+      }
+    });
+
+    // Wait for all sentiment analyses
+    const results = await Promise.allSettled(sentimentPromises);
+    const validResults = results
+      .filter(result => result.status === 'fulfilled')
+      .map(result => result.value)
+      .filter(result => !result.error);
+
+    if (validResults.length === 0) {
+      throw new Error('All DistilBERT analyses failed');
+    }
+
+    // Aggregate DistilBERT results
+    let totalScore = 0;
+    let totalWeight = 0;
+    const sentimentCounts = { positive: 0, negative: 0, neutral: 0 };
+
+    validResults.forEach(result => {
+      const weight = result.confidence;
+      totalScore += result.score * weight;
+      totalWeight += weight;
+
+      // Count sentiment types
+      if (result.score > 0.1) sentimentCounts.positive++;
+      else if (result.score < -0.1) sentimentCounts.negative++;
+      else sentimentCounts.neutral++;
+    });
+
+    const avgScore = totalWeight > 0 ? totalScore / totalWeight : 0;
+    const avgConfidence = totalWeight / validResults.length;
+
+    // Map to trading sentiment
+    let finalSentiment = 'neutral';
+    if (avgScore > 0.1) finalSentiment = 'bullish';
+    else if (avgScore < -0.1) finalSentiment = 'bearish';
+
+    const result = {
+      sentiment: finalSentiment,
+      confidence: avgConfidence,
+      score: avgScore,
+      reasoning: `DistilBERT analysis: ${finalSentiment} from ${validResults.length} news items (${sentimentCounts.positive}+ ${sentimentCounts.negative}- ${sentimentCounts.neutral}=)`,
+      source: 'cloudflare_distilbert',
+      method: 'distilbert_fallback',
+      model: 'distilbert-sst-2-int8',
+      source_count: newsData.length,
+      analysis_type: 'final_fallback',
+      cost_estimate: {
+        input_tokens: validResults.length * 100, // Estimate
+        output_tokens: 0,
+        total_cost: 0 // Cloudflare AI included in plan
+      },
+      sentiment_distribution: sentimentCounts,
+      processed_items: validResults.length
+    };
+
+    console.log(`   ✅ DistilBERT sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
+    return result;
+
+  } catch (error) {
+    console.error(`   ❌ DistilBERT sentiment analysis failed for ${symbol}:`, error);
+    throw new Error(`DistilBERT analysis failed: ${error.message}`);
+  }
+}
+
 
 /**
  * Get source reliability weight
@@ -298,7 +464,7 @@ function combineSignals(technicalSignal, sentimentSignal, symbol) {
       method: 'sentiment_first_approach',
       primary_signal: 'sentiment',
       reference_signal: 'technical',
-      sentiment_method: sentimentSignal.method || (sentimentSignal.models_used ? 'cloudflare_ai_validation' : 'rule_based'),
+      sentiment_method: sentimentSignal.method || (sentimentSignal.models_used ? 'cloudflare_ai_validation' : 'ai_fallback'),
       technical_agreement: technicalAgreement,
       validation_triggered: sentimentSignal.validation_triggered,
       models_used: sentimentSignal.models_used
@@ -308,40 +474,6 @@ function combineSignals(technicalSignal, sentimentSignal, symbol) {
   };
 }
 
-/**
- * Map sentiment to trading direction
- */
-function mapSentimentToDirection(sentiment) {
-  const mapping = {
-    'BULLISH': 'UP',
-    'BEARISH': 'DOWN',
-    'NEUTRAL': 'NEUTRAL',
-    'POSITIVE': 'UP',
-    'NEGATIVE': 'DOWN'
-  };
-  return mapping[sentiment?.toUpperCase()] || 'NEUTRAL';
-}
-
-/**
- * Check if technical direction agrees with sentiment direction
- */
-function checkDirectionAgreement(sentimentDirection, technicalDirection) {
-  // Normalize directions for comparison
-  const normalizeSentiment = sentimentDirection?.toUpperCase();
-  const normalizeTechnical = technicalDirection?.toUpperCase();
-
-  // Direct agreement
-  if (normalizeSentiment === normalizeTechnical) return true;
-
-  // Cross-format agreement
-  if ((normalizeSentiment === 'UP' && normalizeTechnical === 'BULLISH') ||
-      (normalizeSentiment === 'DOWN' && normalizeTechnical === 'BEARISH') ||
-      (normalizeSentiment === 'NEUTRAL' && (normalizeTechnical === 'FLAT' || normalizeTechnical === 'NEUTRAL'))) {
-    return true;
-  }
-
-  return false;
-}
 
 /**
  * Map direction strings to numerical scores
@@ -381,7 +513,7 @@ async function runSentimentFirstAnalysis(env, options = {}) {
       const newsData = await getFreeStockNews(symbol, env);
 
       // Run GPT sentiment analysis (primary decision maker)
-      const sentimentResult = await getBasicSentiment(symbol, newsData, env);
+      const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
 
       results.sentiment_signals[symbol] = {
         symbol: symbol,
@@ -539,7 +671,7 @@ export async function validateSentimentEnhancement(env) {
     console.log(`   📰 News data: ${newsData.length} articles found`);
 
     // Test sentiment analysis (includes ModelScope GLM-4.5 with fallback)
-    const sentimentResult = await getBasicSentiment(testSymbol, newsData, env);
+    const sentimentResult = await getSentimentWithFallbackChain(testSymbol, newsData, env);
     console.log(`   📊 Sentiment: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)`);
 
     // Check if ModelScope GLM-4.5 actually succeeded (not fallback)
@@ -547,7 +679,7 @@ export async function validateSentimentEnhancement(env) {
                              sentimentResult.source === 'modelscope_glm45' &&
                              !sentimentResult.error_details &&
                              sentimentResult.confidence > 0 &&
-                             sentimentResult.method !== 'rule_based';
+                             !['llama31_fallback', 'distilbert_fallback'].includes(sentimentResult.method);
 
     console.log(`   🤖 ModelScope GLM-4.5 success: ${modelScopeSuccess}`);
     console.log(`   🔍 Sentiment method used: ${sentimentResult.method || sentimentResult.source}`);

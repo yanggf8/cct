@@ -9,6 +9,7 @@ console.log('🔥 LOADING MODELSCOPE GLM-4.5 SENTIMENT PIPELINE MODULE 2025-09-1
 
 // Import free news pipeline
 import { getFreeStockNews as getNewsData } from './free_sentiment_pipeline.js';
+import { parseNaturalLanguageResponse, calculateModelCost } from './sentiment_utils.js';
 
 // ModelScope GLM-4.5 Configuration
 const MODELSCOPE_AI_CONFIG = {
@@ -78,7 +79,7 @@ async function getModelScopeAISentiment(symbol, newsData, env) {
       analysis_details: glmResult,
       source: 'modelscope_glm45',
       models_used: ['glm-4.5'],
-      cost_estimate: glmResult.cost_estimate || calculateGLM45Cost(800, 300),
+      cost_estimate: glmResult.cost_estimate || calculateModelCost('glm-4.5', 800, 300),
       timestamp: new Date().toISOString(),
 
       // Debug information
@@ -105,27 +106,17 @@ async function getModelScopeAISentiment(symbol, newsData, env) {
       error_stack: error.stack,
       news_available: !!newsData,
       news_count: newsData?.length || 0,
-      api_key_available: !!env.MODELSCOPE_API_KEY
+      api_key_available: !!env.MODELSCOPE_API_KEY,
+      diagnostic_hints: [
+        'Empty Response: GLM-4.5 may have hit request/token limits',
+        'Content Filtering: Financial news may trigger model content filters',
+        'Token Limits: Input size may exceed GLM-4.5 context window',
+        'Model Availability: GLM-4.5 may have intermittent availability issues'
+      ]
     });
 
-    return {
-      symbol: symbol,
-      sentiment: 'neutral',
-      confidence: 0,
-      reasoning: 'GLM-4.5 analysis failed: ' + error.message,
-      source: 'modelscope_error',
-      cost_estimate: { total_cost: 0, api_calls: 0 },
-      error_details: {
-        error_message: error.message,
-        timestamp: new Date().toISOString(),
-        diagnostic_hints: [
-          'API key validation - Check MODELSCOPE_API_KEY environment variable',
-          'Rate limiting - GLM-4.5 may have hit daily 2000 call limit',
-          'Network connectivity - ModelScope API may be unreachable',
-          'Request format - GLM-4.5 API parameters may be invalid'
-        ]
-      }
-    };
+    // Throw error to trigger Llama 3.1 fallback in enhanced_analysis.js
+    throw new Error(`GLM-4.5 analysis failed: ${error.message}`);
   }
 }
 
@@ -269,7 +260,7 @@ Be concise and focus on market-moving factors.`;
         }
       ],
       temperature: 0.1,
-      max_tokens: 500
+      max_tokens: 2000
     };
 
     console.log(`   📡 Using ModelScope GLM-4.5 API:`, {
@@ -400,7 +391,7 @@ Be concise and focus on market-moving factors.`;
       ...analysisData,
       model: 'glm-4.5',
       analysis_type: 'direct_sentiment',
-      cost_estimate: calculateGLM45Cost(prompt.length, content.length),
+      cost_estimate: calculateModelCost('glm-4.5', Math.ceil(prompt.length / 4), Math.ceil(content.length / 4)),
       usage_details: responseData.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       api_debug: {
         format_used: 'modelscope_openai_compatible',
@@ -433,70 +424,7 @@ Be concise and focus on market-moving factors.`;
   }
 }
 
-/**
- * Parse natural language response from GLM-4.5
- */
-function parseNaturalLanguageResponse(content) {
-  const lowerContent = content.toLowerCase();
 
-  // Extract sentiment
-  let sentiment = 'neutral';
-  if (lowerContent.includes('bullish') || lowerContent.includes('positive') || lowerContent.includes('optimistic')) {
-    sentiment = 'bullish';
-  } else if (lowerContent.includes('bearish') || lowerContent.includes('negative') || lowerContent.includes('pessimistic')) {
-    sentiment = 'bearish';
-  }
-
-  // Extract confidence (look for numbers between 0 and 1)
-  let confidence = 0.6; // default
-  const confidenceMatch = content.match(/confidence\s*level[:\s]*([0-9]*\.?[0-9]+)/i) ||
-                          content.match(/confidence[:\s]*([0-9]*\.?[0-9]+)/i);
-  if (confidenceMatch) {
-    const confValue = parseFloat(confidenceMatch[1]);
-    if (confValue <= 1) {
-      confidence = confValue;
-    } else if (confValue <= 100) {
-      confidence = confValue / 100; // Convert percentage
-    }
-  }
-
-  // Extract price impact
-  let price_impact = 'medium';
-  if (lowerContent.includes('high impact') || lowerContent.includes('significant')) {
-    price_impact = 'high';
-  } else if (lowerContent.includes('low impact') || lowerContent.includes('minimal')) {
-    price_impact = 'low';
-  }
-
-  // Use the content as reasoning
-  const reasoning = content.replace(/\n+/g, ' ').substring(0, 200) + '...';
-
-  return {
-    sentiment,
-    confidence,
-    price_impact,
-    reasoning,
-    time_horizon: 'days',
-    key_factors: [],
-    market_context: 'Parsed from natural language response'
-  };
-}
-
-/**
- * Calculate GLM-4.5 cost estimate
- */
-function calculateGLM45Cost(inputLength, outputLength) {
-  const inputTokens = Math.ceil(inputLength / 4);
-  const outputTokens = Math.ceil(outputLength / 4);
-
-  return {
-    input_tokens: inputTokens,
-    output_tokens: outputTokens,
-    input_cost: (inputTokens / 1000000) * 0.59,  // GLM-4.5 input cost
-    output_cost: (outputTokens / 1000000) * 2.19, // GLM-4.5 output cost
-    total_cost: (inputTokens / 1000000) * 0.59 + (outputTokens / 1000000) * 2.19
-  };
-}
 
 /**
  * Complete sentiment analysis pipeline for integration (GLM-4.5 only)

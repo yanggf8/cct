@@ -44,7 +44,7 @@ const FREE_SENTIMENT_CONFIG = {
   llm: {
     provider: 'gemini', // Free tier: 15 requests/minute
     model: 'gemini-1.5-flash', // Faster and cheaper
-    fallback: 'rule_based' // If LLM quota exceeded
+    fallback: 'ai_intelligent' // Uses Cloudflare AI when quota exceeded
   }
 };
 
