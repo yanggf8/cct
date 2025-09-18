@@ -34,16 +34,42 @@ export async function getFactTableData(env) {
                 const actualPrice = await getRealActualPrice(symbol, dateStr);
                 const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
 
+                // Extract sentiment-first data structure
+                const sentimentAnalysis = signal.sentiment_analysis || {};
+                const technicalReference = signal.technical_reference || {};
+                const enhancedPrediction = signal.enhanced_prediction || {};
+
+                // Determine primary model and prediction source
+                const primaryModel = 'GPT-OSS-120B';
+                const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
+                const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
+
+                // Calculate neural agreement
+                const neuralAgreement = calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhancedPrediction);
+
                 factTableData.push({
                   date: dateStr,
                   symbol: symbol,
                   predicted_price: signal.predicted_price,
                   current_price: signal.current_price,
-                  actual_price: actualPrice || signal.current_price, // Fallback to current if Yahoo fails
-                  direction_prediction: signal.direction,
+                  actual_price: actualPrice || signal.current_price,
+                  direction_prediction: primaryDirection,
                   direction_correct: directionCorrect,
-                  confidence: signal.confidence,
-                  model: signal.model || 'TFT-Ensemble',
+                  confidence: primaryConfidence,
+                  model: primaryModel,
+
+                  // NEW: Sentiment-first specific fields
+                  primary_model: primaryModel,
+                  primary_confidence: primaryConfidence,
+                  sentiment_score: sentimentAnalysis.confidence || 0,
+                  sentiment_reasoning: sentimentAnalysis.reasoning || '',
+                  news_articles: sentimentAnalysis.source_count || 0,
+                  neural_agreement: neuralAgreement.status,
+                  neural_agreement_score: neuralAgreement.score,
+                  tft_signal: neuralAgreement.tft_signal,
+                  nhits_signal: neuralAgreement.nhits_signal,
+                  enhancement_method: enhancedPrediction.method || 'sentiment_first_approach',
+
                   trigger_mode: analysisData.trigger_mode,
                   timestamp: analysisData.timestamp || checkDate.toISOString()
                 });
@@ -104,20 +130,45 @@ export async function getFactTableDataWithRange(env, rangeDays = 7, weekSelectio
               if (signal) {
                 // Get real actual price from Yahoo Finance
                 const actualPrice = await getRealActualPrice(symbol, dateStr);
-
                 // Validate real direction accuracy
                 const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
+
+                // Extract sentiment-first data structure
+                const sentimentAnalysis = signal.sentiment_analysis || {};
+                const technicalReference = signal.technical_reference || {};
+                const enhancedPrediction = signal.enhanced_prediction || {};
+
+                // Determine primary model and prediction source
+                const primaryModel = 'GPT-OSS-120B';
+                const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
+                const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
+
+                // Calculate neural agreement
+                const neuralAgreement = calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhancedPrediction);
 
                 factTableData.push({
                   date: dateStr,
                   symbol: symbol,
                   predicted_price: signal.predicted_price,
                   current_price: signal.current_price,
-                  actual_price: actualPrice || signal.current_price, // Fallback to current if Yahoo fails
-                  direction_prediction: signal.direction,
+                  actual_price: actualPrice || signal.current_price,
+                  direction_prediction: primaryDirection,
                   direction_correct: directionCorrect,
-                  confidence: signal.confidence,
-                  model: signal.model || 'TFT-Ensemble',
+                  confidence: primaryConfidence,
+                  model: primaryModel,
+
+                  // NEW: Sentiment-first specific fields
+                  primary_model: primaryModel,
+                  primary_confidence: primaryConfidence,
+                  sentiment_score: sentimentAnalysis.confidence || 0,
+                  sentiment_reasoning: sentimentAnalysis.reasoning || '',
+                  news_articles: sentimentAnalysis.source_count || 0,
+                  neural_agreement: neuralAgreement.status,
+                  neural_agreement_score: neuralAgreement.score,
+                  tft_signal: neuralAgreement.tft_signal,
+                  nhits_signal: neuralAgreement.nhits_signal,
+                  enhancement_method: enhancedPrediction.method || 'sentiment_first_approach',
+
                   trigger_mode: analysisData.trigger_mode,
                   timestamp: analysisData.timestamp || checkDate.toISOString()
                 });
@@ -274,6 +325,78 @@ async function getRealActualPrice(symbol, targetDate) {
     // Fallback to predicted price if Yahoo Finance fails
     return null;
   }
+}
+
+/**
+ * Calculate neural network agreement with sentiment analysis
+ */
+function calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhancedPrediction) {
+  try {
+    // Default neutral agreement if no data
+    if (!sentimentAnalysis || !technicalReference || !enhancedPrediction) {
+      return {
+        status: 'UNKNOWN',
+        score: 0.5,
+        tft_signal: 'UNKNOWN',
+        nhits_signal: 'UNKNOWN'
+      };
+    }
+
+    // Extract directions for comparison
+    const sentimentDirection = sentimentAnalysis.sentiment?.toUpperCase() || 'NEUTRAL';
+    const technicalDirection = technicalReference.direction?.toUpperCase() || 'NEUTRAL';
+    const technicalAgreement = enhancedPrediction.enhancement_details?.technical_agreement;
+
+    // Map sentiment to direction
+    const sentimentTradingDirection = mapSentimentToTradingDirection(sentimentDirection);
+
+    // Determine agreement status
+    let agreementStatus = 'UNKNOWN';
+    let agreementScore = 0.5;
+
+    if (technicalAgreement !== undefined) {
+      // Use existing technical agreement calculation
+      agreementStatus = technicalAgreement ? 'AGREE' : 'DISAGREE';
+      agreementScore = technicalAgreement ? 0.8 : 0.2;
+    } else {
+      // Fallback: Compare directions directly
+      const directionsMatch = sentimentTradingDirection === technicalDirection;
+      agreementStatus = directionsMatch ? 'AGREE' : 'DISAGREE';
+      agreementScore = directionsMatch ? 0.8 : 0.2;
+    }
+
+    return {
+      status: agreementStatus,
+      score: agreementScore,
+      tft_signal: agreementStatus, // Simplified: use same for both
+      nhits_signal: agreementStatus,
+      sentiment_direction: sentimentTradingDirection,
+      technical_direction: technicalDirection
+    };
+
+  } catch (error) {
+    console.error('Error calculating neural agreement:', error);
+    return {
+      status: 'ERROR',
+      score: 0.5,
+      tft_signal: 'ERROR',
+      nhits_signal: 'ERROR'
+    };
+  }
+}
+
+/**
+ * Map sentiment to trading direction
+ */
+function mapSentimentToTradingDirection(sentiment) {
+  const mapping = {
+    'BULLISH': 'UP',
+    'BEARISH': 'DOWN',
+    'NEUTRAL': 'NEUTRAL',
+    'POSITIVE': 'UP',
+    'NEGATIVE': 'DOWN'
+  };
+  return mapping[sentiment?.toUpperCase()] || 'NEUTRAL';
 }
 
 /**

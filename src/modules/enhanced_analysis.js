@@ -1,11 +1,11 @@
 /**
- * Enhanced Analysis Module with Sentiment Integration
- * Phase 1: Basic sentiment enhancement using free APIs + Cloudflare AI
+ * Enhanced Analysis Module with GLM-4.5 Sentiment Integration
+ * Updated for ModelScope GLM-4.5 sentiment analysis
  */
 
 import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
-import { getCloudflareAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
+import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
 
 /**
  * Run enhanced analysis with sentiment integration
@@ -16,8 +16,8 @@ export async function runEnhancedAnalysis(env, options = {}) {
   console.log('🚀 Starting Enhanced Analysis with Sentiment Integration...');
 
   try {
-    // Step 1: SENTIMENT-FIRST - Run GPT sentiment analysis first
-    console.log('💭 Step 1: Running sentiment-first analysis (GPT-OSS-120B)...');
+    // Step 1: SENTIMENT-FIRST - Run GLM-4.5 sentiment analysis first
+    console.log('💭 Step 1: Running sentiment-first analysis (GLM-4.5)...');
     const sentimentResults = await runSentimentFirstAnalysis(env, options);
 
     // Step 2: Add technical analysis as reference confirmation
@@ -123,10 +123,10 @@ async function getBasicSentiment(symbol, newsData, env) {
   }
 
   try {
-    // Use Cloudflare AI if available (Phase 1 Week 2)
-    if (env.AI) {
-      console.log(`   🤖 Using Cloudflare AI sentiment analysis for ${symbol}...`);
-      return await getCloudflareAISentiment(symbol, newsData, env);
+    // Use ModelScope GLM-4.5 if API key available
+    if (env.MODELSCOPE_API_KEY) {
+      console.log(`   🤖 Using ModelScope GLM-4.5 sentiment analysis for ${symbol}...`);
+      return await getModelScopeAISentiment(symbol, newsData, env);
     }
 
     // Fallback to rule-based sentiment (Phase 1 Week 1)

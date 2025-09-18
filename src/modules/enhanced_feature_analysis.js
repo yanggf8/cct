@@ -5,7 +5,7 @@
  */
 
 import { createTechnicalFeatures, normalizeTechnicalFeatures } from './technical_indicators.js';
-import { getCloudflareAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
+import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
 
@@ -260,8 +260,8 @@ async function getStockSentiment(symbol, env) {
   try {
     const newsData = await getFreeStockNews(symbol, env);
     
-    if (env.AI && newsData.length > 0) {
-      return await getCloudflareAISentiment(symbol, newsData, env);
+    if (env.MODELSCOPE_API_KEY && newsData.length > 0) {
+      return await getModelScopeAISentiment(symbol, newsData, env);
     } else {
       return analyzeTextSentiment(newsData);
     }

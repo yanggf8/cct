@@ -458,14 +458,14 @@ export async function handleSentimentTest(request, env) {
 }
 
 /**
- * Public GPT-OSS-120B API format debug test (no API key required)
+ * Public ModelScope GLM-4.5 API test
  */
 export async function handleGPTDebugTest(request, env) {
   try {
-    console.log('🔧 Testing GPT-OSS-120B API format fix...');
+    console.log('🔧 Testing ModelScope GLM-4.5 API...');
 
     // Import required modules
-    const { getCloudflareAISentiment } = await import('./cloudflare_ai_sentiment_pipeline.js');
+    const { getModelScopeAISentiment } = await import('./cloudflare_ai_sentiment_pipeline.js');
 
     // Test with minimal news data
     const testSymbol = 'AAPL';
@@ -521,8 +521,8 @@ export async function handleGPTDebugTest(request, env) {
       console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
     }
 
-    // Test GPT-OSS-120B sentiment analysis
-    const sentimentResult = await getCloudflareAISentiment(testSymbol, mockNewsData, env);
+    // Test GLM-4.5 sentiment analysis
+    const sentimentResult = await getModelScopeAISentiment(testSymbol, mockNewsData, env);
 
     return new Response(JSON.stringify({
       success: true,

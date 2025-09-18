@@ -81,7 +81,17 @@
       "Bash(env -u CLOUDFLARE_API_TOKEN wrangler r2 object put tft-trading-models/enhanced_nhits_weights.json --file=nhits_weights.json)",
       "Bash(TZ=America/New_York date)",
       "mcp__amazon-q-cli__ask_q",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(for:*)",
+      "Bash(do env -u CLOUDFLARE_API_TOKEN npx wrangler kv key delete \"analysis_$date\" --binding=TRADING_RESULTS --preview false)",
+      "Bash(do env:*)",
+      "Bash(timeout 20 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")",
+      "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")",
+      "Bash(timeout 25 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")",
+      "Bash(do echo \"测试 $i:\")",
+      "Bash(timeout 20 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")",
+      "Bash(timeout 25 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")",
+      "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")"
     ],
     "deny": [],
     "ask": []

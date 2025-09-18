@@ -1,4 +1,4 @@
-# Wrangler configuration for TFT Trading System Worker (Sentiment-First)
+# Wrangler configuration for TFT Trading System Worker (GLM-4.5 Sentiment)
 
 name = "tft-trading-system"
 main = "src/index.js"
@@ -26,9 +26,9 @@ binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
-# AI binding for Cloudflare Workers AI
-[ai]
-binding = "AI"
+# AI binding removed - using ModelScope GLM-4.5 API instead
+# [ai]
+# binding = "AI"
 
 # R2 bucket for trained model files
 [[r2_buckets]]
@@ -53,7 +53,10 @@ ENHANCED_MODELS_BUCKET = "enhanced-trading-models"
 # - FACEBOOK_PAGE_TOKEN: Facebook Messenger bot token
 # - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
 #
-# Free News API keys (Phase 1 Sentiment Enhancement):
+# ModelScope GLM-4.5 API key (Primary sentiment analysis):
+# - MODELSCOPE_API_KEY: ModelScope API key for GLM-4.5 (2000 free calls/day)
+#
+# Free News API keys:
 # - FMP_API_KEY: Financial Modeling Prep free API key (financialmodelingprep.com)
 # - NEWSAPI_KEY: NewsAPI.org free development key (newsapi.org)
 #
@@ -65,5 +68,6 @@ ENHANCED_MODELS_BUCKET = "enhanced-trading-models"
 #
 # Example deployment commands:
 # wrangler secret put WORKER_API_KEY
+# wrangler secret put MODELSCOPE_API_KEY
 # wrangler secret put FMP_API_KEY
 # wrangler secret put NEWSAPI_KEY

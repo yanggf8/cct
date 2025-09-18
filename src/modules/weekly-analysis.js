@@ -221,12 +221,14 @@ export async function handleWeeklyAnalysisPage(request, env) {
 
         function updateOverviewStats(data) {
             const stats = data.overview || {};
-            document.getElementById('overall-accuracy').textContent = 
-                stats.overallAccuracy ? \`\${stats.overallAccuracy.toFixed(2)}%\` : '-';
-            document.getElementById('direction-accuracy').textContent = 
+            document.getElementById('sentiment-accuracy').textContent =
+                stats.sentimentAccuracy ? \`\${stats.sentimentAccuracy.toFixed(2)}%\` : '-';
+            document.getElementById('direction-accuracy').textContent =
                 stats.directionAccuracy ? \`\${stats.directionAccuracy.toFixed(2)}%\` : '-';
+            document.getElementById('neural-agreement').textContent =
+                stats.neuralAgreementRate ? \`\${stats.neuralAgreementRate.toFixed(2)}%\` : '-';
             document.getElementById('total-predictions').textContent = stats.totalPredictions || '-';
-            document.getElementById('best-model').textContent = stats.bestModel || '-';
+            document.getElementById('best-model').textContent = stats.primaryModel || stats.bestModel || 'GPT-OSS-120B';
         }
 
         function createAccuracyChart(dailyData) {
@@ -238,8 +240,8 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 data: {
                     labels: dailyData.map(d => new Date(d.date).toLocaleDateString()),
                     datasets: [{
-                        label: 'Price Accuracy (%)',
-                        data: dailyData.map(d => d.priceAccuracy),
+                        label: 'GPT-OSS-120B Sentiment (%)',
+                        data: dailyData.map(d => d.sentimentAccuracy || d.priceAccuracy),
                         borderColor: '#4facfe',
                         backgroundColor: 'rgba(79, 172, 254, 0.1)',
                         tension: 0.4,
@@ -251,6 +253,13 @@ export async function handleWeeklyAnalysisPage(request, env) {
                         backgroundColor: 'rgba(0, 242, 254, 0.1)',
                         tension: 0.4,
                         fill: true
+                    }, {
+                        label: 'Neural Agreement (%)',
+                        data: dailyData.map(d => d.neuralAgreement || 50),
+                        borderColor: '#ffd93d',
+                        backgroundColor: 'rgba(255, 217, 61, 0.1)',
+                        tension: 0.4,
+                        fill: false
                     }]
                 },
                 options: {
@@ -271,15 +280,32 @@ export async function handleWeeklyAnalysisPage(request, env) {
 
             predictions.forEach(prediction => {
                 const row = document.createElement('tr');
-                const accuracy = prediction.actual_price && prediction.predicted_price ? 
+                const accuracy = prediction.actual_price && prediction.predicted_price ?
                     (100 - Math.abs((prediction.predicted_price - prediction.actual_price) / prediction.actual_price * 100)) : null;
-                const directionCorrect = prediction.direction_correct !== undefined ? 
+                const directionCorrect = prediction.direction_correct !== undefined ?
                     (prediction.direction_correct ? '✓' : '✗') : '-';
+
+                // Format neural agreement with appropriate styling
+                const neuralAgreement = prediction.neural_agreement;
+                let agreementDisplay = '❓';
+                let agreementStyle = '';
+                if (neuralAgreement === 'AGREE') {
+                    agreementDisplay = '✅ AGREE';
+                    agreementStyle = 'color: #00f2fe; font-weight: 600;';
+                } else if (neuralAgreement === 'DISAGREE') {
+                    agreementDisplay = '❌ DISAGREE';
+                    agreementStyle = 'color: #ff6b6b; font-weight: 600;';
+                }
+
+                // Format sentiment score
+                const sentimentScore = prediction.sentiment_score !== undefined ?
+                    \`\${(prediction.sentiment_score * 100).toFixed(1)}%\` : '-';
+                const newsCount = prediction.news_articles ? \` (\${prediction.news_articles} articles)\` : '';
 
                 row.innerHTML = \`
                     <td>\${new Date(prediction.date).toLocaleDateString()}</td>
                     <td><strong>\${prediction.symbol}</strong></td>
-                    <td>\${prediction.model || 'Ensemble'}</td>
+                    <td>\${prediction.model || 'GPT-OSS-120B'}</td>
                     <td>$\${prediction.predicted_price ? prediction.predicted_price.toFixed(2) : '-'}</td>
                     <td>$\${prediction.actual_price ? prediction.actual_price.toFixed(2) : '-'}</td>
                     <td>
@@ -288,6 +314,8 @@ export async function handleWeeklyAnalysisPage(request, env) {
                             <span>\${directionCorrect}</span>
                         </div>
                     </td>
+                    <td style="\${agreementStyle}">\${agreementDisplay}</td>
+                    <td>\${sentimentScore}\${newsCount}</td>
                     <td>\${accuracy !== null ? accuracy.toFixed(2) + '%' : '-'}</td>
                 \`;
                 tbody.appendChild(row);
@@ -301,27 +329,41 @@ export async function handleWeeklyAnalysisPage(request, env) {
             Object.entries(symbolData).forEach(([symbol, data]) => {
                 const card = document.createElement('div');
                 card.className = 'symbol-card';
-                
+
+                // Format neural agreement rate with color coding
+                const agreementRate = data.neuralAgreementRate || 0;
+                let agreementColor = '#ff6b6b'; // Default red
+                if (agreementRate >= 70) agreementColor = '#00f2fe'; // High agreement - cyan
+                else if (agreementRate >= 50) agreementColor = '#ffd93d'; // Medium agreement - yellow
+
                 card.innerHTML = \`
                     <h4>\${symbol}</h4>
                     <div class="prediction-row">
-                        <span>Price Accuracy:</span>
-                        <span>\${data.priceAccuracy ? data.priceAccuracy.toFixed(2) + '%' : '-'}</span>
+                        <span>🧠 Sentiment Accuracy:</span>
+                        <span style="color: #4facfe; font-weight: 600;">\${data.sentimentAccuracy ? data.sentimentAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>Direction Accuracy:</span>
+                        <span>🎯 Direction Accuracy:</span>
                         <span>\${data.directionAccuracy ? data.directionAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>Total Predictions:</span>
+                        <span>🤝 Neural Agreement:</span>
+                        <span style="color: \${agreementColor}; font-weight: 600;">\${agreementRate.toFixed(1)}%</span>
+                    </div>
+                    <div class="prediction-row">
+                        <span>📰 Avg News Articles:</span>
+                        <span>\${data.avgNewsArticles ? data.avgNewsArticles.toFixed(1) : '0'}</span>
+                    </div>
+                    <div class="prediction-row">
+                        <span>📊 Total Predictions:</span>
                         <span>\${data.totalPredictions || 0}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>Best Model:</span>
-                        <span>\${data.bestModel || '-'}</span>
+                        <span>🚀 Primary Model:</span>
+                        <span style="color: #4facfe; font-weight: 600;">\${data.primaryModel || 'GPT-OSS-120B'}</span>
                     </div>
                 \`;
-                
+
                 container.appendChild(card);
             });
         }
@@ -406,12 +448,18 @@ async function processWeeklyAnalysisData(factTableData, env) {
   // Calculate overall accuracy metrics
   let totalPriceAccuracy = 0;
   let totalDirectionAccuracy = 0;
+  let totalSentimentAccuracy = 0;
+  let totalNeuralAgreement = 0;
   let priceCount = 0;
   let directionCount = 0;
-  
+  let sentimentCount = 0;
+  let agreementCount = 0;
+
   const symbolStats = {};
   const modelStats = {};
   const dailyStats = {};
+  const sentimentStats = {};
+  const neuralAgreementStats = {};
   
   recentPredictions.forEach(record => {
     // Price accuracy calculation
@@ -428,26 +476,58 @@ async function processWeeklyAnalysisData(factTableData, env) {
       directionCount++;
     }
     
-    // Symbol breakdown
+    // Symbol breakdown (enhanced for sentiment-first)
     if (!symbolStats[record.symbol]) {
       symbolStats[record.symbol] = {
         priceAccuracy: 0,
         directionAccuracy: 0,
+        sentimentAccuracy: 0,
+        neuralAgreementRate: 0,
+        avgNewsArticles: 0,
         totalPredictions: 0,
-        bestModel: 'Ensemble'
+        bestModel: 'GPT-OSS-120B',
+        primaryModel: 'GPT-OSS-120B'
       };
     }
     symbolStats[record.symbol].totalPredictions++;
     
-    // Model performance tracking
-    const model = record.model || 'Ensemble';
+    // Model performance tracking (updated for sentiment-first)
+    const model = record.primary_model || record.model || 'GPT-OSS-120B';
     if (!modelStats[model]) {
-      modelStats[model] = { accuracy: 0, count: 0 };
+      modelStats[model] = { accuracy: 0, count: 0, type: 'sentiment' };
     }
     if (record.predicted_price && record.actual_price) {
       const accuracy = Math.max(0, 100 - Math.abs((record.predicted_price - record.actual_price) / record.actual_price * 100));
       modelStats[model].accuracy += accuracy;
       modelStats[model].count++;
+    }
+
+    // Sentiment analysis tracking
+    if (record.sentiment_score !== undefined) {
+      totalSentimentAccuracy += record.sentiment_score * 100;
+      sentimentCount++;
+
+      if (!sentimentStats[record.symbol]) {
+        sentimentStats[record.symbol] = { total: 0, count: 0, newsArticles: 0 };
+      }
+      sentimentStats[record.symbol].total += record.sentiment_score * 100;
+      sentimentStats[record.symbol].count++;
+      sentimentStats[record.symbol].newsArticles += record.news_articles || 0;
+    }
+
+    // Neural agreement tracking
+    if (record.neural_agreement) {
+      const agreementValue = record.neural_agreement === 'AGREE' ? 100 : 0;
+      totalNeuralAgreement += agreementValue;
+      agreementCount++;
+
+      if (!neuralAgreementStats[record.symbol]) {
+        neuralAgreementStats[record.symbol] = { agreements: 0, total: 0 };
+      }
+      neuralAgreementStats[record.symbol].total++;
+      if (record.neural_agreement === 'AGREE') {
+        neuralAgreementStats[record.symbol].agreements++;
+      }
     }
     
     // Daily aggregation
@@ -480,8 +560,8 @@ async function processWeeklyAnalysisData(factTableData, env) {
       dailyStats[date].directionAccuracy / dailyStats[date].directionCount : 0
   })).sort((a, b) => new Date(a.date) - new Date(b.date));
   
-  // Find best performing model
-  let bestModel = 'Ensemble';
+  // Find best performing model (sentiment-first approach)
+  let bestModel = 'GPT-OSS-120B';
   let bestAccuracy = 0;
   Object.entries(modelStats).forEach(([model, stats]) => {
     if (stats.count > 0) {
@@ -489,19 +569,27 @@ async function processWeeklyAnalysisData(factTableData, env) {
       if (avgAccuracy > bestAccuracy) {
         bestAccuracy = avgAccuracy;
         bestModel = model;
-        modelStats[model].accuracy = avgAccuracy; // Store average for chart
+        modelStats[model].accuracy = avgAccuracy;
       }
     }
   });
+
+  // Ensure GPT-OSS-120B is shown as primary even if not best performer
+  if (!modelStats['GPT-OSS-120B']) {
+    bestModel = 'GPT-OSS-120B (Primary)';
+  }
   
-  // Calculate symbol-level stats
+  // Calculate symbol-level stats (enhanced for sentiment-first)
   Object.keys(symbolStats).forEach(symbol => {
     const symbolPredictions = recentPredictions.filter(r => r.symbol === symbol);
     let symbolPriceAcc = 0;
     let symbolDirAcc = 0;
+    let symbolSentAcc = 0;
+    let symbolNewsCount = 0;
     let pCount = 0;
     let dCount = 0;
-    
+    let sCount = 0;
+
     symbolPredictions.forEach(record => {
       if (record.predicted_price && record.actual_price) {
         symbolPriceAcc += Math.max(0, 100 - Math.abs((record.predicted_price - record.actual_price) / record.actual_price * 100));
@@ -511,30 +599,51 @@ async function processWeeklyAnalysisData(factTableData, env) {
         symbolDirAcc += record.direction_correct ? 100 : 0;
         dCount++;
       }
+      if (record.sentiment_score !== undefined) {
+        symbolSentAcc += record.sentiment_score * 100;
+        symbolNewsCount += record.news_articles || 0;
+        sCount++;
+      }
     });
-    
+
     symbolStats[symbol].priceAccuracy = pCount > 0 ? symbolPriceAcc / pCount : 0;
     symbolStats[symbol].directionAccuracy = dCount > 0 ? symbolDirAcc / dCount : 0;
+    symbolStats[symbol].sentimentAccuracy = sCount > 0 ? symbolSentAcc / sCount : 0;
+    symbolStats[symbol].avgNewsArticles = sCount > 0 ? symbolNewsCount / sCount : 0;
+
+    // Calculate neural agreement rate for this symbol
+    if (neuralAgreementStats[symbol]) {
+      const agreeStats = neuralAgreementStats[symbol];
+      symbolStats[symbol].neuralAgreementRate = agreeStats.total > 0 ?
+        (agreeStats.agreements / agreeStats.total) * 100 : 0;
+    }
   });
   
   return {
     overview: {
       overallAccuracy: priceCount > 0 ? totalPriceAccuracy / priceCount : 0,
       directionAccuracy: directionCount > 0 ? totalDirectionAccuracy / directionCount : 0,
+      sentimentAccuracy: sentimentCount > 0 ? totalSentimentAccuracy / sentimentCount : 0,
+      neuralAgreementRate: agreementCount > 0 ? totalNeuralAgreement / agreementCount : 0,
       totalPredictions: recentPredictions.length,
-      bestModel: bestModel
+      bestModel: bestModel,
+      primaryModel: 'GPT-OSS-120B'
     },
     dailyAccuracy: dailyAccuracy,
     modelPerformance: modelStats,
     predictions: recentPredictions.map(record => ({
       date: record.date,
       symbol: record.symbol,
-      model: record.model || 'Ensemble',
+      model: record.primary_model || record.model || 'GPT-OSS-120B',
       predicted_price: record.predicted_price,
       actual_price: record.actual_price,
       direction: record.direction_prediction,
       direction_correct: record.direction_correct,
-      confidence: record.confidence
+      confidence: record.primary_confidence || record.confidence,
+      sentiment_score: record.sentiment_score,
+      neural_agreement: record.neural_agreement,
+      news_articles: record.news_articles,
+      enhancement_method: record.enhancement_method
     })),
     symbolBreakdown: symbolStats
   };
