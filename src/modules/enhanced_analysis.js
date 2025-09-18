@@ -144,12 +144,12 @@ async function getBasicSentiment(symbol, newsData, env) {
       return result;
     }
 
-    // Fallback to rule-based sentiment (Phase 1 Week 1)
-    console.log(`🔍 SENTIMENT DEBUG: No ModelScope API key, using rule-based sentiment`);
-    console.log(`   📝 Using rule-based sentiment analysis for ${symbol}...`);
-    const ruleResult = getRuleBasedSentiment(newsData);
-    console.log(`🔍 SENTIMENT DEBUG: Rule-based result:`, ruleResult);
-    return ruleResult;
+    // Fallback to Cloudflare Llama 3.1 (intelligent fallback)
+    console.log(`🔍 SENTIMENT DEBUG: No ModelScope API key, using Llama 3.1 fallback`);
+    console.log(`   🦙 Using Cloudflare Llama 3.1 sentiment analysis for ${symbol}...`);
+    const llamaResult = await getLlama31Sentiment(symbol, newsData, env);
+    console.log(`🔍 SENTIMENT DEBUG: Llama 3.1 result:`, llamaResult);
+    return llamaResult;
 
   } catch (error) {
     console.error(`🔍 SENTIMENT DEBUG: ModelScope failed, error:`, {
@@ -157,8 +157,17 @@ async function getBasicSentiment(symbol, newsData, env) {
       error_stack: error.stack?.substring(0, 200),
       symbol: symbol
     });
-    console.error(`   ❌ Advanced sentiment failed for ${symbol}, using rule-based:`, error.message);
-    return getRuleBasedSentiment(newsData);
+    console.error(`   ❌ ModelScope sentiment failed for ${symbol}, using Llama 3.1 fallback:`, error.message);
+
+    // Try Llama 3.1 fallback
+    try {
+      const llamaFallback = await getLlama31Sentiment(symbol, newsData, env);
+      console.log(`   ✅ Llama 3.1 fallback successful for ${symbol}`);
+      return llamaFallback;
+    } catch (llamaError) {
+      console.error(`   ❌ Llama 3.1 fallback also failed, using rule-based:`, llamaError.message);
+      return getRuleBasedSentiment(newsData);
+    }
   }
 }
 

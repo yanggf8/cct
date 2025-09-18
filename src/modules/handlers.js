@@ -458,6 +458,83 @@ export async function handleSentimentTest(request, env) {
 }
 
 /**
+ * Test Cloudflare AI Llama models
+ */
+export async function handleTestLlama(request, env) {
+  try {
+    if (!env.AI) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Cloudflare AI not available',
+        ai_binding: !!env.AI
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 400
+      });
+    }
+
+    const url = new URL(request.url);
+    const model = url.searchParams.get('model') || '@cf/meta/llama-3.1-8b-instruct';
+
+    console.log(`🦙 Testing Cloudflare AI model: ${model}`);
+
+    const testPrompt = 'Analyze sentiment: Apple stock rises on strong iPhone sales. Is this bullish or bearish? Provide sentiment and confidence 0-1.';
+
+    try {
+      const response = await env.AI.run(model, {
+        messages: [
+          {
+            role: 'user',
+            content: testPrompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 100
+      });
+
+      console.log(`✅ Llama model ${model} responded successfully`);
+
+      return new Response(JSON.stringify({
+        success: true,
+        model_tested: model,
+        prompt_used: testPrompt,
+        response: response,
+        response_type: typeof response,
+        response_keys: Object.keys(response || {}),
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+    } catch (modelError) {
+      console.error(`❌ Model ${model} failed:`, modelError.message);
+
+      return new Response(JSON.stringify({
+        success: false,
+        model_tested: model,
+        error: modelError.message,
+        error_type: modelError.name,
+        suggestion: 'Try different model names like @cf/meta/llama-3-8b-instruct, @cf/meta/llama-2-7b-chat-int8',
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Llama test error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      stack: error.stack?.substring(0, 300)
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 500
+    });
+  }
+}
+
+/**
  * Debug environment variables and API keys
  */
 export async function handleDebugEnvironment(request, env) {

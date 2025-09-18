@@ -21,6 +21,7 @@ import {
   handleSentimentTest,
   handleGPTDebugTest,
   handleModelScopeTest,
+  handleTestLlama,
   handleDebugEnvironment,
   handleModelHealth,
   handleR2Upload,
@@ -115,6 +116,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleGPTDebugTest(request, env);
     case '/test-modelscope':
       return handleModelScopeTest(request, env);
+    case '/test-llama':
+      return handleTestLlama(request, env);
     case '/debug-env':
       return handleDebugEnvironment(request, env);
     case '/model-health':

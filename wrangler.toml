@@ -26,9 +26,9 @@ binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
-# AI binding removed - using ModelScope GLM-4.5 API instead
-# [ai]
-# binding = "AI"
+# AI binding for Llama 3.1 fallback (when ModelScope GLM-4.5 fails)
+[ai]
+binding = "AI"
 
 # R2 bucket for trained model files
 [[r2_buckets]]
