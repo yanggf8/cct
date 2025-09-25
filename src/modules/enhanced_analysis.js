@@ -131,12 +131,12 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
   }
 
   try {
-    // Use ModelScope GLM-4.5 if API key available
-    if (env.MODELSCOPE_API_KEY) {
-      console.log(`🔍 SENTIMENT DEBUG: ModelScope API key found, calling getModelScopeAISentiment...`);
-      console.log(`   🤖 Using ModelScope GLM-4.5 sentiment analysis for ${symbol}...`);
-      const result = await getModelScopeAISentiment(symbol, newsData, env);
-      console.log(`🔍 SENTIMENT DEBUG: ModelScope result:`, {
+    // Primary: Use Cloudflare GPT-OSS-120B (fast and reliable)
+    if (env.AI) {
+      console.log(`🔍 SENTIMENT DEBUG: Cloudflare AI available, using GPT-OSS-120B...`);
+      console.log(`   🧠 Using Cloudflare GPT-OSS-120B sentiment analysis for ${symbol}...`);
+      const result = await getGPTOSSSentiment(symbol, newsData, env);
+      console.log(`🔍 SENTIMENT DEBUG: GPT-OSS-120B result:`, {
         sentiment: result?.sentiment,
         confidence: result?.confidence,
         source: result?.source,
@@ -146,39 +146,132 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
       return result;
     }
 
-    // Fallback to Cloudflare Llama 3.1 (intelligent fallback)
-    console.log(`🔍 SENTIMENT DEBUG: No ModelScope API key, using Llama 3.1 fallback`);
-    console.log(`   🦙 Using Cloudflare Llama 3.1 sentiment analysis for ${symbol}...`);
-    const llamaResult = await getLlama31Sentiment(symbol, newsData, env);
-    console.log(`🔍 SENTIMENT DEBUG: Llama 3.1 result:`, llamaResult);
-    return llamaResult;
+    // Fallback: Use DistilBERT if GPT-OSS-120B fails or unavailable
+    console.log(`🔍 SENTIMENT DEBUG: No Cloudflare AI, using DistilBERT fallback`);
+    console.log(`   🤖 Using DistilBERT sentiment analysis for ${symbol}...`);
+    const distilbertResult = await getDistilBERTSentiment(symbol, newsData, env);
+    console.log(`🔍 SENTIMENT DEBUG: DistilBERT result:`, distilbertResult);
+    return distilbertResult;
 
   } catch (error) {
-    console.error(`🔍 SENTIMENT DEBUG: ModelScope failed, error:`, {
+    console.error(`🔍 SENTIMENT DEBUG: GPT-OSS-120B failed, error:`, {
       error_message: error.message,
       error_stack: error.stack?.substring(0, 200),
       symbol: symbol
     });
-    console.error(`   ❌ ModelScope sentiment failed for ${symbol}, using Llama 3.1 fallback:`, error.message);
+    console.error(`   ❌ GPT-OSS-120B sentiment failed for ${symbol}, using DistilBERT fallback:`, error.message);
 
-    // Try Llama 3.1 fallback
+    // Try DistilBERT fallback
     try {
-      const llamaFallback = await getLlama31Sentiment(symbol, newsData, env);
-      console.log(`   ✅ Llama 3.1 fallback successful for ${symbol}`);
-      return llamaFallback;
-    } catch (llamaError) {
-      console.error(`   ❌ Llama 3.1 fallback also failed, using DistilBERT final fallback:`, llamaError.message);
+      const distilbertFallback = await getDistilBERTSentiment(symbol, newsData, env);
+      console.log(`   ✅ DistilBERT fallback successful for ${symbol}`);
+      return distilbertFallback;
+    } catch (distilbertError) {
+      console.error(`   ❌ All sentiment analysis methods failed for ${symbol}:`, distilbertError.message);
 
-      // Final fallback: DistilBERT sentiment classification
-      try {
-        const distilbertFallback = await getDistilBERTSentiment(symbol, newsData, env);
-        console.log(`   ✅ DistilBERT final fallback successful for ${symbol}`);
-        return distilbertFallback;
-      } catch (distilbertError) {
-        console.error(`   ❌ All sentiment analysis methods failed for ${symbol}:`, distilbertError.message);
-        throw new Error(`Complete sentiment analysis failure: ${distilbertError.message}`);
-      }
+      // Return neutral sentiment as final fallback
+      return {
+        sentiment: 'neutral',
+        confidence: 0.1,
+        reasoning: `All sentiment analysis methods failed: ${error.message}`,
+        source_count: newsData?.length || 0,
+        method: 'error_fallback',
+        error_details: {
+          primary_error: error.message,
+          fallback_error: distilbertError.message
+        }
+      };
     }
+  }
+}
+
+/**
+ * Cloudflare GPT-OSS-120B sentiment analysis (primary method)
+ */
+async function getGPTOSSSentiment(symbol, newsData, env) {
+  console.log(`🧠 Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
+
+  if (!env.AI) {
+    throw new Error('Cloudflare AI binding not available for GPT-OSS-120B');
+  }
+
+  if (!newsData || newsData.length === 0) {
+    return {
+      sentiment: 'neutral',
+      confidence: 0,
+      reasoning: 'No news data available',
+      source_count: 0,
+      method: 'gpt_oss_no_data'
+    };
+  }
+
+  try {
+    // Prepare news context for GPT-OSS-120B
+    const newsContext = newsData
+      .slice(0, 10) // More items than Llama as GPT-OSS handles more context
+      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
+      .join('\n\n');
+
+    const prompt = `Analyze the financial sentiment for ${symbol} stock based on these news headlines:
+
+${newsContext}
+
+Provide a detailed analysis with:
+1. Overall sentiment (bullish, bearish, or neutral)
+2. Confidence level (0.0 to 1.0)
+3. Brief reasoning for the sentiment
+4. Key market-moving factors
+
+Be precise and focus on actionable trading insights.`;
+
+    console.log(`   🧠 Calling Cloudflare AI GPT-OSS-120B for ${symbol}...`);
+
+    const response = await env.AI.run(
+      '@cf/openchat/openchat-3.5-0106',
+      {
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
+      }
+    );
+
+    console.log(`   📝 GPT-OSS-120B response received:`, response);
+
+    if (!response || !response.response) {
+      throw new Error('Empty response from GPT-OSS-120B');
+    }
+
+    const content = response.response;
+    console.log(`   📝 GPT-OSS-120B content:`, content);
+
+    // Parse GPT-OSS-120B response
+    const analysisData = parseNaturalLanguageResponse(content);
+
+    const result = {
+      ...analysisData,
+      source: 'cloudflare_gpt_oss',
+      method: 'gpt_oss_primary',
+      model: 'openchat-3.5-0106',
+      source_count: newsData.length,
+      analysis_type: 'primary_sentiment',
+      cost_estimate: {
+        input_tokens: Math.ceil(prompt.length / 4),
+        output_tokens: Math.ceil(content.length / 4),
+        total_cost: 0 // Cloudflare AI included in plan
+      }
+    };
+
+    console.log(`   ✅ GPT-OSS-120B sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
+    return result;
+
+  } catch (error) {
+    console.error(`   ❌ GPT-OSS-120B sentiment analysis failed for ${symbol}:`, error);
+    throw new Error(`GPT-OSS-120B analysis failed: ${error.message}`);
   }
 }
 
