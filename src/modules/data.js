@@ -201,13 +201,58 @@ export async function storeFactTableData(env, factTableData) {
       JSON.stringify(factTableData),
       { expirationTtl: 604800 } // 7 days
     );
-    
+
     console.log(`💾 Stored ${factTableData.length} fact table records to KV`);
     return true;
-    
+
   } catch (error) {
     console.error('❌ Error storing fact table data:', error);
     return false;
+  }
+}
+
+/**
+ * Store granular analysis for a single symbol
+ * New enhanced storage format for individual symbol tracking
+ */
+export async function storeSymbolAnalysis(env, symbol, analysisData) {
+  try {
+    const dateStr = new Date().toISOString().split('T')[0];
+    const key = `analysis_${dateStr}_${symbol}`;
+
+    await env.TRADING_RESULTS.put(
+      key,
+      JSON.stringify(analysisData),
+      { expirationTtl: 7776000 } // 90 days for longer-term analysis
+    );
+
+    console.log(`💾 Stored granular analysis for ${symbol} at key: ${key}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error storing granular analysis for ${symbol}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Get analysis results for all symbols on a specific date
+ * Enhanced to fetch granular symbol-specific data
+ */
+export async function getSymbolAnalysisByDate(env, dateString, symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']) {
+  try {
+    const keys = symbols.map(symbol => `analysis_${dateString}_${symbol}`);
+    const promises = keys.map(key => env.TRADING_RESULTS.get(key));
+    const results = await Promise.all(promises);
+
+    const parsedResults = results
+      .map((res, index) => res ? { ...JSON.parse(res), symbol: symbols[index] } : null)
+      .filter(res => res !== null);
+
+    console.log(`📊 Retrieved ${parsedResults.length}/${symbols.length} granular analysis records for ${dateString}`);
+    return parsedResults;
+  } catch (error) {
+    console.error(`❌ Error retrieving granular analysis for ${dateString}:`, error);
+    return [];
   }
 }
 

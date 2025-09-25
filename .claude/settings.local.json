@@ -97,7 +97,13 @@
       "Bash(timeout 45 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-facebook\")",
       "Bash(timeout 60 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-all-facebook\")",
       "Bash(timeout 15 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-sentiment\")",
-      "Bash(timeout 10 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")"
+      "Bash(timeout 10 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")",
+      "Bash(git reset:*)",
+      "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/debug-env\")",
+      "Bash(timeout 30 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/test-facebook\")",
+      "Bash(timeout 15 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/health\")",
+      "Bash(timeout 45 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")",
+      "Bash(timeout 60 curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/analyze\")"
     ],
     "deny": [],
     "ask": []

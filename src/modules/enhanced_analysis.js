@@ -7,6 +7,7 @@ import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
+import { storeSymbolAnalysis } from './data.js';
 
 /**
  * Run enhanced analysis with sentiment integration
@@ -620,6 +621,12 @@ async function runSentimentFirstAnalysis(env, options = {}) {
       const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
       console.log(`   ✅ ${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
 
+      // Add delay between symbols to prevent rate limiting (ModelScope GLM-4.5 free tier protection)
+      if (symbols.indexOf(symbol) < symbols.length - 1) {
+        console.log(`   ⏱️  Rate limiting protection: 2-second delay before next symbol...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
     } catch (error) {
       console.error(`   ❌ CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
       console.log(`   ⚠️  Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
@@ -680,6 +687,47 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
         current_price: technicalSignal.current_price,
         predicted_price: technicalSignal.predicted_price // Keep technical prediction for reference
       };
+
+      // Store granular analysis data for this symbol
+      try {
+        const granularAnalysisData = {
+          symbol: symbol,
+          analysis_type: 'enhanced_sentiment_first',
+          timestamp: new Date().toISOString(),
+
+          // Primary sentiment signal (decision maker)
+          sentiment_analysis: sentimentSignal.sentiment_analysis,
+
+          // Technical reference signal (confirmation)
+          technical_reference: technicalSignal,
+
+          // Combined enhanced prediction
+          enhanced_prediction: enhancedSignal,
+
+          // Price data
+          current_price: technicalSignal.current_price,
+          predicted_price: technicalSignal.predicted_price,
+
+          // Analysis metadata
+          news_count: sentimentSignal.news_count || 0,
+          trigger_mode: sentimentResults.trigger_mode,
+          analysis_method: 'sentiment_first_with_technical_reference',
+
+          // Performance tracking data
+          confidence_metrics: {
+            sentiment_confidence: sentimentSignal.sentiment_analysis.confidence,
+            technical_confidence: technicalSignal.confidence,
+            enhanced_confidence: enhancedSignal.confidence,
+            neural_agreement: enhancedSignal.enhancement_details?.technical_agreement
+          }
+        };
+
+        await storeSymbolAnalysis(env, symbol, granularAnalysisData);
+        console.log(`   💾 ${symbol}: Granular analysis stored successfully`);
+      } catch (storageError) {
+        console.error(`   ❌ ${symbol}: Failed to store granular analysis:`, storageError.message);
+        // Continue processing - storage failure shouldn't break analysis
+      }
 
       console.log(`   📊 ${symbol}: Technical reference added (${technicalSignal.direction} ${(technicalSignal.confidence * 100).toFixed(1)}%)`);
     } else {
