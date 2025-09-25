@@ -426,6 +426,54 @@ export async function handleKVGet(request, env) {
 }
 
 /**
+ * Handle KV debug - test KV writing functionality
+ */
+export async function handleKVDebug(request, env) {
+  try {
+    const testKey = `test_kv_${Date.now()}`;
+    const testData = {
+      test: true,
+      timestamp: new Date().toISOString(),
+      data: "KV write test successful"
+    };
+
+    // Test KV write
+    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData));
+
+    // Test KV read back
+    const readValue = await env.TRADING_RESULTS.get(testKey);
+    const parsedValue = JSON.parse(readValue);
+
+    // Clean up test key
+    await env.TRADING_RESULTS.delete(testKey);
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: "KV write/read/delete test successful",
+      test_key: testKey,
+      written_data: testData,
+      read_data: parsedValue,
+      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      stack: error.stack,
+      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
  * Handle sentiment enhancement testing (Phase 1 validation)
  */
 export async function handleSentimentTest(request, env) {

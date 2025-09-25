@@ -749,6 +749,28 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
     }
   };
 
+  // Store main analysis results in KV storage
+  try {
+    console.log(`🚀 KV MAIN WRITE: Storing main analysis results`);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const mainAnalysisKey = `analysis_${dateStr}`;
+    console.log(`🔍 KV MAIN DEBUG: Storing with key:`, mainAnalysisKey);
+
+    await env.TRADING_RESULTS.put(
+      mainAnalysisKey,
+      JSON.stringify(finalResults),
+      { expirationTtl: 604800 } // 7 days
+    );
+
+    console.log(`✅ KV MAIN SUCCESS: Stored main analysis results at key: ${mainAnalysisKey}`);
+  } catch (mainStorageError) {
+    console.error(`❌ KV MAIN ERROR: Failed to store main analysis results:`, mainStorageError);
+    console.error(`❌ KV MAIN ERROR DETAILS:`, {
+      message: mainStorageError.message,
+      stack: mainStorageError.stack
+    });
+  }
+
   console.log(`✅ Technical reference analysis completed`);
   return finalResults;
 }

@@ -18,6 +18,7 @@ import {
   handleKVCleanup,
   handleDebugWeekendMessage,
   handleKVGet,
+  handleKVDebug,
   handleSentimentTest,
   handleGPTDebugTest,
   handleModelScopeTest,
@@ -106,6 +107,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleDebugWeekendMessage(request, env);
     case '/kv-get':
       return handleKVGet(request, env);
+    case '/kv-debug':
+      return handleKVDebug(request, env);
     case '/weekly-analysis':
       return handleWeeklyAnalysisPage(request, env);
     case '/api/weekly-data':

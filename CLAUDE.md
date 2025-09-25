@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-25 (GPT-OSS-120B Primary + Enhanced KV Storage System - CRITICAL FIX APPLIED)
+**Current Version**: 2025-09-25 (GPT-OSS-120B Primary + KV Storage Fixed + Debug Tools Added)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ 100% Working Production-Grade Dual-Tier Sentiment Analysis System (All 5 Symbols)
 - **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA with optimized processing
@@ -15,11 +15,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Code Quality**: Production-grade modular architecture with consolidated utilities and structured logging
 - **Performance**: Fast sentiment analysis with reliable fallback protection (completes in 30-60 seconds vs previous timeouts)
 - **Facebook Integration**: All 5 cron message types include complete 5-symbol analysis with enhanced sentiment
-- **Enhanced Storage**: Granular symbol-level tracking with individual analysis records and weekly accuracy rollups
+- **Enhanced Storage**: ✅ FIXED - Complete KV storage system with both daily analysis and granular symbol tracking
 - **Cost Efficiency**: $0 per analysis (100% free Cloudflare AI models vs $0.0003 ModelScope costs)
 - **Reliability**: 100% uptime guarantee with dual-tier AI protection + production-grade error handling
 
 ## Recent Key Updates
+
+### 2025-09-25: KV Storage System Fixed + Debug Tools Added ✅
+**KV STORAGE RESOLVED**: Fixed missing KV storage functionality in manual analysis with comprehensive debugging tools
+
+#### **KV Storage Fix:**
+- **✅ Issue Identified**: Manual analysis (`/analyze`) was not persisting results to KV storage despite successful analysis
+- **✅ Main Storage Added**: Added daily analysis storage to `enhanced_analysis.js` with key `analysis_${date}`
+- **✅ Enhanced Logging**: Added comprehensive KV debugging with detailed operation tracking
+- **✅ Debug Endpoint**: Created `/kv-debug` endpoint for testing KV write/read/delete operations
+- **✅ Dual Storage**: Both main daily analysis and granular symbol storage now working
+
+#### **New Debug Tools:**
+```javascript
+// New KV Debug Endpoint
+/kv-debug - Tests KV write/read/delete operations with detailed feedback
+/kv-get?key=YOUR_KEY - Direct KV key lookup with error handling
+/results - Now returns stored analysis data instead of "No analysis found"
+```
+
+#### **Storage Architecture:**
+- **Daily Analysis**: `analysis_2025-09-25` - Complete analysis results for all symbols
+- **Granular Symbols**: `analysis_2025-09-25_AAPL` - Individual symbol analysis with extended TTL
+- **Enhanced Logging**: Detailed KV operation tracking for production debugging
+
+#### **System Verification:**
+- **✅ KV Write Operations**: Confirmed working via `/kv-debug` endpoint
+- **✅ Analysis Storage**: Manual analysis now persists complete results
+- **✅ Results Retrieval**: `/results` endpoint returns stored data successfully
+- **✅ Wrangler Updated**: Upgraded from 4.37.1 to 4.40.0
 
 ### 2025-09-25: Critical Fix - GPT-OSS-120B Primary + System Restoration ✅
 **SYSTEM RESTORED**: Fixed ModelScope GLM-4.5 timeout issue that prevented Facebook messages for a week

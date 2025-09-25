@@ -217,19 +217,34 @@ export async function storeFactTableData(env, factTableData) {
  */
 export async function storeSymbolAnalysis(env, symbol, analysisData) {
   try {
+    console.log(`🚀 KV WRITE START: Storing analysis for ${symbol}`);
+    console.log(`🔍 KV DEBUG: env.TRADING_RESULTS available:`, !!env.TRADING_RESULTS);
+    console.log(`🔍 KV DEBUG: analysisData size:`, JSON.stringify(analysisData).length, 'characters');
+
     const dateStr = new Date().toISOString().split('T')[0];
     const key = `analysis_${dateStr}_${symbol}`;
+    console.log(`🔍 KV DEBUG: Attempting to store with key:`, key);
 
+    const dataString = JSON.stringify(analysisData);
+    console.log(`🔍 KV DEBUG: Data serialized successfully, size:`, dataString.length);
+
+    console.log(`🔍 KV DEBUG: Calling env.TRADING_RESULTS.put()...`);
     await env.TRADING_RESULTS.put(
       key,
-      JSON.stringify(analysisData),
+      dataString,
       { expirationTtl: 7776000 } // 90 days for longer-term analysis
     );
 
-    console.log(`💾 Stored granular analysis for ${symbol} at key: ${key}`);
+    console.log(`✅ KV WRITE SUCCESS: Stored granular analysis for ${symbol} at key: ${key}`);
+    console.log(`🔍 KV DEBUG: Storage successful, returning true`);
     return true;
   } catch (error) {
-    console.error(`❌ Error storing granular analysis for ${symbol}:`, error);
+    console.error(`❌ KV WRITE ERROR: Failed to store granular analysis for ${symbol}:`, error);
+    console.error(`❌ KV ERROR DETAILS:`, {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return false;
   }
 }
