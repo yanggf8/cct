@@ -115,7 +115,8 @@
       "Bash(export:*)",
       "Read(//tmp/**)",
       "mcp__amazon-q-mcp-server__q_translate",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

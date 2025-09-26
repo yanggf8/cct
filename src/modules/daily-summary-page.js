@@ -3,9 +3,6 @@
  * Handles serving the daily summary HTML page
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
 /**
  * Handle daily summary page requests
  */
