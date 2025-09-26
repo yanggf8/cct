@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-26 (Code Quality Optimized + Parallel Processing)
+**Current Version**: 2025-09-26 (Enhanced Troubleshooting + KV Debug Tools)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ **OPERATIONAL** - Simplified two-tier AI system
 - **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA ✅
@@ -22,12 +22,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 *For complete development history, see HISTORY.md*
 
-### 🚀 Code Quality Improvements (2025-09-26)
-**COMPREHENSIVE OPTIMIZATION**: Major code quality and performance enhancements based on Gemini code review
+### 🚀 Enhanced Troubleshooting & KV Debug Tools (2025-09-26)
+**COMPREHENSIVE DEBUGGING**: Major improvements to system monitoring and KV storage troubleshooting
 
 #### **Critical Bug Fixes:**
+- **✅ Layer 4 Removal**: Successfully removed temporal analysis layer from per-symbol analysis (now 3 layers as requested)
 - **✅ Duplicated Function Fix**: Removed duplicate `getSentimentWithFallbackChain` function that was causing unpredictable behavior
 - **✅ Provider-Neutral Architecture**: Updated all function naming to support future LLM provider changes
+
+#### **Enhanced Troubleshooting Features:**
+- **✅ Comprehensive Logging**: Added detailed entry/exit logging for all per-symbol analysis steps
+- **✅ KV Storage Debugging**: Enhanced KV operation tracking with success/failure logging
+- **✅ Request Tracking**: Full HTTP request logging including headers, parameters, and validation
+- **✅ Error Detection**: Improved error logging throughout the analysis pipeline
+
+#### **New KV Debug Endpoints:**
+- **✅ Separate Write Testing**: `/kv-write-test` endpoint for testing KV writing operations only
+- **✅ Separate Read Testing**: `/kv-read-test` endpoint for testing KV reading operations only
+- **✅ Isolated Operations**: Each endpoint provides focused testing for specific KV functionality
+- **✅ Better Debugging**: Write endpoint returns test key for verification with read endpoint
+
+#### **Per-Symbol Analysis Architecture:**
+- **✅ 3-Layer System**: GPT-OSS-120B → DistilBERT → Article-Level Analysis (Temporal Analysis removed)
+- **✅ Enhanced Monitoring**: Complete visibility into execution flow and KV storage operations
+- **✅ Production Ready**: Robust error handling and comprehensive logging for troubleshooting
 - **✅ Clean Imports**: Removed outdated ModelScope references and streamlined dependencies
 
 #### **Performance Optimization:**
