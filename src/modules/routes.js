@@ -27,7 +27,9 @@ import {
   handleModelHealth,
   handleR2Upload,
   handleTestAllFacebookMessages,
-  handlePerSymbolAnalysis
+  handlePerSymbolAnalysis,
+  handleKVWriteTest,
+  handleKVReadTest
 } from './handlers.js';
 
 /**
@@ -110,6 +112,10 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleKVGet(request, env);
     case '/kv-debug':
       return handleKVDebug(request, env);
+    case '/kv-write-test':
+      return handleKVWriteTest(request, env);
+    case '/kv-read-test':
+      return handleKVReadTest(request, env);
     case '/weekly-analysis':
       return handleWeeklyAnalysisPage(request, env);
     case '/api/weekly-data':

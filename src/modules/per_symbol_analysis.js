@@ -90,6 +90,7 @@ export async function analyzeSymbolWithFineGrainedSentiment(symbol, env, options
 
     // Store the granular analysis
     console.log(`💾 [TROUBLESHOOT] About to store analysis for ${symbol} in KV...`);
+    console.log(`💾 [TROUBLESHOOT] Analysis data keys before storage:`, Object.keys(analysisData));
     await storeSymbolAnalysis(env, symbol, analysisData);
     console.log(`✅ [TROUBLESHOOT] KV storage completed for ${symbol}`);
     logKVDebug(`Stored fine-grained analysis for ${symbol}`);

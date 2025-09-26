@@ -570,6 +570,139 @@ export async function handleKVDebug(request, env) {
 }
 
 /**
+ * Handle KV write test - ONLY test KV writing functionality
+ */
+export async function handleKVWriteTest(request, env) {
+  try {
+    console.log('🧪 [KV-WRITE-TEST] Starting KV write test...');
+
+    const testKey = `kv_write_test_${Date.now()}`;
+    const testData = {
+      test_type: 'write_only',
+      timestamp: new Date().toISOString(),
+      data: "KV write test successful",
+      test_id: Math.random().toString(36).substring(7)
+    };
+
+    console.log(`🧪 [KV-WRITE-TEST] Testing KV write with key: ${testKey}`);
+
+    // Test ONLY KV write
+    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData));
+
+    console.log(`✅ [KV-WRITE-TEST] KV write completed successfully`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      operation: 'write_only',
+      test_key: testKey,
+      written_data: testData,
+      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      message: "KV write test successful - data written but not verified",
+      timestamp: new Date().toISOString(),
+      note: "Use /kv-read-test?key=" + testKey + " to verify the data was stored"
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ [KV-WRITE-TEST] KV write test failed:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      operation: 'write_only',
+      error: error.message,
+      stack: error.stack,
+      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle KV read test - ONLY test KV reading functionality
+ */
+export async function handleKVReadTest(request, env) {
+  try {
+    console.log('🧪 [KV-READ-TEST] Starting KV read test...');
+
+    const url = new URL(request.url);
+    const key = url.searchParams.get('key');
+
+    if (!key) {
+      return new Response(JSON.stringify({
+        success: false,
+        operation: 'read_only',
+        error: 'Missing key parameter',
+        usage: 'GET /kv-read-test?key=YOUR_KEY_NAME',
+        timestamp: new Date().toISOString()
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log(`🧪 [KV-READ-TEST] Testing KV read with key: ${key}`);
+
+    // Test ONLY KV read
+    const value = await env.TRADING_RESULTS.get(key);
+
+    if (value === null) {
+      console.log(`❌ [KV-READ-TEST] Key not found: ${key}`);
+      return new Response(JSON.stringify({
+        success: false,
+        operation: 'read_only',
+        key: key,
+        found: false,
+        message: 'Key not found in KV store',
+        kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+        timestamp: new Date().toISOString()
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    let parsedValue;
+    try {
+      parsedValue = JSON.parse(value);
+    } catch (e) {
+      parsedValue = value;
+    }
+
+    console.log(`✅ [KV-READ-TEST] KV read completed successfully`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      operation: 'read_only',
+      key: key,
+      found: true,
+      value: parsedValue,
+      raw_value_length: value.length,
+      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ [KV-READ-TEST] KV read test failed:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      operation: 'read_only',
+      error: error.message,
+      stack: error.stack,
+      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
  * Handle sentiment enhancement testing (Phase 1 validation)
  */
 export async function handleSentimentTest(request, env) {
