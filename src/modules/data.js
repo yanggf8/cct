@@ -198,18 +198,25 @@ export async function storeFactTableData(env, factTableData) {
  */
 export async function storeSymbolAnalysis(env, symbol, analysisData) {
   try {
+    console.log(`💾 [KV DEBUG] Starting KV storage for ${symbol}`);
     ensureLoggingInitialized(env);
     logKVDebug('KV WRITE START: Storing analysis for', symbol);
     logKVDebug('env.TRADING_RESULTS available:', !!env.TRADING_RESULTS);
+    console.log(`💾 [KV DEBUG] env.TRADING_RESULTS type:`, typeof env.TRADING_RESULTS);
+    console.log(`💾 [KV DEBUG] env.TRADING_RESULT keys:`, Object.keys(env || {}));
+
     logKVDebug('analysisData size:', JSON.stringify(analysisData).length, 'characters');
 
     const dateStr = new Date().toISOString().split('T')[0];
     const key = `analysis_${dateStr}_${symbol}`;
+    console.log(`💾 [KV DEBUG] Generated key: ${key}`);
     logKVDebug('Attempting to store with key:', key);
 
     const dataString = JSON.stringify(analysisData);
+    console.log(`💾 [KV DEBUG] Data string length: ${dataString.length}`);
     logKVDebug('Data serialized successfully, size:', dataString.length);
 
+    console.log(`💾 [KV DEBUG] About to call env.TRADING_RESULTS.put()...`);
     logKVDebug('Calling env.TRADING_RESULTS.put()...');
     await env.TRADING_RESULTS.put(
       key,
@@ -217,6 +224,7 @@ export async function storeSymbolAnalysis(env, symbol, analysisData) {
       { expirationTtl: 7776000 } // 90 days for longer-term analysis
     );
 
+    console.log(`✅ [KV DEBUG] KV put() completed successfully for key: ${key}`);
     logKVDebug('KV WRITE SUCCESS: Stored granular analysis for', symbol, 'at key:', key);
     logKVDebug('Storage successful, returning true');
     return true;

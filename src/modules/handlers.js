@@ -1448,13 +1448,20 @@ export async function handleTestAllFacebookMessages(request, env) {
  */
 export async function handlePerSymbolAnalysis(request, env) {
   try {
-    console.log('🔍 Per-symbol fine-grained analysis requested');
+    console.log('🔍 [TROUBLESHOOT] Per-symbol fine-grained analysis requested');
+    console.log('🔍 [TROUBLESHOOT] Request URL:', request.url);
+    console.log('🔍 [TROUBLESHOOT] Request method:', request.method);
+    console.log('🔍 [TROUBLESHOOT] Headers:', Object.fromEntries(request.headers.entries()));
 
     // Get symbol from URL query parameters
     const url = new URL(request.url);
     const symbol = url.searchParams.get('symbol');
 
+    console.log('🔍 [TROUBLESHOOT] Extracted symbol:', symbol);
+    console.log('🔍 [TROUBLESHOOT] All query params:', Object.fromEntries(url.searchParams.entries()));
+
     if (!symbol) {
+      console.log('❌ [TROUBLESHOOT] No symbol provided - returning error');
       return new Response(JSON.stringify({
         success: false,
         error: 'Symbol parameter is required',
@@ -1468,6 +1475,7 @@ export async function handlePerSymbolAnalysis(request, env) {
 
     // Validate symbol format (basic validation)
     if (!/^[A-Z]{1,5}$/.test(symbol.toUpperCase())) {
+      console.log('❌ [TROUBLESHOOT] Invalid symbol format:', symbol);
       return new Response(JSON.stringify({
         success: false,
         error: 'Invalid symbol format. Use 1-5 uppercase letters (e.g., AAPL, MSFT)',
@@ -1485,10 +1493,17 @@ export async function handlePerSymbolAnalysis(request, env) {
       confidenceThreshold: parseFloat(url.searchParams.get('confidence-threshold')) || 0.6
     };
 
-    console.log(`🎯 Analyzing symbol: ${symbol.toUpperCase()} with options:`, options);
+    console.log(`🎯 [TROUBLESHOOT] Analyzing symbol: ${symbol.toUpperCase()} with options:`, options);
+    console.log('🎯 [TROUBLESHOOT] About to call analyzeSingleSymbol...');
 
     // Perform fine-grained per-symbol analysis
     const analysis = await analyzeSingleSymbol(symbol.toUpperCase(), env, options);
+
+    console.log('✅ [TROUBLESHOOT] analyzeSingleSymbol completed, result type:', typeof analysis);
+    console.log('✅ [TROUBLESHOOT] analyzeSingleSymbol has error:', !!analysis.error);
+    if (analysis.error) {
+      console.log('❌ [TROUBLESHOOT] Analysis error:', analysis.error);
+    }
 
     return new Response(JSON.stringify({
       success: true,

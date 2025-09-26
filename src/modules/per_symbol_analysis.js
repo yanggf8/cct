@@ -24,13 +24,16 @@ function ensureLoggingInitialized(env) {
  * Goes beyond basic sentiment to provide detailed symbol insights
  */
 export async function analyzeSymbolWithFineGrainedSentiment(symbol, env, options = {}) {
+  console.log(`🔬 [TROUBLESHOOT] analyzeSymbolWithFineGrainedSentiment called with symbol: ${symbol}`);
   ensureLoggingInitialized(env);
   logInfo(`Starting fine-grained sentiment analysis for ${symbol}...`);
 
   try {
     // Step 1: Comprehensive news gathering for the symbol
+    console.log(`📰 [TROUBLESHOOT] Starting news gathering for ${symbol}...`);
     logInfo(`Gathering comprehensive news data for ${symbol}...`);
     const newsData = await gatherComprehensiveNewsForSymbol(symbol, env);
+    console.log(`📰 [TROUBLESHOOT] News gathering completed, got ${newsData.length} articles`);
 
     // Step 2: Multi-layer sentiment analysis
     logInfo(`Performing multi-layer sentiment analysis for ${symbol}...`);
@@ -86,7 +89,9 @@ export async function analyzeSymbolWithFineGrainedSentiment(symbol, env, options
     };
 
     // Store the granular analysis
+    console.log(`💾 [TROUBLESHOOT] About to store analysis for ${symbol} in KV...`);
     await storeSymbolAnalysis(env, symbol, analysisData);
+    console.log(`✅ [TROUBLESHOOT] KV storage completed for ${symbol}`);
     logKVDebug(`Stored fine-grained analysis for ${symbol}`);
 
     logInfo(`Fine-grained analysis complete for ${symbol}: ${tradingSignals.primary_direction} (${(confidenceMetrics.overall_confidence * 100).toFixed(1)}%)`);
@@ -155,11 +160,7 @@ async function performMultiLayerSentimentAnalysis(symbol, newsData, env) {
     const articleLayer = await performArticleLevelAnalysis(symbol, newsData, env);
     sentimentLayers.push(articleLayer);
 
-    // Layer 4: Temporal Sentiment Analysis
-    logSentimentDebug(`Performing temporal sentiment analysis for ${symbol}...`);
-    const temporalLayer = await performTemporalSentimentAnalysis(symbol, newsData, env);
-    sentimentLayers.push(temporalLayer);
-
+    
     logInfo(`Completed ${sentimentLayers.length} sentiment layers for ${symbol}`);
     return sentimentLayers;
 
@@ -365,66 +366,6 @@ async function performArticleLevelAnalysis(symbol, newsData, env) {
   }
 }
 
-/**
- * Perform temporal sentiment analysis
- */
-async function performTemporalSentimentAnalysis(symbol, newsData, env) {
-  try {
-    // Group articles by time periods
-    const now = new Date();
-    const timeGroups = {
-      recent: [], // Last 24 hours
-      medium: [], // 24-72 hours
-      older: []   // 72+ hours
-    };
-
-    newsData.forEach(article => {
-      const articleTime = new Date(article.published_at);
-      const hoursDiff = (now - articleTime) / (1000 * 60 * 60);
-
-      if (hoursDiff <= 24) timeGroups.recent.push(article);
-      else if (hoursDiff <= 72) timeGroups.medium.push(article);
-      else timeGroups.older.push(article);
-    });
-
-    // Calculate sentiment for each time period
-    const temporalSentiment = {};
-    for (const [period, articles] of Object.entries(timeGroups)) {
-      if (articles.length > 0) {
-        const periodSentiment = articles.reduce((acc, article) => {
-          return acc + calculateArticleSentimentImpact(article);
-        }, 0) / articles.length;
-
-        temporalSentiment[period] = {
-          sentiment: periodSentiment > 0.1 ? 'bullish' : periodSentiment < -0.1 ? 'bearish' : 'neutral',
-          confidence: Math.min(0.9, Math.abs(periodSentiment)),
-          article_count: articles.length,
-          average_impact: periodSentiment
-        };
-      }
-    }
-
-    // Determine temporal trend
-    const trend = analyzeTemporalTrend(temporalSentiment);
-
-    return {
-      layer_type: 'temporal_sentiment_analysis',
-      temporal_distribution: temporalSentiment,
-      trend: trend,
-      most_recent_sentiment: temporalSentiment.recent?.sentiment || 'neutral',
-      momentum_score: calculateSentimentMomentum(temporalSentiment)
-    };
-
-  } catch (error) {
-    logError(`Temporal sentiment analysis failed for ${symbol}:`, error);
-    return {
-      layer_type: 'temporal_sentiment_analysis',
-      sentiment: 'neutral',
-      confidence: 0,
-      error: error.message
-    };
-  }
-}
 
 /**
  * Analyze symbol-specific sentiment patterns
@@ -690,21 +631,6 @@ function calculateTopicDistribution(articles) {
   return topics;
 }
 
-function analyzeTemporalTrend(temporalSentiment) {
-  // Simplified trend analysis
-  const sentiments = Object.values(temporalSentiment).map(t => t.sentiment);
-  const bullCount = sentiments.filter(s => s === 'bullish').length;
-  const bearCount = sentiments.filter(s => s === 'bearish').length;
-
-  if (bullCount > bearCount) return 'bullish';
-  if (bearCount > bullCount) return 'bearish';
-  return 'neutral';
-}
-
-function calculateSentimentMomentum(temporalSentiment) {
-  // Simplified momentum calculation
-  return 0.5; // Placeholder
-}
 
 async function getHistoricalSentimentPatterns(symbol, env) {
   // Placeholder for historical pattern analysis
@@ -852,20 +778,28 @@ function calculateNewsQualityScore(newsData) {
  * Main function for per-symbol analysis endpoint
  */
 export async function analyzeSingleSymbol(symbol, env, options = {}) {
+  console.log(`🚀 [TROUBLESHOOT] analyzeSingleSymbol called with symbol: ${symbol}`);
+  console.log(`🚀 [TROUBLESHOOT] env object keys:`, Object.keys(env || {}));
+  console.log(`🚀 [TROUBLESHOOT] options:`, options);
+
   ensureLoggingInitialized(env);
 
   if (!symbol) {
+    console.log('❌ [TROUBLESHOOT] No symbol provided to analyzeSingleSymbol');
     throw new Error('Symbol is required for per-symbol analysis');
   }
 
   const startTime = Date.now();
+  console.log(`⏰ [TROUBLESHOOT] Starting per-symbol analysis for ${symbol} at ${startTime}`);
   logInfo(`Starting per-symbol analysis for ${symbol}`);
 
   try {
+    console.log(`🔧 [TROUBLESHOOT] About to call analyzeSymbolWithFineGrainedSentiment...`);
     const analysis = await analyzeSymbolWithFineGrainedSentiment(symbol, env, {
       startTime,
       ...options
     });
+    console.log(`✅ [TROUBLESHOOT] analyzeSymbolWithFineGrainedSentiment completed successfully`);
 
     // Add execution metadata
     analysis.execution_metadata = {
