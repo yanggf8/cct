@@ -78,10 +78,10 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   reportText += `🤖 **Models:** TFT + N-HITS Ensemble\n`;
   reportText += `📊 **Symbols Analyzed:** ${symbols.length}\n\n`;
 
-  // 📊 NEW: Add Weekly Analysis Dashboard Link
-  reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
+  // 📊 Weekly Analysis Dashboard Link (appropriate for Friday reports)
+  reportText += `📊 **WEEKLY ANALYSIS DASHBOARD:**\n`;
   reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `📈 View detailed charts, trends, and model performance analysis\n\n`;
+  reportText += `📈 View weekly trends, charts, and model performance analysis\n\n`;
 
   reportText += `🎯 **Next Update:** Monday 8:30 AM EST\n`;
   reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.`;
@@ -509,43 +509,47 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
   const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   console.log(`📅 [FB-MORNING] ${cronExecutionId} Date set: ${dateStr}`);
 
-  // Step 3: Message construction
-  console.log(`✍️ [FB-MORNING] ${cronExecutionId} Building message content...`);
-  let reportText = `🌅 **MORNING PREDICTIONS + ALERTS**\n`;
-  reportText += `🗓️ ${dateStr} 8:30 AM EST\n\n`;
-  reportText += `💭 **AI Sentiment Analysis:**\n`;
+  // Step 3: Message construction - OPTIMIZED for conciseness and engagement
+  console.log(`✍️ [FB-MORNING] ${cronExecutionId} Building optimized message content...`);
 
-  // Analysis results with sentiment-first approach
+  // Count sentiment distribution for headline
+  let bullishCount = 0;
+  let bearishCount = 0;
+  let highConfidenceSymbols = [];
   let symbolCount = 0;
+
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
       symbolCount++;
-
-      // Extract data from per-symbol analysis structure
       const tradingSignals = signal.trading_signals || signal;
-      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
-                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+      const sentimentLayer = signal.sentiment_layers?.[0];
+      const sentiment = sentimentLayer?.sentiment || 'neutral';
+      const confidence = tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0;
 
-      // Extract sentiment from sentiment layers
-      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
-      const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
-      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-      const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
+      if (sentiment === 'bullish') bullishCount++;
+      if (sentiment === 'bearish') bearishCount++;
 
-      reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-      reportText += `   💰 AI-Informed outlook\n`;
+      if (confidence > 0.8) {
+        highConfidenceSymbols.push(`${signal.symbol} (${Math.round(confidence * 100)}%)`);
+      }
     });
   }
-  console.log(`✅ [FB-MORNING] ${cronExecutionId} Message content built for ${symbolCount} symbols`);
 
-  reportText += `\n⚙️ **System Status:** Operational ✅\n`;
-  reportText += `🤖 **Models:** AI Sentiment Analysis + Neural Reference\n`;
-  reportText += `📊 **Symbols Analyzed:** ${analysisResult?.symbols_analyzed?.length || 5}\n\n`;
-  reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `📈 View live sentiment analysis, predictions, and model performance\n\n`;
-  reportText += `🎯 **Next Update:** 12:00 PM EST Midday Validation\n`;
-  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
+  // Create concise, engaging message
+  let reportText = `🌅 **MORNING PREDICTIONS**\n`;
+  reportText += `📊 Today's Outlook: Bullish on ${bullishCount}/${symbolCount} symbols\n`;
+
+  if (highConfidenceSymbols.length > 0) {
+    reportText += `🎯 High Confidence: ${highConfidenceSymbols.slice(0, 2).join(', ')}\n`;
+  }
+
+  reportText += `📈 View Full Analysis & Reasoning\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary\n\n`;
+  reportText += `⚠️ Research/education only. Not financial advice.`;
+
+  console.log(`✅ [FB-MORNING] ${cronExecutionId} Optimized message built: ${reportText.length} chars (vs ~${reportText.length * 3} before)`);
+
+  // Update KV data to reflect new message format
 
   // Step 4: KV storage (independent of Facebook API)
   console.log(`💾 [FB-MORNING] ${cronExecutionId} Starting KV storage...`);
@@ -719,48 +723,44 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
   const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   console.log(`📅 [FB-MIDDAY] ${cronExecutionId} Date set: ${dateStr}`);
 
-  // Step 3: Message construction
+  // Step 3: Message construction - Optimized for concise notification
   console.log(`✍️ [FB-MIDDAY] ${cronExecutionId} Building message content...`);
-  let reportText = `🔄 **MIDDAY VALIDATION + FORECASTS**\n`;
-  reportText += `🗓️ ${dateStr} 12:00 PM EST\n\n`;
-  reportText += `💭 **Sentiment Analysis Updates:**\n`;
 
-  // Analysis results with sentiment-first validation
+  // Analyze sentiment distribution for summary
+  let bullishCount = 0;
+  let bearishCount = 0;
   let symbolCount = 0;
+  let highConfidenceSymbols = [];
+
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
       symbolCount++;
-
-      // Extract data from per-symbol analysis structure
-      const tradingSignals = signal.trading_signals || signal;
-      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
-                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
-
-      // Extract sentiment from sentiment layers
-      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
+      const sentimentLayer = signal.sentiment_layers?.[0];
       const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
-      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-      const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
+      const confidence = (sentimentLayer?.confidence || 0) * 100;
 
-      // For validation, use overall confidence as both sentiment and technical confidence
-      const sentimentConf = confidence;
-      const technicalConf = Math.round((tradingSignals?.overall_confidence || 0.5) * 100);
-      const conflictIndicator = Math.abs(sentimentConf - technicalConf) > 20 ? ' ⚠️ CONFLICT' : ' ✅ ALIGNED';
+      if (sentimentLabel === 'bullish') bullishCount++;
+      else if (sentimentLabel === 'bearish') bearishCount++;
 
-      reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-      reportText += `   📊 AI Analysis: ${sentimentConf}% | Overall: ${technicalConf}%${conflictIndicator}\n`;
+      if (confidence >= 75) {
+        highConfidenceSymbols.push(signal.symbol);
+      }
     });
   }
 
-  reportText += `\n🎯 **Afternoon Outlook:**\n`;
-  reportText += `• AI sentiment signals informing analysis\n`;
-  reportText += `• Neural networks providing technical reference\n`;
-  reportText += `• Real-time market sentiment validation active\n\n`;
-  reportText += `⚙️ **System Status:** Operational ✅\n`;
-  reportText += `📊 **LIVE DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `🎯 **Next Update:** 4:05 PM EST Daily Report\n`;
-  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
+  // Build concise notification with call-to-action
+  let reportText = `🔄 **MIDDAY VALIDATION**\n`;
+  reportText += `📊 Market Pulse: ${bullishCount} Bullish | ${bearishCount} Bearish\n`;
+
+  if (highConfidenceSymbols.length > 0) {
+    reportText += `🎯 Strong Signals: ${highConfidenceSymbols.slice(0, 3).join(', ')}\n`;
+  }
+
+  const marketTrend = bullishCount > bearishCount ? 'Optimistic' : bearishCount > bullishCount ? 'Cautious' : 'Mixed';
+  reportText += `📈 Afternoon Outlook: ${marketTrend}\n`;
+  reportText += `📊 View Full Market Analysis & Updates\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary\n\n`;
+  reportText += `⚠️ Research/educational purposes only. Not financial advice.`;
 
   console.log(`✅ [FB-MIDDAY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
 
@@ -777,11 +777,14 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
       message_sent: false, // Will be updated after Facebook send
       symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/daily-summary',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'midday_validation',
       symbols_processed: symbolCount,
+      bullish_count: bullishCount,
+      bearish_count: bearishCount,
+      high_confidence_symbols: highConfidenceSymbols,
       facebook_delivery_status: 'pending',
       report_content: reportText.substring(0, 500) + '...'
     };
@@ -927,48 +930,53 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
   const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   console.log(`📅 [FB-DAILY] ${cronExecutionId} Date set: ${dateStr}`);
 
-  // Step 3: Message construction
+  // Step 3: Message construction - Optimized for concise notification with next-day focus
   console.log(`✍️ [FB-DAILY] ${cronExecutionId} Building message content...`);
-  let reportText = `📊 **DAILY VALIDATION + NEXT-DAY PREDICTIONS**\n`;
-  reportText += `🗓️ ${dateStr} 4:05 PM EST\n\n`;
-  reportText += `🏁 **Market Close Sentiment Analysis:**\n`;
 
-  // Analysis results with sentiment-driven next-day predictions
+  // Analyze sentiment distribution and high-confidence signals
+  let bullishCount = 0;
+  let bearishCount = 0;
   let symbolCount = 0;
+  let topPerformers = [];
+
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
       symbolCount++;
-
-      // Extract data from per-symbol analysis structure
-      const tradingSignals = signal.trading_signals || signal;
-      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
-                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
-
-      // Extract sentiment from sentiment layers
-      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
+      const sentimentLayer = signal.sentiment_layers?.[0];
       const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
-      const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-      const sentimentConfidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
+      const confidence = (sentimentLayer?.confidence || 0) * 100;
 
-      reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
-      reportText += `   💰 AI-Informed outlook\n`;
+      if (sentimentLabel === 'bullish') bullishCount++;
+      else if (sentimentLabel === 'bearish') bearishCount++;
+
+      if (confidence >= 75) {
+        topPerformers.push({
+          symbol: signal.symbol,
+          sentiment: sentimentLabel,
+          confidence: confidence
+        });
+      }
     });
   }
 
-  reportText += `\n🌅 **Tomorrow's Market Outlook:**\n`;
-  reportText += `• AI sentiment analysis for overnight news\n`;
-  reportText += `• Neural networks as technical reference\n`;
-  reportText += `• Real-time sentiment-driven predictions\n\n`;
-  reportText += `📈 **Daily Performance:**\n`;
-  reportText += `• Direction accuracy validation\n`;
-  reportText += `• Model confidence assessment\n`;
-  reportText += `• Risk metrics updated\n\n`;
-  reportText += `⚙️ **System Status:** Operational ✅\n`;
-  reportText += `🤖 **Models:** TFT + N-HITS Ensemble + Sentiment\n`;
-  reportText += `📊 **COMPREHENSIVE DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `🎯 **Next Update:** Tomorrow 8:30 AM EST\n`;
-  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
+  // Sort by confidence and take top 2-3
+  topPerformers.sort((a, b) => b.confidence - a.confidence);
+
+  // Build concise market close summary with next-day outlook
+  let reportText = `🏁 **MARKET CLOSE SUMMARY**\n`;
+  reportText += `📊 Today's Sentiment: ${bullishCount} Bullish | ${bearishCount} Bearish\n`;
+
+  if (topPerformers.length > 0) {
+    const topSymbol = topPerformers[0];
+    const emoji = topSymbol.sentiment === 'bullish' ? '🔥' : '🧊';
+    reportText += `🎯 Top Signal: ${topSymbol.symbol} ${emoji} ${Math.round(topSymbol.confidence)}%\n`;
+  }
+
+  const marketTrend = bullishCount > bearishCount ? 'Positive momentum' : bearishCount > bullishCount ? 'Cautious outlook' : 'Balanced signals';
+  reportText += `🌅 Tomorrow's Outlook: ${marketTrend}\n`;
+  reportText += `📈 View Full Analysis & Performance Metrics\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary\n\n`;
+  reportText += `⚠️ Research/educational purposes only. Not financial advice.`;
 
   console.log(`✅ [FB-DAILY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
 
@@ -985,11 +993,14 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
       message_sent: false, // Will be updated after Facebook send
       symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/daily-summary',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'daily_validation',
       symbols_processed: symbolCount,
+      bullish_count: bullishCount,
+      bearish_count: bearishCount,
+      top_performers: topPerformers,
       facebook_delivery_status: 'pending',
       report_content: reportText.substring(0, 500) + '...'
     };

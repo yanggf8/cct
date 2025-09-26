@@ -8,7 +8,7 @@ import { runEnhancedAnalysis, validateSentimentEnhancement } from './enhanced_an
 import { runEnhancedFeatureAnalysis } from './enhanced_feature_analysis.js';
 import { runIndependentTechnicalAnalysis } from './independent_technical_analysis.js';
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
-import { getFactTableData } from './data.js';
+import { getFactTableData, getCronHealthStatus } from './data.js';
 import { runTFTInference, runNHITSInference } from './models.js';
 import { analyzeSingleSymbol } from './per_symbol_analysis.js';
 
@@ -1577,6 +1577,36 @@ export async function handleTestAllFacebookMessages(request, env) {
 }
 
 /**
+ * Handle cron health monitoring requests
+ */
+export async function handleCronHealth(request, env) {
+  try {
+    console.log('🏥 Cron health monitoring requested...');
+
+    const healthStatus = await getCronHealthStatus(env);
+
+    return new Response(JSON.stringify({
+      success: true,
+      cron_health: healthStatus,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Cron health monitoring error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
  * Handle per-symbol fine-grained analysis requests
  */
 export async function handlePerSymbolAnalysis(request, env) {
@@ -1654,6 +1684,163 @@ export async function handlePerSymbolAnalysis(request, env) {
 
   } catch (error) {
     console.error('❌ Per-symbol analysis error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle daily summary API requests
+ * Provides JSON data for daily summary pages
+ */
+export async function handleDailySummaryAPI(request, env) {
+  try {
+    console.log('📊 [DAILY-SUMMARY-API] Daily summary API requested');
+
+    const url = new URL(request.url);
+    const dateParam = url.searchParams.get('date');
+
+    console.log('📅 [DAILY-SUMMARY-API] Date parameter:', dateParam);
+
+    // Import daily summary functionality
+    const { getDailySummary } = await import('./daily-summary.js');
+    const { validateDateParameter } = await import('./timezone-utils.js');
+
+    // Validate and get date
+    const validatedDate = validateDateParameter(dateParam);
+    console.log('✅ [DAILY-SUMMARY-API] Validated date:', validatedDate);
+
+    // Get daily summary data
+    const summaryData = await getDailySummary(validatedDate, env);
+
+    console.log(`✅ [DAILY-SUMMARY-API] Retrieved summary for ${validatedDate}: ${summaryData.summary.total_predictions} predictions`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      date: validatedDate,
+      data: summaryData,
+      api_version: '1.0',
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300' // 5 minute cache for performance
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [DAILY-SUMMARY-API] Error:', error);
+
+    // Determine appropriate status code based on error type
+    let statusCode = 500;
+    if (error.message.includes('Invalid date') || error.message.includes('Future dates')) {
+      statusCode = 400;
+    }
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      api_version: '1.0'
+    }, null, 2), {
+      status: statusCode,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle historical data backfill requests (admin endpoint)
+ */
+export async function handleBackfillDailySummaries(request, env) {
+  try {
+    console.log('🔄 [BACKFILL] Historical backfill requested');
+
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get('days')) || 30;
+    const skipExisting = url.searchParams.get('skip-existing') !== 'false';
+    const tradingDaysOnly = url.searchParams.get('trading-days-only') === 'true';
+
+    console.log(`🔄 [BACKFILL] Parameters: days=${days}, skipExisting=${skipExisting}, tradingDaysOnly=${tradingDaysOnly}`);
+
+    // Import backfill functionality
+    const { backfillDailySummaries, backfillTradingDaysOnly } = await import('./backfill.js');
+
+    let backfillResult;
+    if (tradingDaysOnly) {
+      backfillResult = await backfillTradingDaysOnly(env, days);
+    } else {
+      backfillResult = await backfillDailySummaries(env, days, skipExisting);
+    }
+
+    console.log(`✅ [BACKFILL] Completed: ${backfillResult.processed} processed, ${backfillResult.failed || 0} failed`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      backfill_result: backfillResult,
+      parameters: {
+        days: days,
+        skip_existing: skipExisting,
+        trading_days_only: tradingDaysOnly
+      },
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ [BACKFILL] Error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle backfill verification requests (admin endpoint)
+ */
+export async function handleVerifyBackfill(request, env) {
+  try {
+    console.log('🔍 [BACKFILL-VERIFY] Backfill verification requested');
+
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get('days')) || 10;
+
+    console.log(`🔍 [BACKFILL-VERIFY] Verifying last ${days} days`);
+
+    // Import verification functionality
+    const { verifyBackfill } = await import('./backfill.js');
+
+    const verificationResult = await verifyBackfill(env, days);
+
+    console.log(`✅ [BACKFILL-VERIFY] Completed: ${verificationResult.coverage_percentage}% coverage`);
+
+    return new Response(JSON.stringify({
+      success: true,
+      verification_result: verificationResult,
+      parameters: {
+        days_checked: days
+      },
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ [BACKFILL-VERIFY] Error:', error);
 
     return new Response(JSON.stringify({
       success: false,

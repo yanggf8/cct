@@ -113,7 +113,9 @@
       "Bash(timeout:*)",
       "Bash(unset:*)",
       "Bash(export:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "mcp__amazon-q-mcp-server__q_translate",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

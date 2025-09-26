@@ -250,6 +250,243 @@ export async function storeSymbolAnalysis(env, symbol, analysisData) {
 }
 
 /**
+ * Batch store multiple analysis results with optimized parallel operations
+ * Significantly faster than individual sequential KV writes
+ */
+export async function batchStoreAnalysisResults(env, analysisResults) {
+  try {
+    ensureLoggingInitialized(env);
+    const startTime = Date.now();
+    const date = new Date().toISOString().split('T')[0];
+    const kvOperations = [];
+
+    logInfo(`Starting batch KV storage for ${analysisResults.length} symbols...`);
+
+    // Create main daily analysis (compact format for web dashboard)
+    const dailyAnalysis = {
+      date,
+      symbols: analysisResults.map(result => ({
+        symbol: result.symbol,
+        sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
+        confidence: result.confidence_metrics?.overall_confidence || 0.5,
+        direction: result.trading_signals?.primary_direction || 'NEUTRAL',
+        model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
+        layer_consistency: result.confidence_metrics?.consistency_bonus || 0,
+        analysis_type: result.analysis_type || 'fine_grained_sentiment'
+      })),
+      execution_time: Date.now(),
+      batch_stored: true,
+      total_symbols: analysisResults.length
+    };
+
+    // Add main daily analysis to batch
+    kvOperations.push(
+      env.TRADING_RESULTS.put(
+        `analysis_${date}`,
+        JSON.stringify(dailyAnalysis),
+        { expirationTtl: 604800 } // 7 days
+      )
+    );
+
+    // Add individual symbol analyses to batch (full detail for granular tracking)
+    for (const result of analysisResults) {
+      if (result && result.symbol) {
+        // Create compact version for KV storage (remove large raw data)
+        const compactResult = createCompactAnalysisData(result);
+
+        kvOperations.push(
+          env.TRADING_RESULTS.put(
+            `analysis_${date}_${result.symbol}`,
+            JSON.stringify(compactResult),
+            { expirationTtl: 7776000 } // 90 days
+          )
+        );
+      }
+    }
+
+    // Execute all KV operations in parallel (much faster than sequential)
+    logInfo(`Executing ${kvOperations.length} KV operations in parallel...`);
+    const kvResults = await Promise.allSettled(kvOperations);
+
+    // Count successful operations
+    const successful = kvResults.filter(r => r.status === 'fulfilled').length;
+    const failed = kvResults.filter(r => r.status === 'rejected').length;
+
+    const totalTime = Date.now() - startTime;
+    logInfo(`Batch KV storage completed: ${successful}/${kvOperations.length} operations successful in ${totalTime}ms`);
+
+    if (failed > 0) {
+      logError(`${failed} KV operations failed during batch storage`);
+      kvResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          logError(`KV operation ${index} failed:`, result.reason);
+        }
+      });
+    }
+
+    return {
+      success: successful > 0,
+      total_operations: kvOperations.length,
+      successful_operations: successful,
+      failed_operations: failed,
+      execution_time_ms: totalTime,
+      daily_analysis_stored: kvResults[0]?.status === 'fulfilled',
+      symbol_analyses_stored: successful - 1 // Subtract 1 for daily analysis
+    };
+
+  } catch (error) {
+    logError('Batch KV storage failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      total_operations: 0,
+      successful_operations: 0,
+      failed_operations: 0
+    };
+  }
+}
+
+/**
+ * Create compact analysis data for KV storage (removes large unnecessary data)
+ */
+function createCompactAnalysisData(analysisData) {
+  return {
+    symbol: analysisData.symbol,
+    analysis_type: analysisData.analysis_type,
+    timestamp: analysisData.timestamp,
+
+    // Compact sentiment layers (remove raw responses and detailed analysis)
+    sentiment_layers: (analysisData.sentiment_layers || []).map(layer => ({
+      layer_type: layer.layer_type,
+      sentiment: layer.sentiment,
+      confidence: layer.confidence,
+      model: layer.model,
+      // Remove: raw_response, detailed_analysis, individual_scores, etc.
+    })),
+
+    // Keep essential confidence metrics only
+    confidence_metrics: {
+      overall_confidence: analysisData.confidence_metrics?.overall_confidence || 0,
+      base_confidence: analysisData.confidence_metrics?.base_confidence || 0,
+      consistency_bonus: analysisData.confidence_metrics?.consistency_bonus || 0,
+      agreement_bonus: analysisData.confidence_metrics?.agreement_bonus || 0
+    },
+
+    // Keep complete trading signals (needed for Facebook messages)
+    trading_signals: analysisData.trading_signals,
+
+    // Keep compact sentiment patterns
+    sentiment_patterns: {
+      overall_consistency: analysisData.sentiment_patterns?.overall_consistency,
+      primary_sentiment: analysisData.sentiment_patterns?.primary_sentiment,
+      model_agreement: analysisData.sentiment_patterns?.model_agreement
+    },
+
+    // Keep essential metadata only
+    analysis_metadata: {
+      method: analysisData.analysis_metadata?.method,
+      models_used: analysisData.analysis_metadata?.models_used,
+      total_processing_time: analysisData.analysis_metadata?.total_processing_time,
+      news_quality_score: analysisData.analysis_metadata?.news_quality_score
+    },
+
+    // Keep compact news data summary
+    news_data: {
+      total_articles: analysisData.news_data?.total_articles || 0,
+      time_range: analysisData.news_data?.time_range
+    }
+
+    // Remove: Full news articles, detailed analysis breakdowns, raw responses, etc.
+  };
+}
+
+/**
+ * Track cron execution health for monitoring and debugging
+ */
+export async function trackCronHealth(env, status, executionData = {}) {
+  try {
+    ensureLoggingInitialized(env);
+    const healthData = {
+      timestamp: Date.now(),
+      date: new Date().toISOString(),
+      status: status, // 'success', 'partial', 'failed'
+      execution_time_ms: executionData.totalTime || 0,
+      symbols_processed: executionData.symbolsProcessed || 0,
+      symbols_successful: executionData.symbolsSuccessful || 0,
+      symbols_fallback: executionData.symbolsFallback || 0,
+      symbols_failed: executionData.symbolsFailed || 0,
+      analysis_success_rate: executionData.successRate || 0,
+      storage_operations: executionData.storageOperations || 0,
+      errors: executionData.errors || []
+    };
+
+    // Store latest health status
+    await env.TRADING_RESULTS.put('cron_health_latest', JSON.stringify(healthData));
+
+    // Also store in daily health log for history
+    const dateKey = `cron_health_${new Date().toISOString().slice(0, 10)}`;
+    const existingDailyData = await env.TRADING_RESULTS.get(dateKey);
+    const dailyData = existingDailyData ? JSON.parse(existingDailyData) : { executions: [] };
+
+    dailyData.executions.push(healthData);
+
+    // Keep only last 10 executions per day to avoid bloat
+    if (dailyData.executions.length > 10) {
+      dailyData.executions = dailyData.executions.slice(-10);
+    }
+
+    await env.TRADING_RESULTS.put(dateKey, JSON.stringify(dailyData), { expirationTtl: 2592000 }); // 30 days
+
+    logInfo(`Cron health tracked: ${status} - ${executionData.symbolsProcessed || 0} symbols processed`);
+    return true;
+
+  } catch (error) {
+    logError('Failed to track cron health:', error);
+    return false;
+  }
+}
+
+/**
+ * Get latest cron health status for monitoring
+ */
+export async function getCronHealthStatus(env) {
+  try {
+    ensureLoggingInitialized(env);
+    const latestHealthJson = await env.TRADING_RESULTS.get('cron_health_latest');
+
+    if (!latestHealthJson) {
+      return {
+        healthy: false,
+        message: 'No cron health data found',
+        last_execution: null
+      };
+    }
+
+    const healthData = JSON.parse(latestHealthJson);
+    const hoursSinceLastRun = (Date.now() - healthData.timestamp) / (1000 * 60 * 60);
+
+    return {
+      healthy: hoursSinceLastRun < 6 && healthData.status !== 'failed', // Should run every 2-4 hours
+      last_execution: new Date(healthData.timestamp).toISOString(),
+      hours_since_last_run: hoursSinceLastRun,
+      last_status: healthData.status,
+      symbols_processed: healthData.symbols_processed,
+      success_rate: healthData.analysis_success_rate,
+      execution_time_ms: healthData.execution_time_ms,
+      full_health_data: healthData
+    };
+
+  } catch (error) {
+    logError('Failed to get cron health status:', error);
+    return {
+      healthy: false,
+      message: 'Error reading cron health data',
+      error: error.message
+    };
+  }
+}
+
+/**
  * Get analysis results for all symbols on a specific date
  * Enhanced to fetch granular symbol-specific data
  */

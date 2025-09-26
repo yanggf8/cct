@@ -771,10 +771,59 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
 export async function runEnhancedPreMarketAnalysis(env, options = {}) {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
-  logInfo('Starting Enhanced Pre-Market Analysis with Sentiment...');
+  logInfo('🚀 Starting Enhanced Pre-Market Analysis with 3-layer sentiment and cron optimization...');
 
   try {
-    // Use enhanced analysis instead of basic
+    // Get symbols from configuration
+    const symbolsString = env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA';
+    const symbols = symbolsString.split(',').map(s => s.trim());
+
+    logInfo(`📊 Analyzing ${symbols.length} symbols: ${symbols.join(', ')}`);
+
+    // Option 1: Use new 3-layer batch pipeline (recommended for cron jobs)
+    if (options.useBatchPipeline !== false) {
+      try {
+        // Import the new batch pipeline function
+        const { runCompleteAnalysisPipeline } = await import('./per_symbol_analysis.js');
+
+        logInfo(`🔄 Using optimized batch pipeline for cron execution...`);
+        const pipelineResult = await runCompleteAnalysisPipeline(symbols, env, {
+          triggerMode: options.triggerMode || 'enhanced_pre_market',
+          predictionHorizons: options.predictionHorizons,
+          currentTime: options.currentTime,
+          cronExecutionId: options.cronExecutionId
+        });
+
+        if (pipelineResult.success) {
+          // Convert pipeline results to legacy format for Facebook compatibility
+          const legacyFormatResults = convertPipelineToLegacyFormat(pipelineResult, options);
+
+          // Track cron health
+          const { trackCronHealth } = await import('./data.js');
+          await trackCronHealth(env, 'success', {
+            totalTime: pipelineResult.pipeline_summary.total_execution_time,
+            symbolsProcessed: pipelineResult.pipeline_summary.analysis_statistics.total_symbols,
+            symbolsSuccessful: pipelineResult.pipeline_summary.analysis_statistics.successful_full_analysis,
+            symbolsFallback: pipelineResult.pipeline_summary.analysis_statistics.fallback_sentiment_used,
+            symbolsFailed: pipelineResult.pipeline_summary.analysis_statistics.neutral_fallback_used,
+            successRate: pipelineResult.pipeline_summary.analysis_success_rate,
+            storageOperations: pipelineResult.pipeline_summary.storage_statistics.total_operations
+          });
+
+          logInfo(`✅ Batch pipeline completed successfully: ${pipelineResult.pipeline_summary.symbols_with_usable_data}/${symbols.length} symbols successful`);
+          return legacyFormatResults;
+        } else {
+          logWarn(`⚠️ Batch pipeline failed, falling back to legacy enhanced analysis...`);
+          // Fall through to legacy method
+        }
+      } catch (importError) {
+        logWarn(`⚠️ Could not import batch pipeline, using legacy analysis:`, importError.message);
+        // Fall through to legacy method
+      }
+    }
+
+    // Option 2: Legacy enhanced analysis (fallback)
+    logInfo(`🔄 Using legacy enhanced analysis method...`);
     const enhancedResults = await runEnhancedAnalysis(env, {
       triggerMode: options.triggerMode || 'enhanced_pre_market',
       predictionHorizons: options.predictionHorizons,
@@ -787,14 +836,35 @@ export async function runEnhancedPreMarketAnalysis(env, options = {}) {
       trigger_mode: options.triggerMode,
       prediction_horizons: options.predictionHorizons,
       execution_time_ms: Date.now() - startTime,
-      enhancement_enabled: true
+      enhancement_enabled: true,
+      batch_pipeline_used: false
     };
+
+    // Track cron health for legacy analysis
+    const { trackCronHealth } = await import('./data.js');
+    await trackCronHealth(env, 'success', {
+      totalTime: Date.now() - startTime,
+      symbolsProcessed: enhancedResults.symbols_analyzed?.length || 0,
+      successRate: 1.0 // Assume success if no error thrown
+    });
 
     logInfo(`Enhanced pre-market analysis completed in ${Date.now() - startTime}ms`);
     return enhancedResults;
 
   } catch (error) {
     logError('Enhanced pre-market analysis failed:', error);
+
+    // Track cron health for failure
+    try {
+      const { trackCronHealth } = await import('./data.js');
+      await trackCronHealth(env, 'failed', {
+        totalTime: Date.now() - startTime,
+        symbolsProcessed: 0,
+        errors: [error.message]
+      });
+    } catch (healthError) {
+      logError('Could not track cron health:', healthError);
+    }
 
     // Import basic analysis as fallback
     const { runPreMarketAnalysis } = await import('./analysis.js');
@@ -809,6 +879,88 @@ export async function runEnhancedPreMarketAnalysis(env, options = {}) {
 
     return fallbackResults;
   }
+}
+
+/**
+ * Convert new pipeline results to legacy format for Facebook message compatibility
+ */
+function convertPipelineToLegacyFormat(pipelineResult, options) {
+  const tradingSignals = {};
+  const symbols_analyzed = [];
+
+  // Convert each analysis result to legacy format
+  for (const result of pipelineResult.analysis_results) {
+    if (result && result.symbol) {
+      symbols_analyzed.push(result.symbol);
+
+      // Map 3-layer analysis to legacy trading signals format
+      tradingSignals[result.symbol] = {
+        // Core trading signal data
+        symbol: result.symbol,
+        predicted_price: null, // Not available in 3-layer analysis
+        current_price: null,   // Would need to be fetched separately
+        direction: result.trading_signals?.primary_direction || 'NEUTRAL',
+        confidence: result.confidence_metrics?.overall_confidence || 0.5,
+        model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
+
+        // 3-layer analysis specific data for Facebook messages
+        sentiment_layers: result.sentiment_layers,
+        trading_signals: result.trading_signals,
+        confidence_metrics: result.confidence_metrics,
+        sentiment_patterns: result.sentiment_patterns,
+        analysis_metadata: result.analysis_metadata,
+
+        // Enhanced prediction structure for compatibility
+        enhanced_prediction: {
+          direction: result.trading_signals?.primary_direction || 'NEUTRAL',
+          confidence: result.confidence_metrics?.overall_confidence || 0.5,
+          method: 'enhanced_3_layer_sentiment',
+          sentiment_analysis: {
+            sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
+            confidence: result.sentiment_layers?.[0]?.confidence || 0.5,
+            source: 'cloudflare_gpt_oss',
+            model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B'
+          }
+        },
+
+        // Analysis type indicator
+        analysis_type: result.analysis_type || 'fine_grained_sentiment',
+        fallback_used: result.analysis_metadata?.fallback_used || false
+      };
+    }
+  }
+
+  return {
+    symbols_analyzed,
+    trading_signals: tradingSignals,
+
+    // Pipeline execution metadata
+    pre_market_analysis: {
+      trigger_mode: options.triggerMode,
+      prediction_horizons: options.predictionHorizons,
+      execution_time_ms: pipelineResult.pipeline_summary.total_execution_time,
+      enhancement_enabled: true,
+      batch_pipeline_used: true,
+      symbols_processed: pipelineResult.pipeline_summary.analysis_statistics.total_symbols,
+      success_rate: pipelineResult.pipeline_summary.analysis_success_rate,
+
+      // Performance metrics
+      performance_metrics: pipelineResult.pipeline_summary.performance_metrics,
+
+      // Storage metrics
+      storage_operations: pipelineResult.pipeline_summary.storage_statistics.total_operations,
+      storage_successful: pipelineResult.pipeline_summary.storage_statistics.successful_operations
+    },
+
+    // Analysis statistics
+    analysis_statistics: {
+      total_symbols: pipelineResult.pipeline_summary.analysis_statistics.total_symbols,
+      successful_full_analysis: pipelineResult.pipeline_summary.analysis_statistics.successful_full_analysis,
+      fallback_sentiment_used: pipelineResult.pipeline_summary.analysis_statistics.fallback_sentiment_used,
+      neutral_fallback_used: pipelineResult.pipeline_summary.analysis_statistics.neutral_fallback_used,
+      overall_success: pipelineResult.pipeline_summary.overall_success
+    }
+  };
 }
 
 /**

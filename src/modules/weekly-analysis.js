@@ -136,6 +136,11 @@ export async function handleWeeklyAnalysisPage(request, env) {
                     <div class="label">3-Layer Agreement</div>
                 </div>
                 <div class="stat-card">
+                    <h3>Total Predictions</h3>
+                    <div class="value" id="total-predictions">-</div>
+                    <div class="label">Analysis Count</div>
+                </div>
+                <div class="stat-card">
                     <h3>Primary Model</h3>
                     <div class="value" id="best-model">-</div>
                     <div class="label">Top Performer</div>

@@ -3,6 +3,7 @@
  */
 
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
+import { handleDailySummaryPage } from './daily-summary-page.js';
 import {
   handleManualAnalysis,
   handleEnhancedFeatureAnalysis,
@@ -29,7 +30,11 @@ import {
   handleTestAllFacebookMessages,
   handlePerSymbolAnalysis,
   handleKVWriteTest,
-  handleKVReadTest
+  handleKVReadTest,
+  handleCronHealth,
+  handleDailySummaryAPI,
+  handleBackfillDailySummaries,
+  handleVerifyBackfill
 } from './handlers.js';
 
 /**
@@ -37,7 +42,7 @@ import {
  */
 function validateRequest(request, url, env) {
   // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook', '/analyze-symbol'];
+  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook', '/analyze-symbol', '/admin/backfill-daily-summaries', '/admin/verify-backfill'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -120,6 +125,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyAnalysisPage(request, env);
     case '/api/weekly-data':
       return handleWeeklyDataAPI(request, env);
+    case '/daily-summary':
+      return handleDailySummaryPage(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
     case '/debug-sentiment':
@@ -138,6 +145,27 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleTestAllFacebookMessages(request, env);
     case '/analyze-symbol':
       return handlePerSymbolAnalysis(request, env);
+    case '/cron-health':
+      return handleCronHealth(request, env);
+    case '/api/daily-summary':
+      return handleDailySummaryAPI(request, env);
+    case '/admin/backfill-daily-summaries':
+      return handleBackfillDailySummaries(request, env);
+    case '/admin/verify-backfill':
+      return handleVerifyBackfill(request, env);
+    case '/favicon.ico':
+      // Return a simple 1x1 transparent GIF as favicon
+      const faviconData = new Uint8Array([
+        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x21, 0xf9, 0x04,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02,
+        0x02, 0x04, 0x01, 0x00, 0x3b
+      ]);
+      return new Response(faviconData, {
+        headers: {
+          'Content-Type': 'image/gif',
+          'Cache-Control': 'public, max-age=86400'
+        }
+      });
     default:
       // Default response for root and unknown paths
       if (url.pathname === '/' || url.pathname === '/status') {
@@ -156,7 +184,8 @@ export async function handleHttpRequest(request, env, ctx) {
             '/weekly-analysis - Weekly analysis dashboard',
             '/api/weekly-data - Weekly analysis data API',
             '/test-sentiment - Sentiment enhancement validation',
-            '/analyze-symbol?symbol=AAPL - Fine-grained per-symbol analysis'
+            '/analyze-symbol?symbol=AAPL - Fine-grained per-symbol analysis',
+            '/cron-health - Cron job execution health monitoring'
           ]
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }

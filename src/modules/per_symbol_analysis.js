@@ -4,10 +4,10 @@
  */
 
 import { getFreeStockNews } from './free_sentiment_pipeline.js';
-import { getGPTOSSSentiment, getDistilBERTSentiment } from './enhanced_analysis.js';
+import { getGPTOSSSentiment, getDistilBERTSentiment, getSentimentWithFallbackChain } from './enhanced_analysis.js';
 import { parseNaturalLanguageResponse, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
-import { storeSymbolAnalysis, getSymbolAnalysisByDate } from './data.js';
-import { initLogging, logInfo, logError, logSentimentDebug, logAIDebug, logKVDebug } from './logging.js';
+import { storeSymbolAnalysis, getSymbolAnalysisByDate, batchStoreAnalysisResults } from './data.js';
+import { initLogging, logInfo, logError, logSentimentDebug, logAIDebug, logKVDebug, logWarn } from './logging.js';
 
 // Initialize logging for this module
 let loggingInitialized = false;
@@ -136,45 +136,40 @@ async function gatherComprehensiveNewsForSymbol(symbol, env) {
 }
 
 /**
- * Perform multi-layer sentiment analysis
+ * Perform 3-layer sentiment analysis as per original design
  */
 async function performMultiLayerSentimentAnalysis(symbol, newsData, env) {
   const sentimentLayers = [];
 
   try {
-    // Layer 1: GPT-OSS-120B Primary Analysis
-    if (env.AI) {
-      logAIDebug(`Performing GPT-OSS-120B analysis for ${symbol}...`);
-      const gptLayer = await performGPTAnalysisLayer(symbol, newsData, env);
-      sentimentLayers.push(gptLayer);
-    }
+    // Layer 1: GPT-OSS-120B (with DistilBERT fallback)
+    logAIDebug(`Performing Layer 1: GPT-OSS-120B primary analysis for ${symbol}...`);
+    const primaryLayer = await performPrimaryAnalysisLayer(symbol, newsData, env);
+    sentimentLayers.push(primaryLayer);
 
-    // Layer 2: DistilBERT Cross-Validation
-    if (env.AI) {
-      logAIDebug(`Performing DistilBERT analysis for ${symbol}...`);
-      const distilbertLayer = await performDistilBERTAnalysisLayer(symbol, newsData, env);
-      sentimentLayers.push(distilbertLayer);
-    }
-
-    // Layer 3: Article-by-Article Sentiment Breakdown
-    logSentimentDebug(`Performing article-level sentiment analysis for ${symbol}...`);
+    // Layer 2: Article-level analysis
+    logSentimentDebug(`Performing Layer 2: Article-level analysis for ${symbol}...`);
     const articleLayer = await performArticleLevelAnalysis(symbol, newsData, env);
     sentimentLayers.push(articleLayer);
 
-    
-    logInfo(`Completed ${sentimentLayers.length} sentiment layers for ${symbol}`);
+    // Layer 3: Temporal analysis (time-weighted aggregation)
+    logSentimentDebug(`Performing Layer 3: Temporal analysis for ${symbol}...`);
+    const temporalLayer = await performTemporalAnalysis(symbol, newsData, sentimentLayers, env);
+    sentimentLayers.push(temporalLayer);
+
+    logInfo(`Completed 3-layer sentiment analysis for ${symbol}`);
     return sentimentLayers;
 
   } catch (error) {
-    logError(`Multi-layer sentiment analysis failed for ${symbol}:`, error);
+    logError(`3-layer sentiment analysis failed for ${symbol}:`, error);
     return [];
   }
 }
 
 /**
- * Perform GPT-OSS-120B analysis layer with enhanced prompts
+ * Layer 1: GPT-OSS-120B Primary Analysis (with DistilBERT fallback)
  */
-async function performGPTAnalysisLayer(symbol, newsData, env) {
+async function performPrimaryAnalysisLayer(symbol, newsData, env) {
   try {
     const topArticles = newsData.slice(0, 8); // Use top 8 articles for GPT
 
@@ -225,14 +220,102 @@ Focus on actionable insights specific to ${symbol} trading.`;
     };
 
   } catch (error) {
-    logError(`GPT analysis layer failed for ${symbol}:`, error);
+    logError(`GPT-OSS-120B failed for ${symbol}, falling back to DistilBERT:`, error);
+
+    // Fallback to DistilBERT if GPT-OSS-120B fails
+    try {
+      logAIDebug(`Using DistilBERT fallback for ${symbol}...`);
+      const fallbackResult = await performDistilBERTFallback(symbol, newsData, env);
+      return {
+        layer_type: 'gpt_oss_120b_with_distilbert_fallback',
+        model: 'distilbert-fallback',
+        sentiment: fallbackResult.sentiment,
+        confidence: fallbackResult.confidence,
+        detailed_analysis: fallbackResult,
+        articles_analyzed: newsData.length,
+        processing_time: Date.now(),
+        fallback_used: true,
+        original_error: error.message
+      };
+    } catch (fallbackError) {
+      logError(`Both GPT and DistilBERT failed for ${symbol}:`, fallbackError);
+      return {
+        layer_type: 'gpt_oss_120b_with_distilbert_fallback',
+        model: 'failed',
+        sentiment: 'neutral',
+        confidence: 0,
+        error: `Primary failed: ${error.message}, Fallback failed: ${fallbackError.message}`
+      };
+    }
+  }
+}
+
+/**
+ * DistilBERT fallback for Layer 1 when GPT-OSS-120B fails
+ */
+async function performDistilBERTFallback(symbol, newsData, env) {
+  try {
+    const sentimentPromises = newsData.slice(0, 5).map(async (article, index) => {
+      try {
+        const text = `${article.title}. ${article.summary || ''}`.substring(0, 500);
+
+        const response = await env.AI.run(
+          '@cf/huggingface/distilbert-sst-2-int8',
+          { text: text }
+        );
+
+        const result = response[0];
+        return {
+          article_index: index,
+          sentiment: result.label.toLowerCase(),
+          confidence: result.score,
+          score: result.label === 'POSITIVE' ? result.score : -result.score
+        };
+
+      } catch (error) {
+        return {
+          article_index: index,
+          sentiment: 'neutral',
+          confidence: 0,
+          score: 0,
+          error: error.message
+        };
+      }
+    });
+
+    const results = await Promise.allSettled(sentimentPromises);
+    const validResults = results
+      .filter(result => result.status === 'fulfilled')
+      .map(result => result.value)
+      .filter(result => !result.error);
+
+    // Calculate aggregate sentiment
+    let totalScore = 0;
+    let totalConfidence = 0;
+
+    validResults.forEach(result => {
+      totalScore += result.score;
+      totalConfidence += result.confidence;
+    });
+
+    const avgScore = validResults.length > 0 ? totalScore / validResults.length : 0;
+    const avgConfidence = validResults.length > 0 ? totalConfidence / validResults.length : 0;
+
+    // Map to trading sentiment
+    let finalSentiment = 'neutral';
+    if (avgScore > 0.15) finalSentiment = 'bullish';
+    else if (avgScore < -0.15) finalSentiment = 'bearish';
+
     return {
-      layer_type: 'gpt_oss_120b_enhanced',
-      model: 'openchat-3.5-0106',
-      sentiment: 'neutral',
-      confidence: 0,
-      error: error.message
+      sentiment: finalSentiment,
+      confidence: avgConfidence,
+      average_score: avgScore,
+      articles_processed: validResults.length,
+      fallback_source: 'distilbert'
     };
+
+  } catch (error) {
+    throw new Error(`DistilBERT fallback failed: ${error.message}`);
   }
 }
 
@@ -367,6 +450,155 @@ async function performArticleLevelAnalysis(symbol, newsData, env) {
   }
 }
 
+/**
+ * Layer 3: Temporal Analysis - Time-weighted sentiment aggregation
+ */
+async function performTemporalAnalysis(symbol, newsData, sentimentLayers, env) {
+  try {
+    logSentimentDebug(`Starting temporal analysis for ${symbol} with ${newsData.length} articles`);
+
+    // Extract published times and calculate article ages
+    const currentTime = new Date();
+    const articlesWithTiming = newsData.map((article, index) => {
+      // Parse article timestamp (fallback to current time if not available)
+      const publishedTime = article.publishedAt ? new Date(article.publishedAt) : currentTime;
+      const ageInHours = Math.max(0.1, (currentTime - publishedTime) / (1000 * 60 * 60)); // Minimum 0.1 hours
+
+      return {
+        ...article,
+        index,
+        published_time: publishedTime,
+        age_hours: ageInHours,
+        recency_weight: calculateTemporalWeight(ageInHours)
+      };
+    });
+
+    // Extract sentiment scores from previous layers
+    const primaryLayer = sentimentLayers[0] || {}; // Layer 1: GPT-OSS-120B
+    const articleLayer = sentimentLayers[1] || {}; // Layer 2: Article-level analysis
+
+    // Create time-weighted sentiment aggregation
+    let totalWeightedSentiment = 0;
+    let totalWeight = 0;
+    let totalWeightedConfidence = 0;
+    const timeDecayMetrics = [];
+
+    articlesWithTiming.forEach((article, index) => {
+      // Get sentiment impact for this article from Layer 2
+      const articleAnalysis = articleLayer.article_analyses?.[index];
+      const sentimentImpact = articleAnalysis?.sentiment_impact || 0;
+      const relevanceScore = article.relevance_score || 1.0;
+
+      // Calculate time-weighted contribution
+      const temporalWeight = article.recency_weight * relevanceScore;
+      const weightedSentiment = sentimentImpact * temporalWeight;
+
+      totalWeightedSentiment += weightedSentiment;
+      totalWeight += temporalWeight;
+      totalWeightedConfidence += (Math.abs(sentimentImpact) * temporalWeight);
+
+      timeDecayMetrics.push({
+        article_index: index,
+        age_hours: article.age_hours,
+        temporal_weight: article.recency_weight,
+        sentiment_impact: sentimentImpact,
+        weighted_contribution: weightedSentiment,
+        title: article.title?.substring(0, 60) + '...'
+      });
+    });
+
+    // Calculate final temporal sentiment metrics
+    const temporalSentimentScore = totalWeight > 0 ? totalWeightedSentiment / totalWeight : 0;
+    const temporalConfidence = totalWeight > 0 ? totalWeightedConfidence / totalWeight : 0;
+
+    // Determine temporal sentiment direction
+    let temporalSentiment = 'neutral';
+    if (temporalSentimentScore > 0.2) temporalSentiment = 'bullish';
+    else if (temporalSentimentScore < -0.2) temporalSentiment = 'bearish';
+
+    // Calculate sentiment trend analysis
+    const sentimentTrend = calculateSentimentTrend(timeDecayMetrics);
+    const temporalConsistency = calculateTemporalConsistency(timeDecayMetrics);
+
+    // Create temporal decay visualization data
+    const temporalDecayLambda = 0.5; // Decay constant (tunable parameter)
+
+    return {
+      layer_type: 'temporal_analysis',
+      sentiment: temporalSentiment,
+      confidence: Math.min(0.95, temporalConfidence),
+      temporal_sentiment_score: temporalSentimentScore,
+      sentiment_trend: sentimentTrend,
+      temporal_consistency: temporalConsistency,
+      time_decay_metrics: {
+        decay_constant_lambda: temporalDecayLambda,
+        total_weight: totalWeight,
+        articles_processed: articlesWithTiming.length,
+        time_window_hours: Math.max(...articlesWithTiming.map(a => a.age_hours))
+      },
+      article_temporal_breakdown: timeDecayMetrics.slice(0, 10), // Top 10 for debugging
+      temporal_validation: {
+        recent_articles_weight: timeDecayMetrics.filter(m => m.age_hours < 6).reduce((acc, m) => acc + m.temporal_weight, 0),
+        older_articles_weight: timeDecayMetrics.filter(m => m.age_hours >= 6).reduce((acc, m) => acc + m.temporal_weight, 0)
+      }
+    };
+
+  } catch (error) {
+    logError(`Temporal analysis failed for ${symbol}:`, error);
+    return {
+      layer_type: 'temporal_analysis',
+      sentiment: 'neutral',
+      confidence: 0,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Calculate temporal weight using exponential decay
+ */
+function calculateTemporalWeight(ageInHours) {
+  // Exponential decay: e^(-λ * age)
+  // λ = 0.5 means sentiment half-life of ~1.4 hours
+  const lambda = 0.5;
+  return Math.exp(-lambda * ageInHours);
+}
+
+/**
+ * Calculate sentiment trend over time
+ */
+function calculateSentimentTrend(timeDecayMetrics) {
+  const sortedByTime = timeDecayMetrics.sort((a, b) => a.age_hours - b.age_hours);
+
+  if (sortedByTime.length < 2) return 'stable';
+
+  const recentHalf = sortedByTime.slice(0, Math.ceil(sortedByTime.length / 2));
+  const olderHalf = sortedByTime.slice(Math.ceil(sortedByTime.length / 2));
+
+  const recentSentiment = recentHalf.reduce((acc, m) => acc + m.sentiment_impact, 0) / recentHalf.length;
+  const olderSentiment = olderHalf.reduce((acc, m) => acc + m.sentiment_impact, 0) / olderHalf.length;
+
+  const trendDifference = recentSentiment - olderSentiment;
+
+  if (trendDifference > 0.15) return 'improving';
+  else if (trendDifference < -0.15) return 'declining';
+  else return 'stable';
+}
+
+/**
+ * Calculate temporal consistency across time periods
+ */
+function calculateTemporalConsistency(timeDecayMetrics) {
+  if (timeDecayMetrics.length < 2) return 1.0;
+
+  const sentimentValues = timeDecayMetrics.map(m => m.sentiment_impact);
+  const mean = sentimentValues.reduce((acc, val) => acc + val, 0) / sentimentValues.length;
+  const variance = sentimentValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / sentimentValues.length;
+  const standardDeviation = Math.sqrt(variance);
+
+  // Convert to consistency score (0-1, where 1 is perfectly consistent)
+  return Math.max(0, 1 - (standardDeviation * 2));
+}
 
 /**
  * Analyze symbol-specific sentiment patterns
@@ -773,6 +1005,280 @@ function getConfidenceLevel(confidence) {
 function calculateNewsQualityScore(newsData) {
   // Placeholder
   return 0.8;
+}
+
+/**
+ * Analyze symbol with robust fallback system for cron reliability
+ * Ensures every symbol returns a usable result even if main analysis fails
+ */
+export async function analyzeSymbolWithFallback(symbol, env, options = {}) {
+  const startTime = Date.now();
+  ensureLoggingInitialized(env);
+  logInfo(`Starting robust analysis for ${symbol} with fallback protection...`);
+
+  try {
+    // Primary: Full 3-layer analysis
+    const analysis = await analyzeSymbolWithFineGrainedSentiment(symbol, env, options);
+    logInfo(`✅ Full 3-layer analysis succeeded for ${symbol}`);
+    return analysis;
+
+  } catch (primaryError) {
+    logWarn(`Full analysis failed for ${symbol}, trying simplified approach:`, primaryError.message);
+
+    try {
+      // Fallback 1: Basic sentiment analysis only
+      const newsData = await getFreeStockNews(symbol, env);
+      const sentiment = await getSentimentWithFallbackChain(symbol, newsData, env);
+
+      const fallbackAnalysis = {
+        symbol,
+        analysis_type: 'fallback_sentiment_only',
+        timestamp: new Date().toISOString(),
+
+        // Simplified sentiment layers
+        sentiment_layers: [{
+          layer_type: 'gpt_oss_120b_fallback',
+          sentiment: sentiment.sentiment,
+          confidence: sentiment.confidence,
+          model: sentiment.model || 'GPT-OSS-120B'
+        }],
+
+        // Basic confidence metrics
+        confidence_metrics: {
+          overall_confidence: sentiment.confidence * 0.7, // Reduced confidence for fallback
+          base_confidence: sentiment.confidence,
+          consistency_bonus: 0,
+          agreement_bonus: 0
+        },
+
+        // Basic trading signals
+        trading_signals: {
+          symbol: symbol,
+          primary_direction: mapSentimentToDirection(sentiment.sentiment),
+          overall_confidence: sentiment.confidence * 0.7,
+          recommendation: sentiment.confidence > 0.6 ?
+            (sentiment.sentiment === 'bullish' ? 'buy' : sentiment.sentiment === 'bearish' ? 'sell' : 'hold') : 'hold'
+        },
+
+        // Fallback metadata
+        analysis_metadata: {
+          method: 'sentiment_fallback',
+          models_used: [sentiment.model || 'GPT-OSS-120B'],
+          total_processing_time: Date.now() - startTime,
+          fallback_used: true,
+          original_error: primaryError.message
+        },
+
+        // Basic news data
+        news_data: {
+          total_articles: newsData?.length || 0
+        }
+      };
+
+      logInfo(`✅ Fallback sentiment analysis succeeded for ${symbol}`);
+      return fallbackAnalysis;
+
+    } catch (fallbackError) {
+      logError(`Fallback analysis also failed for ${symbol}:`, fallbackError.message);
+
+      // Fallback 2: Neutral result (ensures cron always completes)
+      const neutralAnalysis = {
+        symbol,
+        analysis_type: 'neutral_fallback',
+        timestamp: new Date().toISOString(),
+
+        sentiment_layers: [{
+          layer_type: 'neutral_fallback',
+          sentiment: 'neutral',
+          confidence: 0.3,
+          model: 'fallback_neutral'
+        }],
+
+        confidence_metrics: {
+          overall_confidence: 0.3,
+          base_confidence: 0.3,
+          consistency_bonus: 0,
+          agreement_bonus: 0
+        },
+
+        trading_signals: {
+          symbol: symbol,
+          primary_direction: 'NEUTRAL',
+          overall_confidence: 0.3,
+          recommendation: 'hold'
+        },
+
+        analysis_metadata: {
+          method: 'neutral_fallback',
+          models_used: ['fallback_neutral'],
+          total_processing_time: Date.now() - startTime,
+          fully_failed: true,
+          errors: [primaryError.message, fallbackError.message]
+        },
+
+        news_data: {
+          total_articles: 0
+        }
+      };
+
+      logWarn(`⚠️ Using neutral fallback for ${symbol} - both primary and sentiment fallback failed`);
+      return neutralAnalysis;
+    }
+  }
+}
+
+/**
+ * Batch analyze multiple symbols with cron-optimized error handling
+ * Ensures cron job completes successfully even if individual symbols fail
+ */
+export async function batchAnalyzeSymbolsForCron(symbols, env, options = {}) {
+  const startTime = Date.now();
+  ensureLoggingInitialized(env);
+  logInfo(`Starting batch analysis for ${symbols.length} symbols with cron optimization...`);
+
+  const results = [];
+  const statistics = {
+    total_symbols: symbols.length,
+    successful_full_analysis: 0,
+    fallback_sentiment_used: 0,
+    neutral_fallback_used: 0,
+    total_failed: 0
+  };
+
+  // Process each symbol with individual error recovery
+  for (const symbol of symbols) {
+    try {
+      const symbolResult = await analyzeSymbolWithFallback(symbol, env, options);
+      results.push(symbolResult);
+
+      // Track statistics
+      if (symbolResult.analysis_type === 'fine_grained_sentiment') {
+        statistics.successful_full_analysis++;
+      } else if (symbolResult.analysis_type === 'fallback_sentiment_only') {
+        statistics.fallback_sentiment_used++;
+      } else if (symbolResult.analysis_type === 'neutral_fallback') {
+        statistics.neutral_fallback_used++;
+      }
+
+    } catch (error) {
+      // This should rarely happen since analyzeSymbolWithFallback has its own fallbacks
+      logError(`Critical error analyzing ${symbol}:`, error);
+      statistics.total_failed++;
+
+      // Create minimal result to keep cron running
+      results.push({
+        symbol,
+        analysis_type: 'critical_failure',
+        error: error.message,
+        sentiment_layers: [{ sentiment: 'neutral', confidence: 0, model: 'error' }],
+        trading_signals: { symbol, primary_direction: 'NEUTRAL', overall_confidence: 0 },
+        analysis_metadata: { method: 'critical_failure', fully_failed: true }
+      });
+    }
+  }
+
+  const totalTime = Date.now() - startTime;
+  logInfo(`Batch analysis completed in ${totalTime}ms: ${statistics.successful_full_analysis} full, ${statistics.fallback_sentiment_used} fallback, ${statistics.neutral_fallback_used} neutral`);
+
+  return {
+    results,
+    statistics,
+    execution_metadata: {
+      total_execution_time: totalTime,
+      symbols_processed: results.length,
+      success_rate: (statistics.successful_full_analysis + statistics.fallback_sentiment_used) / symbols.length,
+      batch_completed: true
+    }
+  };
+}
+
+/**
+ * Complete cron-optimized analysis pipeline with batch KV storage
+ * This is the main function for cron jobs - handles everything from analysis to storage
+ */
+export async function runCompleteAnalysisPipeline(symbols, env, options = {}) {
+  const pipelineStartTime = Date.now();
+  ensureLoggingInitialized(env);
+  logInfo(`🚀 Starting complete analysis pipeline for ${symbols.length} symbols...`);
+
+  try {
+    // Step 1: Batch analyze all symbols with fallback protection
+    logInfo(`📊 Step 1: Running batch analysis...`);
+    const batchResult = await batchAnalyzeSymbolsForCron(symbols, env, options);
+
+    logInfo(`✅ Analysis completed: ${batchResult.statistics.successful_full_analysis} full, ${batchResult.statistics.fallback_sentiment_used} fallback, ${batchResult.statistics.neutral_fallback_used} neutral`);
+
+    // Step 2: Batch store all results to KV in parallel (much faster)
+    logInfo(`💾 Step 2: Storing results with batch KV operations...`);
+    const storageResult = await batchStoreAnalysisResults(env, batchResult.results);
+
+    if (storageResult.success) {
+      logInfo(`✅ Batch storage completed: ${storageResult.successful_operations}/${storageResult.total_operations} operations successful in ${storageResult.execution_time_ms}ms`);
+    } else {
+      logError(`❌ Batch storage failed:`, storageResult.error);
+    }
+
+    // Step 3: Create pipeline summary
+    const pipelineTime = Date.now() - pipelineStartTime;
+    const pipelineSummary = {
+      pipeline_completed: true,
+      total_execution_time: pipelineTime,
+
+      // Analysis results
+      analysis_statistics: batchResult.statistics,
+      analysis_success_rate: batchResult.execution_metadata.success_rate,
+
+      // Storage results
+      storage_statistics: {
+        total_operations: storageResult.total_operations,
+        successful_operations: storageResult.successful_operations,
+        failed_operations: storageResult.failed_operations,
+        storage_time_ms: storageResult.execution_time_ms
+      },
+
+      // Overall pipeline health
+      overall_success: storageResult.success && batchResult.execution_metadata.success_rate > 0.5,
+      symbols_with_usable_data: batchResult.statistics.successful_full_analysis + batchResult.statistics.fallback_sentiment_used,
+
+      // Performance metrics
+      performance_metrics: {
+        analysis_time_ms: batchResult.execution_metadata.total_execution_time,
+        storage_time_ms: storageResult.execution_time_ms,
+        total_pipeline_time_ms: pipelineTime,
+        avg_time_per_symbol: pipelineTime / symbols.length
+      }
+    };
+
+    logInfo(`🎯 Pipeline completed in ${pipelineTime}ms: ${pipelineSummary.symbols_with_usable_data}/${symbols.length} symbols successful`);
+
+    return {
+      success: true,
+      analysis_results: batchResult.results,
+      pipeline_summary: pipelineSummary,
+      execution_metadata: {
+        pipeline_type: 'complete_cron_optimized',
+        symbols_processed: symbols.length,
+        total_time: pipelineTime,
+        cron_ready: true
+      }
+    };
+
+  } catch (error) {
+    const pipelineTime = Date.now() - pipelineStartTime;
+    logError(`💥 Complete pipeline failed after ${pipelineTime}ms:`, error);
+
+    return {
+      success: false,
+      error: error.message,
+      execution_metadata: {
+        pipeline_type: 'complete_cron_optimized',
+        symbols_processed: 0,
+        total_time: pipelineTime,
+        cron_ready: false,
+        failure_stage: 'pipeline_setup'
+      }
+    };
+  }
 }
 
 /**
