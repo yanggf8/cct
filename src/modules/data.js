@@ -4,6 +4,24 @@
  */
 
 /**
+ * Determine primary model from sentiment analysis data
+ */
+function getPrimaryModelFromSentiment(sentimentAnalysis) {
+  if (!sentimentAnalysis || !sentimentAnalysis.source) {
+    return 'UNKNOWN';
+  }
+
+  switch (sentimentAnalysis.source) {
+    case 'cloudflare_gpt_oss':
+      return 'GPT-OSS-120B';
+    case 'cloudflare_distilbert':
+      return 'DistilBERT';
+    default:
+      return sentimentAnalysis.model || 'UNKNOWN';
+  }
+}
+
+/**
  * Get fact table data from stored analysis results
  * Convert stored analysis data into fact table format for weekly analysis
  */
@@ -39,8 +57,8 @@ export async function getFactTableData(env) {
                 const technicalReference = signal.technical_reference || {};
                 const enhancedPrediction = signal.enhanced_prediction || {};
 
-                // Determine primary model and prediction source
-                const primaryModel = 'GPT-OSS-120B';
+                // Determine primary model and prediction source dynamically
+                const primaryModel = getPrimaryModelFromSentiment(sentimentAnalysis);
                 const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
                 const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
 
@@ -138,8 +156,8 @@ export async function getFactTableDataWithRange(env, rangeDays = 7, weekSelectio
                 const technicalReference = signal.technical_reference || {};
                 const enhancedPrediction = signal.enhanced_prediction || {};
 
-                // Determine primary model and prediction source
-                const primaryModel = 'GPT-OSS-120B';
+                // Determine primary model and prediction source dynamically
+                const primaryModel = getPrimaryModelFromSentiment(sentimentAnalysis);
                 const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
                 const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
 
@@ -253,8 +271,13 @@ export async function storeSymbolAnalysis(env, symbol, analysisData) {
  * Get analysis results for all symbols on a specific date
  * Enhanced to fetch granular symbol-specific data
  */
-export async function getSymbolAnalysisByDate(env, dateString, symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']) {
+export async function getSymbolAnalysisByDate(env, dateString, symbols = null) {
   try {
+    // Use centralized symbol configuration if none provided
+    if (!symbols) {
+      symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
+    }
+
     const keys = symbols.map(symbol => `analysis_${dateString}_${symbol}`);
     const promises = keys.map(key => env.TRADING_RESULTS.get(key));
     const results = await Promise.all(promises);

@@ -4,91 +4,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-26 (Simplified Architecture - GPT-OSS-120B + DistilBERT)
+**Current Version**: 2025-09-26 (Simplified GPT-OSS-120B + DistilBERT Architecture)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ **OPERATIONAL** - Simplified two-tier AI system
-- **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA with optimized processing ✅
+- **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA ✅
 - **Primary Model**: Cloudflare GPT-OSS-120B (Fast + Reliable + Free) ✅
-- **Fallback System**: DistilBERT sentiment classification (Free + 100% Reliability) ✅
-- **Supporting Models**: TFT + N-HITS provide agreement/disagreement signals only ✅
-- **Architecture**: Dual-tier AI fallback (GPT-OSS-120B → DistilBERT) + neural network validation ✅
-- **Analysis KV Storage**: ✅ WORKING - Daily analysis data persists correctly
-- **Facebook Integration**: ✅ **RESTORED** - Complete decoupled KV architecture implemented
-- **Cron Jobs**: ✅ **OPERATIONAL** - All scheduled jobs executing correctly
-- **Cost Efficiency**: $0 per analysis (100% free Cloudflare AI models) ✅
-- **User Impact**: **FACEBOOK MESSAGES WORKING** - All notifications now delivered correctly
+- **Fallback System**: DistilBERT sentiment classification (100% Reliability) ✅
+- **Supporting Models**: TFT + N-HITS provide agreement/disagreement signals ✅
+- **Architecture**: GPT-OSS-120B → DistilBERT + neural network validation ✅
+- **Analysis KV Storage**: ✅ WORKING - Daily analysis persists correctly
+- **Facebook Integration**: ✅ **OPERATIONAL** - Decoupled KV architecture ✅
+- **Cron Jobs**: ✅ **OPERATIONAL** - All scheduled jobs executing ✅
+- **Cost Efficiency**: $0 per analysis (100% free Cloudflare AI) ✅
+- **User Impact**: **FULL FUNCTIONALITY** - All notifications delivered ✅
 
-## SYSTEM IMPROVEMENTS (2025-09-26)
+**Architecture**: `GPT-OSS-120B (Primary) → DistilBERT (Fallback)`
 
-### ✅ Architecture Simplification - COMPLETED
-**ACHIEVEMENT**: Successfully simplified AI architecture from complex ModelScope integration to streamlined GPT-OSS-120B + DistilBERT system
+*For complete development history, see HISTORY.md*
 
-#### **Architecture Changes:**
-- **✅ Removed ModelScope Dependencies**: Eliminated external API complexity and rate limiting issues
-- **✅ Simplified Fallback Chain**: GPT-OSS-120B (Primary) → DistilBERT (Fallback) only
-- **✅ Cost Optimization**: $0.00 per analysis (100% free Cloudflare AI models)
-- **✅ Reliability Improvement**: No external API dependencies or rate limiting concerns
-- **✅ Code Cleanup**: Removed unused imports and configuration complexity
+## Key Features
 
-#### **Files Updated:**
-- **✅ `enhanced_analysis.js`**: Removed ModelScope imports, updated fallback chain comments
-- **✅ `wrangler.toml`**: Removed ModelScope configuration, updated AI binding description
-- **✅ Documentation**: Updated README.md and CLAUDE.md to reflect simplified architecture
+### 🆕 Centralized Configuration System
+- **Symbol Management**: `TRADING_SYMBOLS` in wrangler.toml controls all analysis symbols
+- **Configurable Logging**: `LOG_LEVEL` (error/warn/info/debug) for production debugging
+- **AI Parameters**: `GPT_MAX_TOKENS`, `GPT_TEMPERATURE` tunable via configuration
+- **Analysis Settings**: `MIN_NEWS_ARTICLES`, `MAX_NEWS_ARTICLES`, `CONFIDENCE_THRESHOLD`
+- **Storage Management**: `KV_ANALYSIS_TTL`, `KV_GRANULAR_TTL` for data retention
 
-#### **New Architecture:**
-```
-GPT-OSS-120B (Primary) → DistilBERT (Fallback)
-```
+### Dynamic Symbol Configuration
+All modules now use centralized symbol configuration:
+- `enhanced_analysis.js`: Dynamic symbol loading from `env.TRADING_SYMBOLS`
+- `analysis.js`: Centralized symbol management
+- `data.js`: Configurable symbol lists with fallbacks
+- `handlers.js`: API endpoints use centralized configuration
 
-#### **Benefits:**
-- **Simplicity**: No external API keys or rate limiting to manage
-- **Reliability**: 100% uptime with Cloudflare's built-in AI models
-- **Cost**: $0.00 operational cost (free tier covers all usage)
-- **Performance**: Faster analysis with local Cloudflare AI processing
-
-### 2025-09-26: Facebook Message System Complete Restoration ✅
-**FACEBOOK SYSTEM RESTORED**: Successfully implemented decoupled KV architecture for all Facebook messaging functions
-
-#### **Complete Fix Implementation:**
-- **✅ Decoupled Architecture**: Applied KV-first design to all 5 Facebook functions (KV storage → Facebook delivery)
-- **✅ Independent Status Reporting**: Each function now reports KV and Facebook success/failure separately
-- **✅ Comprehensive Error Handling**: Added try-catch blocks around all KV operations with detailed logging
-- **✅ Resilient Delivery**: Functions continue even if KV storage fails, maintaining Facebook messaging capability
-- **✅ Status Tracking**: Facebook delivery status tracked back to KV records for audit trail
-
-#### **Updated Functions:**
-1. **sendMorningPredictionsWithTracking** ✅ - Already had decoupled architecture
-2. **sendMiddayValidationWithTracking** ✅ - Updated with complete KV-first pattern
-3. **sendDailyValidationWithTracking** ✅ - Updated with independent status reporting
-4. **sendFridayWeekendReportWithTracking** ✅ - Applied decoupled architecture
-5. **sendWeeklyAccuracyReportWithTracking** ✅ - Applied decoupled architecture
-
-#### **Architecture Pattern:**
-```javascript
-// Step 1: Configuration check
-// Step 2: Data validation
-// Step 3: Message construction
-// Step 4: KV storage (independent of Facebook API)
-// Step 5: Facebook message sending with status tracking back to KV
-// Return independent status for both operations
-```
-
-#### **Key Features:**
-- **KV-First Design**: Records stored before Facebook API calls
-- **Status Tracking**: Facebook delivery status updated back to KV records
-- **Error Resilience**: Functions continue even if KV storage fails
-- **Detailed Logging**: Step-by-step tracking for production debugging
-- **Independent Reporting**: Separate success/failure status for KV and Facebook operations
-
-#### **Production Impact:**
-- **Message Tracking**: Complete audit trail of all Facebook message attempts
-- **System Reliability**: No more silent failures - all errors logged and tracked
-- **User Experience**: Facebook notifications now working with proper delivery confirmation
-- **Monitoring Ready**: Enhanced logging enables production monitoring and alerting
-
-## Recent Key Updates
-
-### 2025-09-25: KV Storage System Fixed + Debug Tools Added ✅
+### Production Logging System
+New configurable logging utility with levels:
+- **ERROR**: Critical errors only
+- **WARN**: Warnings and errors
+- **INFO**: Normal operation (default)
+- **DEBUG**: Full debugging with verbose output
 **KV STORAGE RESOLVED**: Fixed missing KV storage functionality in manual analysis with comprehensive debugging tools
 
 #### **KV Storage Fix:**

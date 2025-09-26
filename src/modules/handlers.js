@@ -108,8 +108,8 @@ export async function handleEnhancedFeatureAnalysis(request, env) {
   try {
     console.log('🔬 Enhanced Feature Analysis requested (Neural Networks + Technical Indicators + Sentiment)');
 
-    // Get symbols from request or use default
-    let symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+    // Get symbols from request or use centralized configuration
+    let symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
     
     if (request.method === 'POST') {
       try {
@@ -152,8 +152,8 @@ export async function handleIndependentTechnicalAnalysis(request, env) {
   try {
     console.log('🔧 Independent Technical Analysis requested (33 Indicators Only - No Neural Networks)');
 
-    // Get symbols from request or use default
-    let symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+    // Get symbols from request or use centralized configuration
+    let symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
     
     if (request.method === 'POST') {
       try {

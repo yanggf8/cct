@@ -7,6 +7,7 @@ import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
 import { storeSymbolAnalysis } from './data.js';
+import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo } from './logging.js';
 
 /**
  * Run enhanced analysis with sentiment integration
@@ -274,94 +275,6 @@ Be precise and focus on actionable trading insights.`;
   }
 }
 
-/**
- * Cloudflare AI Llama 3.1 sentiment analysis (intelligent fallback)
- */
-async function getLlama31Sentiment(symbol, newsData, env) {
-  console.log(`🦙 Starting Llama 3.1 sentiment analysis for ${symbol}...`);
-
-  if (!env.AI) {
-    throw new Error('Cloudflare AI binding not available for Llama 3.1 fallback');
-  }
-
-  if (!newsData || newsData.length === 0) {
-    return {
-      sentiment: 'neutral',
-      confidence: 0,
-      reasoning: 'No news data available',
-      source_count: 0,
-      method: 'llama31_no_data'
-    };
-  }
-
-  try {
-    // Prepare news context for Llama 3.1
-    const newsContext = newsData
-      .slice(0, 8) // Limit for token efficiency
-      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
-      .join('\n\n');
-
-    const prompt = `Analyze the financial sentiment for ${symbol} stock based on these news headlines:
-
-${newsContext}
-
-Provide a concise analysis with:
-1. Overall sentiment (bullish, bearish, or neutral)
-2. Confidence level (0.0 to 1.0)
-3. Brief reasoning
-
-Be direct and focus on market-moving factors.`;
-
-    console.log(`   🧠 Calling Cloudflare AI Llama 3.1 for ${symbol}...`);
-
-    const response = await env.AI.run(
-      '@cf/meta/llama-3.1-8b-instruct',
-      {
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 300
-      }
-    );
-
-    console.log(`   📝 Llama 3.1 response received:`, response);
-
-    if (!response || !response.response) {
-      throw new Error('Empty response from Llama 3.1');
-    }
-
-    const content = response.response;
-    console.log(`   📝 Llama 3.1 content:`, content);
-
-    // Parse Llama 3.1 response
-    const analysisData = parseNaturalLanguageResponse(content);
-
-    const result = {
-      ...analysisData,
-      source: 'cloudflare_llama31',
-      method: 'llama31_fallback',
-      model: 'llama-3.1-8b-instruct',
-      source_count: newsData.length,
-      analysis_type: 'intelligent_fallback',
-      cost_estimate: {
-        input_tokens: Math.ceil(prompt.length / 4),
-        output_tokens: Math.ceil(content.length / 4),
-        total_cost: 0 // Cloudflare AI included in plan
-      }
-    };
-
-    console.log(`   ✅ Llama 3.1 sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
-    return result;
-
-  } catch (error) {
-    console.error(`   ❌ Llama 3.1 sentiment analysis failed for ${symbol}:`, error);
-    throw new Error(`Llama 3.1 analysis failed: ${error.message}`);
-  }
-}
 
 /**
  * DistilBERT sentiment analysis (final fallback)
@@ -586,7 +499,7 @@ function mapDirectionToScore(direction) {
  * Run sentiment analysis first for all symbols
  */
 async function runSentimentFirstAnalysis(env, options = {}) {
-  const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default symbols
+  const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
   console.log(`💭 Starting sentiment-first analysis for ${symbols.length} symbols...`);
 
   const results = {
@@ -619,11 +532,7 @@ async function runSentimentFirstAnalysis(env, options = {}) {
       const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
       console.log(`   ✅ ${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
 
-      // Add delay between symbols to prevent rate limiting (ModelScope GLM-4.5 free tier protection)
-      if (symbols.indexOf(symbol) < symbols.length - 1) {
-        console.log(`   ⏱️  Rate limiting protection: 2-second delay before next symbol...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      // Process next symbol efficiently
 
     } catch (error) {
       console.error(`   ❌ CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
@@ -831,20 +740,19 @@ export async function validateSentimentEnhancement(env) {
     const newsData = await getFreeStockNews(testSymbol, env);
     console.log(`   📰 News data: ${newsData.length} articles found`);
 
-    // Test sentiment analysis (includes ModelScope GLM-4.5 with fallback)
+    // Test sentiment analysis (GPT-OSS-120B with DistilBERT fallback)
     const sentimentResult = await getSentimentWithFallbackChain(testSymbol, newsData, env);
     console.log(`   📊 Sentiment: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)`);
 
-    // Check if ModelScope GLM-4.5 actually succeeded (not fallback)
-    const modelScopeSuccess = sentimentResult &&
-                             sentimentResult.source === 'modelscope_glm45' &&
-                             !sentimentResult.error_details &&
-                             sentimentResult.confidence > 0 &&
-                             !['llama31_fallback', 'distilbert_fallback'].includes(sentimentResult.method);
+    // Check if GPT-OSS-120B actually succeeded (not fallback)
+    const gptSuccess = sentimentResult &&
+                      sentimentResult.source === 'gpt_oss_120b' &&
+                      !sentimentResult.error_details &&
+                      sentimentResult.confidence > 0 &&
+                      !['distilbert_fallback'].includes(sentimentResult.method);
 
-    console.log(`   🤖 ModelScope GLM-4.5 success: ${modelScopeSuccess}`);
+    console.log(`   🤖 GPT-OSS-120B success: ${gptSuccess}`);
     console.log(`   🔍 Sentiment method used: ${sentimentResult.method || sentimentResult.source}`);
-    console.log(`   🔍 ModelScope API key available: ${!!env.MODELSCOPE_API_KEY}`);
     console.log(`   🔍 Cloudflare AI available: ${!!env.AI}`);
 
     return {
@@ -852,11 +760,10 @@ export async function validateSentimentEnhancement(env) {
       news_count: newsData.length,
       sentiment: sentimentResult.sentiment,
       confidence: sentimentResult.confidence,
-      ai_available: modelScopeSuccess, // Check ModelScope success, not fallback methods
+      ai_available: gptSuccess, // Check GPT-OSS-120B success, not fallback methods
       method: sentimentResult.method || sentimentResult.source || 'unknown',
       debug_info: {
-        modelscope_key_available: !!env.MODELSCOPE_API_KEY,
-        modelscope_key_length: env.MODELSCOPE_API_KEY?.length || 0,
+        cloudflare_ai_available: !!env.AI,
         sentiment_source: sentimentResult.source,
         sentiment_method: sentimentResult.method,
         has_error_details: !!sentimentResult.error_details,

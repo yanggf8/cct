@@ -11,7 +11,7 @@ import { runTFTInference, runNHITSInference } from './models.js';
  * ✅ GENUINE NEURAL NETWORKS: Real TFT + N-HITS models with ensemble predictions
  */
 export async function runBasicAnalysis(env, options = {}) {
-  const symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
+  const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
   const currentTime = new Date();
 
   const analysisResults = {

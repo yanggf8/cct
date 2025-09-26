@@ -211,6 +211,30 @@ curl https://tft-trading-system.yanggf.workers.dev/analyze      # GPT-OSS-120B p
 curl https://tft-trading-system.yanggf.workers.dev/test-sentiment  # Validation endpoint
 ```
 
+### 3. Configuration Management
+The system now uses centralized configuration via `wrangler.toml`:
+
+```bash
+# Trading symbols (comma-separated)
+TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"
+
+# Logging levels: error, warn, info, debug
+LOG_LEVEL = "info"
+
+# AI model parameters
+GPT_MAX_TOKENS = "2000"
+GPT_TEMPERATURE = "0.1"
+
+# Analysis parameters
+MIN_NEWS_ARTICLES = "5"
+MAX_NEWS_ARTICLES = "20"
+CONFIDENCE_THRESHOLD = "0.6"
+
+# KV storage TTL (seconds)
+KV_ANALYSIS_TTL = "604800"   # 7 days
+KV_GRANULAR_TTL = "7776000"  # 90 days
+```
+
 ### 2. Sentiment Analysis Performance Tracking
 ```bash
 # Store today's sentiment-driven predictions
