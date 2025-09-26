@@ -192,7 +192,11 @@ export async function handleIndependentTechnicalAnalysis(request, env) {
  * Handle Facebook test requests
  */
 export async function handleFacebookTest(request, env) {
+  console.log(`🧪 [FB-TEST] Starting Facebook test function`);
+
+  // Check configuration
   if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.log(`❌ [FB-TEST] Facebook configuration missing`);
     return new Response(JSON.stringify({
       success: false,
       error: 'Facebook not configured',
@@ -205,17 +209,34 @@ export async function handleFacebookTest(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
   }
+  console.log(`✅ [FB-TEST] Facebook configuration verified`);
+
+  // Check KV storage binding
+  console.log(`🔍 [FB-TEST] Checking KV storage binding...`);
+  if (!env.TRADING_RESULTS) {
+    console.log(`❌ [FB-TEST] TRADING_RESULTS KV binding not available`);
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'KV storage not configured'
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  console.log(`✅ [FB-TEST] KV storage binding verified`);
 
   try {
+    console.log(`📤 [FB-TEST] Preparing to send Facebook message with UPDATE tag...`);
     const testMessage = `🧪 **TEST MESSAGE**\\n\\n📊 TFT Trading System Health Check\\n🕒 ${new Date().toLocaleString()}\\n\\n📊 **NEW**: Weekly Analysis Dashboard\\n🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\\n\\n✅ System operational and modular!`;
-    
+
     const facebookPayload = {
       recipient: { id: env.FACEBOOK_RECIPIENT_ID },
       message: { text: testMessage },
       messaging_type: "MESSAGE_TAG",
-      tag: "ACCOUNT_UPDATE"
+      tag: "CONFIRMED_EVENT_UPDATE"
     };
 
+    console.log(`📤 [FB-TEST] Sending Facebook API request...`);
     const response = await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${env.FACEBOOK_PAGE_TOKEN}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -223,15 +244,89 @@ export async function handleFacebookTest(request, env) {
     });
 
     if (response.ok) {
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Test message sent successfully with dashboard link!',
-        timestamp: new Date().toISOString()
-      }, null, 2), {
-        headers: { 'Content-Type': 'application/json' }
-      });
+      console.log(`✅ [FB-TEST] Facebook message sent successfully`);
+
+      // Test KV storage
+      console.log(`💾 [FB-TEST] Testing KV storage...`);
+      const testKvKey = `fb_test_${Date.now()}`;
+      const testKvData = {
+        test_type: 'facebook_messaging',
+        timestamp: new Date().toISOString(),
+        message_sent: true,
+        facebook_delivery_status: 'delivered',
+        test_message: testMessage.substring(0, 100) + '...'
+      };
+
+      try {
+        await env.TRADING_RESULTS.put(
+          testKvKey,
+          JSON.stringify(testKvData),
+          { expirationTtl: 604800 }
+        );
+        console.log(`✅ [FB-TEST] KV storage test successful: ${testKvKey}`);
+
+        // Verify KV storage by reading it back
+        const storedData = await env.TRADING_RESULTS.get(testKvKey);
+        let kvStatus = {
+          success: false,
+          key: testKvKey,
+          message: 'KV verification failed'
+        };
+
+        if (storedData) {
+          console.log(`✅ [FB-TEST] KV storage verification successful`);
+          kvStatus = {
+            success: true,
+            key: testKvKey,
+            data: JSON.parse(storedData),
+            message: 'KV storage successful'
+          };
+        } else {
+          console.log(`❌ [FB-TEST] KV storage verification failed - data not found`);
+        }
+
+        // Return independent status for both operations
+        return new Response(JSON.stringify({
+          success: true, // Overall operation successful
+          message: 'Facebook test completed with independent status reporting',
+          facebook_status: {
+            success: true,
+            message: 'Facebook message sent successfully'
+          },
+          kv_status: kvStatus,
+          timestamp: new Date().toISOString()
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (kvError) {
+        console.error(`❌ [FB-TEST] KV storage test failed:`, kvError);
+
+        // Return independent status - Facebook worked, KV failed
+        return new Response(JSON.stringify({
+          success: true, // Overall operation completed (with partial failure)
+          message: 'Facebook test completed - Facebook succeeded, KV failed',
+          facebook_status: {
+            success: true,
+            message: 'Facebook message sent successfully'
+          },
+          kv_status: {
+            success: false,
+            error: kvError.message,
+            error_details: {
+              name: kvError.name,
+              message: kvError.message,
+              stack: kvError.stack
+            },
+            message: 'KV storage operation failed'
+          },
+          timestamp: new Date().toISOString()
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     } else {
       const errorText = await response.text();
+      console.error(`❌ [FB-TEST] Facebook API error:`, errorText);
       return new Response(JSON.stringify({
         success: false,
         error: 'Facebook API error',
@@ -1218,12 +1313,22 @@ export async function handleTestAllFacebookMessages(request, env) {
     { name: "weekly_accuracy_report", func: sendWeeklyAccuracyReportWithTracking, args: [env] }
   ];
 
+  // Get KV count before testing
+  let initialKVCount = 0;
+  try {
+    const initialKVList = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+    initialKVCount = initialKVList.keys?.length || 0;
+    console.log(`📋 [FB-TEST-INITIAL] Found ${initialKVCount} existing Facebook KV records`);
+  } catch (error) {
+    console.error(`❌ [FB-TEST-INITIAL] Failed to get initial KV count:`, error);
+  }
+
   for (let i = 0; i < messageTests.length; i++) {
     const test = messageTests[i];
     try {
       console.log(`📱 [FB-TEST-${i+1}] Testing ${test.name} message...`);
       const cronId = `${testResults.test_execution_id}_${test.name}`;
-      
+
       // Add cronId to args
       const args = [...test.args];
       if (test.name === "weekly_accuracy_report") {
@@ -1231,10 +1336,68 @@ export async function handleTestAllFacebookMessages(request, env) {
       } else {
         args.push(cronId);
       }
-      
+
+      // Execute function
       await test.func(...args);
-      testResults.message_tests[test.name] = { success: true, cron_id: cronId };
-      console.log(`✅ [FB-TEST-${i+1}] ${test.name} test completed`);
+
+      // Verify KV storage success
+      let kvStored = false;
+      let kvKey = null;
+      try {
+        // Wait a moment for KV to be available
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const postKVList = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+        const newKVCount = postKVList.keys?.length || 0;
+
+        if (newKVCount > initialKVCount) {
+          // Find the new KV record
+          const testTimestamp = testResults.test_execution_id.split("_")[3];
+          const newRecords = postKVList.keys?.filter(k =>
+            k.name.includes(testTimestamp) ||
+            k.name.includes(cronId.split("_")[2])
+          ) || [];
+
+          if (newRecords.length > 0) {
+            kvStored = true;
+            kvKey = newRecords[0].name;
+
+            // Verify the record contains expected data
+            const kvRecord = await env.TRADING_RESULTS.get(newRecords[0].name);
+            if (kvRecord) {
+              const recordData = JSON.parse(kvRecord);
+              if (!recordData.message_sent || !recordData.cron_execution_id) {
+                kvStored = false;
+                console.error(`❌ [FB-TEST-${i+1}] KV record missing required fields`);
+              }
+            }
+          }
+        }
+
+        if (!kvStored) {
+          throw new Error("KV storage verification failed - no record found or incomplete data");
+        }
+
+        testResults.message_tests[test.name] = {
+          success: true,
+          cron_id: cronId,
+          kv_key: kvKey,
+          kv_verified: true
+        };
+        console.log(`✅ [FB-TEST-${i+1}] ${test.name} test completed with KV verification: ${kvKey}`);
+
+      } catch (kvVerifyError) {
+        console.error(`❌ [FB-TEST-${i+1}] KV verification failed for ${test.name}:`, kvVerifyError);
+        testResults.message_tests[test.name] = {
+          success: false,
+          error: `KV storage failed: ${kvVerifyError.message}`,
+          cron_id: cronId,
+          kv_verified: false
+        };
+        testResults.errors.push(`${test.name}: KV storage verification failed - ${kvVerifyError.message}`);
+        testResults.overall_success = false;
+      }
+
     } catch (error) {
       console.error(`❌ [FB-TEST-${i+1}] ${test.name} test failed:`, error);
       testResults.message_tests[test.name] = { success: false, error: error.message };
