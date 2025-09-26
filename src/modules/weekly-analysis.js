@@ -14,7 +14,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weekly Market Close Analysis - TFT Trading System</title>
+    <title>3-Layer Sentiment Analysis Dashboard - TFT Trading System</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -81,7 +81,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Weekly Market Close Analysis</h1>
+            <h1>📊 3-Layer Sentiment Analysis Dashboard</h1>
             <p>Comprehensive prediction accuracy and model performance review</p>
             
             <div style="margin: 20px 0; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap;">
@@ -131,48 +131,49 @@ export async function handleWeeklyAnalysisPage(request, env) {
                     <div class="label">UP/DOWN Signals</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Total Predictions</h3>
-                    <div class="value" id="total-predictions">-</div>
-                    <div class="label">This Week</div>
+                    <h3>Layer Consistency</h3>
+                    <div class="value" id="layer-consistency">-</div>
+                    <div class="label">3-Layer Agreement</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Best Model</h3>
+                    <h3>Primary Model</h3>
                     <div class="value" id="best-model">-</div>
                     <div class="label">Top Performer</div>
                 </div>
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📈 Daily Accuracy Trends</h2>
+                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📈 Daily 3-Layer Accuracy Trends</h2>
                 <div class="chart-wrapper">
                     <canvas id="accuracyChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📋 Detailed Prediction History</h2>
+                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📋 3-Layer Analysis History</h2>
                 <div style="overflow-x: auto;">
                     <table class="table">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Symbol</th>
-                                <th>Model</th>
-                                <th>Predicted</th>
-                                <th>Actual</th>
+                                <th>Primary Model</th>
+                                <th>Sentiment</th>
                                 <th>Direction</th>
-                                <th>Accuracy</th>
+                                <th>Layer Consistency</th>
+                                <th>Overall Confidence</th>
+                                <th>Articles Analyzed</th>
                             </tr>
                         </thead>
                         <tbody id="predictions-table-body">
-                            <tr><td colspan="7" style="text-align: center; padding: 20px;">Loading...</td></tr>
+                            <tr><td colspan="8" style="text-align: center; padding: 20px;">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📈 Symbol Performance Breakdown</h2>
+                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📊 Layer Consistency Analysis</h2>
                 <div id="symbol-breakdown" class="symbol-grid">
                     <!-- Dynamic content -->
                 </div>
@@ -221,12 +222,12 @@ export async function handleWeeklyAnalysisPage(request, env) {
 
         function updateOverviewStats(data) {
             const stats = data.overview || {};
-            document.getElementById('sentiment-accuracy').textContent =
-                stats.sentimentAccuracy ? \`\${stats.sentimentAccuracy.toFixed(2)}%\` : '-';
+            document.getElementById('overall-accuracy').textContent =
+                stats.overallAccuracy ? \`\${stats.overallAccuracy.toFixed(2)}%\` : '-';
             document.getElementById('direction-accuracy').textContent =
                 stats.directionAccuracy ? \`\${stats.directionAccuracy.toFixed(2)}%\` : '-';
-            document.getElementById('neural-agreement').textContent =
-                stats.neuralAgreementRate ? \`\${stats.neuralAgreementRate.toFixed(2)}%\` : '-';
+            document.getElementById('layer-consistency').textContent =
+                stats.layerConsistency ? \`\${(stats.layerConsistency * 100).toFixed(1)}%\` : '-';
             document.getElementById('total-predictions').textContent = stats.totalPredictions || '-';
             document.getElementById('best-model').textContent = stats.primaryModel || stats.bestModel || 'GPT-OSS-120B';
         }
@@ -240,8 +241,8 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 data: {
                     labels: dailyData.map(d => new Date(d.date).toLocaleDateString()),
                     datasets: [{
-                        label: 'GPT-OSS-120B Sentiment (%)',
-                        data: dailyData.map(d => d.sentimentAccuracy || d.priceAccuracy),
+                        label: 'Price Accuracy (%)',
+                        data: dailyData.map(d => d.priceAccuracy),
                         borderColor: '#4facfe',
                         backgroundColor: 'rgba(79, 172, 254, 0.1)',
                         tension: 0.4,
@@ -254,12 +255,12 @@ export async function handleWeeklyAnalysisPage(request, env) {
                         tension: 0.4,
                         fill: true
                     }, {
-                        label: 'Neural Agreement (%)',
-                        data: dailyData.map(d => d.neuralAgreement || 50),
-                        borderColor: '#ffd93d',
-                        backgroundColor: 'rgba(255, 217, 61, 0.1)',
+                        label: 'Layer Consistency (%)',
+                        data: dailyData.map(d => (d.layer_consistency || 0) * 100),
+                        borderColor: '#ff6b6b',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
                         tension: 0.4,
-                        fill: false
+                        fill: true
                     }]
                 },
                 options: {
@@ -280,43 +281,41 @@ export async function handleWeeklyAnalysisPage(request, env) {
 
             predictions.forEach(prediction => {
                 const row = document.createElement('tr');
-                const accuracy = prediction.actual_price && prediction.predicted_price ?
-                    (100 - Math.abs((prediction.predicted_price - prediction.actual_price) / prediction.actual_price * 100)) : null;
+
                 const directionCorrect = prediction.direction_correct !== undefined ?
                     (prediction.direction_correct ? '✓' : '✗') : '-';
 
-                // Format neural agreement with appropriate styling
-                const neuralAgreement = prediction.neural_agreement;
-                let agreementDisplay = '❓';
-                let agreementStyle = '';
-                if (neuralAgreement === 'AGREE') {
-                    agreementDisplay = '✅ AGREE';
-                    agreementStyle = 'color: #00f2fe; font-weight: 600;';
-                } else if (neuralAgreement === 'DISAGREE') {
-                    agreementDisplay = '❌ DISAGREE';
-                    agreementStyle = 'color: #ff6b6b; font-weight: 600;';
-                }
+                // Get sentiment direction arrow for 3-layer analysis
+                const getDirectionArrow = (direction) => {
+                    switch(direction?.toUpperCase()) {
+                        case 'BULLISH': return '↗️';
+                        case 'BEARISH': return '↘️';
+                        default: return '➡️';
+                    }
+                };
 
-                // Format sentiment score
-                const sentimentScore = prediction.sentiment_score !== undefined ?
-                    \`\${(prediction.sentiment_score * 100).toFixed(1)}%\` : '-';
-                const newsCount = prediction.news_articles ? \` (\${prediction.news_articles} articles)\` : '';
+                // Format layer consistency with appropriate styling
+                const layerConsistency = prediction.layer_consistency !== undefined ?
+                    (prediction.layer_consistency * 100).toFixed(1) + '%' : '-';
+
+                // Format overall confidence
+                const overallConfidence = prediction.overall_confidence !== undefined ?
+                    (prediction.overall_confidence * 100).toFixed(1) + '%' : '-';
 
                 row.innerHTML = \`
                     <td>\${new Date(prediction.date).toLocaleDateString()}</td>
                     <td><strong>\${prediction.symbol}</strong></td>
-                    <td>\${prediction.model || 'GPT-OSS-120B'}</td>
-                    <td>$\${prediction.predicted_price ? prediction.predicted_price.toFixed(2) : '-'}</td>
-                    <td>$\${prediction.actual_price ? prediction.actual_price.toFixed(2) : '-'}</td>
+                    <td>\${prediction.primary_model || prediction.model || 'GPT-OSS-120B'}</td>
+                    <td>\${prediction.sentiment_label || '-'}</td>
                     <td>
                         <div class="accuracy-indicator">
-                            <span>\${prediction.direction || '➡️'}</span>
+                            <span class="direction-arrow">\${getDirectionArrow(prediction.direction_prediction)}</span>
                             <span>\${directionCorrect}</span>
                         </div>
                     </td>
-                    <td style="\${agreementStyle}">\${agreementDisplay}</td>
-                    <td>\${sentimentScore}\${newsCount}</td>
-                    <td>\${accuracy !== null ? accuracy.toFixed(2) + '%' : '-'}</td>
+                    <td>\${layerConsistency}</td>
+                    <td>\${overallConfidence}</td>
+                    <td>\${prediction.articles_analyzed || '-'}</td>
                 \`;
                 tbody.appendChild(row);
             });
@@ -330,32 +329,32 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 const card = document.createElement('div');
                 card.className = 'symbol-card';
 
-                // Format neural agreement rate with color coding
-                const agreementRate = data.neuralAgreementRate || 0;
-                let agreementColor = '#ff6b6b'; // Default red
-                if (agreementRate >= 70) agreementColor = '#00f2fe'; // High agreement - cyan
-                else if (agreementRate >= 50) agreementColor = '#ffd93d'; // Medium agreement - yellow
+                // Format layer consistency with color coding
+                const layerConsistency = data.layerConsistency !== undefined ? data.layerConsistency * 100 : 0;
+                let consistencyColor = '#ff6b6b'; // Default red
+                if (layerConsistency >= 70) consistencyColor = '#00f2fe'; // High consistency - cyan
+                else if (layerConsistency >= 50) consistencyColor = '#ffd93d'; // Medium consistency - yellow
 
                 card.innerHTML = \`
                     <h4>\${symbol}</h4>
                     <div class="prediction-row">
-                        <span>🧠 Sentiment Accuracy:</span>
-                        <span style="color: #4facfe; font-weight: 600;">\${data.sentimentAccuracy ? data.sentimentAccuracy.toFixed(2) + '%' : '-'}</span>
+                        <span>📊 Price Accuracy:</span>
+                        <span style="color: #4facfe; font-weight: 600;">\${data.priceAccuracy ? data.priceAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
                         <span>🎯 Direction Accuracy:</span>
                         <span>\${data.directionAccuracy ? data.directionAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>🤝 Neural Agreement:</span>
-                        <span style="color: \${agreementColor}; font-weight: 600;">\${agreementRate.toFixed(1)}%</span>
+                        <span>🔄 Layer Consistency:</span>
+                        <span style="color: \${consistencyColor}; font-weight: 600;">\${layerConsistency.toFixed(1)}%</span>
                     </div>
                     <div class="prediction-row">
-                        <span>📰 Avg News Articles:</span>
-                        <span>\${data.avgNewsArticles ? data.avgNewsArticles.toFixed(1) : '0'}</span>
+                        <span>📰 Avg Articles:</span>
+                        <span>\${data.avgArticles ? data.avgArticles.toFixed(1) : '0'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>📊 Total Predictions:</span>
+                        <span>📊 Total Analyses:</span>
                         <span>\${data.totalPredictions || 0}</span>
                     </div>
                     <div class="prediction-row">

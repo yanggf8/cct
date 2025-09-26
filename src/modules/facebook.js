@@ -54,16 +54,20 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
     const signal = signals[symbol];
     if (signal) {
       symbolCount++;
-      const enhanced = signal.enhanced_prediction;
-      const sentiment = signal.sentiment_analysis;
-      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
 
-      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      // Extract data from per-symbol analysis structure
+      const tradingSignals = signal.trading_signals || signal;
+      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+
+      // Extract sentiment from sentiment layers
+      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
+      const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
       const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-      const sentimentConfidence = Math.round((sentiment?.confidence || 0) * 100);
+      const sentimentConfidence = Math.round((sentimentLayer?.confidence || 0) * 100);
 
       reportText += `${symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
-      reportText += `   💰 $${signal.current_price?.toFixed(2)} → $${signal.predicted_price?.toFixed(2)} | AI-Informed\n`;
+      reportText += `   💰 AI-Informed outlook\n`;
     }
   });
 
@@ -516,18 +520,20 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
       symbolCount++;
-      const enhanced = signal.enhanced_prediction;
-      const sentiment = signal.sentiment_analysis;
-      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
-      const change = ((signal.predicted_price - signal.current_price) / signal.current_price * 100).toFixed(2);
 
-      // Show sentiment-driven prediction
-      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      // Extract data from per-symbol analysis structure
+      const tradingSignals = signal.trading_signals || signal;
+      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+
+      // Extract sentiment from sentiment layers
+      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
+      const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
       const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-      const confidence = Math.round((enhanced?.confidence || 0.5) * 100);
+      const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
 
       reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-      reportText += `   💰 $${signal.current_price.toFixed(2)} → $${signal.predicted_price.toFixed(2)} (${Math.abs(change)}%)\n`;
+      reportText += `   💰 AI-Informed outlook\n`;
     });
   }
   console.log(`✅ [FB-MORNING] ${cronExecutionId} Message content built for ${symbolCount} symbols`);
@@ -724,20 +730,25 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
       symbolCount++;
-      const enhanced = signal.enhanced_prediction;
-      const sentiment = signal.sentiment_analysis;
-      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
-      const confidence = Math.round((enhanced?.confidence || 0.5) * 100);
 
-      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      // Extract data from per-symbol analysis structure
+      const tradingSignals = signal.trading_signals || signal;
+      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+
+      // Extract sentiment from sentiment layers
+      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
+      const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
       const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+      const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
 
-      const sentimentConf = Math.round((sentiment?.confidence || 0) * 100);
-      const technicalConf = Math.round((signal.confidence || 0.5) * 100);
+      // For validation, use overall confidence as both sentiment and technical confidence
+      const sentimentConf = confidence;
+      const technicalConf = Math.round((tradingSignals?.overall_confidence || 0.5) * 100);
       const conflictIndicator = Math.abs(sentimentConf - technicalConf) > 20 ? ' ⚠️ CONFLICT' : ' ✅ ALIGNED';
 
       reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-      reportText += `   📊 Sentiment: ${sentimentConf}% | Technical: ${technicalConf}%${conflictIndicator}\n`;
+      reportText += `   📊 AI Analysis: ${sentimentConf}% | Overall: ${technicalConf}%${conflictIndicator}\n`;
     });
   }
 
@@ -927,18 +938,20 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
   if (analysisResult?.trading_signals) {
     Object.values(analysisResult.trading_signals).forEach(signal => {
       symbolCount++;
-      const enhanced = signal.enhanced_prediction;
-      const sentiment = signal.sentiment_analysis;
-      const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
-      const predicted = signal.predicted_price?.toFixed(2) || 'N/A';
-      const current = signal.current_price?.toFixed(2) || 'N/A';
 
-      const sentimentLabel = sentiment?.sentiment || 'neutral';
+      // Extract data from per-symbol analysis structure
+      const tradingSignals = signal.trading_signals || signal;
+      const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                       tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+
+      // Extract sentiment from sentiment layers
+      const sentimentLayer = signal.sentiment_layers?.[0]; // First layer is GPT-OSS-120B
+      const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
       const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-      const sentimentConfidence = Math.round((sentiment?.confidence || 0) * 100);
+      const sentimentConfidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
 
       reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${sentimentConfidence}%)\n`;
-      reportText += `   💰 $${current} → $${predicted} | AI-Informed outlook\n`;
+      reportText += `   💰 AI-Informed outlook\n`;
     });
   }
 
@@ -1240,16 +1253,18 @@ export async function sendDailyMessageWithHistoricalContext(analysisResult, env,
     if (yesterdayAnalysis.length > 0) {
       reportText += `✅ **Yesterday's Validation:**\n`;
       yesterdayAnalysis.forEach(record => {
-        const direction = record.enhanced_prediction?.direction;
-        const sentiment = record.sentiment_analysis?.sentiment;
-        const confidence = Math.round((record.enhanced_prediction?.confidence || 0) * 100);
-        const emoji = direction === 'UP' ? '↗️' : direction === 'DOWN' ? '↘️' : '➡️';
+        // Extract data from per-symbol analysis structure
+        const tradingSignals = record.trading_signals || record;
+        const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                         tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
 
-        reportText += `${record.symbol}: ${emoji} ${sentiment?.toUpperCase()} (${confidence}%)\n`;
-        if (record.current_price && record.predicted_price) {
-          const change = ((record.predicted_price - record.current_price) / record.current_price * 100).toFixed(2);
-          reportText += `   💰 $${record.current_price.toFixed(2)} → $${record.predicted_price.toFixed(2)} (${Math.abs(change)}%)\n`;
-        }
+        // Extract sentiment from sentiment layers
+        const sentimentLayer = record.sentiment_layers?.[0];
+        const sentiment = sentimentLayer?.sentiment || 'neutral';
+        const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
+
+        reportText += `${record.symbol}: ${direction} ${sentiment.toUpperCase()} (${confidence}%)\n`;
+        reportText += `   💰 AI-Informed outlook\n`;
       });
       reportText += `\n`;
     }
@@ -1258,16 +1273,19 @@ export async function sendDailyMessageWithHistoricalContext(analysisResult, env,
     reportText += `🚀 **Today's AI Predictions:**\n`;
     if (analysisResult?.trading_signals) {
       Object.values(analysisResult.trading_signals).forEach(signal => {
-        const enhanced = signal.enhanced_prediction;
-        const sentiment = signal.sentiment_analysis;
-        const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
-        const confidence = Math.round((enhanced?.confidence || 0.5) * 100);
+        // Extract data from per-symbol analysis structure
+        const tradingSignals = signal.trading_signals || signal;
+        const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                         tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
 
-        const sentimentLabel = sentiment?.sentiment || 'neutral';
+        // Extract sentiment from sentiment layers
+        const sentimentLayer = signal.sentiment_layers?.[0];
+        const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
         const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+        const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
 
         reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-        reportText += `   💰 $${signal.current_price.toFixed(2)} → $${signal.predicted_price.toFixed(2)}\n`;
+        reportText += `   💰 AI-Informed outlook\n`;
       });
     }
 
@@ -1279,12 +1297,16 @@ export async function sendDailyMessageWithHistoricalContext(analysisResult, env,
     // Fallback to current predictions only
     if (analysisResult?.trading_signals) {
       Object.values(analysisResult.trading_signals).forEach(signal => {
-        const enhanced = signal.enhanced_prediction;
-        const sentiment = signal.sentiment_analysis;
-        const direction = enhanced?.direction === 'UP' ? '↗️' : enhanced?.direction === 'DOWN' ? '↘️' : '➡️';
-        const confidence = Math.round((enhanced?.confidence || 0.5) * 100);
-        const sentimentLabel = sentiment?.sentiment || 'neutral';
+        // Extract data from per-symbol analysis structure
+        const tradingSignals = signal.trading_signals || signal;
+        const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                         tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+
+        // Extract sentiment from sentiment layers
+        const sentimentLayer = signal.sentiment_layers?.[0];
+        const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
         const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
+        const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
 
         reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
       });

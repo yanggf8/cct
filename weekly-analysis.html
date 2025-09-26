@@ -259,8 +259,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 Weekly Market Close Analysis</h1>
-            <p>Comprehensive prediction accuracy and model performance review</p>
+            <h1>📊 3-Layer Sentiment Analysis Dashboard</h1>
+            <p>Comprehensive prediction accuracy and multi-layer sentiment performance review</p>
             <button class="refresh-button" onclick="loadData()">🔄 Refresh Data</button>
         </div>
 
@@ -283,61 +283,61 @@
                     <div class="label">Price Predictions</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Direction Accuracy</h3>
-                    <div class="value" id="direction-accuracy">-</div>
-                    <div class="label">UP/DOWN Signals</div>
+                    <h3>Layer Consistency</h3>
+                    <div class="value" id="layer-consistency">-</div>
+                    <div class="label">3-Layer Agreement</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Total Predictions</h3>
+                    <h3>Total Analyses</h3>
                     <div class="value" id="total-predictions">-</div>
                     <div class="label">This Week</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Best Model</h3>
+                    <h3>Primary Model</h3>
                     <div class="value" id="best-model">-</div>
-                    <div class="label">Top Performer</div>
+                    <div class="label">GPT-OSS-120B</div>
                 </div>
             </div>
 
             <!-- Charts Section -->
             <div class="charts-section">
                 <div class="chart-container">
-                    <h2>📈 Daily Accuracy Trends</h2>
+                    <h2>📈 Daily 3-Layer Accuracy Trends</h2>
                     <div class="chart-wrapper">
                         <canvas id="accuracyChart"></canvas>
                     </div>
                 </div>
 
                 <div class="chart-container">
-                    <h2>🎯 Model Performance Comparison</h2>
+                    <h2>🎯 Sentiment Layer Performance</h2>
                     <div class="chart-wrapper">
                         <canvas id="modelChart"></canvas>
                     </div>
                 </div>
 
                 <div class="chart-container">
-                    <h2>📊 Prediction vs Actual Prices</h2>
+                    <h2>📊 Layer Consistency Analysis</h2>
                     <div class="chart-wrapper">
-                        <canvas id="priceChart"></canvas>
+                        <canvas id="consistencyChart"></canvas>
                     </div>
                 </div>
             </div>
 
             <!-- Detailed Data Table -->
             <div class="data-table">
-                <h2>📋 Detailed Prediction History</h2>
+                <h2>📋 3-Layer Analysis History</h2>
                 <div style="overflow-x: auto;">
                     <table class="table">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Symbol</th>
-                                <th>Model</th>
-                                <th>Predicted</th>
-                                <th>Actual</th>
+                                <th>Primary Model</th>
+                                <th>Sentiment</th>
                                 <th>Direction</th>
-                                <th>Accuracy</th>
-                                <th>Confidence</th>
+                                <th>Layer Consistency</th>
+                                <th>Overall Confidence</th>
+                                <th>Articles Analyzed</th>
                             </tr>
                         </thead>
                         <tbody id="predictions-table-body">
@@ -401,20 +401,20 @@
 
         function updateOverviewStats(data) {
             const stats = data.overview || {};
-            
-            document.getElementById('overall-accuracy').textContent = 
+
+            document.getElementById('overall-accuracy').textContent =
                 stats.overallAccuracy ? `${stats.overallAccuracy.toFixed(2)}%` : '-';
-            document.getElementById('direction-accuracy').textContent = 
+            document.getElementById('direction-accuracy').textContent =
                 stats.directionAccuracy ? `${stats.directionAccuracy.toFixed(2)}%` : '-';
-            document.getElementById('total-predictions').textContent = 
+            document.getElementById('total-predictions').textContent =
                 stats.totalPredictions || '-';
-            document.getElementById('best-model').textContent = 
-                stats.bestModel || '-';
+            document.getElementById('best-model').textContent =
+                stats.bestModel || 'GPT-OSS-120B';
         }
 
         function createAccuracyChart(dailyData) {
             const ctx = document.getElementById('accuracyChart').getContext('2d');
-            
+
             if (accuracyChart) {
                 accuracyChart.destroy();
             }
@@ -435,6 +435,13 @@
                         data: dailyData.map(d => d.directionAccuracy),
                         borderColor: '#00f2fe',
                         backgroundColor: 'rgba(0, 242, 254, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Layer Consistency (%)',
+                        data: dailyData.map(d => (d.layer_consistency || 0) * 100),
+                        borderColor: '#ff6b6b',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
                         tension: 0.4,
                         fill: true
                     }]
@@ -467,7 +474,7 @@
 
         function createModelChart(modelData) {
             const ctx = document.getElementById('modelChart').getContext('2d');
-            
+
             if (modelChart) {
                 modelChart.destroy();
             }
@@ -481,7 +488,7 @@
                 data: {
                     labels: models,
                     datasets: [{
-                        label: 'Accuracy (%)',
+                        label: 'Sentiment Accuracy (%)',
                         data: accuracies,
                         backgroundColor: colors.slice(0, models.length),
                         borderColor: colors.slice(0, models.length),
@@ -588,30 +595,39 @@
 
             predictions.forEach(prediction => {
                 const row = document.createElement('tr');
-                
-                const accuracy = prediction.actual_price && prediction.predicted_price ? 
-                    (100 - Math.abs((prediction.predicted_price - prediction.actual_price) / prediction.actual_price * 100)) : 
+
+                const accuracy = prediction.actual_price && prediction.predicted_price ?
+                    (100 - Math.abs((prediction.predicted_price - prediction.actual_price) / prediction.actual_price * 100)) :
                     null;
 
-                const directionCorrect = prediction.direction_correct !== undefined ? 
+                const directionCorrect = prediction.direction_correct !== undefined ?
                     prediction.direction_correct : null;
+
+                // Get sentiment direction arrow for 3-layer analysis
+                const getDirectionArrow = (direction) => {
+                    switch(direction?.toUpperCase()) {
+                        case 'BULLISH': return '↗️';
+                        case 'BEARISH': return '↘️';
+                        default: return '➡️';
+                    }
+                };
 
                 row.innerHTML = `
                     <td>${new Date(prediction.date).toLocaleDateString()}</td>
                     <td><strong>${prediction.symbol}</strong></td>
-                    <td>${prediction.model || 'Ensemble'}</td>
-                    <td>$${prediction.predicted_price ? prediction.predicted_price.toFixed(2) : '-'}</td>
-                    <td>$${prediction.actual_price ? prediction.actual_price.toFixed(2) : '-'}</td>
+                    <td>${prediction.primary_model || prediction.model || 'GPT-OSS-120B'}</td>
+                    <td>${prediction.sentiment_label || '-'}</td>
                     <td>
                         <div class="accuracy-indicator">
-                            <span class="direction-arrow">${prediction.direction || '➡️'}</span>
+                            <span class="direction-arrow">${getDirectionArrow(prediction.direction_prediction)}</span>
                             ${directionCorrect !== null ? (directionCorrect ? '✓' : '✗') : '-'}
                         </div>
                     </td>
-                    <td>${accuracy !== null ? accuracy.toFixed(2) + '%' : '-'}</td>
-                    <td>${prediction.confidence ? prediction.confidence.toFixed(1) + '%' : '-'}</td>
+                    <td>${prediction.layer_consistency !== undefined ? (prediction.layer_consistency * 100).toFixed(1) + '%' : '-'}</td>
+                    <td>${prediction.overall_confidence ? (prediction.overall_confidence * 100).toFixed(1) + '%' : '-'}</td>
+                    <td>${prediction.articles_analyzed || '-'}</td>
                 `;
-                
+
                 tbody.appendChild(row);
             });
         }
@@ -623,7 +639,7 @@
             Object.entries(symbolData).forEach(([symbol, data]) => {
                 const card = document.createElement('div');
                 card.className = 'symbol-card';
-                
+
                 card.innerHTML = `
                     <h4>${symbol}</h4>
                     <div class="prediction-row">
@@ -635,15 +651,19 @@
                         <span>${data.directionAccuracy ? data.directionAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>Total Predictions:</span>
+                        <span>Layer Consistency:</span>
+                        <span>${data.layerConsistency !== undefined ? (data.layerConsistency * 100).toFixed(1) + '%' : '-'}</span>
+                    </div>
+                    <div class="prediction-row">
+                        <span>Total Analyses:</span>
                         <span>${data.totalPredictions || 0}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>Best Model:</span>
-                        <span>${data.bestModel || '-'}</span>
+                        <span>Primary Model:</span>
+                        <span>${data.primaryModel || 'GPT-OSS-120B'}</span>
                     </div>
                 `;
-                
+
                 container.appendChild(card);
             });
         }

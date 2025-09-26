@@ -4,23 +4,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-26 (KV Storage Resolved + Production Ready)
+**Current Version**: 2025-09-26 (3-Layer Analysis + Web Dashboard Integration Complete)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **System Status**: ✅ **OPERATIONAL** - Simplified two-tier AI system
+- **System Status**: ✅ **OPERATIONAL** - Advanced 3-layer sentiment analysis system
 - **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA ✅
-- **Primary Model**: Cloudflare GPT-OSS-120B (Fast + Reliable + Free) ✅
-- **Fallback System**: DistilBERT sentiment classification (100% Reliability) ✅
-- **Supporting Models**: TFT + N-HITS provide agreement/disagreement signals ✅
-- **Architecture**: GPT-OSS-120B → DistilBERT + neural network validation ✅
+- **Primary Model**: GPT-OSS-120B sentiment analysis (Layer 1) ✅
+- **Secondary Model**: DistilBERT sentiment classification (Layer 2) ✅
+- **Tertiary Model**: Article-Level sentiment aggregation (Layer 3) ✅
+- **Architecture**: GPT-OSS-120B → DistilBERT → Article-Level Analysis ✅
 - **Analysis KV Storage**: ✅ **FULLY OPERATIONAL** - Both daily and granular symbol analysis storage working
-- **Facebook Integration**: ✅ **OPERATIONAL** - Decoupled KV architecture ✅
+- **Facebook Integration**: ✅ **OPERATIONAL** - All 5 message types updated for 3-layer data ✅
+- **Web Dashboards**: ✅ **OPERATIONAL** - Both fact table and weekly analysis pages updated ✅
 - **Cron Jobs**: ✅ **OPERATIONAL** - All scheduled jobs executing ✅
 - **Cost Efficiency**: $0 per analysis (100% free Cloudflare AI) ✅
-- **User Impact**: **FULL FUNCTIONALITY** - All notifications delivered ✅
+- **User Impact**: **FULL FUNCTIONALITY** - Complete 3-layer analysis with enhanced dashboards ✅
 
-**Architecture**: `GPT-OSS-120B (Primary) → DistilBERT (Fallback)` - **40% Faster with Parallel Processing**
+**Architecture**: `3-Layer Sentiment Analysis: GPT-OSS-120B → DistilBERT → Article-Level` - **Enhanced Multi-Layer Consensus**
 
 *For complete development history, see HISTORY.md*
+
+### 🎯 3-Layer Analysis Integration Complete (2025-09-26)
+**MAJOR MILESTONE**: Successfully integrated advanced 3-layer sentiment analysis with full Facebook and web dashboard compatibility
+
+#### **3-Layer Architecture Implementation:**
+- **✅ Layer 1 - GPT-OSS-120B Enhanced**: Primary sentiment analysis with natural language reasoning and high confidence scoring
+- **✅ Layer 2 - DistilBERT Aggregate**: Secondary sentiment classification with fast processing and reliable fallback
+- **✅ Layer 3 - Article-Level Analysis**: Individual news article sentiment processing with topic categorization and relevance scoring
+- **✅ Multi-Layer Consensus**: Intelligent confidence weighting based on layer agreement and consistency metrics
+- **✅ Trading Signal Generation**: Enhanced trading signals with primary_direction and overall_confidence from 3-layer consensus
+
+#### **Facebook Message Compatibility (All 5 Types Updated):**
+- **✅ Daily Analysis Messages**: Extract sentiment labels, direction arrows, and confidence from 3-layer data structure
+- **✅ Weekly Accuracy Reports**: Access granular KV storage for individual symbol performance metrics
+- **✅ Historical Context Messages**: Retrieve yesterday's analysis from granular storage for validation
+- **✅ Data Structure Mapping**: Updated all Facebook functions to handle both old and new data formats seamlessly
+- **✅ Enhanced Metrics Display**: Show layer consistency, primary model, and overall confidence in messages
+
+#### **Web Dashboard Integration (Both Pages Updated):**
+- **✅ Fact Table Dashboard** (`weekly-analysis.html`): Updated table headers, stat cards, and chart labels for 3-layer metrics
+- **✅ Weekly Analysis Page** (`/weekly-analysis`): Dynamic HTML endpoint updated with 3-layer data processing
+- **✅ JavaScript Functions**: All data processing functions updated to extract sentiment_layers and trading_signals
+- **✅ Chart Enhancements**: Added layer consistency tracking and 3-layer performance visualization
+- **✅ Responsive Design**: Updated UI elements to display primary model, sentiment labels, and confidence metrics
+
+#### **KV Storage Compatibility:**
+- **✅ Two-Tier Storage**: Main analysis (`analysis_YYYY-MM-DD`) + Granular symbol analysis (`analysis_YYYY-MM-DD_SYMBOL`)
+- **✅ Data Format Support**: Handles both new 3-layer format and legacy enhanced_prediction format
+- **✅ Storage Functions**: `storeSymbolAnalysis()` and `getSymbolAnalysisByDate()` fully compatible with 3-layer data
+- **✅ Processing Pipeline**: `processAnalysisDataForDate()` correctly extracts 3-layer metrics for web dashboards
+- **✅ End-to-End Testing**: Verified complete storage → retrieval → display pipeline working correctly
+
+#### **Enhanced Data Structure:**
+```javascript
+// New 3-Layer Analysis Format
+{
+  "sentiment_layers": [
+    { "layer_type": "gpt_oss_120b_enhanced", "sentiment": "bullish", "confidence": 0.8 },
+    { "layer_type": "distilbert_aggregate", "sentiment": "neutral", "confidence": 0.6 },
+    { "layer_type": "article_level_analysis", "sentiment": "positive", "confidence": 0.7 }
+  ],
+  "trading_signals": {
+    "primary_direction": "BULLISH",
+    "overall_confidence": 0.75,
+    "entry_signals": { "direction": "BULLISH", "strength": "strong" }
+  }
+}
+```
+
+#### **System Integration Status:**
+- **✅ Facebook Messages**: All 5 scheduled message types working with 3-layer data
+- **✅ Web Dashboards**: Both fact table and weekly analysis pages displaying 3-layer metrics
+- **✅ KV Storage**: Complete storage and retrieval compatibility with new data structure
+- **✅ API Endpoints**: All endpoints returning 3-layer compatible data
+- **✅ Backward Compatibility**: System handles both old and new data formats seamlessly
 
 ### 🚀 Enhanced Troubleshooting & KV Debug Tools (2025-09-26)
 **COMPREHENSIVE DEBUGGING**: Major improvements to system monitoring and KV storage troubleshooting
@@ -90,49 +146,61 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Key Features
 
-### 🆕 Fine-Grained Per-Symbol Analysis System
-**NEW CAPABILITY**: Comprehensive individual symbol analysis with detailed multi-layer sentiment processing
+### 🆕 3-Layer Sentiment Analysis System (PRODUCTION READY)
+**COMPLETED CAPABILITY**: Advanced 3-layer sentiment analysis with full Facebook and web dashboard integration
 
-#### **Advanced Per-Symbol Features:**
-- **Individual Symbol Analysis**: `/analyze-symbol?symbol=AAPL` endpoint for granular analysis
+#### **Production 3-Layer Features:**
+- **Individual Symbol Analysis**: `/analyze-symbol?symbol=AAPL` endpoint for granular 3-layer analysis
 - **Multi-Layer Sentiment Processing**:
-  - **Primary Layer**: GPT-OSS-120B sentiment analysis with natural language reasoning
-  - **Article-Level Analysis**: Individual news article sentiment classification
-  - **Temporal Analysis**: Time-weighted sentiment aggregation across multiple days
+  - **Layer 1 - GPT-OSS-120B Enhanced**: Primary sentiment analysis with natural language reasoning and detailed market context
+  - **Layer 2 - DistilBERT Aggregate**: Secondary sentiment classification with fast processing and reliable scoring
+  - **Layer 3 - Article-Level Analysis**: Individual news article processing with topic categorization and relevance scoring
 - **Advanced Confidence Metrics**:
-  - **Primary Confidence**: GPT-OSS-120B sentiment confidence score
-  - **Article-Level Confidence**: Weighted confidence from individual articles
-  - **Temporal Consistency**: Sentiment stability across multiple days
-  - **Overall Confidence**: Multi-dimensional confidence calculation
+  - **Layer Consistency**: Agreement percentage between all 3 sentiment layers
+  - **Overall Confidence**: Multi-dimensional confidence calculation from consensus
+  - **Primary Model Confidence**: GPT-OSS-120B layer confidence weighting
+  - **Trading Signal Strength**: Enhanced direction prediction with 3-layer validation
 
-#### **Per-Symbol Data Structure:**
+#### **Production 3-Layer Data Structure:**
 ```javascript
 {
   symbol: 'AAPL',
-  analysis_type: 'multi_layer_sentiment_analysis',
-  primary_sentiment: {
-    sentiment: 'bullish',
-    confidence: 0.82,
-    reasoning: 'Strong positive sentiment from product launches and earnings',
-    model: 'GPT-OSS-120B'
+  analysis_type: 'fine_grained_sentiment',
+  sentiment_layers: [
+    {
+      layer_type: 'gpt_oss_120b_enhanced',
+      model: 'openchat-3.5-0106',
+      sentiment: 'bullish',
+      confidence: 0.8,
+      detailed_analysis: { /* comprehensive analysis */ }
+    },
+    {
+      layer_type: 'distilbert_aggregate',
+      model: 'distilbert-sst-2-int8',
+      sentiment: 'neutral',
+      confidence: 0.6
+    },
+    {
+      layer_type: 'article_level_analysis',
+      sentiment: 'positive',
+      confidence: 0.7,
+      articles_analyzed: 10,
+      article_analyses: [ /* individual article sentiments */ ]
+    }
+  ],
+  trading_signals: {
+    primary_direction: 'BULLISH',
+    overall_confidence: 0.75,
+    entry_signals: {
+      direction: 'BULLISH',
+      strength: 'strong',
+      timeframe: 'immediate'
+    }
   },
-  article_analysis: {
-    articles_processed: 8,
-    sentiment_distribution: { positive: 5, negative: 2, neutral: 1 },
-    article_level_confidence: 0.76,
-    key_events: ['earnings beat', 'new product announcement']
-  },
-  temporal_analysis: {
-    sentiment_trend: 'improving',
-    day_over_day_change: 0.15,
-    consistency_score: 0.78,
-    analysis_period: '3 days'
-  },
-    trading_recommendation: {
-    action: 'buy',
-    signal_strength: 'strong',
-    confidence: 0.79,
-    reasoning: 'Strong bullish sentiment with improving trend'
+  confidence_metrics: {
+    overall_confidence: 0.75,
+    layer_consistency: 0.82,
+    agreement_bonus: 0.1
   }
 }
 ```
@@ -149,6 +217,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **AI Parameters**: `GPT_MAX_TOKENS`, `GPT_TEMPERATURE` tunable via configuration
 - **Analysis Settings**: `MIN_NEWS_ARTICLES`, `MAX_NEWS_ARTICLES`, `CONFIDENCE_THRESHOLD`
 - **Storage Management**: `KV_ANALYSIS_TTL`, `KV_GRANULAR_TTL` for data retention
+
+### 🆕 Web Dashboard Integration (PRODUCTION READY)
+**COMPLETED CAPABILITY**: Both web dashboards fully integrated with 3-layer analysis data and enhanced UI
+
+#### **Updated Web Dashboards:**
+- **✅ Fact Table Dashboard** (`weekly-analysis.html`): Interactive dashboard with 3-layer analysis metrics
+  - Updated table headers: Date, Symbol, Primary Model, Sentiment, Direction, Layer Consistency, Overall Confidence, Articles Analyzed
+  - Enhanced stat cards: Overall Accuracy, Direction Accuracy, Layer Consistency, Primary Model
+  - Chart integration: Layer consistency tracking with Chart.js visualization
+  - Responsive design: Real-time data filtering and Chart.js integration
+
+- **✅ Weekly Analysis Page** (`/weekly-analysis`): Dynamic HTML endpoint with 3-layer data processing
+  - Server-side rendering: Dynamic HTML generation with current 3-layer data
+  - API integration: `/api/weekly-data` endpoint processes 3-layer analysis results
+  - Enhanced metrics: Layer consistency, primary model tracking, and confidence visualization
+  - Data processing: `processWeeklyAnalysisData()` function updated for 3-layer structure
+
+#### **Enhanced UI Features:**
+- **Layer Consistency Indicators**: Color-coded consistency scores (red < 50%, yellow 50-70%, cyan > 70%)
+- **Primary Model Display**: GPT-OSS-120B prominently featured as primary sentiment model
+- **Direction Arrows**: Bullish (↗️), Bearish (↘️), Neutral (➡️) based on 3-layer consensus
+- **Confidence Metrics**: Overall confidence displayed as percentage from multi-layer consensus
+- **Article Analytics**: News article count and processing metrics displayed per symbol
+
+#### **Data Processing Pipeline:**
+- **`processAnalysisDataForDate()`**: Extracts 3-layer data from KV storage for fact table display
+- **`getFactTableDataWithRange()`**: Processes date ranges and week selections for dashboard filtering
+- **JavaScript Functions**: All client-side functions updated to handle sentiment_layers and trading_signals structure
+- **Backward Compatibility**: Supports both old enhanced_prediction and new 3-layer data formats
 
 ### Dynamic Symbol Configuration
 All modules now use centralized symbol configuration:
@@ -548,14 +645,17 @@ Monthly (150 analyses): $112.50 → $0.045
 - **Consensus Building**: Enhanced confidence when models agree with sentiment
 - **Fallback Protection**: Neural networks provide backup predictions if sentiment fails
 
-## Deployment Status: GLM-4.5 OPTIMIZED READY ✅
+## Deployment Status: 3-LAYER ANALYSIS PRODUCTION READY ✅
 
-**System Grade**: A+ (GLM-4.5 Cost-Optimized Trading Platform with Neural Network Validation)
+**System Grade**: A+ (Advanced 3-Layer Sentiment Analysis Platform with Complete Integration)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **Primary Model**: ModelScope GLM-4.5 sentiment analysis achieving 70-78% direction accuracy
-- **Supporting Models**: TFT + N-HITS provide agreement/disagreement validation signals
-- **Architecture**: GLM-4.5 sentiment-driven predictions with neural network confirmation
-- **Cost Optimization**: $0.045/month GLM-4.5 vs $150/month external alternatives (99.97% savings)
-- **Implementation Status**: GLM-4.5 sentiment analysis primary, neural networks in supporting role
+- **Primary Model**: GPT-OSS-120B enhanced sentiment analysis (Layer 1)
+- **Secondary Model**: DistilBERT aggregate sentiment classification (Layer 2)
+- **Tertiary Model**: Article-level sentiment processing (Layer 3)
+- **Architecture**: Multi-layer sentiment consensus with trading signal generation
+- **Cost Optimization**: $0.00/month (100% free Cloudflare AI models)
+- **Implementation Status**: 3-layer analysis production ready with full Facebook and web dashboard integration
 
-**Current Architecture**: ModelScope GLM-4.5 sentiment analysis drives predictions, TFT/N-HITS validate with agree/disagree signals.
+**Current Architecture**: 3-Layer Sentiment Analysis: GPT-OSS-120B → DistilBERT → Article-Level → Trading Signals with enhanced multi-layer consensus and confidence weighting.
+
+**Integration Status**: ✅ Facebook Messages (All 5 Types) ✅ Web Dashboards (Both Pages) ✅ KV Storage (Complete Compatibility) ✅ API Endpoints (3-Layer Ready)

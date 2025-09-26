@@ -1,13 +1,13 @@
-# Facebook Messenger Integration - Complete Implementation
+# Facebook Messenger Integration - 3-Layer Analysis Compatible
 
 ## 🎯 Overview
 
-Successfully integrated Facebook Messenger into the dual active TFT+N-HITS trading system for automated notifications and daily summaries.
+Successfully integrated Facebook Messenger into the 3-layer sentiment analysis trading system with complete compatibility for all 5 message types and enhanced data structure support.
 
-## ✅ Implementation Status: COMPLETED
+## ✅ Implementation Status: 3-LAYER INTEGRATION COMPLETED
 
-**Integration Date**: 2025-09-04  
-**Worker Version**: 2.1-Facebook-Integrated  
+**Integration Date**: 2025-09-26 (3-Layer Update)
+**Worker Version**: 3.0-3Layer-Integrated
 **Live System**: https://tft-trading-system.yanggf.workers.dev
 
 ## 🔧 Technical Implementation
@@ -41,6 +41,39 @@ async function sendFacebookDailySummary(analysisResults, env)
 - **Cron Triggers**: 5x daily (6:30-9:00 AM EST)
 - **KV Storage**: 7-day retention for historical tracking
 - **Circuit Breakers**: Fault-tolerant external API handling
+
+## 🆕 3-Layer Analysis Compatibility (2025-09-26)
+
+### Enhanced Data Structure Support
+**All 5 Facebook message types updated for 3-layer analysis:**
+
+#### **Data Structure Mapping:**
+```javascript
+// NEW: 3-Layer Analysis Format
+const tradingSignals = signal.trading_signals || signal;
+const sentimentLayers = signal.sentiment_layers || [];
+const primarySentimentLayer = sentimentLayers[0] || {};
+
+// Extract data for Facebook messages
+const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
+                 tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
+const sentimentLabel = primarySentimentLayer?.sentiment || 'neutral';
+const overallConfidence = tradingSignals?.overall_confidence || 0;
+const layerConsistency = signal.confidence_metrics?.layer_consistency || 0;
+```
+
+#### **Enhanced Message Features:**
+- **Layer Consistency Metrics**: Display agreement percentage between all 3 sentiment layers
+- **Primary Model Display**: GPT-OSS-120B prominently featured as primary sentiment model
+- **Enhanced Confidence**: Overall confidence from multi-layer consensus
+- **Sentiment Labels**: Bullish/bearish/neutral classifications from Layer 1 analysis
+- **Article Analytics**: News article count and processing metrics
+
+#### **KV Storage Integration:**
+- **Granular Storage**: Individual symbol analysis stored as `analysis_YYYY-MM-DD_SYMBOL`
+- **Main Storage**: Daily analysis stored as `analysis_YYYY-MM-DD`
+- **Data Retrieval**: `getSymbolAnalysisByDate()` function accesses 3-layer data
+- **Backward Compatibility**: Supports both old and new data formats seamlessly
 
 ## 📱 Notification Types
 
