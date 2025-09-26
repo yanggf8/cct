@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-26 (Simplified GPT-OSS-120B + DistilBERT Architecture)
+**Current Version**: 2025-09-26 (Fine-Grained Per-Symbol Analysis + Provider-Neutral Architecture)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ **OPERATIONAL** - Simplified two-tier AI system
 - **Symbol Coverage**: Complete analysis for AAPL, MSFT, GOOGL, TSLA, NVDA ✅
@@ -23,6 +23,68 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 *For complete development history, see HISTORY.md*
 
 ## Key Features
+
+### 🆕 Fine-Grained Per-Symbol Analysis System
+**NEW CAPABILITY**: Comprehensive individual symbol analysis with detailed multi-layer sentiment processing
+
+#### **Advanced Per-Symbol Features:**
+- **Individual Symbol Analysis**: `/analyze-symbol?symbol=AAPL` endpoint for granular analysis
+- **Multi-Layer Sentiment Processing**:
+  - **Primary Layer**: GPT-OSS-120B sentiment analysis with natural language reasoning
+  - **Article-Level Analysis**: Individual news article sentiment classification
+  - **Temporal Analysis**: Time-weighted sentiment aggregation across multiple days
+- **Advanced Confidence Metrics**:
+  - **Primary Confidence**: GPT-OSS-120B sentiment confidence score
+  - **Article-Level Confidence**: Weighted confidence from individual articles
+  - **Temporal Consistency**: Sentiment stability across multiple days
+  - **Overall Confidence**: Multi-dimensional confidence calculation
+- **Neural Network Validation**: TFT + N-HITS agreement/disagreement signals
+- **Strength Indicators**: Very Strong → Strong → Moderate → Weak signal classification
+- **Consistency Scores**: Multi-model agreement factor analysis
+
+#### **Per-Symbol Data Structure:**
+```javascript
+{
+  symbol: 'AAPL',
+  analysis_type: 'multi_layer_sentiment_analysis',
+  primary_sentiment: {
+    sentiment: 'bullish',
+    confidence: 0.82,
+    reasoning: 'Strong positive sentiment from product launches and earnings',
+    model: 'GPT-OSS-120B'
+  },
+  article_analysis: {
+    articles_processed: 8,
+    sentiment_distribution: { positive: 5, negative: 2, neutral: 1 },
+    article_level_confidence: 0.76,
+    key_events: ['earnings beat', 'new product announcement']
+  },
+  temporal_analysis: {
+    sentiment_trend: 'improving',
+    day_over_day_change: 0.15,
+    consistency_score: 0.78,
+    analysis_period: '3 days'
+  },
+  neural_validation: {
+    tft_signal: 'agree',
+    nhits_signal: 'disagree',
+    consensus: 'partial_agreement',
+    neural_agreement_score: 0.5
+  },
+  trading_recommendation: {
+    action: 'buy',
+    signal_strength: 'strong',
+    confidence: 0.79,
+    reasoning: 'Strong bullish sentiment with improving trend'
+  }
+}
+```
+
+#### **Provider-Neutral Architecture Update:**
+- **Function Naming**: All functions renamed to be provider-neutral (e.g., `getSentimentWithFallbackChain`)
+- **Endpoint Updates**: Updated routes to use generic naming (`/debug-sentiment` vs `/debug-gpt`)
+- **Import Cleanup**: Removed outdated ModelScope references, centralized function exports
+- **Future-Proof**: Architecture supports easy LLM provider changes without code restructuring
 
 ### 🆕 Centralized Configuration System
 - **Symbol Management**: `TRADING_SYMBOLS` in wrangler.toml controls all analysis symbols
@@ -402,11 +464,11 @@ Monthly (150 analyses): $112.50 → $0.045
 - **Health Check**: `/health` endpoint for system monitoring
 
 ### Sentiment Analysis (Primary)
-- **`src/modules/enhanced_analysis.js`**: **LIVE** - Three-tier sentiment-driven prediction engine with `getSentimentWithFallbackChain`
-- **`src/modules/cloudflare_ai_sentiment_pipeline.js`**: ModelScope GLM-4.5 implementation (2000 max_tokens)
+- **`src/modules/enhanced_analysis.js`**: **LIVE** - Two-tier sentiment-driven prediction engine with `getSentimentWithFallbackChain`
+- **`src/modules/per_symbol_analysis.js`**: **NEW** - Fine-grained per-symbol analysis with multi-layer sentiment processing
 - **`src/modules/sentiment_utils.js`**: **NEW** - Shared utilities with consolidated functions and structured logging
 - **`src/modules/free_sentiment_pipeline.js`**: News APIs with sentiment processing
-- **Enhanced Pipeline**: News → GLM-4.5 → Llama 3.1 → DistilBERT → Neural Network Validation → Trading Signals
+- **Enhanced Pipeline**: News → GPT-OSS-120B → DistilBERT → Neural Network Validation → Trading Signals
 
 ### Neural Network Validation (Supporting)
 - **TFT + N-HITS Models**: Provide agreement/disagreement signals to sentiment predictions

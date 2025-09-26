@@ -20,13 +20,14 @@ import {
   handleKVGet,
   handleKVDebug,
   handleSentimentTest,
-  handleGPTDebugTest,
+  handleSentimentDebugTest,
   handleModelScopeTest,
   handleTestLlama,
   handleDebugEnvironment,
   handleModelHealth,
   handleR2Upload,
-  handleTestAllFacebookMessages
+  handleTestAllFacebookMessages,
+  handlePerSymbolAnalysis
 } from './handlers.js';
 
 /**
@@ -34,7 +35,7 @@ import {
  */
 function validateRequest(request, url, env) {
   // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook'];
+  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook', '/analyze-symbol'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -115,8 +116,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyDataAPI(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
-    case '/debug-gpt':
-      return handleGPTDebugTest(request, env);
+    case '/debug-sentiment':
+      return handleSentimentDebugTest(request, env);
     case '/test-modelscope':
       return handleModelScopeTest(request, env);
     case '/test-llama':
@@ -129,6 +130,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleR2Upload(request, env);
     case '/test-all-facebook':
       return handleTestAllFacebookMessages(request, env);
+    case '/analyze-symbol':
+      return handlePerSymbolAnalysis(request, env);
     default:
       // Default response for root and unknown paths
       if (url.pathname === '/' || url.pathname === '/status') {
@@ -146,7 +149,8 @@ export async function handleHttpRequest(request, env, ctx) {
             '/fact-table - Prediction accuracy table',
             '/weekly-analysis - Weekly analysis dashboard',
             '/api/weekly-data - Weekly analysis data API',
-            '/test-sentiment - Sentiment enhancement validation'
+            '/test-sentiment - Sentiment enhancement validation',
+            '/analyze-symbol?symbol=AAPL - Fine-grained per-symbol analysis'
           ]
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }

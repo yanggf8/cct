@@ -10,6 +10,7 @@ import { runIndependentTechnicalAnalysis } from './independent_technical_analysi
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 import { getFactTableData } from './data.js';
 import { runTFTInference, runNHITSInference } from './models.js';
+import { analyzeSingleSymbol } from './per_symbol_analysis.js';
 
 /**
  * Handle manual analysis requests (Phase 1: Enhanced with sentiment)
@@ -846,14 +847,14 @@ export async function handleModelScopeTest(request, env) {
 }
 
 /**
- * Public ModelScope GLM-4.5 API test
+ * Public Sentiment Analysis System test
  */
-export async function handleGPTDebugTest(request, env) {
+export async function handleSentimentDebugTest(request, env) {
   try {
-    console.log('🔧 Testing ModelScope GLM-4.5 API...');
+    console.log('🔧 Testing Sentiment Analysis System...');
 
     // Import required modules
-    const { getModelScopeAISentiment } = await import('./cloudflare_ai_sentiment_pipeline.js');
+    const { getSentimentWithFallbackChain } = await import('./enhanced_analysis.js');
 
     // Test with minimal news data
     const testSymbol = 'AAPL';
@@ -901,26 +902,28 @@ export async function handleGPTDebugTest(request, env) {
 
     // Test 2: GPT-OSS-120B with basic input
     try {
-      const gptTest = await env.AI.run('@cf/openai/gpt-oss-120b', {
-        input: "Hello, respond with 'Hello World'"
+      const gptTest = await env.AI.run('@cf/openchat/openchat-3.5-0106', {
+        messages: [{ role: 'user', content: 'Hello, respond with Hello World' }],
+        temperature: 0.1,
+        max_tokens: 50
       });
       console.log(`   ✅ GPT-OSS-120B basic test succeeded:`, gptTest);
     } catch (gptError) {
       console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
     }
 
-    // Test GLM-4.5 sentiment analysis with enhanced logging
-    console.log(`   🧪 Testing ModelScope GLM-4.5 sentiment analysis...`);
-    const sentimentResult = await getModelScopeAISentiment(testSymbol, mockNewsData, env);
+    // Test sentiment analysis with enhanced logging
+    console.log(`   🧪 Testing sentiment analysis system...`);
+    const sentimentResult = await getSentimentWithFallbackChain(testSymbol, mockNewsData, env);
 
-    // Check if ModelScope GLM-4.5 actually succeeded
-    const modelScopeSuccess = sentimentResult &&
-                             sentimentResult.source === 'modelscope_glm45' &&
+    // Check if sentiment analysis actually succeeded
+    const sentimentSuccess = sentimentResult &&
+                             sentimentResult.sentiment &&
                              !sentimentResult.error_details &&
                              sentimentResult.confidence > 0;
 
-    console.log(`   ✅ ModelScope GLM-4.5 test result:`, {
-      success: modelScopeSuccess,
+    console.log(`   ✅ Sentiment analysis test result:`, {
+      success: sentimentSuccess,
       sentiment: sentimentResult?.sentiment,
       confidence: sentimentResult?.confidence,
       source: sentimentResult?.source,
@@ -929,20 +932,18 @@ export async function handleGPTDebugTest(request, env) {
 
     return new Response(JSON.stringify({
       success: true,
-      gpt_api_test: {
+      sentiment_api_test: {
         symbol: testSymbol,
         news_articles_processed: mockNewsData.length,
         sentiment_result: sentimentResult,
-        api_format_fix: 'instructions + input format',
         model_used: sentimentResult?.models_used || ['error'],
         cost_estimate: sentimentResult?.cost_estimate || { total_cost: 0 }
       },
       debug_info: {
-        ai_available: modelScopeSuccess, // Fixed: Check ModelScope success, not Cloudflare AI
-        modelscope_available: !!env.MODELSCOPE_API_KEY,
+        ai_available: sentimentSuccess,
         cloudflare_ai_available: !!env.AI,
         timestamp: new Date().toISOString(),
-        test_type: 'modelscope_glm45_sentiment_validation'
+        test_type: 'sentiment_analysis_validation'
       }
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -1440,4 +1441,79 @@ export async function handleTestAllFacebookMessages(request, env) {
     status: statusCode,
     headers: { "Content-Type": "application/json" }
   });
+}
+
+/**
+ * Handle per-symbol fine-grained analysis requests
+ */
+export async function handlePerSymbolAnalysis(request, env) {
+  try {
+    console.log('🔍 Per-symbol fine-grained analysis requested');
+
+    // Get symbol from URL query parameters
+    const url = new URL(request.url);
+    const symbol = url.searchParams.get('symbol');
+
+    if (!symbol) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Symbol parameter is required',
+        example: '/analyze-symbol?symbol=AAPL',
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate symbol format (basic validation)
+    if (!/^[A-Z]{1,5}$/.test(symbol.toUpperCase())) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid symbol format. Use 1-5 uppercase letters (e.g., AAPL, MSFT)',
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Get optional analysis parameters
+    const options = {
+      includeTechnical: url.searchParams.get('include-technical') === 'true',
+      timeHorizon: url.searchParams.get('time-horizon') || 'short',
+      confidenceThreshold: parseFloat(url.searchParams.get('confidence-threshold')) || 0.6
+    };
+
+    console.log(`🎯 Analyzing symbol: ${symbol.toUpperCase()} with options:`, options);
+
+    // Perform fine-grained per-symbol analysis
+    const analysis = await analyzeSingleSymbol(symbol.toUpperCase(), env, options);
+
+    return new Response(JSON.stringify({
+      success: true,
+      symbol: symbol.toUpperCase(),
+      analysis: analysis,
+      execution_metadata: {
+        request_timestamp: new Date().toISOString(),
+        analysis_type: 'fine_grained_per_symbol',
+        options_used: options,
+        processing_complete: !analysis.error
+      }
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Per-symbol analysis error:', error);
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }

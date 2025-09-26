@@ -5,7 +5,6 @@
  */
 
 import { createTechnicalFeatures, normalizeTechnicalFeatures } from './technical_indicators.js';
-import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
 

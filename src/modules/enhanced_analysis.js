@@ -23,6 +23,7 @@ function ensureLoggingInitialized(env) {
  * Run enhanced analysis with sentiment integration
  * Phase 1 implementation: Free news + basic sentiment
  */
+
 export async function runEnhancedAnalysis(env, options = {}) {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
@@ -199,7 +200,73 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
 /**
  * Cloudflare GPT-OSS-120B sentiment analysis (primary method)
  */
-async function getGPTOSSSentiment(symbol, newsData, env) {
+export async function getSentimentWithFallbackChain(symbol, newsData, env) {
+  logSentimentDebug(`Starting getSentimentWithFallbackChain for ${symbol}`);
+  logSentimentDebug(`News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
+  logSentimentDebug(`env.AI available: ${!!env.AI}`);
+  // Phase 1: Start with free news APIs and rule-based sentiment
+  if (!newsData || newsData.length === 0) {
+    logSentimentDebug('Returning no_data - no news available');
+    return {
+      sentiment: 'neutral',
+      confidence: 0,
+      reasoning: 'No news data available',
+      source_count: 0,
+      method: 'no_data'
+    };
+  }
+
+  try {
+    // Primary: GPT-OSS-120B
+    if (env.AI) {
+      logAIDebug(`Trying GPT-OSS-120B for ${symbol}...`);
+      const gptResult = await getGPTOSSSentiment(symbol, newsData, env);
+      if (gptResult.sentiment && gptResult.confidence > 0) {
+        logSentimentDebug(`GPT-OSS-120B succeeded for ${symbol}: ${gptResult.sentiment} (${(gptResult.confidence * 100).toFixed(1)}%)`);
+        return {
+          ...gptResult,
+          method: 'gpt_oss_120b_primary',
+          fallback_used: false
+        };
+      }
+    }
+
+    // Fallback: DistilBERT
+    if (env.AI) {
+      logAIDebug(`Trying DistilBERT for ${symbol}...`);
+      const distilbertResult = await getDistilBERTSentiment(symbol, newsData, env);
+      if (distilbertResult.sentiment && distilbertResult.confidence > 0) {
+        logSentimentDebug(`DistilBERT succeeded for ${symbol}: ${distilbertResult.sentiment} (${(distilbertResult.confidence * 100).toFixed(1)}%)`);
+        return {
+          ...distilbertResult,
+          method: 'distilbert_fallback',
+          fallback_used: true
+        };
+      }
+    }
+
+    // Final fallback: rule-based
+    logSentimentDebug('Using rule-based sentiment analysis');
+    const ruleBasedResult = analyzeTextSentiment(newsData, symbol);
+    return {
+      ...ruleBasedResult,
+      method: 'rule_based_final',
+      fallback_used: true
+    };
+
+  } catch (error) {
+    logError(`Sentiment analysis failed for ${symbol}:`, error);
+    return {
+      sentiment: 'neutral',
+      confidence: 0,
+      reasoning: `Analysis failed: ${error.message}`,
+      method: 'error_fallback',
+      error_details: error.message
+    };
+  }
+}
+
+export async function getGPTOSSSentiment(symbol, newsData, env) {
   logAIDebug(`Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
 
   if (!env.AI) {
@@ -290,7 +357,7 @@ Be precise and focus on actionable trading insights.`;
 /**
  * DistilBERT sentiment analysis (final fallback)
  */
-async function getDistilBERTSentiment(symbol, newsData, env) {
+export async function getDistilBERTSentiment(symbol, newsData, env) {
   logAIDebug(`Starting DistilBERT sentiment analysis for ${symbol}...`);
 
   if (!env.AI) {
