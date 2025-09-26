@@ -3,6 +3,18 @@
  * Handles data retrieval from KV storage and fact table operations with real market validation
  */
 
+import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
+
+// Initialize logging for this module
+let loggingInitialized = false;
+
+function ensureLoggingInitialized(env) {
+  if (!loggingInitialized && env) {
+    initLogging(env);
+    loggingInitialized = true;
+  }
+}
+
 /**
  * Determine primary model from sentiment analysis data
  */
@@ -22,6 +34,79 @@ function getPrimaryModelFromSentiment(sentimentAnalysis) {
 }
 
 /**
+ * Process analysis data for a single date and convert to fact table format
+ * Shared helper function for fact table operations
+ */
+async function processAnalysisDataForDate(env, dateStr, checkDate) {
+  const factTableData = [];
+
+  // Try to get analysis data for this date
+  const analysisKey = `analysis_${dateStr}`;
+  const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
+
+  if (analysisJson) {
+    try {
+      const analysisData = JSON.parse(analysisJson);
+
+      // Convert analysis data to fact table format
+      if (analysisData.symbols_analyzed && analysisData.trading_signals) {
+        for (const symbol of analysisData.symbols_analyzed) {
+          const signal = analysisData.trading_signals[symbol];
+          if (signal) {
+            const actualPrice = await getRealActualPrice(symbol, dateStr);
+            const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
+
+            // Extract sentiment-first data structure
+            const sentimentAnalysis = signal.sentiment_analysis || {};
+            const technicalReference = signal.technical_reference || {};
+            const enhancedPrediction = signal.enhanced_prediction || {};
+
+            // Determine primary model and prediction source dynamically
+            const primaryModel = getPrimaryModelFromSentiment(sentimentAnalysis);
+            const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
+            const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
+
+            // Calculate neural agreement
+            const neuralAgreement = calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhancedPrediction);
+
+            factTableData.push({
+              date: dateStr,
+              symbol: symbol,
+              predicted_price: signal.predicted_price,
+              current_price: signal.current_price,
+              actual_price: actualPrice || signal.current_price,
+              direction_prediction: primaryDirection,
+              direction_correct: directionCorrect,
+              confidence: primaryConfidence,
+              model: primaryModel,
+
+              // Sentiment-first specific fields
+              primary_model: primaryModel,
+              primary_confidence: primaryConfidence,
+              sentiment_score: sentimentAnalysis.confidence || 0,
+              sentiment_reasoning: sentimentAnalysis.reasoning || '',
+              news_articles: sentimentAnalysis.source_count || 0,
+              neural_agreement: neuralAgreement.status,
+              neural_agreement_score: neuralAgreement.score,
+              tft_signal: neuralAgreement.tft_signal,
+              nhits_signal: neuralAgreement.nhits_signal,
+              enhancement_method: enhancedPrediction.method || 'sentiment_first_approach',
+
+              trigger_mode: analysisData.trigger_mode,
+              timestamp: analysisData.timestamp || checkDate.toISOString()
+            });
+          }
+        }
+      }
+    } catch (parseError) {
+      logError(`Error parsing analysis data for ${dateStr}:`, parseError);
+    }
+  }
+
+  return factTableData;
+}
+
+/**
  * Get fact table data from stored analysis results
  * Convert stored analysis data into fact table format for weekly analysis
  */
@@ -30,81 +115,21 @@ export async function getFactTableData(env) {
     // Get the last 7 days of analysis data
     const factTableData = [];
     const today = new Date();
-    
+
     for (let i = 0; i < 7; i++) {
       const checkDate = new Date(today);
       checkDate.setDate(today.getDate() - i);
       const dateStr = checkDate.toISOString().split('T')[0];
-      
-      // Try to get analysis data for this date
-      const analysisKey = `analysis_${dateStr}`;
-      const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
-      
-      if (analysisJson) {
-        try {
-          const analysisData = JSON.parse(analysisJson);
-          
-          // Convert analysis data to fact table format
-          if (analysisData.symbols_analyzed && analysisData.trading_signals) {
-            for (const symbol of analysisData.symbols_analyzed) {
-              const signal = analysisData.trading_signals[symbol];
-              if (signal) {
-                const actualPrice = await getRealActualPrice(symbol, dateStr);
-                const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
 
-                // Extract sentiment-first data structure
-                const sentimentAnalysis = signal.sentiment_analysis || {};
-                const technicalReference = signal.technical_reference || {};
-                const enhancedPrediction = signal.enhanced_prediction || {};
-
-                // Determine primary model and prediction source dynamically
-                const primaryModel = getPrimaryModelFromSentiment(sentimentAnalysis);
-                const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
-                const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
-
-                // Calculate neural agreement
-                const neuralAgreement = calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhancedPrediction);
-
-                factTableData.push({
-                  date: dateStr,
-                  symbol: symbol,
-                  predicted_price: signal.predicted_price,
-                  current_price: signal.current_price,
-                  actual_price: actualPrice || signal.current_price,
-                  direction_prediction: primaryDirection,
-                  direction_correct: directionCorrect,
-                  confidence: primaryConfidence,
-                  model: primaryModel,
-
-                  // NEW: Sentiment-first specific fields
-                  primary_model: primaryModel,
-                  primary_confidence: primaryConfidence,
-                  sentiment_score: sentimentAnalysis.confidence || 0,
-                  sentiment_reasoning: sentimentAnalysis.reasoning || '',
-                  news_articles: sentimentAnalysis.source_count || 0,
-                  neural_agreement: neuralAgreement.status,
-                  neural_agreement_score: neuralAgreement.score,
-                  tft_signal: neuralAgreement.tft_signal,
-                  nhits_signal: neuralAgreement.nhits_signal,
-                  enhancement_method: enhancedPrediction.method || 'sentiment_first_approach',
-
-                  trigger_mode: analysisData.trigger_mode,
-                  timestamp: analysisData.timestamp || checkDate.toISOString()
-                });
-              }
-            }
-          }
-        } catch (parseError) {
-          console.error(`❌ Error parsing analysis data for ${dateStr}:`, parseError);
-        }
-      }
+      const dayData = await processAnalysisDataForDate(env, dateStr, checkDate);
+      factTableData.push(...dayData);
     }
-    
-    console.log(`📊 Retrieved ${factTableData.length} fact table records from analysis data`);
+
+    logInfo(`Retrieved ${factTableData.length} fact table records from analysis data`);
     return factTableData;
-    
+
   } catch (error) {
-    console.error('❌ Error retrieving fact table data:', error);
+    logError('Error retrieving fact table data:', error);
     return [];
   }
 }
@@ -116,7 +141,7 @@ export async function getFactTableDataWithRange(env, rangeDays = 7, weekSelectio
   try {
     const factTableData = [];
     const today = new Date();
-    
+
     // Calculate start date based on week selection
     let startDate = new Date(today);
     if (weekSelection === 'last1') {
@@ -126,84 +151,22 @@ export async function getFactTableDataWithRange(env, rangeDays = 7, weekSelectio
     } else if (weekSelection === 'last3') {
       startDate.setDate(today.getDate() - 21);
     }
-    
+
     // Get data for the specified range
     for (let i = 0; i < rangeDays; i++) {
       const checkDate = new Date(startDate);
       checkDate.setDate(startDate.getDate() - i);
       const dateStr = checkDate.toISOString().split('T')[0];
-      
-      // Try to get analysis data for this date
-      const analysisKey = `analysis_${dateStr}`;
-      const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
-      
-      if (analysisJson) {
-        try {
-          const analysisData = JSON.parse(analysisJson);
-          
-          // Convert analysis data to fact table format
-          if (analysisData.symbols_analyzed && analysisData.trading_signals) {
-            for (const symbol of analysisData.symbols_analyzed) {
-              const signal = analysisData.trading_signals[symbol];
-              if (signal) {
-                // Get real actual price from Yahoo Finance
-                const actualPrice = await getRealActualPrice(symbol, dateStr);
-                // Validate real direction accuracy
-                const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
 
-                // Extract sentiment-first data structure
-                const sentimentAnalysis = signal.sentiment_analysis || {};
-                const technicalReference = signal.technical_reference || {};
-                const enhancedPrediction = signal.enhanced_prediction || {};
-
-                // Determine primary model and prediction source dynamically
-                const primaryModel = getPrimaryModelFromSentiment(sentimentAnalysis);
-                const primaryConfidence = sentimentAnalysis.confidence || signal.confidence || 0;
-                const primaryDirection = enhancedPrediction.final_direction || signal.direction || 'NEUTRAL';
-
-                // Calculate neural agreement
-                const neuralAgreement = calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhancedPrediction);
-
-                factTableData.push({
-                  date: dateStr,
-                  symbol: symbol,
-                  predicted_price: signal.predicted_price,
-                  current_price: signal.current_price,
-                  actual_price: actualPrice || signal.current_price,
-                  direction_prediction: primaryDirection,
-                  direction_correct: directionCorrect,
-                  confidence: primaryConfidence,
-                  model: primaryModel,
-
-                  // NEW: Sentiment-first specific fields
-                  primary_model: primaryModel,
-                  primary_confidence: primaryConfidence,
-                  sentiment_score: sentimentAnalysis.confidence || 0,
-                  sentiment_reasoning: sentimentAnalysis.reasoning || '',
-                  news_articles: sentimentAnalysis.source_count || 0,
-                  neural_agreement: neuralAgreement.status,
-                  neural_agreement_score: neuralAgreement.score,
-                  tft_signal: neuralAgreement.tft_signal,
-                  nhits_signal: neuralAgreement.nhits_signal,
-                  enhancement_method: enhancedPrediction.method || 'sentiment_first_approach',
-
-                  trigger_mode: analysisData.trigger_mode,
-                  timestamp: analysisData.timestamp || checkDate.toISOString()
-                });
-              }
-            }
-          }
-        } catch (parseError) {
-          console.error(`❌ Error parsing analysis data for ${dateStr}:`, parseError);
-        }
-      }
+      const dayData = await processAnalysisDataForDate(env, dateStr, checkDate);
+      factTableData.push(...dayData);
     }
-    
-    console.log(`📊 Retrieved ${factTableData.length} records for range=${rangeDays}, week=${weekSelection}`);
+
+    logInfo(`Retrieved ${factTableData.length} records for range=${rangeDays}, week=${weekSelection}`);
     return factTableData;
-    
+
   } catch (error) {
-    console.error('❌ Error retrieving fact table data with range:', error);
+    logError('Error retrieving fact table data with range:', error);
     return [];
   }
 }
@@ -220,11 +183,11 @@ export async function storeFactTableData(env, factTableData) {
       { expirationTtl: 604800 } // 7 days
     );
 
-    console.log(`💾 Stored ${factTableData.length} fact table records to KV`);
+    logKVDebug(`Stored ${factTableData.length} fact table records to KV`);
     return true;
 
   } catch (error) {
-    console.error('❌ Error storing fact table data:', error);
+    logError('Error storing fact table data:', error);
     return false;
   }
 }
@@ -235,30 +198,31 @@ export async function storeFactTableData(env, factTableData) {
  */
 export async function storeSymbolAnalysis(env, symbol, analysisData) {
   try {
-    console.log(`🚀 KV WRITE START: Storing analysis for ${symbol}`);
-    console.log(`🔍 KV DEBUG: env.TRADING_RESULTS available:`, !!env.TRADING_RESULTS);
-    console.log(`🔍 KV DEBUG: analysisData size:`, JSON.stringify(analysisData).length, 'characters');
+    ensureLoggingInitialized(env);
+    logKVDebug('KV WRITE START: Storing analysis for', symbol);
+    logKVDebug('env.TRADING_RESULTS available:', !!env.TRADING_RESULTS);
+    logKVDebug('analysisData size:', JSON.stringify(analysisData).length, 'characters');
 
     const dateStr = new Date().toISOString().split('T')[0];
     const key = `analysis_${dateStr}_${symbol}`;
-    console.log(`🔍 KV DEBUG: Attempting to store with key:`, key);
+    logKVDebug('Attempting to store with key:', key);
 
     const dataString = JSON.stringify(analysisData);
-    console.log(`🔍 KV DEBUG: Data serialized successfully, size:`, dataString.length);
+    logKVDebug('Data serialized successfully, size:', dataString.length);
 
-    console.log(`🔍 KV DEBUG: Calling env.TRADING_RESULTS.put()...`);
+    logKVDebug('Calling env.TRADING_RESULTS.put()...');
     await env.TRADING_RESULTS.put(
       key,
       dataString,
       { expirationTtl: 7776000 } // 90 days for longer-term analysis
     );
 
-    console.log(`✅ KV WRITE SUCCESS: Stored granular analysis for ${symbol} at key: ${key}`);
-    console.log(`🔍 KV DEBUG: Storage successful, returning true`);
+    logKVDebug('KV WRITE SUCCESS: Stored granular analysis for', symbol, 'at key:', key);
+    logKVDebug('Storage successful, returning true');
     return true;
   } catch (error) {
-    console.error(`❌ KV WRITE ERROR: Failed to store granular analysis for ${symbol}:`, error);
-    console.error(`❌ KV ERROR DETAILS:`, {
+    logError('KV WRITE ERROR: Failed to store granular analysis for', symbol + ':', error);
+    logError('KV ERROR DETAILS:', {
       message: error.message,
       stack: error.stack,
       name: error.name
@@ -286,10 +250,10 @@ export async function getSymbolAnalysisByDate(env, dateString, symbols = null) {
       .map((res, index) => res ? { ...JSON.parse(res), symbol: symbols[index] } : null)
       .filter(res => res !== null);
 
-    console.log(`📊 Retrieved ${parsedResults.length}/${symbols.length} granular analysis records for ${dateString}`);
+    logInfo(`Retrieved ${parsedResults.length}/${symbols.length} granular analysis records for ${dateString}`);
     return parsedResults;
   } catch (error) {
-    console.error(`❌ Error retrieving granular analysis for ${dateString}:`, error);
+    logError(`Error retrieving granular analysis for ${dateString}:`, error);
     return [];
   }
 }
@@ -309,7 +273,7 @@ export async function getAnalysisResultsByDate(env, dateString) {
     return JSON.parse(resultJson);
     
   } catch (error) {
-    console.error(`❌ Error retrieving analysis for ${dateString}:`, error);
+    logError(`Error retrieving analysis for ${dateString}:`, error);
     return null;
   }
 }
@@ -337,7 +301,7 @@ export async function listKVKeys(env, prefix = '') {
     return keys;
 
   } catch (error) {
-    console.error('❌ Error listing KV keys:', error);
+    logError('Error listing KV keys:', error);
     return [];
   }
 }
@@ -347,7 +311,7 @@ export async function listKVKeys(env, prefix = '') {
  */
 async function getRealActualPrice(symbol, targetDate) {
   try {
-    console.log(`   📊 Fetching actual price for ${symbol} on ${targetDate}...`);
+    logInfo(`Fetching actual price for ${symbol} on ${targetDate}...`);
 
     // Calculate date range - get several days around target date
     const target = new Date(targetDate);
@@ -397,14 +361,14 @@ async function getRealActualPrice(symbol, targetDate) {
     }
 
     if (closestPrice) {
-      console.log(`   ✅ Found actual price for ${symbol}: $${closestPrice.toFixed(2)} (${closestDiff.toFixed(1)} days difference)`);
+      logInfo(`Found actual price for ${symbol}: $${closestPrice.toFixed(2)} (${closestDiff.toFixed(1)} days difference)`);
       return closestPrice;
     } else {
       throw new Error('No valid price data found');
     }
 
   } catch (error) {
-    console.error(`   ❌ Error fetching actual price for ${symbol}:`, error.message);
+    logError(`Error fetching actual price for ${symbol}:`, error.message);
     // Fallback to predicted price if Yahoo Finance fails
     return null;
   }
@@ -458,7 +422,7 @@ function calculateNeuralAgreement(sentimentAnalysis, technicalReference, enhance
     };
 
   } catch (error) {
-    console.error('Error calculating neural agreement:', error);
+    logError('Error calculating neural agreement:', error);
     return {
       status: 'ERROR',
       score: 0.5,
@@ -502,12 +466,12 @@ async function validateDirectionAccuracy(signal, targetDate) {
 
     const directionCorrect = predictedDirection === actualDirection;
 
-    console.log(`   🎯 Direction accuracy for ${signal.symbol}: Predicted ${predictedDirection ? 'UP' : 'DOWN'}, Actual ${actualDirection ? 'UP' : 'DOWN'} = ${directionCorrect ? '✓' : '✗'}`);
+    logInfo(`Direction accuracy for ${signal.symbol}: Predicted ${predictedDirection ? 'UP' : 'DOWN'}, Actual ${actualDirection ? 'UP' : 'DOWN'} = ${directionCorrect ? '✓' : '✗'}`);
 
     return directionCorrect;
 
   } catch (error) {
-    console.error(`   ❌ Error validating direction accuracy:`, error.message);
+    logError(`Error validating direction accuracy:`, error.message);
     // Fallback to confidence-based deterministic estimation
     const accuracyThreshold = 0.75;
     return signal.confidence >= accuracyThreshold;

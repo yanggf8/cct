@@ -7,7 +7,17 @@ import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
 import { storeSymbolAnalysis } from './data.js';
-import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo } from './logging.js';
+import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
+
+// Initialize logging for this module
+let loggingInitialized = false;
+
+function ensureLoggingInitialized(env) {
+  if (!loggingInitialized && env) {
+    initLogging(env);
+    loggingInitialized = true;
+  }
+}
 
 /**
  * Run enhanced analysis with sentiment integration
@@ -15,15 +25,16 @@ import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, log
  */
 export async function runEnhancedAnalysis(env, options = {}) {
   const startTime = Date.now();
-  console.log('🚀 Starting Enhanced Analysis with Sentiment Integration...');
+  ensureLoggingInitialized(env);
+  logInfo('Starting Enhanced Analysis with Sentiment Integration...');
 
   try {
     // Step 1: SENTIMENT-FIRST - Run GPT-OSS-120B sentiment analysis first
-    console.log('💭 Step 1: Running sentiment-first analysis (GPT-OSS-120B)...');
+    logInfo('Step 1: Running sentiment-first analysis (GPT-OSS-120B)...');
     const sentimentResults = await runSentimentFirstAnalysis(env, options);
 
     // Step 2: Add technical analysis as reference confirmation
-    console.log('📊 Step 2: Adding technical analysis as reference...');
+    logInfo('Step 2: Adding technical analysis as reference...');
     const enhancedResults = await addTechnicalReference(sentimentResults, env, options);
 
     // Step 3: Calculate execution metrics
@@ -35,14 +46,14 @@ export async function runEnhancedAnalysis(env, options = {}) {
       cloudflare_ai_enabled: !!env.AI
     };
 
-    console.log(`✅ Enhanced analysis completed in ${executionTime}ms`);
+    logInfo(`Enhanced analysis completed in ${executionTime}ms`);
     return enhancedResults;
 
   } catch (error) {
-    console.error('❌ Enhanced analysis failed:', error);
+    logError('Enhanced analysis failed:', error);
 
     // Fallback to basic analysis if sentiment enhancement fails
-    console.log('🔄 Falling back to basic neural network analysis...');
+    logWarn('Falling back to basic neural network analysis...');
     const fallbackResults = await runBasicAnalysis(env, options);
 
     fallbackResults.execution_metrics = {
@@ -61,12 +72,12 @@ export async function runEnhancedAnalysis(env, options = {}) {
  */
 async function addSentimentAnalysis(technicalAnalysis, env) {
   const symbols = Object.keys(technicalAnalysis.trading_signals);
-  console.log(`🔍 Adding sentiment analysis for ${symbols.length} symbols...`);
+  logInfo(`Adding sentiment analysis for ${symbols.length} symbols...`);
 
   // Process sentiment for each symbol
   for (const symbol of symbols) {
     try {
-      console.log(`   📰 Analyzing sentiment for ${symbol}...`);
+      logSentimentDebug(`Analyzing sentiment for ${symbol}...`);
 
       // Get the existing technical signal
       const technicalSignal = technicalAnalysis.trading_signals[symbol];
@@ -90,10 +101,10 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
 
       const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
       const modelsInfo = sentimentResult.models_used ? ` using ${sentimentResult.models_used.join(' + ')}` : '';
-      console.log(`   ✅ ${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)${validationInfo}${modelsInfo}`);
+      logInfo(`${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)${validationInfo}${modelsInfo}`);
 
     } catch (error) {
-      console.error(`   ❌ Sentiment analysis failed for ${symbol}:`, error.message);
+      logError(`Sentiment analysis failed for ${symbol}:`, error.message);
 
       // Add empty sentiment data to maintain structure
       technicalAnalysis.trading_signals[symbol].sentiment_analysis = {
@@ -114,13 +125,13 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
  * Primary: GPT-OSS-120B → Fallback: DistilBERT
  */
 async function getSentimentWithFallbackChain(symbol, newsData, env) {
-  console.log(`🔍 SENTIMENT DEBUG: Starting getSentimentWithFallbackChain for ${symbol}`);
-  console.log(`🔍 SENTIMENT DEBUG: News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
-  console.log(`🔍 SENTIMENT DEBUG: env.AI available: ${!!env.AI}`);
+  logSentimentDebug(`Starting getSentimentWithFallbackChain for ${symbol}`);
+  logSentimentDebug(`News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
+  logSentimentDebug(`env.AI available: ${!!env.AI}`);
 
   // Phase 1: Start with free news APIs and rule-based sentiment
   if (!newsData || newsData.length === 0) {
-    console.log(`🔍 SENTIMENT DEBUG: Returning no_data - no news available`);
+    logSentimentDebug('Returning no_data - no news available');
     return {
       sentiment: 'neutral',
       confidence: 0,
@@ -133,10 +144,10 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
   try {
     // Primary: Use Cloudflare GPT-OSS-120B (main sentiment analysis)
     if (env.AI) {
-      console.log(`🔍 SENTIMENT DEBUG: Cloudflare AI available, using GPT-OSS-120B...`);
-      console.log(`   🧠 Using Cloudflare GPT-OSS-120B sentiment analysis for ${symbol}...`);
+      logSentimentDebug('Cloudflare AI available, using GPT-OSS-120B...');
+      logAIDebug(`Using Cloudflare GPT-OSS-120B sentiment analysis for ${symbol}...`);
       const result = await getGPTOSSSentiment(symbol, newsData, env);
-      console.log(`🔍 SENTIMENT DEBUG: GPT-OSS-120B result:`, {
+      logSentimentDebug('GPT-OSS-120B result:', {
         sentiment: result?.sentiment,
         confidence: result?.confidence,
         source: result?.source,
@@ -147,27 +158,27 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
     }
 
     // Fallback: Use DistilBERT if GPT-OSS-120B fails or unavailable
-    console.log(`🔍 SENTIMENT DEBUG: No Cloudflare AI, using DistilBERT fallback`);
-    console.log(`   🤖 Using DistilBERT sentiment analysis for ${symbol}...`);
+    logSentimentDebug('No Cloudflare AI, using DistilBERT fallback');
+    logAIDebug(`Using DistilBERT sentiment analysis for ${symbol}...`);
     const distilbertResult = await getDistilBERTSentiment(symbol, newsData, env);
-    console.log(`🔍 SENTIMENT DEBUG: DistilBERT result:`, distilbertResult);
+    logSentimentDebug('DistilBERT result:', distilbertResult);
     return distilbertResult;
 
   } catch (error) {
-    console.error(`🔍 SENTIMENT DEBUG: GPT-OSS-120B failed, error:`, {
+    logError('GPT-OSS-120B failed, error:', {
       error_message: error.message,
       error_stack: error.stack?.substring(0, 200),
       symbol: symbol
     });
-    console.error(`   ❌ GPT-OSS-120B sentiment failed for ${symbol}, using DistilBERT fallback:`, error.message);
+    logError(`GPT-OSS-120B sentiment failed for ${symbol}, using DistilBERT fallback:`, error.message);
 
     // Try DistilBERT fallback
     try {
       const distilbertFallback = await getDistilBERTSentiment(symbol, newsData, env);
-      console.log(`   ✅ DistilBERT fallback successful for ${symbol}`);
+      logInfo(`DistilBERT fallback successful for ${symbol}`);
       return distilbertFallback;
     } catch (distilbertError) {
-      console.error(`   ❌ All sentiment analysis methods failed for ${symbol}:`, distilbertError.message);
+      logError(`All sentiment analysis methods failed for ${symbol}:`, distilbertError.message);
 
       // Return neutral sentiment as final fallback
       return {
@@ -189,7 +200,7 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
  * Cloudflare GPT-OSS-120B sentiment analysis (primary method)
  */
 async function getGPTOSSSentiment(symbol, newsData, env) {
-  console.log(`🧠 Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
+  logAIDebug(`Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
 
   if (!env.AI) {
     throw new Error('Cloudflare AI binding not available for GPT-OSS-120B');
@@ -224,7 +235,7 @@ Provide a detailed analysis with:
 
 Be precise and focus on actionable trading insights.`;
 
-    console.log(`   🧠 Calling Cloudflare AI GPT-OSS-120B for ${symbol}...`);
+    logAIDebug(`Calling Cloudflare AI GPT-OSS-120B for ${symbol}...`);
 
     const response = await env.AI.run(
       '@cf/openchat/openchat-3.5-0106',
@@ -240,14 +251,14 @@ Be precise and focus on actionable trading insights.`;
       }
     );
 
-    console.log(`   📝 GPT-OSS-120B response received:`, response);
+    logAIDebug('GPT-OSS-120B response received:', response);
 
     if (!response || !response.response) {
       throw new Error('Empty response from GPT-OSS-120B');
     }
 
     const content = response.response;
-    console.log(`   📝 GPT-OSS-120B content:`, content);
+    logAIDebug('GPT-OSS-120B content:', content);
 
     // Parse GPT-OSS-120B response
     const analysisData = parseNaturalLanguageResponse(content);
@@ -266,11 +277,11 @@ Be precise and focus on actionable trading insights.`;
       }
     };
 
-    console.log(`   ✅ GPT-OSS-120B sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
+    logAIDebug(`GPT-OSS-120B sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
     return result;
 
   } catch (error) {
-    console.error(`   ❌ GPT-OSS-120B sentiment analysis failed for ${symbol}:`, error);
+    logError(`GPT-OSS-120B sentiment analysis failed for ${symbol}:`, error);
     throw new Error(`GPT-OSS-120B analysis failed: ${error.message}`);
   }
 }
@@ -280,7 +291,7 @@ Be precise and focus on actionable trading insights.`;
  * DistilBERT sentiment analysis (final fallback)
  */
 async function getDistilBERTSentiment(symbol, newsData, env) {
-  console.log(`🤖 Starting DistilBERT sentiment analysis for ${symbol}...`);
+  logAIDebug(`Starting DistilBERT sentiment analysis for ${symbol}...`);
 
   if (!env.AI) {
     throw new Error('Cloudflare AI binding not available for DistilBERT fallback');
@@ -321,7 +332,7 @@ async function getDistilBERTSentiment(symbol, newsData, env) {
         };
 
       } catch (error) {
-        console.error('Individual DistilBERT analysis failed:', error);
+        logError('Individual DistilBERT analysis failed:', error);
         return {
           sentiment: 'neutral',
           confidence: 0,
@@ -385,11 +396,11 @@ async function getDistilBERTSentiment(symbol, newsData, env) {
       processed_items: validResults.length
     };
 
-    console.log(`   ✅ DistilBERT sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
+    logAIDebug(`DistilBERT sentiment analysis complete: ${result.sentiment} (${(result.confidence * 100).toFixed(1)}%)`);
     return result;
 
   } catch (error) {
-    console.error(`   ❌ DistilBERT sentiment analysis failed for ${symbol}:`, error);
+    logError(`DistilBERT sentiment analysis failed for ${symbol}:`, error);
     throw new Error(`DistilBERT analysis failed: ${error.message}`);
   }
 }
@@ -500,7 +511,7 @@ function mapDirectionToScore(direction) {
  */
 async function runSentimentFirstAnalysis(env, options = {}) {
   const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
-  console.log(`💭 Starting sentiment-first analysis for ${symbols.length} symbols...`);
+  logInfo(`Starting sentiment-first analysis for ${symbols.length} symbols...`);
 
   const results = {
     sentiment_signals: {},
@@ -512,7 +523,7 @@ async function runSentimentFirstAnalysis(env, options = {}) {
   // Process each symbol with sentiment analysis first
   for (const symbol of symbols) {
     try {
-      console.log(`   🧠 Analyzing ${symbol} sentiment with GPT-OSS-120B...`);
+      logAIDebug(`Analyzing ${symbol} sentiment with GPT-OSS-120B...`);
 
       // Get news data for the symbol
       const newsData = await getFreeStockNews(symbol, env);
@@ -530,13 +541,13 @@ async function runSentimentFirstAnalysis(env, options = {}) {
 
       const confidenceInfo = sentimentResult.confidence ? ` (${(sentimentResult.confidence * 100).toFixed(1)}%)` : '';
       const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
-      console.log(`   ✅ ${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
+      logInfo(`${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
 
       // Process next symbol efficiently
 
     } catch (error) {
-      console.error(`   ❌ CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
-      console.log(`   ⚠️  Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
+      logError(`CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
+      logWarn(`Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
 
       results.sentiment_signals[symbol] = {
         symbol: symbol,
@@ -554,7 +565,7 @@ async function runSentimentFirstAnalysis(env, options = {}) {
     }
   }
 
-  console.log(`✅ Sentiment-first analysis completed for ${symbols.length} symbols`);
+  logInfo(`Sentiment-first analysis completed for ${symbols.length} symbols`);
   return results;
 }
 
@@ -562,7 +573,7 @@ async function runSentimentFirstAnalysis(env, options = {}) {
  * Add technical analysis as reference to sentiment-driven results
  */
 async function addTechnicalReference(sentimentResults, env, options = {}) {
-  console.log(`📊 Adding technical analysis as reference confirmation...`);
+  logInfo('Adding technical analysis as reference confirmation...');
 
   // Import the technical analysis function
   const { runBasicAnalysis } = await import('./analysis.js');
@@ -575,7 +586,7 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
     !sentimentResults.sentiment_signals[symbol].sentiment_analysis.skip_technical
   );
 
-  console.log(`📊 Running technical reference for ${validSymbols.length} symbols (skipped ${Object.keys(sentimentResults.sentiment_signals).length - validSymbols.length} failed sentiment symbols)`);
+  logInfo(`Running technical reference for ${validSymbols.length} symbols (skipped ${Object.keys(sentimentResults.sentiment_signals).length - validSymbols.length} failed sentiment symbols)`);
 
   // Combine sentiment (primary) with technical (reference) for valid symbols only
   for (const symbol of validSymbols) {
@@ -630,15 +641,15 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
         };
 
         await storeSymbolAnalysis(env, symbol, granularAnalysisData);
-        console.log(`   💾 ${symbol}: Granular analysis stored successfully`);
+        logKVDebug(`${symbol}: Granular analysis stored successfully`);
       } catch (storageError) {
-        console.error(`   ❌ ${symbol}: Failed to store granular analysis:`, storageError.message);
+        logError(`${symbol}: Failed to store granular analysis:`, storageError.message);
         // Continue processing - storage failure shouldn't break analysis
       }
 
-      console.log(`   📊 ${symbol}: Technical reference added (${technicalSignal.direction} ${(technicalSignal.confidence * 100).toFixed(1)}%)`);
+      logInfo(`${symbol}: Technical reference added (${technicalSignal.direction} ${(technicalSignal.confidence * 100).toFixed(1)}%)`);
     } else {
-      console.log(`   ⚠️  ${symbol}: Skipping technical analysis (sentiment failed)`);
+      logWarn(`${symbol}: Skipping technical analysis (sentiment failed)`);
     }
   }
 
@@ -658,10 +669,10 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
 
   // Store main analysis results in KV storage
   try {
-    console.log(`🚀 KV MAIN WRITE: Storing main analysis results`);
+    logKVDebug('KV MAIN WRITE: Storing main analysis results');
     const dateStr = new Date().toISOString().split('T')[0];
     const mainAnalysisKey = `analysis_${dateStr}`;
-    console.log(`🔍 KV MAIN DEBUG: Storing with key:`, mainAnalysisKey);
+    logKVDebug('KV MAIN DEBUG: Storing with key:', mainAnalysisKey);
 
     await env.TRADING_RESULTS.put(
       mainAnalysisKey,
@@ -669,16 +680,16 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
       { expirationTtl: 604800 } // 7 days
     );
 
-    console.log(`✅ KV MAIN SUCCESS: Stored main analysis results at key: ${mainAnalysisKey}`);
+    logKVDebug('KV MAIN SUCCESS: Stored main analysis results at key:', mainAnalysisKey);
   } catch (mainStorageError) {
-    console.error(`❌ KV MAIN ERROR: Failed to store main analysis results:`, mainStorageError);
-    console.error(`❌ KV MAIN ERROR DETAILS:`, {
+    logError('KV MAIN ERROR: Failed to store main analysis results:', mainStorageError);
+    logError('KV MAIN ERROR DETAILS:', {
       message: mainStorageError.message,
       stack: mainStorageError.stack
     });
   }
 
-  console.log(`✅ Technical reference analysis completed`);
+  logInfo('Technical reference analysis completed');
   return finalResults;
 }
 
@@ -688,7 +699,8 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
  */
 export async function runEnhancedPreMarketAnalysis(env, options = {}) {
   const startTime = Date.now();
-  console.log('🚀 Starting Enhanced Pre-Market Analysis with Sentiment...');
+  ensureLoggingInitialized(env);
+  logInfo('Starting Enhanced Pre-Market Analysis with Sentiment...');
 
   try {
     // Use enhanced analysis instead of basic
@@ -707,15 +719,15 @@ export async function runEnhancedPreMarketAnalysis(env, options = {}) {
       enhancement_enabled: true
     };
 
-    console.log(`✅ Enhanced pre-market analysis completed in ${Date.now() - startTime}ms`);
+    logInfo(`Enhanced pre-market analysis completed in ${Date.now() - startTime}ms`);
     return enhancedResults;
 
   } catch (error) {
-    console.error('❌ Enhanced pre-market analysis failed:', error);
+    logError('Enhanced pre-market analysis failed:', error);
 
     // Import basic analysis as fallback
     const { runPreMarketAnalysis } = await import('./analysis.js');
-    console.log('🔄 Falling back to basic pre-market analysis...');
+    logWarn('Falling back to basic pre-market analysis...');
 
     const fallbackResults = await runPreMarketAnalysis(env, options);
     fallbackResults.enhancement_fallback = {
@@ -733,16 +745,16 @@ export async function runEnhancedPreMarketAnalysis(env, options = {}) {
  */
 export async function validateSentimentEnhancement(env) {
   const testSymbol = 'AAPL';
-  console.log(`🧪 Testing sentiment enhancement for ${testSymbol}...`);
+  logInfo(`Testing sentiment enhancement for ${testSymbol}...`);
 
   try {
     // Test free news API
     const newsData = await getFreeStockNews(testSymbol, env);
-    console.log(`   📰 News data: ${newsData.length} articles found`);
+    logInfo(`News data: ${newsData.length} articles found`);
 
     // Test sentiment analysis (GPT-OSS-120B with DistilBERT fallback)
     const sentimentResult = await getSentimentWithFallbackChain(testSymbol, newsData, env);
-    console.log(`   📊 Sentiment: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)`);
+    logInfo(`Sentiment: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)`);
 
     // Check if GPT-OSS-120B actually succeeded (not fallback)
     const gptSuccess = sentimentResult &&
@@ -751,9 +763,9 @@ export async function validateSentimentEnhancement(env) {
                       sentimentResult.confidence > 0 &&
                       !['distilbert_fallback'].includes(sentimentResult.method);
 
-    console.log(`   🤖 GPT-OSS-120B success: ${gptSuccess}`);
-    console.log(`   🔍 Sentiment method used: ${sentimentResult.method || sentimentResult.source}`);
-    console.log(`   🔍 Cloudflare AI available: ${!!env.AI}`);
+    logInfo(`GPT-OSS-120B success: ${gptSuccess}`);
+    logInfo(`Sentiment method used: ${sentimentResult.method || sentimentResult.source}`);
+    logInfo(`Cloudflare AI available: ${!!env.AI}`);
 
     return {
       success: true,
@@ -772,7 +784,7 @@ export async function validateSentimentEnhancement(env) {
     };
 
   } catch (error) {
-    console.error('❌ Sentiment enhancement validation failed:', error);
+    logError('Sentiment enhancement validation failed:', error);
     return {
       success: false,
       error: error.message,
