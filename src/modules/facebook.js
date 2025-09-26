@@ -284,23 +284,35 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
 
   await sendFacebookMessage(reportText, env);
   console.log(`📱 [FB-MORNING] ${cronExecutionId} Morning predictions sent via Facebook`);
-  
-  // Store detailed logging record
+
+  // Store detailed logging record with proper error handling
   const messagingKey = `fb_morning_${Date.now()}`;
-  await env.TRADING_RESULTS.put(
-    messagingKey,
-    JSON.stringify({
-      trigger_mode: 'morning_prediction_alerts',
-      message_sent: true,
-      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
-      includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
-      timestamp: now.toISOString(),
-      cron_execution_id: cronExecutionId,
-      message_type: 'morning_predictions'
-    }),
-    { expirationTtl: 604800 }
-  );
+  try {
+    console.log(`💾 [FB-MORNING-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
+    await env.TRADING_RESULTS.put(
+      messagingKey,
+      JSON.stringify({
+        trigger_mode: 'morning_prediction_alerts',
+        message_sent: true,
+        symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+        includes_dashboard_link: true,
+        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+        timestamp: now.toISOString(),
+        cron_execution_id: cronExecutionId,
+        message_type: 'morning_predictions'
+      }),
+      { expirationTtl: 604800 }
+    );
+    console.log(`✅ [FB-MORNING-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
+  } catch (kvError) {
+    console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
+    console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} KV key: ${messagingKey}`);
+    console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} Error details:`, {
+      message: kvError.message,
+      stack: kvError.stack
+    });
+    throw kvError; // Re-throw to indicate function failure
+  }
 }
 
 /**
