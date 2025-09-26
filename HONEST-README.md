@@ -5,7 +5,7 @@
 **What this system ACTUALLY is:**
 - 🏗️ **Technical Analysis Platform** with excellent modular architecture
 - 📊 **Real Market Data Integration** via Yahoo Finance API
-- 🔧 **Production-Ready Infrastructure** on Cloudflare Workers + Vercel
+- 🔧 **Production-Ready Infrastructure** on Cloudflare Workers
 - 📱 **Facebook Messenger Integration** for trading alerts
 - 📈 **Mathematical Prediction Algorithms** (NOT neural networks)
 
@@ -36,7 +36,7 @@
 Production Stack:
 ├── Cloudflare Worker (Orchestration + KV storage) ✅ REAL
 ├── Yahoo Finance API (Live market data) ✅ REAL
-├── Vercel Functions (Technical analysis endpoints) ✅ REAL (but NOT neural networks)
+├── Cloudflare Worker Functions (Technical analysis endpoints) ✅ REAL (but NOT neural networks)
 ├── Facebook Messenger (Alert system) ✅ REAL
 └── Weekly Dashboard (Data visualization) ✅ REAL
 ```
@@ -119,7 +119,7 @@ Production Stack:
 # Technical Analysis System (Current)
 cd /home/yanggf/a/cct
 npm install
-vercel dev
+npx wrangler dev
 
 # Honest API Endpoints
 /api/predict-tft     # Technical analysis (NOT TFT neural network)
