@@ -1,8 +1,12 @@
-# ModelScope to Google Colab Migration - COMPLETE
+# Architecture Migration History - ARCHIVED
 
-## 🎉 Migration Status: READY FOR DEPLOYMENT
+## 📜 Historical Document
 
-Your TFT+N-HITS trading system has been successfully migrated from ModelScope to Google Colab with the following deliverables:
+This document describes the original migration from ModelScope to Google Colab. **NOTE**: This system now uses a simplified GPT-OSS-120B + DistilBERT architecture via Cloudflare AI, eliminating the need for external GPU deployments.
+
+**Current Architecture**: GPT-OSS-120B (Primary) → DistilBERT (Fallback) - 100% Cloudflare-based
+
+### Original Migration Summary (ARCHIVED):
 
 ## 📁 Delivered Files
 

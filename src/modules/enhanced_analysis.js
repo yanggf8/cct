@@ -1,11 +1,10 @@
 /**
- * Enhanced Analysis Module with GLM-4.5 Sentiment Integration
- * Updated for ModelScope GLM-4.5 sentiment analysis
+ * Enhanced Analysis Module with GPT-OSS-120B Sentiment Integration
+ * Simplified two-tier fallback: GPT-OSS-120B → DistilBERT
  */
 
 import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
-import { getModelScopeAISentiment } from './cloudflare_ai_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
 import { storeSymbolAnalysis } from './data.js';
 
@@ -18,8 +17,8 @@ export async function runEnhancedAnalysis(env, options = {}) {
   console.log('🚀 Starting Enhanced Analysis with Sentiment Integration...');
 
   try {
-    // Step 1: SENTIMENT-FIRST - Run GLM-4.5 sentiment analysis first
-    console.log('💭 Step 1: Running sentiment-first analysis (GLM-4.5)...');
+    // Step 1: SENTIMENT-FIRST - Run GPT-OSS-120B sentiment analysis first
+    console.log('💭 Step 1: Running sentiment-first analysis (GPT-OSS-120B)...');
     const sentimentResults = await runSentimentFirstAnalysis(env, options);
 
     // Step 2: Add technical analysis as reference confirmation
@@ -110,14 +109,13 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
 }
 
 /**
- * Get sentiment analysis with three-tier fallback chain
- * Primary: ModelScope GLM-4.5 → Intelligent: Llama 3.1 → Final: DistilBERT
+ * Get sentiment analysis with two-tier fallback chain
+ * Primary: GPT-OSS-120B → Fallback: DistilBERT
  */
 async function getSentimentWithFallbackChain(symbol, newsData, env) {
   console.log(`🔍 SENTIMENT DEBUG: Starting getSentimentWithFallbackChain for ${symbol}`);
   console.log(`🔍 SENTIMENT DEBUG: News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
-  console.log(`🔍 SENTIMENT DEBUG: env.MODELSCOPE_API_KEY available: ${!!env.MODELSCOPE_API_KEY}`);
-  console.log(`🔍 SENTIMENT DEBUG: env.MODELSCOPE_API_KEY length: ${env.MODELSCOPE_API_KEY?.length || 0}`);
+  console.log(`🔍 SENTIMENT DEBUG: env.AI available: ${!!env.AI}`);
 
   // Phase 1: Start with free news APIs and rule-based sentiment
   if (!newsData || newsData.length === 0) {
@@ -132,7 +130,7 @@ async function getSentimentWithFallbackChain(symbol, newsData, env) {
   }
 
   try {
-    // Primary: Use Cloudflare GPT-OSS-120B (fast and reliable)
+    // Primary: Use Cloudflare GPT-OSS-120B (main sentiment analysis)
     if (env.AI) {
       console.log(`🔍 SENTIMENT DEBUG: Cloudflare AI available, using GPT-OSS-120B...`);
       console.log(`   🧠 Using Cloudflare GPT-OSS-120B sentiment analysis for ${symbol}...`);

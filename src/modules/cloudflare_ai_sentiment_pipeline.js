@@ -11,6 +11,13 @@ console.log('🔥 LOADING MODELSCOPE GLM-4.5 SENTIMENT PIPELINE MODULE 2025-09-1
 import { getFreeStockNews as getNewsData } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, calculateModelCost } from './sentiment_utils.js';
 
+// Cloudflare AI Configuration for DistilBERT fallback
+const CLOUDFLARE_AI_CONFIG = {
+  models: {
+    sentiment: '@cf/huggingface/distilbert-sst-2-int8'
+  }
+};
+
 // ModelScope GLM-4.5 Configuration
 const MODELSCOPE_AI_CONFIG = {
   models: {

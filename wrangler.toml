@@ -1,4 +1,4 @@
-# Wrangler configuration for TFT Trading System Worker (GLM-4.5 Sentiment)
+# Wrangler configuration for TFT Trading System Worker (GPT-OSS-120B Sentiment)
 
 name = "tft-trading-system"
 main = "src/index.js"
@@ -26,7 +26,7 @@ binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
-# AI binding for Llama 3.1 fallback (when ModelScope GLM-4.5 fails)
+# AI binding for GPT-OSS-120B sentiment analysis and DistilBERT fallback
 [ai]
 binding = "AI"
 
@@ -47,19 +47,11 @@ WORKER_VERSION = "1.0"
 TIMEZONE = "America/New_York"
 ENHANCED_MODELS_BUCKET = "enhanced-trading-models"
 
-# Explicit secret bindings (for troubleshooting)
-# Secrets are typically auto-available but adding explicit binding for ModelScope
-# [secrets]
-# MODELSCOPE_API_KEY = "MODELSCOPE_API_KEY"
-
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:
 # - WORKER_API_KEY: API key for protecting sensitive endpoints (REQUIRED)
 # - FACEBOOK_PAGE_TOKEN: Facebook Messenger bot token
 # - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
-#
-# ModelScope GLM-4.5 API key (Primary sentiment analysis):
-# - MODELSCOPE_API_KEY: ModelScope API key for GLM-4.5 (2000 free calls/day)
 #
 # Free News API keys:
 # - FMP_API_KEY: Financial Modeling Prep free API key (financialmodelingprep.com)
@@ -73,6 +65,5 @@ ENHANCED_MODELS_BUCKET = "enhanced-trading-models"
 #
 # Example deployment commands:
 # wrangler secret put WORKER_API_KEY
-# wrangler secret put MODELSCOPE_API_KEY
 # wrangler secret put FMP_API_KEY
 # wrangler secret put NEWSAPI_KEY
