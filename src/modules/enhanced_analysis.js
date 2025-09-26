@@ -75,127 +75,92 @@ async function addSentimentAnalysis(technicalAnalysis, env) {
   const symbols = Object.keys(technicalAnalysis.trading_signals);
   logInfo(`Adding sentiment analysis for ${symbols.length} symbols...`);
 
-  // Process sentiment for each symbol
-  for (const symbol of symbols) {
-    try {
-      logSentimentDebug(`Analyzing sentiment for ${symbol}...`);
+  // Process symbols in parallel with conservative batching
+  const batchSize = 2; // Conservative batch size to stay within rate limits
+  const batches = [];
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    batches.push(symbols.slice(i, i + batchSize));
+  }
 
-      // Get the existing technical signal
-      const technicalSignal = technicalAnalysis.trading_signals[symbol];
+  logInfo(`Processing ${symbols.length} symbols in ${batches.length} batches of ${batchSize} (parallel processing)`);
 
-      // Phase 1: Get free news data
-      const newsData = await getFreeStockNews(symbol, env);
+  for (const batch of batches) {
+    // Process each batch in parallel
+    const batchPromises = batch.map(async (symbol) => {
+      try {
+        logSentimentDebug(`Analyzing sentiment for ${symbol}...`);
 
-      // Phase 1: Basic sentiment analysis (rule-based + free APIs)
-      const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
+        // Get the existing technical signal
+        const technicalSignal = technicalAnalysis.trading_signals[symbol];
 
-      // Combine technical and sentiment signals
-      const enhancedSignal = combineSignals(technicalSignal, sentimentResult, symbol);
+        // Get free news data
+        const newsData = await getFreeStockNews(symbol, env);
 
-      // Update the trading signal with enhanced data
-      technicalAnalysis.trading_signals[symbol] = {
-        ...technicalSignal,
-        sentiment_analysis: sentimentResult,
-        enhanced_prediction: enhancedSignal,
-        enhancement_method: 'phase1_basic'
-      };
+        // Basic sentiment analysis
+        const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
 
-      const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
-      const modelsInfo = sentimentResult.models_used ? ` using ${sentimentResult.models_used.join(' + ')}` : '';
-      logInfo(`${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)${validationInfo}${modelsInfo}`);
+        // Combine technical and sentiment signals
+        const enhancedSignal = combineSignals(technicalSignal, sentimentResult, symbol);
 
-    } catch (error) {
-      logError(`Sentiment analysis failed for ${symbol}:`, error.message);
+        const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
+        const modelsInfo = sentimentResult.models_used ? ` using ${sentimentResult.models_used.join(' + ')}` : '';
+        logInfo(`${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)${validationInfo}${modelsInfo}`);
 
-      // Add empty sentiment data to maintain structure
-      technicalAnalysis.trading_signals[symbol].sentiment_analysis = {
-        sentiment: 'neutral',
-        confidence: 0,
-        reasoning: 'Sentiment analysis failed',
-        source_count: 0,
-        error: error.message
-      };
+        return {
+          symbol,
+          success: true,
+          enhancedSignal: {
+            ...technicalSignal,
+            sentiment_analysis: sentimentResult,
+            enhanced_prediction: enhancedSignal,
+            enhancement_method: 'phase1_basic'
+          }
+        };
+
+      } catch (error) {
+        logError(`Sentiment analysis failed for ${symbol}:`, error.message);
+
+        return {
+          symbol,
+          success: false,
+          error: error.message,
+          enhancedSignal: {
+            ...technicalAnalysis.trading_signals[symbol],
+            sentiment_analysis: {
+              sentiment: 'neutral',
+              confidence: 0,
+              reasoning: 'Sentiment analysis failed',
+              source_count: 0,
+              error: error.message
+            }
+          }
+        };
+      }
+    });
+
+    // Wait for batch to complete
+    const batchResults = await Promise.allSettled(batchPromises);
+
+    // Process batch results
+    batchResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        const { symbol, enhancedSignal } = result.value;
+        technicalAnalysis.trading_signals[symbol] = enhancedSignal;
+      } else {
+        const symbol = result.reason?.symbol || 'unknown';
+        logError(`Sentiment analysis promise rejected for ${symbol}:`, result.reason?.message);
+      }
+    });
+
+    // Small delay between batches to be extra conservative
+    if (batches.indexOf(batch) < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
   return technicalAnalysis;
 }
 
-/**
- * Get sentiment analysis with two-tier fallback chain
- * Primary: GPT-OSS-120B → Fallback: DistilBERT
- */
-async function getSentimentWithFallbackChain(symbol, newsData, env) {
-  logSentimentDebug(`Starting getSentimentWithFallbackChain for ${symbol}`);
-  logSentimentDebug(`News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
-  logSentimentDebug(`env.AI available: ${!!env.AI}`);
-
-  // Phase 1: Start with free news APIs and rule-based sentiment
-  if (!newsData || newsData.length === 0) {
-    logSentimentDebug('Returning no_data - no news available');
-    return {
-      sentiment: 'neutral',
-      confidence: 0,
-      reasoning: 'No news data available',
-      source_count: 0,
-      method: 'no_data'
-    };
-  }
-
-  try {
-    // Primary: Use Cloudflare GPT-OSS-120B (main sentiment analysis)
-    if (env.AI) {
-      logSentimentDebug('Cloudflare AI available, using GPT-OSS-120B...');
-      logAIDebug(`Using Cloudflare GPT-OSS-120B sentiment analysis for ${symbol}...`);
-      const result = await getGPTOSSSentiment(symbol, newsData, env);
-      logSentimentDebug('GPT-OSS-120B result:', {
-        sentiment: result?.sentiment,
-        confidence: result?.confidence,
-        source: result?.source,
-        method: result?.method,
-        has_error: !!result?.error_details
-      });
-      return result;
-    }
-
-    // Fallback: Use DistilBERT if GPT-OSS-120B fails or unavailable
-    logSentimentDebug('No Cloudflare AI, using DistilBERT fallback');
-    logAIDebug(`Using DistilBERT sentiment analysis for ${symbol}...`);
-    const distilbertResult = await getDistilBERTSentiment(symbol, newsData, env);
-    logSentimentDebug('DistilBERT result:', distilbertResult);
-    return distilbertResult;
-
-  } catch (error) {
-    logError('GPT-OSS-120B failed, error:', {
-      error_message: error.message,
-      error_stack: error.stack?.substring(0, 200),
-      symbol: symbol
-    });
-    logError(`GPT-OSS-120B sentiment failed for ${symbol}, using DistilBERT fallback:`, error.message);
-
-    // Try DistilBERT fallback
-    try {
-      const distilbertFallback = await getDistilBERTSentiment(symbol, newsData, env);
-      logInfo(`DistilBERT fallback successful for ${symbol}`);
-      return distilbertFallback;
-    } catch (distilbertError) {
-      logError(`All sentiment analysis methods failed for ${symbol}:`, distilbertError.message);
-
-      // Return neutral sentiment as final fallback
-      return {
-        sentiment: 'neutral',
-        confidence: 0.1,
-        reasoning: `All sentiment analysis methods failed: ${error.message}`,
-        source_count: newsData?.length || 0,
-        method: 'error_fallback',
-        error_details: {
-          primary_error: error.message,
-          fallback_error: distilbertError.message
-        }
-      };
-    }
-  }
-}
 
 /**
  * Cloudflare GPT-OSS-120B sentiment analysis (primary method)
@@ -587,48 +552,87 @@ async function runSentimentFirstAnalysis(env, options = {}) {
     symbols_analyzed: symbols
   };
 
-  // Process each symbol with sentiment analysis first
-  for (const symbol of symbols) {
-    try {
-      logAIDebug(`Analyzing ${symbol} sentiment with GPT-OSS-120B...`);
+  // Process symbols in small batches for parallel processing (conservative approach)
+  const batchSize = 2; // Process 2 symbols at a time to stay well within rate limits
+  const batches = [];
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    batches.push(symbols.slice(i, i + batchSize));
+  }
 
-      // Get news data for the symbol
-      const newsData = await getFreeStockNews(symbol, env);
+  logInfo(`Processing ${symbols.length} symbols in ${batches.length} batches of ${batchSize} (parallel processing)`);
 
-      // Run GPT sentiment analysis (primary decision maker)
-      const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
+  for (const batch of batches) {
+    // Process each batch in parallel
+    const batchPromises = batch.map(async (symbol) => {
+      try {
+        logAIDebug(`Analyzing ${symbol} sentiment with GPT-OSS-120B...`);
 
-      results.sentiment_signals[symbol] = {
-        symbol: symbol,
-        sentiment_analysis: sentimentResult,
-        news_count: newsData?.length || 0,
-        timestamp: new Date().toISOString(),
-        method: 'sentiment_first'
-      };
+        // Get news data for the symbol
+        const newsData = await getFreeStockNews(symbol, env);
 
-      const confidenceInfo = sentimentResult.confidence ? ` (${(sentimentResult.confidence * 100).toFixed(1)}%)` : '';
-      const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
-      logInfo(`${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
+        // Run GPT sentiment analysis (primary decision maker)
+        const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
 
-      // Process next symbol efficiently
+        const confidenceInfo = sentimentResult.confidence ? ` (${(sentimentResult.confidence * 100).toFixed(1)}%)` : '';
+        const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
+        logInfo(`${symbol}: ${sentimentResult.sentiment}${confidenceInfo}${validationInfo}`);
 
-    } catch (error) {
-      logError(`CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
-      logWarn(`Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
+        return {
+          symbol,
+          success: true,
+          sentimentResult,
+          newsCount: newsData?.length || 0
+        };
 
-      results.sentiment_signals[symbol] = {
-        symbol: symbol,
-        sentiment_analysis: {
-          sentiment: 'failed',
-          confidence: 0,
-          reasoning: 'Sentiment-first system: GPT analysis failed, skipping symbol',
-          error: true,
-          skip_technical: true
-        },
-        news_count: 0,
-        timestamp: new Date().toISOString(),
-        method: 'sentiment_first_skip'
-      };
+      } catch (error) {
+        logError(`CRITICAL: Sentiment analysis failed for ${symbol}:`, error.message);
+        logWarn(`Skipping ${symbol} - sentiment-first system requires working sentiment analysis`);
+
+        return {
+          symbol,
+          success: false,
+          error: error.message
+        };
+      }
+    });
+
+    // Wait for batch to complete
+    const batchResults = await Promise.allSettled(batchPromises);
+
+    // Process batch results
+    batchResults.forEach((result) => {
+      if (result.status === 'fulfilled' && result.value.success) {
+        const { symbol, sentimentResult, newsCount } = result.value;
+        results.sentiment_signals[symbol] = {
+          symbol: symbol,
+          sentiment_analysis: sentimentResult,
+          news_count: newsCount,
+          timestamp: new Date().toISOString(),
+          method: 'sentiment_first'
+        };
+      } else {
+        const symbol = result.status === 'fulfilled' ? result.value.symbol : 'unknown';
+        const error = result.status === 'fulfilled' ? result.value.error : result.reason?.message;
+
+        results.sentiment_signals[symbol] = {
+          symbol: symbol,
+          sentiment_analysis: {
+            sentiment: 'failed',
+            confidence: 0,
+            reasoning: 'Sentiment-first system: GPT analysis failed, skipping symbol',
+            error: true,
+            skip_technical: true
+          },
+          news_count: 0,
+          timestamp: new Date().toISOString(),
+          method: 'sentiment_first_skip'
+        };
+      }
+    });
+
+    // Small delay between batches to be extra conservative
+    if (batches.indexOf(batch) < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
