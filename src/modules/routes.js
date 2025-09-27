@@ -34,6 +34,14 @@ import {
   handleVerifyBackfill
 } from './handlers/index.js';
 
+// Import optimization test endpoints
+import {
+  handleOptimizationTest,
+  handleKPITest,
+  handleErrorTest,
+  handleOptimizedHealth
+} from './test-optimization-endpoint.js';
+
 // Legacy handlers that haven't been modularized yet
 import {
   handleFridayMondayPredictionsReport,
@@ -127,6 +135,14 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleGetResults(request, env);
     case '/health':
       return handleHealthCheck(request, env);
+    case '/test-optimization':
+      return handleOptimizationTest(request, env);
+    case '/test-kpi':
+      return handleKPITest(request, env);
+    case '/test-error':
+      return handleErrorTest(request, env);
+    case '/health-optimized':
+      return handleOptimizedHealth(request, env);
     case '/test-facebook':
       return handleFacebookTest(request, env);
     case '/weekly-report':

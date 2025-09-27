@@ -117,7 +117,10 @@
       "mcp__amazon-q-mcp-server__q_translate",
       "Bash(tree:*)",
       "Bash(python3:*)",
-      "Bash(TZ='America/New_York' date)"
+      "Bash(TZ='America/New_York' date)",
+      "Bash(chmod:*)",
+      "Bash(./comprehensive_optimization_test.sh:*)",
+      "Bash(xargs ls:*)"
     ],
     "deny": [],
     "ask": []

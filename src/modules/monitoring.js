@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
+import { CONFIG } from './config.js';
 
 const logger = createLogger('monitoring');
 
@@ -179,6 +180,203 @@ export const BusinessMetrics = {
     systemMetrics.incrementCounter('daily_summary.views', 1, { date });
   }
 };
+
+/**
+ * Enhanced Business KPI Tracking
+ */
+export const BusinessKPI = {
+  /**
+   * Track prediction accuracy against targets
+   */
+  trackPredictionAccuracy: (accuracy) => {
+    const target = CONFIG.BUSINESS_KPI.PREDICTION_ACCURACY_TARGET;
+    const isOnTarget = accuracy >= target;
+
+    systemMetrics.recordGauge('kpi.prediction_accuracy', accuracy * 100);
+    systemMetrics.recordGauge('kpi.prediction_accuracy_vs_target',
+      isOnTarget ? 100 : (accuracy / target) * 100);
+
+    if (!isOnTarget) {
+      logger.warn('Prediction accuracy below target', {
+        accuracy,
+        target,
+        deficit: target - accuracy
+      });
+    }
+  },
+
+  /**
+   * Track system performance against targets
+   */
+  trackPerformanceKPI: (responseTime, operation) => {
+    const target = CONFIG.BUSINESS_KPI.RESPONSE_TIME_TARGET_MS;
+    const performance = responseTime <= target ? 100 : (target / responseTime) * 100;
+
+    systemMetrics.recordGauge('kpi.response_time_performance', performance, { operation });
+    systemMetrics.recordTimer('kpi.response_time', responseTime, { operation });
+
+    if (responseTime > target) {
+      logger.warn('Response time exceeds target', {
+        responseTime,
+        target,
+        operation,
+        excess: responseTime - target
+      });
+    }
+  },
+
+  /**
+   * Track cost efficiency (should remain $0.00)
+   */
+  trackCostEfficiency: (actualCost = 0) => {
+    const target = CONFIG.BUSINESS_KPI.COST_PER_ANALYSIS_TARGET;
+    const efficiency = actualCost === target ? 100 : 0;
+
+    systemMetrics.recordGauge('kpi.cost_efficiency', efficiency);
+    systemMetrics.recordGauge('kpi.actual_cost', actualCost);
+
+    if (actualCost > target) {
+      logger.warn('Cost exceeds target', {
+        actualCost,
+        target,
+        excess: actualCost - target
+      });
+    }
+  },
+
+  /**
+   * Track system uptime against target
+   */
+  trackUptimeKPI: (uptimePercentage) => {
+    const target = CONFIG.BUSINESS_KPI.UPTIME_TARGET;
+    const performance = uptimePercentage >= target ? 100 : (uptimePercentage / target) * 100;
+
+    systemMetrics.recordGauge('kpi.uptime_performance', performance);
+    systemMetrics.recordGauge('kpi.uptime_percentage', uptimePercentage * 100);
+
+    if (uptimePercentage < target) {
+      logger.error('Uptime below target', {
+        uptime: uptimePercentage,
+        target,
+        downtime: (1 - uptimePercentage) * 100
+      });
+    }
+  },
+
+  /**
+   * Track cron execution reliability
+   */
+  trackCronReliability: (successCount, totalCount, triggerMode) => {
+    const reliability = totalCount > 0 ? (successCount / totalCount) : 1;
+
+    systemMetrics.recordGauge('kpi.cron_reliability', reliability * 100, { triggerMode });
+    systemMetrics.incrementCounter('kpi.cron_executions', totalCount, { triggerMode });
+    systemMetrics.incrementCounter('kpi.cron_successes', successCount, { triggerMode });
+
+    if (reliability < 0.95) {
+      logger.error('Cron reliability below threshold', {
+        reliability,
+        successCount,
+        totalCount,
+        triggerMode
+      });
+    }
+  },
+
+  /**
+   * Generate KPI dashboard data
+   */
+  generateKPIDashboard: () => {
+    const metrics = systemMetrics.getAllMetrics();
+
+    return {
+      prediction_accuracy: {
+        current: getLatestGauge(metrics.gauges, 'kpi.prediction_accuracy') || 0,
+        target: CONFIG.BUSINESS_KPI.PREDICTION_ACCURACY_TARGET * 100,
+        status: getKPIStatus('kpi.prediction_accuracy_vs_target', metrics.gauges)
+      },
+      response_time: {
+        current: getLatestTimer(metrics.timers, 'kpi.response_time') || 0,
+        target: CONFIG.BUSINESS_KPI.RESPONSE_TIME_TARGET_MS,
+        status: getKPIStatus('kpi.response_time_performance', metrics.gauges)
+      },
+      cost_efficiency: {
+        current: getLatestGauge(metrics.gauges, 'kpi.actual_cost') || 0,
+        target: CONFIG.BUSINESS_KPI.COST_PER_ANALYSIS_TARGET,
+        status: getLatestGauge(metrics.gauges, 'kpi.cost_efficiency') || 100
+      },
+      uptime: {
+        current: getLatestGauge(metrics.gauges, 'kpi.uptime_percentage') || 100,
+        target: CONFIG.BUSINESS_KPI.UPTIME_TARGET * 100,
+        status: getKPIStatus('kpi.uptime_performance', metrics.gauges)
+      },
+      cron_reliability: {
+        current: getLatestGauge(metrics.gauges, 'kpi.cron_reliability') || 100,
+        target: 95,
+        executions: getLatestCounter(metrics.counters, 'kpi.cron_executions') || 0
+      },
+      timestamp: new Date().toISOString(),
+      overall_health: calculateOverallKPIHealth(metrics)
+    };
+  }
+};
+
+/**
+ * Helper functions for KPI calculations
+ */
+function getLatestGauge(gauges, metricName) {
+  const matching = Object.entries(gauges)
+    .filter(([key]) => key.startsWith(metricName))
+    .map(([, value]) => value)
+    .sort((a, b) => b.timestamp - a.timestamp);
+
+  return matching.length > 0 ? matching[0].value : null;
+}
+
+function getLatestTimer(timers, metricName) {
+  const matching = Object.entries(timers)
+    .filter(([key]) => key.startsWith(metricName))
+    .map(([, value]) => value)
+    .sort((a, b) => b.timestamp - a.timestamp);
+
+  return matching.length > 0 ? matching[0].duration : null;
+}
+
+function getLatestCounter(counters, metricName) {
+  const matching = Object.entries(counters)
+    .filter(([key]) => key.startsWith(metricName))
+    .reduce((sum, [, value]) => sum + value, 0);
+
+  return matching;
+}
+
+function getKPIStatus(performanceMetric, gauges) {
+  const performance = getLatestGauge(gauges, performanceMetric);
+  if (performance === null) return 'unknown';
+  if (performance >= 95) return 'excellent';
+  if (performance >= 80) return 'good';
+  if (performance >= 60) return 'acceptable';
+  return 'poor';
+}
+
+function calculateOverallKPIHealth(metrics) {
+  const kpiMetrics = [
+    getLatestGauge(metrics.gauges, 'kpi.prediction_accuracy_vs_target'),
+    getLatestGauge(metrics.gauges, 'kpi.response_time_performance'),
+    getLatestGauge(metrics.gauges, 'kpi.cost_efficiency'),
+    getLatestGauge(metrics.gauges, 'kpi.uptime_performance'),
+    getLatestGauge(metrics.gauges, 'kpi.cron_reliability')
+  ].filter(v => v !== null);
+
+  if (kpiMetrics.length === 0) return 'unknown';
+
+  const avgPerformance = kpiMetrics.reduce((sum, val) => sum + val, 0) / kpiMetrics.length;
+
+  if (avgPerformance >= 95) return 'excellent';
+  if (avgPerformance >= 85) return 'good';
+  if (avgPerformance >= 70) return 'acceptable';
+  return 'needs-attention';
+}
 
 /**
  * Performance monitoring
