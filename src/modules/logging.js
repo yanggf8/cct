@@ -1,6 +1,6 @@
 /**
- * Logging Utility Module
- * Configurable logging with levels for production debugging
+ * Enhanced Structured Logging System
+ * Production-ready logging with structured JSON output and domain-specific loggers
  */
 
 // Log levels in order of severity
@@ -9,6 +9,13 @@ const LOG_LEVELS = {
   WARN: 1,
   INFO: 2,
   DEBUG: 3
+};
+
+const LOG_LEVEL_NAMES = {
+  0: 'ERROR',
+  1: 'WARN',
+  2: 'INFO',
+  3: 'DEBUG'
 };
 
 // Default log level (can be overridden by environment)
@@ -22,6 +29,9 @@ const ENV_TO_LEVEL = {
   'debug': LOG_LEVELS.DEBUG
 };
 
+// Global configuration
+let structuredLogging = false;
+
 /**
  * Initialize logging configuration
  */
@@ -29,9 +39,121 @@ export function initLogging(env) {
   const logLevelEnv = env.LOG_LEVEL || 'info';
   currentLogLevel = ENV_TO_LEVEL[logLevelEnv.toLowerCase()] || LOG_LEVELS.INFO;
 
+  // Enable structured logging in production
+  structuredLogging = env.STRUCTURED_LOGGING === 'true' || env.NODE_ENV === 'production';
+
   if (currentLogLevel >= LOG_LEVELS.DEBUG) {
-    console.log(`🔧 Logging initialized with level: ${logLevelEnv.toUpperCase()}`);
+    console.log(`🔧 Logging initialized with level: ${logLevelEnv.toUpperCase()}, structured: ${structuredLogging}`);
   }
+}
+
+/**
+ * Create a structured logger instance for a specific service
+ */
+export function createLogger(service, env = null) {
+  if (env) {
+    initLogging(env);
+  }
+
+  /**
+   * Core structured logging function
+   */
+  function log(level, message, metadata = {}) {
+    if (level > currentLogLevel) {
+      return; // Skip logging if below threshold
+    }
+
+    if (structuredLogging) {
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        level: LOG_LEVEL_NAMES[level],
+        service: service,
+        message: message,
+        ...metadata
+      };
+
+      // Add performance timing if available
+      if (typeof performance !== 'undefined') {
+        logEntry.performance_now = performance.now();
+      }
+
+      // Add environment context
+      if (typeof navigator !== 'undefined' && navigator.userAgent?.includes('Cloudflare-Workers')) {
+        logEntry.environment = 'cloudflare-workers';
+      }
+
+      // Output structured JSON
+      const output = JSON.stringify(logEntry);
+
+      switch (level) {
+        case LOG_LEVELS.ERROR:
+          console.error(output);
+          break;
+        case LOG_LEVELS.WARN:
+          console.warn(output);
+          break;
+        case LOG_LEVELS.DEBUG:
+          console.debug(output);
+          break;
+        default:
+          console.log(output);
+      }
+    } else {
+      // Fallback to legacy emoji logging
+      const emoji = {
+        [LOG_LEVELS.ERROR]: '❌',
+        [LOG_LEVELS.WARN]: '⚠️',
+        [LOG_LEVELS.INFO]: 'ℹ️',
+        [LOG_LEVELS.DEBUG]: '🔍'
+      }[level] || 'ℹ️';
+
+      const prefix = `${emoji} [${service}]`;
+      console.log(`${prefix} ${message}`, metadata);
+    }
+  }
+
+  return {
+    error: (message, metadata = {}) => log(LOG_LEVELS.ERROR, message, metadata),
+    warn: (message, metadata = {}) => log(LOG_LEVELS.WARN, message, metadata),
+    info: (message, metadata = {}) => log(LOG_LEVELS.INFO, message, metadata),
+    debug: (message, metadata = {}) => log(LOG_LEVELS.DEBUG, message, metadata),
+
+    // Specialized logging methods
+    request: (method, path, metadata = {}) => log(LOG_LEVELS.INFO, `${method} ${path}`, {
+      type: 'http_request',
+      method,
+      path,
+      ...metadata
+    }),
+
+    response: (status, path, duration, metadata = {}) => log(LOG_LEVELS.INFO, `Response ${status}`, {
+      type: 'http_response',
+      status,
+      path,
+      duration_ms: duration,
+      ...metadata
+    }),
+
+    performance: (operation, duration, metadata = {}) => log(LOG_LEVELS.INFO, `Performance: ${operation}`, {
+      type: 'performance',
+      operation,
+      duration_ms: duration,
+      ...metadata
+    }),
+
+    security: (event, metadata = {}) => log(LOG_LEVELS.WARN, `Security event: ${event}`, {
+      type: 'security',
+      event,
+      ...metadata
+    }),
+
+    business: (metric, value, metadata = {}) => log(LOG_LEVELS.INFO, `Business metric: ${metric}`, {
+      type: 'business_metric',
+      metric,
+      value,
+      ...metadata
+    })
+  };
 }
 
 /**

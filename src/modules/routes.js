@@ -1,40 +1,49 @@
 /**
  * HTTP Request Routing Module
+ * Enhanced with modular handlers and structured logging
  */
 
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
-import { handleDailySummaryPage } from './daily-summary-page.js';
+import { createRequestLogger, initLogging } from './logging.js';
+import { PerformanceMonitor, BusinessMetrics } from './monitoring.js';
+
+// Import modular handlers
 import {
   handleManualAnalysis,
   handleEnhancedFeatureAnalysis,
   handleIndependentTechnicalAnalysis,
+  handlePerSymbolAnalysis,
+  handleSentimentTest,
   handleGetResults,
+  handleFactTable,
+  handleCronHealth,
+  handleKVDebug,
+  handleKVWriteTest,
+  handleKVReadTest,
+  handleKVGet,
   handleHealthCheck,
+  handleModelHealth,
+  handleDebugEnvironment,
   handleFacebookTest,
+  handleTestAllFacebookMessages,
   handleWeeklyReport,
   handleFridayMarketCloseReport,
+  handleDailySummaryAPI,
+  handleDailySummaryPageRequest,
+  handleBackfillDailySummaries,
+  handleVerifyBackfill
+} from './handlers/index.js';
+
+// Legacy handlers that haven't been modularized yet
+import {
   handleFridayMondayPredictionsReport,
   handleHighConfidenceTest,
-  handleFactTable,
   handleKVCleanup,
   handleDebugWeekendMessage,
-  handleKVGet,
-  handleKVDebug,
-  handleSentimentTest,
   handleSentimentDebugTest,
   handleModelScopeTest,
   handleTestLlama,
-  handleDebugEnvironment,
-  handleModelHealth,
-  handleR2Upload,
-  handleTestAllFacebookMessages,
-  handlePerSymbolAnalysis,
-  handleKVWriteTest,
-  handleKVReadTest,
-  handleCronHealth,
-  handleDailySummaryAPI,
-  handleBackfillDailySummaries,
-  handleVerifyBackfill
+  handleR2Upload
 } from './handlers.js';
 
 /**
@@ -67,28 +76,49 @@ function validateRequest(request, url, env) {
 }
 
 /**
- * Main HTTP request handler
+ * Main HTTP request handler with monitoring and structured logging
  */
 export async function handleHttpRequest(request, env, ctx) {
+  // Initialize logging and monitoring
+  initLogging(env);
+  const requestLogger = createRequestLogger('http');
   const url = new URL(request.url);
+
+  // Start performance monitoring
+  const monitor = PerformanceMonitor.monitorRequest(request);
+
+  // Log incoming request
+  const startTime = requestLogger.logRequest(request);
+
+  try {
+    // Input validation and API key check for sensitive endpoints
+    const validationResult = validateRequest(request, url, env);
+    if (!validationResult.valid) {
+      const errorResponse = new Response(JSON.stringify({
+        success: false,
+        error: validationResult.error,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: validationResult.error.includes('API key') ? 401 : 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Log security event
+      if (validationResult.error.includes('API key')) {
+        BusinessMetrics.apiRequest(url.pathname, request.method, 401, Date.now() - startTime);
+      }
+
+      monitor.complete(errorResponse);
+      requestLogger.logResponse(errorResponse, url.pathname, startTime);
+      return errorResponse;
+    }
   
-  // Input validation and API key check for sensitive endpoints
-  const validationResult = validateRequest(request, url, env);
-  if (!validationResult.valid) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: validationResult.error,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      status: validationResult.error.includes('API key') ? 401 : 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-  
-  // Route requests to appropriate handlers
-  switch (url.pathname) {
-    case '/analyze':
-      return handleManualAnalysis(request, env);
+    // Route requests to appropriate handlers
+    let response;
+    switch (url.pathname) {
+      case '/analyze':
+        response = await handleManualAnalysis(request, env);
+        break;
     case '/enhanced-feature-analysis':
       return handleEnhancedFeatureAnalysis(request, env);
     case '/technical-analysis':
@@ -126,7 +156,8 @@ export async function handleHttpRequest(request, env, ctx) {
     case '/api/weekly-data':
       return handleWeeklyDataAPI(request, env);
     case '/daily-summary':
-      return handleDailySummaryPage(request, env);
+      response = await handleDailySummaryPageRequest(request, env);
+      break;
     case '/test-sentiment':
       return handleSentimentTest(request, env);
     case '/debug-sentiment':
@@ -192,18 +223,46 @@ export async function handleHttpRequest(request, env, ctx) {
         });
       }
       
-      return new Response(JSON.stringify({
+      response = new Response(JSON.stringify({
         success: false,
         error: 'Endpoint not found',
         requested_path: url.pathname,
         timestamp: new Date().toISOString(),
         available_endpoints: [
           '/', '/health', '/model-health', '/analyze', '/results', '/fact-table',
-          '/weekly-analysis', '/api/weekly-data', '/test-sentiment'
+          '/weekly-analysis', '/api/weekly-data', '/test-sentiment', '/daily-summary'
         ]
       }, null, 2), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
+      break;
+    }
+
+    // Complete monitoring and logging
+    if (response) {
+      monitor.complete(response);
+      requestLogger.logResponse(response, url.pathname, startTime);
+      return response;
+    }
+
+  } catch (error) {
+    // Handle unexpected errors
+    const errorResponse = new Response(JSON.stringify({
+      success: false,
+      error: 'Internal server error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    monitor.complete(errorResponse);
+    requestLogger.logResponse(errorResponse, url.pathname, startTime, {
+      error: error.message
+    });
+
+    return errorResponse;
   }
 }

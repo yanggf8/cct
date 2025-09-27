@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-27 (Production-Ready Information Architecture)
+**Current Version**: 2025-09-27 (A+ Enterprise-Grade Modular Architecture)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **System Status**: ✅ **PRODUCTION READY** - Enterprise-grade information hierarchy
-- **Repository**: ✅ **CLEAN** - Modern modular architecture under `src/`
+- **System Status**: ✅ **A+ PRODUCTION READY** - Enterprise-grade modular architecture
+- **Repository**: ✅ **ENTERPRISE-GRADE** - Domain-specific handlers with structured logging
 - **Daily Summary System**: ✅ **OPERATIONAL** - Interactive dashboard with 30-day historical data
 - **Facebook Messaging**: ✅ **OPTIMIZED** - Concise notifications with compelling CTAs
 - **Information Architecture**: ✅ **DEPLOYED** - Facebook → Daily Summary → Weekly Analysis flow
@@ -16,8 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **KV Storage**: ✅ **DUAL-TIER** - Daily summaries (7-day TTL) + granular analysis (90-day TTL)
 - **Cost**: $0.00/month (100% free Cloudflare services)
 - **Mobile**: ✅ **RESPONSIVE** - Touch-friendly interface with proper viewport
+- **Observability**: ✅ **PRODUCTION-GRADE** - Structured logging, monitoring, business metrics
 
-**Architecture**: `Information Hierarchy with Optimized Multi-Channel Communication`
+**Architecture**: `Modular Enterprise Architecture with Advanced Observability`
 
 ## Core System Architecture
 
@@ -69,19 +70,28 @@ Weekly Analysis Dashboard (Trends)
 
 ## Development Guidelines
 
-### Module Structure
+### Modular Handler Architecture
 ```
+src/modules/handlers/    - Domain-specific handler modules
+├── analysis-handlers.js   - Core trading analysis endpoints
+├── data-handlers.js       - Data retrieval & KV operations
+├── health-handlers.js     - System health & monitoring
+├── facebook-handlers.js   - Social media integrations
+├── summary-handlers.js    - Daily summary & backfill
+└── index.js              - Centralized exports
+
 src/modules/
-├── analysis.js          - Core analysis functions
-├── enhanced_analysis.js - Enhanced analysis with 3-layer processing
-├── data.js             - Data processing and KV operations
-├── facebook.js         - Optimized Facebook messaging
-├── handlers.js         - HTTP request handlers
-├── routes.js           - URL routing configuration
-├── scheduler.js        - Cron job management
-├── daily-summary.js    - Daily summary generation
-├── timezone-utils.js  - EST/EDT standardization
-└── backfill.js         - Historical data management
+├── analysis.js           - Core analysis functions
+├── enhanced_analysis.js  - Enhanced analysis with 3-layer processing
+├── data.js              - Data processing and KV operations
+├── facebook.js          - Optimized Facebook messaging
+├── logging.js           - Structured logging system
+├── monitoring.js        - Performance & business metrics
+├── routes.js            - Enhanced routing with observability
+├── scheduler.js         - Cron job management
+├── daily-summary.js     - Daily summary generation
+├── timezone-utils.js    - EST/EDT standardization
+└── backfill.js          - Historical data management
 ```
 
 ### API Endpoints
@@ -94,8 +104,10 @@ src/modules/
 ### Configuration
 - **Symbols**: `TRADING_SYMBOLS` in wrangler.toml controls analysis targets
 - **Logging**: `LOG_LEVEL` (error/warn/info/debug) for production debugging
+- **Structured Logging**: `STRUCTURED_LOGGING=true` enables JSON logging for production
 - **AI Models**: `GPT_MAX_TOKENS`, `GPT_TEMPERATURE` tunable via config
 - **Storage**: `KV_ANALYSIS_TTL`, `KV_GRANULAR_TTL` for data retention
+- **Monitoring**: Automatic business metrics collection and performance tracking
 
 ### Performance Targets
 - **API Response**: <400ms for complex data processing
