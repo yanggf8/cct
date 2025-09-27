@@ -116,7 +116,8 @@
       "Read(//tmp/**)",
       "mcp__amazon-q-mcp-server__q_translate",
       "Bash(tree:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(TZ='America/New_York' date)"
     ],
     "deny": [],
     "ask": []

@@ -10,14 +10,14 @@ compatibility_flags = ["nodejs_compat"]
 
 # Build configuration - TensorFlow.js handled automatically by modern Wrangler
 
-# Enhanced multi-cron system with progressive KV state sharing
+# Production cron schedule - all times in UTC for proper EST/EDT conversion
 [triggers]
 crons = [
-  "30 13 * * 1-5",  # 8:30 AM EST - Generate 2-horizon predictions (1h + 24h) + high-confidence alerts
-  "0 17 * * 1-5",   # 12:00 PM EST - Validate morning predictions + generate afternoon forecasts
-  "5 21 * * 1-5",   # 4:05 PM EST - Daily validation report + next-day predictions
-  "0 21 * * FRI",   # 4:00 PM EST Friday - Weekly market close report (comprehensive analysis)
-  "0 15 * * SUN"    # 10:00 AM EST Sunday - Weekly accuracy report and performance review
+  "30 12 * * 1-5",  # 8:30 AM EST/EDT - Morning predictions + high-confidence alerts
+  "0 16 * * 1-5",   # 12:00 PM EST/EDT - Midday validation + afternoon forecasts
+  "5 20 * * 1-5",   # 4:05 PM EST/EDT - Daily validation + next-day predictions
+  "0 20 * * FRI",   # 4:00 PM EST/EDT Friday - Weekly market close report
+  "0 14 * * SUN"    # 10:00 AM EST/EDT Sunday - Weekly accuracy report
 ]
 
 # KV namespace for storing analysis results

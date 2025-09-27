@@ -17,7 +17,6 @@ export async function handleDailySummaryPage(request, env) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Analysis Summary - TFT Trading System</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
     <style>
         * {
             margin: 0;

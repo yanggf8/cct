@@ -73,7 +73,12 @@ export async function handleDailySummaryAPI(request, env) {
       generated: !dailySummary
     });
 
-    return new Response(JSON.stringify(dailySummary, null, 2), {
+    return new Response(JSON.stringify({
+      success: true,
+      data: dailySummary,
+      request_id: requestId,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {

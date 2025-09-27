@@ -241,3 +241,51 @@ export function isDebugEnabled() {
 export function getCurrentLogLevel() {
   return Object.keys(LOG_LEVELS).find(key => LOG_LEVELS[key] === currentLogLevel) || 'UNKNOWN';
 }
+
+// Additional exports for handler modules
+export function logBusinessMetric(metric, value, metadata = {}) {
+  const logger = createLogger('business');
+  logger.business(metric, value, metadata);
+}
+
+export function logHealthCheck(component, status, details = {}) {
+  const logger = createLogger('health');
+  logger.info(`Health check: ${component}`, {
+    type: 'health_check',
+    component,
+    status,
+    details
+  });
+}
+
+export function createRequestLogger(service) {
+  const logger = createLogger(`request-${service}`);
+
+  return {
+    logRequest: (request) => {
+      const startTime = Date.now();
+      const url = new URL(request.url);
+
+      logger.info('Request received', {
+        method: request.method,
+        path: url.pathname,
+        userAgent: request.headers.get('User-Agent'),
+        ip: request.headers.get('CF-Connecting-IP'),
+        timestamp: startTime
+      });
+
+      return startTime;
+    },
+
+    logResponse: (response, path, startTime, metadata = {}) => {
+      const duration = Date.now() - startTime;
+
+      logger.info('Request completed', {
+        path,
+        status: response.status,
+        duration,
+        ...metadata
+      });
+    }
+  };
+}
