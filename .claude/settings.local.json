@@ -120,7 +120,8 @@
       "Bash(TZ='America/New_York' date)",
       "Bash(chmod:*)",
       "Bash(./comprehensive_optimization_test.sh:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(./comprehensive_enhancement_test.sh:*)"
     ],
     "deny": [],
     "ask": []

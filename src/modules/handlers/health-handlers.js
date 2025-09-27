@@ -6,58 +6,28 @@
 import { getHealthCheckResponse } from '../facebook.js';
 import { runTFTInference, runNHITSInference } from '../models.js';
 import { createLogger, logHealthCheck } from '../logging.js';
+import { createHealthHandler } from '../handler-factory.js';
+import { createHealthResponse } from '../response-factory.js';
+import { BusinessMetrics } from '../monitoring.js';
 
 const logger = createLogger('health-handlers');
 
 /**
  * Handle basic health check requests
  */
-export async function handleHealthCheck(request, env) {
-  const requestId = crypto.randomUUID();
+export const handleHealthCheck = createHealthHandler('system-health', async (env, ctx) => {
+  const healthResponse = await getHealthCheckResponse(env);
 
-  try {
-    logger.info('Health check requested', { requestId });
+  // Track health check metrics
+  BusinessMetrics.apiRequest('/health', 'GET', 200, Date.now() - ctx.startTime);
 
-    const healthResponse = await getHealthCheckResponse(env);
+  logHealthCheck('basic-health', 'healthy', {
+    requestId: ctx.requestId,
+    components: healthResponse
+  });
 
-    logHealthCheck('basic-health', 'healthy', {
-      requestId,
-      components: healthResponse
-    });
-
-    return new Response(JSON.stringify({
-      success: true,
-      status: 'healthy',
-      ...healthResponse,
-      request_id: requestId,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    logger.error('Health check failed', {
-      requestId,
-      error: error.message,
-      stack: error.stack
-    });
-
-    logHealthCheck('basic-health', 'unhealthy', {
-      requestId,
-      error: error.message
-    });
-
-    return new Response(JSON.stringify({
-      success: false,
-      status: 'unhealthy',
-      error: error.message,
-      request_id: requestId,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
+  return healthResponse;
+});
 
 /**
  * Handle model health check requests

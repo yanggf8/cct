@@ -339,6 +339,127 @@ export async function handleDailySummaryPage(request, env) {
             color: #00f2fe;
         }
 
+        /* KPI Dashboard Styles */
+        .kpi-dashboard {
+            margin: 40px 0;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .kpi-dashboard h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4facfe;
+            font-size: 1.8rem;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .kpi-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(79, 172, 254, 0.2);
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .kpi-card h4 {
+            color: #4facfe;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .kpi-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .kpi-target {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .kpi-status {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .kpi-status.excellent {
+            background: rgba(72, 219, 251, 0.2);
+            color: #48dbfb;
+        }
+
+        .kpi-status.good {
+            background: rgba(254, 202, 87, 0.2);
+            color: #feca57;
+        }
+
+        .kpi-status.poor {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+        }
+
+        .kpi-status.unknown {
+            background: rgba(255, 255, 255, 0.1);
+            color: #999;
+        }
+
+        .kpi-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+
+        .kpi-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: all 0.8s ease;
+            background: linear-gradient(90deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%);
+        }
+
+        .kpi-fill.excellent {
+            background: linear-gradient(90deg, #48dbfb, #00f2fe);
+        }
+
+        .kpi-fill.good {
+            background: linear-gradient(90deg, #feca57, #ff9ff3);
+        }
+
+        .kpi-fill.poor {
+            background: linear-gradient(90deg, #ff6b6b, #ee5a24);
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 2rem;
@@ -347,6 +468,20 @@ export async function handleDailySummaryPage(request, env) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+
+            .kpi-card {
+                padding: 20px;
+            }
+
+            .kpi-value {
+                font-size: 1.8rem;
+            }
+        }
 
             .stat-card .value {
                 font-size: 2rem;
@@ -413,6 +548,52 @@ export async function handleDailySummaryPage(request, env) {
                     <h3>Conflicts Detected</h3>
                     <div class="value" id="conflicts-count">-</div>
                     <div class="label">AI vs Technical</div>
+                </div>
+            </div>
+
+            <!-- KPI Dashboard Section -->
+            <div class="kpi-dashboard">
+                <h2>📊 Real-Time Business KPIs</h2>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <h4>📈 Prediction Accuracy</h4>
+                        <div class="kpi-value" id="kpi-accuracy">-</div>
+                        <div class="kpi-target">Target: 70%</div>
+                        <div class="kpi-status" id="kpi-accuracy-status">-</div>
+                        <div class="kpi-bar">
+                            <div class="kpi-fill" id="kpi-accuracy-fill"></div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <h4>⚡ Response Time</h4>
+                        <div class="kpi-value" id="kpi-response-time">-</div>
+                        <div class="kpi-target">Target: < 200ms</div>
+                        <div class="kpi-status" id="kpi-response-status">-</div>
+                        <div class="kpi-bar">
+                            <div class="kpi-fill" id="kpi-response-fill"></div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <h4>💰 Cost Efficiency</h4>
+                        <div class="kpi-value" id="kpi-cost">$0.00</div>
+                        <div class="kpi-target">Target: $0.00</div>
+                        <div class="kpi-status" id="kpi-cost-status">Excellent</div>
+                        <div class="kpi-bar">
+                            <div class="kpi-fill" id="kpi-cost-fill" style="width: 100%; background: #48dbfb;"></div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card">
+                        <h4>🔄 System Health</h4>
+                        <div class="kpi-value" id="kpi-health">-</div>
+                        <div class="kpi-target">Overall KPI Status</div>
+                        <div class="kpi-status" id="kpi-health-status">-</div>
+                        <div class="kpi-bar">
+                            <div class="kpi-fill" id="kpi-health-fill"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -529,6 +710,9 @@ export async function handleDailySummaryPage(request, env) {
 
                 // Update symbol breakdown
                 updateSymbolBreakdown(data.symbols || []);
+
+                // Load KPI data
+                loadKPIData();
 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
@@ -775,6 +959,94 @@ export async function handleDailySummaryPage(request, env) {
                 case 'bearish': return '🧊';
                 case 'neutral': return '⚖️';
                 default: return '❓';
+            }
+        }
+
+        async function loadKPIData() {
+            try {
+                // Fetch KPI data from optimization endpoint
+                const response = await fetch('/test-kpi');
+                if (!response.ok) {
+                    console.warn('KPI endpoint not available, using defaults');
+                    updateKPIDisplay({
+                        prediction_accuracy: { current: 0, status: 'unknown' },
+                        response_time: { current: 0, status: 'unknown' },
+                        cost_efficiency: { current: 0, status: 'excellent' },
+                        overall_health: 'unknown'
+                    });
+                    return;
+                }
+
+                const result = await response.json();
+                if (result.success && result.data) {
+                    updateKPIDisplay(result.data);
+                }
+            } catch (error) {
+                console.warn('Error loading KPI data:', error);
+                // Use default values for KPI display
+                updateKPIDisplay({
+                    prediction_accuracy: { current: 0, status: 'unknown' },
+                    response_time: { current: 0, status: 'unknown' },
+                    cost_efficiency: { current: 0, status: 'excellent' },
+                    overall_health: 'unknown'
+                });
+            }
+        }
+
+        function updateKPIDisplay(kpiData) {
+            // Update Prediction Accuracy
+            const accuracy = kpiData.prediction_accuracy || {};
+            document.getElementById('kpi-accuracy').textContent = accuracy.current ? Math.round(accuracy.current) + '%' : '-';
+            document.getElementById('kpi-accuracy-status').textContent = getStatusText(accuracy.status || 'unknown');
+            document.getElementById('kpi-accuracy-status').className = 'kpi-status ' + (accuracy.status || 'unknown');
+            updateKPIBar('kpi-accuracy-fill', accuracy.current || 0, 100, accuracy.status);
+
+            // Update Response Time
+            const responseTime = kpiData.response_time || {};
+            document.getElementById('kpi-response-time').textContent = responseTime.current ? responseTime.current + 'ms' : '-';
+            document.getElementById('kpi-response-status').textContent = getStatusText(responseTime.status || 'unknown');
+            document.getElementById('kpi-response-status').className = 'kpi-status ' + (responseTime.status || 'unknown');
+            updateKPIBar('kpi-response-fill', responseTime.current ? Math.min((200 / responseTime.current) * 100, 100) : 0, 100, responseTime.status);
+
+            // Cost Efficiency is always excellent at $0.00
+            document.getElementById('kpi-cost').textContent = '$0.00';
+            document.getElementById('kpi-cost-status').textContent = 'Excellent';
+            document.getElementById('kpi-cost-status').className = 'kpi-status excellent';
+
+            // Update Overall Health
+            const health = kpiData.overall_health || 'unknown';
+            document.getElementById('kpi-health').textContent = health.charAt(0).toUpperCase() + health.slice(1);
+            document.getElementById('kpi-health-status').textContent = getStatusText(health);
+            document.getElementById('kpi-health-status').className = 'kpi-status ' + health;
+            updateKPIBar('kpi-health-fill', getHealthPercentage(health), 100, health);
+        }
+
+        function updateKPIBar(elementId, value, max, status) {
+            const fillElement = document.getElementById(elementId);
+            const percentage = Math.min((value / max) * 100, 100);
+            fillElement.style.width = percentage + '%';
+            fillElement.className = 'kpi-fill ' + (status || 'unknown');
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'excellent': return 'Excellent';
+                case 'good': return 'Good';
+                case 'acceptable': return 'Acceptable';
+                case 'poor': return 'Needs Attention';
+                case 'unknown':
+                default: return 'Loading...';
+            }
+        }
+
+        function getHealthPercentage(health) {
+            switch (health) {
+                case 'excellent': return 95;
+                case 'good': return 80;
+                case 'acceptable': return 65;
+                case 'needs-attention': return 40;
+                case 'poor': return 20;
+                default: return 0;
             }
         }
     </script>

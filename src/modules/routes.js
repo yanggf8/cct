@@ -39,7 +39,10 @@ import {
   handleOptimizationTest,
   handleKPITest,
   handleErrorTest,
-  handleOptimizedHealth
+  handleOptimizedHealth,
+  handlePerformanceTest,
+  handleAlertTest,
+  handleEnhancementStatus
 } from './test-optimization-endpoint.js';
 
 // Legacy handlers that haven't been modularized yet
@@ -143,6 +146,12 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleErrorTest(request, env);
     case '/health-optimized':
       return handleOptimizedHealth(request, env);
+    case '/test-performance':
+      return handlePerformanceTest(request, env);
+    case '/test-alert':
+      return handleAlertTest(request, env);
+    case '/enhancement-status':
+      return handleEnhancementStatus(request, env);
     case '/test-facebook':
       return handleFacebookTest(request, env);
     case '/weekly-report':

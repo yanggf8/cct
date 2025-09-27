@@ -9,82 +9,69 @@ import { runEnhancedFeatureAnalysis } from '../enhanced_feature_analysis.js';
 import { runIndependentTechnicalAnalysis } from '../independent_technical_analysis.js';
 import { analyzeSingleSymbol } from '../per_symbol_analysis.js';
 import { createLogger } from '../logging.js';
+import { createHandler, createAPIHandler } from '../handler-factory.js';
+import { createAnalysisResponse } from '../response-factory.js';
+import { BusinessMetrics } from '../monitoring.js';
 
 const logger = createLogger('analysis-handlers');
 
 /**
  * Handle manual analysis requests (Enhanced with sentiment)
  */
-export async function handleManualAnalysis(request, env) {
-  const requestId = crypto.randomUUID();
+export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async (request, env, ctx) => {
+  // Track business metrics
+  BusinessMetrics.analysisRequested('manual_enhanced', 5);
 
   try {
-    logger.info('Enhanced analysis requested', {
-      requestId,
-      trigger: 'manual_analysis_enhanced',
-      userAgent: request.headers.get('User-Agent'),
-      timestamp: new Date().toISOString()
-    });
-
     const analysis = await runEnhancedAnalysis(env, {
       triggerMode: 'manual_analysis_enhanced',
-      requestId
+      requestId: ctx.requestId
     });
 
-    logger.info('Enhanced analysis completed successfully', {
-      requestId,
+    // Track successful completion
+    BusinessMetrics.analysisCompleted('manual_enhanced',
+      analysis.symbols_analyzed?.length || 0,
+      analysis.execution_metrics?.total_time_ms || 0
+    );
+
+    return createAnalysisResponse(analysis, {
+      requestId: ctx.requestId,
       symbolsAnalyzed: analysis.symbols_analyzed?.length || 0,
-      performanceMetrics: analysis.performance_metrics,
-      duration: analysis.execution_metrics?.total_time_ms
-    });
-
-    return new Response(JSON.stringify(analysis, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
+      processingTime: analysis.execution_metrics?.total_time_ms,
+      confidence: analysis.overall_confidence
     });
 
   } catch (error) {
-    logger.error('Enhanced analysis failed, attempting fallback', {
-      requestId,
-      error: error.message,
-      stack: error.stack
-    });
-
+    // Try fallback to basic analysis
     try {
       const basicAnalysis = await runBasicAnalysis(env, {
         triggerMode: 'manual_analysis_fallback',
-        requestId
+        requestId: ctx.requestId
       });
+
       basicAnalysis.fallback_reason = error.message;
 
-      logger.warn('Fallback analysis completed', {
-        requestId,
-        fallbackReason: error.message,
-        symbolsAnalyzed: basicAnalysis.symbols_analyzed?.length || 0
-      });
+      BusinessMetrics.analysisCompleted('manual_fallback',
+        basicAnalysis.symbols_analyzed?.length || 0,
+        basicAnalysis.execution_metrics?.total_time_ms || 0
+      );
 
-      return new Response(JSON.stringify(basicAnalysis, null, 2), {
-        headers: { 'Content-Type': 'application/json' }
+      return createAnalysisResponse(basicAnalysis, {
+        requestId: ctx.requestId,
+        symbolsAnalyzed: basicAnalysis.symbols_analyzed?.length || 0,
+        processingTime: basicAnalysis.execution_metrics?.total_time_ms,
+        fallbackReason: error.message
       });
     } catch (fallbackError) {
-      logger.error('Both enhanced and fallback analysis failed', {
-        requestId,
-        enhancedError: error.message,
-        fallbackError: fallbackError.message
-      });
-
-      return new Response(JSON.stringify({
-        success: false,
-        error: fallbackError.message,
-        original_error: error.message,
-        request_id: requestId,
-        timestamp: new Date().toISOString()
-      }, null, 2), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      BusinessMetrics.analysisFailed('manual_enhanced', fallbackError.name);
+      throw fallbackError; // Let factory handle error response
     }
   }
-}
+}, {
+  enableMetrics: true,
+  enableAuth: false,
+  timeout: 120000 // 2 minutes for analysis
+});
 
 /**
  * Handle enhanced feature analysis requests
