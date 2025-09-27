@@ -515,6 +515,8 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
   // Count sentiment distribution for headline
   let bullishCount = 0;
   let bearishCount = 0;
+  let bullishSymbols = [];
+  let bearishSymbols = [];
   let highConfidenceSymbols = [];
   let symbolCount = 0;
 
@@ -526,8 +528,14 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
       const sentiment = sentimentLayer?.sentiment || 'neutral';
       const confidence = tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0;
 
-      if (sentiment === 'bullish') bullishCount++;
-      if (sentiment === 'bearish') bearishCount++;
+      if (sentiment === 'bullish') {
+        bullishCount++;
+        bullishSymbols.push(signal.symbol);
+      }
+      if (sentiment === 'bearish') {
+        bearishCount++;
+        bearishSymbols.push(signal.symbol);
+      }
 
       if (confidence > 0.8) {
         highConfidenceSymbols.push(`${signal.symbol} (${Math.round(confidence * 100)}%)`);
@@ -538,6 +546,16 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
   // Create concise, engaging message
   let reportText = `🌅 **MORNING PREDICTIONS**\n`;
   reportText += `📊 Today's Outlook: Bullish on ${bullishCount}/${symbolCount} symbols\n`;
+
+  // Show bullish symbols (prioritize them as they're positive signals)
+  if (bullishSymbols.length > 0) {
+    reportText += `📈 Bullish: ${bullishSymbols.join(', ')}\n`;
+  }
+
+  // Show bearish symbols if any (but limit to avoid being too negative)
+  if (bearishSymbols.length > 0 && bearishSymbols.length <= 2) {
+    reportText += `📉 Bearish: ${bearishSymbols.join(', ')}\n`;
+  }
 
   if (highConfidenceSymbols.length > 0) {
     reportText += `🎯 High Confidence: ${highConfidenceSymbols.slice(0, 2).join(', ')}\n`;
@@ -729,6 +747,8 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
   // Analyze sentiment distribution for summary
   let bullishCount = 0;
   let bearishCount = 0;
+  let bullishSymbols = [];
+  let bearishSymbols = [];
   let symbolCount = 0;
   let highConfidenceSymbols = [];
 
@@ -739,8 +759,13 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
       const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
       const confidence = (sentimentLayer?.confidence || 0) * 100;
 
-      if (sentimentLabel === 'bullish') bullishCount++;
-      else if (sentimentLabel === 'bearish') bearishCount++;
+      if (sentimentLabel === 'bullish') {
+        bullishCount++;
+        bullishSymbols.push(signal.symbol);
+      } else if (sentimentLabel === 'bearish') {
+        bearishCount++;
+        bearishSymbols.push(signal.symbol);
+      }
 
       if (confidence >= 75) {
         highConfidenceSymbols.push(signal.symbol);
@@ -751,6 +776,14 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
   // Build concise notification with call-to-action
   let reportText = `🔄 **MIDDAY VALIDATION**\n`;
   reportText += `📊 Market Pulse: ${bullishCount} Bullish | ${bearishCount} Bearish\n`;
+
+  // Show symbols with positive/negative sentiments
+  if (bullishSymbols.length > 0) {
+    reportText += `📈 Bullish: ${bullishSymbols.join(', ')}\n`;
+  }
+  if (bearishSymbols.length > 0) {
+    reportText += `📉 Bearish: ${bearishSymbols.join(', ')}\n`;
+  }
 
   if (highConfidenceSymbols.length > 0) {
     reportText += `🎯 Strong Signals: ${highConfidenceSymbols.slice(0, 3).join(', ')}\n`;
@@ -936,6 +969,8 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
   // Analyze sentiment distribution and high-confidence signals
   let bullishCount = 0;
   let bearishCount = 0;
+  let bullishSymbols = [];
+  let bearishSymbols = [];
   let symbolCount = 0;
   let topPerformers = [];
 
@@ -946,8 +981,13 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
       const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
       const confidence = (sentimentLayer?.confidence || 0) * 100;
 
-      if (sentimentLabel === 'bullish') bullishCount++;
-      else if (sentimentLabel === 'bearish') bearishCount++;
+      if (sentimentLabel === 'bullish') {
+        bullishCount++;
+        bullishSymbols.push(signal.symbol);
+      } else if (sentimentLabel === 'bearish') {
+        bearishCount++;
+        bearishSymbols.push(signal.symbol);
+      }
 
       if (confidence >= 75) {
         topPerformers.push({
@@ -965,6 +1005,14 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
   // Build concise market close summary with next-day outlook
   let reportText = `🏁 **MARKET CLOSE SUMMARY**\n`;
   reportText += `📊 Today's Sentiment: ${bullishCount} Bullish | ${bearishCount} Bearish\n`;
+
+  // Show symbol distribution
+  if (bullishSymbols.length > 0) {
+    reportText += `📈 Bullish: ${bullishSymbols.join(', ')}\n`;
+  }
+  if (bearishSymbols.length > 0) {
+    reportText += `📉 Bearish: ${bearishSymbols.join(', ')}\n`;
+  }
 
   if (topPerformers.length > 0) {
     const topSymbol = topPerformers[0];
@@ -1117,253 +1165,4 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
     facebook_error: facebookError,
     timestamp: now.toISOString()
   };
-}
-
-/**
- * Enhanced Weekly Accuracy Report using Granular Data Storage
- * Retrieves individual symbol analysis data for comprehensive accuracy tracking
- */
-export async function sendWeeklyAccuracyReportWithGranularData(env, cronExecutionId, weekSelection = 'current') {
-  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-    console.log('❌ Facebook not configured - skipping weekly accuracy report');
-    return;
-  }
-
-  const now = new Date();
-  const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const dateStr = estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-
-  let reportText = `📊 **WEEKLY ACCURACY REPORT**\n`;
-  reportText += `🗓️ ${dateStr} - Granular Analysis\n\n`;
-
-  try {
-    // Get fact table data for the week using granular storage
-    const factTableData = await getFactTableDataWithRange(env, 7, weekSelection);
-
-    if (factTableData.length === 0) {
-      reportText += `⚠️ No granular analysis data available for ${weekSelection} week\n`;
-      reportText += `📝 Check that enhanced storage is operational\n\n`;
-    } else {
-      // Calculate accuracy metrics by symbol
-      const symbolMetrics = {};
-      factTableData.forEach(record => {
-        if (!symbolMetrics[record.symbol]) {
-          symbolMetrics[record.symbol] = {
-            total: 0,
-            correct: 0,
-            avgConfidence: 0,
-            sentimentCount: 0,
-            technicalCount: 0
-          };
-        }
-
-        symbolMetrics[record.symbol].total++;
-        if (record.direction_correct) symbolMetrics[record.symbol].correct++;
-        symbolMetrics[record.symbol].avgConfidence += record.confidence;
-        if (record.sentiment_score > 0) symbolMetrics[record.symbol].sentimentCount++;
-        if (record.neural_agreement === 'AGREE') symbolMetrics[record.symbol].technicalCount++;
-      });
-
-      reportText += `🎯 **Direction Accuracy by Symbol:**\n`;
-      Object.entries(symbolMetrics).forEach(([symbol, metrics]) => {
-        const accuracy = Math.round((metrics.correct / metrics.total) * 100);
-        const avgConf = Math.round((metrics.avgConfidence / metrics.total) * 100);
-        const emoji = accuracy >= 70 ? '✅' : accuracy >= 60 ? '⚠️' : '❌';
-
-        reportText += `${symbol}: ${emoji} ${accuracy}% (${metrics.correct}/${metrics.total}) | Avg: ${avgConf}%\n`;
-        reportText += `   💭 Sentiment: ${metrics.sentimentCount} signals | 🤝 Agreement: ${metrics.technicalCount}\n`;
-      });
-
-      // Overall metrics
-      const totalCorrect = Object.values(symbolMetrics).reduce((sum, m) => sum + m.correct, 0);
-      const totalPredictions = Object.values(symbolMetrics).reduce((sum, m) => sum + m.total, 0);
-      const overallAccuracy = Math.round((totalCorrect / totalPredictions) * 100);
-
-      reportText += `\n📈 **Overall Performance:**\n`;
-      reportText += `🎯 Direction Accuracy: ${overallAccuracy}% (${totalCorrect}/${totalPredictions})\n`;
-      reportText += `📊 Symbols Tracked: ${Object.keys(symbolMetrics).length}\n`;
-      reportText += `📅 Days Analyzed: ${Math.ceil(factTableData.length / 5)}\n`;
-    }
-
-    reportText += `\n🔧 **Enhanced Features:**\n`;
-    reportText += `• Granular symbol-level tracking\n`;
-    reportText += `• Sentiment-technical agreement analysis\n`;
-    reportText += `• Individual confidence validation\n`;
-    reportText += `• Historical performance comparison\n\n`;
-
-  } catch (error) {
-    console.error('❌ Error generating granular accuracy report:', error);
-    reportText += `❌ Error retrieving granular analysis data\n`;
-    reportText += `🔧 Check enhanced storage system status\n\n`;
-  }
-
-  reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `⚙️ **System Status:** Enhanced Granular Storage ✅\n`;
-  reportText += `🗃️ **Data Source:** Individual symbol analysis records\n`;
-  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
-
-  await sendFacebookMessage(reportText, env);
-  console.log(`📱 [FB-ACCURACY] ${cronExecutionId} Weekly accuracy report (granular) sent via Facebook`);
-
-  // Store detailed logging record with proper error handling
-  const messagingKey = `fb_accuracy_granular_${Date.now()}`;
-  try {
-    console.log(`💾 [FB-ACCURACY-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify({
-        trigger_mode: 'weekly_accuracy_granular',
-        message_sent: true,
-        week_selection: weekSelection,
-        data_source: 'granular_storage',
-        includes_dashboard_link: true,
-        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
-        timestamp: now.toISOString(),
-        cron_execution_id: cronExecutionId,
-        message_type: 'weekly_accuracy_granular'
-      }),
-      { expirationTtl: 604800 }
-    );
-    console.log(`✅ [FB-ACCURACY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-ACCURACY-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-ACCURACY-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-ACCURACY-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack
-    });
-    throw kvError; // Re-throw to indicate function failure
-  }
-}
-
-/**
- * Enhanced Daily Message with Historical Context using Granular Data
- * Shows today's predictions with yesterday's accuracy validation
- */
-export async function sendDailyMessageWithHistoricalContext(analysisResult, env, cronExecutionId) {
-  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
-    console.log('❌ Facebook not configured - skipping daily message with context');
-    return;
-  }
-
-  const now = new Date();
-  const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const today = estTime.toISOString().split('T')[0];
-  const yesterday = new Date(estTime);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-  let reportText = `🔄 **DAILY PREDICTIONS + VALIDATION**\n`;
-  reportText += `🗓️ ${estTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}\n\n`;
-
-  try {
-    // Get yesterday's granular analysis for validation
-    const yesterdayAnalysis = await getSymbolAnalysisByDate(env, yesterdayStr);
-
-    if (yesterdayAnalysis.length > 0) {
-      reportText += `✅ **Yesterday's Validation:**\n`;
-      yesterdayAnalysis.forEach(record => {
-        // Extract data from per-symbol analysis structure
-        const tradingSignals = record.trading_signals || record;
-        const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
-                         tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
-
-        // Extract sentiment from sentiment layers
-        const sentimentLayer = record.sentiment_layers?.[0];
-        const sentiment = sentimentLayer?.sentiment || 'neutral';
-        const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
-
-        reportText += `${record.symbol}: ${direction} ${sentiment.toUpperCase()} (${confidence}%)\n`;
-        reportText += `   💰 AI-Informed outlook\n`;
-      });
-      reportText += `\n`;
-    }
-
-    // Today's predictions (using real-time analysis)
-    reportText += `🚀 **Today's AI Predictions:**\n`;
-    if (analysisResult?.trading_signals) {
-      Object.values(analysisResult.trading_signals).forEach(signal => {
-        // Extract data from per-symbol analysis structure
-        const tradingSignals = signal.trading_signals || signal;
-        const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
-                         tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
-
-        // Extract sentiment from sentiment layers
-        const sentimentLayer = signal.sentiment_layers?.[0];
-        const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
-        const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-        const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
-
-        reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-        reportText += `   💰 AI-Informed outlook\n`;
-      });
-    }
-
-  } catch (error) {
-    console.error('❌ Error retrieving historical context:', error);
-    reportText += `⚠️ Historical validation data unavailable\n`;
-    reportText += `🔄 Showing today's predictions only\n\n`;
-
-    // Fallback to current predictions only
-    if (analysisResult?.trading_signals) {
-      Object.values(analysisResult.trading_signals).forEach(signal => {
-        // Extract data from per-symbol analysis structure
-        const tradingSignals = signal.trading_signals || signal;
-        const direction = tradingSignals?.primary_direction === 'BULLISH' ? '↗️' :
-                         tradingSignals?.primary_direction === 'BEARISH' ? '↘️' : '➡️';
-
-        // Extract sentiment from sentiment layers
-        const sentimentLayer = signal.sentiment_layers?.[0];
-        const sentimentLabel = sentimentLayer?.sentiment || 'neutral';
-        const sentimentEmoji = sentimentLabel === 'bullish' ? '🔥' : sentimentLabel === 'bearish' ? '🧊' : '⚖️';
-        const confidence = Math.round((tradingSignals?.overall_confidence || sentimentLayer?.confidence || 0) * 100);
-
-        reportText += `${signal.symbol}: ${direction} ${sentimentEmoji} ${sentimentLabel.toUpperCase()} (${confidence}%)\n`;
-      });
-    }
-  }
-
-  reportText += `\n📊 **Enhanced Tracking:**\n`;
-  reportText += `• Granular symbol-level analysis\n`;
-  reportText += `• Daily accuracy validation\n`;
-  reportText += `• Historical context integration\n`;
-  reportText += `• Sentiment-technical correlation\n\n`;
-  reportText += `📊 **INTERACTIVE DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `⚙️ **System Status:** Enhanced Granular Storage ✅\n`;
-  reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals.`;
-
-  await sendFacebookMessage(reportText, env);
-  console.log(`📱 [FB-ENHANCED] ${cronExecutionId} Daily message with historical context sent via Facebook`);
-
-  // Store detailed logging record with proper error handling
-  const messagingKey = `fb_enhanced_daily_${Date.now()}`;
-  try {
-    console.log(`💾 [FB-ENHANCED-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify({
-        trigger_mode: 'daily_with_historical_context',
-        message_sent: true,
-        symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
-        includes_historical_validation: true,
-        includes_dashboard_link: true,
-        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
-        timestamp: now.toISOString(),
-        cron_execution_id: cronExecutionId,
-        message_type: 'enhanced_daily_context'
-      }),
-      { expirationTtl: 604800 }
-    );
-    console.log(`✅ [FB-ENHANCED-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-ENHANCED-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-ENHANCED-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-ENHANCED-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack
-    });
-    throw kvError; // Re-throw to indicate function failure
-  }
 }

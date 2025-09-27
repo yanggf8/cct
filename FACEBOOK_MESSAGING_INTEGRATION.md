@@ -7,11 +7,13 @@ Optimized Facebook Messenger integration with channel-appropriate content strate
 ## ✅ Implementation Status: PRODUCTION-VALIDATED OPTIMIZED ARCHITECTURE
 
 **Integration Date**: 2025-09-27 (Complete Information Architecture Optimization)
+**Enhancement Date**: 2025-09-28 (Symbol Display Enhancement + Function Optimization)
 **Live System**: https://tft-trading-system.yanggf.workers.dev
 **Architecture Status**: ✅ **ENTERPRISE-GRADE** - Channel-appropriate content with compelling CTAs
-**Message Strategy**: ✅ **OPTIMIZED** - Facebook drives traffic to detailed analysis dashboards
+**Message Strategy**: ✅ **ENHANCED** - Specific symbol sentiment display in all message types
 **Data Flow**: ✅ **SEAMLESS** - Facebook → Daily Summary → Weekly Analysis → Historical Data
 **Production Validation**: ✅ **COMPLETE** - End-to-end testing with A+ system grade
+**Latest Enhancement**: ✅ **SYMBOL DISPLAY + FUNCTION CLEANUP** - All messages now show specific bullish/bearish symbols (cleaned from 7 to 5 essential functions)
 
 ## 🚀 Optimized Messaging Architecture
 
@@ -19,10 +21,10 @@ Optimized Facebook Messenger integration with channel-appropriate content strate
 
 **Channel Optimization**: Transform Facebook from data destination to traffic driver
 
-#### 1. Facebook Role: Concise Notifications + CTAs
-- **Morning Predictions**: Bullish/bearish counts + high-confidence symbols + daily summary link
-- **Midday Validation**: Market pulse summary + strong signals + afternoon outlook + daily summary link
-- **Daily Validation**: Market close summary + top performer + tomorrow's outlook + daily summary link
+#### 1. Facebook Role: Concise Notifications + CTAs ✅ ENHANCED
+- **Morning Predictions**: Bullish/bearish counts + **specific symbols listed** + high-confidence symbols + daily summary link
+- **Midday Validation**: Market pulse summary + **bullish/bearish symbols shown** + strong signals + afternoon outlook + daily summary link
+- **Daily Validation**: Market close summary + **symbol sentiment breakdown** + top performer + tomorrow's outlook + daily summary link
 
 #### 2. Daily Summary Role: Detailed Analysis Hub
 - **Interactive Dashboard**: `/daily-summary` with Chart.js visualizations
@@ -39,15 +41,15 @@ Optimized Facebook Messenger integration with channel-appropriate content strate
 
 **File**: `src/modules/facebook.js`
 
-#### Core Messaging Functions (All Include Daily Summary Links)
+#### Core Messaging Functions (5 Essential Types with Enhanced Symbol Display)
 ```javascript
-// Morning 8:30 AM - Concise predictions with CTA
+// Morning 8:30 AM - Predictions with specific bullish/bearish symbols
 export async function sendMorningPredictionsWithTracking(analysisResult, env, cronExecutionId)
 
-// Midday 12:00 PM - Market pulse with afternoon outlook
+// Midday 12:00 PM - Market pulse with specific symbol breakdown
 export async function sendMiddayValidationWithTracking(analysisResult, env, cronExecutionId)
 
-// Daily 4:05 PM - Market close summary with tomorrow's outlook
+// Daily 4:05 PM - Market close with specific symbol sentiment
 export async function sendDailyValidationWithTracking(analysisResult, env, cronExecutionId)
 
 // Friday 4:00 PM - Weekly market close analysis
@@ -58,6 +60,8 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
 ```
 
 #### Message Optimization Strategy
+- **Symbol Display**: Enhanced to show specific bullish/bearish symbols instead of just counts
+- **Function Cleanup**: Streamlined from 7 to 5 essential message types (removed obsolete functions)
 - **Content Length**: Reduced from 500+ characters to 200-300 characters
 - **Call-to-Action**: Every message ends with "📈 View Full Analysis" + daily summary link
 - **Information Density**: Key metrics only, detailed analysis available via link
@@ -65,29 +69,27 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
 
 ### Example Optimized Messages
 
-#### Morning Predictions (8:30 AM)
+#### Morning Predictions (8:30 AM) ✅ ENHANCED SYMBOL DISPLAY
 ```
-🌅 MORNING MARKET OUTLOOK
-Thursday, Sep 26, 2025
-
-📊 Today's Sentiment: 4 Bullish, 1 Neutral
-🔥 High Confidence: AAPL (80%), TSLA (80%)
-
+🌅 **MORNING PREDICTIONS**
+📊 Today's Outlook: Bullish on 3/5 symbols
+📈 Bullish: AAPL, MSFT, GOOGL
+📉 Bearish: TSLA, NVDA
+🎯 High Confidence: AAPL (85%), MSFT (82%)
 📈 View Full Analysis & Reasoning
 🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary
 
 ⚠️ Research/education only. Not financial advice.
 ```
 
-#### Daily Validation (4:05 PM)
+#### Daily Validation (4:05 PM) ✅ ENHANCED SYMBOL DISPLAY
 ```
-🏁 MARKET CLOSE ANALYSIS
-Thursday, Sep 26, 2025 4:05 PM EST
-
-📊 Today's Performance: Market Mixed
-🎯 Top Performer: NVDA (+2.3%)
-🌅 Tomorrow's Outlook: Continued Bullish Momentum
-
+🏁 **MARKET CLOSE SUMMARY**
+📊 Today's Sentiment: 3 Bullish | 2 Bearish
+📈 Bullish: AAPL, MSFT, GOOGL
+📉 Bearish: TSLA, NVDA
+🎯 Top Signal: AAPL 🔥 87%
+🌅 Tomorrow's Outlook: Positive momentum
 📈 View Full Analysis & Performance Metrics
 🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary
 
@@ -296,14 +298,16 @@ Based on comprehensive Gemini architectural review, transformed Facebook messagi
 
 ## 🎯 Comprehensive Testing Validation Results
 
-**Production Testing Execution** (2025-09-26):
-- ✅ **All 5 Message Types Validated**: Morning predictions, midday validation, daily validation, Friday reports, weekly accuracy reports
+**Production Testing Execution** (2025-09-28):
+- ✅ **5 Essential Message Types Validated**: Morning predictions, midday validation, daily validation, Friday reports, weekly accuracy reports
+- ✅ **Symbol Display Enhancement Confirmed**: All messages now show specific bullish/bearish symbols instead of just counts
+- ✅ **Function Cleanup Completed**: Removed 2 obsolete functions, keeping only 5 essential message types
 - ✅ **3-Layer Data Extraction Confirmed**: All functions properly extracting sentiment_layers, trading_signals, confidence_metrics
 - ✅ **Facebook API Integration Operational**: Message delivery successful with proper authentication and rate limiting
 - ✅ **KV Storage Tracking Verified**: Independent Facebook/KV status reporting working correctly
 - ✅ **End-to-End Pipeline Tested**: Complete data flow from analysis → KV storage → Facebook message delivery
 - ✅ **Error Recovery Validated**: Graceful handling of API failures with comprehensive logging
-- ✅ **Production Deployment Confirmed**: Version 2f567da9-4023-4ecc-b74b-c135faa290cd operational
+- ✅ **Production Deployment Confirmed**: Version a49b7819-5e42-46ef-85aa-9c4906b8c5ab operational
 
 **Weekly Report Testing Results**:
 - ✅ Manual weekly report trigger successful (`/weekly-report` endpoint)
