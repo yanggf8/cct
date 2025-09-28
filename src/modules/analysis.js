@@ -139,7 +139,7 @@ export async function runBasicAnalysis(env, options = {}) {
   console.log(`📊 Cache performance: ${cacheStats.hits} hits, ${cacheStats.misses} misses (${Math.round(cacheStats.hitRate * 100)}% hit rate)`);
 
   // Generate and track high-confidence signals
-  const highConfidenceSignals = generateHighConfidenceSignals(analysisResults, currentTime);
+  const highConfidenceSignals = generateHighConfidenceSignals(analysisResults, currentTime, env);
 
   // Save signals to KV storage for 4-report workflow
   if (highConfidenceSignals.length > 0) {
@@ -347,11 +347,12 @@ export async function runPreMarketAnalysis(env, options = {}) {
 /**
  * Generate high-confidence signals from analysis results
  */
-function generateHighConfidenceSignals(analysisResults, currentTime) {
+function generateHighConfidenceSignals(analysisResults, currentTime, env) {
   const signals = [];
+  const signalConfidenceThreshold = parseFloat(env.SIGNAL_CONFIDENCE_THRESHOLD || '0.7');
 
   for (const [symbol, signal] of Object.entries(analysisResults.trading_signals)) {
-    if (signal.confidence >= SIGNAL_CONFIDENCE_THRESHOLD) {
+    if (signal.confidence >= signalConfidenceThreshold) {
       const enhancedSignal = {
         id: crypto.randomUUID(),
         symbol,
