@@ -9,7 +9,8 @@ export {
   handleEnhancedFeatureAnalysis,
   handleIndependentTechnicalAnalysis,
   handlePerSymbolAnalysis,
-  handleSentimentTest
+  handleSentimentTest,
+  handleGenerateMorningPredictions
 } from './analysis-handlers.js';
 
 // Data and KV handlers
