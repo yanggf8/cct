@@ -4,6 +4,7 @@
  */
 
 import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
+import { validateKVKey, validateEnvironment, validateDate, safeValidate } from './validation.js';
 
 // Initialize logging for this module
 let loggingInitialized = false;
@@ -518,7 +519,12 @@ export async function getSymbolAnalysisByDate(env, dateString, symbols = null) {
  */
 export async function getAnalysisResultsByDate(env, dateString) {
   try {
-    const dailyKey = `analysis_${dateString}`;
+    // Validate inputs
+    validateEnvironment(env);
+    const validatedDate = validateDate(dateString);
+    const dateString_clean = validatedDate.toISOString().split('T')[0];
+
+    const dailyKey = validateKVKey(`analysis_${dateString_clean}`);
     const resultJson = await env.TRADING_RESULTS.get(dailyKey);
     
     if (!resultJson) {

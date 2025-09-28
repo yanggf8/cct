@@ -1,4 +1,4 @@
-# Wrangler configuration for TFT Trading System Worker (GPT-OSS-120B Sentiment)
+# Wrangler configuration for Production-Ready Enterprise Trading System
 
 name = "tft-trading-system"
 main = "src/index.js"
@@ -10,14 +10,13 @@ compatibility_flags = ["nodejs_compat"]
 
 # Build configuration - TensorFlow.js handled automatically by modern Wrangler
 
-# Production cron schedule - all times in UTC for proper EST/EDT conversion
+# Production cron schedule - 4 jobs for 4 reports (UTC times for EST/EDT conversion)
 [triggers]
 crons = [
-  "30 12 * * 1-5",  # 8:30 AM EST/EDT - Morning predictions + high-confidence alerts
-  "0 16 * * 1-5",   # 12:00 PM EST/EDT - Midday validation + afternoon forecasts
-  "5 20 * * 1-5",   # 4:05 PM EST/EDT - Daily validation + next-day predictions
-  "0 20 * * FRI",   # 4:00 PM EST/EDT Friday - Weekly market close report
-  "0 14 * * SUN"    # 10:00 AM EST/EDT Sunday - Weekly accuracy report
+  "30 12 * * 1-5",  # 12:30 PM UTC = 8:30 AM EST/EDT - Pre-Market Briefing (high-confidence signals ≥70%)
+  "0 16 * * 1-5",   # 4:00 PM UTC = 12:00 PM EST/EDT - Intraday Performance Check (real-time tracking)
+  "5 20 * * 1-5",   # 8:05 PM UTC = 4:05 PM EST/EDT - End-of-Day Summary (market close analysis)
+  "0 14 * * SUN"    # 2:00 PM UTC = 10:00 AM EST/EDT Sunday - Weekly Review (comprehensive analysis)
 ]
 
 # KV namespace for storing analysis results
@@ -26,7 +25,7 @@ binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
-# AI binding for GPT-OSS-120B sentiment analysis and DistilBERT fallback
+# AI binding for enterprise-grade analysis with real market data (GPT-OSS-120B + DistilBERT)
 [ai]
 binding = "AI"
 
@@ -40,10 +39,10 @@ binding = "TRAINED_MODELS"
 bucket_name = "enhanced-trading-models"
 binding = "ENHANCED_MODELS"
 
-# Environment variables
+# Environment variables - Production-Ready Configuration
 [vars]
 EMAIL_ENABLED = "false"
-WORKER_VERSION = "1.0"
+WORKER_VERSION = "2.0"
 TIMEZONE = "America/New_York"
 # Trading symbols configuration
 TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"
@@ -59,6 +58,10 @@ CONFIDENCE_THRESHOLD = "0.6"
 # KV storage TTL (in seconds)
 KV_ANALYSIS_TTL = "604800"  # 7 days
 KV_GRANULAR_TTL = "7776000" # 90 days
+# Market data configuration
+MARKET_DATA_CACHE_TTL = "300" # 5 minutes
+YAHOO_FINANCE_RATE_LIMIT = "20" # 20 requests per minute
+RATE_LIMIT_WINDOW = "60000" # 1 minute in milliseconds
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:

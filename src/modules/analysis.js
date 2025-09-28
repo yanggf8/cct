@@ -5,13 +5,21 @@
  */
 
 import { runTFTInference, runNHITSInference } from './models.js';
+import { validateEnvironment, validateSymbols, validateMarketData, safeValidate } from './validation.js';
+import { rateLimitedFetch, retryWithBackoff } from './rate-limiter.js';
+import { withCache, getCacheStats } from './market-data-cache.js';
 
 /**
  * Run comprehensive analysis
  * ✅ GENUINE NEURAL NETWORKS: Real TFT + N-HITS models with ensemble predictions
  */
 export async function runBasicAnalysis(env, options = {}) {
-  const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
+  // Validate environment
+  validateEnvironment(env);
+
+  // Validate and sanitize symbols
+  const symbolsRaw = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
+  const symbols = validateSymbols(symbolsRaw);
   const currentTime = new Date();
 
   const analysisResults = {
@@ -36,11 +44,9 @@ export async function runBasicAnalysis(env, options = {}) {
     try {
       console.log(`   🧠 Analyzing ${symbol} with TFT + N-HITS neural networks...`);
 
-      // Get real market data
-      const marketData = await getMarketData(symbol);
-      if (!marketData.success) {
-        throw new Error(`Market data failed: ${marketData.error}`);
-      }
+      // Get real market data with caching and validation
+      const marketData = await withCache(symbol, () => getMarketData(symbol));
+      validateMarketData(marketData);
 
       // Run dual neural network inference (TFT + N-HITS models)
       console.log(`   🔀 Starting dual model inference for ${symbol}...`);
@@ -116,7 +122,17 @@ export async function runBasicAnalysis(env, options = {}) {
   analysisResults.performance_metrics.successful_analyses = successfulAnalyses;
   analysisResults.performance_metrics.success_rate = (successfulAnalyses / symbols.length) * 100;
 
+  // Add cache statistics
+  const cacheStats = getCacheStats();
+  analysisResults.performance_metrics.cache_stats = {
+    hit_rate: Math.round(cacheStats.hitRate * 100),
+    cache_hits: cacheStats.hits,
+    cache_misses: cacheStats.misses,
+    total_entries: cacheStats.totalEntries
+  };
+
   console.log(`✅ Neural network analysis completed: ${successfulAnalyses}/${symbols.length} symbols successful`);
+  console.log(`📊 Cache performance: ${cacheStats.hits} hits, ${cacheStats.misses} misses (${Math.round(cacheStats.hitRate * 100)}% hit rate)`);
   return analysisResults;
 }
 
@@ -134,10 +150,7 @@ async function getMarketData(symbol) {
 
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)'
-      },
+    const response = await rateLimitedFetch(url, {
       signal: AbortSignal.timeout(10000)
     });
 

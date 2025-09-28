@@ -5,6 +5,7 @@
 
 import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
+import { generateWeeklyReviewAnalysis } from './report/weekly-review-analysis.js';
 import {
   sendFridayWeekendReportWithTracking,
   sendWeeklyAccuracyReportWithTracking,
@@ -12,44 +13,49 @@ import {
   sendMiddayValidationWithTracking,
   sendDailyValidationWithTracking
 } from './facebook.js';
+import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 
 /**
  * Handle scheduled cron events
  */
 export async function handleScheduledEvent(controller, env, ctx) {
   const scheduledTime = new Date(controller.scheduledTime);
-  const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const currentHour = estTime.getHours();
-  const currentMinute = estTime.getMinutes();
 
-  console.log(`🕐 [PRODUCTION-CRON] ${estTime.toISOString()} - Cron trigger received (${currentHour}:${currentMinute.toString().padStart(2, '0')})`);
+  // Get the scheduled time in UTC for cron matching
+  const utcHour = scheduledTime.getUTCHours();
+  const utcMinute = scheduledTime.getUTCMinutes();
+  const utcDay = scheduledTime.getUTCDay(); // 0=Sunday, 1=Monday, ..., 5=Friday
+
+  // Get EST/EDT time for logging and business logic
+  const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const estHour = estTime.getHours();
+  const estMinute = estTime.getMinutes();
+  const estDay = estTime.getDay();
+
+  console.log(`🕐 [PRODUCTION-CRON] UTC: ${utcHour}:${utcMinute.toString().padStart(2, '0')} (Day ${utcDay}) | EST/EDT: ${estHour}:${estMinute.toString().padStart(2, '0')} (Day ${estDay}) | Scheduled: ${scheduledTime.toISOString()}`);
 
   const cronExecutionId = `cron_${Date.now()}`;
   let triggerMode, predictionHorizons;
 
-  // Determine trigger mode based on schedule
-  if (currentHour === 8 && currentMinute === 30) {
-    // 8:30 AM EST/EDT - Morning predictions + high-confidence alerts
+  // Determine trigger mode based on UTC schedule (matching wrangler.toml cron expressions)
+  if (utcHour === 12 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
+    // 30 12 * * 1-5 = 12:30 PM UTC = 8:30 AM EST/7:30 AM EDT - Morning predictions
     triggerMode = 'morning_prediction_alerts';
     predictionHorizons = [1, 24]; // 1-hour and 24-hour forecasts
-  } else if (currentHour === 12 && currentMinute === 0) {
-    // 12:00 PM EST/EDT - Midday validation + afternoon forecasts
+  } else if (utcHour === 16 && utcMinute === 0 && utcDay >= 1 && utcDay <= 5) {
+    // 0 16 * * 1-5 = 4:00 PM UTC = 12:00 PM EST/11:00 AM EDT - Midday validation
     triggerMode = 'midday_validation_prediction';
     predictionHorizons = [8, 24]; // 8-hour (market close) + next-day
-  } else if (currentHour === 16 && currentMinute === 5) {
-    // 4:05 PM EST/EDT - Daily validation + next-day predictions
+  } else if (utcHour === 20 && utcMinute === 5 && utcDay >= 1 && utcDay <= 5) {
+    // 5 20 * * 1-5 = 8:05 PM UTC = 4:05 PM EST/3:05 PM EDT - Daily validation
     triggerMode = 'next_day_market_prediction';
     predictionHorizons = [17, 24]; // Market close + next trading day
-  } else if (currentHour === 16 && currentMinute === 0 && estTime.getDay() === 5) {
-    // 4:00 PM EST/EDT Friday - Weekly market close report
-    triggerMode = 'weekly_market_close_analysis';
-    predictionHorizons = [72, 168]; // Weekend + next week
-  } else if (currentHour === 10 && currentMinute === 0 && estTime.getDay() === 0) {
-    // 10:00 AM EST/EDT Sunday - Weekly accuracy report
-    triggerMode = 'weekly_accuracy_report';
-    predictionHorizons = []; // No predictions, just accuracy reporting
+  } else if (utcHour === 14 && utcMinute === 0 && utcDay === 0) {
+    // 0 14 * * SUN = 2:00 PM UTC = 10:00 AM EST/9:00 AM EDT Sunday - Weekly Review
+    triggerMode = 'weekly_review_analysis';
+    predictionHorizons = []; // No predictions, just pattern analysis
   } else {
-    console.log(`⚠️ [CRON] Unrecognized schedule: ${currentHour}:${currentMinute} on ${estTime.toDateString()}`);
+    console.log(`⚠️ [CRON] Unrecognized schedule: UTC ${utcHour}:${utcMinute} (Day ${utcDay}) | EST/EDT ${estHour}:${estMinute} (Day ${estDay})`);
     return new Response('Unrecognized cron schedule', { status: 400 });
   }
 
@@ -63,28 +69,20 @@ export async function handleScheduledEvent(controller, env, ctx) {
   try {
     let analysisResult;
     
-    if (triggerMode === 'weekly_accuracy_report') {
-      // Sunday 10:00 AM - Weekly accuracy report
-      console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly accuracy report`);
-      
-      console.log(`📱 [CRON-FB-WEEKLY] ${cronExecutionId} Sending weekly accuracy report via Facebook`);
-      await sendWeeklyAccuracyReportWithTracking(env, cronExecutionId);
+    if (triggerMode === 'weekly_review_analysis') {
+      // Sunday 10:00 AM - Weekly Review Analysis
+      console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly review analysis`);
+
+      // Generate weekly analysis result
+      analysisResult = await generateWeeklyReviewAnalysis(env, estTime);
+
+      console.log(`📱 [CRON-FB-WEEKLY] ${cronExecutionId} Sending weekly review via Facebook`);
+      await sendWeeklyReviewWithTracking(analysisResult, env, cronExecutionId);
       console.log(`✅ [CRON-FB-WEEKLY] ${cronExecutionId} Weekly Facebook message completed`);
-      
-      console.log(`✅ [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly accuracy report completed`);
-      return new Response('Weekly accuracy report sent successfully', { status: 200 });
-      
-    } else if (triggerMode === 'weekly_market_close_analysis') {
-      // Friday 4:00 PM - Weekly market close analysis
-      console.log(`🏁 [CRON-FRIDAY] ${cronExecutionId} Running weekly market close analysis`);
-      
-      analysisResult = await runWeeklyMarketCloseAnalysis(env, estTime);
-      
-      // Send Friday weekend report with dashboard link
-      console.log(`📱 [CRON-FB-FRIDAY] ${cronExecutionId} Sending Friday weekend report via Facebook`);
-      await sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode);
-      console.log(`✅ [CRON-FB-FRIDAY] ${cronExecutionId} Friday Facebook message completed`);
-      
+
+      console.log(`✅ [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly review analysis completed`);
+      return new Response('Weekly review analysis completed successfully', { status: 200 });
+
     } else {
       // Enhanced pre-market analysis with sentiment
       console.log(`🚀 [CRON-ENHANCED] ${cronExecutionId} Running enhanced analysis with sentiment...`);

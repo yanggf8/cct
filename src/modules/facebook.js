@@ -4,6 +4,7 @@
  */
 
 import { getSymbolAnalysisByDate, getFactTableDataWithRange } from './data.js';
+import { validateEnvironment, validateAnalysisData, validateUserInput, sanitizeHTML, safeValidate } from './validation.js';
 
 /**
  * Send Friday Weekend Report with Weekly Analysis Dashboard Link
@@ -11,7 +12,13 @@ import { getSymbolAnalysisByDate, getFactTableDataWithRange } from './data.js';
 export async function sendFridayWeekendReportWithTracking(analysisResult, env, cronExecutionId, triggerMode) {
   console.log(`🏁 [FB-FRIDAY] ${cronExecutionId} Starting Friday weekend report function`);
 
-  // Step 1: Configuration check
+  // Step 1: Input validation
+  validateEnvironment(env);
+  if (analysisResult) {
+    validateAnalysisData(analysisResult);
+  }
+
+  // Step 2: Configuration check
   console.log(`🔍 [FB-FRIDAY] ${cronExecutionId} Checking Facebook configuration...`);
   if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
     console.log(`❌ [FB-FRIDAY] ${cronExecutionId} Facebook not configured - skipping weekend report`);
@@ -19,7 +26,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   }
   console.log(`✅ [FB-FRIDAY] ${cronExecutionId} Facebook configuration verified`);
 
-  // Step 2: Data validation
+  // Step 3: Data validation
   console.log(`📊 [FB-FRIDAY] ${cronExecutionId} Validating analysis data...`);
   if (!analysisResult || !analysisResult.trading_signals) {
     console.error(`❌ [FB-FRIDAY] ${cronExecutionId} Invalid or missing analysis data`);
@@ -78,10 +85,10 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   reportText += `🤖 **Models:** TFT + N-HITS Ensemble\n`;
   reportText += `📊 **Symbols Analyzed:** ${symbols.length}\n\n`;
 
-  // 📊 Weekly Analysis Dashboard Link (appropriate for Friday reports)
-  reportText += `📊 **WEEKLY ANALYSIS DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
-  reportText += `📈 View weekly trends, charts, and model performance analysis\n\n`;
+  // 📊 Weekly Review Dashboard Link (appropriate for Friday reports)
+  reportText += `📊 **WEEKLY REVIEW DASHBOARD:**\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-review\n\n`;
+  reportText += `📈 View high-confidence signal analysis, patterns & performance insights\n\n`;
 
   reportText += `🎯 **Next Update:** Monday 8:30 AM EST\n`;
   reportText += `⚠️ **DISCLAIMER:** Research/educational purposes only. AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.`;
@@ -101,7 +108,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
       message_sent: false, // Will be updated after Facebook send
       symbols_analyzed: symbols.length,
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-review',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'friday_weekend_report',
@@ -273,9 +280,9 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
   reportText += `• Model Performance: AI Sentiment + Neural Reference analysis\n`;
   reportText += `• AI Cost Efficiency: $0.0003 per analysis achieved\n\n`;
 
-  // 📊 NEW: Add Weekly Analysis Dashboard Link
+  // 📊 NEW: Add Weekly Review Dashboard Link
   reportText += `📊 **DETAILED ANALYTICS DASHBOARD:**\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-analysis\n\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/weekly-review\n\n`;
   reportText += `📈 Interactive charts showing:\n`;
   reportText += `• Daily sentiment accuracy trends\n`;
   reportText += `• AI Sentiment vs Neural model comparison\n`;
@@ -299,7 +306,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
       trigger_mode: 'weekly_accuracy_report',
       message_sent: false, // Will be updated after Facebook send
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-review',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'weekly_accuracy_report',
@@ -427,7 +434,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
 /**
  * Generic Facebook Message Sender with Error Handling
  */
-async function sendFacebookMessage(messageText, env) {
+export async function sendFacebookMessage(messageText, env) {
   const facebookPayload = {
     recipient: { id: env.FACEBOOK_RECIPIENT_ID },
     message: { text: messageText },
@@ -544,8 +551,8 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
   }
 
   // Create concise, engaging message
-  let reportText = `🌅 **MORNING PREDICTIONS**\n`;
-  reportText += `📊 Today's Outlook: Bullish on ${bullishCount}/${symbolCount} symbols\n`;
+  let reportText = `☀️ **PRE-MARKET BRIEFING** – ${estTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}\n`;
+  reportText += `📊 Market Bias: Bullish on ${bullishCount}/${symbolCount} symbols\n`;
 
   // Show bullish symbols (prioritize them as they're positive signals)
   if (bullishSymbols.length > 0) {
@@ -561,8 +568,8 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
     reportText += `🎯 High Confidence: ${highConfidenceSymbols.slice(0, 2).join(', ')}\n`;
   }
 
-  reportText += `📈 View Full Analysis & Reasoning\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary\n\n`;
+  reportText += `📈 View Pre-Market Briefing: High-Confidence Ups/Downs (≥70%) + Sectors\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/pre-market-briefing\n\n`;
   reportText += `⚠️ Research/education only. Not financial advice.`;
 
   console.log(`✅ [FB-MORNING] ${cronExecutionId} Optimized message built: ${reportText.length} chars (vs ~${reportText.length * 3} before)`);
@@ -571,7 +578,9 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
 
   // Step 4: KV storage (independent of Facebook API)
   console.log(`💾 [FB-MORNING] ${cronExecutionId} Starting KV storage...`);
+  const today = new Date().toISOString().split('T')[0];
   const messagingKey = `fb_morning_${Date.now()}`;
+  const dailyKey = `fb_morning_${today}`;
   let kvStorageSuccess = false;
   let kvError = null;
 
@@ -582,7 +591,7 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
       message_sent: false, // Will be updated after Facebook send
       symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-analysis',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/pre-market-briefing',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'morning_predictions',
@@ -599,8 +608,16 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
       JSON.stringify(kvData),
       { expirationTtl: 604800 }
     );
+
+    // Also store with daily key for intraday handler access
+    await env.TRADING_RESULTS.put(
+      dailyKey,
+      JSON.stringify(kvData),
+      { expirationTtl: 604800 }
+    );
+
     kvStorageSuccess = true;
-    console.log(`✅ [FB-MORNING-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
+    console.log(`✅ [FB-MORNING-KV] ${cronExecutionId} Successfully stored KV records: ${messagingKey} and ${dailyKey}`);
   } catch (kvError) {
     console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
     console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} KV key: ${messagingKey}`);
@@ -791,8 +808,8 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
 
   const marketTrend = bullishCount > bearishCount ? 'Optimistic' : bearishCount > bullishCount ? 'Cautious' : 'Mixed';
   reportText += `📈 Afternoon Outlook: ${marketTrend}\n`;
-  reportText += `📊 View Full Market Analysis & Updates\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary\n\n`;
+  reportText += `📊 View Intraday Performance Check: Real-Time Signal Tracking\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/intraday-check\n\n`;
   reportText += `⚠️ Research/educational purposes only. Not financial advice.`;
 
   console.log(`✅ [FB-MIDDAY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
@@ -810,7 +827,7 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
       message_sent: false, // Will be updated after Facebook send
       symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/daily-summary',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/intraday-check',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'midday_validation',
@@ -1022,8 +1039,8 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
 
   const marketTrend = bullishCount > bearishCount ? 'Positive momentum' : bearishCount > bullishCount ? 'Cautious outlook' : 'Balanced signals';
   reportText += `🌅 Tomorrow's Outlook: ${marketTrend}\n`;
-  reportText += `📈 View Full Analysis & Performance Metrics\n`;
-  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/daily-summary\n\n`;
+  reportText += `📈 View End-of-Day Summary: Market Close + Tomorrow's Outlook\n`;
+  reportText += `🔗 https://tft-trading-system.yanggf.workers.dev/end-of-day-summary\n\n`;
   reportText += `⚠️ Research/educational purposes only. Not financial advice.`;
 
   console.log(`✅ [FB-DAILY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
@@ -1041,7 +1058,7 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
       message_sent: false, // Will be updated after Facebook send
       symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
       includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/daily-summary',
+      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/end-of-day-summary',
       timestamp: now.toISOString(),
       cron_execution_id: cronExecutionId,
       message_type: 'daily_validation',

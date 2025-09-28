@@ -34,6 +34,12 @@ import {
   handleVerifyBackfill
 } from './handlers/index.js';
 
+// Import comprehensive report handlers
+import { handlePreMarketBriefing } from './handlers/briefing-handlers.js';
+import { handleIntradayCheck } from './handlers/intraday-handlers.js';
+import { handleEndOfDaySummary } from './handlers/end-of-day-handlers.js';
+import { handleWeeklyReview } from './handlers/weekly-review-handlers.js';
+
 // Import optimization test endpoints
 import {
   handleOptimizationTest,
@@ -183,6 +189,14 @@ export async function handleHttpRequest(request, env, ctx) {
     case '/daily-summary':
       response = await handleDailySummaryPageRequest(request, env);
       break;
+    case '/pre-market-briefing':
+      return handlePreMarketBriefing(request, env);
+    case '/intraday-check':
+      return handleIntradayCheck(request, env);
+    case '/end-of-day-summary':
+      return handleEndOfDaySummary(request, env);
+    case '/weekly-review':
+      return handleWeeklyReview(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
     case '/debug-sentiment':
@@ -239,6 +253,10 @@ export async function handleHttpRequest(request, env, ctx) {
             '/fact-table - Prediction accuracy table',
             '/weekly-analysis - Weekly analysis dashboard',
             '/api/weekly-data - Weekly analysis data API',
+            '/pre-market-briefing - Morning high-confidence signals (≥70%)',
+            '/intraday-check - Real-time signal performance tracking',
+            '/end-of-day-summary - Market close analysis & tomorrow outlook',
+            '/weekly-review - Comprehensive high-confidence signal analysis',
             '/test-sentiment - Sentiment enhancement validation',
             '/analyze-symbol?symbol=AAPL - Fine-grained per-symbol analysis',
             '/cron-health - Cron job execution health monitoring'
@@ -255,7 +273,8 @@ export async function handleHttpRequest(request, env, ctx) {
         timestamp: new Date().toISOString(),
         available_endpoints: [
           '/', '/health', '/model-health', '/analyze', '/results', '/fact-table',
-          '/weekly-analysis', '/api/weekly-data', '/test-sentiment', '/daily-summary'
+          '/weekly-analysis', '/api/weekly-data', '/pre-market-briefing', '/intraday-check',
+          '/end-of-day-summary', '/weekly-review', '/test-sentiment', '/daily-summary'
         ]
       }, null, 2), {
         status: 404,
