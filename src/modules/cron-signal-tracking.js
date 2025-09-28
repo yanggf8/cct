@@ -29,12 +29,12 @@ class CronSignalTracker {
       const highConfidenceSignals = [];
 
       for (const [symbol, signal] of Object.entries(analysisData.trading_signals || {})) {
-        if (signal.confidence >= this.confidenceThreshold) {
+        if (signal.enhanced_prediction && signal.enhanced_prediction.confidence >= (this.confidenceThreshold / 100)) {
           highConfidenceSignals.push({
             id: crypto.randomUUID(),
             symbol,
-            prediction: signal.direction,
-            confidence: signal.confidence,
+            prediction: signal.enhanced_prediction.direction,
+            confidence: signal.enhanced_prediction.confidence,
             morningPrice: signal.current_price,
             predictedPrice: signal.predicted_price,
             timestamp: new Date().toISOString(),
