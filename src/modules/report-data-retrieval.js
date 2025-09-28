@@ -55,11 +55,34 @@ class ReportDataRetrieval {
         generatedAt: new Date().toISOString()
       };
 
+      // Log ERROR level for missing critical data
+      if (!analysisData) {
+        logger.error('⚠️ [PRE-MARKET] CRITICAL: Missing analysis data from KV', {
+          date: dateStr,
+          key: `analysis_${dateStr}`,
+          impact: 'Using fallback default data - report may not reflect actual market analysis',
+          action: 'Manual investigation required for KV storage system'
+        });
+
+        // Send Facebook error notification
+        this.sendDataErrorNotification('Pre-Market Briefing', 'Missing analysis data', dateStr, env);
+      }
+
+      if (!predictionsData) {
+        logger.warn('⚠️ [PRE-MARKET] WARNING: Missing morning predictions data', {
+          date: dateStr,
+          key: `morning_predictions_${dateStr}`,
+          impact: 'Using default signals - trading recommendations may not reflect actual AI analysis',
+          action: 'Check cron job execution for morning signal generation'
+        });
+      }
+
       logger.info('Retrieved pre-market briefing data', {
         date: dateStr,
         hasAnalysis: !!result.analysis,
         hasPredictions: !!result.morningPredictions,
-        outlookEvaluated: !!outlookEvaluation
+        outlookEvaluated: !!outlookEvaluation,
+        usingFallback: !analysisData || !predictionsData
       });
 
       return result;
@@ -105,10 +128,24 @@ class ReportDataRetrieval {
         generatedAt: new Date().toISOString()
       };
 
+      // Log ERROR level for missing critical data
+      if (!predictionsData) {
+        logger.error('⚠️ [INTRADAY] CRITICAL: Missing morning predictions for performance tracking', {
+          date: dateStr,
+          key: `morning_predictions_${dateStr}`,
+          impact: 'Cannot track real-time signal performance - using default tracking data',
+          action: 'Check morning prediction generation and KV storage'
+        });
+
+        // Send Facebook error notification
+        this.sendDataErrorNotification('Intraday Performance Check', 'Missing morning predictions', dateStr, env);
+      }
+
       logger.info('Retrieved intraday check data', {
         date: dateStr,
         hasPredictions: !!predictions,
-        signalCount: predictions?.predictions?.length || 0
+        signalCount: predictions?.predictions?.length || 0,
+        usingFallback: !predictionsData
       });
 
       return result;
@@ -189,11 +226,45 @@ class ReportDataRetrieval {
         generatedAt: new Date().toISOString()
       };
 
+      // Log ERROR level for missing critical data
+      if (!predictionsData) {
+        logger.error('⚠️ [END-OF-DAY] CRITICAL: Missing predictions data for summary analysis', {
+          date: dateStr,
+          key: `predictions_${dateStr}`,
+          impact: 'Cannot generate daily performance summary - using default data',
+          action: 'Check daily prediction generation and KV storage system'
+        });
+
+        // Send Facebook error notification
+        this.sendDataErrorNotification('End-of-Day Summary', 'Missing predictions data', dateStr, env);
+      }
+
+      if (!analysisData) {
+        logger.warn('⚠️ [END-OF-DAY] WARNING: Missing analysis data', {
+          date: dateStr,
+          key: `analysis_${dateStr}`,
+          impact: 'Limited analysis context available for summary',
+          action: 'Check daily analysis execution and storage'
+        });
+      }
+
+      // Log if using pattern-based outlook instead of AI
+      if (tomorrowOutlook && tomorrowOutlook.basedOnData !== 'ai_analysis') {
+        logger.warn('⚠️ [END-OF-DAY] WARNING: Using pattern-based tomorrow outlook instead of AI analysis', {
+          date: dateStr,
+          outlookSource: tomorrowOutlook.basedOnData || 'pattern_analysis',
+          impact: 'Tomorrow outlook not using fresh AI predictions',
+          action: 'Check AI analysis execution for tomorrow outlook generation'
+        });
+      }
+
       logger.info('Retrieved end-of-day summary data', {
         date: dateStr,
         hasFinalSummary: !!finalSummary,
         hasTomorrowOutlook: !!tomorrowOutlook,
-        outlookStored: !!tomorrowOutlook
+        outlookStored: !!tomorrowOutlook,
+        usingFallback: !predictionsData || !analysisData,
+        outlookType: tomorrowOutlook?.basedOnData || 'pattern_analysis'
       });
 
       return result;
@@ -228,19 +299,48 @@ class ReportDataRetrieval {
         generatedAt: new Date().toISOString()
       };
 
+      // Log ERROR level for missing critical weekly data
+      if (weeklyData.length === 0) {
+        logger.error('⚠️ [WEEKLY-REVIEW] CRITICAL: No weekly performance data found in KV', {
+          date: dateStr,
+          expectedTradingDays: 5,
+          actualDaysFound: weeklyData.length,
+          impact: 'Using fallback default data - weekly review may not reflect actual market performance',
+          action: 'Manual investigation required for daily summary storage and weekly aggregation'
+        });
+
+        // Send Facebook error notification
+        await this.sendDataErrorNotification('Weekly Review', 'Missing weekly performance data', dateStr, env);
+      } else if (weeklyData.length < 3) {
+        logger.warn('⚠️ [WEEKLY-REVIEW] WARNING: Insufficient weekly data for comprehensive analysis', {
+          date: dateStr,
+          expectedTradingDays: 5,
+          actualDaysFound: weeklyData.length,
+          impact: 'Limited weekly analysis context - patterns may not be statistically significant',
+          action: 'Check daily summary generation for missing trading days'
+        });
+      }
+
       logger.info('Retrieved weekly review data', {
         date: dateStr,
         daysAnalyzed: weeklyData.length,
-        avgAccuracy: weeklyAnalysis.overview.averageAccuracy.toFixed(1)
+        avgAccuracy: weeklyAnalysis.overview.averageAccuracy.toFixed(1),
+        usingFallback: weeklyData.length === 0
       });
 
       return result;
 
     } catch (error) {
-      logger.error('Failed to retrieve weekly review data', {
+      logger.error('❌ [WEEKLY-REVIEW] CRITICAL: Failed to retrieve weekly review data', {
         date: dateStr,
-        error: error.message
+        error: error.message,
+        impact: 'Weekly review failed - using fallback data only',
+        action: 'Investigate KV storage and weekly data aggregation systems'
       });
+
+      // Send Facebook error notification for system failure
+      await this.sendDataErrorNotification('Weekly Review', `System error: ${error.message}`, dateStr, env);
+
       return this.getDefaultWeeklyData(dateStr);
     }
   }
@@ -746,6 +846,41 @@ class ReportDataRetrieval {
       worstDay: null,
       trends: { accuracyTrend: 'insufficient_data' }
     };
+  }
+
+  /**
+   * Send Facebook error notification for data issues
+   */
+  async sendDataErrorNotification(reportType, errorType, dateStr, env) {
+    try {
+      const errorMessage = `🚨 DATA ALERT: ${reportType}\n` +
+        `⚠️ Issue: ${errorType}\n` +
+        `📅 Date: ${dateStr}\n` +
+        `🔧 Impact: Report using fallback data - may not reflect actual analysis\n` +
+        `🛠️  Action: Required - Check KV storage and cron job execution\n` +
+        `⏰ Time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EDT`;
+
+      // Import Facebook function dynamically
+      const { sendFacebookMessage } = await import('./facebook.js');
+
+      logger.info(`📱 [FACEBOOK] Sending data error notification for ${reportType}`, {
+        reportType,
+        errorType,
+        dateStr
+      });
+
+      await sendFacebookMessage(errorMessage, env);
+
+      logger.info(`✅ [FACEBOOK] Data error notification sent for ${reportType}`);
+
+    } catch (fbError) {
+      logger.error('❌ [FACEBOOK] Failed to send data error notification', {
+        reportType,
+        errorType,
+        dateStr,
+        fbError: fbError.message
+      });
+    }
   }
 }
 

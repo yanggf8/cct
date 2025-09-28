@@ -31,7 +31,8 @@ import {
   handleDailySummaryAPI,
   handleDailySummaryPageRequest,
   handleBackfillDailySummaries,
-  handleVerifyBackfill
+  handleVerifyBackfill,
+  handleGenerateMorningPredictions
 } from './handlers/index.js';
 
 // Import comprehensive report handlers
@@ -135,6 +136,9 @@ export async function handleHttpRequest(request, env, ctx) {
     switch (url.pathname) {
       case '/analyze':
         response = await handleManualAnalysis(request, env);
+        break;
+      case '/generate-morning-predictions':
+        response = await handleGenerateMorningPredictions(request, env);
         break;
     case '/enhanced-feature-analysis':
       return handleEnhancedFeatureAnalysis(request, env);

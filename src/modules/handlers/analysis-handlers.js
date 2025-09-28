@@ -250,3 +250,98 @@ export async function handleSentimentTest(request, env) {
     });
   }
 }
+/**
+ * Handle morning predictions generation from existing analysis data
+ */
+export async function handleGenerateMorningPredictions(request, env) {
+  const requestId = crypto.randomUUID();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  try {
+    logger.info('🌅 Morning predictions generation requested', { requestId, date: dateStr });
+
+    // Check if analysis data exists for today
+    const analysisKey = `analysis_${dateStr}`;
+    const analysisData = await env.TRADING_RESULTS.get(analysisKey);
+
+    if (!analysisData) {
+      logger.warn('⚠️ No analysis data found for today', { requestId, date: dateStr });
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'No analysis data found for today. Run analysis first.',
+        request_id: requestId,
+        date: dateStr,
+        action_required: 'Run /analyze endpoint first'
+      }, null, 2), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    const analysis = JSON.parse(analysisData);
+
+    // Import the cron signal tracker
+    const { cronSignalTracker } = await import('../cron-signal-tracking.js');
+
+    // Generate morning predictions from analysis data
+    const success = await cronSignalTracker.saveMorningPredictions(env, analysis, today);
+
+    if (success) {
+      logger.info('✅ Morning predictions generated successfully', { requestId, date: dateStr });
+
+      // Verify the predictions were stored
+      const predictionsKey = `morning_predictions_${dateStr}`;
+      const storedPredictions = await env.TRADING_RESULTS.get(predictionsKey);
+      const predictions = storedPredictions ? JSON.parse(storedPredictions) : null;
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Morning predictions generated and stored successfully',
+        request_id: requestId,
+        date: dateStr,
+        predictions_stored: !!predictions,
+        signal_count: predictions?.predictions?.length || 0,
+        high_confidence_signals: predictions?.metadata?.totalSignals || 0,
+        average_confidence: predictions?.metadata?.averageConfidence?.toFixed(1) || 0,
+        predictions_key: predictionsKey,
+        timestamp: new Date().toISOString()
+      }, null, 2), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } else {
+      logger.error('❌ Failed to generate morning predictions', { requestId, date: dateStr });
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to generate morning predictions from analysis data',
+        request_id: requestId,
+        date: dateStr,
+        analysis_found: !!analysis,
+        symbols_analyzed: analysis.symbols_analyzed?.length || 0
+      }, null, 2), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+  } catch (error) {
+    logger.error('❌ Morning predictions generation failed', {
+      requestId,
+      date: dateStr,
+      error: error.message,
+      stack: error.stack
+    });
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      request_id: requestId,
+      date: dateStr,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
