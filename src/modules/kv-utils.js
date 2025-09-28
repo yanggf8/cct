@@ -3,7 +3,9 @@
  * Handles eventual consistency, atomic status updates, and dependency validation
  */
 
-import { logger } from './logging.js';
+import { createLogger } from './logging.js';
+
+const logger = createLogger('kv-utils');
 
 /**
  * Get KV value with retry logic for eventual consistency
