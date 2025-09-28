@@ -107,7 +107,7 @@ function analyzeWeeklyPatterns(weeklyData) {
     patternStrength: 'high'
   };
 
-  if (weeklyData.dailyResults.length === 0) {
+  if (!weeklyData.dailyResults || !Array.isArray(weeklyData.dailyResults) || weeklyData.dailyResults.length === 0) {
     return patterns;
   }
 
@@ -148,7 +148,7 @@ function analyzeWeeklyPatterns(weeklyData) {
  * Calculate weekly accuracy metrics
  */
 function calculateWeeklyAccuracy(weeklyData) {
-  if (weeklyData.dailyResults.length === 0) {
+  if (!weeklyData.dailyResults || !Array.isArray(weeklyData.dailyResults) || weeklyData.dailyResults.length === 0) {
     return getDefaultAccuracyMetrics();
   }
 
@@ -170,6 +170,16 @@ function calculateWeeklyAccuracy(weeklyData) {
  * Identify weekly trends
  */
 function identifyWeeklyTrends(weeklyData, patternAnalysis) {
+  if (!weeklyData.dailyResults || !Array.isArray(weeklyData.dailyResults) || weeklyData.dailyResults.length === 0) {
+    return {
+      accuracyTrend: 'stable',
+      volumeTrend: 'stable',
+      biasTrend: 'neutral',
+      consistencyTrend: 'variable',
+      weeklyMomentum: 'neutral'
+    };
+  }
+
   return {
     accuracyTrend: calculateAccuracyTrend(weeklyData.dailyResults.map(d => d.accuracy)),
     volumeTrend: calculateVolumeTrend(weeklyData.dailyResults.map(d => d.signals)),

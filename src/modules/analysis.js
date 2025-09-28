@@ -8,6 +8,10 @@ import { runTFTInference, runNHITSInference } from './models.js';
 import { validateEnvironment, validateSymbols, validateMarketData, safeValidate } from './validation.js';
 import { rateLimitedFetch, retryWithBackoff } from './rate-limiter.js';
 import { withCache, getCacheStats } from './market-data-cache.js';
+import { cronSignalTracker } from './cron-signal-tracking.js';
+import { createLogger } from './logging.js';
+
+const logger = createLogger('analysis');
 
 /**
  * Run comprehensive analysis
@@ -133,6 +137,19 @@ export async function runBasicAnalysis(env, options = {}) {
 
   console.log(`✅ Neural network analysis completed: ${successfulAnalyses}/${symbols.length} symbols successful`);
   console.log(`📊 Cache performance: ${cacheStats.hits} hits, ${cacheStats.misses} misses (${Math.round(cacheStats.hitRate * 100)}% hit rate)`);
+
+  // Generate and track high-confidence signals
+  const highConfidenceSignals = generateHighConfidenceSignals(analysisResults, currentTime);
+
+  // Save signals to KV storage for 4-report workflow
+  if (highConfidenceSignals.length > 0) {
+    await saveHighConfidenceSignals(env, highConfidenceSignals, currentTime);
+    logger.info('Generated high-confidence signals for 4-report workflow', {
+      signalCount: highConfidenceSignals.length,
+      symbols: highConfidenceSignals.map(s => s.symbol)
+    });
+  }
+
   return analysisResults;
 }
 
@@ -321,8 +338,165 @@ export async function runWeeklyMarketCloseAnalysis(env, currentTime) {
  */
 export async function runPreMarketAnalysis(env, options = {}) {
   console.log(`🌅 Running pre-market analysis (${options.triggerMode})...`);
-  
+
   const analysis = await runBasicAnalysis(env, options);
-  
+
   return analysis;
+}
+
+/**
+ * Generate high-confidence signals from analysis results
+ */
+function generateHighConfidenceSignals(analysisResults, currentTime) {
+  const signals = [];
+
+  for (const [symbol, signal] of Object.entries(analysisResults.trading_signals)) {
+    if (signal.confidence >= SIGNAL_CONFIDENCE_THRESHOLD) {
+      const enhancedSignal = {
+        id: crypto.randomUUID(),
+        symbol,
+        prediction: signal.direction,
+        confidence: signal.confidence,
+        currentPrice: signal.current_price,
+        predictedPrice: signal.predicted_price,
+        timestamp: currentTime.toISOString(),
+        status: 'pending',
+        analysisData: {
+          sentiment_layers: signal.sentiment_layers || [],
+          market_conditions: signal.market_conditions || {},
+          reasoning: signal.reasoning || '',
+          tags: signal.tags || []
+        },
+        tracking: {
+          morningSignal: {
+            prediction: signal.direction,
+            confidence: signal.confidence,
+            generatedAt: currentTime.toISOString()
+          },
+          intradayPerformance: null,
+          endOfDayPerformance: null,
+          weeklyPerformance: null
+        }
+      };
+
+      signals.push(enhancedSignal);
+      logger.debug('Generated high-confidence signal', {
+        symbol,
+        confidence: signal.confidence,
+        prediction: signal.direction
+      });
+    }
+  }
+
+  return signals;
+}
+
+/**
+ * Save high-confidence signals to KV storage
+ */
+async function saveHighConfidenceSignals(env, signals, currentTime) {
+  const dateStr = currentTime.toISOString().split('T')[0];
+  const signalsKey = `high_confidence_signals_${dateStr}`;
+
+  try {
+    const signalsData = {
+      date: dateStr,
+      signals: signals,
+      metadata: {
+        totalSignals: signals.length,
+        highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
+        averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+        generatedAt: currentTime.toISOString(),
+        symbols: signals.map(s => s.symbol)
+      }
+    };
+
+    await env.TRADING_RESULTS.put(signalsKey, JSON.stringify(signalsData));
+
+    // Also save for intraday tracking
+    const trackingKey = `signal_tracking_${dateStr}`;
+    await env.TRADING_RESULTS.put(trackingKey, JSON.stringify({
+      date: dateStr,
+      signals: signals.map(s => ({
+        id: s.id,
+        symbol: s.symbol,
+        prediction: s.prediction,
+        confidence: s.confidence,
+        currentPrice: s.currentPrice,
+        status: s.status,
+        tracking: s.tracking
+      })),
+      lastUpdated: currentTime.toISOString()
+    }));
+
+    logger.info('Saved high-confidence signals to KV storage', {
+      date: dateStr,
+      signalCount: signals.length,
+      trackingKey: trackingKey
+    });
+
+  } catch (error) {
+    logger.error('Failed to save high-confidence signals to KV', {
+      date: dateStr,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get high-confidence signals for intraday tracking
+ */
+export async function getHighConfidenceSignalsForTracking(env, date) {
+  const dateStr = date.toISOString().split('T')[0];
+  const trackingKey = `signal_tracking_${dateStr}`;
+
+  try {
+    const trackingData = await env.TRADING_RESULTS.get(trackingKey);
+    if (trackingData) {
+      const parsed = JSON.parse(trackingData);
+      return parsed.signals || [];
+    }
+  } catch (error) {
+    logger.error('Failed to retrieve signals for tracking', {
+      date: dateStr,
+      error: error.message
+    });
+  }
+
+  return [];
+}
+
+/**
+ * Update signal performance tracking
+ */
+export async function updateSignalPerformanceTracking(env, signalId, performanceData, date) {
+  const dateStr = date.toISOString().split('T')[0];
+  const trackingKey = `signal_tracking_${dateStr}`;
+
+  try {
+    const trackingData = await env.TRADING_RESULTS.get(trackingKey);
+    if (trackingData) {
+      const parsed = JSON.parse(trackingData);
+      const signal = parsed.signals.find(s => s.id === signalId);
+
+      if (signal) {
+        signal.tracking.intradayPerformance = performanceData;
+        signal.status = performanceData.status || signal.status;
+
+        await env.TRADING_RESULTS.put(trackingKey, JSON.stringify(parsed));
+
+        logger.debug('Updated signal performance tracking', {
+          signalId,
+          symbol: signal.symbol,
+          status: signal.status
+        });
+      }
+    }
+  } catch (error) {
+    logger.error('Failed to update signal performance tracking', {
+      signalId,
+      date: dateStr,
+      error: error.message
+    });
+  }
 }

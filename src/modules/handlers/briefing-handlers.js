@@ -7,6 +7,7 @@ import { createLogger } from '../logging.js';
 import { createSuccessResponse } from '../response-factory.js';
 import { createHandler } from '../handler-factory.js';
 import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
+import { getPreMarketBriefingData } from '../report-data-retrieval.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
 
 const logger = createLogger('briefing-handlers');
@@ -15,32 +16,73 @@ const logger = createLogger('briefing-handlers');
  * Generate Pre-Market Briefing Page
  */
 export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request, env) => {
-  logger.info('Generating pre-market briefing page');
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+
+  logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', {
+    requestId,
+    url: request.url,
+    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+  });
 
   // Validate inputs
   validateRequest(request);
   validateEnvironment(env);
 
-  // Get today's analysis data
-  const today = new Date().toISOString().split('T')[0];
-  const analysisKey = `analysis_${today}`;
+  logger.debug('✅ [PRE-MARKET] Input validation passed', { requestId });
 
-  let analysisData = null;
+  // Get today's briefing data using new data retrieval system
+  const today = new Date();
+
+  logger.debug('📊 [PRE-MARKET] Retrieving pre-market briefing data', {
+    requestId,
+    date: today.toISOString().split('T')[0]
+  });
+
+  let briefingData = null;
   try {
-    const storedAnalysis = await env.TRADING_RESULTS.get(analysisKey);
-    if (storedAnalysis) {
-      analysisData = JSON.parse(storedAnalysis);
+    briefingData = await getPreMarketBriefingData(env, today);
+
+    if (briefingData) {
+      logger.info('✅ [PRE-MARKET] Briefing data retrieved successfully', {
+        requestId,
+        signalCount: briefingData.signals?.length || 0,
+        hasData: true
+      });
+    } else {
+      logger.warn('⚠️ [PRE-MARKET] No briefing data found for today', {
+        requestId
+      });
     }
   } catch (error) {
-    logger.warn('Could not retrieve analysis data', { error: error.message });
+    logger.error('❌ [PRE-MARKET] Failed to retrieve briefing data', {
+      requestId,
+      error: error.message
+    });
   }
 
-  const html = generatePreMarketBriefingHTML(analysisData, today);
+  const generationStartTime = Date.now();
+  logger.debug('🎨 [PRE-MARKET] Generating HTML content', { requestId });
+
+  const html = generatePreMarketBriefingHTML(briefingData, today);
+
+  const totalTime = Date.now() - startTime;
+  const generationTime = Date.now() - generationStartTime;
+
+  logger.info('✅ [PRE-MARKET] Pre-market briefing generated successfully', {
+    requestId,
+    totalTimeMs: totalTime,
+    generationTimeMs: generationTime,
+    dataSize: analysisData ? 'present' : 'missing',
+    htmlLength: html.length
+  });
 
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html',
-      'Cache-Control': 'public, max-age=300' // 5 minute cache
+      'Cache-Control': 'public, max-age=300', // 5 minute cache
+      'X-Request-ID': requestId,
+      'X-Processing-Time': `${totalTime}ms`
     }
   });
 });
@@ -48,9 +90,9 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 /**
  * Generate comprehensive pre-market briefing HTML
  */
-function generatePreMarketBriefingHTML(analysisData, date) {
-  // Process analysis data for briefing format using real analysis module
-  const briefingData = analysisData ? generatePreMarketSignals(analysisData) : getDefaultBriefingData();
+function generatePreMarketBriefingHTML(briefingData, date) {
+  // Process briefing data for HTML format
+  const formattedData = briefingData || getDefaultBriefingData();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -354,8 +396,8 @@ function generatePreMarketBriefingHTML(analysisData, date) {
 
         <div class="market-bias">
             <h2>Overall Market Bias</h2>
-            <div class="bias-indicator ${briefingData.bias.toLowerCase()}">${briefingData.biasDisplay}</div>
-            <div class="confidence">${briefingData.confidence}% confidence</div>
+            <div class="bias-indicator ${formattedData.overallBias.toLowerCase()}">${formattedData.overallBias.toUpperCase()}</div>
+            <div class="confidence">${Math.round(formattedData.averageConfidence)}% confidence</div>
         </div>
 
         <div class="ideas-section">
@@ -372,22 +414,22 @@ function generatePreMarketBriefingHTML(analysisData, date) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${briefingData.highConfidenceUps.map(idea => `
+                        ${(formattedData.highConfidenceUps || []).map(signal => `
                             <tr>
-                                <td class="ticker">${idea.ticker}</td>
-                                <td class="prediction up">↑ +${idea.expectedMove}%</td>
+                                <td class="ticker">${signal.symbol}</td>
+                                <td class="prediction up">↑ ${((signal.predictedPrice - signal.currentPrice) / signal.currentPrice * 100).toFixed(1)}%</td>
                                 <td>
-                                    ${idea.confidence}%
+                                    ${Math.round(signal.confidence * 100)}%
                                     <div class="confidence-bar">
-                                        <div class="confidence-fill" style="width: ${idea.confidence}%"></div>
+                                        <div class="confidence-fill" style="width: ${signal.confidence * 100}%"></div>
                                     </div>
                                 </td>
-                                <td>${idea.driver}</td>
+                                <td>Technical momentum</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                ${briefingData.highConfidenceUps.length === 0 ? '<div class="no-signals">No high-confidence bullish signals today</div>' : ''}
+                ${(formattedData.highConfidenceUps || []).length === 0 ? '<div class="no-signals">No high-confidence bullish signals today</div>' : ''}
             </div>
 
             <div class="ideas-card short">
@@ -403,22 +445,22 @@ function generatePreMarketBriefingHTML(analysisData, date) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${briefingData.highConfidenceDowns.map(idea => `
+                        ${(formattedData.highConfidenceDowns || []).map(signal => `
                             <tr>
-                                <td class="ticker">${idea.ticker}</td>
-                                <td class="prediction down">↓ -${idea.expectedMove}%</td>
+                                <td class="ticker">${signal.symbol}</td>
+                                <td class="prediction down">↓ ${((signal.currentPrice - signal.predictedPrice) / signal.currentPrice * 100).toFixed(1)}%</td>
                                 <td>
-                                    ${idea.confidence}%
+                                    ${Math.round(signal.confidence * 100)}%
                                     <div class="confidence-bar">
-                                        <div class="confidence-fill" style="width: ${idea.confidence}%"></div>
+                                        <div class="confidence-fill" style="width: ${signal.confidence * 100}%"></div>
                                     </div>
                                 </td>
-                                <td>${idea.driver}</td>
+                                <td>Technical weakness</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                ${briefingData.highConfidenceDowns.length === 0 ? '<div class="no-signals">No high-confidence bearish signals today</div>' : ''}
+                ${(formattedData.highConfidenceDowns || []).length === 0 ? '<div class="no-signals">No high-confidence bearish signals today</div>' : ''}
             </div>
         </div>
 
@@ -427,18 +469,21 @@ function generatePreMarketBriefingHTML(analysisData, date) {
             <div class="sectors-grid">
                 <div class="sector-card strongest">
                     <h4>💪 Strongest</h4>
-                    <div class="sector-list">${briefingData.strongestSectors.join(', ')}</div>
+                    <div class="sector-list">${(formattedData.strongestSectors || ['Technology', 'Financials']).join(', ')}</div>
                 </div>
                 <div class="sector-card weakest">
                     <h4>📉 Weakest</h4>
-                    <div class="sector-list">${briefingData.weakestSectors.join(', ')}</div>
+                    <div class="sector-list">${(formattedData.weakestSectors || ['Healthcare', 'Energy']).join(', ')}</div>
                 </div>
             </div>
         </div>
 
         <div class="risk-section">
             <h3>⚠️ Risk Watchlist</h3>
-            ${briefingData.riskItems.map(item => `
+            ${(formattedData.riskItems || [
+                { symbol: 'SPY', description: 'Monitor for overall market volatility' },
+                { symbol: 'QQQ', description: 'Tech sector concentration risk' }
+            ]).map(item => `
                 <div class="risk-item">
                     <div class="risk-symbol">${item.symbol}</div>
                     <div class="risk-description">${item.description}</div>

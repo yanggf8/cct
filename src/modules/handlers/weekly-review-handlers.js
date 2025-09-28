@@ -6,6 +6,7 @@
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
+import { getWeeklyReviewData } from '../report-data-retrieval.js';
 
 const logger = createLogger('weekly-review-handlers');
 
@@ -13,42 +14,72 @@ const logger = createLogger('weekly-review-handlers');
  * Generate Weekly Review Page
  */
 export const handleWeeklyReview = createHandler('weekly-review', async (request, env) => {
-  logger.info('Generating weekly review page');
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
 
-  // Get this week's analysis data
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - 7); // Last 7 days
+  logger.info('📈 [WEEKLY-REVIEW] Starting weekly review generation', {
+    requestId,
+    url: request.url,
+    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+  });
 
-  let weeklyData = [];
+  // Get this week's review data using new data retrieval system
+  const today = new Date();
+
+  logger.debug('📊 [WEEKLY-REVIEW] Retrieving weekly review data', {
+    requestId,
+    date: today.toISOString().split('T')[0]
+  });
+
+  let weeklyData = null;
 
   try {
-    // Collect daily analysis data for the past week
-    for (let i = 0; i < 7; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const analysisKey = `analysis_${dateStr}`;
+    weeklyData = await getWeeklyReviewData(env, today);
 
-      const storedAnalysis = await env.TRADING_RESULTS.get(analysisKey);
-      if (storedAnalysis) {
-        const analysis = JSON.parse(storedAnalysis);
-        weeklyData.push({
-          date: dateStr,
-          analysis: analysis
-        });
-      }
+    if (weeklyData) {
+      logger.info('✅ [WEEKLY-REVIEW] Weekly data retrieved successfully', {
+        requestId,
+        totalSignals: weeklyData.totalSignals || 0,
+        tradingDays: weeklyData.tradingDays || 0,
+        hasData: true
+      });
+    } else {
+      logger.warn('⚠️ [WEEKLY-REVIEW] No weekly data found for this week', {
+        requestId
+      });
     }
   } catch (error) {
-    logger.warn('Could not retrieve weekly analysis data', { error: error.message });
+    logger.error('❌ [WEEKLY-REVIEW] Failed to retrieve weekly data', {
+      requestId,
+      error: error.message
+    });
   }
 
+  const generationStartTime = Date.now();
+  logger.debug('🎨 [WEEKLY-REVIEW] Generating HTML content', {
+    requestId,
+    hasWeeklyData: !!weeklyData
+  });
+
   const html = await generateWeeklyReviewHTML(weeklyData, env);
+
+  const totalTime = Date.now() - startTime;
+  const generationTime = Date.now() - generationStartTime;
+
+  logger.info('✅ [WEEKLY-REVIEW] Weekly review generated successfully', {
+    requestId,
+    totalTimeMs: totalTime,
+    generationTimeMs: generationTime,
+    dataSize: weeklyData ? 'present' : 'missing',
+    htmlLength: html.length
+  });
 
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html',
-      'Cache-Control': 'public, max-age=3600' // 1 hour cache for weekly review
+      'Cache-Control': 'public, max-age=3600', // 1 hour cache for weekly review
+      'X-Request-ID': requestId,
+      'X-Processing-Time': `${totalTime}ms`
     }
   });
 });
@@ -57,10 +88,9 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request,
  * Generate comprehensive weekly review HTML
  */
 async function generateWeeklyReviewHTML(weeklyData, env) {
-  // Process weekly data for comprehensive review using real analysis module
-  const reviewData = weeklyData.length > 0 ?
-    await generateWeeklyReviewAnalysis(env, new Date()) :
-    getDefaultWeeklyReviewData();
+  try {
+    // Process weekly data for comprehensive review using new data retrieval system
+    const reviewData = weeklyData || getDefaultWeeklyReviewData();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -634,66 +664,38 @@ async function generateWeeklyReviewHTML(weeklyData, env) {
     </script>
 </body>
 </html>`;
+  } catch (error) {
+    logger.error('❌ [WEEKLY-REVIEW] Error generating weekly review HTML', {
+      error: error.message,
+      stack: error.stack,
+      weeklyDataLength: weeklyData?.length || 0
+    });
+
+    // Return a simple error page
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Weekly Review - Error</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a237e; color: white; }
+        .error { background: #d32f2f; padding: 15px; border-radius: 5px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>📊 Weekly Review</h1>
+    <div class="error">
+        <h3>⚠️ Error Generating Weekly Review</h3>
+        <p>The system encountered an error while generating the weekly review. This typically happens when there's insufficient data for the past week.</p>
+        <p><strong>Error:</strong> ${error.message}</p>
+        <p>Please ensure that daily analysis has been run for the past week.</p>
+    </div>
+</body>
+</html>`;
+  }
 }
 
-/**
- * Process weekly data for comprehensive review
- */
-function processDataForWeeklyReview(weeklyData) {
-  // Mock comprehensive weekly review data
-  const reviewData = {
-    weekPeriod: 'September 23-29, 2024',
-    weeklyAccuracy: 68,
-    totalSignals: 30,
-    correctSignals: 20,
-    wrongSignals: 10,
-    tradingDays: 5,
-    bestDay: 'Wed (85%)',
-    worstDay: 'Fri (45%)',
-    dailyBreakdown: [
-      { date: 'Mon 9/23', accuracy: 75, accuracyClass: 'excellent' },
-      { date: 'Tue 9/24', accuracy: 70, accuracyClass: 'good' },
-      { date: 'Wed 9/25', accuracy: 85, accuracyClass: 'excellent' },
-      { date: 'Thu 9/26', accuracy: 60, accuracyClass: 'average' },
-      { date: 'Fri 9/27', accuracy: 45, accuracyClass: 'poor' }
-    ],
-    topPerformers: [
-      { ticker: 'AAPL', accuracy: 85, signalCount: 5, grade: 'A', accuracyClass: 'excellent' },
-      { ticker: 'MSFT', accuracy: 80, signalCount: 5, grade: 'A-', accuracyClass: 'excellent' },
-      { ticker: 'GOOGL', accuracy: 75, signalCount: 6, grade: 'B+', accuracyClass: 'excellent' }
-    ],
-    needsImprovement: [
-      { ticker: 'TSLA', accuracy: 40, signalCount: 5, issues: 'Volatility', accuracyClass: 'poor' },
-      { ticker: 'META', accuracy: 50, signalCount: 4, issues: 'Sentiment', accuracyClass: 'average' },
-      { ticker: 'NVDA', accuracy: 55, signalCount: 5, issues: 'Timing', accuracyClass: 'average' }
-    ],
-    insights: {
-      modelReliability: 'High-confidence signals (≥70%) maintained 68% accuracy this week, showing strong consistency in established tech names while struggling with high-volatility growth stocks.',
-      sectorPerformance: 'Traditional tech (AAPL, MSFT) significantly outperformed growth tech (TSLA, META) with 82% vs 45% accuracy respectively, indicating sector rotation sensitivity.',
-      timingPatterns: 'Mid-week performance peaked at 85% on Wednesday, with Friday showing weakness (45%) likely due to option expiration and position squaring.',
-      volatilityResponse: 'Model struggled in high-volatility environments (VIX >20), with accuracy dropping to 52% vs 78% in stable conditions.',
-      signalQuality: 'Signal quality improved throughout the week until Friday, suggesting the need for Friday-specific volatility adjustments.',
-      riskManagement: 'High-confidence threshold (≥70%) effectively filtered quality signals, but may need dynamic adjustment based on market volatility regime.'
-    },
-    recommendations: {
-      modelOptimization: 'Consider implementing volatility-adjusted confidence thresholds and Friday-specific signal dampening to improve consistency.',
-      signalEnhancement: 'Enhance sector rotation detection and add volatility regime classification to improve signal accuracy during market transitions.',
-      riskAdjustments: 'Reduce position sizing on high-volatility names (TSLA, NVDA) and increase allocation to stable performers (AAPL, MSFT).',
-      nextWeekFocus: 'Monitor earnings reactions, implement volatility filters, and test sector-specific confidence thresholds for enhanced accuracy.'
-    },
-    nextReviewDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric'
-    }),
-    chartData: {
-      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-      accuracyData: [75, 70, 85, 60, 45]
-    }
-  };
-
-  return reviewData;
-}
 
 /**
  * Default weekly review data when no analysis is available

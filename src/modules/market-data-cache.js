@@ -223,7 +223,5 @@ export async function withCache(symbol, fetchFunction, days = 50) {
   }
 }
 
-// Periodic cleanup every 10 minutes
-setInterval(() => {
-  cleanupCache();
-}, 10 * 60 * 1000);
+// Note: Periodic cleanup disabled to avoid global scope setInterval in Cloudflare Workers
+// Cache cleanup happens automatically during cache operations

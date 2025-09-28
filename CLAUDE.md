@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-29 (100/100 Production-Ready Enterprise Architecture)
+**Current Version**: 2025-09-29 (100/100 Production-Ready Enterprise Architecture with AI-Powered Tomorrow Outlook)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade trading analysis with real market data integration
 - **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with comprehensive optimization modules
@@ -18,12 +18,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Facebook Messaging**: ✅ **PURE MESSAGING** - Clean messaging-only layer with proper handler integration
 - **Information Architecture**: ✅ **4-TIER SYSTEM** - Pre-Market → Intraday → End-of-Day → Weekly Review
 - **AI Models**: ✅ **CLOUDFLARE NATIVE** - GPT-OSS-120B + DistilBERT (zero cost)
+- **AI Usage**: ✅ **OPTIMIZED** - 2 AI calls per day (8:30 AM + 4:05 PM) within rate limits
+- **Tomorrow Outlook**: ✅ **AI-POWERED** - Fresh GPT-OSS-120B analysis for next-day predictions
 - **KV Storage**: ✅ **DUAL-TIER** - Daily summaries (7-day TTL) + granular analysis (90-day TTL)
 - **Cost**: $0.00/month (100% free Cloudflare services)
 - **Mobile**: ✅ **RESPONSIVE** - Touch-friendly interface with proper viewport
 - **Observability**: ✅ **PRODUCTION-GRADE** - Structured logging, monitoring, business metrics
 - **Optimization**: ✅ **VERIFIED** - Configuration centralization, handler factory, response standardization, enhanced KPIs
-- **Quality Grade**: ✅ **100/100** - Production-ready enterprise architecture with real market data
+- **Quality Grade**: ✅ **100/100** - Production-ready enterprise architecture with AI-powered tomorrow outlook
 - **Report System**: ✅ **4/4 COMPLETED** - Pre-Market, Intraday, End-of-Day, Weekly Review with clean modular backend
 
 **Architecture**: `100/100 Production-Ready Enterprise Architecture with Real Market Data Integration`

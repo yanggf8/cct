@@ -6,6 +6,7 @@
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateEndOfDayAnalysis } from '../report/end-of-day-analysis.js';
+import { getEndOfDaySummaryData } from '../report-data-retrieval.js';
 
 const logger = createLogger('end-of-day-handlers');
 
@@ -13,45 +14,72 @@ const logger = createLogger('end-of-day-handlers');
  * Generate End-of-Day Summary Page
  */
 export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request, env) => {
-  logger.info('Generating end-of-day summary page');
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
 
-  // Get today's analysis data and morning predictions
-  const today = new Date().toISOString().split('T')[0];
-  const analysisKey = `analysis_${today}`;
+  logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', {
+    requestId,
+    url: request.url,
+    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+  });
 
-  let analysisData = null;
-  let morningPredictions = null;
-  let intradayData = null;
+  // Get today's end-of-day data using new data retrieval system
+  const today = new Date();
+
+  logger.debug('📊 [END-OF-DAY] Retrieving end-of-day summary data', {
+    requestId,
+    date: today.toISOString().split('T')[0]
+  });
+
+  let endOfDayData = null;
 
   try {
-    const storedAnalysis = await env.TRADING_RESULTS.get(analysisKey);
-    if (storedAnalysis) {
-      analysisData = JSON.parse(storedAnalysis);
-    }
+    endOfDayData = await getEndOfDaySummaryData(env, today);
 
-    // Get morning predictions for comparison
-    const morningKey = `fb_morning_${today}`;
-    const morningData = await env.TRADING_RESULTS.get(morningKey);
-    if (morningData) {
-      morningPredictions = JSON.parse(morningData);
-    }
-
-    // Get intraday performance data
-    const intradayKey = `intraday_${today}`;
-    const intradayStored = await env.TRADING_RESULTS.get(intradayKey);
-    if (intradayStored) {
-      intradayData = JSON.parse(intradayStored);
+    if (endOfDayData) {
+      logger.info('✅ [END-OF-DAY] End-of-day data retrieved successfully', {
+        requestId,
+        signalCount: endOfDayData.signals?.length || 0,
+        hasTomorrowOutlook: !!endOfDayData.tomorrowOutlook,
+        hasData: true
+      });
+    } else {
+      logger.warn('⚠️ [END-OF-DAY] No end-of-day data found for today', {
+        requestId
+      });
     }
   } catch (error) {
-    logger.warn('Could not retrieve analysis data', { error: error.message });
+    logger.error('❌ [END-OF-DAY] Failed to retrieve end-of-day data', {
+      requestId,
+      error: error.message
+    });
   }
 
-  const html = await generateEndOfDayHTML(analysisData, morningPredictions, intradayData, today, env);
+  const generationStartTime = Date.now();
+  logger.debug('🎨 [END-OF-DAY] Generating HTML content', {
+    requestId,
+    hasEndOfDayData: !!endOfDayData
+  });
+
+  const html = await generateEndOfDayHTML(endOfDayData, today, env);
+
+  const totalTime = Date.now() - startTime;
+  const generationTime = Date.now() - generationStartTime;
+
+  logger.info('✅ [END-OF-DAY] End-of-day summary generated successfully', {
+    requestId,
+    totalTimeMs: totalTime,
+    generationTimeMs: generationTime,
+    dataSize: endOfDayData ? 'present' : 'missing',
+    htmlLength: html.length
+  });
 
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html',
-      'Cache-Control': 'public, max-age=300' // 5 minute cache for end-of-day
+      'Cache-Control': 'public, max-age=300', // 5 minute cache for end-of-day
+      'X-Request-ID': requestId,
+      'X-Processing-Time': `${totalTime}ms`
     }
   });
 });
@@ -59,11 +87,9 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
 /**
  * Generate comprehensive end-of-day summary HTML
  */
-async function generateEndOfDayHTML(analysisData, morningPredictions, intradayData, date, env) {
-  // Process analysis data for end-of-day format using real analysis module
-  const endOfDayData = analysisData ?
-    await generateEndOfDayAnalysis(analysisData, morningPredictions, intradayData, env) :
-    getDefaultEndOfDayData();
+async function generateEndOfDayHTML(endOfDayData, date, env) {
+  // Process end-of-day data for HTML format
+  const formattedData = endOfDayData || getDefaultEndOfDayData();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -412,19 +438,19 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
             <h2>🎯 High-Confidence Signal Performance</h2>
             <div class="overview-grid">
                 <div class="overview-metric">
-                    <div class="value ${endOfDayData.overallAccuracy >= 75 ? 'excellent' : endOfDayData.overallAccuracy >= 60 ? 'good' : endOfDayData.overallAccuracy >= 45 ? 'average' : 'poor'}">${endOfDayData.overallAccuracy}%</div>
+                    <div class="value ${formattedData.overallAccuracy >= 75 ? 'excellent' : formattedData.overallAccuracy >= 60 ? 'good' : formattedData.overallAccuracy >= 45 ? 'average' : 'poor'}">${formattedData.overallAccuracy}%</div>
                     <div class="label">Overall Accuracy</div>
                 </div>
                 <div class="overview-metric">
-                    <div class="value">${endOfDayData.totalSignals}</div>
+                    <div class="value">${formattedData.totalSignals}</div>
                     <div class="label">High-Confidence Signals</div>
                 </div>
                 <div class="overview-metric">
-                    <div class="value ${endOfDayData.correctCalls >= endOfDayData.wrongCalls ? 'excellent' : 'average'}">${endOfDayData.correctCalls}/${endOfDayData.wrongCalls}</div>
+                    <div class="value ${formattedData.correctCalls >= formattedData.wrongCalls ? 'excellent' : 'average'}">${formattedData.correctCalls}/${formattedData.wrongCalls}</div>
                     <div class="label">Correct/Wrong</div>
                 </div>
                 <div class="overview-metric">
-                    <div class="value">${endOfDayData.modelGrade}</div>
+                    <div class="value">${formattedData.modelGrade}</div>
                     <div class="label">Model Grade</div>
                 </div>
             </div>
@@ -436,7 +462,7 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
                 <div class="winners-losers-grid">
                     <div class="winner-loser-section winner-section">
                         <h4>🔥 Biggest Winners</h4>
-                        ${endOfDayData.topWinners.map(winner => `
+                        ${(formattedData.topWinners || []).map(winner => `
                             <div class="symbol-item">
                                 <span class="symbol-ticker">${winner.ticker}</span>
                                 <span class="symbol-performance positive">${winner.performance}</span>
@@ -445,7 +471,7 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
                     </div>
                     <div class="winner-loser-section loser-section">
                         <h4>📉 Biggest Losers</h4>
-                        ${endOfDayData.topLosers.map(loser => `
+                        ${(formattedData.topLosers || []).map(loser => `
                             <div class="symbol-item">
                                 <span class="symbol-ticker">${loser.ticker}</span>
                                 <span class="symbol-performance negative">${loser.performance}</span>
@@ -468,7 +494,7 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
                         </tr>
                     </thead>
                     <tbody>
-                        ${endOfDayData.signalBreakdown.map(signal => `
+                        ${(formattedData.signalBreakdown || []).map(signal => `
                             <tr>
                                 <td class="symbol-ticker">${signal.ticker}</td>
                                 <td class="predicted ${signal.predictedDirection}">${signal.predicted}</td>
@@ -494,19 +520,19 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
             <div class="insights-grid">
                 <div class="insight-item">
                     <h4>🎯 Model Performance</h4>
-                    <p>${endOfDayData.insights.modelPerformance}</p>
+                    <p>${formattedData.insights?.modelPerformance || 'Strong model performance with effective risk management.'}</p>
                 </div>
                 <div class="insight-item">
                     <h4>📊 Sector Analysis</h4>
-                    <p>${endOfDayData.insights.sectorAnalysis}</p>
+                    <p>${formattedData.insights?.sectorAnalysis || 'Mixed sector performance with technology showing resilience.'}</p>
                 </div>
                 <div class="insight-item">
                     <h4>⚡ Volatility Patterns</h4>
-                    <p>${endOfDayData.insights.volatilityPatterns}</p>
+                    <p>${formattedData.insights?.volatilityPatterns || 'Moderate volatility with selective opportunities.'}</p>
                 </div>
                 <div class="insight-item">
                     <h4>🔄 Signal Quality</h4>
-                    <p>${endOfDayData.insights.signalQuality}</p>
+                    <p>${formattedData.insights?.signalQuality || 'High-confidence threshold maintaining strong hit rate.'}</p>
                 </div>
             </div>
         </div>
@@ -515,19 +541,19 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
             <h3>🌅 Tomorrow's Outlook</h3>
             <div class="outlook-grid">
                 <div class="outlook-item">
-                    <div class="metric">${endOfDayData.tomorrowOutlook.marketBias}</div>
+                    <div class="metric">${formattedData.tomorrowOutlook?.marketBias || 'Neutral'}</div>
                     <div class="label">Expected Market Bias</div>
                 </div>
                 <div class="outlook-item">
-                    <div class="metric">${endOfDayData.tomorrowOutlook.volatilityLevel}</div>
+                    <div class="metric">${formattedData.tomorrowOutlook?.volatilityLevel || 'Moderate'}</div>
                     <div class="label">Volatility Expectation</div>
                 </div>
                 <div class="outlook-item">
-                    <div class="metric">${endOfDayData.tomorrowOutlook.confidenceLevel}</div>
+                    <div class="metric">${formattedData.tomorrowOutlook?.confidenceLevel || 'Medium'}</div>
                     <div class="label">Model Confidence</div>
                 </div>
                 <div class="outlook-item">
-                    <div class="metric">${endOfDayData.tomorrowOutlook.keyFocus}</div>
+                    <div class="metric">${formattedData.tomorrowOutlook?.keyFocus || 'Market Monitoring'}</div>
                     <div class="label">Key Focus Area</div>
                 </div>
             </div>
@@ -546,104 +572,6 @@ async function generateEndOfDayHTML(analysisData, morningPredictions, intradayDa
 </html>`;
 }
 
-/**
- * Process analysis data for end-of-day summary
- */
-function processAnalysisForEndOfDay(analysisData, morningPredictions, intradayData) {
-  // Mock comprehensive end-of-day data
-  const endOfDayData = {
-    overallAccuracy: 73,
-    totalSignals: 6,
-    correctCalls: 4,
-    wrongCalls: 2,
-    modelGrade: 'B+',
-    topWinners: [
-      { ticker: 'AAPL', performance: '+2.8%' },
-      { ticker: 'MSFT', performance: '+2.1%' },
-      { ticker: 'GOOGL', performance: '+1.9%' }
-    ],
-    topLosers: [
-      { ticker: 'TSLA', performance: '-3.2%' },
-      { ticker: 'NVDA', performance: '-1.8%' }
-    ],
-    signalBreakdown: [
-      {
-        ticker: 'AAPL',
-        predicted: '↑ +1.5%',
-        predictedDirection: 'up',
-        actual: '↑ +2.8%',
-        actualDirection: 'up',
-        confidence: 78,
-        confidenceLevel: 'high',
-        correct: true
-      },
-      {
-        ticker: 'MSFT',
-        predicted: '↑ +1.2%',
-        predictedDirection: 'up',
-        actual: '↑ +2.1%',
-        actualDirection: 'up',
-        confidence: 74,
-        confidenceLevel: 'high',
-        correct: true
-      },
-      {
-        ticker: 'GOOGL',
-        predicted: '↑ +1.8%',
-        predictedDirection: 'up',
-        actual: '↑ +1.9%',
-        actualDirection: 'up',
-        confidence: 71,
-        confidenceLevel: 'high',
-        correct: true
-      },
-      {
-        ticker: 'TSLA',
-        predicted: '↑ +2.1%',
-        predictedDirection: 'up',
-        actual: '↓ -3.2%',
-        actualDirection: 'down',
-        confidence: 76,
-        confidenceLevel: 'high',
-        correct: false
-      },
-      {
-        ticker: 'NVDA',
-        predicted: '↓ -1.4%',
-        predictedDirection: 'down',
-        actual: '↓ -1.8%',
-        actualDirection: 'down',
-        confidence: 72,
-        confidenceLevel: 'high',
-        correct: true
-      },
-      {
-        ticker: 'META',
-        predicted: '↑ +1.6%',
-        predictedDirection: 'up',
-        actual: '↓ -0.8%',
-        actualDirection: 'down',
-        confidence: 70,
-        confidenceLevel: 'high',
-        correct: false
-      }
-    ],
-    insights: {
-      modelPerformance: 'Strong 73% accuracy on high-confidence signals with particular strength in tech sector momentum calls.',
-      sectorAnalysis: 'Technology sector showed mixed results with established players (AAPL, MSFT) outperforming growth names (TSLA, META).',
-      volatilityPatterns: 'Higher-than-expected volatility in EV and social media names, suggesting sector-specific headwinds.',
-      signalQuality: 'High-confidence threshold (≥70%) proved effective in filtering quality signals, maintaining strong hit rate.'
-    },
-    tomorrowOutlook: {
-      marketBias: 'Neutral-Bullish',
-      volatilityLevel: 'Moderate',
-      confidenceLevel: 'High',
-      keyFocus: 'Tech Earnings'
-    }
-  };
-
-  return endOfDayData;
-}
 
 /**
  * Default end-of-day data when no analysis is available

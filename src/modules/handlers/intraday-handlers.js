@@ -6,6 +6,7 @@
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
+import { getIntradayCheckData } from '../report-data-retrieval.js';
 
 const logger = createLogger('intraday-handlers');
 
@@ -13,37 +14,72 @@ const logger = createLogger('intraday-handlers');
  * Generate Intraday Performance Check Page
  */
 export const handleIntradayCheck = createHandler('intraday-check', async (request, env) => {
-  logger.info('Generating intraday performance check page');
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
 
-  // Get today's analysis data and morning predictions
-  const today = new Date().toISOString().split('T')[0];
-  const analysisKey = `analysis_${today}`;
+  logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
+    requestId,
+    url: request.url,
+    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+  });
 
-  let analysisData = null;
-  let morningPredictions = null;
+  // Get today's intraday data using new data retrieval system
+  const today = new Date();
+
+  logger.debug('🔍 [INTRADAY] Retrieving intraday check data', {
+    requestId,
+    date: today.toISOString().split('T')[0]
+  });
+
+  let intradayData = null;
 
   try {
-    const storedAnalysis = await env.TRADING_RESULTS.get(analysisKey);
-    if (storedAnalysis) {
-      analysisData = JSON.parse(storedAnalysis);
-    }
+    intradayData = await getIntradayCheckData(env, today);
 
-    // Get morning predictions for comparison
-    const morningKey = `fb_morning_${today}`;
-    const morningData = await env.TRADING_RESULTS.get(morningKey);
-    if (morningData) {
-      morningPredictions = JSON.parse(morningData);
+    if (intradayData) {
+      logger.info('✅ [INTRADAY] Intraday data retrieved successfully', {
+        requestId,
+        signalCount: intradayData.signals?.length || 0,
+        hasData: true
+      });
+    } else {
+      logger.warn('⚠️ [INTRADAY] No intraday data found for today', {
+        requestId
+      });
     }
   } catch (error) {
-    logger.warn('Could not retrieve analysis data', { error: error.message });
+    logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
+      requestId,
+      error: error.message
+    });
   }
 
-  const html = await generateIntradayCheckHTML(analysisData, morningPredictions, today, env);
+  const generationStartTime = Date.now();
+  logger.debug('🎨 [INTRADAY] Generating HTML content', {
+    requestId,
+    hasIntradayData: !!intradayData
+  });
+
+  const html = await generateIntradayCheckHTML(intradayData, today, env);
+
+  const totalTime = Date.now() - startTime;
+  const generationTime = Date.now() - generationStartTime;
+
+  logger.info('✅ [INTRADAY] Intraday performance check generated successfully', {
+    requestId,
+    totalTimeMs: totalTime,
+    generationTimeMs: generationTime,
+    dataSize: analysisData ? 'present' : 'missing',
+    morningPredictions: morningPredictions ? 'present' : 'missing',
+    htmlLength: html.length
+  });
 
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html',
-      'Cache-Control': 'public, max-age=180' // 3 minute cache for intraday
+      'Cache-Control': 'public, max-age=180', // 3 minute cache for intraday
+      'X-Request-ID': requestId,
+      'X-Processing-Time': `${totalTime}ms`
     }
   });
 });
@@ -51,11 +87,9 @@ export const handleIntradayCheck = createHandler('intraday-check', async (reques
 /**
  * Generate comprehensive intraday check HTML
  */
-async function generateIntradayCheckHTML(analysisData, morningPredictions, date, env) {
-  // Process analysis data for intraday format using real analysis module
-  const intradayData = analysisData ?
-    await generateIntradayPerformance(analysisData, morningPredictions, env) :
-    getDefaultIntradayData();
+async function generateIntradayCheckHTML(intradayData, date, env) {
+  // Process intraday data for HTML format
+  const formattedData = intradayData || getDefaultIntradayData();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -355,30 +389,30 @@ async function generateIntradayCheckHTML(analysisData, morningPredictions, date,
             })} EDT</div>
         </div>
 
-        <div class="model-health ${intradayData.modelHealth.status}">
+        <div class="model-health ${formattedData.modelHealth.status}">
             <h2>Model Health Status</h2>
-            <div class="health-status ${intradayData.modelHealth.status}">${intradayData.modelHealth.display}</div>
-            <div class="accuracy-metric">Live Accuracy: ${intradayData.liveAccuracy}%</div>
-            <div>Tracking ${intradayData.totalSignals} high-confidence signals from this morning</div>
+            <div class="health-status ${formattedData.modelHealth.status}">${formattedData.modelHealth.display}</div>
+            <div class="accuracy-metric">Live Accuracy: ${formattedData.liveAccuracy}%</div>
+            <div>Tracking ${formattedData.totalSignals} high-confidence signals from this morning</div>
         </div>
 
         <div class="tracking-summary">
             <h3>📊 High-Confidence Signal Tracking</h3>
             <div class="summary-grid">
                 <div class="summary-metric">
-                    <div class="value">${intradayData.correctCalls}</div>
+                    <div class="value">${formattedData.correctCalls}</div>
                     <div class="label">Correct Calls</div>
                 </div>
                 <div class="summary-metric">
-                    <div class="value">${intradayData.wrongCalls}</div>
+                    <div class="value">${formattedData.wrongCalls}</div>
                     <div class="label">Wrong Calls</div>
                 </div>
                 <div class="summary-metric">
-                    <div class="value">${intradayData.pendingCalls}</div>
+                    <div class="value">${formattedData.pendingCalls}</div>
                     <div class="label">Still Tracking</div>
                 </div>
                 <div class="summary-metric">
-                    <div class="value">${intradayData.avgDivergence}%</div>
+                    <div class="value">${formattedData.avgDivergence}%</div>
                     <div class="label">Avg Divergence</div>
                 </div>
             </div>
@@ -401,18 +435,18 @@ async function generateIntradayCheckHTML(analysisData, morningPredictions, date,
                         </tr>
                     </thead>
                     <tbody>
-                        ${intradayData.divergences.map(div => `
+                        ${(formattedData.divergences || []).map(div => `
                             <tr>
-                                <td class="ticker">${div.ticker}</td>
+                                <td class="ticker">${div.symbol}</td>
                                 <td class="predicted ${div.predictedDirection}">${div.predicted}</td>
                                 <td class="actual ${div.actualDirection}">${div.actual}</td>
                                 <td><span class="divergence-level ${div.level}">${div.level.toUpperCase()}</span></td>
-                                <td>${div.reason}</td>
+                                <td>${div.reason || 'Price action divergence'}</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                ${intradayData.divergences.length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No significant divergences detected</div>' : ''}
+                ${(formattedData.divergences || []).length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No significant divergences detected</div>' : ''}
             </div>
 
             <div class="performance-card">
@@ -430,9 +464,9 @@ async function generateIntradayCheckHTML(analysisData, morningPredictions, date,
                         </tr>
                     </thead>
                     <tbody>
-                        ${intradayData.onTrackSignals.map(signal => `
+                        ${(formattedData.onTrackSignals || []).map(signal => `
                             <tr>
-                                <td class="ticker">${signal.ticker}</td>
+                                <td class="ticker">${signal.symbol}</td>
                                 <td class="predicted ${signal.predictedDirection}">${signal.predicted}</td>
                                 <td class="actual ${signal.actualDirection}">${signal.actual}</td>
                                 <td class="divergence-level low">ON TARGET</td>
@@ -440,14 +474,14 @@ async function generateIntradayCheckHTML(analysisData, morningPredictions, date,
                         `).join('')}
                     </tbody>
                 </table>
-                ${intradayData.onTrackSignals.length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No on-track signals available</div>' : ''}
+                ${(formattedData.onTrackSignals || []).length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No on-track signals available</div>' : ''}
             </div>
         </div>
 
         <div class="recalibration-section">
             <h3>⚠️ Recalibration Alert</h3>
-            <div class="recalibration-alert ${intradayData.recalibrationAlert.status}">
-                ${intradayData.recalibrationAlert.message}
+            <div class="recalibration-alert ${formattedData.recalibrationAlert.status}">
+                ${formattedData.recalibrationAlert.message}
             </div>
             <div style="font-size: 0.9rem; opacity: 0.9;">
                 Threshold: Recalibration triggered if live accuracy drops below 60%
