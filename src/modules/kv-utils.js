@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
+import { verifyWriteConsistency, verifyStatusConsistency } from './kv-consistency.js';
 
 const logger = createLogger('kv-utils');
 
@@ -16,14 +17,20 @@ const logger = createLogger('kv-utils');
  * @returns {Promise<string>} KV value as string
  */
 export async function getWithRetry(key, env, maxRetries = 3, delay = 1000) {
+  logger.debug('KV GET operation started', { key, maxRetries, delay });
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       const result = await env.TRADING_RESULTS.get(key);
       if (result) {
         if (i > 0) {
           logger.info('KV retry successful', { key, attempt: i + 1 });
+        } else {
+          logger.info('KV GET successful', { key, bytes: result.length });
         }
         return result;
+      } else {
+        logger.debug('KV GET returned null', { key, attempt: i + 1 });
       }
     } catch (error) {
       logger.warn('KV operation failed, retrying', { key, attempt: i + 1, error: error.message });
@@ -36,7 +43,118 @@ export async function getWithRetry(key, env, maxRetries = 3, delay = 1000) {
     }
   }
 
+  logger.error('KV GET failed after all retries', { key, maxRetries });
   throw new Error(`KV key ${key} not found after ${maxRetries} retries`);
+}
+
+/**
+ * Put KV value with success verification
+ * @param {string} key - KV key to store
+ * @param {string} value - Value to store
+ * @param {Object} env - Environment object with KV binding
+ * @param {Object} options - KV options (expirationTtl, etc.)
+ * @returns {Promise<boolean>} True if successful
+ */
+export async function putWithVerification(key, value, env, options = {}) {
+  logger.info('KV PUT operation started', {
+    key,
+    bytes: value.length,
+    options: Object.keys(options),
+    hasExpirationTtl: !!options.expirationTtl
+  });
+
+  try {
+    // First attempt to put the value
+    await env.TRADING_RESULTS.put(key, value, options);
+
+    // Verify the put was successful by reading it back
+    const verifyKey = await getWithRetry(key, env, 2, 500);
+
+    if (verifyKey === value) {
+      logger.info('KV PUT successful and verified', {
+        key,
+        bytes: value.length,
+        verification: 'passed'
+      });
+      return true;
+    } else {
+      logger.error('KV PUT verification failed - value mismatch', {
+        key,
+        originalBytes: value.length,
+        retrievedBytes: verifyKey?.length || 0
+      });
+      return false;
+    }
+  } catch (error) {
+    logger.error('KV PUT operation failed', {
+      key,
+      error: error.message,
+      bytes: value.length
+    });
+    throw error;
+  }
+}
+
+/**
+ * Delete KV value with success verification
+ * @param {string} key - KV key to delete
+ * @param {Object} env - Environment object with KV binding
+ * @returns {Promise<boolean>} True if successful
+ */
+export async function deleteWithVerification(key, env) {
+  logger.info('KV DELETE operation started', { key });
+
+  try {
+    // First verify the key exists
+    const exists = await env.TRADING_RESULTS.get(key);
+
+    if (!exists) {
+      logger.warn('KV DELETE - key does not exist', { key });
+      return true; // Key doesn't exist, consider it "deleted"
+    }
+
+    // Delete the key
+    await env.TRADING_RESULTS.delete(key);
+
+    // Verify deletion by trying to read it
+    const verify = await env.TRADING_RESULTS.get(key);
+
+    if (verify === null) {
+      logger.info('KV DELETE successful and verified', { key });
+      return true;
+    } else {
+      logger.error('KV DELETE verification failed - key still exists', { key });
+      return false;
+    }
+  } catch (error) {
+    logger.error('KV DELETE operation failed', { key, error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Log comprehensive KV operation summary
+ * @param {string} operation - Operation type (GET/PUT/DELETE)
+ * @param {string} key - KV key
+ * @param {boolean} success - Whether operation was successful
+ * @param {Object} details - Additional details
+ */
+export function logKVOperation(operation, key, success, details = {}) {
+  if (success) {
+    logger.info('✅ KV OPERATION SUCCESS', {
+      operation,
+      key,
+      ...details,
+      timestamp: new Date().toISOString()
+    });
+  } else {
+    logger.error('❌ KV OPERATION FAILED', {
+      operation,
+      key,
+      ...details,
+      timestamp: new Date().toISOString()
+    });
+  }
 }
 
 /**
@@ -76,11 +194,41 @@ export async function updateJobStatus(jobType, date, status, env, metadata = {})
     ...metadata
   };
 
+  logger.info('Updating job status', {
+    jobType,
+    date,
+    status,
+    key: statusKey,
+    metadataKeys: Object.keys(metadata)
+  });
+
   try {
-    await env.TRADING_RESULTS.put(statusKey, JSON.stringify(statusData));
-    logger.info('Job status updated', { jobType, date, status, key: statusKey });
+    const success = await putWithVerification(statusKey, JSON.stringify(statusData), env, {
+      expirationTtl: 7 * 24 * 60 * 60 // 7 days TTL
+    });
+
+    if (success) {
+      logKVOperation('UPDATE_STATUS', statusKey, true, {
+        jobType,
+        date,
+        status,
+        metadataSize: Object.keys(metadata).length
+      });
+    } else {
+      logKVOperation('UPDATE_STATUS', statusKey, false, {
+        jobType,
+        date,
+        status,
+        error: 'Verification failed'
+      });
+    }
   } catch (error) {
-    logger.error('Failed to update job status', { jobType, date, status, error: error.message });
+    logKVOperation('UPDATE_STATUS', statusKey, false, {
+      jobType,
+      date,
+      status,
+      error: error.message
+    });
     throw error;
   }
 }

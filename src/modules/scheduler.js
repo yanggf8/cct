@@ -6,6 +6,7 @@
 import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
 import { generateWeeklyReviewAnalysis } from './report/weekly-review-analysis.js';
+import { KVUtils } from './shared-utilities.js';
 import {
   sendFridayWeekendReportWithTracking,
   sendWeeklyAccuracyReportWithTracking,
@@ -130,9 +131,9 @@ export async function handleScheduledEvent(controller, env, ctx) {
           trigger_mode: triggerMode,
           timestamp: estTime.toISOString()
         }),
-        { expirationTtl: 604800 } // 7 days
+        KVUtils.getOptions('analysis')
       );
-      
+
       // Update the daily summary
       await env.TRADING_RESULTS.put(
         dailyKey,
@@ -142,7 +143,7 @@ export async function handleScheduledEvent(controller, env, ctx) {
           trigger_mode: triggerMode,
           last_updated: estTime.toISOString()
         }),
-        { expirationTtl: 604800 } // 7 days
+        KVUtils.getOptions('daily_summary')
       );
     }
     

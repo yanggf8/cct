@@ -3,6 +3,16 @@
  * Centralized exports for all domain-specific handlers
  */
 
+// Common handler patterns and utilities
+export {
+  createReportHandler,
+  createAPIHandler,
+  createDataRetrievalHandler,
+  createStandardMetrics,
+  createDashboardLayout,
+  validateRequestEnvironment
+} from './common-handlers.js';
+
 // Analysis handlers
 export {
   handleManualAnalysis,
@@ -10,7 +20,9 @@ export {
   handleIndependentTechnicalAnalysis,
   handlePerSymbolAnalysis,
   handleSentimentTest,
-  handleGenerateMorningPredictions
+  handleGenerateMorningPredictions,
+  handleStatusManagement,
+  handleKVVerificationTest
 } from './analysis-handlers.js';
 
 // Data and KV handlers
@@ -46,3 +58,15 @@ export {
   handleBackfillDailySummaries,
   handleVerifyBackfill
 } from './summary-handlers.js';
+
+// Refactored handler examples
+export {
+  handleIntradayCheckRefactored,
+  handleIntradayCheckEnhanced
+} from './intraday-refactored.js';
+
+// Decomposed handler examples (replaces 932-line monolithic file)
+export {
+  handleIntradayCheckDecomposed,
+  handleIntradayCheckConsistent
+} from './intraday-decomposed.js';

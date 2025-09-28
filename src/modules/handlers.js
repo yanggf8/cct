@@ -7,9 +7,10 @@ import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, validateSentimentEnhancement } from './enhanced_analysis.js';
 import { runEnhancedFeatureAnalysis } from './enhanced_feature_analysis.js';
 import { runIndependentTechnicalAnalysis } from './independent_technical_analysis.js';
+import { KVUtils } from './shared-utilities.js';
 import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeeklyAccuracyReportWithTracking } from './facebook.js';
 import { getFactTableData, getCronHealthStatus } from './data.js';
-import { runTFTInference, runNHITSInference } from './models.js';
+// Models removed - using GPT-OSS-120B enhanced analysis instead
 import { analyzeSingleSymbol } from './per_symbol_analysis.js';
 
 /**
@@ -262,7 +263,7 @@ export async function handleFacebookTest(request, env) {
         await env.TRADING_RESULTS.put(
           testKvKey,
           JSON.stringify(testKvData),
-          { expirationTtl: 604800 }
+          KVUtils.getOptions('analysis')
         );
         console.log(`✅ [FB-TEST] KV storage test successful: ${testKvKey}`);
 

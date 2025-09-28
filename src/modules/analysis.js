@@ -1,10 +1,10 @@
 /**
  * Core Analysis Module
- * ✅ REAL NEURAL NETWORKS: Genuine TFT + N-HITS models integrated locally
- * Uses authentic Temporal Fusion Transformer and Neural Hierarchical Interpolation models
+ * ✅ GPT-OSS-120B POWERED: Advanced AI analysis using Cloudflare's built-in AI models
+ * Uses state-of-the-art language models for market sentiment and trading signal generation
  */
 
-import { runTFTInference, runNHITSInference } from './models.js';
+import { runEnhancedAnalysis } from './enhanced_analysis.js';
 import { validateEnvironment, validateSymbols, validateMarketData, safeValidate } from './validation.js';
 import { rateLimitedFetch, retryWithBackoff } from './rate-limiter.js';
 import { withCache, getCacheStats } from './market-data-cache.js';
@@ -52,55 +52,39 @@ export async function runBasicAnalysis(env, options = {}) {
       const marketData = await withCache(symbol, () => getMarketData(symbol));
       validateMarketData(marketData);
 
-      // Run dual neural network inference (TFT + N-HITS models)
-      console.log(`   🔀 Starting dual model inference for ${symbol}...`);
+      // Run GPT-OSS-120B enhanced analysis
+      console.log(`   🤖 Starting GPT-OSS-120B analysis for ${symbol}...`);
       console.log(`   📊 Market data length: ${marketData.data.ohlcv.length} candles`);
       console.log(`   📊 Current price: $${marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3].toFixed(2)}`);
 
-      const [tftResult, nhitsResult] = await Promise.allSettled([
-        runTFTInference(symbol, marketData.data.ohlcv, env),
-        runNHITSInference(symbol, marketData.data.ohlcv, env)
-      ]);
+      const gptAnalysis = await runEnhancedAnalysis(env, {
+        symbol: symbol,
+        marketData: marketData.data,
+        currentTime: currentTime
+      });
 
-      console.log(`   🔍 TFT result status: ${tftResult.status}`);
-      console.log(`   🔍 N-HITS result status: ${nhitsResult.status}`);
+      console.log(`   🔍 GPT analysis completed for ${symbol}`);
+      console.log(`   📈 Analysis result:`, gptAnalysis.overall_sentiment);
 
-      if (tftResult.status === 'rejected') {
-        console.error(`   ❌ TFT inference failed for ${symbol}:`, tftResult.reason?.message || tftResult.reason);
-        console.error(`   ❌ TFT error details:`, JSON.stringify(tftResult.reason, Object.getOwnPropertyNames(tftResult.reason || {})));
+      if (!gptAnalysis || !gptAnalysis.trading_signals || gptAnalysis.trading_signals.length === 0) {
+        console.error(`   ❌ GPT analysis failed for ${symbol} - no trading signals generated`);
+        throw new Error('GPT-OSS-120B analysis failed to generate trading signals');
       }
 
-      if (nhitsResult.status === 'rejected') {
-        console.error(`   ❌ N-HITS inference failed for ${symbol}:`, nhitsResult.reason?.message || nhitsResult.reason);
-        console.error(`   ❌ N-HITS error details:`, JSON.stringify(nhitsResult.reason, Object.getOwnPropertyNames(nhitsResult.reason || {})));
-      }
-      console.log(`   🔀 Dual model inference completed for ${symbol}: TFT=${tftResult.status}, N-HITS=${nhitsResult.status}`);
-
-      // Process model results with debug logging
-      const tftPrediction = tftResult.status === 'fulfilled' ? tftResult.value : null;
-      const nhitsPrediction = nhitsResult.status === 'fulfilled' ? nhitsResult.value : null;
-
-      // Log failures for debugging
-      if (tftResult.status === 'rejected') {
-        console.error(`   ❌ TFT model failed for ${symbol}:`, tftResult.reason?.message || tftResult.reason);
-      }
-      if (nhitsResult.status === 'rejected') {
-        console.error(`   ❌ N-HITS model failed for ${symbol}:`, nhitsResult.reason?.message || nhitsResult.reason);
-      }
-
-      if (!tftPrediction && !nhitsPrediction) {
-        console.error(`   ❌ BOTH models failed for ${symbol} - analysis cannot continue`);
-        throw new Error('Both TFT and N-HITS models failed');
-      }
-
-      // Combine predictions using ensemble logic
-      const combinedSignal = combineModelPredictions(
-        symbol,
-        marketData.data,
-        tftPrediction,
-        nhitsPrediction,
-        currentTime
-      );
+      // Use the primary trading signal from GPT analysis
+      const primarySignal = gptAnalysis.trading_signals[0];
+      const combinedSignal = {
+        symbol: symbol,
+        direction: primarySignal.direction,
+        current_price: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3],
+        predicted_price: primarySignal.target_price || primarySignal.current_price,
+        confidence: primarySignal.confidence || 0.7,
+        reasoning: primarySignal.reasoning || 'GPT-OSS-120B analysis',
+        model_type: 'GPT-OSS-120B',
+        timestamp: currentTime,
+        technical_indicators: {},
+        market_conditions: gptAnalysis.market_conditions || 'Unknown'
+      };
 
       analysisResults.trading_signals[symbol] = combinedSignal;
       successfulAnalyses++;

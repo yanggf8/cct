@@ -38,7 +38,22 @@ export const CONFIG = {
     MIN_NEWS_ARTICLES: 5,
     MAX_NEWS_ARTICLES: 20,
     CONFIDENCE_THRESHOLD: 0.6,
-    PROCESSING_DELAY_MS: 2000 // Delay between symbol processing
+    SIGNAL_CONFIDENCE_THRESHOLD: 0.7,
+    PROCESSING_DELAY_MS: 2000, // Delay between symbol processing
+    HIGH_CONFIDENCE_THRESHOLD: 0.7, // For signal filtering
+    MAX_SYMBOL_PROCESSING_TIME_MS: 30000 // Per symbol timeout
+  },
+
+  // Market Data Configuration
+  MARKET_DATA: {
+    CACHE_TTL: 300, // 5 minutes
+    RATE_LIMIT_REQUESTS_PER_MINUTE: 20,
+    RATE_LIMIT_WINDOW_MS: 60000,
+    YAHOO_FINANCE_BASE_URL: 'https://query1.finance.yahoo.com',
+    API_TIMEOUT_MS: 10000,
+    MAX_RETRIES: 3,
+    BACKOFF_MULTIPLIER: 2,
+    INITIAL_BACKOFF_MS: 1000
   },
 
   // AI Model Configuration
@@ -60,7 +75,13 @@ export const CONFIG = {
     ANALYSIS_TTL: 604800, // 7 days
     GRANULAR_TTL: 7776000, // 90 days
     DAILY_SUMMARY_TTL: 604800, // 7 days
-    BATCH_SIZE: 50 // For batch operations
+    STATUS_TTL: 604800, // 7 days for job status
+    REPORT_CACHE_TTL: 180, // 3 minutes for report caching
+    METADATA_TTL: 2592000, // 30 days for metadata
+    BATCH_SIZE: 50, // For batch operations
+    CONSISTENCY_TIMEOUT_MS: 15000, // 15 seconds for KV consistency
+    CONSISTENCY_RETRY_DELAY_MS: 1000, // 1 second between retries
+    MAX_RETRIES: 3 // Maximum retry attempts
   },
 
   // Facebook Messaging Configuration
@@ -104,6 +125,44 @@ export const CONFIG = {
     RESPONSE_TIME_TARGET_MS: 200,
     UPTIME_TARGET: 0.999,
     COST_PER_ANALYSIS_TARGET: 0.00 // $0.00 with Cloudflare AI
+  },
+
+  // Handler Configuration
+  HANDLERS: {
+    DEFAULT_TIMEOUT_MS: 30000,
+    ENABLE_METRICS: true,
+    ENABLE_AUTH: false,
+    CONSISTENCY_CHECK_TIMEOUT_MS: 45000, // Extended timeout for consistency checks
+    REQUEST_ID_LENGTH: 36
+  },
+
+  // Analysis Configuration
+  ANALYSIS: {
+    MAX_SYMBOLS_PER_BATCH: 5,
+    DEFAULT_TIMEZONE: 'America/New_York',
+    DATE_FORMAT: 'YYYY-MM-DD',
+    WORKER_VERSION: '2.0',
+    ENABLE_ENHANCED_FEATURES: true,
+    SENTIMENT_SOURCES: ['free_news', 'ai_sentiment_analysis']
+  },
+
+  // UI/UX Configuration
+  UI: {
+    METRICS_GRID_COLUMNS: 'repeat(auto-fit, minmax(200px, 1fr))',
+    CONFIDENCE_BAR_HEIGHT: '8px',
+    DEFAULT_PAGE_TITLE: 'TFT Trading System',
+    MAX_CONTENT_LENGTH: 30000,
+    MOBILE_BREAKPOINT: '768px'
+  },
+
+  // Error Messages
+  ERROR_MESSAGES: {
+    MISSING_DEPENDENCIES: 'Waiting for Required Data',
+    KV_CONSISTENCY: 'KV eventual consistency delays',
+    MODEL_LOADING: 'Models not loaded',
+    INVALID_SYMBOL: 'Invalid trading symbol',
+    TIMEOUT: 'Operation timeout',
+    RATE_LIMIT: 'Rate limit exceeded'
   }
 };
 
@@ -151,11 +210,97 @@ export function getEnvConfig(env) {
     ...CONFIG,
     TRADING: {
       ...CONFIG.TRADING,
-      SYMBOLS: env.TRADING_SYMBOLS ? env.TRADING_SYMBOLS.split(',') : CONFIG.TRADING.SYMBOLS
+      SYMBOLS: env.TRADING_SYMBOLS ? env.TRADING_SYMBOLS.split(',') : CONFIG.TRADING.SYMBOLS,
+      MIN_NEWS_ARTICLES: parseInt(env.MIN_NEWS_ARTICLES) || CONFIG.TRADING.MIN_NEWS_ARTICLES,
+      MAX_NEWS_ARTICLES: parseInt(env.MAX_NEWS_ARTICLES) || CONFIG.TRADING.MAX_NEWS_ARTICLES,
+      CONFIDENCE_THRESHOLD: parseFloat(env.CONFIDENCE_THRESHOLD) || CONFIG.TRADING.CONFIDENCE_THRESHOLD,
+      SIGNAL_CONFIDENCE_THRESHOLD: parseFloat(env.SIGNAL_CONFIDENCE_THRESHOLD) || CONFIG.TRADING.SIGNAL_CONFIDENCE_THRESHOLD
     },
     LOGGING: {
       ...CONFIG.LOGGING,
       LEVEL: env.LOG_LEVEL || 'info'
+    },
+    AI_MODELS: {
+      ...CONFIG.AI_MODELS,
+      GPT_OSS_120B: {
+        ...CONFIG.AI_MODELS.GPT_OSS_120B,
+        max_tokens: parseInt(env.GPT_MAX_TOKENS) || CONFIG.AI_MODELS.GPT_OSS_120B.max_tokens,
+        temperature: parseFloat(env.GPT_TEMPERATURE) || CONFIG.AI_MODELS.GPT_OSS_120B.temperature
+      }
+    },
+    KV_STORAGE: {
+      ...CONFIG.KV_STORAGE,
+      ANALYSIS_TTL: parseInt(env.KV_ANALYSIS_TTL) || CONFIG.KV_STORAGE.ANALYSIS_TTL,
+      GRANULAR_TTL: parseInt(env.KV_GRANULAR_TTL) || CONFIG.KV_STORAGE.GRANULAR_TTL
+    },
+    MARKET_DATA: {
+      ...CONFIG.MARKET_DATA,
+      CACHE_TTL: parseInt(env.MARKET_DATA_CACHE_TTL) || CONFIG.MARKET_DATA.CACHE_TTL,
+      RATE_LIMIT_REQUESTS_PER_MINUTE: parseInt(env.YAHOO_FINANCE_RATE_LIMIT) || CONFIG.MARKET_DATA.RATE_LIMIT_REQUESTS_PER_MINUTE,
+      RATE_LIMIT_WINDOW_MS: parseInt(env.RATE_LIMIT_WINDOW) || CONFIG.MARKET_DATA.RATE_LIMIT_WINDOW_MS
+    },
+    ANALYSIS: {
+      ...CONFIG.ANALYSIS,
+      TIMEZONE: env.TIMEZONE || CONFIG.ANALYSIS.DEFAULT_TIMEZONE,
+      WORKER_VERSION: env.WORKER_VERSION || CONFIG.ANALYSIS.WORKER_VERSION
     }
   };
+}
+
+/**
+ * Get KV TTL by key type
+ */
+export function getKVTTl(keyType) {
+  const ttlMap = {
+    'analysis': CONFIG.KV_STORAGE.ANALYSIS_TTL,
+    'granular': CONFIG.KV_STORAGE.GRANULAR_TTL,
+    'daily_summary': CONFIG.KV_STORAGE.DAILY_SUMMARY_TTL,
+    'status': CONFIG.KV_STORAGE.STATUS_TTL,
+    'report_cache': CONFIG.KV_STORAGE.REPORT_CACHE_TTL,
+    'metadata': CONFIG.KV_STORAGE.METADATA_TTL
+  };
+
+  return ttlMap[keyType.toLowerCase()] || CONFIG.KV_STORAGE.ANALYSIS_TTL;
+}
+
+/**
+ * Get UI configuration value
+ */
+export function getUIConfig(key) {
+  return CONFIG.UI[key.toUpperCase()] || null;
+}
+
+/**
+ * Get error message by type
+ */
+export function getErrorMessage(errorType) {
+  return CONFIG.ERROR_MESSAGES[errorType.toUpperCase()] || 'Unknown error';
+}
+
+/**
+ * Get handler configuration
+ */
+export function getHandlerConfig() {
+  return CONFIG.HANDLERS;
+}
+
+/**
+ * Get market data configuration
+ */
+export function getMarketDataConfig() {
+  return CONFIG.MARKET_DATA;
+}
+
+/**
+ * Get analysis configuration
+ */
+export function getAnalysisConfig() {
+  return CONFIG.ANALYSIS;
+}
+
+/**
+ * Check if enhanced features are enabled
+ */
+export function isEnhancedFeaturesEnabled() {
+  return CONFIG.ANALYSIS.ENABLE_ENHANCED_FEATURES;
 }

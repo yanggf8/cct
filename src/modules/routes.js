@@ -32,7 +32,9 @@ import {
   handleDailySummaryPageRequest,
   handleBackfillDailySummaries,
   handleVerifyBackfill,
-  handleGenerateMorningPredictions
+  handleGenerateMorningPredictions,
+  handleStatusManagement,
+  handleKVVerificationTest
 } from './handlers/index.js';
 
 // Import comprehensive report handlers
@@ -40,6 +42,9 @@ import { handlePreMarketBriefing } from './handlers/briefing-handlers.js';
 import { handleIntradayCheck } from './handlers/intraday-handlers.js';
 import { handleEndOfDaySummary } from './handlers/end-of-day-handlers.js';
 import { handleWeeklyReview } from './handlers/weekly-review-handlers.js';
+
+// Import decomposed handler examples
+import { handleIntradayCheckDecomposed } from './handlers/intraday-decomposed.js';
 
 // Import optimization test endpoints
 import {
@@ -197,12 +202,18 @@ export async function handleHttpRequest(request, env, ctx) {
       return handlePreMarketBriefing(request, env);
     case '/intraday-check':
       return handleIntradayCheck(request, env);
+    case '/intraday-check-decomposed':
+      return handleIntradayCheckDecomposed(request, env);
     case '/end-of-day-summary':
       return handleEndOfDaySummary(request, env);
     case '/weekly-review':
       return handleWeeklyReview(request, env);
     case '/test-sentiment':
       return handleSentimentTest(request, env);
+    case '/status-management':
+      return handleStatusManagement(request, env);
+    case '/kv-verification-test':
+      return handleKVVerificationTest(request, env);
     case '/debug-sentiment':
       return handleSentimentDebugTest(request, env);
     case '/test-modelscope':

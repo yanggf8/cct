@@ -7,7 +7,9 @@ import { runBasicAnalysis } from './analysis.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
 import { storeSymbolAnalysis } from './data.js';
+import { KVUtils } from './shared-utilities.js';
 import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
+import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
 
 // Initialize logging for this module
 let loggingInitialized = false;
@@ -743,15 +745,50 @@ async function addTechnicalReference(sentimentResults, env, options = {}) {
     logKVDebug('KV MAIN WRITE: Storing main analysis results');
     const dateStr = new Date().toISOString().split('T')[0];
     const mainAnalysisKey = `analysis_${dateStr}`;
-    logKVDebug('KV MAIN DEBUG: Storing with key:', mainAnalysisKey);
+    const analysisJson = JSON.stringify(finalResults);
 
-    await env.TRADING_RESULTS.put(
+    logKVDebug('KV MAIN DEBUG: Storing with key:', mainAnalysisKey);
+    logInfo('Storing analysis results to KV', {
+      key: mainAnalysisKey,
+      date: dateStr,
+      bytes: analysisJson.length,
+      symbols: Object.keys(finalResults.trading_signals || {}).length
+    });
+
+    const success = await putWithVerification(
       mainAnalysisKey,
-      JSON.stringify(finalResults),
-      { expirationTtl: 604800 } // 7 days
+      analysisJson,
+      env,
+      KVUtils.getOptions('analysis')
     );
 
-    logKVDebug('KV MAIN SUCCESS: Stored main analysis results at key:', mainAnalysisKey);
+    if (success) {
+      logKVOperation('STORE_ANALYSIS', mainAnalysisKey, true, {
+        date: dateStr,
+        symbolsAnalyzed: Object.keys(finalResults.trading_signals || {}).length,
+        analysisTime: finalResults.analysis_time,
+        totalBytes: analysisJson.length,
+        triggerMode: finalResults.trigger_mode
+      });
+
+      // Update job status for analysis
+      try {
+        await updateJobStatus('analysis', dateStr, 'done', env, {
+          symbolsAnalyzed: Object.keys(finalResults.trading_signals || {}).length,
+          analysisTime: finalResults.analysis_time,
+          triggerMode: finalResults.trigger_mode
+        });
+        logKVDebug('KV STATUS SUCCESS: Updated analysis job status');
+      } catch (statusError) {
+        logError('KV STATUS ERROR: Failed to update analysis job status:', statusError);
+      }
+    } else {
+      logKVOperation('STORE_ANALYSIS', mainAnalysisKey, false, {
+        date: dateStr,
+        error: 'KV verification failed'
+      });
+      logError('KV MAIN ERROR: Failed to store main analysis results');
+    }
   } catch (mainStorageError) {
     logError('KV MAIN ERROR: Failed to store main analysis results:', mainStorageError);
     logError('KV MAIN ERROR DETAILS:', {

@@ -12,6 +12,7 @@ import { createLogger } from '../logging.js';
 import { createHandler, createAPIHandler } from '../handler-factory.js';
 import { createAnalysisResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
+import { getJobStatus, validateDependencies } from '../kv-utils.js';
 
 const logger = createLogger('analysis-handlers');
 
@@ -329,6 +330,292 @@ export async function handleGenerateMorningPredictions(request, env) {
     logger.error('❌ Morning predictions generation failed', {
       requestId,
       date: dateStr,
+      error: error.message,
+      stack: error.stack
+    });
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      request_id: requestId,
+      date: dateStr,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle status management for testing the KV pipeline
+ */
+export async function handleStatusManagement(request, env) {
+  const requestId = crypto.randomUUID();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  try {
+    logger.info('🔍 [STATUS] Status management requested', { requestId, date: dateStr });
+
+    // Get all job statuses for today
+    const jobTypes = ['analysis', 'morning_predictions', 'pre_market_briefing', 'intraday_check', 'end_of_day_summary'];
+    const statuses = {};
+
+    for (const jobType of jobTypes) {
+      try {
+        const status = await getJobStatus(jobType, dateStr, env);
+        statuses[jobType] = status;
+      } catch (error) {
+        statuses[jobType] = { status: 'missing', error: error.message };
+      }
+    }
+
+    // Check key data existence
+    const dataKeys = {
+      analysis: `analysis_${dateStr}`,
+      morning_predictions: `morning_predictions_${dateStr}`,
+      intraday_tracking: `intraday_tracking_${dateStr}`,
+      eod_summary: `eod_summary_${dateStr}`
+    };
+
+    const dataExists = {};
+    for (const [keyName, keyValue] of Object.entries(dataKeys)) {
+      try {
+        const data = await env.TRADING_RESULTS.get(keyValue);
+        dataExists[keyName] = !!data;
+      } catch (error) {
+        dataExists[keyName] = false;
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      request_id: requestId,
+      date: dateStr,
+      job_statuses: statuses,
+      data_exists: dataExists,
+      dependency_validation: {
+        pre_market_briefing: await validateDependencies(dateStr, ['analysis', 'morning_predictions'], env).catch(() => ({ isValid: false, error: 'Validation failed' })),
+        intraday_check: await validateDependencies(dateStr, ['morning_predictions', 'pre_market_briefing'], env).catch(() => ({ isValid: false, error: 'Validation failed' })),
+        end_of_day_summary: await validateDependencies(dateStr, ['intraday_check'], env).catch(() => ({ isValid: false, error: 'Validation failed' }))
+      },
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    logger.error('❌ [STATUS] Status management failed', { requestId, error: error.message });
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      request_id: requestId,
+      date: dateStr,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+/**
+ * Handle comprehensive KV verification and logging test
+ */
+export async function handleKVVerificationTest(request, env) {
+  const requestId = crypto.randomUUID();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  try {
+    logger.info('🧪 [KV VERIFICATION] Comprehensive KV test requested', { requestId, date: dateStr });
+
+    // Test KV operations with logging
+    const testKey = `kv_test_${requestId}`;
+    const testValue = JSON.stringify({
+      test_id: requestId,
+      timestamp: new Date().toISOString(),
+      data: 'KV verification test data'
+    });
+
+    const results = {
+      test_operations: {},
+      data_integrity: {},
+      logging_output: [],
+      performance_metrics: {}
+    };
+
+    // Test 1: PUT with verification
+    const putStartTime = Date.now();
+    try {
+      const { putWithVerification, logKVOperation } = await import('../kv-utils.js');
+      const success = await putWithVerification(testKey, testValue, env, {
+        expirationTtl: 300 // 5 minutes
+      });
+
+      results.test_operations.put_with_verification = {
+        success,
+        duration: Date.now() - putStartTime,
+        key: testKey,
+        bytes: testValue.length
+      };
+
+      logger.info('KV PUT test completed', { success, duration: Date.now() - putStartTime });
+    } catch (error) {
+      results.test_operations.put_with_verification = {
+        success: false,
+        error: error.message,
+        duration: Date.now() - putStartTime
+      };
+      logger.error('KV PUT test failed', { error: error.message });
+    }
+
+    // Test 2: GET with retry
+    const getStartTime = Date.now();
+    try {
+      const { getWithRetry } = await import('../kv-utils.js');
+      const retrievedValue = await getWithRetry(testKey, env, 3, 500);
+
+      results.test_operations.get_with_retry = {
+        success: true,
+        duration: Date.now() - getStartTime,
+        key: testKey,
+        bytes: retrievedValue.length,
+        integrity_check: retrievedValue === testValue
+      };
+
+      logger.info('KV GET test completed', {
+        success: true,
+        duration: Date.now() - getStartTime,
+        integrity: retrievedValue === testValue
+      });
+    } catch (error) {
+      results.test_operations.get_with_retry = {
+        success: false,
+        error: error.message,
+        duration: Date.now() - getStartTime
+      };
+      logger.error('KV GET test failed', { error: error.message });
+    }
+
+    // Test 3: Job status system
+    const statusStartTime = Date.now();
+    try {
+      const { updateJobStatus, getJobStatus } = await import('../kv-utils.js');
+      await updateJobStatus('kv_test', dateStr, 'testing', env, {
+        test_id: requestId,
+        operation: 'verification'
+      });
+
+      const status = await getJobStatus('kv_test', dateStr, env);
+
+      results.test_operations.job_status_system = {
+        success: true,
+        duration: Date.now() - statusStartTime,
+        status: status,
+        update_successful: status?.status === 'testing'
+      };
+
+      logger.info('KV job status test completed', {
+        success: true,
+        duration: Date.now() - statusStartTime,
+        status: status?.status
+      });
+    } catch (error) {
+      results.test_operations.job_status_system = {
+        success: false,
+        error: error.message,
+        duration: Date.now() - statusStartTime
+      };
+      logger.error('KV job status test failed', { error: error.message });
+    }
+
+    // Test 4: Dependency validation
+    const dependencyStartTime = Date.now();
+    try {
+      const { validateDependencies } = await import('../kv-utils.js');
+      const validation = await validateDependencies(dateStr, ['analysis'], env);
+
+      results.test_operations.dependency_validation = {
+        success: true,
+        duration: Date.now() - dependencyStartTime,
+        validation_result: validation,
+        system_functional: true
+      };
+
+      logger.info('KV dependency validation test completed', {
+        success: true,
+        duration: Date.now() - dependencyStartTime,
+        validation: validation.isValid
+      });
+    } catch (error) {
+      results.test_operations.dependency_validation = {
+        success: false,
+        error: error.message,
+        duration: Date.now() - dependencyStartTime
+      };
+      logger.error('KV dependency validation test failed', { error: error.message });
+    }
+
+    // Test 5: Cleanup
+    try {
+      const { deleteWithVerification } = await import('../kv-utils.js');
+      await deleteWithVerification(testKey, env);
+
+      results.test_operations.cleanup = {
+        success: true,
+        key: testKey
+      };
+
+      logger.info('KV cleanup test completed', { success: true });
+    } catch (error) {
+      results.test_operations.cleanup = {
+        success: false,
+        error: error.message,
+        key: testKey
+      };
+      logger.error('KV cleanup test failed', { error: error.message });
+    }
+
+    // Calculate overall success rate
+    const operations = Object.values(results.test_operations);
+    const successfulOperations = operations.filter(op => op.success).length;
+    const totalOperations = operations.length;
+    const successRate = Math.round((successfulOperations / totalOperations) * 100);
+
+    results.overall_metrics = {
+      total_operations: totalOperations,
+      successful_operations: successfulOperations,
+      success_rate: `${successRate}%`,
+      kv_system_healthy: successRate >= 80,
+      test_duration: Date.now() - parseInt(requestId.substring(0, 8), 16) // Approximate
+    };
+
+    logger.info('🧪 [KV VERIFICATION] Comprehensive KV test completed', {
+      requestId,
+      successRate,
+      totalOperations,
+      successfulOperations,
+      overallHealth: successRate >= 80
+    });
+
+    return new Response(JSON.stringify({
+      success: true,
+      request_id: requestId,
+      test_date: dateStr,
+      ...results,
+      timestamp: new Date().toISOString()
+    }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    logger.error('❌ [KV VERIFICATION] Comprehensive KV test failed', {
+      requestId,
       error: error.message,
       stack: error.stack
     });

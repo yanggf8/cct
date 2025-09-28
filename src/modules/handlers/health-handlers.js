@@ -4,7 +4,7 @@
  */
 
 import { getHealthCheckResponse } from '../facebook.js';
-import { runTFTInference, runNHITSInference } from '../models.js';
+// Models removed - using GPT-OSS-120B enhanced analysis instead
 import { createLogger, logHealthCheck } from '../logging.js';
 import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';

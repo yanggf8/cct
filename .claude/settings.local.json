@@ -121,7 +121,9 @@
       "Bash(chmod:*)",
       "Bash(./comprehensive_optimization_test.sh:*)",
       "Bash(xargs ls:*)",
-      "Bash(./comprehensive_enhancement_test.sh:*)"
+      "Bash(./comprehensive_enhancement_test.sh:*)",
+      "mcp__amazon-q-cli__cue_q",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

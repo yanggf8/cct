@@ -6,6 +6,7 @@
 import { createLogger } from './logging.js';
 import { kvStorageManager } from './kv-storage-manager.js';
 import { rateLimitedFetch } from './rate-limiter.js';
+import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
 
 const logger = createLogger('cron-signal-tracking');
 
@@ -65,17 +66,52 @@ class CronSignalTracker {
         }
       };
 
-      await env.TRADING_RESULTS.put(predictionsKey, JSON.stringify(predictionsData), {
+      const predictionsJson = JSON.stringify(predictionsData);
+
+      logger.info('Saving morning predictions to KV', {
+        date: dateStr,
+        key: predictionsKey,
+        signalCount: highConfidenceSignals.length,
+        bytes: predictionsJson.length
+      });
+
+      const success = await putWithVerification(predictionsKey, predictionsJson, env, {
         expirationTtl: 7 * 24 * 60 * 60 // 7 days
       });
 
-      logger.info('Saved morning predictions for tracking', {
-        date: dateStr,
-        signalCount: highConfidenceSignals.length,
-        avgConfidence: predictionsData.metadata.averageConfidence.toFixed(1)
-      });
+      if (success) {
+        logKVOperation('SAVE_MORNING_PREDICTIONS', predictionsKey, true, {
+          date: dateStr,
+          signalCount: highConfidenceSignals.length,
+          avgConfidence: predictionsData.metadata.averageConfidence.toFixed(1),
+          totalBytes: predictionsJson.length
+        });
 
-      return true;
+        // Update job status for morning predictions
+        try {
+          await updateJobStatus('morning_predictions', dateStr, 'done', env, {
+            signalCount: highConfidenceSignals.length,
+            averageConfidence: predictionsData.metadata.averageConfidence,
+            bullishCount: predictionsData.metadata.bullishCount,
+            bearishCount: predictionsData.metadata.bearishCount
+          });
+        } catch (statusError) {
+          logger.warn('Failed to update morning predictions job status', {
+            date: dateStr,
+            error: statusError.message
+          });
+        }
+
+        return true;
+      } else {
+        logKVOperation('SAVE_MORNING_PREDICTIONS', predictionsKey, false, {
+          date: dateStr,
+          signalCount: highConfidenceSignals.length,
+          error: 'KV verification failed'
+        });
+
+        return false;
+      }
 
     } catch (error) {
       logger.error('Failed to save morning predictions', {

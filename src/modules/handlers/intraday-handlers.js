@@ -7,6 +7,8 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
+import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
+import { validateRequest, validateEnvironment } from '../validation.js';
 
 const logger = createLogger('intraday-handlers');
 
@@ -16,19 +18,84 @@ const logger = createLogger('intraday-handlers');
 export const handleIntradayCheck = createHandler('intraday-check', async (request, env) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
 
   logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
     requestId,
+    date: dateStr,
     url: request.url,
     userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
   });
 
-  // Get today's intraday data using new data retrieval system
-  const today = new Date();
+  // Validate inputs
+  validateRequest(request);
+  validateEnvironment(env);
 
+  logger.debug('✅ [INTRADAY] Input validation passed', { requestId });
+
+  // Check dependencies using new status system
+  logger.debug('🔗 [INTRADAY] Checking dependencies', { requestId });
+
+  try {
+    const validation = await validateDependencies(dateStr, ['morning_predictions', 'pre_market_briefing'], env);
+
+    if (!validation.isValid) {
+      logger.warn('⚠️ [INTRADAY] Dependencies not satisfied', {
+        requestId,
+        missing: validation.missing,
+        completionRate: validation.completionRate
+      });
+
+      // Set job status to waiting
+      await updateJobStatus('intraday_check', dateStr, 'waiting', env, {
+        requestId,
+        missingDependencies: validation.missing,
+        reason: 'Dependencies not satisfied'
+      });
+
+      // Return a helpful error response
+      const html = generateIntradayWaitingHTML(validation, today);
+      return new Response(html, {
+        headers: {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache',
+          'X-Request-ID': requestId,
+          'X-Processing-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
+    logger.info('✅ [INTRADAY] Dependencies validated', {
+      requestId,
+      completed: validation.completed,
+      completionRate: validation.completionRate
+    });
+  } catch (error) {
+    logger.error('❌ [INTRADAY] Dependency validation failed', {
+      requestId,
+      error: error.message
+    });
+
+    await updateJobStatus('intraday_check', dateStr, 'failed', env, {
+      requestId,
+      error: error.message,
+      phase: 'dependency_validation'
+    });
+
+    throw error;
+  }
+
+  // Set job status to running
+  await updateJobStatus('intraday_check', dateStr, 'running', env, {
+    requestId,
+    startTime: new Date().toISOString()
+  });
+
+  // Get today's intraday data using new data retrieval system
   logger.debug('🔍 [INTRADAY] Retrieving intraday check data', {
     requestId,
-    date: today.toISOString().split('T')[0]
+    date: dateStr
   });
 
   let intradayData = null;
@@ -52,6 +119,14 @@ export const handleIntradayCheck = createHandler('intraday-check', async (reques
       requestId,
       error: error.message
     });
+
+    await updateJobStatus('intraday_check', dateStr, 'failed', env, {
+      requestId,
+      error: error.message,
+      phase: 'data_retrieval'
+    });
+
+    throw error;
   }
 
   const generationStartTime = Date.now();
@@ -69,9 +144,16 @@ export const handleIntradayCheck = createHandler('intraday-check', async (reques
     requestId,
     totalTimeMs: totalTime,
     generationTimeMs: generationTime,
-    dataSize: analysisData ? 'present' : 'missing',
-    morningPredictions: morningPredictions ? 'present' : 'missing',
+    signalCount: intradayData?.signals?.length || 0,
     htmlLength: html.length
+  });
+
+  // Update job status to done
+  await updateJobStatus('intraday_check', dateStr, 'done', env, {
+    requestId,
+    endTime: new Date().toISOString(),
+    processingTimeMs: totalTime,
+    signalCount: intradayData?.signals?.length || 0
   });
 
   return new Response(html, {
@@ -497,6 +579,309 @@ async function generateIntradayCheckHTML(intradayData, date, env) {
             </div>
         </div>
     </div>
+</body>
+</html>`;
+}
+
+/**
+ * Generate waiting HTML when dependencies are not satisfied
+ */
+function generateIntradayWaitingHTML(validation, date) {
+  const time = new Date().toLocaleTimeString('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 Intraday Performance Check - Waiting for Dependencies</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 40px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #ff9800, #f44336);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header .date {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .waiting-status {
+            background: rgba(255, 152, 0, 0.1);
+            border: 2px solid #ff9800;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+
+        .waiting-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .waiting-title {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: #ff9800;
+        }
+
+        .waiting-description {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 25px;
+        }
+
+        .dependencies {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+
+        .dependencies h3 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+
+        .dependency-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .dependency-item {
+            padding: 12px 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .dependency-item.missing {
+            background: rgba(244, 67, 54, 0.2);
+            border-left: 4px solid #f44336;
+        }
+
+        .dependency-item.completed {
+            background: rgba(76, 175, 80, 0.2);
+            border-left: 4px solid #4CAF50;
+        }
+
+        .dependency-status {
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .dependency-status.missing {
+            color: #f44336;
+        }
+
+        .dependency-status.completed {
+            color: #4CAF50;
+        }
+
+        .next-steps {
+            background: rgba(33, 150, 243, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            border: 1px solid rgba(33, 150, 243, 0.3);
+        }
+
+        .next-steps h3 {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: #2196F3;
+        }
+
+        .next-steps ul {
+            list-style: none;
+            text-align: left;
+        }
+
+        .next-steps li {
+            padding: 8px 0;
+            font-size: 1rem;
+        }
+
+        .next-steps li::before {
+            content: "⏰ ";
+            margin-right: 10px;
+        }
+
+        .auto-refresh {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 20px;
+        }
+
+        .refresh-timer {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Intraday Performance Check</h1>
+            <div class="date">${date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })} - ${time} EDT</div>
+        </div>
+
+        <div class="waiting-status">
+            <div class="waiting-icon">⏳</div>
+            <div class="waiting-title">Waiting for Required Data</div>
+            <div class="waiting-description">
+                The Intraday Performance Check is waiting for upstream analysis to complete.
+            </div>
+        </div>
+
+        <div class="dependencies">
+            <h3>📋 Dependency Status</h3>
+            <div>Completion: <strong>${Math.round(validation.completionRate * 100)}%</strong> (${validation.completed.length}/${validation.requiredJobs.length} jobs)</div>
+
+            <ul class="dependency-list">
+                ${validation.requiredJobs.map(job => {
+                  const isMissing = validation.missing.includes(job);
+                  const status = isMissing ? 'missing' : 'completed';
+                  const display = job.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                  return `
+                    <li class="dependency-item ${status}">
+                      <span>${display}</span>
+                      <span class="dependency-status ${status}">
+                        ${isMissing ? '❌ Missing' : '✅ Completed'}
+                      </span>
+                    </li>
+                  `;
+                }).join('')}
+            </ul>
+        </div>
+
+        <div class="next-steps">
+            <h3>⏰ Next Steps</h3>
+            <ul>
+                <li>Pre-Market Briefing runs at 8:30 AM EDT</li>
+                <li>Intraday Check runs at 12:00 PM EDT</li>
+                <li>Dependencies are processed automatically</li>
+                <li>This page will refresh when data is available</li>
+            </ul>
+        </div>
+
+        <div class="auto-refresh">
+            <p>Next automatic refresh: <span class="refresh-timer" id="timer">30</span> seconds</p>
+            <p>This page will automatically reload when dependencies are satisfied.</p>
+        </div>
+
+        <div class="footer">
+            <p>🔄 Auto-refresh enabled | Dependencies monitored in real-time</p>
+            <p>Intraday Performance Check - Real-time Signal Tracking System</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh countdown
+        let seconds = 30;
+        const timerElement = document.getElementById('timer');
+
+        const countdown = setInterval(() => {
+            seconds--;
+            timerElement.textContent = seconds;
+
+            if (seconds <= 0) {
+                clearInterval(countdown);
+                window.location.reload();
+            }
+        }, 1000);
+
+        // Check for completion more frequently
+        const checkCompletion = setInterval(() => {
+            fetch(window.location.href)
+                .then(response => {
+                    if (response.ok) {
+                        clearInterval(checkCompletion);
+                        clearInterval(countdown);
+                        window.location.reload();
+                    }
+                })
+                .catch(() => {
+                    // Continue waiting
+                });
+        }, 5000);
+    </script>
 </body>
 </html>`;
 }

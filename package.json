@@ -1,7 +1,5 @@
 {
   "dependencies": {
-    "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow/tfjs-backend-cpu": "^4.22.0",
     "express": "^5.1.0",
     "node-fetch": "^3.3.2"
   },

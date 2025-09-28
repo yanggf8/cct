@@ -5,6 +5,7 @@
 
 import { getSymbolAnalysisByDate, getFactTableDataWithRange } from './data.js';
 import { validateEnvironment, validateAnalysisData, validateUserInput, sanitizeHTML, safeValidate } from './validation.js';
+import { KVUtils } from './shared-utilities.js';
 
 /**
  * Send Friday Weekend Report with Weekly Analysis Dashboard Link
@@ -123,7 +124,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
     await env.TRADING_RESULTS.put(
       messagingKey,
       JSON.stringify(kvData),
-      { expirationTtl: 604800 }
+      KVUtils.getOptions('analysis')
     );
     kvStorageSuccess = true;
     console.log(`✅ [FB-FRIDAY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
@@ -172,7 +173,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`✅ [FB-FRIDAY-KV] ${cronExecutionId} Updated KV record with delivery status`);
         } catch (updateError) {
@@ -195,7 +196,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
         } catch (updateError) {
@@ -223,7 +224,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
         await env.TRADING_RESULTS.put(
           messagingKey,
           JSON.stringify(updatedKvData),
-          { expirationTtl: 604800 }
+          KVUtils.getOptions('analysis')
         );
         console.log(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Updated KV record with exception status`);
       } catch (updateError) {
@@ -318,7 +319,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
     await env.TRADING_RESULTS.put(
       messagingKey,
       JSON.stringify(kvData),
-      { expirationTtl: 604800 }
+      KVUtils.getOptions('analysis')
     );
     kvStorageSuccess = true;
     console.log(`✅ [FB-WEEKLY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
@@ -355,7 +356,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`✅ [FB-WEEKLY-KV] ${cronExecutionId} Updated KV record with delivery status`);
         } catch (updateError) {
@@ -377,7 +378,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
         } catch (updateError) {
@@ -405,7 +406,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
         await env.TRADING_RESULTS.put(
           messagingKey,
           JSON.stringify(updatedKvData),
-          { expirationTtl: 604800 }
+          KVUtils.getOptions('analysis')
         );
         console.log(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Updated KV record with exception status`);
       } catch (updateError) {
@@ -606,14 +607,14 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
     await env.TRADING_RESULTS.put(
       messagingKey,
       JSON.stringify(kvData),
-      { expirationTtl: 604800 }
+      KVUtils.getOptions('analysis')
     );
 
     // Also store with daily key for intraday handler access
     await env.TRADING_RESULTS.put(
       dailyKey,
       JSON.stringify(kvData),
-      { expirationTtl: 604800 }
+      KVUtils.getOptions('analysis')
     );
 
     kvStorageSuccess = true;
@@ -651,7 +652,7 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`✅ [FB-MORNING-KV] ${cronExecutionId} Updated KV record with delivery status`);
         } catch (updateError) {
@@ -673,7 +674,7 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
         } catch (updateError) {
@@ -701,7 +702,7 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
         await env.TRADING_RESULTS.put(
           messagingKey,
           JSON.stringify(updatedKvData),
-          { expirationTtl: 604800 }
+          KVUtils.getOptions('analysis')
         );
         console.log(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Updated KV record with exception status`);
       } catch (updateError) {
@@ -845,7 +846,7 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
     await env.TRADING_RESULTS.put(
       messagingKey,
       JSON.stringify(kvData),
-      { expirationTtl: 604800 }
+      KVUtils.getOptions('analysis')
     );
     kvStorageSuccess = true;
     console.log(`✅ [FB-MIDDAY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
@@ -882,7 +883,7 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`✅ [FB-MIDDAY-KV] ${cronExecutionId} Updated KV record with delivery status`);
         } catch (updateError) {
@@ -904,7 +905,7 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
         } catch (updateError) {
@@ -932,7 +933,7 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
         await env.TRADING_RESULTS.put(
           messagingKey,
           JSON.stringify(updatedKvData),
-          { expirationTtl: 604800 }
+          KVUtils.getOptions('analysis')
         );
         console.log(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Updated KV record with exception status`);
       } catch (updateError) {
@@ -1076,7 +1077,7 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
     await env.TRADING_RESULTS.put(
       messagingKey,
       JSON.stringify(kvData),
-      { expirationTtl: 604800 }
+      KVUtils.getOptions('analysis')
     );
     kvStorageSuccess = true;
     console.log(`✅ [FB-DAILY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
@@ -1113,7 +1114,7 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`✅ [FB-DAILY-KV] ${cronExecutionId} Updated KV record with delivery status`);
         } catch (updateError) {
@@ -1135,7 +1136,7 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
           await env.TRADING_RESULTS.put(
             messagingKey,
             JSON.stringify(updatedKvData),
-            { expirationTtl: 604800 }
+            KVUtils.getOptions('analysis')
           );
           console.log(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
         } catch (updateError) {
@@ -1163,7 +1164,7 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
         await env.TRADING_RESULTS.put(
           messagingKey,
           JSON.stringify(updatedKvData),
-          { expirationTtl: 604800 }
+          KVUtils.getOptions('analysis')
         );
         console.log(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Updated KV record with exception status`);
       } catch (updateError) {

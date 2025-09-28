@@ -5,6 +5,8 @@
 
 import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
 import { validateKVKey, validateEnvironment, validateDate, safeValidate } from './validation.js';
+import { KVUtils } from './shared-utilities.js';
+import { getKVTTl } from './config.js';
 
 // Initialize logging for this module
 let loggingInitialized = false;
@@ -195,10 +197,11 @@ export async function getFactTableDataWithRange(env, rangeDays = 7, weekSelectio
 export async function storeFactTableData(env, factTableData) {
   try {
     const factTableKey = 'fact_table_data';
-    await env.TRADING_RESULTS.put(
+    await KVUtils.putWithTTL(
+      env.TRADING_RESULTS,
       factTableKey,
       JSON.stringify(factTableData),
-      { expirationTtl: 604800 } // 7 days
+      'analysis'
     );
 
     logKVDebug(`Stored ${factTableData.length} fact table records to KV`);
@@ -231,10 +234,11 @@ export async function storeSymbolAnalysis(env, symbol, analysisData) {
     console.log(`💾 [KV DEBUG] Data string length: ${dataString.length}`);
 
     console.log(`💾 [KV DEBUG] About to call env.TRADING_RESULTS.put()...`);
-    await env.TRADING_RESULTS.put(
+    await KVUtils.putWithTTL(
+      env.TRADING_RESULTS,
       key,
       dataString,
-      { expirationTtl: 7776000 } // 90 days for longer-term analysis
+      'granular'
     );
 
     console.log(`✅ [KV DEBUG] KV put() completed successfully for key: ${key}`);
@@ -282,10 +286,11 @@ export async function batchStoreAnalysisResults(env, analysisResults) {
 
     // Add main daily analysis to batch
     kvOperations.push(
-      env.TRADING_RESULTS.put(
+      KVUtils.putWithTTL(
+        env.TRADING_RESULTS,
         `analysis_${date}`,
         JSON.stringify(dailyAnalysis),
-        { expirationTtl: 604800 } // 7 days
+        'analysis'
       )
     );
 
@@ -296,10 +301,11 @@ export async function batchStoreAnalysisResults(env, analysisResults) {
         const compactResult = createCompactAnalysisData(result);
 
         kvOperations.push(
-          env.TRADING_RESULTS.put(
+          KVUtils.putWithTTL(
+            env.TRADING_RESULTS,
             `analysis_${date}_${result.symbol}`,
             JSON.stringify(compactResult),
-            { expirationTtl: 7776000 } // 90 days
+            'granular'
           )
         );
       }
@@ -436,7 +442,12 @@ export async function trackCronHealth(env, status, executionData = {}) {
       dailyData.executions = dailyData.executions.slice(-10);
     }
 
-    await env.TRADING_RESULTS.put(dateKey, JSON.stringify(dailyData), { expirationTtl: 2592000 }); // 30 days
+    await KVUtils.putWithTTL(
+      env.TRADING_RESULTS,
+      dateKey,
+      JSON.stringify(dailyData),
+      'metadata'
+    );
 
     logInfo(`Cron health tracked: ${status} - ${executionData.symbolsProcessed || 0} symbols processed`);
     return true;
