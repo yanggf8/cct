@@ -9,6 +9,7 @@ import { createHandler } from '../handler-factory.js';
 import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
 import { getPreMarketBriefingData } from '../report-data-retrieval.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
+import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
 
 const logger = createLogger('briefing-handlers');
 
@@ -18,9 +19,12 @@ const logger = createLogger('briefing-handlers');
 export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request, env) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
 
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', {
     requestId,
+    date: dateStr,
     url: request.url,
     userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
   });
@@ -31,12 +35,69 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 
   logger.debug('✅ [PRE-MARKET] Input validation passed', { requestId });
 
-  // Get today's briefing data using new data retrieval system
-  const today = new Date();
+  // Check dependencies using new status system
+  logger.debug('🔗 [PRE-MARKET] Checking dependencies', { requestId });
 
+  try {
+    const validation = await validateDependencies(dateStr, ['analysis', 'morning_predictions'], env);
+
+    if (!validation.isValid) {
+      logger.warn('⚠️ [PRE-MARKET] Dependencies not satisfied', {
+        requestId,
+        missing: validation.missing,
+        completionRate: validation.completionRate
+      });
+
+      // Set job status to waiting
+      await updateJobStatus('pre_market_briefing', dateStr, 'waiting', env, {
+        requestId,
+        missingDependencies: validation.missing,
+        reason: 'Dependencies not satisfied'
+      });
+
+      // Return a helpful error response
+      const html = generatePreMarketWaitingHTML(validation, today);
+      return new Response(html, {
+        headers: {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache',
+          'X-Request-ID': requestId,
+          'X-Processing-Time': `${Date.now() - startTime}ms`
+        }
+      });
+    }
+
+    logger.info('✅ [PRE-MARKET] Dependencies validated', {
+      requestId,
+      completed: validation.completed,
+      completionRate: validation.completionRate
+    });
+  } catch (error) {
+    logger.error('❌ [PRE-MARKET] Dependency validation failed', {
+      requestId,
+      error: error.message
+    });
+
+    await updateJobStatus('pre_market_briefing', dateStr, 'failed', env, {
+      requestId,
+      error: error.message,
+      phase: 'dependency_validation'
+    });
+
+    throw error;
+  }
+
+  // Set job status to running
+  await updateJobStatus('pre_market_briefing', dateStr, 'running', env, {
+    requestId,
+    startTime: startTime,
+    phase: 'data_retrieval'
+  });
+
+  // Get today's briefing data using new data retrieval system
   logger.debug('📊 [PRE-MARKET] Retrieving pre-market briefing data', {
     requestId,
-    date: today.toISOString().split('T')[0]
+    date: dateStr
   });
 
   let briefingData = null;
@@ -59,6 +120,14 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
       requestId,
       error: error.message
     });
+
+    await updateJobStatus('pre_market_briefing', dateStr, 'failed', env, {
+      requestId,
+      error: error.message,
+      phase: 'data_retrieval'
+    });
+
+    throw error;
   }
 
   const generationStartTime = Date.now();
@@ -73,8 +142,18 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     requestId,
     totalTimeMs: totalTime,
     generationTimeMs: generationTime,
-    dataSize: analysisData ? 'present' : 'missing',
+    dataSize: briefingData ? 'present' : 'missing',
     htmlLength: html.length
+  });
+
+  // Set job status to completed
+  await updateJobStatus('pre_market_briefing', dateStr, 'done', env, {
+    requestId,
+    totalTimeMs: totalTime,
+    generationTimeMs: generationTime,
+    hasData: !!briefingData,
+    signalCount: briefingData?.signals?.length || 0,
+    completedAt: new Date().toISOString()
   });
 
   return new Response(html, {
@@ -500,6 +579,230 @@ function generatePreMarketBriefingHTML(briefingData, date) {
             </div>
         </div>
     </div>
+</body>
+</html>`;
+}
+
+/**
+ * Generate waiting HTML when dependencies are not satisfied
+ */
+function generatePreMarketWaitingHTML(validation, date) {
+  const { missing, completionRate } = validation;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⏳ Pre-Market Briefing - Waiting for Dependencies</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 50%, #2d4a70 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+
+        .header .date {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .waiting-content {
+            margin-bottom: 40px;
+        }
+
+        .waiting-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        .status-message {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #ff9800;
+        }
+
+        .dependency-list {
+            background: rgba(255, 152, 0, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+
+        .dependency-list h3 {
+            margin-bottom: 15px;
+            color: #ff9800;
+        }
+
+        .missing-item {
+            background: rgba(244, 67, 54, 0.1);
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #f44336;
+        }
+
+        .completion-rate {
+            font-size: 1.2rem;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .auto-refresh {
+            margin-top: 30px;
+            padding: 15px;
+            background: rgba(33, 150, 243, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(33, 150, 243, 0.3);
+        }
+
+        .refresh-button {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: transform 0.2s;
+        }
+
+        .refresh-button:hover {
+            transform: scale(1.05);
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏳ Pre-Market Briefing</h1>
+            <div class="date">${new Date(date).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}</div>
+        </div>
+
+        <div class="waiting-content">
+            <div class="waiting-icon">⏳</div>
+            <div class="status-message">Waiting for Required Data</div>
+
+            <div class="completion-rate">
+                <strong>Data Readiness:</strong> ${Math.round(completionRate * 100)}% Complete
+            </div>
+
+            <div class="dependency-list">
+                <h3>📋 Missing Dependencies</h3>
+                ${missing.map(job => `
+                    <div class="missing-item">
+                        <strong>${job.replace('_', ' ').toUpperCase()}</strong>
+                        <div>Required data not yet available</div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div class="auto-refresh">
+                <h3>🔄 Auto-Refresh</h3>
+                <p>This page will automatically refresh every 30 seconds until all dependencies are satisfied.</p>
+                <button class="refresh-button" onclick="window.location.reload()">
+                    Refresh Now
+                </button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>The Pre-Market Briefing requires analysis data and morning predictions to be generated first.</p>
+            <p>Please check back in a few minutes or contact support if this issue persists.</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(function() {
+            window.location.reload();
+        }, 30000);
+
+        // Play a subtle sound when dependencies are met (if supported)
+        function checkDependencies() {
+            fetch(window.location.href)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.text();
+                })
+                .then(html => {
+                    if (!html.includes('Missing Dependencies')) {
+                        // Dependencies met, play notification
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('Pre-Market Briefing Ready', {
+                                body: 'All dependencies satisfied. Briefing is now available.',
+                                icon: '/favicon.ico'
+                            });
+                        }
+                        window.location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.log('Dependency check failed:', error);
+                });
+        }
+
+        // Check every 10 seconds
+        setInterval(checkDependencies, 10000);
+
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    </script>
 </body>
 </html>`;
 }
