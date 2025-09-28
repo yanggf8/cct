@@ -325,6 +325,103 @@ curl "https://tft-trading-system.yanggf.workers.dev/api/weekly-data?week=current
 
 **Description**: System capability overview and feature status.
 
+## KV Pipeline Management
+
+### Morning Predictions Generation
+**Endpoint**: `POST /generate-morning-predictions`
+
+**Description**: Manually generate morning predictions from existing analysis data.
+
+**Features**:
+- Checks for existing analysis data for today
+- Generates high-confidence signals (≥70%) from analysis
+- Stores predictions with KV verification and success logging
+- Updates job status for dependency tracking
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Morning predictions generated and stored successfully",
+  "predictions_stored": true,
+  "signal_count": 3,
+  "high_confidence_signals": 3,
+  "average_confidence": 75.2
+}
+```
+
+---
+
+### KV Pipeline Status
+**Endpoint**: `GET /status-management`
+
+**Description**: Comprehensive status check for all KV pipeline jobs and data dependencies.
+
+**Features**:
+- Job status tracking for all pipeline components
+- Data existence validation for daily keys
+- Dependency validation between jobs
+- Real-time pipeline health assessment
+
+**Response**:
+```json
+{
+  "success": true,
+  "job_statuses": {
+    "analysis": {"status": "done", "timestamp": "2025-09-29T12:30:00Z"},
+    "morning_predictions": {"status": "done", "timestamp": "2025-09-29T12:35:00Z"},
+    "pre_market_briefing": {"status": "pending"},
+    "intraday_check": {"status": "pending"},
+    "end_of_day_summary": {"status": "pending"}
+  },
+  "data_exists": {
+    "analysis": true,
+    "morning_predictions": true,
+    "intraday_tracking": false,
+    "eod_summary": false
+  },
+  "dependency_validation": {
+    "pre_market_briefing": {"isValid": true},
+    "intraday_check": {"isValid": true},
+    "end_of_day_summary": {"isValid": false}
+  }
+}
+```
+
+---
+
+### KV Verification Test
+**Endpoint**: `GET /kv-verification-test`
+
+**Description**: Comprehensive KV system verification with success logging and performance metrics.
+
+**Features**:
+- PUT operations with verification
+- GET operations with retry logic
+- Job status system testing
+- Dependency validation testing
+- Performance metrics and success rate calculation
+
+**Response**:
+```json
+{
+  "success": true,
+  "test_operations": {
+    "put_with_verification": {"success": true, "duration": 45},
+    "get_with_retry": {"success": true, "duration": 12},
+    "job_status_system": {"success": true, "duration": 23},
+    "dependency_validation": {"success": true, "duration": 15},
+    "cleanup": {"success": true}
+  },
+  "overall_metrics": {
+    "total_operations": 5,
+    "successful_operations": 5,
+    "success_rate": "100%",
+    "kv_system_healthy": true
+  }
+}
+```
+
 ## Admin & Management
 
 ### Backfill Operations
@@ -408,6 +505,21 @@ All HTML endpoints are mobile-optimized:
 ---
 
 ## Future Roadmap
+
+### 🔧 Database Migration (D1) - Phase 1
+**Planned Enhancement**: Migration from KV to D1 database for manifest and status storage.
+
+**Benefits**:
+- **Strong Consistency**: Eliminate 60-second eventual consistency delays
+- **Complex Queries**: Advanced filtering and aggregation capabilities
+- **Structured Data**: Better organization of manifest and status information
+- **Reliability**: ACID transactions for critical operations
+
+**Migration Components**:
+- **Manifest Storage**: Job manifests and pipeline status in D1 tables
+- **Status Tracking**: Real-time status updates without consistency delays
+- **Historical Analysis**: Queryable historical data with complex filtering
+- **Dependency Management**: Relational integrity for job dependencies
 
 ### 🚀 Planned API Enhancements (Phase 2)
 
