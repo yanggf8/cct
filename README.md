@@ -83,13 +83,13 @@
 - **✅ AI-Powered Tomorrow Outlook**: Enhanced next-day predictions using fresh AI analysis (2 AI calls/day)
 - **✅ System Grade**: A+ (100/100 Enterprise-Grade Excellence with AI-Powered Tomorrow Outlook and Zero-Cost Operations)
 
-### ✅ 3-LAYER SENTIMENT ANALYSIS ENGINE
-- **Layer 1 - GPT-OSS-120B Enhanced**: Primary sentiment analysis with natural language reasoning and detailed market context
-- **Layer 2 - DistilBERT Aggregate**: Secondary sentiment classification with fast processing and reliable scoring
-- **Layer 3 - Article-Level Analysis**: Individual news article processing with topic categorization and relevance scoring
-- **Multi-Layer Consensus**: Intelligent confidence weighting based on layer agreement and consistency metrics
-- **Performance**: Enhanced accuracy through 3-layer validation, ~2-3 second analysis time
-- **Enhanced Diagnostics**: Comprehensive layer-by-layer analysis and confidence tracking
+### ✅ DUAL AI SENTIMENT ANALYSIS ENGINE
+- **AI Model 1 - GPT-OSS-120B**: Primary sentiment analysis with natural language reasoning and detailed market context
+- **AI Model 2 - DistilBERT-SST-2**: Secondary sentiment classification with fast processing and reliable scoring
+- **Simple Agreement Logic**: Models either agree (same direction) or disagree (different directions)
+- **Transparent Comparison**: Side-by-side model results with clear decision rules
+- **Signal Generation**: AGREEMENT (strong signal), PARTIAL AGREEMENT (moderate signal), DISAGREEMENT (avoid)
+- **Performance**: Enhanced accuracy through dual AI validation, ~2-3 second analysis time
 - **Sources**: Financial Modeling Prep, NewsAPI.org, Yahoo Finance
 - **Cost**: $0.00 per analysis (100% free Cloudflare AI models)
 
@@ -101,51 +101,50 @@
 - **Fallback Protection**: Neural networks provide backup if sentiment fails
 - **Training**: 1,888 samples from 2 years real market data for validation accuracy
 
-### ✅ 3-LAYER ANALYSIS INNOVATION
-- **Layer 1**: GPT-OSS-120B enhanced sentiment with natural language reasoning
-- **Layer 2**: DistilBERT aggregate sentiment with fast classification
-- **Layer 3**: Article-level analysis with topic categorization and relevance scoring
-- **Decision Pipeline**: News → 3-Layer Analysis → Consensus Building → Trading Signals
-- **Enhanced Confidence**: Multi-layer consensus with intelligent confidence weighting
+### ✅ DUAL AI ANALYSIS INNOVATION
+- **AI Model 1**: GPT-OSS-120B enhanced sentiment with natural language reasoning
+- **AI Model 2**: DistilBERT sentiment classification with fast processing
+- **Decision Pipeline**: News → Dual AI Analysis → Agreement Check → Trading Signals
+- **Simple Logic**: Models either AGREE (strong signal), PARTIALLY AGREE (moderate), or DISAGREE (avoid)
+- **Transparent Results**: Clear side-by-side comparison of both model outputs
 - **Integration**: Complete Facebook messaging + Web dashboard compatibility
 
 ### ✅ PRODUCTION VALIDATION
-- **3-Layer Performance**: Enhanced accuracy through multi-layer sentiment consensus
-- **Layer Consistency**: Intelligent agreement tracking between all 3 sentiment layers
-- **Trading Signals**: Primary direction and overall confidence from 3-layer analysis
+- **Dual AI Performance**: Enhanced accuracy through independent model validation
+- **Agreement Tracking**: Simple agree/disagree logic with clear decision rules
+- **Trading Signals**: Based on model agreement (AGREEMENT → strong signal, DISAGREEMENT → avoid)
 - **Data Processing**: Real-time news analysis with 20+ articles per prediction
-- **Architecture**: 3-layer sentiment analysis with enhanced confidence weighting
+- **Architecture**: Dual AI sentiment analysis with transparent comparison
 
 ### ✅ WEB DASHBOARD INTEGRATION (PRODUCTION READY)
-- **Fact Table Dashboard** (`weekly-analysis.html`): Interactive 3-layer analysis metrics with Chart.js visualization
-- **Weekly Analysis Page** (`/weekly-analysis`): Dynamic HTML endpoint with real-time 3-layer data processing
-- **Enhanced UI**: Layer consistency indicators, primary model display, and confidence metrics
-- **Data Pipeline**: Complete KV storage integration with `processAnalysisDataForDate()` processing
-- **Real-time Updates**: Live 3-layer analysis data with date range filtering and symbol breakdown
+- **Fact Table Dashboard** (`weekly-analysis.html`): Interactive dual AI analysis metrics with Chart.js visualization
+- **Weekly Analysis Page** (`/weekly-analysis`): Dynamic HTML endpoint with real-time dual AI data processing
+- **Enhanced UI**: Model agreement indicators, side-by-side comparison, and confidence metrics
+- **Data Pipeline**: Complete KV storage integration with dual AI result processing
+- **Real-time Updates**: Live dual AI analysis data with date range filtering and symbol breakdown
 
 ### ✅ FACEBOOK MESSENGER INTEGRATION (ALL 5 TYPES UPDATED)
-- **Daily Analysis Messages**: 3-layer sentiment labels, direction arrows, and confidence metrics
+- **Daily Analysis Messages**: Dual AI agreement status, direction arrows, and confidence metrics
 - **Weekly Accuracy Reports**: Granular KV storage access for individual symbol performance
 - **Historical Context**: Yesterday's analysis validation from granular storage
-- **Enhanced Notifications**: Layer consistency, primary model, and overall confidence display
-- **Complete Coverage**: All 5 scheduled message types working with 3-layer data structure
+- **Enhanced Notifications**: Model agreement status, individual model outputs, and clear signal strength
+- **Complete Coverage**: All 5 scheduled message types working with dual AI data structure
 
 ## 🏗️ Enhanced AI-Powered Trading Architecture
 
-### Advanced Multi-Layer Analysis with AI-Powered Tomorrow Outlook
+### Advanced Dual AI Analysis with AI-Powered Tomorrow Outlook
 ```
 Financial News APIs → News Collection (10-20 articles)
         ↓
-    [AI-POWERED ANALYSIS PIPELINE]
+    [DUAL AI ANALYSIS PIPELINE]
         └── Cloudflare Worker (Complete System)
-                ├── Layer 1: GPT-OSS-120B Enhanced (Primary Analysis)
-                ├── Layer 2: DistilBERT Aggregate (Secondary Classification)
-                ├── Layer 3: Article-Level Analysis (Individual Processing)
-                └── TFT/N-HITS Models (Supporting Validation)
+                ├── AI Model 1: GPT-OSS-120B (Contextual Analysis)
+                ├── AI Model 2: DistilBERT-SST-2 (Sentiment Classification)
+                └── Agreement Logic (Simple Rules)
         ↓
-Multi-Layer Consensus → Trading Signal Generation
+Model Agreement Check → Trading Signal Generation
         ↓
-KV Storage → Morning Predictions Stored → Performance Tracking
+KV Storage → Separate Model Results Stored → Performance Tracking
         ↓
 AI-Powered Tomorrow Outlook → Fresh AI Analysis for Next Day
         ↓
@@ -160,12 +159,12 @@ Integration → Facebook Messages + Web Dashboards
 - **Total**: 2 AI calls per day (safe within rate limits)
 
 ### Technology Stack - Clean Cloudflare AI Architecture
-- **Primary AI**: GPT-OSS-120B enhanced sentiment analysis (Cloudflare AI - Free)
-- **Fallback AI**: DistilBERT sentiment classification (Cloudflare AI - Free)
-- **Processing**: 3-layer sentiment analysis with article-level processing
+- **AI Model 1**: GPT-OSS-120B enhanced sentiment analysis (Cloudflare AI - Free)
+- **AI Model 2**: DistilBERT-SST-2 sentiment classification (Cloudflare AI - Free)
+- **Processing**: Dual AI analysis with simple agreement logic
 - **Platform**: Cloudflare Workers with native AI integration (no external dependencies)
 - **Data Sources**: Financial Modeling Prep, NewsAPI.org, Yahoo Finance
-- **Storage**: KV storage with dual-tier architecture (daily + granular analysis)
+- **Storage**: KV storage with separate model result storage
 - **Messaging**: Optimized Facebook integration with call-to-action links
 - **Dashboards**: Interactive daily/weekly analysis with Chart.js visualization
 - **Deployment**: Single command deployment with zero configuration
@@ -225,7 +224,7 @@ src/
 │   │   ├── intraday-analysis.js     # Real-time performance tracking & model health
 │   │   ├── end-of-day-analysis.js   # Market close analysis & tomorrow outlook (real Yahoo data)
 │   │   └── weekly-review-analysis.js # Comprehensive pattern & accuracy analysis
-│   ├── per_symbol_analysis.js    # 3-layer analysis + runCompleteAnalysisPipeline()
+│   ├── per_symbol_analysis.js    # Dual AI analysis + runCompleteAnalysisPipeline()
 │   ├── data.js                   # KV data access + batchStoreAnalysisResults()
 │   ├── config.js                 # Centralized configuration management (500+ values)
 │   ├── shared-utilities.js       # Comprehensive utility modules (DateUtils, ArrayUtils, ErrorUtils, KVUtils, etc.)
@@ -262,7 +261,7 @@ src/
   - **`validation-utilities.js`** - Centralized validation utilities for all data types
   - **`kv-consistency.js`** - KV eventual consistency handling with retry logic
   - Daily summary system with historical backfill
-  - 3-layer sentiment analysis with Cloudflare AI integration
+  - Dual AI sentiment analysis with Cloudflare AI integration
   - Dual-tier KV storage with timezone standardization
 - **`src/static/`** - HTML dashboard templates (2 files)
 - **`src/utils/`** - Utility scripts (4 files)
@@ -348,7 +347,7 @@ curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/test
 # View prediction tracking and accuracy (production data)
 curl https://tft-trading-system.yanggf.workers.dev/fact-table
 
-# Test fine-grained per-symbol 3-layer analysis
+# Test fine-grained per-symbol dual AI analysis
 curl -H "X-API-KEY: your_key" "https://tft-trading-system.yanggf.workers.dev/analyze-symbol?symbol=AAPL"
 
 # Test KV storage performance and batch operations

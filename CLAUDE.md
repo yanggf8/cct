@@ -38,11 +38,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Core System Architecture
 
-### 3-Layer Sentiment Analysis
-- **Layer 1**: GPT-OSS-120B Enhanced (primary sentiment analysis)
-- **Layer 2**: DistilBERT Aggregate (secondary sentiment classification)
-- **Layer 3**: Article-Level Analysis (individual article processing)
-- **Multi-Layer Consensus**: Intelligent confidence weighting from layer agreement
+### Dual AI Sentiment Analysis
+- **AI Model 1**: GPT-OSS-120B Enhanced (primary sentiment analysis)
+- **AI Model 2**: DistilBERT-SST-2 (secondary sentiment classification)
+- **Simple Agreement Logic**: Models either agree (same direction) or disagree (different directions)
+- **Transparent Comparison**: Side-by-side model results with clear decision rules
 
 ### Centralized Configuration System
 - **Configuration Hub**: All system configuration centralized in `src/modules/config.js`
@@ -158,7 +158,7 @@ src/modules/handlers/    - Domain-specific handler modules
 
 src/modules/
 ├── analysis.js           - Core analysis functions with real market data integration
-├── enhanced_analysis.js  - Enhanced analysis with 3-layer processing
+├── enhanced_analysis.js  - Enhanced analysis with dual AI processing
 ├── rate-limiter.js       - Yahoo Finance API rate limiting (20 req/min) with exponential backoff
 ├── market-data-cache.js  - Market data caching system (5-min TTL) with performance tracking
 ├── validation.js         - Comprehensive data validation and input sanitization

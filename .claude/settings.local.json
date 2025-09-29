@@ -123,7 +123,8 @@
       "Bash(xargs ls:*)",
       "Bash(./comprehensive_enhancement_test.sh:*)",
       "mcp__amazon-q-cli__cue_q",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(q:*)"
     ],
     "deny": [],
     "ask": []
