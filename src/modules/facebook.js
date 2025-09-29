@@ -465,7 +465,7 @@ export async function sendFacebookMessage(messageText, env) {
     recipient: { id: env.FACEBOOK_RECIPIENT_ID },
     message: { text: messageText },
     messaging_type: "MESSAGE_TAG",
-    tag: "POST_PURCHASE_UPDATE"  // Most appropriate for trading analysis updates
+    tag: "ACCOUNT_UPDATE"  // Most appropriate for system notifications
   };
 
   console.log(`🔍 [FB-DEBUG] ${executionId} Payload constructed:`, JSON.stringify(facebookPayload, null, 2));
