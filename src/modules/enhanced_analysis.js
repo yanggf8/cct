@@ -1,13 +1,11 @@
 /**
- * Enhanced Analysis Module with GPT-OSS-120B Sentiment Integration
- * Simplified two-tier fallback: GPT-OSS-120B → DistilBERT
+ * Enhanced Analysis Module with Dual AI Comparison System
+ * Simple, transparent dual AI system with GPT-OSS-120B and DistilBERT
  */
-
-import { runBasicAnalysis } from './analysis.js';
-import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
-import { parseNaturalLanguageResponse, SentimentLogger, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
-import { storeSymbolAnalysis } from './data.js';
-import { KVUtils } from './shared-utilities.js';
+import { performDualAIComparison, batchDualAIAnalysis } from './dual-ai-analysis.js';
+import { getFreeStockNews } from './free_sentiment_pipeline.js';
+import { mapSentimentToDirection } from './sentiment_utils.js';
+import { storeSymbolAnalysis, batchStoreAnalysisResults } from './data.js';
 import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
 import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
 
@@ -22,146 +20,33 @@ function ensureLoggingInitialized(env) {
 }
 
 /**
- * Run enhanced analysis with sentiment integration
- * Phase 1 implementation: Free news + basic sentiment
+ * Run enhanced analysis with dual AI comparison system
+ * Simple, transparent comparison between GPT-OSS-120B and DistilBERT
  */
 
 export async function runEnhancedAnalysis(env, options = {}) {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
-  logInfo('Starting Enhanced Analysis with Sentiment Integration...');
+  logInfo('Starting Dual AI Comparison Analysis...');
 
-  try {
-    // Step 1: SENTIMENT-FIRST - Run GPT-OSS-120B sentiment analysis first
-    logInfo('Step 1: Running sentiment-first analysis (GPT-OSS-120B)...');
-    const sentimentResults = await runSentimentFirstAnalysis(env, options);
+  // Step 1: Run dual AI analysis
+  logInfo('Step 1: Running dual AI comparison...');
+  const dualAIResults = await runDualAIAnalysisEnhanced(env, options);
 
-    // Step 2: Add technical analysis as reference confirmation
-    logInfo('Step 2: Adding technical analysis as reference...');
-    const enhancedResults = await addTechnicalReference(sentimentResults, env, options);
+  // Step 2: Calculate execution metrics
+  const executionTime = Date.now() - startTime;
+  dualAIResults.execution_metrics = {
+    total_time_ms: executionTime,
+    analysis_enabled: true,
+    sentiment_sources: ['free_news', 'dual_ai_analysis'],
+    cloudflare_ai_enabled: !!env.AI,
+    analysis_method: 'dual_ai_comparison'
+  };
 
-    // Step 3: Calculate execution metrics
-    const executionTime = Date.now() - startTime;
-    enhancedResults.execution_metrics = {
-      total_time_ms: executionTime,
-      enhancement_enabled: true,
-      sentiment_sources: ['free_news', 'ai_sentiment_analysis'],
-      cloudflare_ai_enabled: !!env.AI
-    };
-
-    logInfo(`Enhanced analysis completed in ${executionTime}ms`);
-    return enhancedResults;
-
-  } catch (error) {
-    logError('Enhanced analysis failed:', error);
-
-    // Fallback to basic analysis if sentiment enhancement fails
-    logWarn('Falling back to basic neural network analysis...');
-    const fallbackResults = await runBasicAnalysis(env, options);
-
-    fallbackResults.execution_metrics = {
-      total_time_ms: Date.now() - startTime,
-      enhancement_enabled: false,
-      fallback_reason: error.message,
-      sentiment_error: true
-    };
-
-    return fallbackResults;
-  }
+  logInfo(`Dual AI analysis completed in ${executionTime}ms`);
+  return dualAIResults;
 }
 
-/**
- * Add sentiment analysis to existing technical analysis
- */
-async function addSentimentAnalysis(technicalAnalysis, env) {
-  const symbols = Object.keys(technicalAnalysis.trading_signals);
-  logInfo(`Adding sentiment analysis for ${symbols.length} symbols...`);
-
-  // Process symbols in parallel with conservative batching
-  const batchSize = 2; // Conservative batch size to stay within rate limits
-  const batches = [];
-  for (let i = 0; i < symbols.length; i += batchSize) {
-    batches.push(symbols.slice(i, i + batchSize));
-  }
-
-  logInfo(`Processing ${symbols.length} symbols in ${batches.length} batches of ${batchSize} (parallel processing)`);
-
-  for (const batch of batches) {
-    // Process each batch in parallel
-    const batchPromises = batch.map(async (symbol) => {
-      try {
-        logSentimentDebug(`Analyzing sentiment for ${symbol}...`);
-
-        // Get the existing technical signal
-        const technicalSignal = technicalAnalysis.trading_signals[symbol];
-
-        // Get free news data
-        const newsData = await getFreeStockNews(symbol, env);
-
-        // Basic sentiment analysis
-        const sentimentResult = await getSentimentWithFallbackChain(symbol, newsData, env);
-
-        // Combine technical and sentiment signals
-        const enhancedSignal = combineSignals(technicalSignal, sentimentResult, symbol);
-
-        const validationInfo = sentimentResult.validation_triggered ? ' [Validated]' : '';
-        const modelsInfo = sentimentResult.models_used ? ` using ${sentimentResult.models_used.join(' + ')}` : '';
-        logInfo(`${symbol} sentiment analysis complete: ${sentimentResult.sentiment} (${(sentimentResult.confidence * 100).toFixed(1)}%)${validationInfo}${modelsInfo}`);
-
-        return {
-          symbol,
-          success: true,
-          enhancedSignal: {
-            ...technicalSignal,
-            sentiment_analysis: sentimentResult,
-            enhanced_prediction: enhancedSignal,
-            enhancement_method: 'phase1_basic'
-          }
-        };
-
-      } catch (error) {
-        logError(`Sentiment analysis failed for ${symbol}:`, error.message);
-
-        return {
-          symbol,
-          success: false,
-          error: error.message,
-          enhancedSignal: {
-            ...technicalAnalysis.trading_signals[symbol],
-            sentiment_analysis: {
-              sentiment: 'neutral',
-              confidence: 0,
-              reasoning: 'Sentiment analysis failed',
-              source_count: 0,
-              error: error.message
-            }
-          }
-        };
-      }
-    });
-
-    // Wait for batch to complete
-    const batchResults = await Promise.allSettled(batchPromises);
-
-    // Process batch results
-    batchResults.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        const { symbol, enhancedSignal } = result.value;
-        technicalAnalysis.trading_signals[symbol] = enhancedSignal;
-      } else {
-        const symbol = result.reason?.symbol || 'unknown';
-        logError(`Sentiment analysis promise rejected for ${symbol}:`, result.reason?.message);
-      }
-    });
-
-    // Small delay between batches to be extra conservative
-    if (batches.indexOf(batch) < batches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-
-  return technicalAnalysis;
-}
 
 
 /**
@@ -453,76 +338,7 @@ function getSourceWeight(sourceType) {
   return weights[sourceType] || 0.4;
 }
 
-/**
- * Combine technical and sentiment signals
- */
-function combineSignals(technicalSignal, sentimentSignal, symbol) {
-  // Sentiment-First Approach: Sentiment drives decisions, technical as reference/confirmation
 
-  // Extract signals
-  const technicalDirection = technicalSignal.ensemble?.direction || technicalSignal.tft?.direction || 'NEUTRAL';
-  const technicalConfidence = technicalSignal.ensemble?.confidence || technicalSignal.tft?.confidence || 0.5;
-  const sentimentDirection = sentimentSignal.sentiment?.toUpperCase() || 'NEUTRAL';
-  const sentimentConfidence = sentimentSignal.confidence || 0;
-
-  // PRIMARY DECISION: Sentiment drives the prediction
-  let finalDirection = mapSentimentToDirection(sentimentDirection);
-  let finalConfidence = sentimentConfidence;
-  let reasoning = `Sentiment-driven: ${sentimentDirection} (${(sentimentConfidence * 100).toFixed(1)}%)`;
-
-  // REFERENCE CHECK: Technical analysis as confirmation
-  const technicalAgreement = checkDirectionAgreement(finalDirection, technicalDirection);
-
-  if (technicalAgreement) {
-    // Technical confirms sentiment → boost confidence
-    finalConfidence = Math.min(0.95, finalConfidence + 0.10);
-    reasoning += ` + Technical confirms (${technicalDirection})`;
-  } else {
-    // Technical disagrees with sentiment → note disagreement but keep sentiment decision
-    reasoning += ` (Technical disagrees: ${technicalDirection})`;
-  }
-
-  // Calculate combined score (sentiment-based with technical reference)
-  const sentimentScore = mapDirectionToScore(finalDirection);
-  const combinedScore = sentimentScore; // Sentiment drives the score
-
-  return {
-    symbol: symbol,
-    direction: finalDirection,
-    confidence: finalConfidence,
-    combined_score: combinedScore,
-
-    components: {
-      primary_sentiment: {
-        direction: sentimentDirection,
-        confidence: sentimentConfidence,
-        role: 'primary_decision_maker',
-        source_count: sentimentSignal.source_count,
-        models_used: sentimentSignal.models_used
-      },
-      reference_technical: {
-        direction: technicalDirection,
-        confidence: technicalConfidence,
-        role: 'reference_confirmation',
-        agreement: technicalAgreement
-      }
-    },
-
-    reasoning: reasoning,
-
-    enhancement_details: {
-      method: 'sentiment_first_approach',
-      primary_signal: 'sentiment',
-      reference_signal: 'technical',
-      sentiment_method: sentimentSignal.method || (sentimentSignal.models_used ? 'cloudflare_ai_validation' : 'ai_fallback'),
-      technical_agreement: technicalAgreement,
-      validation_triggered: sentimentSignal.validation_triggered,
-      models_used: sentimentSignal.models_used
-    },
-
-    timestamp: new Date().toISOString()
-  };
-}
 
 
 /**
@@ -642,280 +458,122 @@ async function runSentimentFirstAnalysis(env, options = {}) {
   return results;
 }
 
+
 /**
- * Add technical analysis as reference to sentiment-driven results
+ * Enhanced dual AI analysis for multiple symbols
  */
-async function addTechnicalReference(sentimentResults, env, options = {}) {
-  logInfo('Adding technical analysis as reference confirmation...');
+async function runDualAIAnalysisEnhanced(env, options = {}) {
+  const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
+  logInfo(`Starting dual AI analysis for ${symbols.length} symbols...`);
 
-  // Import the technical analysis function
-  const { runBasicAnalysis } = await import('./analysis.js');
+  // Use batch dual AI analysis
+  const dualAIResult = await batchDualAIAnalysis(symbols, env, options);
 
-  // Run technical analysis for all symbols
-  const technicalAnalysis = await runBasicAnalysis(env, options);
-
-  // Only run technical analysis for symbols where sentiment succeeded
-  const validSymbols = Object.keys(sentimentResults.sentiment_signals).filter(symbol =>
-    !sentimentResults.sentiment_signals[symbol].sentiment_analysis.skip_technical
-  );
-
-  logInfo(`Running technical reference for ${validSymbols.length} symbols (skipped ${Object.keys(sentimentResults.sentiment_signals).length - validSymbols.length} failed sentiment symbols)`);
-
-  // Combine sentiment (primary) with technical (reference) for valid symbols only
-  for (const symbol of validSymbols) {
-    const sentimentSignal = sentimentResults.sentiment_signals[symbol];
-    const technicalSignal = technicalAnalysis.trading_signals?.[symbol];
-
-    if (technicalSignal && sentimentSignal.sentiment_analysis && !sentimentSignal.sentiment_analysis.error) {
-      // Create enhanced prediction with sentiment-first approach
-      const enhancedSignal = combineSignals(technicalSignal, sentimentSignal.sentiment_analysis, symbol);
-
-      // Update the result with technical reference and enhanced prediction
-      sentimentResults.sentiment_signals[symbol] = {
-        ...sentimentSignal,
-        technical_reference: technicalSignal,
-        enhanced_prediction: enhancedSignal,
-        current_price: technicalSignal.current_price,
-        predicted_price: technicalSignal.predicted_price // Keep technical prediction for reference
-      };
-
-      // Store granular analysis data for this symbol
-      try {
-        const granularAnalysisData = {
-          symbol: symbol,
-          analysis_type: 'enhanced_sentiment_first',
-          timestamp: new Date().toISOString(),
-
-          // Primary sentiment signal (decision maker)
-          sentiment_analysis: sentimentSignal.sentiment_analysis,
-
-          // Technical reference signal (confirmation)
-          technical_reference: technicalSignal,
-
-          // Combined enhanced prediction
-          enhanced_prediction: enhancedSignal,
-
-          // Price data
-          current_price: technicalSignal.current_price,
-          predicted_price: technicalSignal.predicted_price,
-
-          // Analysis metadata
-          news_count: sentimentSignal.news_count || 0,
-          trigger_mode: sentimentResults.trigger_mode,
-          analysis_method: 'sentiment_first_with_technical_reference',
-
-          // Performance tracking data
-          confidence_metrics: {
-            sentiment_confidence: sentimentSignal.sentiment_analysis.confidence,
-            technical_confidence: technicalSignal.confidence,
-            enhanced_confidence: enhancedSignal.confidence,
-            neural_agreement: enhancedSignal.enhancement_details?.technical_agreement
-          }
-        };
-
-        await storeSymbolAnalysis(env, symbol, granularAnalysisData);
-        logKVDebug(`${symbol}: Granular analysis stored successfully`);
-      } catch (storageError) {
-        logError(`${symbol}: Failed to store granular analysis:`, storageError.message);
-        // Continue processing - storage failure shouldn't break analysis
-      }
-
-      logInfo(`${symbol}: Technical reference added (${technicalSignal.direction} ${(technicalSignal.confidence * 100).toFixed(1)}%)`);
-    } else {
-      logWarn(`${symbol}: Skipping technical analysis (sentiment failed)`);
-    }
-  }
-
-  // Restructure results to match expected format
-  const finalResults = {
-    symbols_analyzed: sentimentResults.symbols_analyzed,
-    trading_signals: sentimentResults.sentiment_signals,
-    analysis_time: sentimentResults.analysis_time,
-    trigger_mode: sentimentResults.trigger_mode,
-    performance_metrics: {
-      success_rate: 100,
-      total_symbols: Object.keys(sentimentResults.sentiment_signals).length,
-      successful_analyses: Object.keys(sentimentResults.sentiment_signals).length,
-      failed_analyses: 0
-    }
+  // Convert results to expected format
+  const results = {
+    sentiment_signals: {},
+    analysis_time: new Date().toISOString(),
+    trigger_mode: options.triggerMode || 'dual_ai_enhanced',
+    symbols_analyzed: symbols,
+    dual_ai_statistics: dualAIResult.statistics
   };
 
-  // Store main analysis results in KV storage
-  try {
-    logKVDebug('KV MAIN WRITE: Storing main analysis results');
-    const dateStr = new Date().toISOString().split('T')[0];
-    const mainAnalysisKey = `analysis_${dateStr}`;
-    const analysisJson = JSON.stringify(finalResults);
-
-    logKVDebug('KV MAIN DEBUG: Storing with key:', mainAnalysisKey);
-    logInfo('Storing analysis results to KV', {
-      key: mainAnalysisKey,
-      date: dateStr,
-      bytes: analysisJson.length,
-      symbols: Object.keys(finalResults.trading_signals || {}).length
-    });
-
-    const success = await putWithVerification(
-      mainAnalysisKey,
-      analysisJson,
-      env,
-      KVUtils.getOptions('analysis')
-    );
-
-    if (success) {
-      logKVOperation('STORE_ANALYSIS', mainAnalysisKey, true, {
-        date: dateStr,
-        symbolsAnalyzed: Object.keys(finalResults.trading_signals || {}).length,
-        analysisTime: finalResults.analysis_time,
-        totalBytes: analysisJson.length,
-        triggerMode: finalResults.trigger_mode
-      });
-
-      // Update job status for analysis
-      try {
-        await updateJobStatus('analysis', dateStr, 'done', env, {
-          symbolsAnalyzed: Object.keys(finalResults.trading_signals || {}).length,
-          analysisTime: finalResults.analysis_time,
-          triggerMode: finalResults.trigger_mode
-        });
-        logKVDebug('KV STATUS SUCCESS: Updated analysis job status');
-      } catch (statusError) {
-        logError('KV STATUS ERROR: Failed to update analysis job status:', statusError);
-      }
-    } else {
-      logKVOperation('STORE_ANALYSIS', mainAnalysisKey, false, {
-        date: dateStr,
-        error: 'KV verification failed'
-      });
-      logError('KV MAIN ERROR: Failed to store main analysis results');
+  // Convert dual AI results to sentiment signals format
+  dualAIResult.results.forEach(result => {
+    if (result && !result.error) {
+      results.sentiment_signals[result.symbol] = {
+        symbol: result.symbol,
+        sentiment_analysis: {
+          sentiment: result.signal.direction.toLowerCase(),
+          confidence: calculateDualAIConfidence(result),
+          reasoning: result.signal.reasoning,
+          dual_ai_comparison: {
+            agree: result.comparison.agree,
+            agreement_type: result.comparison.agreement_type,
+            signal_type: result.signal.type,
+            signal_strength: result.signal.strength
+          }
+        },
+        news_count: result.performance_metrics?.successful_models || 0,
+        timestamp: result.timestamp,
+        method: 'dual_ai_comparison'
+      };
     }
-  } catch (mainStorageError) {
-    logError('KV MAIN ERROR: Failed to store main analysis results:', mainStorageError);
-    logError('KV MAIN ERROR DETAILS:', {
-      message: mainStorageError.message,
-      stack: mainStorageError.stack
-    });
-  }
+  });
 
-  logInfo('Technical reference analysis completed');
-  return finalResults;
+  return results;
 }
 
 /**
- * Enhanced pre-market analysis with sentiment integration
- * Replacement for runPreMarketAnalysis with sentiment enhancement
+ * Enhanced pre-market analysis with dual AI comparison system
+ * Uses simple, transparent dual AI comparison
  */
 export async function runEnhancedPreMarketAnalysis(env, options = {}) {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
-  logInfo('🚀 Starting Enhanced Pre-Market Analysis with 3-layer sentiment and cron optimization...');
+  logInfo('🚀 Starting Enhanced Pre-Market Analysis with Dual AI Comparison...');
 
-  try {
-    // Get symbols from configuration
-    const symbolsString = env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA';
-    const symbols = symbolsString.split(',').map(s => s.trim());
+  // Get symbols from configuration
+  const symbolsString = env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA';
+  const symbols = symbolsString.split(',').map(s => s.trim());
 
-    logInfo(`📊 Analyzing ${symbols.length} symbols: ${symbols.join(', ')}`);
+  logInfo(`📊 Analyzing ${symbols.length} symbols: ${symbols.join(', ')}`);
 
-    // Option 1: Use new 3-layer batch pipeline (recommended for cron jobs)
-    if (options.useBatchPipeline !== false) {
-      try {
-        // Import the new batch pipeline function
-        const { runCompleteAnalysisPipeline } = await import('./per_symbol_analysis.js');
+  // Use the dual AI batch pipeline
+  logInfo(`🤖 Using dual AI batch pipeline...`);
+  const { runCompleteAnalysisPipeline } = await import('./per_symbol_analysis.js');
 
-        logInfo(`🔄 Using optimized batch pipeline for cron execution...`);
-        const pipelineResult = await runCompleteAnalysisPipeline(symbols, env, {
-          triggerMode: options.triggerMode || 'enhanced_pre_market',
-          predictionHorizons: options.predictionHorizons,
-          currentTime: options.currentTime,
-          cronExecutionId: options.cronExecutionId
-        });
+  const pipelineResult = await runCompleteAnalysisPipeline(symbols, env, {
+    triggerMode: options.triggerMode || 'enhanced_pre_market',
+    predictionHorizons: options.predictionHorizons,
+    currentTime: options.currentTime,
+    cronExecutionId: options.cronExecutionId
+  });
 
-        if (pipelineResult.success) {
-          // Convert pipeline results to legacy format for Facebook compatibility
-          const legacyFormatResults = convertPipelineToLegacyFormat(pipelineResult, options);
-
-          // Track cron health
-          const { trackCronHealth } = await import('./data.js');
-          await trackCronHealth(env, 'success', {
-            totalTime: pipelineResult.pipeline_summary.total_execution_time,
-            symbolsProcessed: pipelineResult.pipeline_summary.analysis_statistics.total_symbols,
-            symbolsSuccessful: pipelineResult.pipeline_summary.analysis_statistics.successful_full_analysis,
-            symbolsFallback: pipelineResult.pipeline_summary.analysis_statistics.fallback_sentiment_used,
-            symbolsFailed: pipelineResult.pipeline_summary.analysis_statistics.neutral_fallback_used,
-            successRate: pipelineResult.pipeline_summary.analysis_success_rate,
-            storageOperations: pipelineResult.pipeline_summary.storage_statistics.total_operations
-          });
-
-          logInfo(`✅ Batch pipeline completed successfully: ${pipelineResult.pipeline_summary.symbols_with_usable_data}/${symbols.length} symbols successful`);
-          return legacyFormatResults;
-        } else {
-          logWarn(`⚠️ Batch pipeline failed, falling back to legacy enhanced analysis...`);
-          // Fall through to legacy method
-        }
-      } catch (importError) {
-        logWarn(`⚠️ Could not import batch pipeline, using legacy analysis:`, importError.message);
-        // Fall through to legacy method
-      }
-    }
-
-    // Option 2: Legacy enhanced analysis (fallback)
-    logInfo(`🔄 Using legacy enhanced analysis method...`);
-    const enhancedResults = await runEnhancedAnalysis(env, {
-      triggerMode: options.triggerMode || 'enhanced_pre_market',
-      predictionHorizons: options.predictionHorizons,
-      currentTime: options.currentTime,
-      cronExecutionId: options.cronExecutionId
-    });
-
-    // Add pre-market specific metadata
-    enhancedResults.pre_market_analysis = {
-      trigger_mode: options.triggerMode,
-      prediction_horizons: options.predictionHorizons,
-      execution_time_ms: Date.now() - startTime,
-      enhancement_enabled: true,
-      batch_pipeline_used: false
-    };
-
-    // Track cron health for legacy analysis
-    const { trackCronHealth } = await import('./data.js');
-    await trackCronHealth(env, 'success', {
-      totalTime: Date.now() - startTime,
-      symbolsProcessed: enhancedResults.symbols_analyzed?.length || 0,
-      successRate: 1.0 // Assume success if no error thrown
-    });
-
-    logInfo(`Enhanced pre-market analysis completed in ${Date.now() - startTime}ms`);
-    return enhancedResults;
-
-  } catch (error) {
-    logError('Enhanced pre-market analysis failed:', error);
-
-    // Track cron health for failure
-    try {
-      const { trackCronHealth } = await import('./data.js');
-      await trackCronHealth(env, 'failed', {
-        totalTime: Date.now() - startTime,
-        symbolsProcessed: 0,
-        errors: [error.message]
-      });
-    } catch (healthError) {
-      logError('Could not track cron health:', healthError);
-    }
-
-    // Import basic analysis as fallback
-    const { runPreMarketAnalysis } = await import('./analysis.js');
-    logWarn('Falling back to basic pre-market analysis...');
-
-    const fallbackResults = await runPreMarketAnalysis(env, options);
-    fallbackResults.enhancement_fallback = {
-      enabled: false,
-      error: error.message,
-      fallback_used: true
-    };
-
-    return fallbackResults;
+  if (!pipelineResult.success) {
+    throw new Error(`Dual AI pipeline failed: ${pipelineResult.error || 'Unknown error'}`);
   }
+
+  // Convert pipeline results to legacy format for Facebook compatibility
+  const legacyFormatResults = convertPipelineToLegacyFormat(pipelineResult, options);
+
+  // Track cron health
+  const { trackCronHealth } = await import('./data.js');
+  await trackCronHealth(env, 'success', {
+    totalTime: pipelineResult.pipeline_summary.total_execution_time,
+    symbolsProcessed: pipelineResult.pipeline_summary.analysis_statistics.total_symbols,
+    symbolsSuccessful: pipelineResult.pipeline_summary.analysis_statistics.successful_full_analysis,
+    symbolsFallback: 0, // No fallback in dual AI system
+    symbolsFailed: pipelineResult.pipeline_summary.analysis_statistics.neutral_fallback_used,
+    successRate: pipelineResult.pipeline_summary.analysis_success_rate,
+    storageOperations: pipelineResult.pipeline_summary.storage_statistics.total_operations,
+    dual_ai_specific: pipelineResult.pipeline_summary.dual_ai_metrics
+  });
+
+  logInfo(`✅ Dual AI pipeline completed successfully: ${pipelineResult.pipeline_summary.symbols_with_usable_data}/${symbols.length} symbols successful`);
+  return legacyFormatResults;
+}
+
+/**
+ * Calculate confidence based on dual AI result
+ */
+function calculateDualAIConfidence(dualAIResult) {
+  const gptConf = dualAIResult.models?.gpt?.confidence || 0;
+  const dbConf = dualAIResult.models?.distilbert?.confidence || 0;
+  const baseConf = (gptConf + dbConf) / 2;
+
+  // Boost confidence if models agree
+  if (dualAIResult.comparison?.agree) {
+    return Math.min(0.95, baseConf + 0.15);
+  }
+
+  // Reduce confidence if models disagree
+  if (dualAIResult.comparison?.agreement_type === 'disagreement') {
+    return Math.max(0.05, baseConf - 0.2);
+  }
+
+  // Partial agreement - small boost
+  return Math.min(0.9, baseConf + 0.05);
 }
 
 /**
@@ -930,17 +588,17 @@ function convertPipelineToLegacyFormat(pipelineResult, options) {
     if (result && result.symbol) {
       symbols_analyzed.push(result.symbol);
 
-      // Map 3-layer analysis to legacy trading signals format
+      // Map dual AI analysis to legacy trading signals format
       tradingSignals[result.symbol] = {
         // Core trading signal data
         symbol: result.symbol,
-        predicted_price: null, // Not available in 3-layer analysis
+        predicted_price: null, // Not available in dual AI analysis
         current_price: null,   // Would need to be fetched separately
         direction: result.trading_signals?.primary_direction || 'NEUTRAL',
         confidence: result.confidence_metrics?.overall_confidence || 0.5,
-        model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
+        model: 'dual_ai_comparison',
 
-        // 3-layer analysis specific data for Facebook messages
+        // Dual AI analysis specific data for Facebook messages
         sentiment_layers: result.sentiment_layers,
         trading_signals: result.trading_signals,
         confidence_metrics: result.confidence_metrics,
@@ -951,18 +609,24 @@ function convertPipelineToLegacyFormat(pipelineResult, options) {
         enhanced_prediction: {
           direction: result.trading_signals?.primary_direction || 'NEUTRAL',
           confidence: result.confidence_metrics?.overall_confidence || 0.5,
-          method: 'enhanced_3_layer_sentiment',
+          method: 'dual_ai_comparison',
           sentiment_analysis: {
-            sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
-            confidence: result.sentiment_layers?.[0]?.confidence || 0.5,
-            source: 'cloudflare_gpt_oss',
-            model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B'
+            sentiment: result.sentiment_patterns?.model_agreement ?
+              result.trading_signals?.primary_direction?.toLowerCase() : 'neutral',
+            confidence: result.confidence_metrics?.overall_confidence || 0.5,
+            source: 'dual_ai_comparison',
+            model: 'GPT-OSS-120B + DistilBERT',
+            dual_ai_specific: {
+              agree: result.sentiment_patterns?.model_agreement,
+              agreement_type: result.sentiment_patterns?.agreement_type,
+              signal_type: result.sentiment_patterns?.signal_type
+            }
           }
         },
 
         // Analysis type indicator
-        analysis_type: result.analysis_type || 'fine_grained_sentiment',
-        fallback_used: result.analysis_metadata?.fallback_used || false
+        analysis_type: result.analysis_type || 'dual_ai_comparison',
+        fallback_used: false // No fallback in dual AI system
       };
     }
   }
@@ -986,16 +650,20 @@ function convertPipelineToLegacyFormat(pipelineResult, options) {
 
       // Storage metrics
       storage_operations: pipelineResult.pipeline_summary.storage_statistics.total_operations,
-      storage_successful: pipelineResult.pipeline_summary.storage_statistics.successful_operations
+      storage_successful: pipelineResult.pipeline_summary.storage_statistics.successful_operations,
+
+      // Dual AI specific metrics
+      dual_ai_metrics: pipelineResult.pipeline_summary.dual_ai_metrics
     },
 
     // Analysis statistics
     analysis_statistics: {
       total_symbols: pipelineResult.pipeline_summary.analysis_statistics.total_symbols,
       successful_full_analysis: pipelineResult.pipeline_summary.analysis_statistics.successful_full_analysis,
-      fallback_sentiment_used: pipelineResult.pipeline_summary.analysis_statistics.fallback_sentiment_used,
+      fallback_sentiment_used: 0, // No fallback in dual AI system
       neutral_fallback_used: pipelineResult.pipeline_summary.analysis_statistics.neutral_fallback_used,
-      overall_success: pipelineResult.pipeline_summary.overall_success
+      overall_success: pipelineResult.pipeline_summary.overall_success,
+      dual_ai_specific: pipelineResult.pipeline_summary.analysis_statistics.dual_ai_specific
     }
   };
 }

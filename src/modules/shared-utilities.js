@@ -5,6 +5,7 @@
 
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount, getEnvConfig, getErrorMessage } from './config.js';
+import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 
 const logger = createLogger('shared-utilities');
 
@@ -557,7 +558,7 @@ export const PerformanceUtils = {
  */
 export const KVUtils = {
   /**
-   * Get KV options with centralized TTL configuration
+   * Get KV options with centralized TTL configuration (legacy - use KeyHelpers.getKVOptions for new code)
    */
   getOptions(keyType, customOptions = {}) {
     const ttlMap = {
@@ -583,6 +584,23 @@ export const KVUtils = {
   async putWithTTL(kvStore, key, data, keyType = 'analysis', customOptions = {}) {
     const options = this.getOptions(keyType, customOptions);
     return await kvStore.put(key, data, options);
+  },
+
+  /**
+   * Put data using key factory for standardized key management
+   */
+  async putWithKeyFactory(kvStore, keyTypeEnum, data, params = {}, customOptions = {}) {
+    const key = KVKeyFactory.generateKey(keyTypeEnum, params);
+    const options = KeyHelpers.getKVOptions(keyTypeEnum, customOptions);
+    return await kvStore.put(key, data, options);
+  },
+
+  /**
+   * Get data using key factory
+   */
+  async getWithKeyFactory(kvStore, keyTypeEnum, params = {}) {
+    const key = KVKeyFactory.generateKey(keyTypeEnum, params);
+    return await kvStore.get(key);
   },
 
   /**

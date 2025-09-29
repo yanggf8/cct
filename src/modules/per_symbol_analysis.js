@@ -4,8 +4,8 @@
  */
 
 import { getFreeStockNews } from './free_sentiment_pipeline.js';
-import { getGPTOSSSentiment, getDistilBERTSentiment, getSentimentWithFallbackChain } from './enhanced_analysis.js';
-import { parseNaturalLanguageResponse, mapSentimentToDirection, checkDirectionAgreement } from './sentiment_utils.js';
+import { performDualAIComparison, batchDualAIAnalysis } from './dual-ai-analysis.js';
+import { mapSentimentToDirection } from './sentiment_utils.js';
 import { storeSymbolAnalysis, getSymbolAnalysisByDate, batchStoreAnalysisResults } from './data.js';
 import { initLogging, logInfo, logError, logSentimentDebug, logAIDebug, logKVDebug, logWarn } from './logging.js';
 
@@ -20,13 +20,13 @@ function ensureLoggingInitialized(env) {
 }
 
 /**
- * Enhanced per-symbol sentiment analysis with fine-grained scoring
- * Goes beyond basic sentiment to provide detailed symbol insights
+ * Dual AI per-symbol analysis with simple agreement/disagreement logic
+ * Runs GPT-OSS-120B and DistilBERT in parallel for transparent comparison
  */
 export async function analyzeSymbolWithFineGrainedSentiment(symbol, env, options = {}) {
   console.log(`🔬 [TROUBLESHOOT] analyzeSymbolWithFineGrainedSentiment called with symbol: ${symbol}`);
   ensureLoggingInitialized(env);
-  logInfo(`Starting fine-grained sentiment analysis for ${symbol}...`);
+  logInfo(`Starting dual AI analysis for ${symbol}...`);
 
   try {
     // Step 1: Comprehensive news gathering for the symbol
@@ -35,74 +35,142 @@ export async function analyzeSymbolWithFineGrainedSentiment(symbol, env, options
     const newsData = await gatherComprehensiveNewsForSymbol(symbol, env);
     console.log(`📰 [TROUBLESHOOT] News gathering completed, got ${newsData.length} articles`);
 
-    // Step 2: Multi-layer sentiment analysis
-    logInfo(`Performing multi-layer sentiment analysis for ${symbol}...`);
-    const sentimentLayers = await performMultiLayerSentimentAnalysis(symbol, newsData, env);
+    // Step 2: Dual AI analysis with simple comparison
+    logInfo(`Running dual AI analysis for ${symbol}...`);
+    const dualAIResult = await performDualAIComparison(symbol, newsData, env);
 
-    // Step 3: Symbol-specific sentiment tracking
-    logInfo(`Analyzing symbol-specific sentiment patterns for ${symbol}...`);
-    const sentimentPatterns = await analyzeSymbolSentimentPatterns(symbol, sentimentLayers, env);
+    // Step 3: Convert dual AI result to legacy format for compatibility
+    const analysisData = convertDualAIToLegacyFormat(dualAIResult, newsData, options);
 
-    // Step 4: Fine-grained confidence calculation
-    logInfo(`Calculating fine-grained confidence metrics for ${symbol}...`);
-    const confidenceMetrics = calculateFineGrainedConfidence(sentimentLayers, sentimentPatterns);
-
-    // Step 5: Generate symbol-specific trading signals
-    logInfo(`Generating trading signals for ${symbol}...`);
-    const tradingSignals = generateSymbolTradingSignals(symbol, sentimentLayers, confidenceMetrics);
-
-    // Step 6: Store granular analysis data
-    const analysisData = {
-      symbol: symbol,
-      analysis_type: 'fine_grained_sentiment',
-      timestamp: new Date().toISOString(),
-
-      // Comprehensive news data
-      news_data: {
-        total_articles: newsData.length,
-        sources: newsData.map(item => item.source),
-        time_range: {
-          earliest: Math.min(...newsData.map(item => new Date(item.published_at))),
-          latest: Math.max(...newsData.map(item => new Date(item.published_at)))
-        }
-      },
-
-      // Multi-layer sentiment analysis
-      sentiment_layers: sentimentLayers,
-
-      // Symbol-specific patterns
-      sentiment_patterns: sentimentPatterns,
-
-      // Fine-grained confidence
-      confidence_metrics: confidenceMetrics,
-
-      // Trading signals
-      trading_signals: tradingSignals,
-
-      // Analysis metadata
-      analysis_metadata: {
-        method: 'fine_grained_sentiment_first',
-        models_used: sentimentLayers.map(layer => layer.model),
-        total_processing_time: Date.now() - options.startTime || 0,
-        news_quality_score: calculateNewsQualityScore(newsData)
-      }
-    };
-
-    // Store the granular analysis
-    console.log(`💾 [TROUBLESHOOT] About to store analysis for ${symbol} in KV...`);
-    console.log(`💾 [TROUBLESHOOT] Analysis data keys before storage:`, Object.keys(analysisData));
+    // Store the analysis
+    console.log(`💾 [TROUBLESHOOT] About to store dual AI analysis for ${symbol} in KV...`);
     await storeSymbolAnalysis(env, symbol, analysisData);
     console.log(`✅ [TROUBLESHOOT] KV storage completed for ${symbol}`);
-    logKVDebug(`Stored fine-grained analysis for ${symbol}`);
+    logKVDebug(`Stored dual AI analysis for ${symbol}`);
 
-    logInfo(`Fine-grained analysis complete for ${symbol}: ${tradingSignals.primary_direction} (${(confidenceMetrics.overall_confidence * 100).toFixed(1)}%)`);
+    logInfo(`Dual AI analysis complete for ${symbol}: ${dualAIResult.signal.direction} (${dualAIResult.signal.strength})`);
 
     return analysisData;
 
   } catch (error) {
-    logError(`Fine-grained analysis failed for ${symbol}:`, error);
-    throw new Error(`Fine-grained sentiment analysis failed for ${symbol}: ${error.message}`);
+    logError(`Dual AI analysis failed for ${symbol}:`, error);
+    throw new Error(`Dual AI analysis failed for ${symbol}: ${error.message}`);
   }
+}
+
+/**
+ * Convert dual AI result to legacy format for system compatibility
+ */
+function convertDualAIToLegacyFormat(dualAIResult, newsData, options = {}) {
+  return {
+    symbol: dualAIResult.symbol,
+    analysis_type: 'dual_ai_comparison',
+    timestamp: dualAIResult.timestamp,
+
+    // News data
+    news_data: {
+      total_articles: newsData.length,
+      sources: newsData.map(item => item.source),
+      time_range: {
+        earliest: newsData.length > 0 ? Math.min(...newsData.map(item => new Date(item.published_at))) : new Date(),
+        latest: newsData.length > 0 ? Math.max(...newsData.map(item => new Date(item.published_at))) : new Date()
+      }
+    },
+
+    // Convert dual AI models to sentiment layers format
+    sentiment_layers: [
+      {
+        layer_type: 'gpt_oss_120b',
+        model: 'openchat-3.5-0106',
+        sentiment: dualAIResult.models.gpt.direction.toLowerCase(),
+        confidence: dualAIResult.models.gpt.confidence,
+        detailed_analysis: {
+          reasoning: dualAIResult.models.gpt.reasoning,
+          articles_analyzed: dualAIResult.models.gpt.articles_analyzed
+        }
+      },
+      {
+        layer_type: 'distilbert_sst_2',
+        model: 'distilbert-sst-2-int8',
+        sentiment: dualAIResult.models.distilbert.direction.toLowerCase(),
+        confidence: dualAIResult.models.distilbert.confidence,
+        sentiment_breakdown: dualAIResult.models.distilbert.sentiment_breakdown,
+        articles_analyzed: dualAIResult.models.distilbert.articles_analyzed
+      }
+    ],
+
+    // Dual AI specific patterns
+    sentiment_patterns: {
+      model_agreement: dualAIResult.comparison.agree,
+      agreement_type: dualAIResult.comparison.agreement_type,
+      agreement_details: dualAIResult.comparison.match_details,
+      signal_strength: dualAIResult.signal.strength,
+      signal_type: dualAIResult.signal.type
+    },
+
+    // Confidence metrics based on dual AI comparison
+    confidence_metrics: {
+      overall_confidence: calculateDualAIConfidence(dualAIResult),
+      base_confidence: (dualAIResult.models.gpt.confidence + dualAIResult.models.distilbert.confidence) / 2,
+      consistency_bonus: dualAIResult.comparison.agree ? 0.15 : 0,
+      agreement_bonus: dualAIResult.comparison.agree ? 0.1 : 0,
+      confidence_breakdown: {
+        gpt_confidence: dualAIResult.models.gpt.confidence,
+        distilbert_confidence: dualAIResult.models.distilbert.confidence,
+        agreement_score: dualAIResult.comparison.agree ? 1.0 : 0.0
+      }
+    },
+
+    // Trading signals from dual AI comparison
+    trading_signals: {
+      symbol: dualAIResult.symbol,
+      primary_direction: dualAIResult.signal.direction,
+      overall_confidence: calculateDualAIConfidence(dualAIResult),
+      recommendation: dualAIResult.signal.action,
+      signal_strength: dualAIResult.signal.strength,
+      signal_type: dualAIResult.signal.type,
+      entry_signals: {
+        direction: dualAIResult.signal.direction,
+        strength: dualAIResult.signal.strength,
+        reasoning: dualAIResult.signal.reasoning
+      }
+    },
+
+    // Analysis metadata
+    analysis_metadata: {
+      method: 'dual_ai_comparison',
+      models_used: ['openchat-3.5-0106', 'distilbert-sst-2-int8'],
+      total_processing_time: dualAIResult.execution_time_ms || (Date.now() - (options.startTime || Date.now())),
+      news_quality_score: calculateNewsQualityScore(newsData),
+      dual_ai_specific: {
+        agree: dualAIResult.comparison.agree,
+        agreement_type: dualAIResult.comparison.agreement_type,
+        signal_action: dualAIResult.signal.action
+      }
+    }
+  };
+}
+
+/**
+ * Calculate confidence based on dual AI comparison
+ */
+function calculateDualAIConfidence(dualAIResult) {
+  const gptConf = dualAIResult.models.gpt.confidence;
+  const dbConf = dualAIResult.models.distilbert.confidence;
+  const baseConf = (gptConf + dbConf) / 2;
+
+  // Boost confidence if models agree
+  if (dualAIResult.comparison.agree) {
+    return Math.min(0.95, baseConf + 0.15);
+  }
+
+  // Reduce confidence if models disagree
+  if (dualAIResult.comparison.agreement_type === 'disagreement') {
+    return Math.max(0.05, baseConf - 0.2);
+  }
+
+  // Partial agreement - small boost
+  return Math.min(0.9, baseConf + 0.05);
 }
 
 /**
@@ -139,30 +207,43 @@ async function gatherComprehensiveNewsForSymbol(symbol, env) {
  * Perform 3-layer sentiment analysis as per original design
  */
 async function performMultiLayerSentimentAnalysis(symbol, newsData, env) {
-  const sentimentLayers = [];
-
   try {
-    // Layer 1: GPT-OSS-120B (with DistilBERT fallback)
-    logAIDebug(`Performing Layer 1: GPT-OSS-120B primary analysis for ${symbol}...`);
-    const primaryLayer = await performPrimaryAnalysisLayer(symbol, newsData, env);
-    sentimentLayers.push(primaryLayer);
+    logInfo(`Starting parallel 3-degree sentiment analysis for ${symbol}...`);
 
-    // Layer 2: Article-level analysis
-    logSentimentDebug(`Performing Layer 2: Article-level analysis for ${symbol}...`);
-    const articleLayer = await performArticleLevelAnalysis(symbol, newsData, env);
-    sentimentLayers.push(articleLayer);
+    // Run all 3 degrees in parallel - they analyze the same data from different perspectives
+    const [primaryLayer, articleLayer, temporalLayer] = await Promise.all([
+      // Degree 1: AI Sentiment Analysis (can run independently)
+      performPrimaryAnalysisLayer(symbol, newsData, env).catch(error => {
+        logError(`Degree 1 (AI) failed for ${symbol}:`, error.message);
+        return null;
+      }),
 
-    // Layer 3: Temporal analysis (time-weighted aggregation)
-    logSentimentDebug(`Performing Layer 3: Temporal analysis for ${symbol}...`);
-    const temporalLayer = await performTemporalAnalysis(symbol, newsData, sentimentLayers, env);
-    sentimentLayers.push(temporalLayer);
+      // Degree 2: Article-Level Analysis (can run independently)
+      performArticleLevelAnalysis(symbol, newsData, env).catch(error => {
+        logError(`Degree 2 (Article) failed for ${symbol}:`, error.message);
+        return null;
+      }),
 
-    logInfo(`Completed 3-layer sentiment analysis for ${symbol}`);
+      // Degree 3: Temporal Analysis (can run independently - no dependencies)
+      performTemporalAnalysis(symbol, newsData, [], env).catch(error => {
+        logError(`Degree 3 (Temporal) failed for ${symbol}:`, error.message);
+        return null;
+      })
+    ]);
+
+    // Filter out failed degrees and collect successful ones
+    const sentimentLayers = [primaryLayer, articleLayer, temporalLayer].filter(layer => layer !== null);
+
+    if (sentimentLayers.length === 0) {
+      throw new Error(`All 3 degrees failed for ${symbol}`);
+    }
+
+    logInfo(`Parallel 3-degree analysis completed for ${symbol}: ${sentimentLayers.length}/3 degrees successful`);
     return sentimentLayers;
 
   } catch (error) {
-    logError(`3-layer sentiment analysis failed for ${symbol}:`, error);
-    return [];
+    logError(`Parallel 3-degree sentiment analysis failed for ${symbol}:`, error);
+    throw error;
   }
 }
 
@@ -473,9 +554,8 @@ async function performTemporalAnalysis(symbol, newsData, sentimentLayers, env) {
       };
     });
 
-    // Extract sentiment scores from previous layers
-    const primaryLayer = sentimentLayers[0] || {}; // Layer 1: GPT-OSS-120B
-    const articleLayer = sentimentLayers[1] || {}; // Layer 2: Article-level analysis
+    // Note: sentimentLayers parameter is kept for interface compatibility but not used
+    // Temporal analysis runs independently and focuses on time-based quality assessment
 
     // Create time-weighted sentiment aggregation
     let totalWeightedSentiment = 0;
@@ -484,13 +564,13 @@ async function performTemporalAnalysis(symbol, newsData, sentimentLayers, env) {
     const timeDecayMetrics = [];
 
     articlesWithTiming.forEach((article, index) => {
-      // Get sentiment impact for this article from Layer 2
-      const articleAnalysis = articleLayer.article_analyses?.[index];
-      const sentimentImpact = articleAnalysis?.sentiment_impact || 0;
+      // Perform independent sentiment analysis for this article (no dependencies)
+      const sentimentImpact = analyzeArticleSentimentIndependently(article);
       const relevanceScore = article.relevance_score || 1.0;
+      const qualityWeight = calculateArticleQualityWeight(article);
 
       // Calculate time-weighted contribution
-      const temporalWeight = article.recency_weight * relevanceScore;
+      const temporalWeight = article.recency_weight * relevanceScore * qualityWeight;
       const weightedSentiment = sentimentImpact * temporalWeight;
 
       totalWeightedSentiment += weightedSentiment;
@@ -501,6 +581,7 @@ async function performTemporalAnalysis(symbol, newsData, sentimentLayers, env) {
         article_index: index,
         age_hours: article.age_hours,
         temporal_weight: article.recency_weight,
+        quality_weight: qualityWeight,
         sentiment_impact: sentimentImpact,
         weighted_contribution: weightedSentiment,
         title: article.title?.substring(0, 60) + '...'
@@ -562,6 +643,63 @@ function calculateTemporalWeight(ageInHours) {
   // λ = 0.5 means sentiment half-life of ~1.4 hours
   const lambda = 0.5;
   return Math.exp(-lambda * ageInHours);
+}
+
+/**
+ * Independent article sentiment analysis for temporal degree (no dependencies)
+ */
+function analyzeArticleSentimentIndependently(article) {
+  const text = (article.title + ' ' + (article.summary || '')).toLowerCase();
+
+  // Simple keyword-based sentiment scoring
+  const bullishKeywords = ['up', 'rise', 'gain', 'positive', 'growth', 'bullish', 'buy', 'strong', 'high', 'increase'];
+  const bearishKeywords = ['down', 'fall', 'loss', 'negative', 'decline', 'bearish', 'sell', 'weak', 'low', 'decrease'];
+
+  let bullishScore = 0;
+  let bearishScore = 0;
+
+  bullishKeywords.forEach(keyword => {
+    if (text.includes(keyword)) bullishScore++;
+  });
+
+  bearishKeywords.forEach(keyword => {
+    if (text.includes(keyword)) bearishScore++;
+  });
+
+  // Calculate normalized sentiment impact (-1 to 1)
+  const totalScore = bullishScore - bearishScore;
+  const maxScore = Math.max(bullishScore + bearishScore, 1);
+  return totalScore / maxScore;
+}
+
+/**
+ * Calculate article quality weight for temporal analysis
+ */
+function calculateArticleQualityWeight(article) {
+  let qualityWeight = 1.0;
+
+  // Source reliability bonus
+  const sourceReliability = {
+    'bloomberg': 1.2,
+    'reuters': 1.15,
+    'ap': 1.1,
+    'cnbc': 1.05,
+    'yahoo': 0.95
+  };
+
+  const source = article.source?.toLowerCase() || 'unknown';
+  if (sourceReliability[source]) {
+    qualityWeight *= sourceReliability[source];
+  }
+
+  // Content length bonus (longer articles often more detailed)
+  const contentLength = (article.title + ' ' + (article.summary || '')).length;
+  if (contentLength > 500) qualityWeight *= 1.1;
+
+  // Recency bonus (newer articles get slight quality boost)
+  if (article.age_hours < 2) qualityWeight *= 1.05;
+
+  return Math.min(2.0, qualityWeight); // Cap at 2.0x weight
 }
 
 /**
@@ -1193,24 +1331,28 @@ export async function batchAnalyzeSymbolsForCron(symbols, env, options = {}) {
 }
 
 /**
- * Complete cron-optimized analysis pipeline with batch KV storage
+ * Complete cron-optimized analysis pipeline with dual AI system and batch KV storage
  * This is the main function for cron jobs - handles everything from analysis to storage
  */
 export async function runCompleteAnalysisPipeline(symbols, env, options = {}) {
   const pipelineStartTime = Date.now();
   ensureLoggingInitialized(env);
-  logInfo(`🚀 Starting complete analysis pipeline for ${symbols.length} symbols...`);
+  logInfo(`🚀 Starting dual AI analysis pipeline for ${symbols.length} symbols...`);
 
   try {
-    // Step 1: Batch analyze all symbols with fallback protection
-    logInfo(`📊 Step 1: Running batch analysis...`);
-    const batchResult = await batchAnalyzeSymbolsForCron(symbols, env, options);
+    // Step 1: Batch dual AI analysis
+    logInfo(`🤖 Step 1: Running dual AI analysis...`);
+    const dualAIResult = await batchDualAIAnalysis(symbols, env, options);
 
-    logInfo(`✅ Analysis completed: ${batchResult.statistics.successful_full_analysis} full, ${batchResult.statistics.fallback_sentiment_used} fallback, ${batchResult.statistics.neutral_fallback_used} neutral`);
+    logInfo(`✅ Dual AI analysis completed: ${dualAIResult.statistics.full_agreement} agreements, ${dualAIResult.statistics.disagreement} disagreements`);
 
-    // Step 2: Batch store all results to KV in parallel (much faster)
-    logInfo(`💾 Step 2: Storing results with batch KV operations...`);
-    const storageResult = await batchStoreAnalysisResults(env, batchResult.results);
+    // Step 2: Convert dual AI results to legacy format and prepare for storage
+    logInfo(`🔄 Step 2: Converting results for storage...`);
+    const legacyResults = dualAIResult.results.map(result => convertDualAIToLegacyFormat(result, [], options));
+
+    // Step 3: Batch store all results to KV in parallel
+    logInfo(`💾 Step 3: Storing results with batch KV operations...`);
+    const storageResult = await batchStoreAnalysisResults(env, legacyResults);
 
     if (storageResult.success) {
       logInfo(`✅ Batch storage completed: ${storageResult.successful_operations}/${storageResult.total_operations} operations successful in ${storageResult.execution_time_ms}ms`);
@@ -1218,15 +1360,27 @@ export async function runCompleteAnalysisPipeline(symbols, env, options = {}) {
       logError(`❌ Batch storage failed:`, storageResult.error);
     }
 
-    // Step 3: Create pipeline summary
+    // Step 4: Create pipeline summary
     const pipelineTime = Date.now() - pipelineStartTime;
     const pipelineSummary = {
       pipeline_completed: true,
       total_execution_time: pipelineTime,
 
-      // Analysis results
-      analysis_statistics: batchResult.statistics,
-      analysis_success_rate: batchResult.execution_metadata.success_rate,
+      // Dual AI analysis results
+      analysis_statistics: {
+        total_symbols: dualAIResult.statistics.total_symbols,
+        successful_full_analysis: dualAIResult.statistics.full_agreement + dualAIResult.statistics.partial_agreement,
+        fallback_sentiment_used: 0, // No fallback in dual AI system
+        neutral_fallback_used: dualAIResult.statistics.errors,
+        dual_ai_specific: {
+          full_agreement: dualAIResult.statistics.full_agreement,
+          partial_agreement: dualAIResult.statistics.partial_agreement,
+          disagreement: dualAIResult.statistics.disagreement,
+          errors: dualAIResult.statistics.errors
+        }
+      },
+
+      analysis_success_rate: dualAIResult.execution_metadata.success_rate,
 
       // Storage results
       storage_statistics: {
@@ -1237,44 +1391,53 @@ export async function runCompleteAnalysisPipeline(symbols, env, options = {}) {
       },
 
       // Overall pipeline health
-      overall_success: storageResult.success && batchResult.execution_metadata.success_rate > 0.5,
-      symbols_with_usable_data: batchResult.statistics.successful_full_analysis + batchResult.statistics.fallback_sentiment_used,
+      overall_success: storageResult.success && dualAIResult.execution_metadata.success_rate > 0.5,
+      symbols_with_usable_data: dualAIResult.statistics.total_symbols - dualAIResult.statistics.errors,
 
       // Performance metrics
       performance_metrics: {
-        analysis_time_ms: batchResult.execution_metadata.total_execution_time,
+        analysis_time_ms: dualAIResult.execution_metadata.total_execution_time,
         storage_time_ms: storageResult.execution_time_ms,
         total_pipeline_time_ms: pipelineTime,
         avg_time_per_symbol: pipelineTime / symbols.length
+      },
+
+      // Dual AI specific metrics
+      dual_ai_metrics: {
+        agreement_rate: dualAIResult.execution_metadata.agreement_rate,
+        successful_models: dualAIResult.results.reduce((sum, result) => sum + (result.performance_metrics?.successful_models || 0), 0),
+        total_ai_executions: dualAIResult.results.reduce((sum, result) => sum + (result.performance_metrics?.models_executed || 0), 0)
       }
     };
 
-    logInfo(`🎯 Pipeline completed in ${pipelineTime}ms: ${pipelineSummary.symbols_with_usable_data}/${symbols.length} symbols successful`);
+    logInfo(`🎯 Dual AI pipeline completed in ${pipelineTime}ms: ${pipelineSummary.symbols_with_usable_data}/${symbols.length} symbols successful, ${dualAIResult.statistics.full_agreement} agreements`);
 
     return {
       success: true,
-      analysis_results: batchResult.results,
+      analysis_results: legacyResults,
       pipeline_summary: pipelineSummary,
       execution_metadata: {
-        pipeline_type: 'complete_cron_optimized',
+        pipeline_type: 'dual_ai_optimized',
         symbols_processed: symbols.length,
         total_time: pipelineTime,
-        cron_ready: true
+        cron_ready: true,
+        dual_ai_enabled: true
       }
     };
 
   } catch (error) {
     const pipelineTime = Date.now() - pipelineStartTime;
-    logError(`💥 Complete pipeline failed after ${pipelineTime}ms:`, error);
+    logError(`💥 Dual AI pipeline failed after ${pipelineTime}ms:`, error);
 
     return {
       success: false,
       error: error.message,
       execution_metadata: {
-        pipeline_type: 'complete_cron_optimized',
+        pipeline_type: 'dual_ai_optimized',
         symbols_processed: 0,
         total_time: pipelineTime,
         cron_ready: false,
+        dual_ai_enabled: true,
         failure_stage: 'pipeline_setup'
       }
     };

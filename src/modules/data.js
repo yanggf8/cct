@@ -7,6 +7,7 @@ import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
 import { validateKVKey, validateEnvironment, validateDate, safeValidate } from './validation.js';
 import { KVUtils } from './shared-utilities.js';
 import { getKVTTl } from './config.js';
+import { KVKeyFactory, KeyHelpers, KeyTypes } from './kv-key-factory.js';
 
 // Initialize logging for this module
 let loggingInitialized = false;
@@ -38,13 +39,13 @@ function getPrimaryModelFromSentiment(sentimentAnalysis) {
 
 /**
  * Process analysis data for a single date and convert to fact table format
- * Shared helper function for fact table operations
+ * Shared helper function for fact table operations - now supports dual AI system
  */
 async function processAnalysisDataForDate(env, dateStr, checkDate) {
   const factTableData = [];
 
   // Try to get analysis data for this date
-  const analysisKey = `analysis_${dateStr}`;
+  const analysisKey = KVKeyFactory.generateDateKey(KeyTypes.ANALYSIS, dateStr);
   const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
 
   if (analysisJson) {
@@ -59,62 +60,22 @@ async function processAnalysisDataForDate(env, dateStr, checkDate) {
             const actualPrice = await getRealActualPrice(symbol, dateStr);
             const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
 
-            // Extract data from new 3-layer per-symbol analysis structure
-            const tradingSignals = signal.trading_signals || signal;
-            const sentimentLayers = signal.sentiment_layers || [];
+            // Check if this is dual AI analysis or legacy 3-layer analysis
+            const isDualAI = signal.analysis_type === 'dual_ai_comparison' ||
+                           signal.enhanced_prediction?.dual_ai_specific ||
+                           signal.models?.gpt;
 
-            // Extract primary sentiment layer (GPT-OSS-120B)
-            const primarySentimentLayer = sentimentLayers[0] || {};
-            const secondarySentimentLayer = sentimentLayers[1] || {};
-            const articleLayer = sentimentLayers[2] || {};
+            let factTableRecord;
 
-            // Extract trading signals
-            const primaryDirection = tradingSignals.primary_direction || 'NEUTRAL';
-            const overallConfidence = tradingSignals.overall_confidence || 0;
+            if (isDualAI) {
+              // Process dual AI analysis data
+              factTableRecord = processDualAISignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData);
+            } else {
+              // Process legacy 3-layer analysis data
+              factTableRecord = processLegacySignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData);
+            }
 
-            // Extract model information
-            const primaryModel = primarySentimentLayer.model || 'GPT-OSS-120B';
-            const secondaryModel = secondarySentimentLayer.model || 'DistilBERT';
-
-            // Extract sentiment information
-            const sentimentLabel = primarySentimentLayer.sentiment || 'neutral';
-            const sentimentConfidence = primarySentimentLayer.confidence || 0;
-
-            // Calculate neural agreement from sentiment layers consistency
-            const neuralAgreement = calculate3LayerNeuralAgreement(sentimentLayers, tradingSignals);
-
-            factTableData.push({
-              date: dateStr,
-              symbol: symbol,
-              predicted_price: signal.predicted_price,
-              current_price: signal.current_price,
-              actual_price: actualPrice || signal.current_price,
-              direction_prediction: primaryDirection,
-              direction_correct: directionCorrect,
-              confidence: overallConfidence,
-              model: primaryModel,
-
-              // 3-Layer Analysis specific fields
-              primary_model: primaryModel,
-              primary_confidence: overallConfidence,
-              sentiment_score: sentimentConfidence,
-              sentiment_label: sentimentLabel,
-              layer1_confidence: primarySentimentLayer.confidence || 0,
-              layer2_confidence: secondarySentimentLayer.confidence || 0,
-              layer3_confidence: articleLayer.confidence || 0,
-              layer1_model: primarySentimentLayer.model || 'GPT-OSS-120B',
-              layer2_model: secondarySentimentLayer.model || 'DistilBERT',
-              layer3_type: articleLayer.layer_type || 'article_level_analysis',
-              articles_analyzed: primarySentimentLayer.articles_analyzed || 0,
-              neural_agreement: neuralAgreement.status,
-              neural_agreement_score: neuralAgreement.score,
-              layer_consistency: neuralAgreement.layerConsistency,
-              overall_confidence: overallConfidence,
-              analysis_type: '3_layer_sentiment_analysis',
-
-              trigger_mode: analysisData.trigger_mode,
-              timestamp: analysisData.timestamp || checkDate.toISOString()
-            });
+            factTableData.push(factTableRecord);
           }
         }
       }
@@ -124,6 +85,140 @@ async function processAnalysisDataForDate(env, dateStr, checkDate) {
   }
 
   return factTableData;
+}
+
+/**
+ * Process dual AI signal data for fact table
+ */
+function processDualAISignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData) {
+  // Extract dual AI model data
+  const gptModel = signal.models?.gpt || {};
+  const distilBERTModel = signal.models?.distilbert || {};
+  const dualAIComparison = signal.comparison || {};
+  const dualAISignal = signal.signal || {};
+
+  // Extract trading signals from enhanced_prediction
+  const enhancedPrediction = signal.enhanced_prediction || {};
+  const tradingDirection = enhancedPrediction.direction || signal.direction || 'NEUTRAL';
+  const overallConfidence = enhancedPrediction.confidence || signal.confidence || 0;
+
+  // Extract dual AI specific data
+  const dualAISpecific = enhancedPrediction.dual_ai_specific || {};
+
+  return {
+    date: dateStr,
+    symbol: symbol,
+    predicted_price: signal.predicted_price,
+    current_price: signal.current_price,
+    actual_price: actualPrice || signal.current_price,
+    direction_prediction: tradingDirection,
+    direction_correct: directionCorrect,
+    confidence: overallConfidence,
+    model: 'dual_ai_comparison',
+
+    // Dual AI Analysis specific fields
+    primary_model: 'GPT-OSS-120B',
+    secondary_model: 'DistilBERT-SST-2-INT8',
+    gpt_confidence: gptModel.confidence || 0,
+    distilbert_confidence: distilBERTModel.confidence || 0,
+    gpt_direction: gptModel.direction,
+    distilbert_direction: distilBERTModel.direction,
+
+    // Agreement and signal data
+    models_agree: dualAIComparison.agree || false,
+    agreement_type: dualAIComparison.agreement_type || 'unknown',
+    signal_type: dualAISignal.type || 'UNKNOWN',
+    signal_strength: dualAISignal.strength || 'UNKNOWN',
+    signal_action: dualAISignal.action || 'HOLD',
+
+    // Dual AI specific metrics
+    dual_ai_agreement: dualAIComparison.agree,
+    dual_ai_agreement_score: calculateAgreementScore(dualAIComparison),
+    articles_analyzed: gptModel.articles_analyzed || distilBERTModel.articles_analyzed || 0,
+
+    // Analysis metadata
+    analysis_type: 'dual_ai_comparison',
+    execution_time_ms: signal.execution_time_ms || 0,
+    successful_models: signal.performance_metrics?.successful_models || 0,
+
+    trigger_mode: analysisData.trigger_mode,
+    timestamp: analysisData.timestamp || new Date().toISOString()
+  };
+}
+
+/**
+ * Process legacy 3-layer signal data for fact table (backward compatibility)
+ */
+function processLegacySignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData) {
+  // Extract data from legacy 3-layer per-symbol analysis structure
+  const tradingSignals = signal.trading_signals || signal;
+  const sentimentLayers = signal.sentiment_layers || [];
+
+  // Extract primary sentiment layer (GPT-OSS-120B)
+  const primarySentimentLayer = sentimentLayers[0] || {};
+  const secondarySentimentLayer = sentimentLayers[1] || {};
+  const articleLayer = sentimentLayers[2] || {};
+
+  // Extract trading signals
+  const primaryDirection = tradingSignals.primary_direction || 'NEUTRAL';
+  const overallConfidence = tradingSignals.overall_confidence || 0;
+
+  // Extract model information
+  const primaryModel = primarySentimentLayer.model || 'GPT-OSS-120B';
+  const secondaryModel = secondarySentimentLayer.model || 'DistilBERT';
+
+  // Extract sentiment information
+  const sentimentLabel = primarySentimentLayer.sentiment || 'neutral';
+  const sentimentConfidence = primarySentimentLayer.confidence || 0;
+
+  // Calculate neural agreement from sentiment layers consistency
+  const neuralAgreement = calculate3LayerNeuralAgreement(sentimentLayers, tradingSignals);
+
+  return {
+    date: dateStr,
+    symbol: symbol,
+    predicted_price: signal.predicted_price,
+    current_price: signal.current_price,
+    actual_price: actualPrice || signal.current_price,
+    direction_prediction: primaryDirection,
+    direction_correct: directionCorrect,
+    confidence: overallConfidence,
+    model: primaryModel,
+
+    // Legacy 3-Layer Analysis specific fields
+    primary_model: primaryModel,
+    primary_confidence: overallConfidence,
+    sentiment_score: sentimentConfidence,
+    sentiment_label: sentimentLabel,
+    layer1_confidence: primarySentimentLayer.confidence || 0,
+    layer2_confidence: secondarySentimentLayer.confidence || 0,
+    layer3_confidence: articleLayer.confidence || 0,
+    layer1_model: primarySentimentLayer.model || 'GPT-OSS-120B',
+    layer2_model: secondarySentimentLayer.model || 'DistilBERT',
+    layer3_type: articleLayer.layer_type || 'article_level_analysis',
+    articles_analyzed: primarySentimentLayer.articles_analyzed || 0,
+    neural_agreement: neuralAgreement.status,
+    neural_agreement_score: neuralAgreement.score,
+    layer_consistency: neuralAgreement.layerConsistency,
+    overall_confidence: overallConfidence,
+    analysis_type: '3_layer_sentiment_analysis',
+
+    trigger_mode: analysisData.trigger_mode,
+    timestamp: analysisData.timestamp || new Date().toISOString()
+  };
+}
+
+/**
+ * Calculate agreement score for dual AI comparison
+ */
+function calculateAgreementScore(comparison) {
+  if (!comparison) return 0;
+
+  if (comparison.agree) {
+    return comparison.agreement_type === 'full_agreement' ? 1.0 : 0.7;
+  } else {
+    return comparison.agreement_type === 'partial_agreement' ? 0.4 : 0.1;
+  }
 }
 
 /**

@@ -33,12 +33,54 @@ export function generatePreMarketSignals(analysisData) {
   const processedSignals = symbols.map(symbol => {
     const signal = signals[symbol];
     const tradingSignals = signal.trading_signals || signal;
-    const sentimentLayer = signal.sentiment_layers?.[0];
 
-    const sentiment = sentimentLayer?.sentiment || 'neutral';
-    const confidence = (sentimentLayer?.confidence || tradingSignals?.overall_confidence || 0) * 100;
-    const direction = tradingSignals?.primary_direction === 'BULLISH' ? 'up' :
-                     tradingSignals?.primary_direction === 'BEARISH' ? 'down' : 'neutral';
+    // Check if this is dual AI analysis
+    const isDualAI = signal.analysis_type === 'dual_ai_comparison' ||
+                     signal.models?.gpt ||
+                     signal.comparison?.agree !== undefined;
+
+    let sentiment, confidence, direction, aiInsights = null;
+
+    if (isDualAI) {
+      // Process dual AI analysis
+      const comparison = signal.comparison || {};
+      const models = signal.models || {};
+      const tradingSignal = signal.signal || {};
+
+      // Use agreement status and signal for sentiment/direction
+      if (comparison.agree && tradingSignal.direction) {
+        sentiment = tradingSignal.direction;
+        confidence = (tradingSignal.strength === 'STRONG' ? 0.85 :
+                      tradingSignal.strength === 'MODERATE' ? 0.75 : 0.65) * 100;
+      } else {
+        // For partial agreement or disagreement, use weighted average
+        const gptConfidence = models.gpt?.confidence || 0;
+        const dbConfidence = models.distilbert?.confidence || 0;
+        confidence = ((gptConfidence + dbConfidence) / 2) * 100;
+
+        // Use dominant model direction
+        sentiment = models.gpt?.direction || models.distilbert?.direction || 'neutral';
+      }
+
+      direction = sentiment === 'bullish' ? 'up' : sentiment === 'bearish' ? 'down' : 'neutral';
+
+      // Add AI insights for dual AI analysis
+      aiInsights = {
+        agree: comparison.agree,
+        agreement_type: comparison.agreement_type,
+        gpt_direction: models.gpt?.direction,
+        distilbert_direction: models.distilbert?.direction,
+        signal_action: tradingSignal.action
+      };
+
+    } else {
+      // Process legacy analysis
+      const sentimentLayer = signal.sentiment_layers?.[0];
+      sentiment = sentimentLayer?.sentiment || 'neutral';
+      confidence = (sentimentLayer?.confidence || tradingSignals?.overall_confidence || 0) * 100;
+      direction = tradingSignals?.primary_direction === 'BULLISH' ? 'up' :
+                   tradingSignals?.primary_direction === 'BEARISH' ? 'down' : 'neutral';
+    }
 
     if (sentiment === 'bullish') bullishCount++;
     if (sentiment === 'bearish') bearishCount++;
@@ -50,7 +92,8 @@ export function generatePreMarketSignals(analysisData) {
       direction,
       confidence: Math.round(confidence),
       expectedMove: calculateExpectedMove(confidence),
-      driver: generateMarketDriver(sentiment, confidence)
+      driver: generateMarketDriver(sentiment, confidence),
+      aiInsights // Add dual AI insights if available
     };
   });
 
