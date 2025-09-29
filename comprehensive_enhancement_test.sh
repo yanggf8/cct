@@ -180,7 +180,7 @@ echo "===================================="
 
 test_endpoint "Original Health" "/health" ".success" "Original health endpoint still works"
 test_endpoint "Daily Summary API" "/api/daily-summary" ".success" "Daily summary API compatibility"
-test_endpoint_content "Weekly Analysis HTML" "/weekly-analysis" "3-Layer Sentiment Analysis Dashboard" "Weekly analysis page loads (HTML)"
+test_endpoint_content "Weekly Analysis HTML" "/weekly-analysis" "Dual AI Comparison Dashboard" "Weekly analysis page loads (HTML)"
 test_endpoint_content "Basic Analysis Security" "/analyze" "Invalid or missing API key" "Basic analysis properly secured"
 
 echo

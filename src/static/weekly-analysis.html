@@ -259,7 +259,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 3-Layer Sentiment Analysis Dashboard</h1>
+            <h1>📊 Dual AI Comparison Dashboard</h1>
             <p>Comprehensive prediction accuracy and multi-layer sentiment performance review</p>
             <button class="refresh-button" onclick="loadData()">🔄 Refresh Data</button>
         </div>
@@ -285,7 +285,7 @@
                 <div class="stat-card">
                     <h3>Layer Consistency</h3>
                     <div class="value" id="layer-consistency">-</div>
-                    <div class="label">3-Layer Agreement</div>
+                    <div class="label">Dual AI Agreement</div>
                 </div>
                 <div class="stat-card">
                     <h3>Total Analyses</h3>
@@ -302,7 +302,7 @@
             <!-- Charts Section -->
             <div class="charts-section">
                 <div class="chart-container">
-                    <h2>📈 Daily 3-Layer Accuracy Trends</h2>
+                    <h2>📈 Daily Dual AI Accuracy Trends</h2>
                     <div class="chart-wrapper">
                         <canvas id="accuracyChart"></canvas>
                     </div>
@@ -325,7 +325,7 @@
 
             <!-- Detailed Data Table -->
             <div class="data-table">
-                <h2>📋 3-Layer Analysis History</h2>
+                <h2>📋 Dual AI Analysis History</h2>
                 <div style="overflow-x: auto;">
                     <table class="table">
                         <thead>
@@ -603,7 +603,7 @@
                 const directionCorrect = prediction.direction_correct !== undefined ?
                     prediction.direction_correct : null;
 
-                // Get sentiment direction arrow for 3-layer analysis
+                // Get sentiment direction arrow for dual AI analysis
                 const getDirectionArrow = (direction) => {
                     switch(direction?.toUpperCase()) {
                         case 'BULLISH': return '↗️';

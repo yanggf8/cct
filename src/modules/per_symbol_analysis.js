@@ -204,45 +204,39 @@ async function gatherComprehensiveNewsForSymbol(symbol, env) {
 }
 
 /**
- * Perform 3-layer sentiment analysis as per original design
+ * Perform dual AI sentiment analysis as per simplified design
  */
-async function performMultiLayerSentimentAnalysis(symbol, newsData, env) {
+async function performDualAISentimentAnalysis(symbol, newsData, env) {
   try {
-    logInfo(`Starting parallel 3-degree sentiment analysis for ${symbol}...`);
+    logInfo(`Starting parallel dual AI sentiment analysis for ${symbol}...`);
 
-    // Run all 3 degrees in parallel - they analyze the same data from different perspectives
-    const [primaryLayer, articleLayer, temporalLayer] = await Promise.all([
-      // Degree 1: AI Sentiment Analysis (can run independently)
-      performPrimaryAnalysisLayer(symbol, newsData, env).catch(error => {
-        logError(`Degree 1 (AI) failed for ${symbol}:`, error.message);
+    // Run both AI models in parallel - they analyze the same data from different perspectives
+    const [gptResult, distilBERTResult] = await Promise.all([
+      // Model 1: GPT-OSS-120B Analysis
+      performGPTAnalysis(symbol, newsData, env).catch(error => {
+        logError(`GPT analysis failed for ${symbol}:`, error.message);
         return null;
       }),
 
-      // Degree 2: Article-Level Analysis (can run independently)
-      performArticleLevelAnalysis(symbol, newsData, env).catch(error => {
-        logError(`Degree 2 (Article) failed for ${symbol}:`, error.message);
-        return null;
-      }),
-
-      // Degree 3: Temporal Analysis (can run independently - no dependencies)
-      performTemporalAnalysis(symbol, newsData, [], env).catch(error => {
-        logError(`Degree 3 (Temporal) failed for ${symbol}:`, error.message);
+      // Model 2: DistilBERT-SST-2 Analysis
+      performDistilBERTAnalysis(symbol, newsData, env).catch(error => {
+        logError(`DistilBERT analysis failed for ${symbol}:`, error.message);
         return null;
       })
     ]);
 
-    // Filter out failed degrees and collect successful ones
-    const sentimentLayers = [primaryLayer, articleLayer, temporalLayer].filter(layer => layer !== null);
+    // Filter out failed models and collect successful ones
+    const aiModels = [gptResult, distilBERTResult].filter(model => model !== null);
 
-    if (sentimentLayers.length === 0) {
-      throw new Error(`All 3 degrees failed for ${symbol}`);
+    if (aiModels.length === 0) {
+      throw new Error(`Both AI models failed for ${symbol}`);
     }
 
-    logInfo(`Parallel 3-degree analysis completed for ${symbol}: ${sentimentLayers.length}/3 degrees successful`);
-    return sentimentLayers;
+    logInfo(`Parallel dual AI analysis completed for ${symbol}: ${aiModels.length}/2 models successful`);
+    return aiModels;
 
   } catch (error) {
-    logError(`Parallel 3-degree sentiment analysis failed for ${symbol}:`, error);
+    logError(`Parallel dual AI sentiment analysis failed for ${symbol}:`, error);
     throw error;
   }
 }
@@ -1155,9 +1149,9 @@ export async function analyzeSymbolWithFallback(symbol, env, options = {}) {
   logInfo(`Starting robust analysis for ${symbol} with fallback protection...`);
 
   try {
-    // Primary: Full 3-layer analysis
+    // Primary: Full dual AI analysis
     const analysis = await analyzeSymbolWithFineGrainedSentiment(symbol, env, options);
-    logInfo(`✅ Full 3-layer analysis succeeded for ${symbol}`);
+    logInfo(`✅ Full dual AI analysis succeeded for ${symbol}`);
     return analysis;
 
   } catch (primaryError) {

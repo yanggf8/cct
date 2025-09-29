@@ -60,20 +60,8 @@ async function processAnalysisDataForDate(env, dateStr, checkDate) {
             const actualPrice = await getRealActualPrice(symbol, dateStr);
             const directionCorrect = await validateDirectionAccuracy({ ...signal, symbol }, dateStr);
 
-            // Check if this is dual AI analysis or legacy 3-layer analysis
-            const isDualAI = signal.analysis_type === 'dual_ai_comparison' ||
-                           signal.enhanced_prediction?.dual_ai_specific ||
-                           signal.models?.gpt;
-
-            let factTableRecord;
-
-            if (isDualAI) {
-              // Process dual AI analysis data
-              factTableRecord = processDualAISignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData);
-            } else {
-              // Process legacy 3-layer analysis data
-              factTableRecord = processLegacySignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData);
-            }
+            // Process dual AI analysis data
+            const factTableRecord = processDualAISignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData);
 
             factTableData.push(factTableRecord);
           }
@@ -147,66 +135,8 @@ function processDualAISignal(signal, symbol, dateStr, actualPrice, directionCorr
 }
 
 /**
- * Process legacy 3-layer signal data for fact table (backward compatibility)
+ * Process dual AI signal data for fact table
  */
-function processLegacySignal(signal, symbol, dateStr, actualPrice, directionCorrect, analysisData) {
-  // Extract data from legacy 3-layer per-symbol analysis structure
-  const tradingSignals = signal.trading_signals || signal;
-  const sentimentLayers = signal.sentiment_layers || [];
-
-  // Extract primary sentiment layer (GPT-OSS-120B)
-  const primarySentimentLayer = sentimentLayers[0] || {};
-  const secondarySentimentLayer = sentimentLayers[1] || {};
-  const articleLayer = sentimentLayers[2] || {};
-
-  // Extract trading signals
-  const primaryDirection = tradingSignals.primary_direction || 'NEUTRAL';
-  const overallConfidence = tradingSignals.overall_confidence || 0;
-
-  // Extract model information
-  const primaryModel = primarySentimentLayer.model || 'GPT-OSS-120B';
-  const secondaryModel = secondarySentimentLayer.model || 'DistilBERT';
-
-  // Extract sentiment information
-  const sentimentLabel = primarySentimentLayer.sentiment || 'neutral';
-  const sentimentConfidence = primarySentimentLayer.confidence || 0;
-
-  // Calculate neural agreement from sentiment layers consistency
-  const neuralAgreement = calculate3LayerNeuralAgreement(sentimentLayers, tradingSignals);
-
-  return {
-    date: dateStr,
-    symbol: symbol,
-    predicted_price: signal.predicted_price,
-    current_price: signal.current_price,
-    actual_price: actualPrice || signal.current_price,
-    direction_prediction: primaryDirection,
-    direction_correct: directionCorrect,
-    confidence: overallConfidence,
-    model: primaryModel,
-
-    // Legacy 3-Layer Analysis specific fields
-    primary_model: primaryModel,
-    primary_confidence: overallConfidence,
-    sentiment_score: sentimentConfidence,
-    sentiment_label: sentimentLabel,
-    layer1_confidence: primarySentimentLayer.confidence || 0,
-    layer2_confidence: secondarySentimentLayer.confidence || 0,
-    layer3_confidence: articleLayer.confidence || 0,
-    layer1_model: primarySentimentLayer.model || 'GPT-OSS-120B',
-    layer2_model: secondarySentimentLayer.model || 'DistilBERT',
-    layer3_type: articleLayer.layer_type || 'article_level_analysis',
-    articles_analyzed: primarySentimentLayer.articles_analyzed || 0,
-    neural_agreement: neuralAgreement.status,
-    neural_agreement_score: neuralAgreement.score,
-    layer_consistency: neuralAgreement.layerConsistency,
-    overall_confidence: overallConfidence,
-    analysis_type: '3_layer_sentiment_analysis',
-
-    trigger_mode: analysisData.trigger_mode,
-    timestamp: analysisData.timestamp || new Date().toISOString()
-  };
-}
 
 /**
  * Calculate agreement score for dual AI comparison
@@ -741,89 +671,7 @@ async function getRealActualPrice(symbol, targetDate) {
   }
 }
 
-/**
- * Calculate neural network agreement for 3-layer analysis
- * Measures consistency across sentiment layers and trading signals
- */
-function calculate3LayerNeuralAgreement(sentimentLayers, tradingSignals) {
-  try {
-    if (!sentimentLayers || sentimentLayers.length < 2) {
-      return {
-        status: 'INSUFFICIENT_LAYERS',
-        score: 0.5,
-        layerConsistency: 0.5,
-        tft_signal: 'UNKNOWN',
-        nhits_signal: 'UNKNOWN'
-      };
-    }
-
-    // Extract sentiment from each layer
-    const layer1Sentiment = sentimentLayers[0]?.sentiment || 'neutral';
-    const layer2Sentiment = sentimentLayers[1]?.sentiment || 'neutral';
-    const layer3Sentiment = sentimentLayers[2]?.sentiment || 'neutral';
-
-    // Map sentiments to trading directions
-    const direction1 = mapSentimentToDirection(layer1Sentiment);
-    const direction2 = mapSentimentToDirection(layer2Sentiment);
-    const direction3 = mapSentimentToDirection(layer3Sentiment);
-    const tradingDirection = tradingSignals.primary_direction || 'NEUTRAL';
-
-    // Calculate layer consistency
-    const layerAgreements = [
-      direction1 === direction2,
-      direction2 === direction3,
-      direction1 === direction3,
-      direction1 === tradingDirection,
-      direction2 === tradingDirection,
-      direction3 === tradingDirection
-    ];
-
-    const agreementCount = layerAgreements.filter(Boolean).length;
-    const layerConsistency = agreementCount / layerAgreements.length;
-
-    // Determine overall agreement status
-    let status = 'LOW_CONSENSUS';
-    let score = layerConsistency;
-
-    if (layerConsistency >= 0.8) {
-      status = 'HIGH_CONSENSUS';
-      score = 0.9;
-    } else if (layerConsistency >= 0.6) {
-      status = 'MEDIUM_CONSENSUS';
-      score = 0.7;
-    } else if (layerConsistency >= 0.4) {
-      status = 'LOW_CONSENSUS';
-      score = 0.5;
-    } else {
-      status = 'NO_CONSENSUS';
-      score = 0.2;
-    }
-
-    return {
-      status: status,
-      score: score,
-      layerConsistency: layerConsistency,
-      tft_signal: status,
-      nhits_signal: status,
-      layer1_direction: direction1,
-      layer2_direction: direction2,
-      layer3_direction: direction3,
-      trading_direction: tradingDirection,
-      agreement_count: agreementCount,
-      total_comparisons: layerAgreements.length
-    };
-
-  } catch (error) {
-    logError('Error calculating 3-layer neural agreement:', error);
-    return {
-      status: 'ERROR',
-      score: 0.5,
-      layerConsistency: 0.5,
-      tft_signal: 'ERROR',
-      nhits_signal: 'ERROR'
-    };
-  }
-}
+// Neural agreement calculation for dual AI analysis
 
 /**
  * Map sentiment to direction for consistency calculation

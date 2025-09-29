@@ -14,7 +14,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3-Layer Sentiment Analysis Dashboard - TFT Trading System</title>
+    <title>Dual AI Comparison Dashboard - TFT Trading System</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -81,7 +81,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 <body>
     <div class="container">
         <div class="header">
-            <h1>📊 3-Layer Sentiment Analysis Dashboard</h1>
+            <h1>📊 Dual AI Comparison Dashboard</h1>
             <p>Comprehensive prediction accuracy and model performance review</p>
             
             <div style="margin: 20px 0; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap;">
@@ -133,7 +133,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 <div class="stat-card">
                     <h3>Layer Consistency</h3>
                     <div class="value" id="layer-consistency">-</div>
-                    <div class="label">3-Layer Agreement</div>
+                    <div class="label">Dual AI Agreement</div>
                 </div>
                 <div class="stat-card">
                     <h3>Total Predictions</h3>
@@ -148,14 +148,14 @@ export async function handleWeeklyAnalysisPage(request, env) {
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📈 Daily 3-Layer Accuracy Trends</h2>
+                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📈 Daily Dual AI Accuracy Trends</h2>
                 <div class="chart-wrapper">
                     <canvas id="accuracyChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📋 3-Layer Analysis History</h2>
+                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📋 Dual AI Analysis History</h2>
                 <div style="overflow-x: auto;">
                     <table class="table">
                         <thead>
@@ -290,7 +290,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 const directionCorrect = prediction.direction_correct !== undefined ?
                     (prediction.direction_correct ? '✓' : '✗') : '-';
 
-                // Get sentiment direction arrow for 3-layer analysis
+                // Get sentiment direction arrow for dual AI analysis
                 const getDirectionArrow = (direction) => {
                     switch(direction?.toUpperCase()) {
                         case 'BULLISH': return '↗️';

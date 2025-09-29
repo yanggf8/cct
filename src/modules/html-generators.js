@@ -393,7 +393,7 @@ export function generateHTMLFooter(systemStatus = 'Operational') {
   return `
         <div class="footer">
             <p><strong>TFT Trading System</strong> | Status: <span class="status-badge status-healthy">${systemStatus}</span></p>
-            <p>AI-Powered Trading Analysis with 3-Layer Sentiment Processing</p>
+            <p>AI-Powered Trading Analysis with Dual AI Comparison System</p>
             <p class="timestamp">This system is for research and educational purposes only. Not financial advice.</p>
         </div>
     </div>

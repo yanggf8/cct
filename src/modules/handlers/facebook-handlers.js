@@ -34,7 +34,7 @@ export async function handleFacebookTest(request, env) {
     }
 
     // Test Facebook API connectivity
-    const testMessage = `🧪 **TEST MESSAGE**\\n\\n📊 TFT Trading System Health Check\\n🕒 ${new Date().toLocaleString()}\\n\\n📊 **NEW**: Weekly Analysis & Daily Summary dashboards available!\\n\\n🔗 View Dashboard: https://tft-trading-system.yanggf.workers.dev/weekly-analysis`;
+    const testMessage = `🧪 **TEST MESSAGE**\\n\\n🤖 DUAL AI SYSTEM TEST\\n🕒 ${new Date().toLocaleString()}\\n\\n📊 **NEW**: Dual AI Trading Analysis with GPT-OSS-120B + DistilBERT!\\n\\n🔗 View Pre-Market Briefing: https://tft-trading-system.yanggf.workers.dev/pre-market-briefing`;
 
     const facebookUrl = `https://graph.facebook.com/v18.0/me/messages`;
     const facebookPayload = {

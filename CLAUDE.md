@@ -39,7 +39,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Core System Architecture
 
 ### Simplified Dual AI Comparison System
-- **Core Architecture**: Replaced complex 3-degree analysis with simple dual AI comparison
+- **Core Architecture**: Simple dual AI comparison system for transparent analysis
 - **AI Model 1**: GPT-OSS-120B (contextual analysis with natural language reasoning, processes 8 articles)
 - **AI Model 2**: DistilBERT-SST-2 (fast sentiment classification, processes 10 articles individually)
 - **Simple Agreement Logic**: Models AGREE (same direction), PARTIALLY AGREE (mixed signals), DISAGREE (opposite)

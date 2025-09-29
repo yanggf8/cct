@@ -190,7 +190,7 @@ export function createAnalysisResponse(analysisData, options = {}) {
     symbolsAnalyzed,
     processingTime,
     averageConfidence: confidence,
-    analysisType: '3-layer-sentiment',
+    analysisType: 'dual-ai-comparison',
     aiModels: ['GPT-OSS-120B', 'DistilBERT']
   };
 
