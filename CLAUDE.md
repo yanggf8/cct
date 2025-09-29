@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-09-29 (100/100 Production-Ready Dual AI Enterprise Architecture with Simplified Agreement Logic)
+**Current Version**: 2025-09-29 (100/100 Production-Ready Dual AI Enterprise Architecture with Facebook Error #10 Resolution)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI trading system with simplified logic
 - **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with dual AI comparison system
@@ -20,7 +20,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Data Validation**: ✅ **COMPREHENSIVE** - Input sanitization, error handling, and fallback systems
 - **Cron System**: ✅ **VERIFIED OPERATIONAL** - Production schedule confirmed working with debug monitoring
 - **4-Report Analysis System**: ✅ **OPERATIONAL** - Complete modular high-confidence signal tracking workflow
-- **Facebook Messaging**: ✅ **ENHANCED** - Dual AI agreement display with actionable recommendations
+- **Facebook Messaging**: ✅ **ENHANCED** - Dual AI agreement display with actionable recommendations, Error #10 RESOLVED
+- **✅ Facebook Error #10 RESOLVED**: Removed problematic messaging_type and MESSAGE_TAG fields (2025-09-29)
+- **✅ Real Message Delivery**: System now delivers actual trading analysis instead of test messages
 - **Information Architecture**: ✅ **4-TIER SYSTEM** - Pre-Market → Intraday → End-of-Day → Weekly Review
 - **AI Usage**: ✅ **OPTIMIZED** - 2 AI calls per day (8:30 AM + 4:05 PM) within rate limits
 - **Tomorrow Outlook**: ✅ **AI-POWERED** - Fresh GPT-OSS-120B analysis for next-day predictions
@@ -34,7 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Quality Grade**: ✅ **100/100** - Production-ready dual AI enterprise architecture
 - **Report System**: ✅ **4/4 COMPLETED** - Pre-Market, Intraday, End-of-Day, Weekly Review with dual AI integration
 
-**Architecture**: `100/100 Production-Ready Dual AI Enterprise Architecture with Simplified Agreement Logic`
+**Architecture**: `100/100 Production-Ready Dual AI Enterprise Architecture with Facebook Error #10 Resolution`
 
 ## Core System Architecture
 
@@ -134,6 +136,9 @@ Comprehensive Report Pages (Detailed Analysis)
 - **High-Confidence Focus**: All messages emphasize ≥70% confidence signals
 - **Symbol-Specific**: Detailed bullish/bearish symbol breakdowns in notifications
 - **Compelling CTAs**: Action-oriented links driving traffic to detailed analysis
+- **✅ Error #10 Resolution**: Fixed Facebook API policy restrictions by removing problematic messaging_type and MESSAGE_TAG fields
+- **✅ Real Trading Analysis**: Now delivers actual market insights instead of test content
+- **✅ All 4 Message Types Working**: Pre-Market Briefing, Intraday Check, End-of-Day Summary, Weekly Review
 
 ### Production Infrastructure
 - **KV Storage**: Enhanced hybrid pipeline with consistency retry logic and verification
@@ -176,7 +181,7 @@ src/modules/
 ├── data.js              - Data processing and KV operations with dual AI structure support
 ├── dual-ai-analysis.js   - Core simplified dual AI comparison module with transparent agreement logic
 ├── per_symbol_analysis.js - Main analysis module using simplified dual AI system
-├── facebook.js          - Pure messaging layer (sendFacebookMessage utility only)
+├── facebook.js          - Pure messaging layer (sendFacebookMessage utility only, Error #10 RESOLVED)
 ├── logging.js           - Structured logging system
 ├── monitoring.js        - Performance & business metrics (enhanced with KPIs)
 ├── routes.js            - Enhanced routing with observability
@@ -229,6 +234,7 @@ src/modules/
 #### Admin & Management
 - **Backfill Operations**: `/admin/backfill-daily-summaries`, `/admin/verify-backfill`
 - **Alert Testing**: `/test-alert` - Multi-channel webhook testing
+- **Facebook Testing**: `/send-real-facebook` - Send real Facebook messages with trading analysis
 
 ### Configuration Management
 - **Centralized Configuration**: All hardcoded values centralized in `src/modules/config.js` with environment variable integration
@@ -304,3 +310,4 @@ src/modules/
 - **Zero Dependencies**: No external API keys or rate limiting concerns
 - **Real-Time Tracking**: Morning predictions monitored through market close
 - **Pattern Recognition**: Weekly insights drive model optimization recommendations
+- **✅ Facebook Error #10 RESOLVED**: Real trading analysis messages now delivered successfully
