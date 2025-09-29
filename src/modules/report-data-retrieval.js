@@ -65,7 +65,9 @@ class ReportDataRetrieval {
         });
 
         // Send Facebook error notification
-        this.sendDataErrorNotification('Pre-Market Briefing', 'Missing analysis data', dateStr, env);
+        // Facebook error notification disabled to prevent spam
+        // this.sendDataErrorNotification('Pre-Market Briefing', 'Missing analysis data', dateStr, env);
+        console.log(`[DISABLED] Would have sent Facebook error notification for Pre-Market Briefing - Missing analysis data`);
       }
 
       if (!predictionsData) {
@@ -138,7 +140,9 @@ class ReportDataRetrieval {
         });
 
         // Send Facebook error notification
-        this.sendDataErrorNotification('Intraday Performance Check', 'Missing morning predictions', dateStr, env);
+        // Facebook error notification disabled to prevent spam
+        // this.sendDataErrorNotification('Intraday Performance Check', 'Missing morning predictions', dateStr, env);
+        console.log(`[DISABLED] Would have sent Facebook error notification for Intraday Performance Check - Missing morning predictions`);
       }
 
       logger.info('Retrieved intraday check data', {
@@ -236,7 +240,9 @@ class ReportDataRetrieval {
         });
 
         // Send Facebook error notification
-        this.sendDataErrorNotification('End-of-Day Summary', 'Missing predictions data', dateStr, env);
+        // Facebook error notification disabled to prevent spam
+        // this.sendDataErrorNotification('End-of-Day Summary', 'Missing predictions data', dateStr, env);
+        console.log(`[DISABLED] Would have sent Facebook error notification for End-of-Day Summary - Missing predictions data`);
       }
 
       if (!analysisData) {
@@ -309,8 +315,9 @@ class ReportDataRetrieval {
           action: 'Manual investigation required for daily summary storage and weekly aggregation'
         });
 
-        // Send Facebook error notification
-        await this.sendDataErrorNotification('Weekly Review', 'Missing weekly performance data', dateStr, env);
+        // Facebook error notification disabled to prevent spam
+        // await this.sendDataErrorNotification('Weekly Review', 'Missing weekly performance data', dateStr, env);
+        console.log(`[DISABLED] Would have sent Facebook error notification for Weekly Review - Missing weekly performance data`);
       } else if (weeklyData.length < 3) {
         logger.warn('⚠️ [WEEKLY-REVIEW] WARNING: Insufficient weekly data for comprehensive analysis', {
           date: dateStr,
@@ -339,7 +346,9 @@ class ReportDataRetrieval {
       });
 
       // Send Facebook error notification for system failure
-      await this.sendDataErrorNotification('Weekly Review', `System error: ${error.message}`, dateStr, env);
+      // Facebook error notification disabled to prevent spam
+      // await this.sendDataErrorNotification('Weekly Review', `System error: ${error.message}`, dateStr, env);
+      console.log(`[DISABLED] Would have sent Facebook error notification for Weekly Review - System error: ${error.message}`);
 
       return this.getDefaultWeeklyData(dateStr);
     }
@@ -850,8 +859,16 @@ class ReportDataRetrieval {
 
   /**
    * Send Facebook error notification for data issues
+   * NOTE: Disabled to prevent repetitive alert spam - system uses fallback data instead
    */
   async sendDataErrorNotification(reportType, errorType, dateStr, env) {
+    console.log(`📱 [FACEBOOK-ALERT-DISABLED] Data error notification skipped for ${reportType}: ${errorType}`);
+    console.log(`📱 [FACEBOOK-ALERT-DISABLED] System will use fallback data instead of sending alerts`);
+
+    // Return immediately without sending Facebook notifications
+    return;
+
+    /* Original code preserved but disabled:
     try {
       const errorMessage = `🚨 DATA ALERT: ${reportType}\n` +
         `⚠️ Issue: ${errorType}\n` +
@@ -881,6 +898,7 @@ class ReportDataRetrieval {
         fbError: fbError.message
       });
     }
+    */
   }
 }
 

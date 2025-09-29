@@ -1,6 +1,6 @@
 /**
  * Enhanced Feature Analysis Module
- * Integrates 33 technical indicators with existing TFT + N-HITS neural networks
+ * Integrates 33 technical indicators with existing GPT-OSS-120B + DistilBERT-SST-2 dual AI models
  * Combines feature-rich analysis with sentiment for maximum prediction accuracy
  */
 
@@ -10,7 +10,7 @@ import { runEnhancedAnalysis } from './enhanced_analysis.js';
 
 // Feature weights for ensemble prediction
 const FEATURE_WEIGHTS = {
-  neural_networks: 0.5,    // TFT + N-HITS base models
+  dual_ai_models: 0.5,    // GPT-OSS-120B + DistilBERT-SST-2 base models
   technical_features: 0.3, // 33 technical indicators
   sentiment_analysis: 0.2  // News sentiment
 };

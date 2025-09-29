@@ -444,6 +444,23 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
  * Generic Facebook Message Sender with Error Handling
  */
 export async function sendFacebookMessage(messageText, env) {
+  const executionId = `fb_send_${Date.now()}`;
+
+  // Enhanced logging for troubleshooting
+  console.log(`🔍 [FB-DEBUG] ${executionId} Starting Facebook message send`);
+  console.log(`🔍 [FB-DEBUG] ${executionId} Facebook config check:`);
+  console.log(`  - FACEBOOK_PAGE_TOKEN: ${env.FACEBOOK_PAGE_TOKEN ? '✅ Present (' + env.FACEBOOK_PAGE_TOKEN.substring(0, 10) + '...)' : '❌ Missing'}`);
+  console.log(`  - FACEBOOK_RECIPIENT_ID: ${env.FACEBOOK_RECIPIENT_ID || '❌ Missing'}`);
+
+  if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
+    console.error(`❌ [FB-DEBUG] ${executionId} Facebook configuration incomplete - skipping send`);
+    return { success: false, error: 'Facebook configuration incomplete' };
+  }
+
+  console.log(`🔍 [FB-DEBUG] ${executionId} Message details:`);
+  console.log(`  - Message length: ${messageText.length} characters`);
+  console.log(`  - Message preview: ${messageText.substring(0, 100)}...`);
+
   const facebookPayload = {
     recipient: { id: env.FACEBOOK_RECIPIENT_ID },
     message: { text: messageText },
@@ -451,23 +468,41 @@ export async function sendFacebookMessage(messageText, env) {
     tag: "CONFIRMED_EVENT_UPDATE"
   };
 
+  console.log(`🔍 [FB-DEBUG] ${executionId} Payload constructed:`, JSON.stringify(facebookPayload, null, 2));
+
   try {
+    console.log(`📤 [FB-DEBUG] ${executionId} Sending to Facebook API...`);
     const response = await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${env.FACEBOOK_PAGE_TOKEN}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(facebookPayload)
     });
 
+    console.log(`🔍 [FB-DEBUG] ${executionId} Response status: ${response.status} ${response.statusText}`);
+
     if (response.ok) {
-      console.log(`✅ Facebook message sent successfully`);
-      return { success: true };
+      const responseText = await response.text();
+      console.log(`✅ [FB-DEBUG] ${executionId} Facebook message sent successfully`);
+      console.log(`🔍 [FB-DEBUG] ${executionId} Response: ${responseText}`);
+      return { success: true, response: responseText };
     } else {
       const errorText = await response.text();
-      console.error(`❌ Facebook API error:`, errorText);
+      console.error(`❌ [FB-DEBUG] ${executionId} Facebook API error:`, errorText);
+      console.error(`🔍 [FB-DEBUG] ${executionId} Error details:`, {
+        status: response.status,
+        statusText: response.statusText,
+        responseText: errorText,
+        payload: facebookPayload
+      });
       return { success: false, error: errorText };
     }
   } catch (error) {
-    console.error(`❌ Facebook send error:`, error.message);
+    console.error(`❌ [FB-DEBUG] ${executionId} Facebook send error:`, error.message);
+    console.error(`🔍 [FB-DEBUG] ${executionId} Error details:`, {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return { success: false, error: error.message };
   }
 }

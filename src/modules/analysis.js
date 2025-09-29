@@ -15,7 +15,7 @@ const logger = createLogger('analysis');
 
 /**
  * Run comprehensive analysis
- * ✅ GENUINE NEURAL NETWORKS: Real TFT + N-HITS models with ensemble predictions
+ * ✅ GENUINE DUAL AI: Real GPT-OSS-120B + DistilBERT-SST-2 models with agreement logic
  */
 export async function runBasicAnalysis(env, options = {}) {
   // Validate environment
@@ -46,7 +46,7 @@ export async function runBasicAnalysis(env, options = {}) {
   // Analyze each symbol with genuine neural networks
   for (const symbol of symbols) {
     try {
-      console.log(`   🧠 Analyzing ${symbol} with TFT + N-HITS neural networks...`);
+      console.log(`   🧠 Analyzing ${symbol} with GPT-OSS-120B + DistilBERT-SST-2 models...`);
 
       // Get real market data with caching and validation
       const marketData = await withCache(symbol, () => getMarketData(symbol));
@@ -214,95 +214,6 @@ async function getMarketData(symbol) {
 
 
 
-/**
- * Combine TFT and N-HITS predictions using ensemble logic
- */
-function combineModelPredictions(symbol, marketData, tftPrediction, nhitsPrediction, currentTime) {
-  const currentPrice = marketData.current_price;
-
-  // Handle cases where one or both models failed
-  if (!tftPrediction && !nhitsPrediction) {
-    throw new Error('Both models failed');
-  }
-
-  if (!tftPrediction) {
-    console.log(`   ⚠️ ${symbol}: Using N-HITS only (TFT failed)`);
-    return createSignalFromSingleModel(symbol, currentPrice, nhitsPrediction, currentTime);
-  }
-
-  if (!nhitsPrediction) {
-    console.log(`   ⚠️ ${symbol}: Using TFT only (N-HITS failed)`);
-    return createSignalFromSingleModel(symbol, currentPrice, tftPrediction, currentTime);
-  }
-
-  // Both models succeeded - create ensemble prediction
-  console.log(`   🎯 ${symbol}: Ensemble prediction (TFT + N-HITS)`);
-
-  // Weighted average (TFT: 55%, N-HITS: 45%)
-  const tftWeight = 0.55;
-  const nhitsWeight = 0.45;
-
-  const ensemblePrice = (tftPrediction.predicted_price * tftWeight) +
-                       (nhitsPrediction.predicted_price * nhitsWeight);
-
-  // Ensemble confidence based on agreement
-  const priceDifference = Math.abs(tftPrediction.predicted_price - nhitsPrediction.predicted_price);
-  const agreementScore = Math.exp(-priceDifference / currentPrice * 10);
-  const avgConfidence = (tftPrediction.confidence + nhitsPrediction.confidence) / 2;
-  const ensembleConfidence = Math.min(0.95, avgConfidence * (0.8 + agreementScore * 0.2));
-
-  // Direction consensus
-  const tftDirection = tftPrediction.predicted_price > currentPrice ? 'UP' : 'DOWN';
-  const nhitsDirection = nhitsPrediction.predicted_price > currentPrice ? 'UP' : 'DOWN';
-  const ensembleDirection = ensemblePrice > currentPrice ? 'UP' : ensemblePrice < currentPrice ? 'DOWN' : 'NEUTRAL';
-  const directionalConsensus = tftDirection === nhitsDirection;
-
-  return {
-    symbol: symbol,
-    current_price: currentPrice,
-    predicted_price: ensemblePrice,
-    direction: ensembleDirection,
-    confidence: ensembleConfidence,
-    model: 'TFT+N-HITS-Ensemble',
-    timestamp: currentTime.toISOString(),
-    components: {
-      tft: {
-        predicted_price: tftPrediction.predicted_price,
-        confidence: tftPrediction.confidence,
-        direction: tftDirection
-      },
-      nhits: {
-        predicted_price: nhitsPrediction.predicted_price,
-        confidence: nhitsPrediction.confidence,
-        direction: nhitsDirection
-      },
-      ensemble: {
-        directional_consensus: directionalConsensus,
-        agreement_score: agreementScore,
-        price_difference_pct: (priceDifference / currentPrice * 100).toFixed(3)
-      }
-    }
-  };
-}
-
-/**
- * Create signal from single model when other fails
- */
-function createSignalFromSingleModel(symbol, currentPrice, modelPrediction, currentTime) {
-  const direction = modelPrediction.predicted_price > currentPrice ? 'UP' :
-                   modelPrediction.predicted_price < currentPrice ? 'DOWN' : 'NEUTRAL';
-
-  return {
-    symbol: symbol,
-    current_price: currentPrice,
-    predicted_price: modelPrediction.predicted_price,
-    direction: direction,
-    confidence: modelPrediction.confidence * 0.85, // Slight confidence penalty for single model
-    model: modelPrediction.model,
-    timestamp: currentTime.toISOString(),
-    fallback_mode: true
-  };
-}
 
 /**
  * Run weekend market close analysis

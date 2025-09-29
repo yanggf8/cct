@@ -283,7 +283,7 @@
                     <div class="label">Price Predictions</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Layer Consistency</h3>
+                    <h3>Dual AI Agreement</h3>
                     <div class="value" id="layer-consistency">-</div>
                     <div class="label">Dual AI Agreement</div>
                 </div>
@@ -316,7 +316,7 @@
                 </div>
 
                 <div class="chart-container">
-                    <h2>📊 Layer Consistency Analysis</h2>
+                    <h2>🤝 Dual AI Agreement Analysis</h2>
                     <div class="chart-wrapper">
                         <canvas id="consistencyChart"></canvas>
                     </div>
@@ -335,7 +335,7 @@
                                 <th>Primary Model</th>
                                 <th>Sentiment</th>
                                 <th>Direction</th>
-                                <th>Layer Consistency</th>
+                                <th>Dual AI Agreement</th>
                                 <th>Overall Confidence</th>
                                 <th>Articles Analyzed</th>
                             </tr>
@@ -438,7 +438,7 @@
                         tension: 0.4,
                         fill: true
                     }, {
-                        label: 'Layer Consistency (%)',
+                        label: 'Dual AI Agreement (%)',
                         data: dailyData.map(d => (d.layer_consistency || 0) * 100),
                         borderColor: '#ff6b6b',
                         backgroundColor: 'rgba(255, 107, 107, 0.1)',
@@ -651,7 +651,7 @@
                         <span>${data.directionAccuracy ? data.directionAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>Layer Consistency:</span>
+                        <span>🤝 Dual AI Agreement:</span>
                         <span>${data.layerConsistency !== undefined ? (data.layerConsistency * 100).toFixed(1) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">

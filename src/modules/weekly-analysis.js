@@ -131,7 +131,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                     <div class="label">UP/DOWN Signals</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Layer Consistency</h3>
+                    <h3>Dual AI Agreement</h3>
                     <div class="value" id="layer-consistency">-</div>
                     <div class="label">Dual AI Agreement</div>
                 </div>
@@ -165,7 +165,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                                 <th>Primary Model</th>
                                 <th>Sentiment</th>
                                 <th>Direction</th>
-                                <th>Layer Consistency</th>
+                                <th>Dual AI Agreement</th>
                                 <th>Overall Confidence</th>
                                 <th>Articles Analyzed</th>
                             </tr>
@@ -178,7 +178,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📊 Layer Consistency Analysis</h2>
+                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">🤝 Dual AI Agreement Analysis</h2>
                 <div id="symbol-breakdown" class="symbol-grid">
                     <!-- Dynamic content -->
                 </div>
@@ -260,7 +260,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                         tension: 0.4,
                         fill: true
                     }, {
-                        label: 'Layer Consistency (%)',
+                        label: 'Dual AI Agreement (%)',
                         data: dailyData.map(d => (d.layer_consistency || 0) * 100),
                         borderColor: '#ff6b6b',
                         backgroundColor: 'rgba(255, 107, 107, 0.1)',
@@ -351,7 +351,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                         <span>\${data.directionAccuracy ? data.directionAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
-                        <span>🔄 Layer Consistency:</span>
+                        <span>🤝 Dual AI Agreement:</span>
                         <span style="color: \${consistencyColor}; font-weight: 600;">\${layerConsistency.toFixed(1)}%</span>
                     </div>
                     <div class="prediction-row">

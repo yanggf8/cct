@@ -306,7 +306,7 @@ The system now includes automated weekly accuracy reports sent via Facebook Mess
 
 ### **Weekly Report Features**
 - **System Performance**: Active days, total predictions, average confidence
-- **Model Usage Breakdown**: TFT vs N-HITS vs Ensemble usage percentages  
+- **Model Usage Breakdown**: GPT-OSS-120B vs DistilBERT-SST-2 usage percentages  
 - **Confidence Distribution**: High (>80%), Medium (60-80%), Low (<60%) signal counts
 - **Signal Distribution**: BUY/SELL/HOLD pattern analysis
 - **Data Retention**: 7-day historical analysis from stored predictions
@@ -479,7 +479,7 @@ python production_monitor.py health
 - **End-to-End Latency**: ~8-30 seconds (AI analysis processing)
 - **GPT-OSS-120B Execution**: ~2-8 seconds (sentiment analysis)
 - **Data Pipeline**: <2 seconds (news APIs + processing)
-- **Decision Logic**: <500ms (AI consensus)
+- **Decision Logic**: <500ms (AI agreement calculation)
 
 ## ⚠️ Important Disclaimers
 
@@ -510,7 +510,7 @@ python production_monitor.py health
 - [x] **Weekly accuracy reports via Facebook Messenger** - Automated Sunday delivery + manual trigger
 - [x] **GPT-OSS-120B AI analysis accuracy measurement** - 70-78% direction accuracy
 - [x] **AI-powered tomorrow outlook effectiveness** - Fresh analysis for next-day predictions
-- [x] **AI consensus validation** - Enhanced confidence scoring
+- [x] **AI agreement validation** - Enhanced confidence scoring
 
 ### 🔧 Database Infrastructure (Phase 1)
 - **🗄️ D1 Database Migration**: Replace KV eventual consistency with reliable status tracking

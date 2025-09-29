@@ -29,7 +29,6 @@ The system supports 15 standardized key types:
 #### Analysis Data
 - **`ANALYSIS`** - Daily trading analysis data (`analysis_YYYY-MM-DD`)
 - **`DUAL_AI_ANALYSIS`** - Dual AI analysis results (`dual_ai_analysis_YYYY-MM-DD`)
-- **`LEGACY_ANALYSIS`** - Legacy 3-layer analysis (`legacy_analysis_YYYY-MM-DD`)
 
 #### Status & Job Management
 - **`JOB_STATUS`** - Job execution status (`job_{jobName}_status_YYYY-MM-DD`)
