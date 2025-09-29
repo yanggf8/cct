@@ -48,7 +48,8 @@ export {
   handleFacebookTest,
   handleTestAllFacebookMessages,
   handleWeeklyReport,
-  handleFridayMarketCloseReport
+  handleFridayMarketCloseReport,
+  handleRealFacebookMessage
 } from './facebook-handlers.js';
 
 // Daily summary and backfill handlers

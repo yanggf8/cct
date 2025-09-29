@@ -152,9 +152,7 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
   try {
     const facebookPayload = {
       recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-      message: { text: reportText },
-      messaging_type: "MESSAGE_TAG",
-      tag: "CONFIRMED_EVENT_UPDATE"
+      message: { text: reportText }
     };
 
     const response = await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${env.FACEBOOK_PAGE_TOKEN}`, {
@@ -470,12 +468,9 @@ export async function sendFacebookMessage(messageText, env) {
 
   try {
     console.log(`📤 [FB-DEBUG] ${executionId} Sending to Facebook API...`);
-    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${env.FACEBOOK_PAGE_TOKEN}`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(facebookPayload)
     });
 

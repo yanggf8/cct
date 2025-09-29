@@ -74,7 +74,7 @@ import {
  */
 function validateRequest(request, url, env) {
   // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook', '/analyze-symbol', '/admin/backfill-daily-summaries', '/admin/verify-backfill'];
+  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook', '/analyze-symbol', '/admin/backfill-daily-summaries', '/admin/verify-backfill', '/send-real-facebook'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -238,6 +238,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleBackfillDailySummaries(request, env);
     case '/admin/verify-backfill':
       return handleVerifyBackfill(request, env);
+    case '/send-real-facebook':
+      return handleRealFacebookMessage(request, env);
     case '/favicon.ico':
       // Return a simple 1x1 transparent GIF as favicon
       const faviconData = new Uint8Array([

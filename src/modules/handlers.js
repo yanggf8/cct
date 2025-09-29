@@ -233,9 +233,7 @@ export async function handleFacebookTest(request, env) {
 
     const facebookPayload = {
       recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-      message: { text: testMessage },
-      messaging_type: "MESSAGE_TAG",
-      tag: "CONFIRMED_EVENT_UPDATE"
+      message: { text: testMessage }
     };
 
     console.log(`📤 [FB-TEST] Sending Facebook API request...`);

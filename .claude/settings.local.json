@@ -124,7 +124,8 @@
       "Bash(./comprehensive_enhancement_test.sh:*)",
       "mcp__amazon-q-cli__cue_q",
       "Bash(pkill:*)",
-      "Bash(q:*)"
+      "Bash(q:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
