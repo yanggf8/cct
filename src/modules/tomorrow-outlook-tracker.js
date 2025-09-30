@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('tomorrow-outlook-tracker');
 
@@ -40,9 +41,14 @@ class TomorrowOutlookTracker {
         evaluationDate: null
       };
 
-      await env.TRADING_RESULTS.put(outlookKey, JSON.stringify(outlookRecord), {
+      const dal = createDAL(env);
+      const writeResult = await dal.write(outlookKey, outlookRecord, {
         expirationTtl: 14 * 24 * 60 * 60 // 14 days
       });
+
+      if (!writeResult.success) {
+        throw new Error(`Failed to write outlook: ${writeResult.error}`);
+      }
 
       logger.info('Stored tomorrow outlook', {
         targetDate: tomorrowString,
@@ -70,9 +76,10 @@ class TomorrowOutlookTracker {
     const outlookKey = `tomorrow_outlook_${currentDateString}`;
 
     try {
-      const outlookData = await env.TRADING_RESULTS.get(outlookKey);
-      if (outlookData) {
-        const parsed = JSON.parse(outlookData);
+      const dal = createDAL(env);
+      const result = await dal.read(outlookKey);
+      if (result.success && result.data) {
+        const parsed = result.data;
         logger.debug('Retrieved today\'s outlook', {
           targetDate: currentDateString,
           marketBias: parsed.outlook.marketBias,
@@ -98,14 +105,16 @@ class TomorrowOutlookTracker {
     const outlookKey = `tomorrow_outlook_${currentDateString}`;
 
     try {
+      const dal = createDAL(env);
+
       // Get the outlook that was made for today
-      const outlookData = await env.TRADING_RESULTS.get(outlookKey);
-      if (!outlookData) {
+      const result = await dal.read(outlookKey);
+      if (!result.success || !result.data) {
         logger.warn('No outlook found to evaluate', { targetDate: currentDateString });
         return null;
       }
 
-      const outlookRecord = JSON.parse(outlookData);
+      const outlookRecord = result.data;
 
       // Evaluate the outlook
       const evaluation = this.evaluateOutlookAccuracy(outlookRecord.outlook, actualMarketData);
@@ -118,9 +127,13 @@ class TomorrowOutlookTracker {
       outlookRecord.evaluationDate = new Date().toISOString();
 
       // Save the updated record
-      await env.TRADING_RESULTS.put(outlookKey, JSON.stringify(outlookRecord), {
+      const writeResult = await dal.write(outlookKey, outlookRecord, {
         expirationTtl: 14 * 24 * 60 * 60 // 14 days
       });
+
+      if (!writeResult.success) {
+        throw new Error(`Failed to update outlook: ${writeResult.error}`);
+      }
 
       logger.info('Evaluated today\'s outlook', {
         targetDate: currentDateString,

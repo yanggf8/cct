@@ -9,6 +9,7 @@ import { createLogger, logHealthCheck } from '../logging.js';
 import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
+import { createDAL } from '../dal.js';
 
 const logger = createLogger('health-handlers');
 
@@ -144,20 +145,31 @@ export async function handleModelHealth(request, env) {
       });
     }
 
-    // Test KV storage
+    // Test KV storage using DAL
     try {
+      const dal = createDAL(env);
       const testKey = `health_check_${Date.now()}`;
-      await env.TRADING_RESULTS.put(testKey, 'test');
-      const retrieved = await env.TRADING_RESULTS.get(testKey);
-      await env.TRADING_RESULTS.delete(testKey);
 
-      healthResults.models.kv_storage = {
-        status: 'healthy',
-        read_write: 'operational',
-        binding: 'TRADING_RESULTS'
-      };
+      // Test write
+      const writeResult = await dal.write(testKey, 'test', { expirationTtl: 60 });
 
-      logger.debug('KV storage health check successful', { requestId });
+      // Test read
+      const readResult = await dal.read(testKey);
+
+      // Test delete
+      const deleteResult = await dal.deleteKey(testKey);
+
+      if (writeResult.success && readResult.success && deleteResult.success) {
+        healthResults.models.kv_storage = {
+          status: 'healthy',
+          read_write: 'operational',
+          binding: 'TRADING_RESULTS'
+        };
+
+        logger.debug('KV storage health check successful', { requestId });
+      } else {
+        throw new Error('One or more DAL operations failed');
+      }
     } catch (kvError) {
       healthResults.models.kv_storage = {
         status: 'unhealthy',

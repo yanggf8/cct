@@ -10,6 +10,7 @@ import { rateLimitedFetch, retryWithBackoff } from './rate-limiter.js';
 import { withCache, getCacheStats } from './market-data-cache.js';
 import { cronSignalTracker } from './cron-signal-tracking.js';
 import { createLogger } from './logging.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('analysis');
 
@@ -307,11 +308,16 @@ async function saveHighConfidenceSignals(env, signals, currentTime) {
       }
     };
 
-    await env.TRADING_RESULTS.put(signalsKey, JSON.stringify(signalsData));
+    const dal = createDAL(env);
+
+    const writeResult = await dal.write(signalsKey, signalsData);
+    if (!writeResult.success) {
+      logger.warn('Failed to write signals data', { error: writeResult.error });
+    }
 
     // Also save for intraday tracking
     const trackingKey = `signal_tracking_${dateStr}`;
-    await env.TRADING_RESULTS.put(trackingKey, JSON.stringify({
+    const trackingData = {
       date: dateStr,
       signals: signals.map(s => ({
         id: s.id,
@@ -323,7 +329,12 @@ async function saveHighConfidenceSignals(env, signals, currentTime) {
         tracking: s.tracking
       })),
       lastUpdated: currentTime.toISOString()
-    }));
+    };
+
+    const trackingWriteResult = await dal.write(trackingKey, trackingData);
+    if (!trackingWriteResult.success) {
+      logger.warn('Failed to write tracking data', { error: trackingWriteResult.error });
+    }
 
     logger.info('Saved high-confidence signals to KV storage', {
       date: dateStr,
@@ -347,10 +358,10 @@ export async function getHighConfidenceSignalsForTracking(env, date) {
   const trackingKey = `signal_tracking_${dateStr}`;
 
   try {
-    const trackingData = await env.TRADING_RESULTS.get(trackingKey);
-    if (trackingData) {
-      const parsed = JSON.parse(trackingData);
-      return parsed.signals || [];
+    const dal = createDAL(env);
+    const result = await dal.read(trackingKey);
+    if (result.success && result.data) {
+      return result.data.signals || [];
     }
   } catch (error) {
     logger.error('Failed to retrieve signals for tracking', {
@@ -370,16 +381,21 @@ export async function updateSignalPerformanceTracking(env, signalId, performance
   const trackingKey = `signal_tracking_${dateStr}`;
 
   try {
-    const trackingData = await env.TRADING_RESULTS.get(trackingKey);
-    if (trackingData) {
-      const parsed = JSON.parse(trackingData);
+    const dal = createDAL(env);
+    const result = await dal.read(trackingKey);
+
+    if (result.success && result.data) {
+      const parsed = result.data;
       const signal = parsed.signals.find(s => s.id === signalId);
 
       if (signal) {
         signal.tracking.intradayPerformance = performanceData;
         signal.status = performanceData.status || signal.status;
 
-        await env.TRADING_RESULTS.put(trackingKey, JSON.stringify(parsed));
+        const writeResult = await dal.write(trackingKey, parsed);
+        if (!writeResult.success) {
+          logger.warn('Failed to update tracking data', { error: writeResult.error });
+        }
 
         logger.debug('Updated signal performance tracking', {
           signalId,

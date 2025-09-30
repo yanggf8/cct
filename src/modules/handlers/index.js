@@ -25,7 +25,7 @@ export {
   handleKVVerificationTest
 } from './analysis-handlers.js';
 
-// Data and KV handlers
+// Data and KV handlers (HTTP endpoints)
 export {
   handleGetResults,
   handleFactTable,
@@ -33,8 +33,10 @@ export {
   handleKVDebug,
   handleKVWriteTest,
   handleKVReadTest,
-  handleKVGet
-} from './data-handlers.js';
+  handleKVGet,
+  handleKVAnalysisWriteTest,
+  handleKVAnalysisReadTest
+} from './http-data-handlers.js';
 
 // Health and monitoring handlers
 export {

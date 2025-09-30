@@ -7,6 +7,7 @@ import { getSymbolAnalysisByDate, getFactTableDataWithRange } from './data.js';
 import { validateEnvironment, validateAnalysisData, validateUserInput, sanitizeHTML, safeValidate } from './validation.js';
 import { KVUtils } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
+import { createMessageTracker } from './msg-tracking.js';
 
 /**
  * Send Friday Weekend Report with Weekly Analysis Dashboard Link
@@ -98,50 +99,36 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
 
   console.log(`✅ [FB-FRIDAY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
 
-  // Step 4: KV storage (independent of Facebook API)
-  console.log(`💾 [FB-FRIDAY-KV] ${cronExecutionId} Starting KV storage...`);
-  const messagingKey = KVKeyFactory.generateKey(KeyTypes.FACEBOOK_STATUS, {
-  date: new Date().toISOString().split('T')[0],
-  messageType: 'friday_weekend_report'
-});
-  let kvStorageSuccess = false;
-  let kvError = null;
+  // Step 4: Create message tracking (replaces KV storage)
+  console.log(`📋 [FB-FRIDAY-TRACKING] ${cronExecutionId} Creating message tracking...`);
+  const tracker = createMessageTracker(env);
+  let trackingId = null;
 
   try {
-    console.log(`💾 [FB-FRIDAY-KV] ${cronExecutionId} Preparing KV data...`);
-    const kvData = {
-      trigger_mode: triggerMode,
-      message_sent: false, // Will be updated after Facebook send
-      symbols_analyzed: symbols.length,
-      includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-review',
-      timestamp: now.toISOString(),
-      cron_execution_id: cronExecutionId,
-      message_type: 'friday_weekend_report',
-      symbols_processed: symbolCount,
-      facebook_delivery_status: 'pending',
-      report_content: reportText.substring(0, 500) + '...'
-    };
-
-    console.log(`💾 [FB-FRIDAY-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
-    console.log(`💾 [FB-FRIDAY-KV] ${cronExecutionId} KV data size: ${JSON.stringify(kvData).length} bytes`);
-
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify(kvData),
-      KeyHelpers.getKVOptions(KeyTypes.FACEBOOK_STATUS)
+    const trackingResult = await tracker.createTracking(
+      'facebook',
+      'friday_weekend_report',
+      env.FACEBOOK_RECIPIENT_ID,
+      {
+        symbols_processed: symbolCount,
+        analysis_date: new Date().toISOString().split('T')[0],
+        report_type: 'weekend_report',
+        content_preview: reportText.substring(0, 500),
+        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-review',
+        trigger_mode: triggerMode,
+        cron_execution_id: cronExecutionId
+      }
     );
-    kvStorageSuccess = true;
-    console.log(`✅ [FB-FRIDAY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-FRIDAY-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-FRIDAY-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-FRIDAY-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack,
-      name: kvError.name
-    });
-    // Continue to Facebook send even if KV fails
+
+    if (trackingResult.success) {
+      trackingId = trackingResult.tracking_id;
+      console.log(`✅ [FB-FRIDAY-TRACKING] ${cronExecutionId} Tracking created: ${trackingId}`);
+    } else {
+      console.warn(`⚠️ [FB-FRIDAY-TRACKING] ${cronExecutionId} Tracking failed: ${trackingResult.error}`);
+    }
+  } catch (trackingError) {
+    console.error(`❌ [FB-FRIDAY-TRACKING] ${cronExecutionId} Tracking error:`, trackingError.message);
+    // Continue to Facebook send even if tracking fails
   }
 
   // Step 5: Facebook message sending (decoupled from KV storage)
@@ -162,49 +149,24 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
     });
 
     if (response.ok) {
+      const responseData = await response.json();
       facebookSuccess = true;
       console.log(`✅ [FB-FRIDAY] ${cronExecutionId} Facebook message sent successfully`);
 
-      // Update KV record with successful delivery status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.message_sent = true;
-          updatedKvData.facebook_delivery_status = 'delivered';
-          updatedKvData.delivery_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`✅ [FB-FRIDAY-KV] ${cronExecutionId} Updated KV record with delivery status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Failed to update delivery status:`, updateError);
-        }
+      // Update tracking with success
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'sent', responseData.message_id);
+        console.log(`✅ [FB-FRIDAY-TRACKING] ${cronExecutionId} Tracking updated: sent`);
       }
     } else {
       const errorText = await response.text();
       facebookError = errorText;
       console.error(`❌ [FB-FRIDAY] ${cronExecutionId} Facebook API failed:`, errorText);
 
-      // Update KV record with failure status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.facebook_delivery_status = 'failed';
-          updatedKvData.facebook_error = errorText;
-          updatedKvData.failure_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Failed to update failure status:`, updateError);
-        }
+      // Update tracking with failure
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'failed', undefined, errorText);
+        console.log(`⚠️ [FB-FRIDAY-TRACKING] ${cronExecutionId} Tracking updated: failed`);
       }
     }
   } catch (fbError) {
@@ -216,33 +178,19 @@ export async function sendFridayWeekendReportWithTracking(analysisResult, env, c
       name: fbError.name
     });
 
-    // Update KV record with exception status
-    if (kvStorageSuccess) {
-      try {
-        const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-        updatedKvData.facebook_delivery_status = 'exception';
-        updatedKvData.facebook_error = fbError.message;
-        updatedKvData.failure_timestamp = now.toISOString();
-
-        await env.TRADING_RESULTS.put(
-          messagingKey,
-          JSON.stringify(updatedKvData),
-          KVUtils.getOptions('analysis')
-        );
-        console.log(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Updated KV record with exception status`);
-      } catch (updateError) {
-        console.error(`⚠️ [FB-FRIDAY-KV] ${cronExecutionId} Failed to update exception status:`, updateError);
-      }
+    // Update tracking with exception status
+    if (trackingId) {
+      await tracker.updateStatus(trackingId, 'failed', undefined, fbError.message);
+      console.log(`⚠️ [FB-FRIDAY-TRACKING] ${cronExecutionId} Tracking updated: exception`);
     }
   }
 
   // Return function status for external monitoring
-  console.log(`🎯 [FB-FRIDAY] ${cronExecutionId} Function completed - KV: ${kvStorageSuccess ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
+  console.log(`🎯 [FB-FRIDAY] ${cronExecutionId} Function completed - Tracking: ${trackingId ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
   return {
-    success: kvStorageSuccess && facebookSuccess,
-    kv_storage_success: kvStorageSuccess,
+    success: facebookSuccess,
+    tracking_id: trackingId,
     facebook_success: facebookSuccess,
-    kv_key: messagingKey,
     facebook_error: facebookError,
     timestamp: now.toISOString()
   };
@@ -299,45 +247,35 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
 
   console.log(`✅ [FB-WEEKLY] ${cronExecutionId} Report constructed successfully (${reportText.length} chars)`);
 
-  // Step 4: KV storage (independent of Facebook API)
-  console.log(`💾 [FB-WEEKLY-KV] ${cronExecutionId} Starting KV storage...`);
-  const messagingKey = KVKeyFactory.generateKey(KeyTypes.FACEBOOK_STATUS, {
-  date: new Date().toISOString().split('T')[0],
-  messageType: 'weekly_accuracy_report'
-});
-  let kvStorageSuccess = false;
-  let kvError = null;
+  // Step 4: Create message tracking (replaces KV storage)
+  console.log(`📋 [FB-WEEKLY-TRACKING] ${cronExecutionId} Creating message tracking...`);
+  const tracker = createMessageTracker(env);
+  let trackingId = null;
 
   try {
-    const kvData = {
-      trigger_mode: 'weekly_accuracy_report',
-      message_sent: false, // Will be updated after Facebook send
-      includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-review',
-      timestamp: now.toISOString(),
-      cron_execution_id: cronExecutionId,
-      message_type: 'weekly_accuracy_report',
-      facebook_delivery_status: 'pending',
-      report_content: reportText.substring(0, 500) + '...',
-      report_length: reportText.length
-    };
-
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify(kvData),
-      KeyHelpers.getKVOptions(KeyTypes.FACEBOOK_STATUS)
+    const trackingResult = await tracker.createTracking(
+      'facebook',
+      'weekly_accuracy_report',
+      env.FACEBOOK_RECIPIENT_ID,
+      {
+        report_type: 'weekly_accuracy',
+        content_preview: reportText.substring(0, 500),
+        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/weekly-review',
+        trigger_mode: 'weekly_accuracy_report',
+        cron_execution_id: cronExecutionId,
+        report_length: reportText.length
+      }
     );
-    kvStorageSuccess = true;
-    console.log(`✅ [FB-WEEKLY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-WEEKLY-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-WEEKLY-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-WEEKLY-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack,
-      name: kvError.name
-    });
-    // Continue to Facebook send even if KV fails
+
+    if (trackingResult.success) {
+      trackingId = trackingResult.tracking_id;
+      console.log(`✅ [FB-WEEKLY-TRACKING] ${cronExecutionId} Tracking created: ${trackingId}`);
+    } else {
+      console.warn(`⚠️ [FB-WEEKLY-TRACKING] ${cronExecutionId} Tracking failed: ${trackingResult.error}`);
+    }
+  } catch (trackingError) {
+    console.error(`❌ [FB-WEEKLY-TRACKING] ${cronExecutionId} Tracking error:`, trackingError.message);
+    // Continue to Facebook send even if tracking fails
   }
 
   // Step 5: Facebook message sending (decoupled from KV storage)
@@ -351,45 +289,19 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
       facebookSuccess = true;
       console.log(`✅ [FB-WEEKLY] ${cronExecutionId} Facebook message sent successfully`);
 
-      // Update KV record with successful delivery status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.message_sent = true;
-          updatedKvData.facebook_delivery_status = 'delivered';
-          updatedKvData.delivery_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`✅ [FB-WEEKLY-KV] ${cronExecutionId} Updated KV record with delivery status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Failed to update delivery status:`, updateError);
-        }
+      // Update tracking with success
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'sent', fbResult.message_id);
+        console.log(`✅ [FB-WEEKLY-TRACKING] ${cronExecutionId} Tracking updated: sent`);
       }
     } else {
       facebookError = fbResult.error;
       console.error(`❌ [FB-WEEKLY] ${cronExecutionId} Facebook API failed:`, fbResult.error);
 
-      // Update KV record with failure status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.facebook_delivery_status = 'failed';
-          updatedKvData.facebook_error = fbResult.error;
-          updatedKvData.failure_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Failed to update failure status:`, updateError);
-        }
+      // Update tracking with failure
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'failed', undefined, fbResult.error);
+        console.log(`⚠️ [FB-WEEKLY-TRACKING] ${cronExecutionId} Tracking updated: failed`);
       }
     }
   } catch (fbError) {
@@ -401,40 +313,24 @@ export async function sendWeeklyAccuracyReportWithTracking(env, cronExecutionId)
       name: fbError.name
     });
 
-    // Update KV record with exception status
-    if (kvStorageSuccess) {
-      try {
-        const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-        updatedKvData.facebook_delivery_status = 'exception';
-        updatedKvData.facebook_error = fbError.message;
-        updatedKvData.failure_timestamp = now.toISOString();
-
-        await env.TRADING_RESULTS.put(
-          messagingKey,
-          JSON.stringify(updatedKvData),
-          KVUtils.getOptions('analysis')
-        );
-        console.log(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Updated KV record with exception status`);
-      } catch (updateError) {
-        console.error(`⚠️ [FB-WEEKLY-KV] ${cronExecutionId} Failed to update exception status:`, updateError);
-      }
+    // Update tracking with exception status
+    if (trackingId) {
+      await tracker.updateStatus(trackingId, 'failed', undefined, fbError.message);
+      console.log(`⚠️ [FB-WEEKLY-TRACKING] ${cronExecutionId} Tracking updated: exception`);
     }
   }
 
   // Return function status for external monitoring
-  console.log(`🎯 [FB-WEEKLY] ${cronExecutionId} Function completed - KV: ${kvStorageSuccess ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
+  console.log(`🎯 [FB-WEEKLY] ${cronExecutionId} Function completed - Tracking: ${trackingId ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
 
   return {
-    success: kvStorageSuccess || facebookSuccess, // Overall success if either operation worked
-    kv_success: kvStorageSuccess,
+    success: facebookSuccess,
+    tracking_id: trackingId,
     facebook_success: facebookSuccess,
     message_type: 'weekly_accuracy_report',
     timestamp: now.toISOString(),
     cron_execution_id: cronExecutionId,
-    errors: {
-      kv: kvError,
-      facebook: facebookError
-    }
+    facebook_error: facebookError
   };
 }
 
@@ -614,62 +510,39 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
 
   console.log(`✅ [FB-MORNING] ${cronExecutionId} Optimized message built: ${reportText.length} chars (vs ~${reportText.length * 3} before)`);
 
-  // Update KV data to reflect new message format
-
-  // Step 4: KV storage (independent of Facebook API)
-  console.log(`💾 [FB-MORNING] ${cronExecutionId} Starting KV storage...`);
-  const today = new Date().toISOString().split('T')[0];
-  const messagingKey = KVKeyFactory.generateKey(KeyTypes.FACEBOOK_STATUS, {
-  date: new Date().toISOString().split('T')[0],
-  messageType: 'morning_briefing'
-});
-  const dailyKey = `fb_morning_${today}`;
-  let kvStorageSuccess = false;
-  let kvError = null;
+  // Step 4: Create message tracking (replaces KV storage)
+  console.log(`📋 [FB-MORNING-TRACKING] ${cronExecutionId} Creating message tracking...`);
+  const tracker = createMessageTracker(env);
+  let trackingId = null;
 
   try {
-    console.log(`💾 [FB-MORNING-KV] ${cronExecutionId} Preparing KV data...`);
-    const kvData = {
-      trigger_mode: 'morning_prediction_alerts',
-      message_sent: false, // Will be updated after Facebook send
-      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
-      includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/pre-market-briefing',
-      timestamp: now.toISOString(),
-      cron_execution_id: cronExecutionId,
-      message_type: 'morning_predictions',
-      symbols_processed: symbolCount,
-      facebook_delivery_status: 'pending',
-      report_content: reportText.substring(0, 500) + '...' // Store first 500 chars of message
-    };
-
-    console.log(`💾 [FB-MORNING-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
-    console.log(`💾 [FB-MORNING-KV] ${cronExecutionId} KV data size: ${JSON.stringify(kvData).length} bytes`);
-
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify(kvData),
-      KeyHelpers.getKVOptions(KeyTypes.FACEBOOK_STATUS)
+    const trackingResult = await tracker.createTracking(
+      'facebook',
+      'morning_predictions',
+      env.FACEBOOK_RECIPIENT_ID,
+      {
+        symbols_processed: symbolCount,
+        symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+        analysis_date: new Date().toISOString().split('T')[0],
+        content_preview: reportText.substring(0, 500),
+        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/pre-market-briefing',
+        trigger_mode: 'morning_prediction_alerts',
+        cron_execution_id: cronExecutionId,
+        bullish_count: bullishCount,
+        bearish_count: bearishCount,
+        high_confidence_count: highConfidenceSymbols.length
+      }
     );
 
-    // Also store with daily key for intraday handler access
-    await env.TRADING_RESULTS.put(
-      dailyKey,
-      JSON.stringify(kvData),
-      KVUtils.getOptions('analysis')
-    );
-
-    kvStorageSuccess = true;
-    console.log(`✅ [FB-MORNING-KV] ${cronExecutionId} Successfully stored KV records: ${messagingKey} and ${dailyKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-MORNING-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack,
-      name: kvError.name
-    });
-    // Continue to Facebook send even if KV fails
+    if (trackingResult.success) {
+      trackingId = trackingResult.tracking_id;
+      console.log(`✅ [FB-MORNING-TRACKING] ${cronExecutionId} Tracking created: ${trackingId}`);
+    } else {
+      console.warn(`⚠️ [FB-MORNING-TRACKING] ${cronExecutionId} Tracking failed: ${trackingResult.error}`);
+    }
+  } catch (trackingError) {
+    console.error(`❌ [FB-MORNING-TRACKING] ${cronExecutionId} Tracking error:`, trackingError.message);
+    // Continue to Facebook send even if tracking fails
   }
 
   // Step 5: Facebook message sending (decoupled from KV storage)
@@ -683,45 +556,19 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
       facebookSuccess = true;
       console.log(`✅ [FB-MORNING] ${cronExecutionId} Facebook message sent successfully`);
 
-      // Update KV record with successful delivery status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.message_sent = true;
-          updatedKvData.facebook_delivery_status = 'delivered';
-          updatedKvData.delivery_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`✅ [FB-MORNING-KV] ${cronExecutionId} Updated KV record with delivery status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Failed to update delivery status:`, updateError);
-        }
+      // Update tracking with success
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'sent', fbResult.message_id);
+        console.log(`✅ [FB-MORNING-TRACKING] ${cronExecutionId} Tracking updated: sent`);
       }
     } else {
       facebookError = fbResult.error;
       console.error(`❌ [FB-MORNING] ${cronExecutionId} Facebook API failed:`, fbResult.error);
 
-      // Update KV record with failure status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.facebook_delivery_status = 'failed';
-          updatedKvData.facebook_error = fbResult.error;
-          updatedKvData.failure_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Failed to update failure status:`, updateError);
-        }
+      // Update tracking with failure
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'failed', undefined, fbResult.error);
+        console.log(`⚠️ [FB-MORNING-TRACKING] ${cronExecutionId} Tracking updated: failed`);
       }
     }
   } catch (fbError) {
@@ -733,42 +580,21 @@ export async function sendMorningPredictionsWithTracking(analysisResult, env, cr
       name: fbError.name
     });
 
-    // Update KV record with exception status
-    if (kvStorageSuccess) {
-      try {
-        const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-        updatedKvData.facebook_delivery_status = 'exception';
-        updatedKvData.facebook_error = fbError.message;
-        updatedKvData.failure_timestamp = now.toISOString();
-
-        await env.TRADING_RESULTS.put(
-          messagingKey,
-          JSON.stringify(updatedKvData),
-          KVUtils.getOptions('analysis')
-        );
-        console.log(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Updated KV record with exception status`);
-      } catch (updateError) {
-        console.error(`⚠️ [FB-MORNING-KV] ${cronExecutionId} Failed to update exception status:`, updateError);
-      }
+    // Update tracking with exception status
+    if (trackingId) {
+      await tracker.updateStatus(trackingId, 'failed', undefined, fbError.message);
+      console.log(`⚠️ [FB-MORNING-TRACKING] ${cronExecutionId} Tracking updated: exception`);
     }
   }
 
   // Step 6: Final status logging
-  console.log(`🎯 [FB-MORNING] ${cronExecutionId} Function completed with status:`);
-  console.log(`   📊 KV Storage: ${kvStorageSuccess ? '✅ Success' : '❌ Failed'}`);
-  console.log(`   📱 Facebook Delivery: ${facebookSuccess ? '✅ Success' : '❌ Failed'}`);
-  console.log(`   🔑 KV Record Key: ${messagingKey}`);
-
-  if (facebookError) {
-    console.log(`   ⚠️ Facebook Error: ${facebookError.substring(0, 100)}...`);
-  }
+  console.log(`🎯 [FB-MORNING] ${cronExecutionId} Function completed - Tracking: ${trackingId ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
 
   // Return function status for external monitoring
   return {
-    success: kvStorageSuccess, // Consider successful if KV was stored
-    kv_storage_success: kvStorageSuccess,
-    facebook_delivery_success: facebookSuccess,
-    kv_record_key: messagingKey,
+    success: facebookSuccess,
+    tracking_id: trackingId,
+    facebook_success: facebookSuccess,
     facebook_error: facebookError,
     timestamp: now.toISOString()
   };
@@ -869,53 +695,39 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
 
   console.log(`✅ [FB-MIDDAY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
 
-  // Step 4: KV storage (independent of Facebook API)
-  console.log(`💾 [FB-MIDDAY-KV] ${cronExecutionId} Starting KV storage...`);
-  const messagingKey = KVKeyFactory.generateKey(KeyTypes.FACEBOOK_STATUS, {
-  date: new Date().toISOString().split('T')[0],
-  messageType: 'midday_validation'
-});
-  let kvStorageSuccess = false;
-  let kvError = null;
+  // Step 4: Create message tracking (replaces KV storage)
+  console.log(`📋 [FB-MIDDAY-TRACKING] ${cronExecutionId} Creating message tracking...`);
+  const tracker = createMessageTracker(env);
+  let trackingId = null;
 
   try {
-    console.log(`💾 [FB-MIDDAY-KV] ${cronExecutionId} Preparing KV data...`);
-    const kvData = {
-      trigger_mode: 'midday_validation_prediction',
-      message_sent: false, // Will be updated after Facebook send
-      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
-      includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/intraday-check',
-      timestamp: now.toISOString(),
-      cron_execution_id: cronExecutionId,
-      message_type: 'midday_validation',
-      symbols_processed: symbolCount,
-      bullish_count: bullishCount,
-      bearish_count: bearishCount,
-      high_confidence_symbols: highConfidenceSymbols,
-      facebook_delivery_status: 'pending',
-      report_content: reportText.substring(0, 500) + '...'
-    };
-
-    console.log(`💾 [FB-MIDDAY-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
-    console.log(`💾 [FB-MIDDAY-KV] ${cronExecutionId} KV data size: ${JSON.stringify(kvData).length} bytes`);
-
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify(kvData),
-      KeyHelpers.getKVOptions(KeyTypes.FACEBOOK_STATUS)
+    const trackingResult = await tracker.createTracking(
+      'facebook',
+      'midday_update',
+      env.FACEBOOK_RECIPIENT_ID,
+      {
+        symbols_processed: symbolCount,
+        symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+        analysis_date: new Date().toISOString().split('T')[0],
+        content_preview: reportText.substring(0, 500),
+        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/intraday-check',
+        trigger_mode: 'midday_validation_prediction',
+        cron_execution_id: cronExecutionId,
+        bullish_count: bullishCount,
+        bearish_count: bearishCount,
+        high_confidence_count: highConfidenceSymbols.length
+      }
     );
-    kvStorageSuccess = true;
-    console.log(`✅ [FB-MIDDAY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-MIDDAY-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-MIDDAY-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-MIDDAY-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack,
-      name: kvError.name
-    });
-    // Continue to Facebook send even if KV fails
+
+    if (trackingResult.success) {
+      trackingId = trackingResult.tracking_id;
+      console.log(`✅ [FB-MIDDAY-TRACKING] ${cronExecutionId} Tracking created: ${trackingId}`);
+    } else {
+      console.warn(`⚠️ [FB-MIDDAY-TRACKING] ${cronExecutionId} Tracking failed: ${trackingResult.error}`);
+    }
+  } catch (trackingError) {
+    console.error(`❌ [FB-MIDDAY-TRACKING] ${cronExecutionId} Tracking error:`, trackingError.message);
+    // Continue to Facebook send even if tracking fails
   }
 
   // Step 5: Facebook message sending (decoupled from KV storage)
@@ -929,45 +741,19 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
       facebookSuccess = true;
       console.log(`✅ [FB-MIDDAY] ${cronExecutionId} Facebook message sent successfully`);
 
-      // Update KV record with successful delivery status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.message_sent = true;
-          updatedKvData.facebook_delivery_status = 'delivered';
-          updatedKvData.delivery_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`✅ [FB-MIDDAY-KV] ${cronExecutionId} Updated KV record with delivery status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Failed to update delivery status:`, updateError);
-        }
+      // Update tracking with success
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'sent', fbResult.message_id);
+        console.log(`✅ [FB-MIDDAY-TRACKING] ${cronExecutionId} Tracking updated: sent`);
       }
     } else {
       facebookError = fbResult.error;
       console.error(`❌ [FB-MIDDAY] ${cronExecutionId} Facebook API failed:`, fbResult.error);
 
-      // Update KV record with failure status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.facebook_delivery_status = 'failed';
-          updatedKvData.facebook_error = fbResult.error;
-          updatedKvData.failure_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Failed to update failure status:`, updateError);
-        }
+      // Update tracking with failure
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'failed', undefined, fbResult.error);
+        console.log(`⚠️ [FB-MIDDAY-TRACKING] ${cronExecutionId} Tracking updated: failed`);
       }
     }
   } catch (fbError) {
@@ -979,33 +765,19 @@ export async function sendMiddayValidationWithTracking(analysisResult, env, cron
       name: fbError.name
     });
 
-    // Update KV record with exception status
-    if (kvStorageSuccess) {
-      try {
-        const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-        updatedKvData.facebook_delivery_status = 'exception';
-        updatedKvData.facebook_error = fbError.message;
-        updatedKvData.failure_timestamp = now.toISOString();
-
-        await env.TRADING_RESULTS.put(
-          messagingKey,
-          JSON.stringify(updatedKvData),
-          KVUtils.getOptions('analysis')
-        );
-        console.log(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Updated KV record with exception status`);
-      } catch (updateError) {
-        console.error(`⚠️ [FB-MIDDAY-KV] ${cronExecutionId} Failed to update exception status:`, updateError);
-      }
+    // Update tracking with exception status
+    if (trackingId) {
+      await tracker.updateStatus(trackingId, 'failed', undefined, fbError.message);
+      console.log(`⚠️ [FB-MIDDAY-TRACKING] ${cronExecutionId} Tracking updated: exception`);
     }
   }
 
   // Return function status for external monitoring
-  console.log(`🎯 [FB-MIDDAY] ${cronExecutionId} Function completed - KV: ${kvStorageSuccess ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
+  console.log(`🎯 [FB-MIDDAY] ${cronExecutionId} Function completed - Tracking: ${trackingId ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
   return {
-    success: kvStorageSuccess && facebookSuccess,
-    kv_storage_success: kvStorageSuccess,
+    success: facebookSuccess,
+    tracking_id: trackingId,
     facebook_success: facebookSuccess,
-    kv_key: messagingKey,
     facebook_error: facebookError,
     timestamp: now.toISOString()
   };
@@ -1103,53 +875,39 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
 
   console.log(`✅ [FB-DAILY] ${cronExecutionId} Message content built: ${symbolCount} symbols processed`);
 
-  // Step 4: KV storage (independent of Facebook API)
-  console.log(`💾 [FB-DAILY-KV] ${cronExecutionId} Starting KV storage...`);
-  const messagingKey = KVKeyFactory.generateKey(KeyTypes.FACEBOOK_STATUS, {
-  date: new Date().toISOString().split('T')[0],
-  messageType: 'daily_summary'
-});
-  let kvStorageSuccess = false;
-  let kvError = null;
+  // Step 4: Create message tracking (replaces KV storage)
+  console.log(`📋 [FB-DAILY-TRACKING] ${cronExecutionId} Creating message tracking...`);
+  const tracker = createMessageTracker(env);
+  let trackingId = null;
 
   try {
-    console.log(`💾 [FB-DAILY-KV] ${cronExecutionId} Preparing KV data...`);
-    const kvData = {
-      trigger_mode: 'next_day_market_prediction',
-      message_sent: false, // Will be updated after Facebook send
-      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
-      includes_dashboard_link: true,
-      dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/end-of-day-summary',
-      timestamp: now.toISOString(),
-      cron_execution_id: cronExecutionId,
-      message_type: 'daily_validation',
-      symbols_processed: symbolCount,
-      bullish_count: bullishCount,
-      bearish_count: bearishCount,
-      top_performers: topPerformers,
-      facebook_delivery_status: 'pending',
-      report_content: reportText.substring(0, 500) + '...'
-    };
-
-    console.log(`💾 [FB-DAILY-KV] ${cronExecutionId} Storing KV record with key: ${messagingKey}`);
-    console.log(`💾 [FB-DAILY-KV] ${cronExecutionId} KV data size: ${JSON.stringify(kvData).length} bytes`);
-
-    await env.TRADING_RESULTS.put(
-      messagingKey,
-      JSON.stringify(kvData),
-      KeyHelpers.getKVOptions(KeyTypes.FACEBOOK_STATUS)
+    const trackingResult = await tracker.createTracking(
+      'facebook',
+      'end_of_day_summary',
+      env.FACEBOOK_RECIPIENT_ID,
+      {
+        symbols_processed: symbolCount,
+        symbols_analyzed: analysisResult?.symbols_analyzed?.length || 5,
+        analysis_date: new Date().toISOString().split('T')[0],
+        content_preview: reportText.substring(0, 500),
+        dashboard_url: 'https://tft-trading-system.yanggf.workers.dev/end-of-day-summary',
+        trigger_mode: 'next_day_market_prediction',
+        cron_execution_id: cronExecutionId,
+        bullish_count: bullishCount,
+        bearish_count: bearishCount,
+        top_performers: topPerformers
+      }
     );
-    kvStorageSuccess = true;
-    console.log(`✅ [FB-DAILY-KV] ${cronExecutionId} Successfully stored KV record: ${messagingKey}`);
-  } catch (kvError) {
-    console.error(`❌ [FB-DAILY-KV] ${cronExecutionId} Failed to store KV record:`, kvError);
-    console.error(`❌ [FB-DAILY-KV] ${cronExecutionId} KV key: ${messagingKey}`);
-    console.error(`❌ [FB-DAILY-KV] ${cronExecutionId} Error details:`, {
-      message: kvError.message,
-      stack: kvError.stack,
-      name: kvError.name
-    });
-    // Continue to Facebook send even if KV fails
+
+    if (trackingResult.success) {
+      trackingId = trackingResult.tracking_id;
+      console.log(`✅ [FB-DAILY-TRACKING] ${cronExecutionId} Tracking created: ${trackingId}`);
+    } else {
+      console.warn(`⚠️ [FB-DAILY-TRACKING] ${cronExecutionId} Tracking failed: ${trackingResult.error}`);
+    }
+  } catch (trackingError) {
+    console.error(`❌ [FB-DAILY-TRACKING] ${cronExecutionId} Tracking error:`, trackingError.message);
+    // Continue to Facebook send even if tracking fails
   }
 
   // Step 5: Facebook message sending (decoupled from KV storage)
@@ -1163,45 +921,19 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
       facebookSuccess = true;
       console.log(`✅ [FB-DAILY] ${cronExecutionId} Facebook message sent successfully`);
 
-      // Update KV record with successful delivery status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.message_sent = true;
-          updatedKvData.facebook_delivery_status = 'delivered';
-          updatedKvData.delivery_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`✅ [FB-DAILY-KV] ${cronExecutionId} Updated KV record with delivery status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Failed to update delivery status:`, updateError);
-        }
+      // Update tracking with success
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'sent', fbResult.message_id);
+        console.log(`✅ [FB-DAILY-TRACKING] ${cronExecutionId} Tracking updated: sent`);
       }
     } else {
       facebookError = fbResult.error;
       console.error(`❌ [FB-DAILY] ${cronExecutionId} Facebook API failed:`, fbResult.error);
 
-      // Update KV record with failure status
-      if (kvStorageSuccess) {
-        try {
-          const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-          updatedKvData.facebook_delivery_status = 'failed';
-          updatedKvData.facebook_error = fbResult.error;
-          updatedKvData.failure_timestamp = now.toISOString();
-
-          await env.TRADING_RESULTS.put(
-            messagingKey,
-            JSON.stringify(updatedKvData),
-            KVUtils.getOptions('analysis')
-          );
-          console.log(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Updated KV record with Facebook failure status`);
-        } catch (updateError) {
-          console.error(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Failed to update failure status:`, updateError);
-        }
+      // Update tracking with failure
+      if (trackingId) {
+        await tracker.updateStatus(trackingId, 'failed', undefined, fbResult.error);
+        console.log(`⚠️ [FB-DAILY-TRACKING] ${cronExecutionId} Tracking updated: failed`);
       }
     }
   } catch (fbError) {
@@ -1213,33 +945,19 @@ export async function sendDailyValidationWithTracking(analysisResult, env, cronE
       name: fbError.name
     });
 
-    // Update KV record with exception status
-    if (kvStorageSuccess) {
-      try {
-        const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-        updatedKvData.facebook_delivery_status = 'exception';
-        updatedKvData.facebook_error = fbError.message;
-        updatedKvData.failure_timestamp = now.toISOString();
-
-        await env.TRADING_RESULTS.put(
-          messagingKey,
-          JSON.stringify(updatedKvData),
-          KVUtils.getOptions('analysis')
-        );
-        console.log(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Updated KV record with exception status`);
-      } catch (updateError) {
-        console.error(`⚠️ [FB-DAILY-KV] ${cronExecutionId} Failed to update exception status:`, updateError);
-      }
+    // Update tracking with exception status
+    if (trackingId) {
+      await tracker.updateStatus(trackingId, 'failed', undefined, fbError.message);
+      console.log(`⚠️ [FB-DAILY-TRACKING] ${cronExecutionId} Tracking updated: exception`);
     }
   }
 
   // Return function status for external monitoring
-  console.log(`🎯 [FB-DAILY] ${cronExecutionId} Function completed - KV: ${kvStorageSuccess ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
+  console.log(`🎯 [FB-DAILY] ${cronExecutionId} Function completed - Tracking: ${trackingId ? '✅' : '❌'}, Facebook: ${facebookSuccess ? '✅' : '❌'}`);
   return {
-    success: kvStorageSuccess && facebookSuccess,
-    kv_storage_success: kvStorageSuccess,
+    success: facebookSuccess,
+    tracking_id: trackingId,
     facebook_success: facebookSuccess,
-    kv_key: messagingKey,
     facebook_error: facebookError,
     timestamp: now.toISOString()
   };

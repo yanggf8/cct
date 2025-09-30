@@ -13,6 +13,7 @@ import {
 } from './timezone-utils.js';
 import { getSymbolAnalysisByDate } from './data.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
+import { createDAL } from './dal.js';
 
 /**
  * Generate daily summary data structure
@@ -289,25 +290,32 @@ export async function getDailySummary(dateStr, env) {
   console.log(`🔍 [DAILY-SUMMARY] Checking KV storage for ${kvKey}`);
 
   try {
-    // Check KV storage first
-    const cached = await env.TRADING_RESULTS.get(kvKey);
+    const dal = createDAL(env);
 
-    if (cached) {
+    // Check KV storage first using DAL
+    const cachedResult = await dal.read(kvKey);
+
+    if (cachedResult.success && cachedResult.data) {
       console.log(`✅ [DAILY-SUMMARY] Found cached summary for ${validatedDate}`);
-      return JSON.parse(cached);
+      return cachedResult.data;
     }
 
     // Generate summary if not cached
     console.log(`🔄 [DAILY-SUMMARY] Generating new summary for ${validatedDate}`);
     const summary = await generateDailySummary(validatedDate, env);
 
-    // Persist to KV with 90-day TTL
+    // Persist to KV with 90-day TTL using DAL
     console.log(`💾 [DAILY-SUMMARY] Storing summary in KV: ${kvKey}`);
-    await env.TRADING_RESULTS.put(
+    const writeResult = await dal.write(
       kvKey,
-      JSON.stringify(summary),
+      summary,
       { expirationTtl: 7776000 } // 90 days
     );
+
+    if (!writeResult.success) {
+      console.error(`❌ [DAILY-SUMMARY] Failed to store summary: ${writeResult.error}`);
+      // Continue anyway - we still have the generated summary
+    }
 
     return summary;
 

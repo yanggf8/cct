@@ -21,6 +21,8 @@ import {
   handleKVWriteTest,
   handleKVReadTest,
   handleKVGet,
+  handleKVAnalysisWriteTest,
+  handleKVAnalysisReadTest,
   handleHealthCheck,
   handleModelHealth,
   handleDebugEnvironment,
@@ -28,6 +30,7 @@ import {
   handleTestAllFacebookMessages,
   handleWeeklyReport,
   handleFridayMarketCloseReport,
+  handleRealFacebookMessage,
   handleDailySummaryAPI,
   handleDailySummaryPageRequest,
   handleBackfillDailySummaries,
@@ -191,6 +194,10 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleKVWriteTest(request, env);
     case '/kv-read-test':
       return handleKVReadTest(request, env);
+    case '/kv-analysis-write-test':
+      return handleKVAnalysisWriteTest(request, env);
+    case '/kv-analysis-read-test':
+      return handleKVAnalysisReadTest(request, env);
     case '/weekly-analysis':
       return handleWeeklyAnalysisPage(request, env);
     case '/api/weekly-data':

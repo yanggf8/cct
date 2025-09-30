@@ -5,6 +5,7 @@
 
 import { createLogger } from './logging.js';
 import { CONFIG } from './config.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('monitoring');
 
@@ -435,21 +436,27 @@ export const HealthMonitor = {
       metrics: {}
     };
 
-    // Check KV storage
+    // Check KV storage using DAL
     try {
+      const dal = createDAL(env);
       const testKey = `health_check_${Date.now()}`;
       const timer = systemMetrics.timer('health.kv_check');
 
-      await env.TRADING_RESULTS.put(testKey, 'test');
-      await env.TRADING_RESULTS.get(testKey);
-      await env.TRADING_RESULTS.delete(testKey);
+      // Test write, read, delete operations
+      const writeResult = await dal.write(testKey, 'test', { expirationTtl: 60 });
+      const readResult = await dal.read(testKey);
+      const deleteResult = await dal.deleteKey(testKey);
 
       const kvDuration = timer.stop();
 
-      health.components.kv_storage = {
-        status: 'healthy',
-        response_time_ms: kvDuration
-      };
+      if (writeResult.success && readResult.success && deleteResult.success) {
+        health.components.kv_storage = {
+          status: 'healthy',
+          response_time_ms: kvDuration
+        };
+      } else {
+        throw new Error('One or more DAL operations failed');
+      }
     } catch (error) {
       health.components.kv_storage = {
         status: 'unhealthy',

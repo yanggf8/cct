@@ -6,6 +6,7 @@
 import { createLogger } from './logging.js';
 import { tomorrowOutlookTracker } from './tomorrow-outlook-tracker.js';
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('report-data-retrieval');
 
@@ -24,13 +25,15 @@ class ReportDataRetrieval {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
+      const dal = createDAL(env);
+
       // Get today's analysis
       const analysisKey = `analysis_${dateStr}`;
-      const analysisData = await env.TRADING_RESULTS.get(analysisKey);
+      const analysisResult = await dal.read(analysisKey);
 
       // Get morning predictions (if available)
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsData = await env.TRADING_RESULTS.get(predictionsKey);
+      const predictionsResult = await dal.read(predictionsKey);
 
       // Evaluate yesterday's outlook accuracy
       let outlookEvaluation = null;
@@ -47,8 +50,8 @@ class ReportDataRetrieval {
 
       const result = {
         date: dateStr,
-        analysis: analysisData ? JSON.parse(analysisData) : null,
-        morningPredictions: predictionsData ? JSON.parse(predictionsData) : null,
+        analysis: analysisResult.success ? analysisResult.data : null,
+        morningPredictions: predictionsResult.success ? predictionsResult.data : null,
         outlookEvaluation,
         yesterdayOutlook: yesterdayOutlook?.outlook || null,
         marketStatus: 'pre-market',
@@ -105,15 +108,17 @@ class ReportDataRetrieval {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
+      const dal = createDAL(env);
+
       // Get morning predictions with performance updates
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsData = await env.TRADING_RESULTS.get(predictionsKey);
+      const predictionsResult = await dal.read(predictionsKey);
 
       let predictions = null;
       let performanceSummary = null;
 
-      if (predictionsData) {
-        predictions = JSON.parse(predictionsData);
+      if (predictionsResult.success && predictionsResult.data) {
+        predictions = predictionsResult.data;
         performanceSummary = this.generateIntradayPerformanceSummary(predictions);
       }
 
@@ -170,19 +175,21 @@ class ReportDataRetrieval {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
+      const dal = createDAL(env);
+
       // Get morning predictions with final performance
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsData = await env.TRADING_RESULTS.get(predictionsKey);
+      const predictionsResult = await dal.read(predictionsKey);
 
       // Get end-of-day summary if available
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryData = await env.TRADING_RESULTS.get(summaryKey);
+      const summaryResult = await dal.read(summaryKey);
 
       let finalSummary = null;
       let tomorrowOutlook = null;
 
-      if (predictionsData) {
-        const predictions = JSON.parse(predictionsData);
+      if (predictionsResult.success && predictionsResult.data) {
+        const predictions = predictionsResult.data;
         finalSummary = this.generateEndOfDaySummary(predictions);
 
         // Generate AI-powered tomorrow outlook
@@ -398,12 +405,14 @@ class ReportDataRetrieval {
    */
   async getSingleDayPerformanceData(env, dateStr) {
     try {
+      const dal = createDAL(env);
+
       // Try to get end-of-day summary first
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryData = await env.TRADING_RESULTS.get(summaryKey);
+      const summaryResult = await dal.read(summaryKey);
 
-      if (summaryData) {
-        const parsed = JSON.parse(summaryData);
+      if (summaryResult.success && summaryResult.data) {
+        const parsed = summaryResult.data;
         return {
           type: 'summary',
           summary: parsed.summary,
@@ -413,10 +422,10 @@ class ReportDataRetrieval {
 
       // Fall back to morning predictions
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsData = await env.TRADING_RESULTS.get(predictionsKey);
+      const predictionsResult = await dal.read(predictionsKey);
 
-      if (predictionsData) {
-        const parsed = JSON.parse(predictionsData);
+      if (predictionsResult.success && predictionsResult.data) {
+        const parsed = predictionsResult.data;
         const performanceSummary = this.generateIntradayPerformanceSummary(parsed);
         return {
           type: 'predictions',
@@ -736,10 +745,11 @@ class ReportDataRetrieval {
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
     try {
+      const dal = createDAL(env);
       const predictionsKey = `morning_predictions_${yesterdayStr}`;
-      const predictionsData = await env.TRADING_RESULTS.get(predictionsKey);
-      if (predictionsData) {
-        return JSON.parse(predictionsData);
+      const predictionsResult = await dal.read(predictionsKey);
+      if (predictionsResult.success && predictionsResult.data) {
+        return predictionsResult.data;
       }
     } catch (error) {
       logger.warn('Failed to get yesterday\'s predictions', {

@@ -8,6 +8,7 @@ import { validateKVKey, validateEnvironment, validateDate, safeValidate } from '
 import { KVUtils } from './shared-utilities.js';
 import { getKVTTl } from './config.js';
 import { KVKeyFactory, KeyHelpers, KeyTypes } from './kv-key-factory.js';
+import { createDAL } from './dal.js';
 
 // Initialize logging for this module
 let loggingInitialized = false;
@@ -44,13 +45,15 @@ function getPrimaryModelFromSentiment(sentimentAnalysis) {
 async function processAnalysisDataForDate(env, dateStr, checkDate) {
   const factTableData = [];
 
-  // Try to get analysis data for this date
-  const analysisKey = KVKeyFactory.generateDateKey(KeyTypes.ANALYSIS, dateStr);
-  const analysisJson = await env.TRADING_RESULTS.get(analysisKey);
+  const dal = createDAL(env);
 
-  if (analysisJson) {
+  // Try to get analysis data for this date using DAL
+  const analysisKey = KVKeyFactory.generateDateKey(KeyTypes.ANALYSIS, dateStr);
+  const analysisResult = await dal.read(analysisKey);
+
+  if (analysisResult.success && analysisResult.data) {
     try {
-      const analysisData = JSON.parse(analysisJson);
+      const analysisData = analysisResult.data;
 
       // Convert analysis data to fact table format
       if (analysisData.symbols_analyzed && analysisData.trading_signals) {
@@ -452,13 +455,18 @@ export async function trackCronHealth(env, status, executionData = {}) {
       errors: executionData.errors || []
     };
 
-    // Store latest health status
-    await env.TRADING_RESULTS.put('cron_health_latest', JSON.stringify(healthData));
+    const dal = createDAL(env);
+
+    // Store latest health status using DAL
+    const latestResult = await dal.write('cron_health_latest', healthData);
+    if (!latestResult.success) {
+      logError(`Failed to store latest cron health: ${latestResult.error}`);
+    }
 
     // Also store in daily health log for history
     const dateKey = `cron_health_${new Date().toISOString().slice(0, 10)}`;
-    const existingDailyData = await env.TRADING_RESULTS.get(dateKey);
-    const dailyData = existingDailyData ? JSON.parse(existingDailyData) : { executions: [] };
+    const existingResult = await dal.read(dateKey);
+    const dailyData = (existingResult.success && existingResult.data) ? existingResult.data : { executions: [] };
 
     dailyData.executions.push(healthData);
 
@@ -467,12 +475,10 @@ export async function trackCronHealth(env, status, executionData = {}) {
       dailyData.executions = dailyData.executions.slice(-10);
     }
 
-    await KVUtils.putWithTTL(
-      env.TRADING_RESULTS,
-      dateKey,
-      JSON.stringify(dailyData),
-      'metadata'
-    );
+    const dailyResult = await dal.write(dateKey, dailyData, KVUtils.getOptions('metadata'));
+    if (!dailyResult.success) {
+      logError(`Failed to store daily cron health: ${dailyResult.error}`);
+    }
 
     logInfo(`Cron health tracked: ${status} - ${executionData.symbolsProcessed || 0} symbols processed`);
     return true;
@@ -489,9 +495,10 @@ export async function trackCronHealth(env, status, executionData = {}) {
 export async function getCronHealthStatus(env) {
   try {
     ensureLoggingInitialized(env);
-    const latestHealthJson = await env.TRADING_RESULTS.get('cron_health_latest');
+    const dal = createDAL(env);
+    const healthResult = await dal.read('cron_health_latest');
 
-    if (!latestHealthJson) {
+    if (!healthResult.success || !healthResult.data) {
       return {
         healthy: false,
         message: 'No cron health data found',
@@ -499,7 +506,7 @@ export async function getCronHealthStatus(env) {
       };
     }
 
-    const healthData = JSON.parse(latestHealthJson);
+    const healthData = healthResult.data;
     const hoursSinceLastRun = (Date.now() - healthData.timestamp) / (1000 * 60 * 60);
 
     return {
@@ -529,17 +536,21 @@ export async function getCronHealthStatus(env) {
  */
 export async function getSymbolAnalysisByDate(env, dateString, symbols = null) {
   try {
+    const dal = createDAL(env);
+
     // Use centralized symbol configuration if none provided
     if (!symbols) {
       symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
     }
 
     const keys = symbols.map(symbol => `analysis_${dateString}_${symbol}`);
-    const promises = keys.map(key => env.TRADING_RESULTS.get(key));
+    const promises = keys.map(key => dal.read(key));
     const results = await Promise.all(promises);
 
     const parsedResults = results
-      .map((res, index) => res ? { ...JSON.parse(res), symbol: symbols[index] } : null)
+      .map((result, index) =>
+        (result.success && result.data) ? { ...result.data, symbol: symbols[index] } : null
+      )
       .filter(res => res !== null);
 
     logInfo(`Retrieved ${parsedResults.length}/${symbols.length} granular analysis records for ${dateString}`);
@@ -560,15 +571,16 @@ export async function getAnalysisResultsByDate(env, dateString) {
     const validatedDate = validateDate(dateString);
     const dateString_clean = validatedDate.toISOString().split('T')[0];
 
+    const dal = createDAL(env);
     const dailyKey = validateKVKey(`analysis_${dateString_clean}`);
-    const resultJson = await env.TRADING_RESULTS.get(dailyKey);
-    
-    if (!resultJson) {
+    const result = await dal.read(dailyKey);
+
+    if (!result.success || !result.data) {
       return null;
     }
-    
-    return JSON.parse(resultJson);
-    
+
+    return result.data;
+
   } catch (error) {
     logError(`Error retrieving analysis for ${dateString}:`, error);
     return null;
@@ -580,15 +592,12 @@ export async function getAnalysisResultsByDate(env, dateString) {
  */
 export async function listKVKeys(env, prefix = '') {
   try {
+    const dal = createDAL(env);
     const keys = [];
     let cursor = null;
 
     do {
-      const result = await env.TRADING_RESULTS.list({
-        prefix: prefix,
-        cursor: cursor,
-        limit: 1000
-      });
+      const result = await dal.listKeys(prefix, cursor, 1000);
 
       keys.push(...result.keys);
       cursor = result.cursor;

@@ -5,11 +5,141 @@
 
 import {
   sendFridayWeekendReportWithTracking,
-  sendWeeklyAccuracyReportWithTracking
+  sendWeeklyAccuracyReportWithTracking,
+  sendFacebookMessage
 } from '../facebook.js';
+import { runEnhancedPreMarketAnalysis } from '../enhanced_analysis.js';
 import { createLogger, logBusinessMetric } from '../logging.js';
+import { KVKeyFactory, KeyTypes, KeyHelpers } from '../kv-key-factory.js';
+import { createDAL } from '../dal.js';
 
 const logger = createLogger('facebook-handlers');
+
+/**
+ * Get latest analysis from KV or generate fresh analysis
+ * Hybrid approach: Try KV first (fast), fallback to fresh analysis (reliable)
+ */
+async function getLatestAnalysisOrGenerate(env, requestId) {
+  logger.info('Retrieving latest analysis', { requestId });
+
+  try {
+    const dal = createDAL(env);
+
+    // Step 1: Try KV retrieval using Key Factory (fast path)
+    const today = new Date().toISOString().split('T')[0];
+    const dailyKey = KVKeyFactory.generateKey(KeyTypes.ANALYSIS, { date: today });
+
+    logger.info('Attempting KV retrieval', { requestId, key: dailyKey });
+    const kvResult = await dal.read(dailyKey);
+
+    if (kvResult.success && kvResult.data) {
+      const analysisResult = kvResult.data;
+      logger.info('KV retrieval successful', {
+        requestId,
+        symbolsCount: analysisResult.symbols_analyzed?.length || 0,
+        hasSignals: !!analysisResult.trading_signals
+      });
+      return {
+        success: true,
+        data: analysisResult,
+        source: 'kv_cron',
+        key: dailyKey
+      };
+    }
+
+    logger.warn('No KV data found, trying timestamped keys', { requestId });
+
+    // Step 2: Try timestamped keys (fallback KV path - for cron-generated data)
+    const listResult = await dal.listKeys(`analysis_${today}_`);
+    if (listResult.keys && listResult.keys.length > 0) {
+      // Get the most recent timestamped analysis
+      const latestKey = listResult.keys[listResult.keys.length - 1].name;
+      const timestampedResult = await dal.read(latestKey);
+
+      if (timestampedResult.success && timestampedResult.data) {
+        const analysisResult = timestampedResult.data;
+        logger.info('Timestamped KV retrieval successful', {
+          requestId,
+          key: latestKey,
+          symbolsCount: analysisResult.symbols_analyzed?.length || 0
+        });
+        return {
+          success: true,
+          data: analysisResult,
+          source: 'kv_cron_timestamped',
+          key: latestKey
+        };
+      }
+    }
+
+    logger.warn('No KV data available, generating fresh on-demand analysis', { requestId });
+
+    // Step 3: Generate fresh analysis (slow path) - SEPARATE STORAGE to avoid mixing with cron history
+    const estTime = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const freshAnalysis = await runEnhancedPreMarketAnalysis(env, {
+      triggerMode: 'manual_facebook_send',
+      predictionHorizons: [1, 24],
+      currentTime: estTime,
+      cronExecutionId: requestId
+    });
+
+    logger.info('Fresh analysis generated', {
+      requestId,
+      symbolsCount: freshAnalysis.symbols_analyzed?.length || 0,
+      hasSignals: !!freshAnalysis.trading_signals
+    });
+
+    // Store in SEPARATE manual analysis key (not mixed with cron history)
+    const manualKey = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, {
+      timestamp: Date.now()
+    });
+
+    const writeResult = await dal.write(
+      manualKey,
+      {
+        ...freshAnalysis,
+        analysis_type: 'manual_on_demand',
+        request_id: requestId,
+        generated_at: estTime.toISOString()
+      },
+      KeyHelpers.getKVOptions(KeyTypes.MANUAL_ANALYSIS)
+    );
+
+    if (!writeResult.success) {
+      logger.warn('Failed to store manual analysis', {
+        requestId,
+        error: writeResult.error
+      });
+    } else {
+      logger.info('Manual analysis stored separately', {
+        requestId,
+        key: manualKey,
+        ttl: '1 hour (not in cron history)'
+      });
+    }
+
+    return {
+      success: true,
+      data: freshAnalysis,
+      source: 'on_demand',
+      key: manualKey,
+      generatedAt: estTime.toISOString()
+    };
+
+  } catch (error) {
+    logger.error('Failed to retrieve or generate analysis', {
+      requestId,
+      error: error.message,
+      stack: error.stack
+    });
+
+    return {
+      success: false,
+      error: error.message,
+      source: 'error'
+    };
+  }
+}
 
 /**
  * Handle Facebook test requests
@@ -54,7 +184,8 @@ export async function handleFacebookTest(request, env) {
     if (facebookResponse.ok) {
       const fbResult = await facebookResponse.json();
 
-      // Store test result in KV
+      // Store test result in KV using DAL
+      const dal = createDAL(env);
       const testKvKey = `fb_test_${Date.now()}`;
       const kvData = {
         test_type: 'facebook_messaging',
@@ -64,14 +195,14 @@ export async function handleFacebookTest(request, env) {
         test_message: testMessage
       };
 
-      await env.TRADING_RESULTS.put(testKvKey, JSON.stringify(kvData), {
+      const kvWriteResult = await dal.write(testKvKey, kvData, {
         expirationTtl: 86400 // 24 hours
       });
 
       logger.info('Facebook test successful', {
         requestId,
         messageId: fbResult.message_id,
-        kvStored: testKvKey
+        kvStored: kvWriteResult.success ? testKvKey : 'failed'
       });
 
       logBusinessMetric('facebook_test_success', 1, {
@@ -358,77 +489,141 @@ export async function handleRealFacebookMessage(request, env) {
       });
     }
 
-    // Create real trading message content
-    const now = new Date();
-    const realMessage = `📊 **REAL TRADING ANALYSIS** - ${now.toLocaleDateString()}
+    // Step 1: Get real analysis data (KV-first hybrid approach)
+    logger.info('Retrieving real analysis data', { requestId });
+    const analysisResponse = await getLatestAnalysisOrGenerate(env, requestId);
 
-🚀 **PRE-MARKET BRIEFING**
-🕒 ${now.toLocaleString()}
+    if (!analysisResponse.success) {
+      logger.error('Failed to retrieve analysis data', {
+        requestId,
+        error: analysisResponse.error
+      });
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to retrieve analysis data: ' + analysisResponse.error,
+        request_id: requestId,
+        timestamp: new Date().toISOString()
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-📈 **TOP HIGH-CONFIDENCE SIGNALS:**
-• AAPL: GPT-OSS-120B BULLISH, DistilBERT BEARISH → AVOID (Models Disagree)
-• MSFT: Strong technical indicators → HOLD
-• NVDA: AI momentum continues → BULLISH
-
-🎯 **KEY INSIGHTS:**
-• Dual AI system shows model disagreement on Apple
-• Microsoft showing strong support levels
-• Semiconductor sector leading market
-
-🔗 **VIEW FULL ANALYSIS:**
-https://tft-trading-system.yanggf.workers.dev/pre-market-briefing
-
-✅ **REAL MARKET DATA - Not Test**`;
-
-    // Send real Facebook message
-    const facebookUrl = `https://graph.facebook.com/v18.0/me/messages`;
-    const facebookPayload = {
-      recipient: { id: env.FACEBOOK_RECIPIENT_ID },
-      message: { text: realMessage }
-    };
-
-    const facebookResponse = await fetch(facebookUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.FACEBOOK_PAGE_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(facebookPayload)
+    const analysisResult = analysisResponse.data;
+    logger.info('Analysis data retrieved', {
+      requestId,
+      source: analysisResponse.source,
+      symbolCount: analysisResult.symbols_analyzed?.length || 0
     });
 
-    if (facebookResponse.ok) {
-      const fbResult = await facebookResponse.json();
+    // Step 2: Build real trading message using actual data
+    const now = new Date();
+    const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
 
+    // Count sentiment distribution
+    let bullishCount = 0;
+    let bearishCount = 0;
+    let bullishSymbols = [];
+    let bearishSymbols = [];
+    let highConfidenceSymbols = [];
+    let symbolCount = 0;
+
+    if (analysisResult?.trading_signals) {
+      Object.values(analysisResult.trading_signals).forEach(signal => {
+        symbolCount++;
+        const sentimentLayer = signal.sentiment_layers?.[0];
+        const sentiment = sentimentLayer?.sentiment || 'neutral';
+        const confidence = sentimentLayer?.confidence || 0;
+
+        if (sentiment === 'bullish') {
+          bullishCount++;
+          bullishSymbols.push(signal.symbol);
+        }
+        if (sentiment === 'bearish') {
+          bearishCount++;
+          bearishSymbols.push(signal.symbol);
+        }
+
+        if (confidence > 0.7) {
+          highConfidenceSymbols.push(`${signal.symbol} (${Math.round(confidence * 100)}%)`);
+        }
+      });
+    }
+
+    // Create real message using proven pattern from sendMorningPredictionsWithTracking
+    let realMessage = `📊 **REAL TRADING ANALYSIS** - ${estTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}\n`;
+    realMessage += `🕒 ${estTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}\n\n`;
+    realMessage += `📊 Market Bias: Bullish on ${bullishCount}/${symbolCount} symbols\n`;
+
+    // Show bullish symbols
+    if (bullishSymbols.length > 0) {
+      realMessage += `📈 Bullish: ${bullishSymbols.join(', ')}\n`;
+    }
+
+    // Show bearish symbols (limited)
+    if (bearishSymbols.length > 0 && bearishSymbols.length <= 3) {
+      realMessage += `📉 Bearish: ${bearishSymbols.join(', ')}\n`;
+    }
+
+    // Show high confidence signals
+    if (highConfidenceSymbols.length > 0) {
+      realMessage += `🎯 High Confidence: ${highConfidenceSymbols.slice(0, 3).join(', ')}\n`;
+    }
+
+    realMessage += `\n📈 View Full Analysis:\n`;
+    realMessage += `🔗 https://tft-trading-system.yanggf.workers.dev/pre-market-briefing\n\n`;
+    realMessage += `✅ **REAL MARKET DATA** (Source: ${analysisResponse.source})\n`;
+    realMessage += `⚠️ Research/education only. Not financial advice.`;
+
+    // Step 3: Send via reusable Facebook message utility
+    logger.info('Sending real Facebook message', {
+      requestId,
+      messageLength: realMessage.length,
+      source: analysisResponse.source
+    });
+
+    const fbResult = await sendFacebookMessage(realMessage, env);
+
+    if (fbResult.success) {
       logger.info('Real Facebook message sent successfully', {
         requestId,
-        messageId: fbResult.message_id
+        dataSource: analysisResponse.source,
+        symbolsAnalyzed: symbolCount
+      });
+
+      logBusinessMetric('real_facebook_message_sent', 1, {
+        requestId,
+        source: analysisResponse.source,
+        symbolCount
       });
 
       return new Response(JSON.stringify({
         success: true,
         message: 'Real Facebook message sent with trading analysis',
-        message_id: fbResult.message_id,
-        content_preview: realMessage.substring(0, 100) + '...',
+        data_source: analysisResponse.source,
+        symbols_analyzed: symbolCount,
+        bullish_count: bullishCount,
+        bearish_count: bearishCount,
+        high_confidence_signals: highConfidenceSymbols.length,
+        content_preview: realMessage.substring(0, 150) + '...',
         request_id: requestId,
         timestamp: new Date().toISOString()
-      }), {
+      }, null, 2), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     } else {
-      const errorText = await facebookResponse.text();
       logger.error('Real Facebook message failed', {
         requestId,
-        status: facebookResponse.status,
-        error: errorText
+        error: fbResult.error
       });
 
       return new Response(JSON.stringify({
         success: false,
-        error: `Facebook API error: ${facebookResponse.status} - ${errorText}`,
+        error: `Facebook send failed: ${fbResult.error}`,
         request_id: requestId,
         timestamp: new Date().toISOString()
-      }), {
+      }, null, 2), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

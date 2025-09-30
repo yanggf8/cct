@@ -4,6 +4,9 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250927.0",
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.2",
     "wrangler": "^4.37.1"
   }
 }

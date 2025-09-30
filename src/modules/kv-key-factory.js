@@ -15,6 +15,7 @@ export const KeyTypes = {
   ANALYSIS: 'analysis',
   DUAL_AI_ANALYSIS: 'dual_ai_analysis',
   LEGACY_ANALYSIS: 'legacy_analysis',
+  MANUAL_ANALYSIS: 'manual_analysis', // On-demand analysis (not part of cron history)
 
   // Status & Job Management
   JOB_STATUS: 'job_status',
@@ -56,6 +57,7 @@ const KEY_TEMPLATES = {
   [KeyTypes.ANALYSIS]: 'analysis_{date}',
   [KeyTypes.DUAL_AI_ANALYSIS]: 'dual_ai_analysis_{date}',
   [KeyTypes.LEGACY_ANALYSIS]: 'legacy_analysis_{date}',
+  [KeyTypes.MANUAL_ANALYSIS]: 'manual_analysis_{timestamp}', // Timestamped, not date-based
 
   [KeyTypes.JOB_STATUS]: 'job_{jobName}_status_{date}',
   [KeyTypes.PIPELINE_STATUS]: 'pipeline_{pipelineName}_status_{timestamp}',
@@ -91,6 +93,7 @@ const KEY_TTL_CONFIG = {
   [KeyTypes.ANALYSIS]: 604800, // 7 days
   [KeyTypes.DUAL_AI_ANALYSIS]: 604800, // 7 days
   [KeyTypes.LEGACY_ANALYSIS]: 604800, // 7 days
+  [KeyTypes.MANUAL_ANALYSIS]: 3600, // 1 hour (short-lived, for immediate use only)
 
   [KeyTypes.JOB_STATUS]: 86400, // 24 hours
   [KeyTypes.PIPELINE_STATUS]: 3600, // 1 hour

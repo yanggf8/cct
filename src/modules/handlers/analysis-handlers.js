@@ -13,6 +13,7 @@ import { createHandler, createAPIHandler } from '../handler-factory.js';
 import { createAnalysisResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { getJobStatus, validateDependencies } from '../kv-utils.js';
+import { createDAL } from '../dal.js';
 
 const logger = createLogger('analysis-handlers');
 
@@ -263,10 +264,11 @@ export async function handleGenerateMorningPredictions(request, env) {
     logger.info('🌅 Morning predictions generation requested', { requestId, date: dateStr });
 
     // Check if analysis data exists for today
+    const dal = createDAL(env);
     const analysisKey = `analysis_${dateStr}`;
-    const analysisData = await env.TRADING_RESULTS.get(analysisKey);
+    const analysisResult = await dal.read(analysisKey);
 
-    if (!analysisData) {
+    if (!analysisResult.success || !analysisResult.data) {
       logger.warn('⚠️ No analysis data found for today', { requestId, date: dateStr });
       return new Response(JSON.stringify({
         success: false,
@@ -280,7 +282,7 @@ export async function handleGenerateMorningPredictions(request, env) {
       });
     }
 
-    const analysis = JSON.parse(analysisData);
+    const analysis = analysisResult.data;
 
     // Import the cron signal tracker
     const { cronSignalTracker } = await import('../cron-signal-tracking.js');
@@ -293,8 +295,8 @@ export async function handleGenerateMorningPredictions(request, env) {
 
       // Verify the predictions were stored
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const storedPredictions = await env.TRADING_RESULTS.get(predictionsKey);
-      const predictions = storedPredictions ? JSON.parse(storedPredictions) : null;
+      const predictionsResult = await dal.read(predictionsKey);
+      const predictions = predictionsResult.success ? predictionsResult.data : null;
 
       return new Response(JSON.stringify({
         success: true,
@@ -379,11 +381,12 @@ export async function handleStatusManagement(request, env) {
       eod_summary: `eod_summary_${dateStr}`
     };
 
+    const dal = createDAL(env);
     const dataExists = {};
     for (const [keyName, keyValue] of Object.entries(dataKeys)) {
       try {
-        const data = await env.TRADING_RESULTS.get(keyValue);
-        dataExists[keyName] = !!data;
+        const result = await dal.read(keyValue);
+        dataExists[keyName] = result.success && !!result.data;
       } catch (error) {
         dataExists[keyName] = false;
       }

@@ -5,6 +5,7 @@
 
 import { generateDailySummary } from './daily-summary.js';
 import { getLastNDaysEST, getDailySummaryKVKey, isTradingDay } from './timezone-utils.js';
+import { createDAL } from './dal.js';
 
 /**
  * Backfill daily summaries for the last N days
@@ -16,6 +17,7 @@ import { getLastNDaysEST, getDailySummaryKVKey, isTradingDay } from './timezone-
 export async function backfillDailySummaries(env, days = 30, skipExisting = true) {
   console.log(`🔄 [BACKFILL] Starting backfill for last ${days} days`);
 
+  const dal = createDAL(env);
   const dates = getLastNDaysEST(days);
   const results = [];
   let processed = 0;
@@ -28,8 +30,8 @@ export async function backfillDailySummaries(env, days = 30, skipExisting = true
 
       // Check if summary already exists
       if (skipExisting) {
-        const existing = await env.TRADING_RESULTS.get(kvKey);
-        if (existing) {
+        const existingResult = await dal.read(kvKey);
+        if (existingResult.success && existingResult.data) {
           console.log(`⏭️ [BACKFILL] Skipping ${dateStr} - already exists`);
           results.push({
             date: dateStr,
@@ -47,12 +49,17 @@ export async function backfillDailySummaries(env, days = 30, skipExisting = true
       // Generate summary for this date
       const summary = await generateDailySummary(dateStr, env);
 
-      // Store in KV with 90-day TTL
-      await env.TRADING_RESULTS.put(
+      // Store in KV with 90-day TTL using DAL
+      const writeResult = await dal.write(
         kvKey,
-        JSON.stringify(summary),
+        summary,
         { expirationTtl: 7776000 } // 90 days
       );
+
+      if (!writeResult.success) {
+        console.error(`❌ [BACKFILL] Failed to write ${dateStr}: ${writeResult.error}`);
+        throw new Error(`KV write failed: ${writeResult.error}`);
+      }
 
       results.push({
         date: dateStr,
@@ -102,6 +109,7 @@ export async function backfillDailySummaries(env, days = 30, skipExisting = true
 export async function backfillTradingDaysOnly(env, tradingDays = 20) {
   console.log(`📈 [BACKFILL] Starting backfill for last ${tradingDays} trading days`);
 
+  const dal = createDAL(env);
   const allDates = getLastNDaysEST(60); // Get extra days to account for weekends
   const tradingDates = allDates.filter(date => isTradingDay(date)).slice(0, tradingDays);
 
@@ -116,8 +124,8 @@ export async function backfillTradingDaysOnly(env, tradingDays = 20) {
       const kvKey = getDailySummaryKVKey(dateStr);
 
       // Check if summary already exists
-      const existing = await env.TRADING_RESULTS.get(kvKey);
-      if (existing) {
+      const existingResult = await dal.read(kvKey);
+      if (existingResult.success && existingResult.data) {
         console.log(`⏭️ [BACKFILL] Skipping ${dateStr} - already exists`);
         results.push({
           date: dateStr,
@@ -132,12 +140,17 @@ export async function backfillTradingDaysOnly(env, tradingDays = 20) {
       // Generate summary for this trading day
       const summary = await generateDailySummary(dateStr, env);
 
-      // Store in KV
-      await env.TRADING_RESULTS.put(
+      // Store in KV using DAL
+      const writeResult = await dal.write(
         kvKey,
-        JSON.stringify(summary),
+        summary,
         { expirationTtl: 7776000 }
       );
+
+      if (!writeResult.success) {
+        console.error(`❌ [BACKFILL] Failed to write ${dateStr}: ${writeResult.error}`);
+        throw new Error(`KV write failed: ${writeResult.error}`);
+      }
 
       results.push({
         date: dateStr,
@@ -182,6 +195,7 @@ export async function backfillTradingDaysOnly(env, tradingDays = 20) {
 export async function verifyBackfill(env, days = 10) {
   console.log(`🔍 [BACKFILL-VERIFY] Verifying last ${days} days`);
 
+  const dal = createDAL(env);
   const dates = getLastNDaysEST(days);
   const verification = [];
   let found = 0;
@@ -190,10 +204,10 @@ export async function verifyBackfill(env, days = 10) {
   for (const dateStr of dates) {
     try {
       const kvKey = getDailySummaryKVKey(dateStr);
-      const summary = await env.TRADING_RESULTS.get(kvKey);
+      const result = await dal.read(kvKey);
 
-      if (summary) {
-        const data = JSON.parse(summary);
+      if (result.success && result.data) {
+        const data = result.data;
         verification.push({
           date: dateStr,
           status: 'found',
