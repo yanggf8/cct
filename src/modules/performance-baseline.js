@@ -6,6 +6,7 @@
 import { createLogger } from './logging.js';
 import { CONFIG } from './config.js';
 import { BusinessKPI, SystemMetrics } from './monitoring.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('performance-baseline');
 
@@ -33,9 +34,17 @@ export class PerformanceBaseline {
 
     // Store in KV for persistence
     const key = `perf_baseline_${operation}_${timestamp}`;
-    await this.env.TRADING_RESULTS.put(key, JSON.stringify(measurement), {
+    const dal = createDAL(this.env);
+    const writeResult = await dal.write(key, measurement, {
       expirationTtl: CONFIG.KV_STORAGE.GRANULAR_TTL // 90 days
     });
+
+    if (!writeResult.success) {
+      logger.warn('Failed to write performance measurement', {
+        operation,
+        error: writeResult.error
+      });
+    }
 
     // Update in-memory cache
     if (!this.metrics.has(operation)) {

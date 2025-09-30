@@ -12,6 +12,7 @@ import { getHealthCheckResponse, sendFridayWeekendReportWithTracking, sendWeekly
 import { getFactTableData, getCronHealthStatus } from './data.js';
 // Models removed - using GPT-OSS-120B enhanced analysis instead
 import { analyzeSingleSymbol } from './per_symbol_analysis.js';
+import { createDAL } from './dal.js';
 
 /**
  * Handle manual analysis requests (Phase 1: Enhanced with sentiment)
@@ -59,17 +60,18 @@ export async function handleGetResults(request, env) {
   try {
     const url = new URL(request.url);
     const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
-    
+
     // Try to get stored results from KV
     const resultKey = `analysis_${date}`;
-    const storedResult = await env.TRADING_RESULTS.get(resultKey);
-    
-    if (storedResult) {
-      return new Response(storedResult, {
+    const dal = createDAL(env);
+    const result = await dal.read(resultKey);
+
+    if (result.success && result.data) {
+      return new Response(JSON.stringify(result.data, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
+
     // Return empty result if not found
     return new Response(JSON.stringify({
       date: date,
@@ -79,7 +81,7 @@ export async function handleGetResults(request, env) {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
   } catch (error) {
     console.error('❌ Get results error:', error);
     return new Response(JSON.stringify({
@@ -258,27 +260,28 @@ export async function handleFacebookTest(request, env) {
       };
 
       try {
-        await env.TRADING_RESULTS.put(
+        const dal = createDAL(env);
+        const writeResult = await dal.write(
           testKvKey,
-          JSON.stringify(testKvData),
+          testKvData,
           KVUtils.getOptions('analysis')
         );
         console.log(`✅ [FB-TEST] KV storage test successful: ${testKvKey}`);
 
         // Verify KV storage by reading it back
-        const storedData = await env.TRADING_RESULTS.get(testKvKey);
+        const readResult = await dal.read(testKvKey);
         let kvStatus = {
           success: false,
           key: testKvKey,
           message: 'KV verification failed'
         };
 
-        if (storedData) {
+        if (readResult.success && readResult.data) {
           console.log(`✅ [FB-TEST] KV storage verification successful`);
           kvStatus = {
             success: true,
             key: testKvKey,
-            data: JSON.parse(storedData),
+            data: readResult.data,
             message: 'KV storage successful'
           };
         } else {
@@ -470,7 +473,7 @@ export async function handleKVGet(request, env) {
   try {
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
-    
+
     if (!key) {
       return new Response(JSON.stringify({
         error: 'Missing key parameter',
@@ -480,10 +483,11 @@ export async function handleKVGet(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-    const value = await env.TRADING_RESULTS.get(key);
-    
-    if (value === null) {
+
+    const dal = createDAL(env);
+    const result = await dal.read(key);
+
+    if (!result.success || !result.data) {
       return new Response(JSON.stringify({
         key: key,
         found: false,
@@ -493,18 +497,11 @@ export async function handleKVGet(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-    let parsedValue;
-    try {
-      parsedValue = JSON.parse(value);
-    } catch (e) {
-      parsedValue = value;
-    }
-    
+
     return new Response(JSON.stringify({
       key: key,
       found: true,
-      value: parsedValue,
+      value: result.data,
       timestamp: new Date().toISOString()
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -525,6 +522,7 @@ export async function handleKVGet(request, env) {
  */
 export async function handleKVDebug(request, env) {
   try {
+    const dal = createDAL(env);
     const testKey = `test_kv_${Date.now()}`;
     const testData = {
       test: true,
@@ -533,21 +531,20 @@ export async function handleKVDebug(request, env) {
     };
 
     // Test KV write
-    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData));
+    await dal.write(testKey, testData);
 
     // Test KV read back
-    const readValue = await env.TRADING_RESULTS.get(testKey);
-    const parsedValue = JSON.parse(readValue);
+    const readResult = await dal.read(testKey);
 
     // Clean up test key
-    await env.TRADING_RESULTS.delete(testKey);
+    await dal.deleteKey(testKey);
 
     return new Response(JSON.stringify({
       success: true,
       message: "KV write/read/delete test successful",
       test_key: testKey,
       written_data: testData,
-      read_data: parsedValue,
+      read_data: readResult.data,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
     }, null, 2), {
@@ -586,7 +583,8 @@ export async function handleKVWriteTest(request, env) {
     console.log(`🧪 [KV-WRITE-TEST] Testing KV write with key: ${testKey}`);
 
     // Test ONLY KV write
-    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData));
+    const dal = createDAL(env);
+    await dal.write(testKey, testData);
 
     console.log(`✅ [KV-WRITE-TEST] KV write completed successfully`);
 
@@ -645,9 +643,10 @@ export async function handleKVReadTest(request, env) {
     console.log(`🧪 [KV-READ-TEST] Testing KV read with key: ${key}`);
 
     // Test ONLY KV read
-    const value = await env.TRADING_RESULTS.get(key);
+    const dal = createDAL(env);
+    const result = await dal.read(key);
 
-    if (value === null) {
+    if (!result.success || !result.data) {
       console.log(`❌ [KV-READ-TEST] Key not found: ${key}`);
       return new Response(JSON.stringify({
         success: false,
@@ -663,13 +662,6 @@ export async function handleKVReadTest(request, env) {
       });
     }
 
-    let parsedValue;
-    try {
-      parsedValue = JSON.parse(value);
-    } catch (e) {
-      parsedValue = value;
-    }
-
     console.log(`✅ [KV-READ-TEST] KV read completed successfully`);
 
     return new Response(JSON.stringify({
@@ -677,8 +669,8 @@ export async function handleKVReadTest(request, env) {
       operation: 'read_only',
       key: key,
       found: true,
-      value: parsedValue,
-      raw_value_length: value.length,
+      value: result.data,
+      raw_value_length: JSON.stringify(result.data).length,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
     }, null, 2), {
@@ -1447,9 +1439,10 @@ export async function handleTestAllFacebookMessages(request, env) {
   ];
 
   // Get KV count before testing
+  const dal = createDAL(env);
   let initialKVCount = 0;
   try {
-    const initialKVList = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+    const initialKVList = await dal.listKeys({ prefix: "fb_" });
     initialKVCount = initialKVList.keys?.length || 0;
     console.log(`📋 [FB-TEST-INITIAL] Found ${initialKVCount} existing Facebook KV records`);
   } catch (error) {
@@ -1480,7 +1473,7 @@ export async function handleTestAllFacebookMessages(request, env) {
         // Wait a moment for KV to be available
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        const postKVList = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+        const postKVList = await dal.listKeys({ prefix: "fb_" });
         const newKVCount = postKVList.keys?.length || 0;
 
         if (newKVCount > initialKVCount) {
@@ -1496,9 +1489,9 @@ export async function handleTestAllFacebookMessages(request, env) {
             kvKey = newRecords[0].name;
 
             // Verify the record contains expected data
-            const kvRecord = await env.TRADING_RESULTS.get(newRecords[0].name);
-            if (kvRecord) {
-              const recordData = JSON.parse(kvRecord);
+            const readResult = await dal.read(newRecords[0].name);
+            if (readResult.success && readResult.data) {
+              const recordData = readResult.data;
               if (!recordData.message_sent || !recordData.cron_execution_id) {
                 kvStored = false;
                 console.error(`❌ [FB-TEST-${i+1}] KV record missing required fields`);
@@ -1542,7 +1535,7 @@ export async function handleTestAllFacebookMessages(request, env) {
   // Check KV logs
   console.log("🔍 [FB-TEST-KV] Checking KV logging for all tests...");
   try {
-    const kvKeys = await env.TRADING_RESULTS.list({ prefix: "fb_" });
+    const kvKeys = await dal.listKeys({ prefix: "fb_" });
     const testTimestamp = testResults.test_execution_id.split("_")[3];
     const recentLogs = kvKeys.keys?.filter(k => k.name.includes(testTimestamp)) || [];
     testResults.kv_logs = {

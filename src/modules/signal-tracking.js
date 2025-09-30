@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('signal-tracking');
 
@@ -122,10 +123,10 @@ class SignalTrackingManager {
     const signalsKey = `signals_${dateStr}`;
 
     try {
-      const signalsData = await env.TRADING_RESULTS.get(signalsKey);
-      if (signalsData) {
-        const parsed = JSON.parse(signalsData);
-        return parsed.signals || [];
+      const dal = createDAL(env);
+      const result = await dal.read(signalsKey);
+      if (result.success && result.data) {
+        return result.data.signals || [];
       }
     } catch (error) {
       logger.error('Failed to retrieve signals', { date: dateStr, error: error.message });
@@ -152,7 +153,13 @@ class SignalTrackingManager {
         }
       };
 
-      await env.TRADING_RESULTS.put(signalsKey, JSON.stringify(signalsData));
+      const dal = createDAL(env);
+      const writeResult = await dal.write(signalsKey, signalsData);
+
+      if (!writeResult.success) {
+        logger.warn('Failed to write signals data', { error: writeResult.error });
+        return false;
+      }
 
       logger.info('Saved signals to KV storage', {
         date: dateStr,

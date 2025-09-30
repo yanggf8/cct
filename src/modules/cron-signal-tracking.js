@@ -7,6 +7,7 @@ import { createLogger } from './logging.js';
 import { kvStorageManager } from './kv-storage-manager.js';
 import { rateLimitedFetch } from './rate-limiter.js';
 import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
+import { createDAL } from './dal.js';
 
 const logger = createLogger('cron-signal-tracking');
 
@@ -130,9 +131,10 @@ class CronSignalTracker {
     const predictionsKey = `morning_predictions_${dateStr}`;
 
     try {
-      const predictionsData = await env.TRADING_RESULTS.get(predictionsKey);
-      if (predictionsData) {
-        return JSON.parse(predictionsData);
+      const dal = createDAL(env);
+      const result = await dal.read(predictionsKey);
+      if (result.success && result.data) {
+        return result.data;
       }
     } catch (error) {
       logger.error('Failed to retrieve morning predictions', {
@@ -184,9 +186,14 @@ class CronSignalTracker {
         lastPerformanceUpdate: new Date().toISOString()
       };
 
-      await env.TRADING_RESULTS.put(`morning_predictions_${dateStr}`, JSON.stringify(updatedData), {
+      const dal = createDAL(env);
+      const writeResult = await dal.write(`morning_predictions_${dateStr}`, updatedData, {
         expirationTtl: 7 * 24 * 60 * 60
       });
+
+      if (!writeResult.success) {
+        logger.warn('Failed to write updated predictions', { error: writeResult.error });
+      }
 
       logger.info('Updated signal performance', {
         date: dateStr,
