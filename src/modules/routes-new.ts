@@ -5,7 +5,7 @@
 
 import { createRouter, Router } from './router/index.js';
 import { createRequestLogger, initLogging } from './logging.js';
-import { PerformanceMonitor, BusinessMetrics } from './monitoring.js';
+import { PerformanceMonitor, BusinessMetrics } from './monitoring';
 
 // Import route registration functions
 import { registerAnalysisRoutes } from './routes/analysis-routes.js';

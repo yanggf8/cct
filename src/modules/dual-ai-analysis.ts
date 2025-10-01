@@ -530,9 +530,10 @@ export async function batchDualAIAnalysis(
       }
     });
 
-    // Small delay between batches
+    // Proper delay between batches for rate limiting
     if (batches.indexOf(batch) < batches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const batchDelay = 1000 + (Math.random() * 500); // 1-1.5s delay with jitter
+      await new Promise(resolve => setTimeout(resolve, batchDelay));
     }
   }
 

@@ -157,12 +157,20 @@ export const TTL_CONFIG = {
 /**
  * Data Access Layer Class
  */
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  accessCount: number;
+}
+
 export class DataAccessLayer {
   private env: CloudflareEnvironment;
   private retryConfig: RetryConfig;
-  private cache: Map<string, any>;
+  private cache: Map<string, CacheEntry<any>>;
   private hitCount: number;
   private missCount: number;
+  private readonly maxCacheSize = 100;
+  private readonly cacheTTL = 5 * 60 * 1000; // 5 minutes
 
   constructor(env: CloudflareEnvironment, retryConfig?: Partial<RetryConfig>) {
     this.env = env;
@@ -174,6 +182,42 @@ export class DataAccessLayer {
     this.cache = new Map();
     this.hitCount = 0;
     this.missCount = 0;
+  }
+
+  /**
+   * Clean up expired cache entries
+   */
+  private cleanupCache(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.cacheTTL) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Evict least recently used entries if cache is full
+   */
+  private evictLRU(): void {
+    if (this.cache.size >= this.maxCacheSize) {
+      let oldestKey = '';
+      let oldestTime = Date.now();
+      let lowestAccess = Infinity;
+
+      for (const [key, entry] of this.cache.entries()) {
+        if (entry.accessCount < lowestAccess ||
+            (entry.accessCount === lowestAccess && entry.timestamp < oldestTime)) {
+          oldestKey = key;
+          oldestTime = entry.timestamp;
+          lowestAccess = entry.accessCount;
+        }
+      }
+
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
+    }
   }
 
   /**
@@ -244,11 +288,13 @@ export class DataAccessLayer {
   ): Promise<KVReadResult<T>> {
     // Check cache first if enabled
     if (useCache && this.cache.has(key)) {
+      const entry = this.cache.get(key)!;
+      entry.accessCount++;
       this.hitCount++;
       logger.debug(`Cache hit for ${operationName}`, { key });
       return {
         success: true,
-        data: this.cache.get(key) as T,
+        data: entry.data as T,
         key,
         source: 'cache',
       };
@@ -265,7 +311,13 @@ export class DataAccessLayer {
 
         // Update cache if enabled
         if (useCache) {
-          this.cache.set(key, parsed);
+          this.cleanupCache();
+          this.evictLRU();
+          this.cache.set(key, {
+            data: parsed,
+            timestamp: Date.now(),
+            accessCount: 1
+          });
           this.missCount++;
         }
 

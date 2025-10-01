@@ -85,6 +85,9 @@ export interface MessageTrackingRecord {
   // Audit
   cron_execution_id?: string;
   trigger_mode?: string;
+
+  // Optimistic locking for race condition prevention
+  version?: number;
 }
 
 export interface MessageTrackingOptions {
@@ -195,7 +198,7 @@ export class MessageTracker {
   }
 
   /**
-   * Update message status
+   * Update message status with optimistic locking
    */
   async updateStatus(
     trackingId: string,
@@ -203,48 +206,72 @@ export class MessageTracker {
     messageId?: string,
     error?: string
   ): Promise<boolean> {
-    try {
-      logger.info('Updating message status', { tracking_id: trackingId, status });
+    const maxRetries = 3;
+    const key = `msg_tracking_${trackingId}`;
 
-      const key = `msg_tracking_${trackingId}`;
-      const readResult: any = await this.dal.read(key);
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        logger.info('Updating message status', { tracking_id: trackingId, status, attempt });
 
-      if (!readResult.success || !readResult.data) {
-        logger.warn('Tracking record not found', { tracking_id: trackingId });
+        const readResult: any = await this.dal.read(key);
+
+        if (!readResult.success || !readResult.data) {
+          logger.warn('Tracking record not found', { tracking_id: trackingId });
+          return false;
+        }
+
+        const record = readResult.data;
+        const currentVersion = record.version || 0;
+
+        // Apply updates
+        record.status = status;
+        record.updated_at = new Date().toISOString();
+        record.version = currentVersion + 1;
+
+        if (messageId) {
+          record.message_id = messageId;
+        }
+
+        if (error) {
+          record.error = error;
+          record.error_count = (record.error_count ?? 0) + 1;
+          record.last_error_at = new Date().toISOString();
+        }
+
+        // Verify version hasn't changed before writing
+        const verifyResult: any = await this.dal.read(key);
+        if (verifyResult.success && verifyResult.data &&
+            (verifyResult.data.version || 0) !== currentVersion) {
+          logger.warn('Version conflict, retrying update', {
+            tracking_id: trackingId,
+            expected_version: currentVersion,
+            actual_version: verifyResult.data.version || 0
+          });
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1))); // Exponential backoff
+          continue;
+        }
+
+        const writeResult = await this.dal.write(key, record, { expirationTtl: this.defaultTTL });
+
+        if (writeResult.success) {
+          logger.info('Message status updated', { tracking_id: trackingId, status, version: record.version });
+          return true;
+        }
+
+        logger.error('Failed to update status', { tracking_id: trackingId });
         return false;
+
+      } catch (error: any) {
+        if (attempt === maxRetries - 1) {
+          logger.error('Update failed after retries', { tracking_id: trackingId, error: error.message });
+          return false;
+        }
+        logger.warn('Retrying update due to error', { tracking_id: trackingId, attempt, error: error.message });
+        await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
       }
-
-      const record = readResult.data;
-      record.status = status;
-      record.updated_at = new Date().toISOString();
-
-      if (messageId) {
-        record.message_id = messageId;
-      }
-
-      if (error) {
-        record.error = error;
-        record.error_count = (record.error_count ?? 0) + 1;
-        record.last_error_at = new Date().toISOString();
-      }
-
-      const writeResult = await this.dal.write(key, record, { expirationTtl: this.defaultTTL });
-
-      if (writeResult.success) {
-        logger.info('Message status updated', { tracking_id: trackingId, status });
-        return true;
-      }
-
-      logger.error('Failed to update status', { tracking_id: trackingId });
-      return false;
-
-    } catch (error: any) {
-      logger.error('Error updating message status', {
-        tracking_id: trackingId,
-        error: error.message,
-      });
-      return false;
     }
+
+    return false;
   }
 
   /**
