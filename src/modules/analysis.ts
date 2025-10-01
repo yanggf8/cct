@@ -7,15 +7,22 @@
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
 import { validateEnvironment, validateSymbols, validateMarketData } from './validation.js';
 import { rateLimitedFetch } from './rate-limiter.js';
-import { withCache, getCacheStats, type CacheStats } from './market-data-cache.js';
+import { withCache, getCacheStats } from './market-data-cache.js';
 import { createLogger } from './logging.js';
 import { createDAL, type DataAccessLayer } from './dal.js';
-import type { CloudflareEnvironment } from '../types.js';
+import { CONFIG } from './config.js';
+import type { CloudflareEnvironment, SentimentLayer } from '../types.js';
 import { isSignalTrackingData } from '../types.js';
 
 const logger = createLogger('analysis');
 
 // Type Definitions
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  totalEntries: number;
+}
 export interface TradingSignal {
   direction: 'up' | 'down' | 'neutral' | 'hold';
   target_price?: number;
@@ -23,10 +30,10 @@ export interface TradingSignal {
   confidence: number;
   reasoning: string;
   timestamp?: Date | string;
-  technical_indicators?: Record<string, any>;
-  market_conditions?: string | Record<string, any>;
+  technical_indicators?: Record<string, number | string>;
+  market_conditions?: string | Record<string, number | string>;
   tags?: string[];
-  sentiment_layers?: any[];
+  sentiment_layers?: SentimentLayer[];
   model_type?: string;
 }
 
@@ -39,9 +46,9 @@ export interface SymbolAnalysisResult {
   reasoning: string;
   model_type: string;
   timestamp: Date;
-  technical_indicators: Record<string, any>;
-  market_conditions: string | Record<string, any>;
-  sentiment_layers?: any[];
+  technical_indicators: Record<string, number | string>;
+  market_conditions: string | Record<string, number | string>;
+  sentiment_layers?: SentimentLayer[];
   tags?: string[];
 }
 
@@ -81,16 +88,28 @@ export interface MarketDataResponse {
   error?: string;
 }
 
+export interface DualAIStatistics {
+  agreement_rate?: number;
+  confidence_gap?: number;
+  model_consistency?: number;
+}
+
+export interface ExecutionMetrics {
+  total_time_ms?: number;
+  model_time_ms?: number;
+  data_fetch_time_ms?: number;
+}
+
 export interface EnhancedAnalysisResult {
   trading_signals?: TradingSignal[];
-  overall_sentiment?: any;
-  market_conditions?: string | Record<string, any>;
-  sentiment_signals?: Record<string, any>;
+  overall_sentiment?: string | { sentiment: string; confidence: number };
+  market_conditions?: string | Record<string, number | string>;
+  sentiment_signals?: Record<string, number | string>;
   analysis_time?: string;
   trigger_mode?: string;
   symbols_analyzed?: string[];
-  dual_ai_statistics?: any;
-  execution_metrics?: any;
+  dual_ai_statistics?: DualAIStatistics;
+  execution_metrics?: ExecutionMetrics;
 }
 
 export interface HighConfidenceSignal {
@@ -103,8 +122,8 @@ export interface HighConfidenceSignal {
   timestamp: string;
   status: 'pending' | 'tracking' | 'completed' | 'failed';
   analysisData: {
-    sentiment_layers: any[];
-    market_conditions: string | Record<string, any>;
+    sentiment_layers: SentimentLayer[];
+    market_conditions: string | Record<string, number | string>;
     reasoning: string;
     tags: string[];
   };
@@ -114,9 +133,9 @@ export interface HighConfidenceSignal {
       confidence: number;
       generatedAt: string;
     };
-    intradayPerformance: any | null;
-    endOfDayPerformance: any | null;
-    weeklyPerformance: any | null;
+    intradayPerformance: PerformanceData | null;
+    endOfDayPerformance: PerformanceData | null;
+    weeklyPerformance: PerformanceData | null;
   };
 }
 
@@ -132,6 +151,17 @@ export interface HighConfidenceSignalsData {
   };
 }
 
+export interface SignalTracking {
+  morningSignal: {
+    prediction: string;
+    confidence: number;
+    generatedAt: string;
+  };
+  intradayPerformance: PerformanceData | null;
+  endOfDayPerformance: PerformanceData | null;
+  weeklyPerformance: PerformanceData | null;
+}
+
 export interface SignalTrackingData {
   date: string;
   signals: Array<{
@@ -141,7 +171,7 @@ export interface SignalTrackingData {
     confidence: number;
     currentPrice: number;
     status: string;
-    tracking: any;
+    tracking: SignalTracking;
   }>;
   lastUpdated: string;
 }
@@ -149,6 +179,71 @@ export interface SignalTrackingData {
 export interface PerformanceData {
   status?: string;
   [key: string]: any;
+}
+
+/**
+ * Analyze a single symbol with dual AI models
+ * Extracted from runBasicAnalysis for better testability and maintainability
+ */
+async function analyzeSingleSymbol(
+  env: CloudflareEnvironment,
+  symbol: string,
+  currentTime: Date
+): Promise<SymbolAnalysisResult> {
+  logger.info('Analyzing symbol with dual AI models', { symbol, models: 'GPT-OSS-120B + DistilBERT-SST-2' });
+
+  // Get real market data with caching and validation
+  const marketData = await withCache(symbol, () => getMarketData(symbol));
+  validateMarketData(marketData);
+
+  if (!marketData.data) {
+    throw new Error('Market data is undefined');
+  }
+
+  // Run GPT-OSS-120B enhanced analysis
+  logger.debug('Starting GPT-OSS-120B analysis', {
+    symbol,
+    candleCount: marketData.data.ohlcv.length,
+    currentPrice: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3].toFixed(2)
+  });
+
+  const gptAnalysis: EnhancedAnalysisResult = await runEnhancedAnalysis(env, {
+    symbol: symbol,
+    marketData: marketData.data,
+    currentTime: currentTime
+  });
+
+  logger.debug('GPT analysis completed', { symbol, sentiment: gptAnalysis.overall_sentiment });
+
+  if (!gptAnalysis || !gptAnalysis.trading_signals || gptAnalysis.trading_signals.length === 0) {
+    logger.error('GPT analysis failed - no trading signals generated', { symbol });
+    throw new Error('GPT-OSS-120B analysis failed to generate trading signals');
+  }
+
+  // Use the primary trading signal from GPT analysis
+  const primarySignal = gptAnalysis.trading_signals[0];
+  const combinedSignal: SymbolAnalysisResult = {
+    symbol: symbol,
+    direction: primarySignal.direction,
+    current_price: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3],
+    predicted_price: primarySignal.target_price || primarySignal.current_price,
+    confidence: primarySignal.confidence || 0.7,
+    reasoning: primarySignal.reasoning || 'GPT-OSS-120B analysis',
+    model_type: 'GPT-OSS-120B',
+    timestamp: currentTime,
+    technical_indicators: {},
+    market_conditions: gptAnalysis.market_conditions || 'Unknown'
+  };
+
+  logger.info('Symbol analysis successful', {
+    symbol,
+    direction: combinedSignal.direction,
+    currentPrice: combinedSignal.current_price.toFixed(2),
+    predictedPrice: combinedSignal.predicted_price.toFixed(2),
+    confidence: (combinedSignal.confidence * 100).toFixed(1)
+  });
+
+  return combinedSignal;
 }
 
 /**
@@ -177,72 +272,30 @@ export async function runBasicAnalysis(env: CloudflareEnvironment, options: Anal
     }
   };
 
-  console.log(`🧠 Starting genuine neural network analysis for ${symbols.length} symbols...`);
+  logger.info('Starting genuine neural network analysis', { symbolCount: symbols.length });
 
   let successfulAnalyses = 0;
 
   // Analyze each symbol with genuine neural networks
   for (const symbol of symbols) {
     try {
-      console.log(`   🧠 Analyzing ${symbol} with GPT-OSS-120B + DistilBERT-SST-2 models...`);
-
-      // Get real market data with caching and validation
-      const marketData = await withCache(symbol, () => getMarketData(symbol));
-      validateMarketData(marketData);
-
-      if (!marketData.data) {
-        throw new Error('Market data is undefined');
-      }
-
-      // Run GPT-OSS-120B enhanced analysis
-      console.log(`   🤖 Starting GPT-OSS-120B analysis for ${symbol}...`);
-      console.log(`   📊 Market data length: ${marketData.data.ohlcv.length} candles`);
-      console.log(`   📊 Current price: $${marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3].toFixed(2)}`);
-
-      const gptAnalysis: EnhancedAnalysisResult = await runEnhancedAnalysis(env, {
-        symbol: symbol,
-        marketData: marketData.data,
-        currentTime: currentTime
-      });
-
-      console.log(`   🔍 GPT analysis completed for ${symbol}`);
-      console.log(`   📈 Analysis result:`, gptAnalysis.overall_sentiment);
-
-      if (!gptAnalysis || !gptAnalysis.trading_signals || gptAnalysis.trading_signals.length === 0) {
-        console.error(`   ❌ GPT analysis failed for ${symbol} - no trading signals generated`);
-        throw new Error('GPT-OSS-120B analysis failed to generate trading signals');
-      }
-
-      // Use the primary trading signal from GPT analysis
-      const primarySignal = gptAnalysis.trading_signals[0];
-      const combinedSignal: SymbolAnalysisResult = {
-        symbol: symbol,
-        direction: primarySignal.direction,
-        current_price: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3],
-        predicted_price: primarySignal.target_price || primarySignal.current_price,
-        confidence: primarySignal.confidence || 0.7,
-        reasoning: primarySignal.reasoning || 'GPT-OSS-120B analysis',
-        model_type: 'GPT-OSS-120B',
-        timestamp: currentTime,
-        technical_indicators: {},
-        market_conditions: gptAnalysis.market_conditions || 'Unknown'
-      };
-
+      const combinedSignal = await analyzeSingleSymbol(env, symbol, currentTime);
       analysisResults.trading_signals[symbol] = combinedSignal;
       successfulAnalyses++;
 
-      console.log(`   ✅ ${symbol}: ${combinedSignal.direction} $${combinedSignal.current_price.toFixed(2)} → $${combinedSignal.predicted_price.toFixed(2)} (${(combinedSignal.confidence * 100).toFixed(1)}%)`);
-
     } catch (error: any) {
-      console.error(`   ❌ CRITICAL: ${symbol} analysis failed:`, error.message);
-      console.error(`   ❌ Error name:`, error.name);
-      console.error(`   ❌ Error stack:`, error.stack);
-      console.error(`   ❌ Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
-
-      // Add detailed context about where the failure occurred
-      console.error(`   🔍 Analysis context for ${symbol}:`);
-      console.error(`      - Current time: ${new Date().toISOString()}`);
-      console.error(`      - Env bindings available: TRADING_RESULTS=${!!env.TRADING_RESULTS}, TRAINED_MODELS=${!!env.TRAINED_MODELS}`);
+      logger.error('Symbol analysis failed', {
+        symbol,
+        error: error.message,
+        errorName: error.name,
+        stack: error.stack,
+        errorDetails: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        context: {
+          currentTime: new Date().toISOString(),
+          tradingResultsAvailable: !!env.TRADING_RESULTS,
+          trainedModelsAvailable: !!env.TRAINED_MODELS
+        }
+      });
 
       analysisResults.performance_metrics.failed_analyses++;
     }
@@ -261,8 +314,17 @@ export async function runBasicAnalysis(env: CloudflareEnvironment, options: Anal
     total_entries: cacheStats.totalEntries
   };
 
-  console.log(`✅ Neural network analysis completed: ${successfulAnalyses}/${symbols.length} symbols successful`);
-  console.log(`📊 Cache performance: ${cacheStats.hits} hits, ${cacheStats.misses} misses (${Math.round(cacheStats.hitRate * 100)}% hit rate)`);
+  logger.info('Neural network analysis completed', {
+    successfulAnalyses,
+    totalSymbols: symbols.length,
+    successRate: `${Math.round((successfulAnalyses / symbols.length) * 100)}%`
+  });
+
+  logger.info('Cache performance', {
+    hits: cacheStats.hits,
+    misses: cacheStats.misses,
+    hitRate: `${Math.round(cacheStats.hitRate * 100)}%`
+  });
 
   // Generate and track high-confidence signals
   const highConfidenceSignals = generateHighConfidenceSignals(analysisResults, currentTime, env);
@@ -284,14 +346,14 @@ export async function runBasicAnalysis(env: CloudflareEnvironment, options: Anal
  */
 async function getMarketData(symbol: string): Promise<MarketDataResponse> {
   try {
-    console.log(`   📊 Fetching real market data for ${symbol}...`);
+    logger.debug('Fetching real market data', { symbol });
 
     // Yahoo Finance API call for recent OHLCV data
     const days = 50; // Get 50 calendar days to ensure we have 30+ trading days
     const endDate = Math.floor(Date.now() / 1000);
     const startDate = endDate - (days * 24 * 60 * 60);
 
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
+    const url = `${CONFIG.MARKET_DATA.YAHOO_FINANCE_BASE_URL}/v8/finance/chart/${symbol}?period1=${startDate}&period2=${endDate}&interval=1d`;
 
     const response = await rateLimitedFetch(url, {
       signal: AbortSignal.timeout(10000)
@@ -333,7 +395,11 @@ async function getMarketData(symbol: string): Promise<MarketDataResponse> {
 
     const currentPrice = ohlcv[ohlcv.length - 1][3]; // Last close price (index unchanged)
 
-    console.log(`   📊 Retrieved ${ohlcv.length} days of data for ${symbol}, current: $${currentPrice.toFixed(2)}`);
+    logger.debug('Market data retrieved', {
+      symbol,
+      dataPoints: ohlcv.length,
+      currentPrice: currentPrice.toFixed(2)
+    });
 
     return {
       success: true,
@@ -346,7 +412,7 @@ async function getMarketData(symbol: string): Promise<MarketDataResponse> {
     };
 
   } catch (error: any) {
-    console.error(`   ❌ Market data error for ${symbol}:`, error.message);
+    logger.error('Market data error', { symbol, error: error.message });
     return {
       success: false,
       error: error.message
@@ -358,7 +424,7 @@ async function getMarketData(symbol: string): Promise<MarketDataResponse> {
  * Run weekend market close analysis
  */
 export async function runWeeklyMarketCloseAnalysis(env: CloudflareEnvironment, currentTime: Date): Promise<AnalysisResults> {
-  console.log('📊 Running weekly market close analysis...');
+  logger.info('Running weekly market close analysis');
 
   const analysis = await runBasicAnalysis(env, {
     triggerMode: 'weekly_market_close_analysis'
@@ -371,7 +437,7 @@ export async function runWeeklyMarketCloseAnalysis(env: CloudflareEnvironment, c
  * Run pre-market analysis
  */
 export async function runPreMarketAnalysis(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<AnalysisResults> {
-  console.log(`🌅 Running pre-market analysis (${options.triggerMode})...`);
+  logger.info('Running pre-market analysis', { triggerMode: options.triggerMode });
 
   const analysis = await runBasicAnalysis(env, options);
 
