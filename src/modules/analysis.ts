@@ -10,6 +10,7 @@ import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache, getCacheStats, type CacheStats } from './market-data-cache.js';
 import { createLogger } from './logging.js';
 import { createDAL, type DataAccessLayer } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('analysis');
 
@@ -153,7 +154,7 @@ export interface PerformanceData {
  * Run comprehensive analysis
  * ✅ GENUINE DUAL AI: Real GPT-OSS-120B + DistilBERT-SST-2 models with agreement logic
  */
-export async function runBasicAnalysis(env: any, options: AnalysisOptions = {}): Promise<AnalysisResults> {
+export async function runBasicAnalysis(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<AnalysisResults> {
   // Validate environment
   validateEnvironment(env);
 
@@ -355,7 +356,7 @@ async function getMarketData(symbol: string): Promise<MarketDataResponse> {
 /**
  * Run weekend market close analysis
  */
-export async function runWeeklyMarketCloseAnalysis(env: any, currentTime: Date): Promise<AnalysisResults> {
+export async function runWeeklyMarketCloseAnalysis(env: CloudflareEnvironment, currentTime: Date): Promise<AnalysisResults> {
   console.log('📊 Running weekly market close analysis...');
 
   const analysis = await runBasicAnalysis(env, {
@@ -368,7 +369,7 @@ export async function runWeeklyMarketCloseAnalysis(env: any, currentTime: Date):
 /**
  * Run pre-market analysis
  */
-export async function runPreMarketAnalysis(env: any, options: AnalysisOptions = {}): Promise<AnalysisResults> {
+export async function runPreMarketAnalysis(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<AnalysisResults> {
   console.log(`🌅 Running pre-market analysis (${options.triggerMode})...`);
 
   const analysis = await runBasicAnalysis(env, options);
@@ -382,7 +383,7 @@ export async function runPreMarketAnalysis(env: any, options: AnalysisOptions = 
 function generateHighConfidenceSignals(
   analysisResults: AnalysisResults,
   currentTime: Date,
-  env: any
+  env: CloudflareEnvironment
 ): HighConfidenceSignal[] {
   const signals: HighConfidenceSignal[] = [];
   const signalConfidenceThreshold = parseFloat(env.SIGNAL_CONFIDENCE_THRESHOLD || '0.7');
@@ -432,7 +433,7 @@ function generateHighConfidenceSignals(
  * Save high-confidence signals to KV storage
  */
 async function saveHighConfidenceSignals(
-  env: any,
+  env: CloudflareEnvironment,
   signals: HighConfidenceSignal[],
   currentTime: Date
 ): Promise<void> {
@@ -497,7 +498,7 @@ async function saveHighConfidenceSignals(
 /**
  * Get high-confidence signals for intraday tracking
  */
-export async function getHighConfidenceSignalsForTracking(env: any, date: Date): Promise<HighConfidenceSignal[]> {
+export async function getHighConfidenceSignalsForTracking(env: CloudflareEnvironment, date: Date): Promise<HighConfidenceSignal[]> {
   const dateStr = date.toISOString().split('T')[0];
   const trackingKey = `signal_tracking_${dateStr}`;
 
@@ -522,7 +523,7 @@ export async function getHighConfidenceSignalsForTracking(env: any, date: Date):
  * Update signal performance tracking
  */
 export async function updateSignalPerformanceTracking(
-  env: any,
+  env: CloudflareEnvironment,
   signalId: string,
   performanceData: PerformanceData,
   date: Date

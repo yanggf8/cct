@@ -14,6 +14,7 @@ import { registerHealthRoutes } from './routes/health-routes.js';
 import { registerAdminRoutes } from './routes/admin-routes.js';
 import { registerFacebookRoutes } from './routes/facebook-routes.js';
 import { registerDataRoutes } from './routes/data-routes.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 /**
  * Create and configure the application router
@@ -37,8 +38,8 @@ export function createAppRouter(): Router {
  */
 export async function handleHttpRequest(
   request: Request,
-  env: any,
-  ctx: any
+  env: CloudflareEnvironment,
+  ctx: ExecutionContext
 ): Promise<Response> {
   // Initialize logging
   initLogging(env);
@@ -97,8 +98,8 @@ export async function handleHttpRequest(
 export function validateRequest(apiKey: string) {
   return async (
     request: Request,
-    env: any,
-    ctx: any,
+    env: CloudflareEnvironment,
+    ctx: ExecutionContext,
     next: () => Promise<Response>
   ): Promise<Response> => {
     const providedKey = request.headers.get('X-API-KEY');

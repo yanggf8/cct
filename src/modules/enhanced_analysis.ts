@@ -7,6 +7,7 @@ import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js
 import { mapSentimentToDirection } from './sentiment_utils.js';
 import { storeSymbolAnalysis, batchStoreAnalysisResults, trackCronHealth } from './data.js';
 import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 // Type Definitions
 export interface AnalysisOptions {
@@ -91,7 +92,7 @@ export interface ParsedResponse {
 // Initialize logging for this module
 let loggingInitialized = false;
 
-function ensureLoggingInitialized(env: any): void {
+function ensureLoggingInitialized(env: CloudflareEnvironment): void {
   if (!loggingInitialized && env) {
     initLogging(env);
     loggingInitialized = true;
@@ -102,7 +103,7 @@ function ensureLoggingInitialized(env: any): void {
  * Run enhanced analysis with dual AI comparison system
  * Simple, transparent comparison between GPT-OSS-120B and DistilBERT
  */
-export async function runEnhancedAnalysis(env: any, options: AnalysisOptions = {}): Promise<EnhancedAnalysisResults> {
+export async function runEnhancedAnalysis(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<EnhancedAnalysisResults> {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
   logInfo('Starting Dual AI Comparison Analysis...');
@@ -131,7 +132,7 @@ export async function runEnhancedAnalysis(env: any, options: AnalysisOptions = {
 export async function getSentimentWithFallbackChain(
   symbol: string,
   newsData: NewsArticle[],
-  env: any
+  env: CloudflareEnvironment
 ): Promise<SentimentResult> {
   logSentimentDebug(`Starting getSentimentWithFallbackChain for ${symbol}`);
   logSentimentDebug(`News data available: ${!!newsData}, length: ${newsData?.length || 0}`);
@@ -200,7 +201,7 @@ export async function getSentimentWithFallbackChain(
   }
 }
 
-export async function getGPTOSSSentiment(symbol: string, newsData: NewsArticle[], env: any): Promise<SentimentResult> {
+export async function getGPTOSSSentiment(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<SentimentResult> {
   logAIDebug(`Starting GPT-OSS-120B sentiment analysis for ${symbol}...`);
 
   if (!env.AI) {
@@ -290,7 +291,7 @@ Be precise and focus on actionable trading insights.`;
 /**
  * DistilBERT sentiment analysis (final fallback)
  */
-export async function getDistilBERTSentiment(symbol: string, newsData: NewsArticle[], env: any): Promise<SentimentResult> {
+export async function getDistilBERTSentiment(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<SentimentResult> {
   logAIDebug(`Starting DistilBERT sentiment analysis for ${symbol}...`);
 
   if (!env.AI) {
@@ -403,7 +404,7 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
 /**
  * Enhanced dual AI analysis for multiple symbols
  */
-async function runDualAIAnalysisEnhanced(env: any, options: AnalysisOptions = {}): Promise<EnhancedAnalysisResults> {
+async function runDualAIAnalysisEnhanced(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<EnhancedAnalysisResults> {
   const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map((s: string) => s.trim());
   logInfo(`Starting dual AI analysis for ${symbols.length} symbols...`);
 
@@ -448,7 +449,7 @@ async function runDualAIAnalysisEnhanced(env: any, options: AnalysisOptions = {}
 /**
  * Enhanced pre-market analysis with dual AI comparison system
  */
-export async function runEnhancedPreMarketAnalysis(env: any, options: AnalysisOptions = {}): Promise<any> {
+export async function runEnhancedPreMarketAnalysis(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<any> {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
   logInfo('🚀 Starting Enhanced Pre-Market Analysis with Dual AI Comparison...');
@@ -592,7 +593,7 @@ function convertPipelineToLegacyFormat(pipelineResult: any, options: AnalysisOpt
 /**
  * Phase 1 validation: Check if sentiment enhancement is working
  */
-export async function validateSentimentEnhancement(env: any): Promise<ValidationResult> {
+export async function validateSentimentEnhancement(env: CloudflareEnvironment): Promise<ValidationResult> {
   const testSymbol = 'AAPL';
   logInfo(`Testing sentiment enhancement for ${testSymbol}...`);
 

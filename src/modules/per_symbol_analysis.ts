@@ -8,6 +8,7 @@ import { performDualAIComparison, batchDualAIAnalysis, type DualAIComparisonResu
 import { mapSentimentToDirection } from './sentiment_utils.js';
 import { storeSymbolAnalysis, getSymbolAnalysisByDate, batchStoreAnalysisResults } from './data.js';
 import { initLogging, logInfo, logError, logSentimentDebug, logAIDebug, logKVDebug, logWarn } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 // Type Definitions
 export interface AnalysisOptions {
@@ -138,7 +139,7 @@ export interface SentimentResult {
 // Initialize logging for this module
 let loggingInitialized = false;
 
-function ensureLoggingInitialized(env: any): void {
+function ensureLoggingInitialized(env: CloudflareEnvironment): void {
   if (!loggingInitialized && env) {
     initLogging(env);
     loggingInitialized = true;
@@ -151,7 +152,7 @@ function ensureLoggingInitialized(env: any): void {
  */
 export async function analyzeSymbolWithFineGrainedSentiment(
   symbol: string,
-  env: any,
+  env: CloudflareEnvironment,
   options: AnalysisOptions = {}
 ): Promise<SymbolAnalysis> {
   console.log(`🔬 [TROUBLESHOOT] analyzeSymbolWithFineGrainedSentiment called with symbol: ${symbol}`);
@@ -313,7 +314,7 @@ function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number
 /**
  * Gather comprehensive news data for a specific symbol
  */
-async function gatherComprehensiveNewsForSymbol(symbol: string, env: any): Promise<NewsArticle[]> {
+async function gatherComprehensiveNewsForSymbol(symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
   try {
     // Get free news data with expanded parameters
     const newsData = await getFreeStockNews(symbol, env);
@@ -393,7 +394,7 @@ function calculateNewsQualityScore(newsData: NewsArticle[]): number {
  */
 export async function analyzeSymbolWithFallback(
   symbol: string,
-  env: any,
+  env: CloudflareEnvironment,
   options: AnalysisOptions = {}
 ): Promise<SymbolAnalysis> {
   const startTime = Date.now();
@@ -514,7 +515,7 @@ export async function analyzeSymbolWithFallback(
 /**
  * Placeholder for sentiment fallback chain
  */
-async function getSentimentWithFallbackChain(symbol: string, newsData: NewsArticle[], env: any): Promise<SentimentResult> {
+async function getSentimentWithFallbackChain(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<SentimentResult> {
   // Simplified placeholder - in real implementation would try multiple models
   return {
     sentiment: 'neutral',
@@ -529,7 +530,7 @@ async function getSentimentWithFallbackChain(symbol: string, newsData: NewsArtic
  */
 export async function batchAnalyzeSymbolsForCron(
   symbols: string[],
-  env: any,
+  env: CloudflareEnvironment,
   options: AnalysisOptions = {}
 ): Promise<BatchAnalysisResult> {
   const startTime = Date.now();
@@ -600,7 +601,7 @@ export async function batchAnalyzeSymbolsForCron(
  */
 export async function runCompleteAnalysisPipeline(
   symbols: string[],
-  env: any,
+  env: CloudflareEnvironment,
   options: AnalysisOptions = {}
 ): Promise<PipelineResult> {
   const pipelineStartTime = Date.now();
@@ -717,7 +718,7 @@ export async function runCompleteAnalysisPipeline(
  */
 export async function analyzeSingleSymbol(
   symbol: string,
-  env: any,
+  env: CloudflareEnvironment,
   options: AnalysisOptions = {}
 ): Promise<SymbolAnalysis> {
   console.log(`🚀 [TROUBLESHOOT] analyzeSingleSymbol called with symbol: ${symbol}`);

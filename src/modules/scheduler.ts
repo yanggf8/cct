@@ -16,6 +16,7 @@ import {
 } from './facebook.js';
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createDAL, DataAccessLayer } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 /**
  * Type Definitions
@@ -62,8 +63,8 @@ export interface SlackAlert {
  */
 export async function handleScheduledEvent(
   controller: ScheduledController,
-  env: any,
-  ctx: any
+  env: CloudflareEnvironment,
+  ctx: ExecutionContext
 ): Promise<Response> {
   const scheduledTime = new Date(controller.scheduledTime);
 

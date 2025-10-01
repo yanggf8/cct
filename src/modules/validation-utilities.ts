@@ -5,6 +5,7 @@
 
 import { createLogger } from './logging.js';
 import { getEnvConfig, getErrorMessage, SystemConfig } from './config.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('validation-utilities');
 
@@ -87,7 +88,7 @@ export const RequestValidation = {
   /**
    * Validate API key
    */
-  validateAPIKey(request: Request, env: any): boolean {
+  validateAPIKey(request: Request, env: CloudflareEnvironment): boolean {
     const apiKey = request.headers.get('X-API-KEY');
     const validKey = env.WORKER_API_KEY;
 
@@ -269,7 +270,7 @@ export const EnvironmentValidation = {
   /**
    * Validate required environment variables
    */
-  validateRequiredEnv(env: any, requiredVars: string[] = []): boolean {
+  validateRequiredEnv(env: CloudflareEnvironment, requiredVars: string[] = []): boolean {
     const missing = requiredVars.filter(varName => !env[varName]);
 
     if (missing.length > 0) {
@@ -282,7 +283,7 @@ export const EnvironmentValidation = {
   /**
    * Validate KV bindings
    */
-  validateKVBindings(env: any): boolean {
+  validateKVBindings(env: CloudflareEnvironment): boolean {
     if (!env.TRADING_RESULTS) {
       throw new Error('TRADING_RESULTS KV binding is required');
     }
@@ -293,7 +294,7 @@ export const EnvironmentValidation = {
   /**
    * Validate R2 bindings
    */
-  validateR2Bindings(env: any): boolean {
+  validateR2Bindings(env: CloudflareEnvironment): boolean {
     if (!env.TRAINED_MODELS) {
       throw new Error('TRAINED_MODELS R2 binding is required');
     }
@@ -304,7 +305,7 @@ export const EnvironmentValidation = {
   /**
    * Validate AI binding
    */
-  validateAIBinding(env: any): boolean {
+  validateAIBinding(env: CloudflareEnvironment): boolean {
     if (!env.AI) {
       logger.warn('AI binding not available - some features may be limited');
       return false;
@@ -316,7 +317,7 @@ export const EnvironmentValidation = {
   /**
    * Complete environment validation
    */
-  validateEnvironment(env: any): EnvironmentValidationResult {
+  validateEnvironment(env: CloudflareEnvironment): EnvironmentValidationResult {
     const config = getEnvConfig(env);
     const errors: string[] = [];
 

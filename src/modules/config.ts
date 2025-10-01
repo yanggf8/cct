@@ -3,6 +3,8 @@
  * Centralized, type-safe configuration management for TFT Trading System
  */
 
+import type { CloudflareEnvironment } from '../types.js';
+
 // Type Definitions
 export interface TimeoutConfig {
   API_REQUEST: number;
@@ -384,7 +386,7 @@ export function isValidSymbol(symbol: string): boolean {
 /**
  * Get environment-aware configuration
  */
-export function getEnvConfig(env: any): SystemConfig {
+export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
   return {
     ...CONFIG,
     TRADING: {

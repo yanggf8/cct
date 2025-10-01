@@ -3,6 +3,8 @@
  * Type-safe, production-ready logging with structured JSON output and domain-specific loggers
  */
 
+import type { CloudflareEnvironment } from '../types.js';
+
 // Type Definitions
 export enum LogLevel {
   ERROR = 0,
@@ -63,7 +65,7 @@ let structuredLogging = false;
 /**
  * Initialize logging configuration
  */
-export function initLogging(env: any): void {
+export function initLogging(env: CloudflareEnvironment): void {
   const logLevelEnv = env.LOG_LEVEL || 'info';
   currentLogLevel = ENV_TO_LEVEL[logLevelEnv.toLowerCase()] || LogLevel.INFO;
 
@@ -78,7 +80,7 @@ export function initLogging(env: any): void {
 /**
  * Create a structured logger instance for a specific service
  */
-export function createLogger(service: string, env: any = null): Logger {
+export function createLogger(service: string, env: CloudflareEnvironment = null): Logger {
   if (env) {
     initLogging(env);
   }

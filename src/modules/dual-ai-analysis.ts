@@ -7,6 +7,7 @@
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment_utils.js';
 import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 // Type Definitions
 export type Direction = 'up' | 'down' | 'neutral' | 'bullish' | 'bearish' | 'UNCLEAR';
@@ -119,7 +120,7 @@ export interface BatchAnalysisOptions {
 // Initialize logging for this module
 let loggingInitialized = false;
 
-function ensureLoggingInitialized(env: any): void {
+function ensureLoggingInitialized(env: CloudflareEnvironment): void {
   if (!loggingInitialized && env) {
     initLogging(env);
     loggingInitialized = true;
@@ -133,7 +134,7 @@ function ensureLoggingInitialized(env: any): void {
 export async function performDualAIComparison(
   symbol: string,
   newsData: NewsArticle[],
-  env: any
+  env: CloudflareEnvironment
 ): Promise<DualAIComparisonResult> {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
@@ -199,7 +200,7 @@ export async function performDualAIComparison(
 /**
  * GPT Analysis (Same as before but standalone)
  */
-async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: any): Promise<ModelResult> {
+async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
       model: 'gpt-oss-120b',
@@ -258,7 +259,7 @@ ${newsContext}`;
 /**
  * DistilBERT Analysis (Same as before but standalone)
  */
-async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[], env: any): Promise<ModelResult> {
+async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
       model: 'distilbert-sst-2-int8',
@@ -442,7 +443,7 @@ function calculateAgreementStrength(gptConfidence: number, dbConfidence: number)
  */
 export async function batchDualAIAnalysis(
   symbols: string[],
-  env: any,
+  env: CloudflareEnvironment,
   options: BatchAnalysisOptions = {}
 ): Promise<BatchDualAIAnalysisResult> {
   const startTime = Date.now();

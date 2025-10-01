@@ -8,6 +8,7 @@ import { validateKVKey, validateEnvironment, validateDate } from './validation.j
 import { KVUtils } from './shared-utilities.js';
 import { KVKeyFactory, KeyHelpers, KeyTypes } from './kv-key-factory.js';
 import { createDAL, type DataAccessLayer } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 // Type Definitions
 export interface FactTableRecord {
@@ -132,7 +133,7 @@ export interface CompactAnalysisData {
 // Initialize logging for this module
 let loggingInitialized = false;
 
-function ensureLoggingInitialized(env: any): void {
+function ensureLoggingInitialized(env: CloudflareEnvironment): void {
   if (!loggingInitialized && env) {
     initLogging(env);
     loggingInitialized = true;
@@ -160,7 +161,7 @@ function getPrimaryModelFromSentiment(sentimentAnalysis: any): string {
 /**
  * Process analysis data for a single date and convert to fact table format
  */
-async function processAnalysisDataForDate(env: any, dateStr: string, checkDate: Date): Promise<FactTableRecord[]> {
+async function processAnalysisDataForDate(env: CloudflareEnvironment, dateStr: string, checkDate: Date): Promise<FactTableRecord[]> {
   const factTableData: FactTableRecord[] = [];
 
   const dal: DataAccessLayer = createDAL(env);
@@ -275,7 +276,7 @@ function calculateAgreementScore(comparison: any): number {
 /**
  * Get fact table data from stored analysis results
  */
-export async function getFactTableData(env: any): Promise<FactTableRecord[]> {
+export async function getFactTableData(env: CloudflareEnvironment): Promise<FactTableRecord[]> {
   try {
     const factTableData: FactTableRecord[] = [];
     const today = new Date();
@@ -302,7 +303,7 @@ export async function getFactTableData(env: any): Promise<FactTableRecord[]> {
  * Get fact table data with custom date range and week selection
  */
 export async function getFactTableDataWithRange(
-  env: any,
+  env: CloudflareEnvironment,
   rangeDays: number = 7,
   weekSelection: string = 'current'
 ): Promise<FactTableRecord[]> {
@@ -342,7 +343,7 @@ export async function getFactTableDataWithRange(
 /**
  * Store fact table data to KV storage
  */
-export async function storeFactTableData(env: any, factTableData: FactTableRecord[]): Promise<boolean> {
+export async function storeFactTableData(env: CloudflareEnvironment, factTableData: FactTableRecord[]): Promise<boolean> {
   try {
     const factTableKey = 'fact_table_data';
     await KVUtils.putWithTTL(
@@ -364,7 +365,7 @@ export async function storeFactTableData(env: any, factTableData: FactTableRecor
 /**
  * Store granular analysis for a single symbol
  */
-export async function storeSymbolAnalysis(env: any, symbol: string, analysisData: any): Promise<boolean> {
+export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: string, analysisData: any): Promise<boolean> {
   try {
     console.log(`💾 [KV DEBUG] Starting KV storage for ${symbol}`);
     ensureLoggingInitialized(env);
@@ -393,7 +394,7 @@ export async function storeSymbolAnalysis(env: any, symbol: string, analysisData
 /**
  * Batch store multiple analysis results with optimized parallel operations
  */
-export async function batchStoreAnalysisResults(env: any, analysisResults: any[]): Promise<BatchStoreResult> {
+export async function batchStoreAnalysisResults(env: CloudflareEnvironment, analysisResults: any[]): Promise<BatchStoreResult> {
   try {
     ensureLoggingInitialized(env);
     const startTime = Date.now();
@@ -530,7 +531,7 @@ function createCompactAnalysisData(analysisData: any): CompactAnalysisData {
 /**
  * Track cron execution health for monitoring and debugging
  */
-export async function trackCronHealth(env: any, status: 'success' | 'partial' | 'failed', executionData: any = {}): Promise<boolean> {
+export async function trackCronHealth(env: CloudflareEnvironment, status: 'success' | 'partial' | 'failed', executionData: any = {}): Promise<boolean> {
   try {
     ensureLoggingInitialized(env);
     const healthData: CronHealthData = {
@@ -584,7 +585,7 @@ export async function trackCronHealth(env: any, status: 'success' | 'partial' | 
 /**
  * Get latest cron health status for monitoring
  */
-export async function getCronHealthStatus(env: any): Promise<CronHealthStatus> {
+export async function getCronHealthStatus(env: CloudflareEnvironment): Promise<CronHealthStatus> {
   try {
     ensureLoggingInitialized(env);
     const dal: DataAccessLayer = createDAL(env);
@@ -625,7 +626,7 @@ export async function getCronHealthStatus(env: any): Promise<CronHealthStatus> {
 /**
  * Get analysis results for all symbols on a specific date
  */
-export async function getSymbolAnalysisByDate(env: any, dateString: string, symbols: string[] | null = null): Promise<any[]> {
+export async function getSymbolAnalysisByDate(env: CloudflareEnvironment, dateString: string, symbols: string[] | null = null): Promise<any[]> {
   try {
     const dal: DataAccessLayer = createDAL(env);
 
@@ -655,7 +656,7 @@ export async function getSymbolAnalysisByDate(env: any, dateString: string, symb
 /**
  * Get analysis results by date
  */
-export async function getAnalysisResultsByDate(env: any, dateString: string): Promise<any | null> {
+export async function getAnalysisResultsByDate(env: CloudflareEnvironment, dateString: string): Promise<any | null> {
   try {
     validateEnvironment(env);
     const validatedDate = validateDate(dateString);
@@ -680,7 +681,7 @@ export async function getAnalysisResultsByDate(env: any, dateString: string): Pr
 /**
  * List all KV keys with a prefix
  */
-export async function listKVKeys(env: any, prefix: string = ''): Promise<any[]> {
+export async function listKVKeys(env: CloudflareEnvironment, prefix: string = ''): Promise<any[]> {
   try {
     const dal: DataAccessLayer = createDAL(env);
 

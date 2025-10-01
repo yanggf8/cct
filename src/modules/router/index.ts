@@ -4,19 +4,20 @@
  */
 
 import { createLogger } from '../logging.js';
+import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('router');
 
 export type RouteHandler = (
   request: Request,
-  env: any,
-  ctx: any
+  env: CloudflareEnvironment,
+  ctx: ExecutionContext
 ) => Promise<Response> | Response;
 
 export type Middleware = (
   request: Request,
-  env: any,
-  ctx: any,
+  env: CloudflareEnvironment,
+  ctx: ExecutionContext,
   next: () => Promise<Response>
 ) => Promise<Response>;
 
@@ -68,7 +69,7 @@ export class Router {
   /**
    * Handle incoming request
    */
-  async handle(request: Request, env: any, ctx: any = {}): Promise<Response> {
+  async handle(request: Request, env: CloudflareEnvironment, ctx: ExecutionContext = {}): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method;

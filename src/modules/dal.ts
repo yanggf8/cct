@@ -13,6 +13,7 @@
 
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createLogger } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('dal');
 
@@ -157,13 +158,13 @@ export const TTL_CONFIG = {
  * Data Access Layer Class
  */
 export class DataAccessLayer {
-  private env: any; // Cloudflare env binding
+  private env: CloudflareEnvironment;
   private retryConfig: RetryConfig;
   private cache: Map<string, any>;
   private hitCount: number;
   private missCount: number;
 
-  constructor(env: any, retryConfig?: Partial<RetryConfig>) {
+  constructor(env: CloudflareEnvironment, retryConfig?: Partial<RetryConfig>) {
     this.env = env;
     this.retryConfig = {
       maxRetries: retryConfig?.maxRetries ?? 3,
@@ -173,6 +174,23 @@ export class DataAccessLayer {
     this.cache = new Map();
     this.hitCount = 0;
     this.missCount = 0;
+  }
+
+  /**
+   * Safe JSON parsing with detailed error handling
+   * Separates JSON parse errors from other errors
+   */
+  private safeJsonParse<T>(jsonString: string, context: string): T {
+    try {
+      return JSON.parse(jsonString) as T;
+    } catch (error: any) {
+      logger.error('JSON parsing failed', {
+        context,
+        error: error.message,
+        dataPreview: jsonString.substring(0, 100),
+      });
+      throw new Error(`JSON parse error in ${context}: ${error.message}`);
+    }
   }
 
   /**
@@ -230,7 +248,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as AnalysisData;
+        const parsed = this.safeJsonParse<AnalysisData>(data as string, 'getAnalysis');
         logger.info('Analysis retrieved successfully', {
           key,
           symbolsCount: parsed.symbols_analyzed?.length ?? 0,
@@ -332,7 +350,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as AnalysisData;
+        const parsed = this.safeJsonParse<AnalysisData>(data as string, 'getManualAnalysis');
         return {
           success: true,
           data: parsed,
@@ -487,7 +505,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as T;
+        const parsed = this.safeJsonParse<T>(data as string, 'read');
         return {
           success: true,
           data: parsed,
@@ -652,7 +670,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as HighConfidenceSignalsData;
+        const parsed = this.safeJsonParse<HighConfidenceSignalsData>(data as string, 'getHighConfidenceSignals');
         this.cache.set(key, parsed);
         this.missCount++;
         return {
@@ -795,7 +813,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as SignalTrackingRecord;
+        const parsed = this.safeJsonParse<SignalTrackingRecord>(data as string, 'getSignalTracking');
         this.cache.set(key, parsed);
         this.missCount++;
         return {
@@ -910,7 +928,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as MarketPriceData;
+        const parsed = this.safeJsonParse<MarketPriceData>(data as string, 'getMarketPrices');
         this.cache.set(key, parsed);
         this.missCount++;
         return {
@@ -1071,7 +1089,7 @@ export class DataAccessLayer {
       );
 
       if (data) {
-        const parsed = JSON.parse(data as string) as DailyReport;
+        const parsed = this.safeJsonParse<DailyReport>(data as string, 'getDailyReport');
         this.cache.set(key, parsed);
         this.missCount++;
         return {
@@ -1143,7 +1161,7 @@ export class DataAccessLayer {
 /**
  * Factory function to create DAL instance
  */
-export function createDAL(env: any, retryConfig?: Partial<RetryConfig>): DataAccessLayer {
+export function createDAL(env: CloudflareEnvironment, retryConfig?: Partial<RetryConfig>): DataAccessLayer {
   return new DataAccessLayer(env, retryConfig);
 }
 

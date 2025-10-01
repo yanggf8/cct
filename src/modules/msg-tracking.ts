@@ -13,6 +13,7 @@
 import { createDAL } from './dal.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
 import { createLogger } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('msg-tracking');
 
@@ -113,7 +114,7 @@ export class MessageTracker {
   private dal: any;
   private defaultTTL: number = 2592000; // 30 days
 
-  constructor(env: any) {
+  constructor(env: CloudflareEnvironment) {
     this.dal = createDAL(env);
   }
 
@@ -423,7 +424,7 @@ export class MessageTracker {
 /**
  * Factory function
  */
-export function createMessageTracker(env: any): MessageTracker {
+export function createMessageTracker(env: CloudflareEnvironment): MessageTracker {
   return new MessageTracker(env);
 }
 

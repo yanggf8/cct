@@ -8,6 +8,7 @@ import { validateEnvironment, validateAnalysisData, validateUserInput, sanitizeH
 import { KVUtils } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createMessageTracker, MessageTracker } from './msg-tracking.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 /**
  * Type Definitions
@@ -119,7 +120,7 @@ export interface TopPerformer {
  */
 export async function sendFridayWeekendReportWithTracking(
   analysisResult: AnalysisResult | null | undefined,
-  env: any,
+  env: CloudflareEnvironment,
   cronExecutionId: string,
   triggerMode: string
 ): Promise<FacebookResponse | undefined> {
@@ -309,7 +310,7 @@ export async function sendFridayWeekendReportWithTracking(
 /**
  * Send Weekly Accuracy Report with Dashboard Link
  */
-export async function sendWeeklyAccuracyReportWithTracking(env: any, cronExecutionId: string): Promise<FacebookResponse | undefined> {
+export async function sendWeeklyAccuracyReportWithTracking(env: CloudflareEnvironment, cronExecutionId: string): Promise<FacebookResponse | undefined> {
   console.log(`🚀 [FB-WEEKLY] ${cronExecutionId} Starting weekly accuracy report function`);
 
   const now = new Date();
@@ -447,7 +448,7 @@ export async function sendWeeklyAccuracyReportWithTracking(env: any, cronExecuti
 /**
  * Generic Facebook Message Sender with Error Handling
  */
-export async function sendFacebookMessage(messageText: string, env: any): Promise<FacebookMessageResult> {
+export async function sendFacebookMessage(messageText: string, env: CloudflareEnvironment): Promise<FacebookMessageResult> {
   const executionId = `fb_send_${Date.now()}`;
 
   // Enhanced logging for troubleshooting
@@ -512,7 +513,7 @@ export async function sendFacebookMessage(messageText: string, env: any): Promis
 /**
  * Simple health check response
  */
-export function getHealthCheckResponse(env: any): HealthCheckResponse {
+export function getHealthCheckResponse(env: CloudflareEnvironment): HealthCheckResponse {
   return {
     status: "healthy",
     timestamp: new Date().toISOString(),
@@ -540,7 +541,7 @@ export function getHealthCheckResponse(env: any): HealthCheckResponse {
  */
 export async function sendMorningPredictionsWithTracking(
   analysisResult: AnalysisResult | null | undefined,
-  env: any,
+  env: CloudflareEnvironment,
   cronExecutionId: string
 ): Promise<FacebookResponse | undefined> {
   console.log(`🚀 [FB-MORNING] ${cronExecutionId} Starting morning predictions function`);
@@ -719,7 +720,7 @@ export async function sendMorningPredictionsWithTracking(
  */
 export async function sendMiddayValidationWithTracking(
   analysisResult: AnalysisResult | null | undefined,
-  env: any,
+  env: CloudflareEnvironment,
   cronExecutionId: string
 ): Promise<FacebookResponse | undefined> {
   console.log(`🔄 [FB-MIDDAY] ${cronExecutionId} Starting midday validation function`);
@@ -906,7 +907,7 @@ export async function sendMiddayValidationWithTracking(
  */
 export async function sendDailyValidationWithTracking(
   analysisResult: AnalysisResult | null | undefined,
-  env: any,
+  env: CloudflareEnvironment,
   cronExecutionId: string
 ): Promise<FacebookResponse | undefined> {
   console.log(`📊 [FB-DAILY] ${cronExecutionId} Starting daily validation function`);

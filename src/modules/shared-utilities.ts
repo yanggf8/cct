@@ -6,6 +6,7 @@
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount, getEnvConfig, getErrorMessage } from './config.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers, type KeyType } from './kv-key-factory.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('shared-utilities');
 
@@ -505,9 +506,9 @@ export const ErrorUtils = {
    * Handle API endpoint errors consistently
    */
   async handleAPIEndpoint(
-    handler: (request: Request, env: any, context: any) => Promise<any>,
+    handler: (request: Request, env: CloudflareEnvironment, context: any) => Promise<any>,
     request: Request,
-    env: any,
+    env: CloudflareEnvironment,
     context: Record<string, any> = {}
   ): Promise<Response> {
     const requestId = generateRequestId();
