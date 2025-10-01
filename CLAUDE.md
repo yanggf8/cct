@@ -203,41 +203,57 @@ src/modules/handlers/    - Domain-specific handler modules
 └── index.js              - Centralized exports
 
 src/modules/
-├── analysis.js           - Core analysis functions with real market data integration
-├── enhanced_analysis.js  - Enhanced analysis with simplified dual AI processing
-├── rate-limiter.js       - Yahoo Finance API rate limiting (20 req/min) with exponential backoff
-├── market-data-cache.js  - Market data caching system (5-min TTL) with performance tracking
-├── validation.js         - Comprehensive data validation and input sanitization
-├── report/               - Clean report generation modules (renamed from analysis/)
-│   ├── pre-market-analysis.js   - Pre-market high-confidence signal generation
-│   ├── intraday-analysis.js     - Real-time performance tracking & model health
-│   ├── end-of-day-analysis.js   - Market close analysis & tomorrow outlook (real Yahoo data)
-│   └── weekly-review-analysis.js - Comprehensive pattern & accuracy analysis
-├── data.js              - Data processing and KV operations with dual AI structure support
-├── dual-ai-analysis.js   - Core simplified dual AI comparison module with transparent agreement logic
-├── per_symbol_analysis.js - Main analysis module using simplified dual AI system
-├── facebook.js          - Pure messaging layer with message tracking integration (5 functions refactored, 36+ KV ops removed)
-├── dal.ts               - TypeScript Data Access Layer with type safety, retry logic, and error handling (NEW 2025-09-30)
-├── dal-example.js       - JavaScript usage examples for TypeScript DAL
-├── msg-tracking.ts      - Platform-agnostic message tracking system (Facebook, Telegram, Slack, etc.) (NEW 2025-09-30)
-├── msg-tracking-example.js - JavaScript usage examples for message tracking
-├── logging.js           - Structured logging system
-├── monitoring.js        - Performance & business metrics (enhanced with KPIs)
-├── routes.js            - Enhanced routing with observability
-├── scheduler.js         - Cron job management with proper handler imports
-├── daily-summary.js     - Daily summary generation
-├── timezone-utils.js    - EST/EDT standardization
-├── backfill.js          - Historical data management
-├── config.js            - Centralized configuration management
-├── handler-factory.js   - Standardized handler creation with monitoring
-├── response-factory.js  - Consistent API response formatting
-├── performance-baseline.js - Real-time performance monitoring & trend analysis
-├── alert-system.js      - Multi-channel webhook alerting (Slack/Discord/Email)
-├── kv-utils.js          - Enhanced KV utilities with retry logic and verification
-├── cron-signal-tracking.js - High-confidence signal tracking and performance monitoring
-├── shared-utilities.js  - Comprehensive utility modules (date, array, number, string, validation, async, error handling, performance, KV, object utilities)
-├── validation-utilities.js - Centralized validation logic for requests, data, and environment
-└── intraday-decomposed.js - Decomposed handler architecture example (data retrieval, analysis, HTML generation classes)
+├── **TypeScript Core Modules (Phase 2-4 Migration):**
+│   ├── config.ts            - Centralized configuration management with full type safety
+│   ├── dal.ts               - TypeScript Data Access Layer with retry logic and error handling
+│   ├── msg-tracking.ts      - Platform-agnostic message tracking system (Facebook, Telegram, Slack, etc.)
+│   ├── validation-utilities.ts - Centralized validation logic for requests, data, and environment
+│   ├── shared-utilities.ts  - Comprehensive utility modules (date, array, number, string, validation, async, error, performance, KV, object)
+│   ├── kv-key-factory.ts    - Enterprise-grade key management with 15 standardized key types
+│   ├── response-factory.ts  - Consistent API response formatting with type safety
+│   ├── logging.ts           - Structured logging system with typed interfaces
+│   ├── analysis.ts          - Core analysis functions with real market data integration
+│   ├── enhanced_analysis.ts - Enhanced analysis with simplified dual AI processing
+│   ├── dual-ai-analysis.ts  - Core simplified dual AI comparison module with transparent agreement logic
+│   ├── per_symbol_analysis.ts - Main analysis module using simplified dual AI system
+│   ├── data.ts              - Data processing and KV operations with dual AI structure support
+│   ├── facebook.ts          - Pure messaging layer with message tracking integration (5 functions refactored, 36+ KV ops removed)
+│   └── scheduler.ts         - Cron job management with proper handler imports
+│
+├── **JavaScript Modules (Legacy/Utilities):**
+│   ├── rate-limiter.js      - Yahoo Finance API rate limiting (20 req/min) with exponential backoff
+│   ├── market-data-cache.js - Market data caching system (5-min TTL) with performance tracking
+│   ├── validation.js        - Comprehensive data validation and input sanitization
+│   ├── monitoring.js        - Performance & business metrics (enhanced with KPIs)
+│   ├── routes.js            - Enhanced routing with observability
+│   ├── daily-summary.js     - Daily summary generation
+│   ├── timezone-utils.js    - EST/EDT standardization
+│   ├── backfill.js          - Historical data management
+│   ├── handler-factory.js   - Standardized handler creation with monitoring
+│   ├── performance-baseline.js - Real-time performance monitoring & trend analysis
+│   ├── alert-system.js      - Multi-channel webhook alerting (Slack/Discord/Email)
+│   ├── kv-utils.js          - Enhanced KV utilities with retry logic and verification
+│   ├── cron-signal-tracking.js - High-confidence signal tracking and performance monitoring
+│   ├── dal-example.js       - JavaScript usage examples for TypeScript DAL
+│   ├── msg-tracking-example.js - JavaScript usage examples for message tracking
+│   └── intraday-decomposed.js - Decomposed handler architecture example
+│
+├── **Report Generation Modules:**
+│   └── report/
+│       ├── pre-market-analysis.js   - Pre-market high-confidence signal generation
+│       ├── intraday-analysis.js     - Real-time performance tracking & model health
+│       ├── end-of-day-analysis.js   - Market close analysis & tomorrow outlook (real Yahoo data)
+│       └── weekly-review-analysis.js - Comprehensive pattern & accuracy analysis
+│
+└── **Routing Modules:**
+    ├── router/index.ts      - Main TypeScript router
+    └── routes/
+        ├── admin-routes.ts
+        ├── analysis-routes.ts
+        ├── data-routes.ts
+        ├── facebook-routes.ts
+        ├── health-routes.ts
+        └── report-routes.ts
 ```
 
 ### API Endpoints

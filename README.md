@@ -238,10 +238,10 @@ src/
 │   ├── timezone-utils.js         # EST/EDT standardization utilities
 │   ├── backfill.js               # Historical data backfilling
 │   ├── weekly-analysis.js        # Interactive weekly analysis page & API
-│   ├── scheduler.js              # Cron event handling with modular analysis imports
-│   ├── facebook.js               # Pure messaging layer (analysis-agnostic)
-│   ├── analysis.js               # Core trading analysis functions with real market data integration
-│   ├── enhanced_analysis.js      # Enhanced analysis with batch pipeline integration
+│   ├── scheduler.ts              # Cron event handling with modular analysis imports (TypeScript)
+│   ├── facebook.ts               # Pure messaging layer (analysis-agnostic) (TypeScript)
+│   ├── analysis.ts               # Core trading analysis functions with real market data integration (TypeScript)
+│   ├── enhanced_analysis.ts      # Enhanced analysis with batch pipeline integration (TypeScript)
 │   ├── rate-limiter.js           # Yahoo Finance API rate limiting (20 req/min) with exponential backoff
 │   ├── market-data-cache.js      # Market data caching system (5-min TTL) with performance tracking
 │   ├── validation.js             # Comprehensive data validation and input sanitization
@@ -250,17 +250,17 @@ src/
 │   │   ├── intraday-analysis.js     # Real-time performance tracking & model health
 │   │   ├── end-of-day-analysis.js   # Market close analysis & tomorrow outlook (real Yahoo data)
 │   │   └── weekly-review-analysis.js # Comprehensive pattern & accuracy analysis
-│   ├── per_symbol_analysis.js    # Dual AI analysis + runCompleteAnalysisPipeline()
-│   ├── data.js                   # KV data access + batchStoreAnalysisResults()
-│   ├── config.js                 # Centralized configuration management (500+ values)
-│   ├── shared-utilities.js       # Comprehensive utility modules (DateUtils, ArrayUtils, ErrorUtils, KVUtils, etc.)
-│   ├── validation-utilities.js   # Centralized validation utilities (Request, Data, Environment, Market Data)
+│   ├── per_symbol_analysis.ts    # Dual AI analysis + runCompleteAnalysisPipeline() (TypeScript)
+│   ├── data.ts                   # KV data access + batchStoreAnalysisResults() (TypeScript)
+│   ├── config.ts                 # Centralized configuration management (500+ values) (TypeScript)
+│   ├── shared-utilities.ts       # Comprehensive utility modules (DateUtils, ArrayUtils, ErrorUtils, KVUtils, etc.) (TypeScript)
+│   ├── validation-utilities.ts   # Centralized validation utilities (Request, Data, Environment, Market Data) (TypeScript)
 │   ├── handler-factory.js        # Standardized handler creation with monitoring
-│   ├── response-factory.js       # Consistent API response formatting
+│   ├── response-factory.ts       # Consistent API response formatting (TypeScript)
 │   ├── monitoring.js             # Enhanced business metrics and KPI tracking
 │   ├── performance-baseline.js   # Real-time performance monitoring & trend analysis
 │   ├── alert-system.js           # Multi-channel webhook alerting system
-│   ├── logging.js                # Structured logging with request correlation
+│   ├── logging.ts                # Structured logging with request correlation (TypeScript)
 │   ├── kv-utils.js               # Enhanced KV utilities with retry logic and verification
 │   ├── kv-consistency.js         # KV eventual consistency handling with retry logic
 │   ├── cron-signal-tracking.js   # High-confidence signal tracking and performance monitoring
@@ -281,10 +281,10 @@ src/
 - **`src/modules/`** - Core application modules with proper separation of concerns
   - **`handlers/`** - Domain-specific handlers with proper messaging integration
   - **`report/`** - Clean report generation modules (renamed from analysis/)
-  - **`facebook.js`** - Pure messaging layer (sendFacebookMessage utility only)
-  - **`config.js`** - Centralized configuration management (500+ hardcoded values)
-  - **`shared-utilities.js`** - Comprehensive utility modules (DateUtils, ArrayUtils, ErrorUtils, KVUtils, etc.)
-  - **`validation-utilities.js`** - Centralized validation utilities for all data types
+  - **`facebook.ts`** - Pure messaging layer (sendFacebookMessage utility only) (TypeScript)
+  - **`config.ts`** - Centralized configuration management (500+ hardcoded values) (TypeScript)
+  - **`shared-utilities.ts`** - Comprehensive utility modules (DateUtils, ArrayUtils, ErrorUtils, KVUtils, etc.) (TypeScript)
+  - **`validation-utilities.ts`** - Centralized validation utilities for all data types (TypeScript)
   - **`kv-consistency.js`** - KV eventual consistency handling with retry logic
   - Daily summary system with historical backfill
   - Dual AI sentiment analysis with Cloudflare AI integration
