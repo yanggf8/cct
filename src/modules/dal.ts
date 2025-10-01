@@ -76,12 +76,92 @@ export interface RetryConfig {
   maxDelay: number;
 }
 
+// Signal and Tracking Types (from kv-storage-manager)
+export interface HighConfidenceSignal {
+  symbol: string;
+  prediction: 'up' | 'down' | 'neutral';
+  confidence: number;
+  reasoning?: string;
+  timestamp?: string;
+}
+
+export interface HighConfidenceSignalsData {
+  date: string;
+  signals: HighConfidenceSignal[];
+  metadata: {
+    totalSignals: number;
+    highConfidenceSignals: number;
+    averageConfidence: number;
+    bullishSignals: number;
+    bearishSignals: number;
+    neutralSignals: number;
+    generatedAt: string;
+    symbols: string[];
+  };
+}
+
+export interface SignalTrackingData {
+  id: string;
+  status?: string;
+  confidence?: number;
+  prediction?: string;
+  actual?: string;
+  accuracy?: number;
+  createdAt: string;
+  lastUpdated?: string;
+  [key: string]: any;
+}
+
+export interface SignalTrackingRecord {
+  date: string;
+  signals: SignalTrackingData[];
+  lastUpdated: string;
+}
+
+export interface MarketPriceData {
+  symbol: string;
+  currentPrice: number;
+  timestamp: string;
+  priceHistory: Array<{
+    price: number;
+    timestamp: string;
+  }>;
+  volume?: number;
+  change?: number;
+  changePercent?: number;
+}
+
+export interface ReportMetadata {
+  reportType: string;
+  date: string;
+  generatedAt: string;
+  version: string;
+}
+
+export interface DailyReport {
+  metadata: ReportMetadata;
+  [key: string]: any;
+}
+
+// TTL Configuration (from kv-storage-manager)
+export const TTL_CONFIG = {
+  SIGNAL_DATA: 90 * 24 * 60 * 60,      // 90 days
+  DAILY_REPORTS: 7 * 24 * 60 * 60,     // 7 days
+  WEEKLY_REPORTS: 30 * 24 * 60 * 60,   // 30 days
+  MARKET_PRICES: 24 * 60 * 60,         // 1 day
+  INTRADAY_DATA: 3 * 24 * 60 * 60,     // 3 days
+  CONFIG: null as number | null        // No expiration
+};
+
 /**
  * Data Access Layer Class
  */
 export class DataAccessLayer {
   private env: any; // Cloudflare env binding
   private retryConfig: RetryConfig;
+  private cache: Map<string, any>;
+  private hitCount: number;
+  private missCount: number;
 
   constructor(env: any, retryConfig?: Partial<RetryConfig>) {
     this.env = env;
@@ -90,6 +170,9 @@ export class DataAccessLayer {
       baseDelay: retryConfig?.baseDelay ?? 1000,
       maxDelay: retryConfig?.maxDelay ?? 10000,
     };
+    this.cache = new Map();
+    this.hitCount = 0;
+    this.missCount = 0;
   }
 
   /**
@@ -473,6 +556,587 @@ export class DataAccessLayer {
         error: error.message,
       };
     }
+  }
+
+  // ============================================================================
+  // Signal Tracking Methods (from kv-storage-manager)
+  // ============================================================================
+
+  /**
+   * Store high-confidence signals with metadata
+   */
+  async storeHighConfidenceSignals(
+    date: Date | string,
+    signals: HighConfidenceSignal[]
+  ): Promise<KVWriteResult> {
+    const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    const key = `high_confidence_signals_${dateStr}`;
+
+    try {
+      const signalsData: HighConfidenceSignalsData = {
+        date: dateStr,
+        signals: signals,
+        metadata: {
+          totalSignals: signals.length,
+          highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
+          averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+          bullishSignals: signals.filter(s => s.prediction === 'up').length,
+          bearishSignals: signals.filter(s => s.prediction === 'down').length,
+          neutralSignals: signals.filter(s => s.prediction === 'neutral').length,
+          generatedAt: new Date().toISOString(),
+          symbols: signals.map(s => s.symbol)
+        }
+      };
+
+      await this.retry(
+        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(signalsData), {
+          expirationTtl: TTL_CONFIG.SIGNAL_DATA
+        }),
+        'storeHighConfidenceSignals'
+      );
+
+      // Update cache
+      this.cache.set(key, signalsData);
+
+      logger.info('Stored high-confidence signals', {
+        date: dateStr,
+        signalCount: signals.length,
+        highConfidenceCount: signalsData.metadata.highConfidenceSignals,
+        averageConfidence: signalsData.metadata.averageConfidence.toFixed(1)
+      });
+
+      return {
+        success: true,
+        key,
+        ttl: TTL_CONFIG.SIGNAL_DATA
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to store high-confidence signals', {
+        date: dateStr,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        key,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get high-confidence signals for a specific date
+   */
+  async getHighConfidenceSignals(
+    date: Date | string
+  ): Promise<KVReadResult<HighConfidenceSignalsData>> {
+    const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    const key = `high_confidence_signals_${dateStr}`;
+
+    // Check cache first
+    if (this.cache.has(key)) {
+      this.hitCount++;
+      return {
+        success: true,
+        data: this.cache.get(key),
+        key,
+        source: 'cache'
+      };
+    }
+
+    try {
+      const data = await this.retry(
+        () => this.env.TRADING_RESULTS.get(key),
+        'getHighConfidenceSignals'
+      );
+
+      if (data) {
+        const parsed = JSON.parse(data as string) as HighConfidenceSignalsData;
+        this.cache.set(key, parsed);
+        this.missCount++;
+        return {
+          success: true,
+          data: parsed,
+          key,
+          source: 'kv'
+        };
+      }
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: 'High-confidence signals not found'
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to retrieve high-confidence signals', {
+        date: dateStr,
+        error: error.message
+      });
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Update signal tracking data in real-time
+   */
+  async updateSignalTracking(
+    signalId: string,
+    trackingData: Partial<SignalTrackingData>,
+    date: Date | string
+  ): Promise<KVWriteResult> {
+    const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    const key = `signal_tracking_${dateStr}`;
+
+    try {
+      const existingResult = await this.getSignalTracking(date);
+
+      let trackingRecord: SignalTrackingRecord;
+      if (existingResult.success && existingResult.data) {
+        trackingRecord = existingResult.data;
+      } else {
+        trackingRecord = {
+          date: dateStr,
+          signals: [],
+          lastUpdated: new Date().toISOString()
+        };
+      }
+
+      // Find and update the signal
+      const signalIndex = trackingRecord.signals.findIndex(s => s.id === signalId);
+      if (signalIndex >= 0) {
+        trackingRecord.signals[signalIndex] = {
+          ...trackingRecord.signals[signalIndex],
+          ...trackingData,
+          lastUpdated: new Date().toISOString()
+        };
+      } else {
+        // Add new signal
+        trackingRecord.signals.push({
+          id: signalId,
+          ...trackingData,
+          createdAt: new Date().toISOString()
+        } as SignalTrackingData);
+      }
+
+      trackingRecord.lastUpdated = new Date().toISOString();
+
+      await this.retry(
+        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(trackingRecord), {
+          expirationTtl: TTL_CONFIG.SIGNAL_DATA
+        }),
+        'updateSignalTracking'
+      );
+
+      // Update cache
+      this.cache.set(key, trackingRecord);
+
+      logger.debug('Updated signal tracking', {
+        signalId,
+        date: dateStr,
+        status: trackingData.status
+      });
+
+      return {
+        success: true,
+        key,
+        ttl: TTL_CONFIG.SIGNAL_DATA
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to update signal tracking', {
+        signalId,
+        date: dateStr,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        key,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get signal tracking data for a date
+   */
+  async getSignalTracking(
+    date: Date | string
+  ): Promise<KVReadResult<SignalTrackingRecord>> {
+    const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    const key = `signal_tracking_${dateStr}`;
+
+    // Check cache first
+    if (this.cache.has(key)) {
+      this.hitCount++;
+      return {
+        success: true,
+        data: this.cache.get(key),
+        key,
+        source: 'cache'
+      };
+    }
+
+    try {
+      const data = await this.retry(
+        () => this.env.TRADING_RESULTS.get(key),
+        'getSignalTracking'
+      );
+
+      if (data) {
+        const parsed = JSON.parse(data as string) as SignalTrackingRecord;
+        this.cache.set(key, parsed);
+        this.missCount++;
+        return {
+          success: true,
+          data: parsed,
+          key,
+          source: 'kv'
+        };
+      }
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: 'Signal tracking not found'
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to retrieve signal tracking', {
+        date: dateStr,
+        error: error.message
+      });
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Store market prices for real-time tracking
+   */
+  async storeMarketPrices(
+    symbol: string,
+    priceData: Omit<MarketPriceData, 'symbol' | 'timestamp'>
+  ): Promise<KVWriteResult> {
+    const key = `market_prices_${symbol}`;
+
+    try {
+      const marketData: MarketPriceData = {
+        symbol,
+        currentPrice: priceData.currentPrice,
+        timestamp: new Date().toISOString(),
+        priceHistory: priceData.priceHistory || [],
+        volume: priceData.volume,
+        change: priceData.change,
+        changePercent: priceData.changePercent
+      };
+
+      await this.retry(
+        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(marketData), {
+          expirationTtl: TTL_CONFIG.MARKET_PRICES
+        }),
+        'storeMarketPrices'
+      );
+
+      // Update cache
+      this.cache.set(key, marketData);
+
+      logger.debug('Stored market prices', {
+        symbol,
+        currentPrice: priceData.currentPrice,
+        changePercent: priceData.changePercent
+      });
+
+      return {
+        success: true,
+        key,
+        ttl: TTL_CONFIG.MARKET_PRICES
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to store market prices', {
+        symbol,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        key,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get current market prices
+   */
+  async getMarketPrices(symbol: string): Promise<KVReadResult<MarketPriceData>> {
+    const key = `market_prices_${symbol}`;
+
+    // Check cache first
+    if (this.cache.has(key)) {
+      this.hitCount++;
+      return {
+        success: true,
+        data: this.cache.get(key),
+        key,
+        source: 'cache'
+      };
+    }
+
+    try {
+      const data = await this.retry(
+        () => this.env.TRADING_RESULTS.get(key),
+        'getMarketPrices'
+      );
+
+      if (data) {
+        const parsed = JSON.parse(data as string) as MarketPriceData;
+        this.cache.set(key, parsed);
+        this.missCount++;
+        return {
+          success: true,
+          data: parsed,
+          key,
+          source: 'kv'
+        };
+      }
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: 'Market prices not found'
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to retrieve market prices', {
+        symbol,
+        error: error.message
+      });
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Store daily report data
+   */
+  async storeDailyReport(
+    reportType: 'pre-market' | 'intraday' | 'end-of-day',
+    date: Date | string,
+    reportData: any
+  ): Promise<KVWriteResult> {
+    const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    let key: string;
+
+    switch (reportType) {
+      case 'pre-market':
+        key = `pre_market_briefing_${dateStr}`;
+        break;
+      case 'intraday':
+        key = `intraday_check_${dateStr}`;
+        break;
+      case 'end-of-day':
+        key = `end_of_day_summary_${dateStr}`;
+        break;
+      default:
+        logger.error('Unknown report type', { reportType });
+        return {
+          success: false,
+          key: '',
+          error: 'Unknown report type'
+        };
+    }
+
+    try {
+      const enhancedReportData: DailyReport = {
+        ...reportData,
+        metadata: {
+          reportType,
+          date: dateStr,
+          generatedAt: new Date().toISOString(),
+          version: '1.0'
+        }
+      };
+
+      await this.retry(
+        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(enhancedReportData), {
+          expirationTtl: TTL_CONFIG.DAILY_REPORTS
+        }),
+        'storeDailyReport'
+      );
+
+      // Update cache
+      this.cache.set(key, enhancedReportData);
+
+      logger.info('Stored daily report', {
+        reportType,
+        date: dateStr,
+        dataSize: JSON.stringify(enhancedReportData).length
+      });
+
+      return {
+        success: true,
+        key,
+        ttl: TTL_CONFIG.DAILY_REPORTS
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to store daily report', {
+        reportType,
+        date: dateStr,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        key,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get daily report data
+   */
+  async getDailyReport(
+    reportType: 'pre-market' | 'intraday' | 'end-of-day',
+    date: Date | string
+  ): Promise<KVReadResult<DailyReport>> {
+    const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    let key: string;
+
+    switch (reportType) {
+      case 'pre-market':
+        key = `pre_market_briefing_${dateStr}`;
+        break;
+      case 'intraday':
+        key = `intraday_check_${dateStr}`;
+        break;
+      case 'end-of-day':
+        key = `end_of_day_summary_${dateStr}`;
+        break;
+      default:
+        logger.error('Unknown report type', { reportType });
+        return {
+          success: false,
+          key: '',
+          source: 'error',
+          error: 'Unknown report type'
+        };
+    }
+
+    // Check cache first
+    if (this.cache.has(key)) {
+      this.hitCount++;
+      return {
+        success: true,
+        data: this.cache.get(key),
+        key,
+        source: 'cache'
+      };
+    }
+
+    try {
+      const data = await this.retry(
+        () => this.env.TRADING_RESULTS.get(key),
+        'getDailyReport'
+      );
+
+      if (data) {
+        const parsed = JSON.parse(data as string) as DailyReport;
+        this.cache.set(key, parsed);
+        this.missCount++;
+        return {
+          success: true,
+          data: parsed,
+          key,
+          source: 'kv'
+        };
+      }
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: 'Daily report not found'
+      };
+
+    } catch (error: any) {
+      logger.error('Failed to retrieve daily report', {
+        reportType,
+        date: dateStr,
+        error: error.message
+      });
+
+      this.missCount++;
+      return {
+        success: false,
+        key,
+        source: 'error',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Get performance statistics
+   */
+  getPerformanceStats(): {
+    cacheHits: number;
+    cacheMisses: number;
+    totalRequests: number;
+    hitRate: number;
+    cacheSize: number;
+  } {
+    const totalRequests = this.hitCount + this.missCount;
+    const hitRate = totalRequests > 0 ? this.hitCount / totalRequests : 0;
+
+    return {
+      cacheHits: this.hitCount,
+      cacheMisses: this.missCount,
+      totalRequests,
+      hitRate: hitRate,
+      cacheSize: this.cache.size
+    };
+  }
+
+  /**
+   * Clear cache entries
+   */
+  clearCache(): void {
+    this.cache.clear();
+    this.hitCount = 0;
+    this.missCount = 0;
+    logger.info('Cleared DAL cache');
   }
 }
 
