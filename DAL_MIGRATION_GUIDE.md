@@ -24,7 +24,7 @@ This guide documents the complete migration of the trading system to use TypeScr
 
 **Operations Migrated**: 36 direct KV operations
 
-**Deployment**: Version 9f414c66-f306-49f0-a199-fa538fac5a90
+**Deployment**: Version 9f414c66-f306-49f0-a199-fa538fac5a90 (Historical - Phase 1)
 
 ### Phase 2: Core System Migration (2025-09-30)
 **Objective**: Migrate core system files to use TypeScript DAL
@@ -38,7 +38,7 @@ This guide documents the complete migration of the trading system to use TypeScr
 
 **Operations Migrated**: 26 direct KV operations
 
-**Deployment**: Version 08b4314a-e674-41d9-8bc2-e1deac69f4b6
+**Deployment**: Version 08b4314a-e674-41d9-8bc2-e1deac69f4b6 (Historical - Phase 2)
 
 ### Phase 3: High-Priority Files Migration (2025-09-30)
 **Objective**: Migrate high-priority handler and business logic files to TypeScript DAL
@@ -54,7 +54,7 @@ This guide documents the complete migration of the trading system to use TypeScr
 
 **Operations Migrated**: 31 direct KV operations
 
-**Deployment**: Version 088b3a81-c7e2-4cbe-ac63-2109b832becb
+**Deployment**: Version 088b3a81-c7e2-4cbe-ac63-2109b832becb (Historical - Phase 3)
 
 ### Phase 4: Business Logic & Handler Completion (2025-09-30)
 **Objective**: Complete migration of remaining business logic and legacy handler files
@@ -67,9 +67,11 @@ This guide documents the complete migration of the trading system to use TypeScr
 
 **Operations Migrated**: 18 direct KV operations
 
-**Deployment**: Version 757c5c64-c2f1-490a-b21d-2c8a1eb833b0
+**Deployment**: Version 757c5c64-c2f1-490a-b21d-2c8a1eb833b0 (Historical - Phase 4)
 
 **Verification**: Complete endpoint testing with production log evidence documented in PHASE_4_VERIFICATION_REPORT.md
+
+**Note**: Historical deployment versions track each phase. **Current production deployment**: b0b04ca1-4f41-4c1a-9a98-1808e8ac7ff8 (TypeScript-only architecture after legacy JS archive)
 
 ## Total Impact (All 4 Phases)
 

@@ -305,4 +305,4 @@ if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
 
 - [Message Tracking](./MESSAGE_TRACKING.md) - Platform-agnostic message tracking
 - [Data Access Layer](./DATA_ACCESS_LAYER.md) - TypeScript DAL for KV operations
-- [4-Report System](./4_REPORT_SYSTEM.md) - Complete daily trading cycle
+- [CLAUDE.md](../../CLAUDE.md) - Complete 4-report system documentation

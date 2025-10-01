@@ -63,7 +63,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Legacy Compatibility**: Seamless integration with existing 4-report system and Facebook messaging
 
 ### Centralized Configuration System
-- **Configuration Hub**: All system configuration centralized in `src/modules/config.js`
+- **Configuration Hub**: All system configuration centralized in `src/modules/config.ts` (TypeScript)
 - **Environment Integration**: Seamless environment variable integration with fallback defaults
 - **TTL Management**: Centralized TTL configuration for all KV storage operations
 - **Retry Configuration**: Standardized retry logic configuration for all async operations
@@ -220,12 +220,12 @@ src/modules/
 │   ├── facebook.ts          - Pure messaging layer with message tracking integration (5 functions refactored, 36+ KV ops removed)
 │   └── scheduler.ts         - Cron job management with proper handler imports
 │
-├── **JavaScript Modules (Legacy/Utilities):**
+├── **JavaScript Modules (Utilities - Not Yet Migrated):**
 │   ├── rate-limiter.js      - Yahoo Finance API rate limiting (20 req/min) with exponential backoff
 │   ├── market-data-cache.js - Market data caching system (5-min TTL) with performance tracking
 │   ├── validation.js        - Comprehensive data validation and input sanitization
 │   ├── monitoring.js        - Performance & business metrics (enhanced with KPIs)
-│   ├── routes.js            - Enhanced routing with observability
+│   ├── routes.js            - Legacy routing with observability
 │   ├── daily-summary.js     - Daily summary generation
 │   ├── timezone-utils.js    - EST/EDT standardization
 │   ├── backfill.js          - Historical data management
@@ -247,6 +247,7 @@ src/modules/
 │
 └── **Routing Modules:**
     ├── router/index.ts      - Main TypeScript router
+    ├── routes-new.ts        - New routing architecture (TypeScript)
     └── routes/
         ├── admin-routes.ts
         ├── analysis-routes.ts
@@ -292,7 +293,7 @@ src/modules/
 - **Facebook Testing**: `/send-real-facebook` - Send real Facebook messages with trading analysis
 
 ### Configuration Management
-- **Centralized Configuration**: All hardcoded values centralized in `src/modules/config.js` with environment variable integration
+- **Centralized Configuration**: All hardcoded values centralized in `src/modules/config.ts` with environment variable integration (TypeScript)
 - **Environment Variables**: `TRADING_SYMBOLS`, `LOG_LEVEL`, `STRUCTURED_LOGGING`, `GPT_MAX_TOKENS`, `GPT_TEMPERATURE`, etc.
 - **TTL Management**: Centralized TTL configuration for KV operations (analysis, granular, daily_summary, status, report_cache, metadata)
 - **Market Data**: `MARKET_DATA_CACHE_TTL`, `YAHOO_FINANCE_RATE_LIMIT`, `RATE_LIMIT_WINDOW` for API management
