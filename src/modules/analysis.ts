@@ -11,6 +11,7 @@ import { withCache, getCacheStats, type CacheStats } from './market-data-cache.j
 import { createLogger } from './logging.js';
 import { createDAL, type DataAccessLayer } from './dal.js';
 import type { CloudflareEnvironment } from '../types.js';
+import { isSignalTrackingData } from '../types.js';
 
 const logger = createLogger('analysis');
 
@@ -506,8 +507,12 @@ export async function getHighConfidenceSignalsForTracking(env: CloudflareEnviron
     const dal: DataAccessLayer = createDAL(env);
     const result = await dal.read(trackingKey);
     if (result.success && result.data) {
-      const trackingData = result.data as SignalTrackingData;
-      return trackingData.signals as unknown as HighConfidenceSignal[] || [];
+      // Use type guard instead of type assertion
+      if (isSignalTrackingData(result.data)) {
+        return result.data.signals as unknown as HighConfidenceSignal[] || [];
+      } else {
+        logger.warn('Invalid signal tracking data structure', { date: dateStr });
+      }
     }
   } catch (error: any) {
     logger.error('Failed to retrieve signals for tracking', {
@@ -536,23 +541,27 @@ export async function updateSignalPerformanceTracking(
     const result = await dal.read(trackingKey);
 
     if (result.success && result.data) {
-      const parsed = result.data as SignalTrackingData;
-      const signal = parsed.signals.find(s => s.id === signalId);
+      // Use type guard instead of type assertion
+      if (isSignalTrackingData(result.data)) {
+        const signal = result.data.signals.find(s => s.id === signalId);
 
-      if (signal) {
-        signal.tracking.intradayPerformance = performanceData;
-        signal.status = performanceData.status || signal.status;
+        if (signal) {
+          signal.tracking.intradayPerformance = performanceData;
+          signal.status = performanceData.status || signal.status;
 
-        const writeResult = await dal.write(trackingKey, parsed);
-        if (!writeResult.success) {
-          logger.warn('Failed to update tracking data', { error: writeResult.error });
+          const writeResult = await dal.write(trackingKey, result.data);
+          if (!writeResult.success) {
+            logger.warn('Failed to update tracking data', { error: writeResult.error });
+          }
+
+          logger.debug('Updated signal performance tracking', {
+            signalId,
+            symbol: signal.symbol,
+            status: signal.status
+          });
         }
-
-        logger.debug('Updated signal performance tracking', {
-          signalId,
-          symbol: signal.symbol,
-          status: signal.status
-        });
+      } else {
+        logger.warn('Invalid signal tracking data structure for update', { date: dateStr });
       }
     }
   } catch (error: any) {

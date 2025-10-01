@@ -428,3 +428,123 @@ export interface RetryOptions {
   timeout?: number;
   onRetry?: (attempt: number, error: Error) => void;
 }
+
+// ============================================================================
+// Type Guard Functions
+// ============================================================================
+
+/**
+ * Type guard for SignalTrackingData
+ */
+export function isSignalTrackingData(value: unknown): value is SignalTrackingData {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.date === 'string' &&
+    Array.isArray(data.signals) &&
+    typeof data.metadata === 'object' &&
+    typeof data.metadata.total_signals === 'number'
+  );
+}
+
+/**
+ * Type guard for AnalysisResult
+ */
+export function isAnalysisResult(value: unknown): value is AnalysisResult {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.date === 'string' &&
+    Array.isArray(data.symbols) &&
+    typeof data.summary === 'object' &&
+    typeof data.summary.total_symbols === 'number' &&
+    typeof data.metadata === 'object'
+  );
+}
+
+/**
+ * Type guard for DualAISignal
+ */
+export function isDualAISignal(value: unknown): value is DualAISignal {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.symbol === 'string' &&
+    typeof data.models === 'object' &&
+    typeof data.comparison === 'object' &&
+    typeof data.final_signal === 'string' &&
+    typeof data.confidence === 'number'
+  );
+}
+
+/**
+ * Type guard for MessageTracking
+ */
+export function isMessageTracking(value: unknown): value is MessageTracking {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.tracking_id === 'string' &&
+    typeof data.platform === 'string' &&
+    typeof data.message_type === 'string' &&
+    typeof data.recipient_id === 'string' &&
+    typeof data.status === 'string' &&
+    typeof data.error_count === 'number'
+  );
+}
+
+/**
+ * Type guard for SymbolAnalysis
+ */
+export function isSymbolAnalysis(value: unknown): value is SymbolAnalysis {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.symbol === 'string' &&
+    typeof data.confidence === 'number' &&
+    typeof data.timestamp === 'string'
+  );
+}
+
+/**
+ * Type guard for KVResult
+ */
+export function isKVResult<T>(value: unknown): value is KVResult<T> {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.success === 'boolean' &&
+    (data.data !== undefined || data.error !== undefined)
+  );
+}
+
+/**
+ * Type guard for ApiResponse
+ */
+export function isApiResponse<T>(value: unknown): value is ApiResponse<T> {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return typeof data.success === 'boolean';
+}
+
+/**
+ * Type guard for SystemHealth
+ */
+export function isSystemHealth(value: unknown): value is SystemHealth {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as any;
+
+  return (
+    typeof data.success === 'boolean' &&
+    typeof data.status === 'string' &&
+    typeof data.version === 'string' &&
+    typeof data.services === 'object'
+  );
+}
