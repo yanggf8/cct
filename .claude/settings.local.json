@@ -157,7 +157,8 @@
       "Bash(jq -c '{success, date: .data.date, system_status: .data.summary.system_status}' echo \"\" echo \"Test 4: KV Debug (dal.ts write/read operations)\" curl -s \"https://tft-trading-system.yanggf.workers.dev/kv-debug\")",
       "Bash(jq -c '{success, message, kv_binding}' echo \"\" echo \"Test 5: Results Endpoint (data.ts operations)\" curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/results\")",
       "Bash(/tmp/verify_typescript.sh:*)",
-      "Bash(do echo:*)"
+      "Bash(do echo:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []
