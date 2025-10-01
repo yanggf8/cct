@@ -68,3 +68,8 @@ For up-to-date TypeScript migration information, refer to:
 - **Deployment Version**: e129d624-76c3-44b1-ab6b-54a74f555d36
 
 **Status**: ✅ ALL 4 PHASES COMPLETE & VERIFIED IN PRODUCTION (100% TypeScript coverage)
+
+## Related Archives
+
+- **Legacy JavaScript Modules**: `/archive/legacy-js-modules/` - 7 obsolete .js files with TypeScript equivalents
+  - See `/archive/legacy-js-modules/README.md` for details
