@@ -10,7 +10,8 @@
 
 ### ✅ PRODUCTION-READY SYSTEM WITH COMPLETE TYPESCRIPT MIGRATION (2025-10-01)
 - **Live System**: https://tft-trading-system.yanggf.workers.dev
-- **Deployment Version**: e129d624-76c3-44b1-ab6b-54a74f555d36 ✅ **VERIFIED OPERATIONAL**
+- **Deployment Version**: b0b04ca1-4f41-4c1a-9a98-1808e8ac7ff8 ✅ **VERIFIED OPERATIONAL**
+- **Legacy JS Archived**: 7 obsolete .js files archived (100% TypeScript core)
 - **System Health**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade with full TypeScript coverage
 - **AI Models**: ✅ **DUAL AI SYSTEM** - GPT-OSS-120B + DistilBERT-SST-2 with simple agreement logic
 - **Agreement Logic**: ✅ **TRANSPARENT** - Simple AGREE/PARTIAL_AGREE/DISAGREE classification

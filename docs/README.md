@@ -15,7 +15,8 @@ This project uses a production-ready enterprise architecture with **100% TypeScr
 - **[Phase 2 Complete](./REFACTORING_PHASE_2_COMPLETE.md)** - Infrastructure TypeScript migration (6 files)
 - **[Phase 3 Complete](./REFACTORING_PHASE_3_COMPLETE.md)** - Business logic TypeScript migration (4 files)
 - **[Phase 4 Complete](./REFACTORING_PHASE_4_COMPLETE.md)** - Data & messaging TypeScript migration (3 files)
-- **[Production Verification](./TYPESCRIPT_VERIFICATION_EVIDENCE.md)** ✨ NEW - Live testing evidence with worker logs
+- **[Production Verification](./TYPESCRIPT_VERIFICATION_EVIDENCE.md)** - Initial TypeScript verification (Deployment: e129d624)
+- **[Legacy JS Archive Verification](./TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)** ✨ NEW - Post-archive verification (Deployment: b0b04ca1)
 
 ## Current System Documentation
 

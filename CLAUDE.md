@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-10-01 (100/100 Production-Ready Enterprise Architecture with Complete TypeScript Migration)
+**Current Version**: 2025-10-01 (100/100 Production-Ready Enterprise Architecture with 100% TypeScript Core)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **Deployment Version**: e129d624-76c3-44b1-ab6b-54a74f555d36 ✅ **VERIFIED OPERATIONAL**
+- **Deployment Version**: b0b04ca1-4f41-4c1a-9a98-1808e8ac7ff8 ✅ **VERIFIED OPERATIONAL**
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI trading system with full TypeScript coverage
-- **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with complete TypeScript migration
-- **Production Verification**: ✅ **COMPLETE** - Live testing with worker logs captured (see TYPESCRIPT_VERIFICATION_EVIDENCE.md)
+- **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with 100% TypeScript core (legacy JS archived)
+- **Production Verification**: ✅ **COMPLETE** - TypeScript-only architecture verified (see TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)
 - **AI Models**: ✅ **DUAL AI SYSTEM** - GPT-OSS-120B + DistilBERT-SST-2 with simple agreement logic
 - **Agreement Logic**: ✅ **TRANSPARENT** - AGREE/PARTIAL_AGREE/DISAGREE classification instead of complex consensus
 - **Signal Generation**: ✅ **CLEAR RULES** - AGREEMENT → STRONG_BUY/STRONG_SELL, DISAGREEMENT → AVOID

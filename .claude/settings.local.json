@@ -150,7 +150,13 @@
       "Bash(then echo \"$base: HAS TS\")",
       "Bash(do if [ -f \"$f.ts\" ])",
       "Bash(then echo \"$f: HAS TS VERSION\")",
-      "Bash(else echo \"$f: JS ONLY\")"
+      "Bash(else echo \"$f: JS ONLY\")",
+      "Bash(jq '{success, status, version, services}' echo \"\" echo \"=== Test 2: Model Health ===\" curl -s \"https://tft-trading-system.yanggf.workers.dev/model-health\")",
+      "Bash(jq '{timestamp, models: {gpt_oss_120b: .models.gpt_oss_120b.status, distilbert: .models.distilbert.status}, overall_status}' echo \"\" echo \"=== Test 3: Data Retrieval (Results) ===\" curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/results\")",
+      "Bash(jq -c '{success, status, version}' echo \"\" echo \"Test 2: Model Health (AI integration with TypeScript handlers)\" curl -s \"https://tft-trading-system.yanggf.workers.dev/model-health\")",
+      "Bash(jq -c '{success, date: .data.date, system_status: .data.summary.system_status}' echo \"\" echo \"Test 4: KV Debug (dal.ts write/read operations)\" curl -s \"https://tft-trading-system.yanggf.workers.dev/kv-debug\")",
+      "Bash(jq -c '{success, message, kv_binding}' echo \"\" echo \"Test 5: Results Endpoint (data.ts operations)\" curl -s -H \"X-API-KEY: yanggf\" \"https://tft-trading-system.yanggf.workers.dev/results\")",
+      "Bash(/tmp/verify_typescript.sh:*)"
     ],
     "deny": [],
     "ask": []
