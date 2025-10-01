@@ -6,7 +6,7 @@
 import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
 import { validateKVKey, validateEnvironment, validateDate, safeValidate } from './validation.js';
 import { KVUtils } from './shared-utilities.js';
-import { getKVTTl } from './config.js';
+import { getKVTTL } from './config.js';
 import { KVKeyFactory, KeyHelpers, KeyTypes } from './kv-key-factory.js';
 import { createDAL } from './dal.js';
 
