@@ -234,26 +234,42 @@ export class DataAccessLayer {
   }
 
   /**
-   * Read analysis data for a specific date
+   * Generic read helper with cache support
+   * Reduces code duplication across all read methods
    */
-  async getAnalysis(date: string): Promise<KVReadResult<AnalysisData>> {
-    const key = KVKeyFactory.generateKey(KeyTypes.ANALYSIS, { date });
+  private async _genericRead<T>(
+    key: string,
+    operationName: string,
+    useCache: boolean = false
+  ): Promise<KVReadResult<T>> {
+    // Check cache first if enabled
+    if (useCache && this.cache.has(key)) {
+      this.hitCount++;
+      logger.debug(`Cache hit for ${operationName}`, { key });
+      return {
+        success: true,
+        data: this.cache.get(key) as T,
+        key,
+        source: 'cache',
+      };
+    }
 
     try {
-      logger.info('Reading analysis from KV', { key, date });
-
       const data = await this.retry(
         () => this.env.TRADING_RESULTS.get(key),
-        'getAnalysis'
+        operationName
       );
 
       if (data) {
-        const parsed = this.safeJsonParse<AnalysisData>(data as string, 'getAnalysis');
-        logger.info('Analysis retrieved successfully', {
-          key,
-          symbolsCount: parsed.symbols_analyzed?.length ?? 0,
-        });
+        const parsed = this.safeJsonParse<T>(data as string, operationName);
 
+        // Update cache if enabled
+        if (useCache) {
+          this.cache.set(key, parsed);
+          this.missCount++;
+        }
+
+        logger.debug(`${operationName} successful`, { key });
         return {
           success: true,
           data: parsed,
@@ -262,18 +278,25 @@ export class DataAccessLayer {
         };
       }
 
-      logger.warn('No analysis found for date', { key, date });
+      if (useCache) {
+        this.missCount++;
+      }
+
+      logger.warn(`${operationName}: Data not found`, { key });
       return {
         success: false,
         key,
         source: 'error',
-        error: 'Analysis not found',
+        error: 'Data not found',
       };
 
     } catch (error: any) {
-      logger.error('Failed to read analysis', {
+      if (useCache) {
+        this.missCount++;
+      }
+
+      logger.error(`${operationName} failed`, {
         key,
-        date,
         error: error.message,
         stack: error.stack,
       });
@@ -285,6 +308,75 @@ export class DataAccessLayer {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Generic write helper with automatic TTL management
+   * Reduces code duplication across all write methods
+   */
+  private async _genericWrite<T>(
+    key: string,
+    data: T,
+    operationName: string,
+    options?: KVWriteOptions
+  ): Promise<KVWriteResult> {
+    try {
+      const serialized = JSON.stringify(data);
+
+      await this.retry(
+        () => this.env.TRADING_RESULTS.put(key, serialized, options),
+        operationName
+      );
+
+      // Invalidate cache on write
+      if (this.cache.has(key)) {
+        this.cache.delete(key);
+      }
+
+      logger.info(`${operationName} successful`, {
+        key,
+        ttl: options?.expirationTtl,
+        dataSize: serialized.length,
+      });
+
+      return {
+        success: true,
+        key,
+        ttl: options?.expirationTtl,
+      };
+
+    } catch (error: any) {
+      logger.error(`${operationName} failed`, {
+        key,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        key,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Read analysis data for a specific date
+   */
+  async getAnalysis(date: string): Promise<KVReadResult<AnalysisData>> {
+    const key = KVKeyFactory.generateKey(KeyTypes.ANALYSIS, { date });
+    logger.info('Reading analysis from KV', { key, date });
+
+    const result = await this._genericRead<AnalysisData>(key, 'getAnalysis', false);
+
+    if (result.success && result.data) {
+      logger.info('Analysis retrieved successfully', {
+        key,
+        symbolsCount: result.data.symbols_analyzed?.length ?? 0,
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -297,42 +389,14 @@ export class DataAccessLayer {
   ): Promise<KVWriteResult> {
     const key = KVKeyFactory.generateKey(KeyTypes.ANALYSIS, { date });
 
-    try {
-      logger.info('Writing analysis to KV', {
-        key,
-        date,
-        symbolsCount: data.symbols_analyzed?.length ?? 0,
-      });
+    logger.info('Writing analysis to KV', {
+      key,
+      date,
+      symbolsCount: data.symbols_analyzed?.length ?? 0,
+    });
 
-      const kvOptions: KVWriteOptions = options ?? KeyHelpers.getKVOptions(KeyTypes.ANALYSIS);
-
-      await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(data), kvOptions),
-        'storeAnalysis'
-      );
-
-      logger.info('Analysis stored successfully', { key, ttl: kvOptions.expirationTtl });
-
-      return {
-        success: true,
-        key,
-        ttl: kvOptions.expirationTtl,
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to write analysis', {
-        key,
-        date,
-        error: error.message,
-        stack: error.stack,
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message,
-      };
-    }
+    const kvOptions: KVWriteOptions = options ?? KeyHelpers.getKVOptions(KeyTypes.ANALYSIS);
+    return await this._genericWrite<AnalysisData>(key, data, 'storeAnalysis', kvOptions);
   }
 
   /**
@@ -340,46 +404,8 @@ export class DataAccessLayer {
    */
   async getManualAnalysis(timestamp: number): Promise<KVReadResult<AnalysisData>> {
     const key = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, { timestamp });
-
-    try {
-      logger.info('Reading manual analysis from KV', { key, timestamp });
-
-      const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
-        'getManualAnalysis'
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<AnalysisData>(data as string, 'getManualAnalysis');
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv',
-        };
-      }
-
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'Manual analysis not found',
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to read manual analysis', {
-        key,
-        timestamp,
-        error: error.message,
-      });
-
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message,
-      };
-    }
+    logger.info('Reading manual analysis from KV', { key, timestamp });
+    return await this._genericRead<AnalysisData>(key, 'getManualAnalysis', false);
   }
 
   /**
@@ -390,46 +416,16 @@ export class DataAccessLayer {
     data: AnalysisData
   ): Promise<KVWriteResult> {
     const key = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, { timestamp });
+    logger.info('Writing manual analysis to KV', { key, timestamp });
 
-    try {
-      logger.info('Writing manual analysis to KV', { key, timestamp });
+    const enhancedData = {
+      ...data,
+      analysis_type: 'manual_on_demand',
+      generated_at: new Date().toISOString(),
+    };
 
-      const kvOptions: KVWriteOptions = KeyHelpers.getKVOptions(KeyTypes.MANUAL_ANALYSIS);
-
-      await this.retry(
-        () => this.env.TRADING_RESULTS.put(
-          key,
-          JSON.stringify({
-            ...data,
-            analysis_type: 'manual_on_demand',
-            generated_at: new Date().toISOString(),
-          }),
-          kvOptions
-        ),
-        'storeManualAnalysis'
-      );
-
-      logger.info('Manual analysis stored successfully', { key, ttl: kvOptions.expirationTtl });
-
-      return {
-        success: true,
-        key,
-        ttl: kvOptions.expirationTtl,
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to write manual analysis', {
-        key,
-        timestamp,
-        error: error.message,
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message,
-      };
-    }
+    const kvOptions: KVWriteOptions = KeyHelpers.getKVOptions(KeyTypes.MANUAL_ANALYSIS);
+    return await this._genericWrite<typeof enhancedData>(key, enhancedData, 'storeManualAnalysis', kvOptions);
   }
 
   /**
@@ -590,57 +586,40 @@ export class DataAccessLayer {
     const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
     const key = `high_confidence_signals_${dateStr}`;
 
-    try {
-      const signalsData: HighConfidenceSignalsData = {
-        date: dateStr,
-        signals: signals,
-        metadata: {
-          totalSignals: signals.length,
-          highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
-          averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
-          bullishSignals: signals.filter(s => s.prediction === 'up').length,
-          bearishSignals: signals.filter(s => s.prediction === 'down').length,
-          neutralSignals: signals.filter(s => s.prediction === 'neutral').length,
-          generatedAt: new Date().toISOString(),
-          symbols: signals.map(s => s.symbol)
-        }
-      };
+    const signalsData: HighConfidenceSignalsData = {
+      date: dateStr,
+      signals: signals,
+      metadata: {
+        totalSignals: signals.length,
+        highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
+        averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+        bullishSignals: signals.filter(s => s.prediction === 'up').length,
+        bearishSignals: signals.filter(s => s.prediction === 'down').length,
+        neutralSignals: signals.filter(s => s.prediction === 'neutral').length,
+        generatedAt: new Date().toISOString(),
+        symbols: signals.map(s => s.symbol)
+      }
+    };
 
-      await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(signalsData), {
-          expirationTtl: TTL_CONFIG.SIGNAL_DATA
-        }),
-        'storeHighConfidenceSignals'
-      );
+    logger.info('Storing high-confidence signals', {
+      date: dateStr,
+      signalCount: signals.length,
+      highConfidenceCount: signalsData.metadata.highConfidenceSignals,
+    });
 
-      // Update cache
+    const result = await this._genericWrite<HighConfidenceSignalsData>(
+      key,
+      signalsData,
+      'storeHighConfidenceSignals',
+      { expirationTtl: TTL_CONFIG.SIGNAL_DATA }
+    );
+
+    // Update cache on successful write
+    if (result.success) {
       this.cache.set(key, signalsData);
-
-      logger.info('Stored high-confidence signals', {
-        date: dateStr,
-        signalCount: signals.length,
-        highConfidenceCount: signalsData.metadata.highConfidenceSignals,
-        averageConfidence: signalsData.metadata.averageConfidence.toFixed(1)
-      });
-
-      return {
-        success: true,
-        key,
-        ttl: TTL_CONFIG.SIGNAL_DATA
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to store high-confidence signals', {
-        date: dateStr,
-        error: error.message
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message
-      };
     }
+
+    return result;
   }
 
   /**
@@ -651,58 +630,7 @@ export class DataAccessLayer {
   ): Promise<KVReadResult<HighConfidenceSignalsData>> {
     const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
     const key = `high_confidence_signals_${dateStr}`;
-
-    // Check cache first
-    if (this.cache.has(key)) {
-      this.hitCount++;
-      return {
-        success: true,
-        data: this.cache.get(key),
-        key,
-        source: 'cache'
-      };
-    }
-
-    try {
-      const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
-        'getHighConfidenceSignals'
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<HighConfidenceSignalsData>(data as string, 'getHighConfidenceSignals');
-        this.cache.set(key, parsed);
-        this.missCount++;
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv'
-        };
-      }
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'High-confidence signals not found'
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to retrieve high-confidence signals', {
-        date: dateStr,
-        error: error.message
-      });
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message
-      };
-    }
+    return await this._genericRead<HighConfidenceSignalsData>(key, 'getHighConfidenceSignals', true);
   }
 
   /**
@@ -716,74 +644,53 @@ export class DataAccessLayer {
     const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
     const key = `signal_tracking_${dateStr}`;
 
-    try {
-      const existingResult = await this.getSignalTracking(date);
+    const existingResult = await this.getSignalTracking(date);
 
-      let trackingRecord: SignalTrackingRecord;
-      if (existingResult.success && existingResult.data) {
-        trackingRecord = existingResult.data;
-      } else {
-        trackingRecord = {
-          date: dateStr,
-          signals: [],
-          lastUpdated: new Date().toISOString()
-        };
-      }
-
-      // Find and update the signal
-      const signalIndex = trackingRecord.signals.findIndex(s => s.id === signalId);
-      if (signalIndex >= 0) {
-        trackingRecord.signals[signalIndex] = {
-          ...trackingRecord.signals[signalIndex],
-          ...trackingData,
-          lastUpdated: new Date().toISOString()
-        };
-      } else {
-        // Add new signal
-        trackingRecord.signals.push({
-          id: signalId,
-          ...trackingData,
-          createdAt: new Date().toISOString()
-        } as SignalTrackingData);
-      }
-
-      trackingRecord.lastUpdated = new Date().toISOString();
-
-      await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(trackingRecord), {
-          expirationTtl: TTL_CONFIG.SIGNAL_DATA
-        }),
-        'updateSignalTracking'
-      );
-
-      // Update cache
-      this.cache.set(key, trackingRecord);
-
-      logger.debug('Updated signal tracking', {
-        signalId,
+    let trackingRecord: SignalTrackingRecord;
+    if (existingResult.success && existingResult.data) {
+      trackingRecord = existingResult.data;
+    } else {
+      trackingRecord = {
         date: dateStr,
-        status: trackingData.status
-      });
-
-      return {
-        success: true,
-        key,
-        ttl: TTL_CONFIG.SIGNAL_DATA
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to update signal tracking', {
-        signalId,
-        date: dateStr,
-        error: error.message
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message
+        signals: [],
+        lastUpdated: new Date().toISOString()
       };
     }
+
+    // Find and update the signal
+    const signalIndex = trackingRecord.signals.findIndex(s => s.id === signalId);
+    if (signalIndex >= 0) {
+      trackingRecord.signals[signalIndex] = {
+        ...trackingRecord.signals[signalIndex],
+        ...trackingData,
+        lastUpdated: new Date().toISOString()
+      };
+    } else {
+      // Add new signal
+      trackingRecord.signals.push({
+        id: signalId,
+        ...trackingData,
+        createdAt: new Date().toISOString()
+      } as SignalTrackingData);
+    }
+
+    trackingRecord.lastUpdated = new Date().toISOString();
+
+    logger.debug('Updating signal tracking', { signalId, date: dateStr, status: trackingData.status });
+
+    const result = await this._genericWrite<SignalTrackingRecord>(
+      key,
+      trackingRecord,
+      'updateSignalTracking',
+      { expirationTtl: TTL_CONFIG.SIGNAL_DATA }
+    );
+
+    // Update cache on successful write
+    if (result.success) {
+      this.cache.set(key, trackingRecord);
+    }
+
+    return result;
   }
 
   /**
@@ -794,58 +701,7 @@ export class DataAccessLayer {
   ): Promise<KVReadResult<SignalTrackingRecord>> {
     const dateStr = typeof date === 'string' ? date : date.toISOString().split('T')[0];
     const key = `signal_tracking_${dateStr}`;
-
-    // Check cache first
-    if (this.cache.has(key)) {
-      this.hitCount++;
-      return {
-        success: true,
-        data: this.cache.get(key),
-        key,
-        source: 'cache'
-      };
-    }
-
-    try {
-      const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
-        'getSignalTracking'
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<SignalTrackingRecord>(data as string, 'getSignalTracking');
-        this.cache.set(key, parsed);
-        this.missCount++;
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv'
-        };
-      }
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'Signal tracking not found'
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to retrieve signal tracking', {
-        date: dateStr,
-        error: error.message
-      });
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message
-      };
-    }
+    return await this._genericRead<SignalTrackingRecord>(key, 'getSignalTracking', true);
   }
 
   /**
@@ -857,51 +713,35 @@ export class DataAccessLayer {
   ): Promise<KVWriteResult> {
     const key = `market_prices_${symbol}`;
 
-    try {
-      const marketData: MarketPriceData = {
-        symbol,
-        currentPrice: priceData.currentPrice,
-        timestamp: new Date().toISOString(),
-        priceHistory: priceData.priceHistory || [],
-        volume: priceData.volume,
-        change: priceData.change,
-        changePercent: priceData.changePercent
-      };
+    const marketData: MarketPriceData = {
+      symbol,
+      currentPrice: priceData.currentPrice,
+      timestamp: new Date().toISOString(),
+      priceHistory: priceData.priceHistory || [],
+      volume: priceData.volume,
+      change: priceData.change,
+      changePercent: priceData.changePercent
+    };
 
-      await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(marketData), {
-          expirationTtl: TTL_CONFIG.MARKET_PRICES
-        }),
-        'storeMarketPrices'
-      );
+    logger.debug('Storing market prices', {
+      symbol,
+      currentPrice: priceData.currentPrice,
+      changePercent: priceData.changePercent
+    });
 
-      // Update cache
+    const result = await this._genericWrite<MarketPriceData>(
+      key,
+      marketData,
+      'storeMarketPrices',
+      { expirationTtl: TTL_CONFIG.MARKET_PRICES }
+    );
+
+    // Update cache on successful write
+    if (result.success) {
       this.cache.set(key, marketData);
-
-      logger.debug('Stored market prices', {
-        symbol,
-        currentPrice: priceData.currentPrice,
-        changePercent: priceData.changePercent
-      });
-
-      return {
-        success: true,
-        key,
-        ttl: TTL_CONFIG.MARKET_PRICES
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to store market prices', {
-        symbol,
-        error: error.message
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message
-      };
     }
+
+    return result;
   }
 
   /**
@@ -909,58 +749,7 @@ export class DataAccessLayer {
    */
   async getMarketPrices(symbol: string): Promise<KVReadResult<MarketPriceData>> {
     const key = `market_prices_${symbol}`;
-
-    // Check cache first
-    if (this.cache.has(key)) {
-      this.hitCount++;
-      return {
-        success: true,
-        data: this.cache.get(key),
-        key,
-        source: 'cache'
-      };
-    }
-
-    try {
-      const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
-        'getMarketPrices'
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<MarketPriceData>(data as string, 'getMarketPrices');
-        this.cache.set(key, parsed);
-        this.missCount++;
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv'
-        };
-      }
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'Market prices not found'
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to retrieve market prices', {
-        symbol,
-        error: error.message
-      });
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message
-      };
-    }
+    return await this._genericRead<MarketPriceData>(key, 'getMarketPrices', true);
   }
 
   /**
@@ -993,52 +782,31 @@ export class DataAccessLayer {
         };
     }
 
-    try {
-      const enhancedReportData: DailyReport = {
-        ...reportData,
-        metadata: {
-          reportType,
-          date: dateStr,
-          generatedAt: new Date().toISOString(),
-          version: '1.0'
-        }
-      };
+    const enhancedReportData: DailyReport = {
+      ...reportData,
+      metadata: {
+        reportType,
+        date: dateStr,
+        generatedAt: new Date().toISOString(),
+        version: '1.0'
+      }
+    };
 
-      await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(enhancedReportData), {
-          expirationTtl: TTL_CONFIG.DAILY_REPORTS
-        }),
-        'storeDailyReport'
-      );
+    logger.info('Storing daily report', { reportType, date: dateStr });
 
-      // Update cache
+    const result = await this._genericWrite<DailyReport>(
+      key,
+      enhancedReportData,
+      'storeDailyReport',
+      { expirationTtl: TTL_CONFIG.DAILY_REPORTS }
+    );
+
+    // Update cache on successful write
+    if (result.success) {
       this.cache.set(key, enhancedReportData);
-
-      logger.info('Stored daily report', {
-        reportType,
-        date: dateStr,
-        dataSize: JSON.stringify(enhancedReportData).length
-      });
-
-      return {
-        success: true,
-        key,
-        ttl: TTL_CONFIG.DAILY_REPORTS
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to store daily report', {
-        reportType,
-        date: dateStr,
-        error: error.message
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message
-      };
     }
+
+    return result;
   }
 
   /**
@@ -1071,58 +839,7 @@ export class DataAccessLayer {
         };
     }
 
-    // Check cache first
-    if (this.cache.has(key)) {
-      this.hitCount++;
-      return {
-        success: true,
-        data: this.cache.get(key),
-        key,
-        source: 'cache'
-      };
-    }
-
-    try {
-      const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
-        'getDailyReport'
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<DailyReport>(data as string, 'getDailyReport');
-        this.cache.set(key, parsed);
-        this.missCount++;
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv'
-        };
-      }
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'Daily report not found'
-      };
-
-    } catch (error: any) {
-      logger.error('Failed to retrieve daily report', {
-        reportType,
-        date: dateStr,
-        error: error.message
-      });
-
-      this.missCount++;
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message
-      };
-    }
+    return await this._genericRead<DailyReport>(key, 'getDailyReport', true);
   }
 
   /**
