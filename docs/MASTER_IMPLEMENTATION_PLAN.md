@@ -19,7 +19,7 @@
 - ❌ Facebook Messenger notifications (unreliable)
 - ❌ Stock-specific analysis only
 - ❌ Vanilla HTML interface
-- ❌ 8 desired events (limited by 3-cron Cloudflare restriction)
+- ❌ 8 desired events (limited by Cloudflare cron restrictions)
 
 ### **TO: Institutional-Grade Intelligence Platform**
 - ✅ Three-tier market intelligence (Market → Sector → Stock)
@@ -538,7 +538,7 @@
 ├─ Tomorrow outlook generation
 └─ Homepage latest report update
 
-Continuous (Durable Object - Every 15 min):
+Continuous (GitHub Actions - Every 15 min during market hours):
 ├─ VIX monitoring
 ├─ Yield curve tracking
 ├─ Dollar index updates
@@ -548,7 +548,7 @@ Continuous (Durable Object - Every 15 min):
 ### **Weekly Schedule**
 
 ```
-Sunday 10:00 AM ET (Cron 3 - Weekly):
+Sunday 10:00 AM ET (GitHub Actions):
 ├─ Weekly review generation
 ├─ Sector rotation heatmap (7-day)
 ├─ Market regime evolution analysis
@@ -560,13 +560,13 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 
 ## 🛠️ Technology Stack
 
-### **Backend (No Change)**
+### **Backend & Infrastructure**
 - Cloudflare Workers (Edge compute)
 - TypeScript (100% coverage)
 - Yahoo Finance API (market data)
 - FRED API (macro data - NEW)
 - KV Storage (data persistence)
-- Durable Objects (continuous monitoring - NEW)
+- **GitHub Actions (scheduling - NEW)** - Unlimited cron schedules, $0/month
 
 ### **Frontend (Major Upgrade)**
 
@@ -585,11 +585,11 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 | Yahoo Finance | Free | Stock/ETF/index data | ✅ Existing |
 | FRED API | Free | Macro economic data | 🆕 New |
 | News API | Free | Geopolitical news | ✅ Existing |
-| Cloudflare Workers | Free/Paid | Edge compute | ✅ Existing |
-| Cloudflare KV | Free/Paid | Data storage | ✅ Existing |
-| Cloudflare Durable Objects | Paid | Continuous monitoring | 🆕 New |
+| Cloudflare Workers | Free | Edge compute | ✅ Existing |
+| Cloudflare KV | Free | Data storage | ✅ Existing |
+| **GitHub Actions** | **Free** | **Scheduling (8+ jobs)** | **🆕 New** |
 
-**Total Additional Cost**: ~$5/month (Durable Objects usage)
+**Total Additional Cost**: **$0/month** ✅ (GitHub Actions free tier: 2000 min/month, we use ~175)
 
 ---
 
@@ -610,9 +610,9 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 - ✅ Data accuracy: 100%
 
 **Efficiency**:
-- ✅ Cron job reduction: 62.5% (8 → 3)
+- ✅ Unlimited scheduling capability (GitHub Actions)
 - ✅ API compliance: 100%
-- ✅ Cost: $5/month increase
+- ✅ Infrastructure cost: $0/month maintained
 
 ### **Business Metrics**
 
@@ -679,9 +679,9 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
    - Navigation architecture
 
 4. **CRON_OPTIMIZATION.md**
-   - 3-cron strategy
-   - Durable Objects setup
-   - Task batching patterns
+   - GitHub Actions scheduling strategy (recommended)
+   - Alternative: 3-cron Cloudflare strategy
+   - Complete migration guide
 
 5. **PARKING_LOT.md**
    - Deferred items (Security, D1, Code Quality)
@@ -718,12 +718,12 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
   - [ ] Dashboard integration
 
 ### **Phase 2: Infrastructure**
-- [ ] Week 2-3: Cron Optimization
-  - [ ] Update wrangler.toml (3 crons)
-  - [ ] Master dispatcher implementation
-  - [ ] Task batching (error isolation)
-  - [ ] Task chaining (30s limit)
-  - [ ] Durable Objects setup
+- [ ] Week 2-3: GitHub Actions Scheduling Setup
+  - [ ] Create `.github/workflows/scheduled-jobs.yml`
+  - [ ] Configure GitHub Secrets (WORKER_URL, WORKER_API_KEY)
+  - [ ] Create Worker endpoints for scheduled jobs
+  - [ ] Remove Cloudflare cron triggers from wrangler.toml
+  - [ ] Test and verify all schedules working
 
 ### **Phase 3: UI Foundation**
 - [ ] Week 1-2: System Console
@@ -784,9 +784,9 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 - **Mitigation**: Auto-reconnection built-in
 - **Fallback**: Polling as backup
 
-**Risk 3: Durable Objects Cost**
-- **Mitigation**: Monitor usage closely
-- **Fallback**: Reduce monitoring frequency
+**Risk 3: GitHub Actions Reliability**
+- **Mitigation**: Built-in retries and error handling
+- **Fallback**: Monitor GitHub Actions status page, consider Cloudflare cron as backup
 
 ### **Schedule Risks**
 
@@ -867,8 +867,8 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 **Architecture**:
 - Backend: A+ (99/100) production system
 - Frontend: Next.js + MUI + TradingView
-- Infrastructure: Optimized 3-cron + Durable Objects
-- Cost: $5/month (from $0)
+- Infrastructure: GitHub Actions scheduling (unlimited, free)
+- Cost: $0/month (100% free maintained)
 
 **Transformation**:
 - FROM: Stock-specific analysis tool
@@ -881,7 +881,7 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 ### **Weekly Milestones**
 - Week 1: Sector analysis backend complete
 - Week 2: System console operational (Facebook deprecated)
-- Week 3: Market drivers complete + cron optimization
+- Week 3: Market drivers complete + GitHub Actions setup
 - Week 4: Backend features done
 - Week 5: Next.js setup + homepage scaffold
 - Week 6: Data visualization complete
@@ -908,10 +908,10 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 
 ---
 
-**Last Updated**: 2025-10-01
+**Last Updated**: 2025-10-02
 **Plan Created By**: Claude Code + Gemini Strategic Guidance
 **Status**: Ready for implementation
 
 ---
 
-*This master plan consolidates all strategic decisions: 2 new features (Sector + Market Drivers), new UI design (Dashboard + Console), and optimized cron strategy (3 jobs + Durable Objects). Complete 12-week roadmap with detailed tasks, timelines, and deliverables.*
+*This master plan consolidates all strategic decisions: 2 new features (Sector + Market Drivers), new UI design (Dashboard + Console), and GitHub Actions scheduling (unlimited, $0/month). Complete 12-week roadmap with detailed tasks, timelines, and deliverables.*
