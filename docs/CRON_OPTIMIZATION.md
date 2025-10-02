@@ -99,7 +99,7 @@ The GitHub Actions workflow automatically determines analysis type based on sche
 ```
 
 #### **Authentication & Security**
-- **API Key Protection**: GitHub Secrets for `WORKER_API_KEY`
+- **API Key Protection**: GitHub Secrets for `X-API-KEY`
 - **URL Configuration**: Optional `WORKER_URL` secret for custom deployments
 - **Request Headers**: Secure API key validation
 - **Timeout Protection**: 10-minute execution limit
@@ -153,7 +153,7 @@ The GitHub Actions workflow automatically determines analysis type based on sche
 **Required Secrets**:
 ```bash
 # Add these secrets to your GitHub repository
-WORKER_API_KEY=your_api_key_here
+X-API-KEY=yanggf  # Your API key for trading system
 WORKER_URL=https://tft-trading-system.yanggf.workers.dev  # Optional, defaults to production
 ```
 
@@ -213,7 +213,7 @@ WORKER_URL=https://tft-trading-system.yanggf.workers.dev  # Optional, defaults t
 1. **Add GitHub Secrets**:
    ```bash
    # In GitHub repository settings → Secrets and variables → Actions
-   WORKER_API_KEY=your_trading_system_api_key
+   X-API-KEY=yanggf  # Your trading system API key
    WORKER_URL=your_worker_url  # Optional
    ```
 
