@@ -1,0 +1,195 @@
+name: Trading System Automated Analysis
+
+# 4-Tier High-Confidence Analysis System - Replaces Cloudflare Cron Triggers
+# MIGRATION BENEFITS: Unlimited schedules, 100% FREE, better observability
+# SCHEDULES: All times in UTC to match original Cloudflare cron schedule
+
+on:
+  schedule:
+    # Pre-Market Briefing - 8:30 AM EST/EDT (12:30 PM UTC)
+    - cron: '30 12 * * 1-5'  # Monday-Friday at 12:30 UTC
+    # Intraday Performance Check - 12:00 PM EST/EDT (4:00 PM UTC)
+    - cron: '0 16 * * 1-5'   # Monday-Friday at 16:00 UTC
+    # End-of-Day Summary - 4:05 PM EST/EDT (8:05 PM UTC)
+    - cron: '5 20 * * 1-5'   # Monday-Friday at 20:05 UTC
+    # Weekly Review - 10:00 AM EST/EDT Sunday (2:00 PM UTC)
+    - cron: '0 14 * * SUN'   # Sunday at 14:00 UTC
+
+  # Manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  trading-analysis:
+    name: Execute Trading Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Determine Analysis Type
+        id: analysis-type
+        run: |
+          # Get current day and hour to determine analysis type
+          CURRENT_HOUR=$(date -u +%H)
+          CURRENT_DAY=$(date -u +%u) # 1=Monday, 7=Sunday
+          CURRENT_TIME=$(date -u +"%H:%M")
+
+          echo "Current UTC time: $CURRENT_TIME"
+          echo "Current day: $CURRENT_DAY"
+
+          # Determine analysis type based on schedule
+          if [[ "$CURRENT_DAY" == "7" && "$CURRENT_TIME" == "14:00" ]]; then
+            echo "analysis_type=weekly-review" >> $GITHUB_OUTPUT
+            echo "endpoint=/weekly-review" >> $GITHUB_OUTPUT
+            echo "description=Weekly Review - Comprehensive high-confidence signal analysis"
+          elif [[ "$CURRENT_TIME" == "12:30" ]]; then
+            echo "analysis_type=pre-market" >> $GITHUB_OUTPUT
+            echo "endpoint=/pre-market-briefing" >> $GITHUB_OUTPUT
+            echo "description=Pre-Market Briefing - High-confidence signals (≥70%)"
+          elif [[ "$CURRENT_TIME" == "16:00" ]]; then
+            echo "analysis_type=intraday" >> $GITHUB_OUTPUT
+            echo "endpoint=/intraday-check" >> $GITHUB_OUTPUT
+            echo "description=Intraday Performance Check - Real-time tracking"
+          elif [[ "$CURRENT_TIME" == "20:05" ]]; then
+            echo "analysis_type=end-of-day" >> $GITHUB_OUTPUT
+            echo "endpoint=/end-of-day-summary" >> $GITHUB_OUTPUT
+            echo "description=End-of-Day Summary - Market close analysis"
+          else
+            # Default for manual triggers
+            echo "analysis_type=manual" >> $GITHUB_OUTPUT
+            echo "endpoint=/analyze" >> $GITHUB_OUTPUT
+            echo "description=Manual Analysis - On-demand trading analysis"
+          fi
+
+          echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
+          echo "Endpoint: ${{ steps.analysis-type.outputs.endpoint }}"
+          echo "Description: ${{ steps.analysis-type.outputs.description }}"
+
+      - name: Execute Trading Analysis
+        run: |
+          ENDPOINT="${{ steps.analysis-type.outputs.endpoint }}"
+          WORKER_URL="${{ secrets.WORKER_URL || 'https://tft-trading-system.yanggf.workers.dev' }}"
+          API_KEY="${{ secrets.WORKER_API_KEY }}"
+
+          echo "🚀 Starting ${{ steps.analysis-type.outputs.description }}"
+          echo "📍 Endpoint: $ENDPOINT"
+          echo "🌐 Worker URL: $WORKER_URL"
+
+          # Execute analysis request with timeout
+          if [[ "$ENDPOINT" == "/analyze" ]]; then
+            # For manual analysis, use POST request
+            response=$(curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-KEY: $API_KEY" \
+              --connect-timeout 300 \
+              --max-time 600 \
+              "$WORKER_URL$ENDPOINT")
+          else
+            # For scheduled analyses, use GET request
+            response=$(curl -s \
+              -H "X-API-KEY: $API_KEY" \
+              --connect-timeout 300 \
+              --max-time 600 \
+              "$WORKER_URL$ENDPOINT")
+          fi
+
+          echo "📊 Analysis Response:"
+          echo "$response" | jq '.' 2>/dev/null || echo "$response"
+
+          # Extract key metrics for logging
+          success=$(echo "$response" | jq -r '.success // "unknown"')
+          if [[ "$success" == "true" ]]; then
+            echo "✅ Analysis completed successfully"
+
+            # Log additional metrics if available
+            if echo "$response" | jq -e '.analyzed_date' > /dev/null 2>&1; then
+              analyzed_date=$(echo "$response" | jq -r '.analyzed_date')
+              echo "📅 Analysis Date: $analyzed_date"
+            fi
+
+            if echo "$response" | jq -e '.summary' > /dev/null 2>&1; then
+              system_status=$(echo "$response" | jq -r '.summary.system_status // "N/A"')
+              echo "📈 System Status: $system_status"
+            fi
+
+          else
+            echo "❌ Analysis failed"
+            echo "Response: $response"
+            exit 1
+          fi
+
+      - name: Log Analysis Summary
+        run: |
+          echo "📋 Analysis Summary"
+          echo "=================="
+          echo "Timestamp: $(date -u)"
+          echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
+          echo "Description: ${{ steps.analysis-type.outputs.description }}"
+          echo "Endpoint: ${{ steps.analysis-type.outputs.endpoint }}"
+          echo "Worker URL: ${{ secrets.WORKER_URL || 'https://tft-trading-system.yanggf.workers.dev' }}"
+          echo "Status: Completed successfully ✅"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "🚨 Trading Analysis Failed!"
+          echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
+          echo "Timestamp: $(date -u)"
+          echo "Please check the worker logs and system status."
+
+  # Health check job
+  health-check:
+    name: System Health Check
+    runs-on: ubuntu-latest
+    needs: trading-analysis
+
+    steps:
+      - name: Execute Health Check
+        run: |
+          WORKER_URL="${{ secrets.WORKER_URL || 'https://tft-trading-system.yanggf.workers.dev' }}"
+          API_KEY="${{ secrets.WORKER_API_KEY }}"
+
+          echo "🏥 Running System Health Check"
+
+          # Check overall system health
+          health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$WORKER_URL/health")
+          echo "System Health: $health_response"
+
+          # Check model health
+          model_health_response=$(curl -s "$WORKER_URL/model-health")
+          echo "Model Health: $model_health_response"
+
+          # Log health status
+          system_status=$(echo "$health_response" | jq -r '.status // "unknown"')
+          if [[ "$system_status" == "healthy" ]]; then
+            echo "✅ System is healthy"
+          else
+            echo "⚠️ System health check returned: $system_status"
+          fi
+
+# Workflow Configuration
+# =====================
+# COST: 100% FREE - Unlimited GitHub Actions for public repositories
+# LIMITS:
+# - 3,000 minutes/month for free tier (sufficient for ~50 analyses/day)
+# - 20 concurrent jobs
+# - 2GB storage per workflow
+#
+# SECRETS REQUIRED:
+# - WORKER_API_KEY: API key for trading system authentication
+# - WORKER_URL: Optional - Worker URL (defaults to production URL)
+#
+# MONITORING:
+# - All executions logged in GitHub Actions console
+# - Success/failure notifications available
+# - Detailed error logging and debugging information

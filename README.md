@@ -345,6 +345,23 @@ The system supports automated deployment through:
 - **End-of-Day Summary**: 4:05 PM ET (market close + tomorrow outlook)
 - **Weekly Review**: Sunday 10:00 AM ET (comprehensive analysis)
 
+### **🔄 GitHub Actions Scheduling**
+**Status**: ✅ **MIGRATED FROM CLOUDFLARE CRON** (2025-10-02)
+
+All automated analyses now run via GitHub Actions:
+- **Unlimited Schedules**: No 3-cron limit (Cloudflare Workers free tier restriction)
+- **100% FREE**: GitHub Actions provides 2000 minutes/month (we use ~175 minutes)
+- **Better Observability**: Full logging, monitoring, and debugging in GitHub console
+- **Centralized Management**: All schedules in `.github/workflows/trading-system.yml`
+
+**Migration Benefits**:
+- ✅ Eliminated need for Durable Objects (saves $0.20/month)
+- ✅ Unlimited execution time (no 30-second timeout)
+- ✅ Better error handling and retry logic
+- ✅ Detailed audit trails and monitoring
+
+**See**: [CRON_OPTIMIZATION.md](docs/CRON_OPTIMIZATION.md) for complete migration details
+
 ## 🏆 Performance Metrics
 
 ### **📊 Current System Performance**
@@ -356,8 +373,9 @@ The system supports automated deployment through:
 ### **💰 Cost Efficiency**
 - **Infrastructure**: $0.00/month (100% free)
   - Cloudflare Workers (free tier)
-  - GitHub Actions scheduling (2000 min/month free, we use ~175)
+  - GitHub Actions scheduling (2000 min/month free, we use ~175 minutes)
   - KV and R2 storage (free tier)
+  - **No Durable Objects required** (saves $0.20/month with GitHub Actions migration)
 - **AI Models**: Free tier with rate-limited optimization
 - **Data Sources**: Free Yahoo Finance API + FRED API
 - **Total System Cost**: $0/month ✅

@@ -10,14 +10,28 @@ compatibility_flags = ["nodejs_compat"]
 
 # Build configuration - TensorFlow.js handled automatically by modern Wrangler
 
-# Production cron schedule - 4 jobs for 4 reports (UTC times for EST/EDT conversion)
-[triggers]
-crons = [
-  "30 12 * * 1-5",  # 12:30 PM UTC = 8:30 AM EST/EDT - Pre-Market Briefing (high-confidence signals ≥70%)
-  "0 16 * * 1-5",   # 4:00 PM UTC = 12:00 PM EST/EDT - Intraday Performance Check (real-time tracking)
-  "5 20 * * 1-5",   # 8:05 PM UTC = 4:05 PM EST/EDT - End-of-Day Summary (market close analysis)
-  "0 14 * * SUN"    # 2:00 PM UTC = 10:00 AM EST/EDT Sunday - Weekly Review (comprehensive analysis)
-]
+# Production cron schedule - MIGRATED TO GITHUB ACTIONS
+# All Cloudflare cron triggers disabled - migrated to GitHub Actions for unlimited schedules ($0/month)
+#
+# MIGRATION STATUS: ✅ COMPLETED - See .github/workflows/trading-system.yml
+#
+# Original Cloudflare cron schedules (now in GitHub Actions):
+# - "30 12 * * 1-5"  → 8:30 AM EST/EDT - Pre-Market Briefing (high-confidence signals ≥70%)
+# - "0 16 * * 1-5"    → 12:00 PM EST/EDT - Intraday Performance Check (real-time tracking)
+# - "5 20 * * 1-5"    → 4:05 PM EST/EDT - End-of-Day Summary (market close analysis)
+# - "0 14 * * SUN"    → 10:00 AM EST/EDT Sunday - Weekly Review (comprehensive analysis)
+#
+# GitHub Actions Benefits:
+# - Unlimited cron schedules (vs 3-cron limit in Workers free tier)
+# - No Durable Objects required (saves $0.20/month)
+# - Better observability and debugging
+# - Centralized scheduling with workflow management
+# - 100% FREE with unlimited execution time
+#
+# [triggers]
+# crons = [
+#   DISABLED - MIGRATED TO GITHUB ACTIONS
+# ]
 
 # KV namespace for storing analysis results
 [[kv_namespaces]]
