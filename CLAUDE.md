@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **📖 COMPLETE 12-WEEK TRANSFORMATION ROADMAP**: See [docs/MASTER_IMPLEMENTATION_PLAN.md](docs/MASTER_IMPLEMENTATION_PLAN.md)
 
 **What's Planned**:
-- **Week 1-4**: Backend features (Sector Rotation + Market Drivers + Cron optimization)
+- **Week 1-4**: Backend features (Sector Rotation + Market Drivers + GitHub Actions setup)
 - **Week 5-8**: UI foundation (System Console + Homepage + Data Visualization)
 - **Week 9-10**: Analytics pages (Sector + Market Drivers dashboards)
 - **Week 11-12**: Polish + Production deployment
@@ -16,11 +16,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. ✅ Replace Facebook Messenger → Professional web interface (Next.js + MUI)
 2. ✅ Add Sector Rotation Analysis (11 SPDR ETFs vs S&P 500)
 3. ✅ Add Market Drivers Detection (FRED API + VIX + Geopolitical risk)
-4. ✅ Optimize cron jobs: 8 → 3 (62.5% reduction, Cloudflare limits)
+4. ✅ GitHub Actions Scheduling: Unlimited schedules (replaces 3-cron limit + Durable Objects, $0/month)
 
 **Related Documentation**:
 - [UX/UX Design](docs/UX_UI_DESIGN.md) - Homepage + Console blueprints
-- [Cron Optimization](docs/CRON_OPTIMIZATION.md) - Infrastructure strategy
+- [Scheduling Strategy](docs/CRON_OPTIMIZATION.md) - GitHub Actions setup (unlimited, $0/month)
+- [Cost Optimization](docs/COST_OPTIMIZATION.md) - Stay 100% free with GitHub Actions
 - [Feature Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md) - Sector + Market details
 
 ---

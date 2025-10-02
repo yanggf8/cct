@@ -7,7 +7,7 @@
 **Strategic Vision**: Replace unreliable Facebook Messenger with professional web interface while adding top-down market analysis capabilities
 
 **Timeline**: 12 weeks (3 months)
-**Investment**: $0 (all free infrastructure)
+**Investment**: $0/month (100% free infrastructure - GitHub Actions scheduling)
 **ROI**: Professional institutional-grade platform with comprehensive market intelligence
 
 ---
@@ -19,14 +19,14 @@
 - ❌ Facebook Messenger notifications (unreliable)
 - ❌ Stock-specific analysis only
 - ❌ Vanilla HTML interface
-- ❌ 8 cron jobs (exceeds Cloudflare limits)
+- ❌ 8 desired events (limited by 3-cron Cloudflare restriction)
 
 ### **TO: Institutional-Grade Intelligence Platform**
 - ✅ Three-tier market intelligence (Market → Sector → Stock)
 - ✅ Professional web interface (Dashboard + Console)
 - ✅ Top-down analysis framework
 - ✅ Modern tech stack (Next.js, MUI, TradingView)
-- ✅ Optimized 3-cron strategy (within limits)
+- ✅ GitHub Actions scheduling (unlimited, free)
 
 ---
 
@@ -73,14 +73,15 @@
 
 ---
 
-### **Component 3: Optimized Cron Strategy (Infrastructure)**
+### **Component 3: GitHub Actions Scheduling (Infrastructure)**
 
-#### **Problem Solved**: 8 cron jobs → 3 cron jobs
-- **Cron 1**: Pre-Market (8 AM ET) - Macro + Geo + Briefing
-- **Cron 2**: Intraday (10 AM & 2 PM ET) - Sector snapshots
-- **Cron 3**: Post-Market & Weekly (4:15 PM ET) - EOD + Weekly
-- **Continuous Monitoring**: Durable Objects with alarms (15-min intervals)
-- **Reduction**: 62.5% fewer cron jobs, within Cloudflare limits
+#### **Problem Solved**: Unlimited scheduling with $0/month cost
+- **GitHub Actions**: Replace Cloudflare cron jobs completely
+- **8+ Schedules**: All desired events get dedicated schedules
+- **15-min Monitoring**: Market structure updates during trading hours
+- **No Batching**: Simple, clean endpoint mapping (no complex routing)
+- **Cost**: $0/month (2000 min/month free tier, we'll use ~175 min)
+- **Observability**: GitHub Actions UI + Worker logs
 
 ---
 
@@ -178,61 +179,49 @@
 
 ### **PHASE 2: Infrastructure Optimization (Week 2-3)**
 
-#### **Week 2-3: Cron Job Optimization**
-**Goal**: Reduce from 8 cron jobs to 3 (within Cloudflare limits)
+#### **Week 2-3: GitHub Actions Scheduling Setup**
+**Goal**: Replace Cloudflare cron jobs with unlimited GitHub Actions schedules
 
 **Tasks**:
-1. ✅ **Update wrangler.toml**
-   ```toml
-   [triggers]
-   crons = [
-     "0 12 * * 1-5",      # Pre-Market @ 8:00 AM ET
-     "0 14,18 * * 1-5",   # Intraday @ 10 AM & 2 PM ET
-     "15 20 * * *"        # Post-Market @ 4:15 PM ET & Weekly
-   ]
-   ```
+1. ✅ **Create GitHub Actions Workflow**
+   - Create `.github/workflows/scheduled-jobs.yml`
+   - Configure 8+ cron schedules (one per event)
+   - Map schedules to Worker endpoints
+   - Add retry logic and error handling
 
-2. ✅ **Master Dispatcher Implementation**
-   - Central router in `src/index.js`
-   - Smart hour-based routing (Cron 2)
-   - Smart day-based routing (Cron 3)
-   - Error handling and logging
+2. ✅ **Configure GitHub Secrets**
+   - Add `WORKER_URL` secret
+   - Add `WORKER_API_KEY` secret
+   - Test secret access in workflow
 
-3. ✅ **Task Batching**
-   - Pre-Market: Macro + Geo + Briefing
-   - Intraday: Morning snapshot + Midday check
-   - Post-Market: EOD + Sector analysis
-   - Weekly: Review + Heatmap
+3. ✅ **Create Worker Endpoints**
+   - `/api/jobs/macro-drivers` - Macro analysis
+   - `/api/jobs/morning-sector` - Morning sector snapshot
+   - `/api/jobs/full-sector-analysis` - Full sector analysis
+   - `/api/jobs/market-structure-update` - 15-min monitoring
+   - Reuse existing: `/pre-market-briefing`, `/intraday-check`, `/end-of-day-summary`, `/weekly-review`
 
-4. ✅ **Error Isolation**
-   - Try/catch per sub-task
-   - Prevent cascading failures
-   - Comprehensive error logging
-   - Graceful degradation
+4. ✅ **Remove Cloudflare Cron Triggers**
+   - Delete `[triggers]` section from wrangler.toml
+   - Update deployment process
+   - Document the migration
 
-5. ✅ **Task Chaining (30s Limit)**
-   - Break long tasks into chunks
-   - HTTP self-invocation pattern
-   - Sector-by-sector analysis
-   - Fresh 30s limit per chain
-
-6. ✅ **Durable Objects Setup**
-   - MarketMonitor Durable Object class
-   - Self-sustaining alarm loop (15-min)
-   - Market structure monitoring
-   - Homepage widget updates
+5. ✅ **Test and Deploy**
+   - Test manual workflow triggers
+   - Verify endpoint authentication
+   - Monitor GitHub Actions logs
+   - Confirm Worker execution
 
 **Deliverables**:
-- ✅ 3 optimized cron jobs operational
-- ✅ Master dispatcher working
-- ✅ Durable Objects monitoring active
-- ✅ 62.5% reduction in cron usage
+- ✅ GitHub Actions workflow operational
+- ✅ Unlimited scheduling capability
+- ✅ Simple endpoint architecture
+- ✅ 100% free infrastructure maintained
 
-**Files Modified/Created**:
-- `wrangler.toml` (cron configuration)
-- `src/index.js` (master dispatcher)
-- `src/modules/cron-task-runners.ts`
-- `src/durable-objects/MarketMonitor.ts`
+**Files Created**:
+- `.github/workflows/scheduled-jobs.yml`
+- `src/modules/routes/scheduler-routes.ts`
+- Updated: `wrangler.toml` (removed cron triggers)
 
 ---
 
@@ -821,7 +810,7 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 - ✅ System console operational (Facebook replacement)
 - ✅ Sector rotation analysis working
 - ✅ Market drivers detection functional
-- ✅ 3-cron strategy implemented
+- ✅ GitHub Actions scheduling implemented (unlimited schedules)
 - ✅ Homepage dashboard complete
 - ✅ 4 report pages redesigned
 - ✅ Mobile responsive (100% parity)
@@ -845,7 +834,7 @@ Sunday 10:00 AM ET (Cron 3 - Weekly):
 ### **Week 4 (Backend Complete)**
 - ✅ Sector rotation analysis operational
 - ✅ Market drivers detection working
-- ✅ Cron strategy optimized (3 jobs)
+- ✅ GitHub Actions scheduling operational (unlimited)
 - ✅ Intelligence framework complete
 
 ### **Week 8 (UI Foundation Complete)**
