@@ -78,7 +78,7 @@ jobs:
       - name: Execute Trading Analysis
         run: |
           ENDPOINT="${{ steps.analysis-type.outputs.endpoint }}"
-          WORKER_URL="${{ secrets.WORKER_URL || 'https://tft-trading-system.yanggf.workers.dev' }}"
+          WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
           API_KEY="${{ secrets.X-API-KEY }}"
 
           echo "🚀 Starting ${{ steps.analysis-type.outputs.description }}"
@@ -136,7 +136,7 @@ jobs:
           echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
           echo "Description: ${{ steps.analysis-type.outputs.description }}"
           echo "Endpoint: ${{ steps.analysis-type.outputs.endpoint }}"
-          echo "Worker URL: ${{ secrets.WORKER_URL || 'https://tft-trading-system.yanggf.workers.dev' }}"
+          echo "Worker URL: https://tft-trading-system.yanggf.workers.dev"
           echo "Status: Completed successfully ✅"
 
       - name: Notify on Failure
@@ -156,7 +156,7 @@ jobs:
     steps:
       - name: Execute Health Check
         run: |
-          WORKER_URL="${{ secrets.WORKER_URL || 'https://tft-trading-system.yanggf.workers.dev' }}"
+          WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
           API_KEY="${{ secrets.X-API-KEY }}"
 
           echo "🏥 Running System Health Check"
@@ -187,7 +187,8 @@ jobs:
 #
 # SECRETS REQUIRED:
 # - X-API-KEY: API key for trading system authentication (your value: yanggf)
-# - WORKER_URL: Optional - Worker URL (defaults to production URL)
+#
+# NOTE: WORKER_URL is hardcoded as it's public information, not a secret
 #
 # MONITORING:
 # - All executions logged in GitHub Actions console
