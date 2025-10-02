@@ -79,7 +79,7 @@ jobs:
         run: |
           ENDPOINT="${{ steps.analysis-type.outputs.endpoint }}"
           WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
-          API_KEY="${{ secrets.X-API-KEY }}"
+          API_KEY="${{ secrets.X_API_KEY }}"
 
           echo "🚀 Starting ${{ steps.analysis-type.outputs.description }}"
           echo "📍 Endpoint: $ENDPOINT"
@@ -157,7 +157,7 @@ jobs:
       - name: Execute Health Check
         run: |
           WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
-          API_KEY="${{ secrets.X-API-KEY }}"
+          API_KEY="${{ secrets.X_API_KEY }}"
 
           echo "🏥 Running System Health Check"
 
@@ -186,7 +186,7 @@ jobs:
 # - 2GB storage per workflow
 #
 # SECRETS REQUIRED:
-# - X-API-KEY: API key for trading system authentication (your value: yanggf)
+# - X_API_KEY: API key for trading system authentication (your value: yanggf)
 #
 # NOTE: WORKER_URL is hardcoded as it's public information, not a secret
 #

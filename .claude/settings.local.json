@@ -159,7 +159,9 @@
       "Bash(/tmp/verify_typescript.sh:*)",
       "Bash(do echo:*)",
       "Bash(echo:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh secret set:*)"
     ],
     "deny": [],
     "ask": []
