@@ -35,9 +35,20 @@
 
 ## 🎯 Strategic Planning Documentation
 
+### **Master Plan** ⭐⭐⭐ **START HERE**
+
+4. **[MASTER_IMPLEMENTATION_PLAN.md](./MASTER_IMPLEMENTATION_PLAN.md)** 🚀 **COMPREHENSIVE PLAN**
+   - **Complete 12-week transformation roadmap**
+   - Consolidates: 2 new features + new UI + cron optimization
+   - Week-by-week implementation timeline
+   - 100+ specific tasks with deliverables
+   - Technology stack decisions
+   - Risk management and success metrics
+   - **READ THIS FIRST** for complete implementation strategy
+
 ### **Feature Roadmap & Planning**
 
-4. **[FEATURE_FEASIBILITY_ANALYSIS.md](./FEATURE_FEASIBILITY_ANALYSIS.md)** ⭐ **PRIORITY**
+5. **[FEATURE_FEASIBILITY_ANALYSIS.md](./FEATURE_FEASIBILITY_ANALYSIS.md)** ⭐ **PRIORITY**
    - **Phase 1: Sector Rotation Analysis** (Weeks 1-2) - Ready to implement
    - **Phase 2: Market Drivers Detection** (Weeks 3-4) - Planned
    - **Phase 3: Temporal Sentiment** (Weeks 5-6) - Designed
@@ -45,14 +56,29 @@
    - Professional methodology and implementation plans
    - **READ THIS FIRST** for understanding next features
 
-5. **[TEMPORAL_SENTIMENT_ANALYSIS.md](./TEMPORAL_SENTIMENT_ANALYSIS.md)** ⭐ **ADVANCED**
+6. **[TEMPORAL_SENTIMENT_ANALYSIS.md](./TEMPORAL_SENTIMENT_ANALYSIS.md)** ⭐ **ADVANCED**
    - Multi-timeframe sentiment analysis framework
    - Professional temporal methodology (1hr, 24hr, 7day EMAs)
    - Sentiment momentum and divergence detection
    - Integration strategy with sector/market analysis
    - **READ THIS** to understand temporal sentiment approach
 
-6. **[PARKING_LOT.md](./PARKING_LOT.md)** - Parked improvements
+7. **[UX_UI_DESIGN.md](./UX_UI_DESIGN.md)** 🎨 **UI/UX BLUEPRINT**
+   - Complete UI/UX architecture and design
+   - Homepage design (7 modular widgets)
+   - System console design (real-time monitoring)
+   - Event timing strategy for all features
+   - Technology stack recommendations
+   - **READ THIS** for UI implementation guidance
+
+8. **[CRON_OPTIMIZATION.md](./CRON_OPTIMIZATION.md)** ⏰ **INFRASTRUCTURE**
+   - Cron job optimization (8 → 3 jobs, 62.5% reduction)
+   - Master dispatcher pattern
+   - Durable Objects for continuous monitoring
+   - Task batching and error isolation
+   - **READ THIS** for cron implementation
+
+9. **[PARKING_LOT.md](./PARKING_LOT.md)** - Parked improvements
    - API key validation enhancement (security)
    - D1 database migration (unnecessary - DAL solved it)
    - Items deferred for future consideration
