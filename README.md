@@ -52,6 +52,50 @@
 | **Error Rate** | <1% | **0%** | ✅ **PERFECT** |
 | **API Compliance** | 100% | **100%** | ✅ **PERFECT** |
 
+## 🎯 Strategic Roadmap - Institutional-Grade Intelligence Platform
+
+### **🚀 Next Phase: Transform to Market Intelligence Platform**
+
+**Current State**: A+ (99/100) Individual Stock Analysis System
+**Target State**: Institutional-Grade Market Intelligence Platform with Top-Down Methodology
+
+### **📊 Three-Tier Intelligence Funnel (Professional Framework)**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  TIER 1: MARKET DRIVERS ANALYSIS (The Weather)        │
+│  → Macro environment, Risk-On/Risk-Off detection       │
+│  → FRED API + VIX + Yield Curve + Geopolitical Risk   │
+│  Status: 📋 Planned (Weeks 3-4)                        │
+└────────────────┬────────────────────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────────────────────┐
+│  TIER 2: SECTOR ROTATION ANALYSIS (The Currents)      │
+│  → 11 SPDR Sector ETFs vs S&P 500 benchmark          │
+│  → Money flow, relative strength, rotation signals    │
+│  Status: 🎯 Next Sprint (Weeks 1-2)                   │
+└────────────────┬────────────────────────────────────────┘
+                 ↓
+┌─────────────────────────────────────────────────────────┐
+│  TIER 3: STOCK SELECTION (Current System ✅)          │
+│  → Dual AI analysis on individual stocks              │
+│  → Context-aware signals with sector/market insights  │
+│  Status: ✅ OPERATIONAL (A+ 99/100)                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+### **🔮 Advanced Features (Phase 3)**
+
+**Temporal Sentiment Analysis** (Weeks 5-6)
+- Multi-timeframe sentiment (1hr, 24hr, 7day EMAs)
+- Sentiment momentum and divergence detection
+- Context-aware signal generation
+- Alpha-generating institutional signals
+
+**See**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` & `docs/TEMPORAL_SENTIMENT_ANALYSIS.md`
+
+---
+
 ## 🏗️ Architecture Overview
 
 ### **🎯 Enterprise-Grade Components**

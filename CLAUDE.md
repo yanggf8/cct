@@ -327,34 +327,119 @@ src/modules/
 - **Test Coverage**: 32/32 comprehensive enhancement tests passed
 - **Quality Assurance**: 100/100 production-ready enterprise architecture
 
-## Future Roadmap
+## Future Roadmap - Institutional-Grade Intelligence Platform
 
-### 🚀 Planned Enhancements (Phase 2)
-- **📊 Sector Analysis**: Real-time sector performance tracking and classification
-  - Technology, Healthcare, Financial, Energy, Consumer sectors
-  - Sector rotation detection and trend analysis
-  - Cross-sector correlation and strength ranking
-- **🎯 Key Market Drivers**: Intelligent market catalyst identification
-  - Earnings announcement impact analysis
-  - Fed policy and macroeconomic driver detection
-  - Technical breakout and support/resistance identification
-  - News sentiment correlation with price movement drivers
-- **🗄️ D1 Database Migration**: Replace KV eventual consistency with reliable status tracking
-  - **D1 for Status/Manifest**: Migrate job status and pipeline manifest from KV to Cloudflare D1
-  - **Eliminate Eventual Consistency**: Solve 60-second KV delays in status visibility
-  - **Reliable Dependency Tracking**: Strong consistency for job dependencies and pipeline state
-  - **Enhanced Query Capabilities**: SQL-based status queries and historical pipeline analysis
+### 🎯 Strategic Transformation (2025-10 Onward)
+**Vision**: Transform from individual stock analysis to institutional-grade market intelligence platform
 
-### 🔮 Advanced Features (Phase 3)
-- **Multi-Timeframe Analysis**: 1-hour, 4-hour, and daily signal generation
+**Professional Framework**: Three-Tier Top-Down Methodology
+1. **Market Drivers** (The Weather) → Macro environment and risk appetite
+2. **Sector Analysis** (The Currents) → Capital flow and sector rotation
+3. **Stock Selection** (Current ✅) → Context-aware individual picks
+
+### 📊 Phase 1: Sector Rotation Analysis (Weeks 1-2) - NEXT SPRINT
+**Status**: 🎯 Ready to implement (Feasibility: 9.5/10)
+
+**Scope**: Professional sector-level intelligence (NOT individual stock grouping)
+- Track 11 SPDR sector ETFs (XLK, XLV, XLF, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB)
+- Benchmark against S&P 500 (SPY) for relative strength analysis
+- Money flow indicators (OBV, CMF) for institutional capital tracking
+- Rotation quadrant analysis for emerging leader identification
+
+**Data Source**: Yahoo Finance API (already integrated) ✅
+- 12 symbols total (11 sectors + SPY)
+- Zero new API dependencies
+- 100% free infrastructure
+
+**Key Deliverables**:
+- Relative strength rankings (1M, 3M, 6M timeframes)
+- Sector rotation signals (leading strength → emerging weakness)
+- Money flow analysis (accumulation vs distribution)
+- Integration with existing 4-tier reporting system
+
+**Professional Value**: Identify where institutional capital is flowing → Validate/invalidate stock picks based on sector strength
+
+**See**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` (Section: Sector Analysis)
+
+---
+
+### 🎯 Phase 2: Market Drivers Detection (Weeks 3-4)
+**Status**: 📋 Planned (Feasibility: 8/10)
+
+**Scope**: Market-wide catalyst detection (NOT stock-specific drivers)
+- **Macro Drivers**: FRED API (Fed rates, inflation, employment, GDP)
+- **Market Structure**: VIX (fear index), yield curve, dollar index
+- **Geopolitical Risk**: News sentiment + DistilBERT for risk scoring
+- **Regime Classification**: 6 market regimes (Risk-On/Off, Bull/Bear, etc.)
+
+**New APIs Required**:
+- FRED API (Federal Reserve Economic Data) - FREE ✅
+- All other data via Yahoo Finance (existing) ✅
+
+**Key Deliverables**:
+- Market regime dashboard (Risk-On vs Risk-Off)
+- Macro driver tracking (rates, inflation, VIX)
+- Regime-specific sector playbooks (which sectors perform in each regime)
+- Integration with Sector Analysis for context-aware signals
+
+**Professional Value**: Determine overall market environment → Guide sector allocation → Inform stock decisions
+
+**See**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` (Section: Market Drivers)
+
+---
+
+### 🔮 Phase 3: Temporal Sentiment Analysis (Weeks 5-6)
+**Status**: 📋 Designed (Feasibility: 9/10)
+
+**Scope**: Multi-timeframe sentiment dynamics (NOT just frequent analysis)
+- Sentiment Term Structure: 1hr, 24hr, 7day EMAs
+- Sentiment momentum (rate of change) detection
+- Sentiment divergence (price vs sentiment misalignment)
+- Volume-weighted conviction scoring
+
+**Current Models Perfect For This**: ✅
+- DistilBERT: Fast (intraday/daily high-frequency)
+- GPT-OSS-120B: Contextual (weekly narrative analysis)
+- NO new models needed
+
+**Key Deliverables**:
+- Three-timeframe sentiment system (Reaction → Confirmation → Narrative)
+- Alignment vs divergence signal generation
+- Sector-level temporal sentiment aggregation
+- Context-aware signals with full temporal features
+
+**Professional Value**: Transform basic sentiment to alpha-generating signals with temporal context
+
+**See**: `docs/TEMPORAL_SENTIMENT_ANALYSIS.md` (Complete Framework)
+
+---
+
+### 🚫 Parked Items (See: docs/PARKING_LOT.md)
+
+**Security Enhancement**: API key validation (Medium priority)
+- Current: Invalid keys returning success (should return 401)
+- Status: Parked - System has controlled access, not critical
+- Effort: 1-2 days when prioritized
+
+**D1 Database Migration**: Infrastructure change (Low priority)
+- Original: Migrate KV to D1 for consistency and query capabilities
+- Status: Parked - DAL already solves KV consistency concerns
+- Conclusion: Current DAL + KV architecture sufficient and proven
+- Recommendation: Keep parked unless new requirements emerge
+
+**Gemini Code Quality Items**: Incremental improvements (Low priority)
+- Routing refactor (implement when adding new routes)
+- Analysis logic consolidation (during feature updates)
+- TypeScript coverage (convert files when modifying)
+- All marked for organic, incremental improvement
+
+---
+
+### 📈 Advanced Features (Future Consideration)
+- **Multi-Timeframe Analysis**: 1-hour, 4-hour, daily signals (after temporal sentiment)
 - **Options Flow Integration**: Unusual options activity correlation
 - **Institutional Flow Tracking**: Smart money movement detection
-- **Risk Management Integration**: Position sizing and portfolio optimization
-- **🗄️ Full D1 Integration**: Complete migration from KV to D1 for all structured data
-  - **Historical Analysis Storage**: Long-term analysis results with efficient querying
-  - **Performance Analytics**: Advanced analytics on prediction accuracy over time
-  - **Real-time Dashboards**: Live updating dashboards with D1-backed data
-  - **Advanced Reporting**: Complex reporting and data export capabilities
+- **Risk Management**: Position sizing and portfolio optimization
 
 ## Important Notes
 - **4-Tier Analysis Flow**: Complete trading cycle from pre-market to weekly review
