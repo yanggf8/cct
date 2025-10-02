@@ -161,7 +161,8 @@
       "Bash(echo:*)",
       "Bash(git init:*)",
       "Bash(gh auth:*)",
-      "Bash(gh secret set:*)"
+      "Bash(gh secret set:*)",
+      "Bash(gh:*)"
     ],
     "deny": [],
     "ask": []

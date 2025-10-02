@@ -139,6 +139,48 @@ jobs:
           echo "Worker URL: https://tft-trading-system.yanggf.workers.dev"
           echo "Status: Completed successfully ✅"
 
+      - name: Send Teams Success Notification
+        if: success()
+        run: |
+          ENDPOINT="${{ steps.analysis-type.outputs.endpoint }}"
+          WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
+          ANALYSIS_TYPE="${{ steps.analysis-type.outputs.analysis_type }}"
+
+          echo "📢 Sending Teams success notification..."
+
+          # Build Teams message
+          TEAMS_MESSAGE=$(cat <<EOF
+          {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "00B294",
+            "summary": "Trading Analysis Complete",
+            "sections": [{
+              "activityTitle": "✅ Trading Analysis Complete",
+              "activitySubtitle": "$(date -u)",
+              "activityText": "Analysis completed successfully",
+              "facts": [
+                {"name": "Analysis Type", "value": "${{ steps.analysis-type.outputs.description }}"},
+                {"name": "Report", "value": "[View Results](${WORKER_URL}${ENDPOINT})"},
+                {"name": "System Status", "value": "🟢 Operational"}
+              ],
+              "markdown": true
+            }],
+            "potentialAction": [{
+              "@type": "OpenUri",
+              "name": "📊 View Full Report",
+              "target": ["${WORKER_URL}${ENDPOINT}"]
+            }]
+          }
+          EOF
+          )
+
+          # Send to Teams webhook
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "$TEAMS_MESSAGE" \
+            "${{ secrets.TEAMS_WEBHOOK_URL }}" || echo "⚠️ Teams notification failed (not critical)"
+
       - name: Notify on Failure
         if: failure()
         run: |
@@ -146,6 +188,34 @@ jobs:
           echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
           echo "Timestamp: $(date -u)"
           echo "Please check the worker logs and system status."
+
+          # Send Teams error notification
+          TEAMS_ERROR_MESSAGE=$(cat <<EOF
+          {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "FF0000",
+            "summary": "Trading Analysis Failed",
+            "sections": [{
+              "activityTitle": "🚨 Trading Analysis Failed",
+              "activitySubtitle": "$(date -u)",
+              "activityText": "Analysis execution failed",
+              "facts": [
+                {"name": "Analysis Type", "value": "${{ steps.analysis-type.outputs.description }}"},
+                {"name": "System Status", "value": "🔴 Error"},
+                {"name": "Time", "value": "$(date -u)"}
+              ],
+              "markdown": true
+            }]
+          }
+          EOF
+          )
+
+          # Send error to Teams
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "$TEAMS_ERROR_MESSAGE" \
+            "${{ secrets.TEAMS_WEBHOOK_URL }}" || echo "⚠️ Teams error notification failed"
 
   # Health check job
   health-check:
@@ -187,6 +257,7 @@ jobs:
 #
 # SECRETS REQUIRED:
 # - X_API_KEY: API key for trading system authentication (your value: yanggf)
+# - TEAMS_WEBHOOK_URL: Microsoft Teams webhook URL for notifications (optional)
 #
 # NOTE: WORKER_URL is hardcoded as it's public information, not a secret
 #
