@@ -92,7 +92,35 @@
 - Context-aware signal generation
 - Alpha-generating institutional signals
 
-**See**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` & `docs/TEMPORAL_SENTIMENT_ANALYSIS.md`
+---
+
+## 📋 Complete Implementation Plan
+
+### **🚀 12-Week Transformation Roadmap**
+
+**Comprehensive Plan**: See **[docs/MASTER_IMPLEMENTATION_PLAN.md](docs/MASTER_IMPLEMENTATION_PLAN.md)** for complete details
+
+**What's Included**:
+- ✅ **Week 1-4**: Backend features (Sector + Market Drivers + Cron optimization)
+- ✅ **Week 5-8**: UI foundation (Console + Homepage + Visualization)
+- ✅ **Week 9-10**: Analytics pages (Sector + Market Drivers)
+- ✅ **Week 11-12**: Polish + Production deployment
+
+**Key Components**:
+1. **Two New Features**: Sector Rotation + Market Drivers (100% free APIs)
+2. **New UI/UX**: Next.js + MUI + TradingView Charts
+3. **Optimized Infrastructure**: 3 cron jobs (down from 8, 62.5% reduction)
+
+**Investment**: $5/month (Durable Objects for 15-min monitoring)
+**Timeline**: 12 weeks to institutional-grade platform
+**Documentation**: 27 comprehensive docs covering all aspects
+
+**Quick Links**:
+- 📖 [Master Plan](docs/MASTER_IMPLEMENTATION_PLAN.md) - Complete 12-week roadmap
+- 🎨 [UI/UX Design](docs/UX_UI_DESIGN.md) - Homepage + Console blueprints
+- ⏰ [Cron Optimization](docs/CRON_OPTIMIZATION.md) - Infrastructure strategy
+- 📊 [Feature Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md) - Sector + Market Drivers
+- 📚 [Documentation Index](docs/INDEX.md) - Complete catalog
 
 ---
 

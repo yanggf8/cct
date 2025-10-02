@@ -2,6 +2,29 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚀 MASTER IMPLEMENTATION PLAN AVAILABLE
+
+**📖 COMPLETE 12-WEEK TRANSFORMATION ROADMAP**: See [docs/MASTER_IMPLEMENTATION_PLAN.md](docs/MASTER_IMPLEMENTATION_PLAN.md)
+
+**What's Planned**:
+- **Week 1-4**: Backend features (Sector Rotation + Market Drivers + Cron optimization)
+- **Week 5-8**: UI foundation (System Console + Homepage + Data Visualization)
+- **Week 9-10**: Analytics pages (Sector + Market Drivers dashboards)
+- **Week 11-12**: Polish + Production deployment
+
+**Key Changes**:
+1. ✅ Replace Facebook Messenger → Professional web interface (Next.js + MUI)
+2. ✅ Add Sector Rotation Analysis (11 SPDR ETFs vs S&P 500)
+3. ✅ Add Market Drivers Detection (FRED API + VIX + Geopolitical risk)
+4. ✅ Optimize cron jobs: 8 → 3 (62.5% reduction, Cloudflare limits)
+
+**Related Documentation**:
+- [UX/UX Design](docs/UX_UI_DESIGN.md) - Homepage + Console blueprints
+- [Cron Optimization](docs/CRON_OPTIMIZATION.md) - Infrastructure strategy
+- [Feature Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md) - Sector + Market details
+
+---
+
 ## Production System Status
 
 **Current Version**: 2025-10-01 (100/100 Production-Ready Enterprise Architecture with 100% TypeScript Core)
