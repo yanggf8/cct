@@ -37,7 +37,8 @@ import {
   handleVerifyBackfill,
   handleGenerateMorningPredictions,
   handleStatusManagement,
-  handleKVVerificationTest
+  handleKVVerificationTest,
+  handleProfessionalDashboard
 } from './handlers/index.js';
 
 // Import comprehensive report handlers
@@ -262,7 +263,12 @@ export async function handleHttpRequest(request, env, ctx) {
       });
     default:
       // Default response for root and unknown paths
-      if (url.pathname === '/' || url.pathname === '/status') {
+      if (url.pathname === '/') {
+        // Serve professional dashboard
+        return handleProfessionalDashboard(request, env, ctx);
+      }
+
+      if (url.pathname === '/status') {
         return new Response(JSON.stringify({
           success: true,
           message: 'TFT Trading System Worker is operational',

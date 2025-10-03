@@ -21,7 +21,7 @@ export function generateHTMLHeader(title, description) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title} - TFT Trading System</title>
+    <title>${title} - Dual AI Sentiment Analysis</title>
     <meta name="description" content="${description}">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -392,8 +392,8 @@ export function generateHTMLHeader(title, description) {
 export function generateHTMLFooter(systemStatus = 'Operational') {
   return `
         <div class="footer">
-            <p><strong>TFT Trading System</strong> | Status: <span class="status-badge status-healthy">${systemStatus}</span></p>
-            <p>AI-Powered Trading Analysis with Dual AI Comparison System</p>
+            <p><strong>Dual AI Sentiment Analysis System</strong> | Status: <span class="status-badge status-healthy">${systemStatus}</span></p>
+            <p>AI-Powered Sentiment Analysis with Dual AI Comparison System</p>
             <p class="timestamp">This system is for research and educational purposes only. Not financial advice.</p>
         </div>
     </div>

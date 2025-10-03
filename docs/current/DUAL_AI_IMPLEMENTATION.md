@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Dual AI Comparison System is a simplified, transparent approach to trading analysis that runs two independent AI models side-by-side and provides clear agreement-based signals. This system replaces the complex 3-degree analysis with a straightforward consensus mechanism.
+The Dual AI Comparison System is a simplified, transparent approach to sentiment analysis that runs two independent AI models side-by-side and provides clear agreement-based sentiment insights. This system replaces the complex 3-degree analysis with a straightforward consensus mechanism.
 
 ## Architecture
 
@@ -34,7 +34,7 @@ Financial News → News Collection (10-20 articles per symbol)
         ↓
 Model Agreement Check → Simple Classification (AGREE/PARTIAL/DISAGREE)
         ↓
-Signal Generation → Trading Recommendations (STRONG_BUY/CONSIDER/AVOID)
+Signal Generation → Sentiment Insights (STRONG_POSITIVE/MODERATE_POSITIVE/MIXED/NEUTRAL)
         ↓
 Storage → KV Storage with Dual AI Structure + Performance Tracking
         ↓

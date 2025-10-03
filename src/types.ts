@@ -1,7 +1,7 @@
 /**
- * Core TypeScript Type Definitions for TFT Trading System
+ * Core TypeScript Type Definitions for Dual AI Sentiment Analysis System
  *
- * This file contains all shared interfaces and types used across the trading system.
+ * This file contains all shared interfaces and types used across the sentiment analysis system.
  * Created as part of Phase 5 type safety improvements (2025-10-01).
  */
 

@@ -1,6 +1,6 @@
 /**
  * Pre-Market Briefing Handler
- * Comprehensive battle plan for the trading day
+ * Comprehensive battle plan for the sentiment analysis day
  */
 
 import { createLogger } from '../logging.js';
@@ -575,7 +575,7 @@ function generatePreMarketBriefingHTML(briefingData, date) {
             <p>Next update: Intraday Check at 12:00 PM EDT</p>
             <div class="disclaimer">
                 ⚠️ <strong>DISCLAIMER:</strong> This analysis is for research and educational purposes only.
-                AI models may be inaccurate. Not financial advice - consult licensed professionals before trading.
+                AI models may be inaccurate. Not financial advice - consult licensed professionals before making investment decisions.
             </div>
         </div>
     </div>

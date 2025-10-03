@@ -31,21 +31,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Current Version**: 2025-10-01 (100/100 Production-Ready Enterprise Architecture with 100% TypeScript Core)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **Deployment Version**: b0b04ca1-4f41-4c1a-9a98-1808e8ac7ff8 ✅ **VERIFIED OPERATIONAL**
-- **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI trading system with full TypeScript coverage
+- **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI sentiment analysis system with full TypeScript coverage
 - **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with 100% TypeScript core (legacy JS archived)
 - **Production Verification**: ✅ **COMPLETE** - TypeScript-only architecture verified (see TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)
 - **AI Models**: ✅ **DUAL AI SYSTEM** - GPT-OSS-120B + DistilBERT-SST-2 with simple agreement logic
 - **Agreement Logic**: ✅ **TRANSPARENT** - AGREE/PARTIAL_AGREE/DISAGREE classification instead of complex consensus
-- **Signal Generation**: ✅ **CLEAR RULES** - AGREEMENT → STRONG_BUY/STRONG_SELL, DISAGREEMENT → AVOID
+- **Signal Generation**: ✅ **CLEAR RULES** - AGREEMENT → STRONG_POSITIVE/STRONG_NEGATIVE, DISAGREEMENT → MIXED/NEUTRAL
 - **Market Data**: ✅ **REAL-TIME INTEGRATION** - Yahoo Finance API with rate limiting and caching (5-min TTL)
-- **Performance**: ✅ **OPTIMIZED** - Sub-30s analysis, 100% success rate, intelligent caching system
+- **Performance**: ✅ **OPTIMIZED** - Sub-30s sentiment analysis, 100% success rate, intelligent caching system
 - **Rate Limiting**: ✅ **PRODUCTION-GRADE** - 20 req/min with exponential backoff and batch processing
 - **KV Key Factory**: ✅ **ENTERPRISE-GRADE** - 15 standardized key types with automated TTL assignment
 - **Configuration**: ✅ **CENTRALIZED** - 500+ hardcoded values eliminated through config.ts
 - **Code Quality**: ✅ **OPTIMIZED** - 60% boilerplate reduction through comprehensive utility modules
 - **Data Validation**: ✅ **COMPREHENSIVE** - Input sanitization, error handling, and fallback systems
 - **Cron System**: ✅ **VERIFIED OPERATIONAL** - Production schedule confirmed working with debug monitoring
-- **4-Report Analysis System**: ✅ **OPERATIONAL** - Complete modular high-confidence signal tracking workflow
+- **4-Report Analysis System**: ✅ **OPERATIONAL** - Complete modular high-confidence sentiment insights tracking workflow
 - **✅ TypeScript Migration COMPLETE - ALL 4 PHASES** (2025-10-01):
   - **Phase 1**: KV consolidation + router refactoring ✅
   - **Phase 2**: Infrastructure TypeScript migration (6 files: dal.ts, msg-tracking.ts, config.ts, validation-utilities.ts, kv-key-factory.ts, shared-utilities.ts) ✅
@@ -60,7 +60,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **✅ Facebook Error #10 RESOLVED**: Removed problematic messaging_type and MESSAGE_TAG fields (2025-09-29)
 - **Information Architecture**: ✅ **4-TIER SYSTEM** - Pre-Market → Intraday → End-of-Day → Weekly Review
 - **AI Usage**: ✅ **OPTIMIZED** - 2 AI calls per day (8:30 AM + 4:05 PM) within rate limits
-- **Tomorrow Outlook**: ✅ **AI-POWERED** - Fresh GPT-OSS-120B analysis for next-day predictions
+- **Tomorrow Outlook**: ✅ **AI-POWERED** - Fresh GPT-OSS-120B analysis for next-day sentiment insights
 - **KV Storage**: ✅ **TYPESCRIPT DAL** - Centralized data access with automatic retry and type safety
 - **Utilities**: ✅ **COMPREHENSIVE** - Shared utility modules eliminating code duplication across 20+ files
 - **Handler Decomposition**: ✅ **MODULAR** - Clean separation of concerns with specialized handler classes
@@ -69,21 +69,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Mobile**: ✅ **RESPONSIVE** - Touch-friendly interface with proper viewport
 - **Observability**: ✅ **PRODUCTION-GRADE** - Structured logging, monitoring, business metrics
 - **Quality Grade**: ✅ **100/100** - Production-ready enterprise architecture with complete DAL migration
-- **Report System**: ✅ **4/4 COMPLETED** - Pre-Market, Intraday, End-of-Day, Weekly Review with dual AI integration
+- **Report System**: ✅ **4/4 COMPLETED** - Pre-Market, Intraday, End-of-Day, Weekly Review with dual AI sentiment analysis integration
 
 **Architecture**: `100/100 Production-Ready Enterprise Architecture with Complete TypeScript Migration`
 
 ## Core System Architecture
 
-### Simplified Dual AI Comparison System
-- **Core Architecture**: Simple dual AI comparison system for transparent analysis
-- **AI Model 1**: GPT-OSS-120B (contextual analysis with natural language reasoning, processes 8 articles)
+### Simplified Dual AI Sentiment Analysis System
+- **Core Architecture**: Simple dual AI sentiment analysis system for transparent sentiment comparison
+- **AI Model 1**: GPT-OSS-120B (contextual sentiment analysis with natural language reasoning, processes 8 articles)
 - **AI Model 2**: DistilBERT-SST-2 (fast sentiment classification, processes 10 articles individually)
-- **Simple Agreement Logic**: Models AGREE (same direction), PARTIALLY AGREE (mixed signals), DISAGREE (opposite)
-- **Transparent Rules**: Clear side-by-side comparison with confidence metrics and reasoning
-- **Signal Generation**: AGREEMENT → STRONG_BUY/STRONG_SELL, PARTIAL → CONSIDER/HOLD, DISAGREEMENT → AVOID
+- **Simple Agreement Logic**: Models AGREE (same sentiment direction), PARTIALLY AGREE (mixed sentiment signals), DISAGREE (opposite sentiment)
+- **Transparent Rules**: Clear side-by-side sentiment comparison with confidence metrics and reasoning
+- **Signal Generation**: AGREEMENT → STRONG_POSITIVE/STRONG_NEGATIVE, PARTIAL → MODERATE_POSITIVE/MODERATE_NEGATIVE, DISAGREEMENT → MIXED/NEUTRAL
 - **Parallel Processing**: Both models run simultaneously using Promise.all for optimal performance
-- **HTML Visualization**: Enhanced dual AI display with model comparison, agreement badges, recommendation panels
+- **HTML Visualization**: Enhanced dual AI sentiment display with model comparison, agreement badges, sentiment insight panels
 - **Legacy Compatibility**: Seamless integration with existing 4-report system and Facebook messaging
 
 ### Centralized Configuration System
@@ -116,7 +116,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Location**: `src/modules/msg-tracking.ts` - Generic message delivery tracking
 - **Platforms**: Facebook, Telegram, Slack, Discord, Email, SMS, Webhook, Other
 - **Status Tracking**: pending, sent, delivered, failed, retrying with error counts
-- **Message Types**: 9 predefined types (morning_predictions, midday_update, end_of_day_summary, etc.)
+- **Message Types**: 9 predefined types (morning_sentiment_insights, midday_update, end_of_day_summary, etc.)
 - **Audit Trail**: Complete delivery history with 30-day retention
 - **TypeScript DAL**: Uses DAL for all KV operations (no direct KV access)
 - **Metadata Support**: Custom metadata for debugging and analytics
@@ -124,79 +124,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Cleanup**: Automatic old record cleanup with configurable retention
 - **Refactoring Impact**: Removed 36+ direct KV operations from facebook.js
 
-### 4-Tier High-Confidence Analysis System
+### 4-Tier High-Confidence Sentiment Analysis System
 ```
 Facebook Messenger (Unified Flow Notifications)
-├─ Morning (8:30 AM): Pre-Market Briefing Link - High-confidence signals (≥70%)
-├─ Midday (12:00 PM): Intraday Check Link - Real-time performance tracking
-├─ Daily (4:05 PM): End-of-Day Summary Link - Market close + tomorrow outlook
-└─ Sunday (10:00 AM): Weekly Review Link - Comprehensive pattern analysis
+├─ Morning (8:30 AM): Pre-Market Briefing Link - High-confidence sentiment insights (≥70%)
+├─ Midday (12:00 PM): Intraday Check Link - Real-time sentiment performance tracking
+├─ Daily (4:05 PM): End-of-Day Summary Link - Market close sentiment + tomorrow outlook
+└─ Sunday (10:00 AM): Weekly Review Link - Comprehensive sentiment pattern analysis
 
-Comprehensive Report Pages (Detailed Analysis)
+Comprehensive Report Pages (Detailed Sentiment Analysis)
 ├─ Pre-Market Briefing (/pre-market-briefing)
-│   ├─ High-confidence signals breakdown (≥70% threshold)
-│   ├─ Symbol-specific analysis with confidence scoring
+│   ├─ High-confidence sentiment insights breakdown (≥70% threshold)
+│   ├─ Symbol-specific sentiment analysis with confidence scoring
 │   ├─ Interactive confidence visualizations
-│   └─ Market open preparation insights
+│   └─ Market open preparation sentiment insights
 ├─ Intraday Performance Check (/intraday-check)
-│   ├─ Real-time tracking of morning predictions
-│   ├─ Signal divergence analysis and recalibration alerts
+│   ├─ Real-time tracking of morning sentiment predictions
+│   ├─ Sentiment divergence analysis and recalibration alerts
 │   ├─ Model health status monitoring
 │   └─ Performance metrics and accuracy tracking
 ├─ End-of-Day Summary (/end-of-day-summary)
-│   ├─ Market close performance analysis
-│   ├─ High-confidence signal accuracy breakdown
-│   ├─ Top performers and key insights
+│   ├─ Market close sentiment performance analysis
+│   ├─ High-confidence sentiment accuracy breakdown
+│   ├─ Top performers and key sentiment insights
 │   └─ Tomorrow's market outlook and focus areas
 └─ Weekly Review (/weekly-review)
-    ├─ Comprehensive high-confidence signal analysis
+    ├─ Comprehensive high-confidence sentiment analysis
     ├─ Daily accuracy trends and pattern recognition
-    ├─ Symbol performance rankings and insights
+    ├─ Symbol sentiment performance rankings and insights
     └─ Model optimization recommendations
 ```
 
 ## Key Features
 
-### Comprehensive High-Confidence Analysis System
-- **4-Report Workflow**: Complete daily trading cycle with high-confidence signal focus (≥70%)
-- **Unified Information Flow**: Facebook notifications → Comprehensive web reports
-- **Real-Time Tracking**: Morning predictions tracked through intraday to market close
-- **Pattern Recognition**: Weekly analysis with model optimization recommendations
-- **Interactive Visualizations**: Chart.js integration across all reports
+### Comprehensive High-Confidence Sentiment Analysis System
+- **4-Report Workflow**: Complete daily sentiment analysis cycle with high-confidence sentiment focus (≥70%)
+- **Unified Information Flow**: Facebook notifications → Comprehensive web sentiment reports
+- **Real-Time Tracking**: Morning sentiment predictions tracked through intraday to market close
+- **Pattern Recognition**: Weekly sentiment analysis with model optimization recommendations
+- **Interactive Visualizations**: Chart.js integration across all sentiment reports
 - **Mobile Responsive**: Touch-friendly interfaces optimized for all devices
 
 ### Pre-Market Briefing System (/pre-market-briefing)
-- **High-Confidence Signals**: ≥70% confidence threshold filtering
-- **Symbol-Specific Analysis**: Individual stock analysis with sentiment scoring
-- **Top 3 Recommendations**: Actionable high-confidence ups/downs
-- **Market Sentiment**: Bullish/bearish distribution with symbol breakdown
-- **Interactive Design**: Confidence bars, performance metrics, signal insights
+- **High-Confidence Sentiment Insights**: ≥70% confidence threshold filtering
+- **Symbol-Specific Analysis**: Individual stock sentiment analysis with sentiment scoring
+- **Top 3 Recommendations**: Actionable high-confidence sentiment insights
+- **Market Sentiment**: Positive/negative sentiment distribution with symbol breakdown
+- **Interactive Design**: Confidence bars, performance metrics, sentiment insight panels
 
 ### Intraday Performance Check (/intraday-check)
-- **Real-Time Tracking**: Live monitoring of morning high-confidence predictions
-- **Signal Divergence**: Identification and analysis of prediction vs reality gaps
+- **Real-Time Tracking**: Live monitoring of morning high-confidence sentiment predictions
+- **Sentiment Divergence**: Identification and analysis of sentiment prediction vs reality gaps
 - **Model Health**: Dynamic accuracy monitoring with recalibration alerts
-- **Performance Metrics**: Correct/wrong call tracking with confidence analysis
+- **Performance Metrics**: Correct/wrong sentiment call tracking with confidence analysis
 
 ### End-of-Day Summary (/end-of-day-summary)
-- **Market Close Analysis**: Comprehensive performance review of high-confidence signals
-- **Signal Accuracy**: Detailed breakdown of prediction vs actual performance
-- **Top Performers**: Winners/losers analysis with confidence correlation
-- **Tomorrow's Outlook**: Next-day market bias and key focus areas
+- **Market Close Analysis**: Comprehensive performance review of high-confidence sentiment insights
+- **Sentiment Accuracy**: Detailed breakdown of sentiment prediction vs actual performance
+- **Top Performers**: Winners/losers sentiment analysis with confidence correlation
+- **Tomorrow's Outlook**: Next-day market sentiment bias and key focus areas
 
 ### Weekly Review (/weekly-review)
-- **Pattern Analysis**: Comprehensive high-confidence signal accuracy patterns
+- **Pattern Analysis**: Comprehensive high-confidence sentiment accuracy patterns
 - **Model Reliability**: Weekly performance trends and consistency metrics
 - **Optimization Insights**: Data-driven recommendations for model improvements
-- **Interactive Charts**: Daily accuracy trends with Chart.js visualizations
+- **Interactive Charts**: Daily sentiment accuracy trends with Chart.js visualizations
 
 ### Unified Facebook Messaging System
-- **4-Tier Notification Flow**: Each message type links to specific comprehensive report
-- **High-Confidence Focus**: All messages emphasize ≥70% confidence signals
-- **Symbol-Specific**: Detailed bullish/bearish symbol breakdowns in notifications
-- **Compelling CTAs**: Action-oriented links driving traffic to detailed analysis
+- **4-Tier Notification Flow**: Each message type links to specific comprehensive sentiment report
+- **High-Confidence Focus**: All messages emphasize ≥70% confidence sentiment insights
+- **Symbol-Specific**: Detailed positive/negative sentiment symbol breakdowns in notifications
+- **Compelling CTAs**: Action-oriented links driving traffic to detailed sentiment analysis
 - **✅ Error #10 Resolution**: Fixed Facebook API policy restrictions by removing problematic messaging_type and MESSAGE_TAG fields
-- **✅ Real Trading Analysis**: Now delivers actual market insights instead of test content
+- **✅ Real Sentiment Analysis**: Now delivers actual market sentiment insights instead of test content
 - **✅ All 4 Message Types Working**: Pre-Market Briefing, Intraday Check, End-of-Day Summary, Weekly Review
 
 ### Production Infrastructure

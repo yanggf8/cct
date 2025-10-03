@@ -2,13 +2,13 @@
 
 ## Overview
 
-The TFT Trading System features a comprehensive centralized configuration system that eliminates hardcoded values scattered across the codebase. All configuration is managed through `src/modules/config.js` with environment variable integration and fallback defaults.
+The Dual AI Sentiment Analysis System features a comprehensive centralized configuration system that eliminates hardcoded values scattered across the codebase. All configuration is managed through `src/modules/config.ts` with environment variable integration and fallback defaults.
 
 ## Configuration Architecture
 
 ### Centralized Configuration Hub
 
-**File**: `src/modules/config.js`
+**File**: `src/modules/config.ts`
 
 The configuration system provides:
 - **Unified Configuration**: All system settings in one location

@@ -73,3 +73,8 @@ export {
   handleIntradayCheckDecomposed,
   handleIntradayCheckConsistent
 } from './intraday-decomposed.js';
+
+// Professional dashboard handlers
+export {
+  handleProfessionalDashboard
+} from './dashboard-handlers.js';

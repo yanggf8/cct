@@ -1,5 +1,5 @@
 /**
- * TFT Trading System - Main Entry Point
+ * Dual AI Sentiment Analysis System - Main Entry Point
  * Modular Cloudflare Worker Architecture
  */
 
