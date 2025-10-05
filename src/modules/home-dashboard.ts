@@ -4,10 +4,57 @@
  * Role-based hybrid architecture: Dashboard for traders, Console for admins
  */
 
+interface Env {
+  TRADING_RESULTS: KVNamespace;
+  TRAINED_MODELS: R2Bucket;
+  ENHANCED_MODELS: R2Bucket;
+  AI: any;
+  WORKER_VERSION?: string;
+  TRADING_SYMBOLS?: string;
+  LOG_LEVEL?: string;
+  TIMEZONE?: string;
+}
+
+interface DashboardData {
+  marketMetrics: {
+    spy: { value: number; change: number; changePercent: number };
+    vix: { value: number; change: number; changePercent: number };
+    aapl: { value: number; change: number; changePercent: number };
+  };
+  systemHealth: {
+    status: 'healthy' | 'warning' | 'error';
+    responseTime: number;
+    uptime: string;
+    lastAnalysis: string;
+    errorCount: number;
+  };
+  latestReports: Array<{
+    type: string;
+    title: string;
+    time: string;
+    confidence: number;
+    url: string;
+  }>;
+  topMovers: Array<{
+    symbol: string;
+    price: number;
+    change: number;
+    changePercent: number;
+    sentiment: string;
+  }>;
+  sectorPerformance: Array<{
+    sector: string;
+    symbol: string;
+    value: number;
+    change: number;
+    changePercent: number;
+  }>;
+}
+
 /**
  * Serve the Home Dashboard HTML page
  */
-export async function handleHomeDashboardPage(request, env) {
+export async function handleHomeDashboardPage(request: Request, env: Env): Promise<Response> {
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -236,8 +283,24 @@ export async function handleHomeDashboardPage(request, env) {
         /* Main Dashboard Grid */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
             gap: 20px;
+        }
+
+        /* Optimized layout for 5 widgets: 2-2-1 arrangement */
+        @media (min-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .dashboard-grid .widget:first-child {
+                grid-column: 1 / 3;
+            }
+        }
+
+        @media (max-width: 1199px) and (min-width: 800px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
 
         .widget {
@@ -484,26 +547,26 @@ export async function handleHomeDashboardPage(request, env) {
         <!-- Main Content Area -->
         <main class="main-content">
             <!-- At-a-Glance Top Row -->
-            <div class="at-a-glance">
-                <div class="metric-card">
+            <div class="at-a-glance" role="status" aria-live="polite" aria-label="Market metrics at a glance">
+                <div class="metric-card" role="status" aria-label="S&P 500 Index">
                     <div class="metric-label">SPY</div>
-                    <div class="metric-value" id="spy-value">452.34</div>
-                    <div class="metric-change">+1.23%</div>
+                    <div class="metric-value" id="spy-value" aria-label="S&P 500 value: 452.34 points">452.34</div>
+                    <div class="metric-change" aria-label="Positive change of 1.23 percent">+1.23%</div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card" role="status" aria-label="VIX Volatility Index">
                     <div class="metric-label">VIX</div>
-                    <div class="metric-value" id="vix-value">16.82</div>
-                    <div class="metric-change negative">-0.45%</div>
+                    <div class="metric-value" id="vix-value" aria-label="VIX value: 16.82 points">16.82</div>
+                    <div class="metric-change negative" aria-label="Negative change of 0.45 percent">-0.45%</div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card" role="status" aria-label="Apple Inc Stock">
                     <div class="metric-label">AAPL</div>
-                    <div class="metric-value" id="aapl-value">178.45</div>
-                    <div class="metric-change">+2.15%</div>
+                    <div class="metric-value" id="aapl-value" aria-label="Apple stock value: $178.45">178.45</div>
+                    <div class="metric-change" aria-label="Positive change of 2.15 percent">+2.15%</div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card" role="timer" aria-label="Current market time">
                     <div class="metric-label">Time</div>
-                    <div class="metric-value" id="time-value">09:30</div>
-                    <div class="metric-change">Market Open</div>
+                    <div class="metric-value" id="time-value" aria-label="Current time: 09:30">09:30</div>
+                    <div class="metric-change" aria-label="Market status: Open">Market Open</div>
                 </div>
             </div>
 
@@ -616,6 +679,62 @@ export async function handleHomeDashboardPage(request, env) {
                     </div>
                 </div>
 
+                <!-- Sector Performance Widget -->
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">
+                            📈 Sector Performance
+                        </div>
+                        <div class="widget-actions">
+                            <button class="widget-action" onclick="refreshSectorData()">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <div id="sector-performance">
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div>
+                                    <div style="font-weight: 600;">XLK</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem;">Technology</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="color: #00ff88; font-weight: 600;" id="xlk-change">+1.23%</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" id="xlk-value">$245.67</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div>
+                                    <div style="font-weight: 600;">XLF</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem;">Financials</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="color: #ff4757; font-weight: 600;" id="xlf-change">-0.45%</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" id="xlf-value">$41.23</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <div>
+                                    <div style="font-weight: 600;">XLV</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem;">Health Care</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="color: #00ff88; font-weight: 600;" id="xlv-change">+0.89%</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" id="xlv-value">$156.78</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                                <div>
+                                    <div style="font-weight: 600;">XLE</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem;">Energy</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="color: #ff4757; font-weight: 600;" id="xle-change">-1.67%</div>
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;" id="xle-value">$87.34</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Top Movers Widget -->
                 <div class="widget">
                     <div class="widget-header">
@@ -623,7 +742,7 @@ export async function handleHomeDashboardPage(request, env) {
                             🚀 Top Movers
                         </div>
                         <div class="widget-actions">
-                            <button class="widget-action">Refresh</button>
+                            <button class="widget-action" onclick="refreshTopMovers()">Refresh</button>
                         </div>
                     </div>
                     <div class="widget-content">
@@ -632,6 +751,7 @@ export async function handleHomeDashboardPage(request, env) {
                                 <div>
                                     <div style="font-weight: 600;">NVDA</div>
                                     <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">NVIDIA Corp</div>
+                                    <div style="color: #4facfe; font-size: 0.7rem;">🟢 Strong Buy</div>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="color: #00ff88; font-weight: 600;">+3.45%</div>
@@ -642,6 +762,7 @@ export async function handleHomeDashboardPage(request, env) {
                                 <div>
                                     <div style="font-weight: 600;">TSLA</div>
                                     <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Tesla Inc</div>
+                                    <div style="color: #4facfe; font-size: 0.7rem;">🟡 Moderate Buy</div>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="color: #00ff88; font-weight: 600;">+2.78%</div>
@@ -652,6 +773,7 @@ export async function handleHomeDashboardPage(request, env) {
                                 <div>
                                     <div style="font-weight: 600;">MSFT</div>
                                     <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Microsoft Corp</div>
+                                    <div style="color: #4facfe; font-size: 0.7rem;">🟢 Strong Buy</div>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="color: #ff4757; font-weight: 600;">-0.92%</div>
@@ -827,7 +949,48 @@ export async function handleHomeDashboardPage(request, env) {
 
             // Check system health every 30 seconds
             setInterval(checkSystemHealth, 30000);
+
+            // Initialize sector data
+            refreshSectorData();
+            refreshTopMovers();
         });
+
+        // Sector Performance Widget Functions
+        function refreshSectorData() {
+            const sectors = [
+                { symbol: 'XLK', name: 'Technology', baseValue: 245.67 },
+                { symbol: 'XLF', name: 'Financials', baseValue: 41.23 },
+                { symbol: 'XLV', name: 'Health Care', baseValue: 156.78 },
+                { symbol: 'XLE', name: 'Energy', baseValue: 87.34 }
+            ];
+
+            sectors.forEach(sector => {
+                const changeElement = document.getElementById(sector.symbol.toLowerCase() + '-change');
+                const valueElement = document.getElementById(sector.symbol.toLowerCase() + '-value');
+
+                if (changeElement && valueElement) {
+                    const change = (Math.random() - 0.5) * 3;
+                    const newValue = (sector.baseValue + change).toFixed(2);
+                    const changePercent = ((change / sector.baseValue) * 100).toFixed(2);
+
+                    changeElement.textContent = (changePercent >= 0 ? '+' : '') + changePercent + '%';
+                    changeElement.style.color = changePercent >= 0 ? '#00ff88' : '#ff4757';
+                    valueElement.textContent = '$' + newValue;
+                }
+            });
+        }
+
+        // Top Movers Widget Functions
+        function refreshTopMovers() {
+            // Add visual feedback for refresh
+            const moversContainer = document.getElementById('top-movers');
+            if (moversContainer) {
+                moversContainer.style.opacity = '0.6';
+                setTimeout(() => {
+                    moversContainer.style.opacity = '1';
+                }, 500);
+            }
+        }
 
         // Mobile sidebar toggle
         function toggleMobileSidebar() {
@@ -846,10 +1009,25 @@ export async function handleHomeDashboardPage(request, env) {
 </body>
 </html>`;
 
-  return new Response(htmlContent, {
-    headers: {
-      'Content-Type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'public, max-age=300' // 5 minute cache
-    }
-  });
+  try {
+    return new Response(htmlContent, {
+      headers: {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'public, max-age=300', // 5 minute cache
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      }
+    });
+  } catch (error) {
+    console.error('Error serving home dashboard:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Internal server error',
+      message: 'Failed to load dashboard'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
