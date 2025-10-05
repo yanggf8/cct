@@ -4,6 +4,7 @@
  */
 
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
+import { handleHomeDashboardPage } from './home-dashboard.js';
 import { createRequestLogger, initLogging } from './logging.js';
 import { PerformanceMonitor, BusinessMetrics } from './monitoring.js';
 
@@ -143,6 +144,9 @@ export async function handleHttpRequest(request, env, ctx) {
     // Route requests to appropriate handlers
     let response;
     switch (url.pathname) {
+      case '/':
+        response = await handleHomeDashboardPage(request, env);
+        break;
       case '/analyze':
         response = await handleManualAnalysis(request, env);
         break;
