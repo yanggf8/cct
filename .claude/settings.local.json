@@ -163,7 +163,8 @@
       "Bash(gh auth:*)",
       "Bash(gh secret set:*)",
       "Bash(gh:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy)"
     ],
     "deny": [],
     "ask": []

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Dual AI Comparison System is a simplified, transparent approach to sentiment analysis that runs two independent AI models side-by-side and provides clear agreement-based sentiment insights. This system replaces the complex 3-degree analysis with a straightforward consensus mechanism.
+The Dual AI Comparison System is a simplified, transparent approach to sentiment analysis that runs two independent AI models side-by-side and provides clear agreement-based sentiment insights. This system replaces the previous multi-layer analysis with a streamlined dual AI consensus mechanism.
 
 ## Architecture
 
