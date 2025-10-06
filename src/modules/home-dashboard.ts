@@ -287,19 +287,22 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             gap: 20px;
         }
 
-        /* Optimized layout for 5 widgets: 2-2-1 arrangement */
-        @media (min-width: 1200px) {
+        /* Optimized layout for 6 widgets: 3-3 or 2-2-2 arrangement */
+        @media (min-width: 1400px) {
             .dashboard-grid {
                 grid-template-columns: repeat(3, 1fr);
             }
-            .dashboard-grid .widget:first-child {
-                grid-column: 1 / 3;
+        }
+
+        @media (max-width: 1399px) and (min-width: 800px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
 
-        @media (max-width: 1199px) and (min-width: 800px) {
+        @media (max-width: 799px) {
             .dashboard-grid {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: 1fr;
             }
         }
 
@@ -352,6 +355,29 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         .widget-action:hover {
             background: rgba(79, 172, 254, 0.3);
             color: #00f2fe;
+        }
+
+        .market-status-badge {
+            font-size: 1.2rem;
+            animation: pulse 2s infinite;
+        }
+
+        .market-status-badge.open {
+            color: #00ff88;
+        }
+
+        .market-status-badge.closed {
+            color: #ff4757;
+        }
+
+        .market-status-badge.pre-market,
+        .market-status-badge.after-hours {
+            color: #ffa502;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         .widget-content {
@@ -783,6 +809,48 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                         </div>
                     </div>
                 </div>
+
+                <!-- Market Clock Widget -->
+                <div class="widget">
+                    <div class="widget-header">
+                        <div class="widget-title">
+                            🕐 Market Clock
+                        </div>
+                        <div class="widget-actions">
+                            <span class="market-status-badge" id="market-status-badge">●</span>
+                        </div>
+                    </div>
+                    <div class="widget-content">
+                        <div style="text-align: center; padding: 20px 0;">
+                            <div style="font-size: 2.5rem; font-weight: bold; color: #4facfe; margin-bottom: 10px;" id="market-clock-time">09:30:00</div>
+                            <div style="font-size: 1rem; color: rgba(255, 255, 255, 0.8); margin-bottom: 20px;" id="market-session">Market Open</div>
+
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">Pre-Market</div>
+                                    <div style="color: #4facfe; font-size: 0.9rem; font-weight: 600;">4:00 - 9:30</div>
+                                </div>
+                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">Regular</div>
+                                    <div style="color: #00ff88; font-size: 0.9rem; font-weight: 600;" id="regular-session">9:30 - 16:00</div>
+                                </div>
+                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">After-Hours</div>
+                                    <div style="color: #4facfe; font-size: 0.9rem; font-weight: 600;">16:00 - 20:00</div>
+                                </div>
+                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
+                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">Market Closed</div>
+                                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 0.9rem; font-weight: 600;">20:00 - 4:00</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px; padding: 10px; background: rgba(79, 172, 254, 0.05); border-radius: 8px; border-left: 3px solid #4facfe;">
+                                <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.6);">Next Event</div>
+                                <div style="font-size: 0.9rem; color: #ffffff; font-weight: 600; margin-top: 5px;" id="next-event">Market Close in 6h 30m</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -940,9 +1008,13 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             checkSystemHealth();
             checkAIModels();
             updateTime();
+            updateMarketClock();
 
             // Update time every minute
             setInterval(updateTime, 60000);
+
+            // Update market clock every second
+            setInterval(updateMarketClock, 1000);
 
             // Update market data every 5 seconds
             setInterval(updateMarketData, 5000);
@@ -989,6 +1061,77 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                 setTimeout(() => {
                     moversContainer.style.opacity = '1';
                 }, 500);
+            }
+        }
+
+        // Market Clock Widget Functions
+        function updateMarketClock() {
+            const now = new Date();
+
+            // Convert to EST/EDT
+            const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            const hours = estTime.getHours();
+            const minutes = estTime.getMinutes();
+            const seconds = estTime.getSeconds();
+
+            // Update clock display
+            const clockElement = document.getElementById('market-clock-time');
+            if (clockElement) {
+                clockElement.textContent =
+                    String(hours).padStart(2, '0') + ':' +
+                    String(minutes).padStart(2, '0') + ':' +
+                    String(seconds).padStart(2, '0');
+            }
+
+            // Determine market session
+            const currentTime = hours * 60 + minutes;
+            const badge = document.getElementById('market-status-badge');
+            const sessionElement = document.getElementById('market-session');
+            const nextEventElement = document.getElementById('next-event');
+
+            let session = '';
+            let badgeClass = '';
+            let nextEvent = '';
+
+            if (currentTime >= 240 && currentTime < 570) {
+                // Pre-Market (4:00 AM - 9:30 AM)
+                session = 'Pre-Market Session';
+                badgeClass = 'pre-market';
+                const minutesUntilOpen = 570 - currentTime;
+                nextEvent = 'Market Opens in ' + Math.floor(minutesUntilOpen / 60) + 'h ' + (minutesUntilOpen % 60) + 'm';
+            } else if (currentTime >= 570 && currentTime < 960) {
+                // Regular Market (9:30 AM - 4:00 PM)
+                session = 'Market Open';
+                badgeClass = 'open';
+                const minutesUntilClose = 960 - currentTime;
+                nextEvent = 'Market Closes in ' + Math.floor(minutesUntilClose / 60) + 'h ' + (minutesUntilClose % 60) + 'm';
+            } else if (currentTime >= 960 && currentTime < 1200) {
+                // After-Hours (4:00 PM - 8:00 PM)
+                session = 'After-Hours Trading';
+                badgeClass = 'after-hours';
+                const minutesUntilClose = 1200 - currentTime;
+                nextEvent = 'After-Hours Closes in ' + Math.floor(minutesUntilClose / 60) + 'h ' + (minutesUntilClose % 60) + 'm';
+            } else {
+                // Market Closed
+                session = 'Market Closed';
+                badgeClass = 'closed';
+                if (currentTime >= 1200) {
+                    const minutesUntilPreMarket = (1440 - currentTime) + 240;
+                    nextEvent = 'Pre-Market Opens in ' + Math.floor(minutesUntilPreMarket / 60) + 'h ' + (minutesUntilPreMarket % 60) + 'm';
+                } else {
+                    const minutesUntilPreMarket = 240 - currentTime;
+                    nextEvent = 'Pre-Market Opens in ' + Math.floor(minutesUntilPreMarket / 60) + 'h ' + (minutesUntilPreMarket % 60) + 'm';
+                }
+            }
+
+            if (badge) {
+                badge.className = 'market-status-badge ' + badgeClass;
+            }
+            if (sessionElement) {
+                sessionElement.textContent = session;
+            }
+            if (nextEventElement) {
+                nextEventElement.textContent = nextEvent;
             }
         }
 
