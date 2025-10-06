@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Scheduling Strategy](docs/CRON_OPTIMIZATION.md) - GitHub Actions setup (unlimited, $0/month)
 - [Cost Optimization](docs/COST_OPTIMIZATION.md) - Stay 100% free with GitHub Actions
 - [Feature Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md) - Sector + Market details
-- **[Sector Rotation Pipeline v1.2](docs/SECTOR_ROTATION_DATA_PIPELINE.md)** - Architecture + Implementation (Gemini 8.5/10 | Amazon Q 8.2/10)
+- **[Sector Rotation Pipeline v1.3](docs/SECTOR_ROTATION_DATA_PIPELINE.md)** - Architecture + Implementation (Gemini 8.5/10 | Amazon Q 8.2/10 | Rovodev 8.7/10)
 
 ---
 
@@ -36,7 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Integration Tests**: ✅ **15/15 PASSED (100%)** - Complete verification with hard evidence (see INTEGRATION_TEST_EVIDENCE.md)
 - **GitHub Actions**: ✅ **OPERATIONAL** - Automated workflows fixed and running (commit 8a1d95c)
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI sentiment analysis system with full TypeScript coverage and professional navigation
-- **📊 Sector Rotation Pipeline**: ✅ **v1.2 DESIGN COMPLETE** - Architecture reviewed and approved (Gemini 8.5/10 | Amazon Q 8.2/10), ready for Phase 1 MVP implementation
+- **📊 Sector Rotation Pipeline**: ✅ **v1.3 DESIGN COMPLETE** - 3 AI reviews complete (Gemini 8.5/10 | Amazon Q 8.2/10 | **Rovodev 8.7/10** ⭐), critical production fixes identified, ready for Phase 0 + Phase 1 implementation
 - **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with 100% TypeScript core (legacy JS archived)
 - **Production Verification**: ✅ **COMPLETE** - TypeScript-only architecture verified (see TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)
 - **AI Models**: ✅ **DUAL AI SYSTEM** - GPT-OSS-120B + DistilBERT-SST-2 with simple agreement logic
@@ -385,8 +385,23 @@ src/modules/
 3. **Stock Selection** (Current ✅) → Context-aware individual picks
 
 ### 📊 Phase 1: Sector Rotation Analysis (Week 2: Oct 7-13) - **STARTING NOW**
-**Status**: 🎯 **Design Complete** (v1.2) → **Implementation Phase 1 MVP** (4 days)
-**Architecture Reviews**: Gemini 8.5/10 | Amazon Q 8.2/10 - Both recommend proceeding with confidence
+**Status**: 🚨 **Phase 0 Critical Fixes** (1 hour) → **Phase 1 MVP** (4 days)
+**Architecture Reviews**: Gemini 8.5/10 | Amazon Q 8.2/10 | **Rovodev 8.7/10** ⭐ HIGHEST
+
+**🚨 Phase 0: Critical Production Fixes (1 hour - MUST DO FIRST)**
+Rovodev identified production-breaking issues in Workers environment:
+
+1. **L2 KV Cache (30 min)** - CRITICAL
+   - **Issue**: L1 memory cache not shared across Worker isolates
+   - **Risk**: Cold starts → 0% cache hit → thundering herd (100+ concurrent requests)
+   - **Fix**: Add L2 KV cache (120s TTL) even in MVP
+   - **Module**: `src/modules/sector-cache-manager.ts`
+
+2. **Semaphore Concurrency Control (30 min)** - CRITICAL
+   - **Issue**: No limit on parallel API calls during cold starts
+   - **Risk**: Could spike to 100+ concurrent requests → rate limit ban
+   - **Fix**: Semaphore pattern with 4 max concurrent requests
+   - **Module**: `src/modules/sector-data-fetcher.ts`
 
 **Scope**: Professional sector-level intelligence (NOT individual stock grouping)
 - Track 11 SPDR sector ETFs (XLK, XLV, XLF, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB)
@@ -399,24 +414,39 @@ src/modules/
 - Zero new API dependencies
 - 100% free infrastructure
 
-**MVP Phase 1 Deliverables** (4 days - Oct 7-10):
-1. `src/modules/data-validation.ts` - OHLCV validation layer (mandatory for data quality)
-2. `src/modules/circuit-breaker.ts` - Protect against Yahoo Finance failures (CLOSED/OPEN/HALF_OPEN states)
-3. `src/modules/sector-data-fetcher.ts` - Batch fetching with rate limiting and retry logic
-4. Extend `kv-key-factory.ts` - Add sector key types (sector_snapshot, sector_history, sector_indicators)
-5. L1 memory cache only (60s TTL) - Validate 75% cache hit assumption
-6. Single timeframe: 3M history only
-7. Historical backfill: 1 year (252 trading days, not 5 years)
-8. Single endpoint: `/api/sectors/snapshot`
+**Phase 1 MVP Deliverables** (4 days - Oct 7-10):
 
-**Decision Point** (Week 3):
-- Evaluate: Yahoo Finance uptime >95%, cache hit rate >70%, circuit breaker opens <5/day
-- Go/No-Go for Phase 2 based on real metrics
+**Day 1**: Foundation + Critical Fixes
+1. `src/modules/data-validation.ts` - OHLCV validation layer (validateOHLCVBar, validateVolume)
+2. `src/modules/circuit-breaker.ts` - Failure protection (CLOSED/OPEN/HALF_OPEN states)
+
+**Day 2**: Data Fetching + Concurrency Control
+3. `src/modules/sector-data-fetcher.ts` - Batch fetching with:
+   - **Semaphore (4 max concurrent)** ✅ Rovodev critical fix
+   - Circuit breaker integration
+   - Rate limiter integration
+   - Data validation before caching
+4. Extend `kv-key-factory.ts` - Add 5 sector key types
+
+**Day 3**: Caching + Indicators
+5. `src/modules/sector-cache-manager.ts` - **L1 (60s) + L2 KV (120s)** ✅ Rovodev critical fix
+6. `src/modules/sector-indicators.ts` - OBV/CMF calculations, relative strength
+
+**Day 4**: API + Testing + Backfill
+7. Single endpoint: `/api/sectors/snapshot`
+8. Integration with monitoring system
+9. L1+L2 cache hit rate tracking
+10. Historical backfill: 1 year (252 trading days)
+11. End-to-end testing + deployment
+
+**Decision Point (Week 3 - Oct 13)**:
+- Evaluate: Yahoo Finance uptime >95%, **L1+L2 cache hit >70%**, circuit breaker <5/day
+- Go/No-Go for Phase 2 optimization
 
 **Professional Value**: Identify where institutional capital is flowing → Validate/invalidate stock picks based on sector strength
 
 **Documentation**:
-- **Architecture**: `docs/SECTOR_ROTATION_DATA_PIPELINE.md` (v1.2 - Complete with implementation notes)
+- **Architecture**: `docs/SECTOR_ROTATION_DATA_PIPELINE.md` (**v1.3** - Rovodev production fixes)
 - **Feature Analysis**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` (Section: Sector Analysis)
 
 ---
