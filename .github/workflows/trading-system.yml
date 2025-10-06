@@ -87,10 +87,11 @@ jobs:
 
           # Execute analysis request with timeout
           if [[ "$ENDPOINT" == "/analyze" ]]; then
-            # For manual analysis, use POST request
+            # For manual analysis, use POST request with symbols
             response=$(curl -s -X POST \
               -H "Content-Type: application/json" \
               -H "X-API-KEY: $API_KEY" \
+              -d '{"symbols":["AAPL","MSFT","GOOGL","TSLA","NVDA"]}' \
               --connect-timeout 300 \
               --max-time 600 \
               "$WORKER_URL$ENDPOINT")
