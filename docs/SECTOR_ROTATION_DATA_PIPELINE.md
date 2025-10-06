@@ -289,28 +289,33 @@ Still within limits: 150 / 2000 = 7.5% utilization ✅
 
 **Backfill Script**: `scripts/sector-historical-backfill.ts`
 
-**Requirements**:
-- Fetch 5 years (1,260 trading days) of daily OHLCV data per symbol
+**Requirements (REVISED for MVP)**:
+- **MVP**: Fetch 1 year (252 trading days) of daily OHLCV data per symbol
+- **Rationale**: Faster deployment, better data quality, sufficient for OBV/CMF indicators
+- **Post-MVP**: Expand to 5 years after validating data quality
 - Store in KV with 30-day TTL (will be refreshed by daily pipeline)
 - Respect rate limits during backfill
 
-**Backfill Budget**:
+**Backfill Budget (MVP - 1 Year)**:
 ```
 Symbols: 12 (11 sectors + SPY)
-Data Points per Symbol: 1,260 days (5 years)
+Data Points per Symbol: 252 days (1 year)
 Batch Size: 1 symbol = 1 API call (Yahoo Finance returns all days in one call)
 Delay Between Calls: 2 seconds
 
 Total API Calls: 12 calls
 Total Time: 12 × 2s = 24 seconds
 Rate Limit Impact: Minimal (12 calls in 24 seconds)
+Data Quality: Higher (recent data more reliable than 5-year-old data)
 ```
+
+**Amazon Q Recommendation**: 1-year backfill provides sufficient baseline for meaningful indicators while ensuring faster, more reliable deployment.
 
 **Implementation**:
 ```typescript
 async function backfillSectorHistory(): Promise<void> {
   const symbols = SECTOR_CONFIG.SYMBOLS;
-  const period = '5y'; // 5 years
+  const period = '1y'; // 1 year for MVP (change to '5y' post-MVP)
 
   for (const symbol of symbols) {
     try {
@@ -354,6 +359,164 @@ If one-time backfill is not feasible, implement lazy loading:
 - First request for a symbol triggers backfill for that symbol only
 - Cache the result
 - Background job fills remaining symbols over time
+
+---
+
+## ⚠️ Critical Implementation Notes (Amazon Q Review - 8.2/10)
+
+**Added from independent Amazon Q assessment. These are tactical refinements for MVP implementation.**
+
+### **1. Historical Backfill: Use 1 Year (Not 5)**
+- **Change**: MVP uses 1-year backfill (252 trading days)
+- **Why**: Faster deployment, better data quality, sufficient for OBV/CMF indicators
+- **Post-MVP**: Expand to 5 years after validating Yahoo Finance data quality
+- **Impact**: Same 12 API calls, but more reliable recent data
+
+### **2. Data Validation Layer (MANDATORY)**
+Add comprehensive OHLCV validation before caching:
+
+```typescript
+/**
+ * Validate OHLCV bar data quality
+ * Catches Yahoo Finance data errors before they corrupt indicators
+ */
+function validateOHLCVBar(bar: OHLCVBar, index: number): boolean {
+  // Check for negative range (data corruption)
+  if (bar.high < bar.low) {
+    throw new Error(`Invalid OHLC at index ${index}: high (${bar.high}) < low (${bar.low})`);
+  }
+
+  // Validate OHLC relationships
+  const isValid =
+    bar.high >= bar.low &&
+    bar.high >= Math.max(bar.open, bar.close) &&
+    bar.low <= Math.min(bar.open, bar.close) &&
+    bar.volume >= 0;
+
+  if (!isValid) {
+    console.warn(`Invalid OHLCV bar at index ${index}:`, bar);
+  }
+
+  return isValid;
+}
+
+/**
+ * Validate volume data quality (ETF-specific)
+ * Yahoo Finance volume can be inconsistent for ETFs
+ */
+function validateVolume(bar: OHLCVBar, symbol: string): boolean {
+  // ETF volume threshold (below 10k may indicate bad data)
+  const MIN_ETF_VOLUME = 10000;
+
+  if (bar.volume < MIN_ETF_VOLUME) {
+    console.warn(`Low volume for ${symbol}: ${bar.volume} (may be bad data)`);
+    return false;
+  }
+
+  return true;
+}
+```
+
+**Integration**: Add to `sector-data-fetcher.ts` before caching any data.
+
+### **3. KV Storage Limits (Production Risk)**
+- **Cloudflare KV Limit**: 25MB per value
+- **Risk**: 1-year sector history ~500KB/symbol, 5-year ~2.5MB/symbol (safe)
+- **Monitoring**: Track KV value sizes, alert if >10MB
+- **Mitigation**: Compress historical data or split by timeframe if needed
+
+### **4. Refresh Interval: Consider 4 Minutes (Not 5)**
+- **Change**: Use 4-minute refresh during market hours (not 5-minute)
+- **Why**: Avoids exact alignment with other systems (thundering herd)
+- **Impact**: 98 fetches/day vs 78 (still only 2.5% of rate limit)
+- **Benefit**: More even distribution of API load
+
+### **5. Market Hours Detection (Robust Implementation)**
+```typescript
+/**
+ * Robust EST/EDT handling for cache TTL switching
+ * Handles daylight saving time transitions automatically
+ */
+function isMarketHours(): boolean {
+  const now = new Date();
+  const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const hours = estTime.getHours();
+  const minutes = estTime.getMinutes();
+  const currentMinutes = hours * 60 + minutes;
+
+  // Market hours: 9:30 AM - 4:00 PM ET (570 - 960 minutes)
+  return currentMinutes >= 570 && currentMinutes < 960;
+}
+```
+
+### **6. Enhanced CMF Validation**
+Add negative range check to CMF calculation:
+
+```typescript
+function calculateCMF(
+  high: number[],
+  low: number[],
+  close: number[],
+  volume: number[],
+  period: number = 20
+): number[] {
+  const mfm = close.map((c, i) => {
+    const range = high[i] - low[i];
+
+    // Handle zero-range bars
+    if (range === 0) return 0;
+
+    // ⚠️ NEW: Check for negative ranges (data error)
+    if (range < 0) {
+      throw new Error(`Invalid OHLC data at index ${i}: high < low`);
+    }
+
+    return ((c - low[i]) - (high[i] - c)) / range;
+  });
+
+  // ... rest of CMF calculation
+}
+```
+
+### **7. Automated Health Monitoring**
+Add to existing monitoring system:
+
+```typescript
+const SECTOR_HEALTH_CHECKS = {
+  // Check Yahoo Finance API availability
+  yahooFinanceUptime: async () => {
+    try {
+      await testYahooFinanceAPI('SPY', '1d');
+      return { status: 'healthy', uptime: 100 };
+    } catch (error) {
+      return { status: 'unhealthy', error: error.message };
+    }
+  },
+
+  // Monitor cache performance
+  cacheHitRate: () => {
+    const metrics = getCacheMetrics();
+    return {
+      l1HitRate: metrics.l1.hitRate,
+      target: 0.75,
+      healthy: metrics.l1.hitRate >= 0.70
+    };
+  },
+
+  // Track circuit breaker state
+  circuitBreakerState: () => {
+    const state = getCircuitBreakerStatus();
+    return {
+      state: state.current,
+      failures: state.failureCount,
+      healthy: state.current !== 'OPEN'
+    };
+  }
+};
+```
+
+### **Amazon Q Production Risk Note**
+> Volume data quality from Yahoo Finance can be inconsistent for ETFs. Monitor and add validation thresholds (e.g., volume < 10,000 may indicate bad data).
 
 ---
 
@@ -1393,8 +1556,16 @@ This **Sector Rotation Data Pipeline** provides a pragmatic, risk-mitigated appr
 
 ---
 
-*Document Version: 1.1 (Revised with Gemini Feedback)*
+*Document Version: 1.2 (Amazon Q Implementation Notes Added)*
 *Last Updated: 2025-10-06*
-*Gemini Review: 8.5/10*
+*Gemini Review: 8.5/10 | Amazon Q Review: 8.2/10*
 *Status: ✅ Design Complete - Ready for MVP Phase 1 Implementation*
-*Next Step: Implement circuit-breaker.ts and sector-data-fetcher.ts*
+*Next Step: Create data-validation.ts → circuit-breaker.ts → sector-data-fetcher.ts*
+
+**Critical Changes in v1.2**:
+- Historical backfill: 5 years → 1 year for MVP
+- Added mandatory data validation layer (validateOHLCVBar)
+- Added KV storage limit warnings (25MB)
+- Refresh interval recommendation: 4 minutes (not 5)
+- Enhanced CMF with negative range validation
+- Automated health monitoring specification
