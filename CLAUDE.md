@@ -30,9 +30,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Current Version**: 2025-10-06 (100/100 Production-Ready Enterprise Architecture with Market Clock Widget)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **Deployment Version**: a8cdbf43-2741-4ad9-931c-af66128d130d ✅ **VERIFIED OPERATIONAL**
+- **Deployment Version**: 8a1d95c ✅ **VERIFIED OPERATIONAL** (GitHub Actions Fixed)
 - **Dashboard Quality**: ✅ **8.5/10 PROFESSIONAL GRADE** - Enterprise trading platform with Market Clock widget and 6-widget layout
 - **Integration Tests**: ✅ **15/15 PASSED (100%)** - Complete verification with hard evidence (see INTEGRATION_TEST_EVIDENCE.md)
+- **GitHub Actions**: ✅ **OPERATIONAL** - Automated workflows fixed and running (commit 8a1d95c)
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI sentiment analysis system with full TypeScript coverage and professional navigation
 - **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with 100% TypeScript core (legacy JS archived)
 - **Production Verification**: ✅ **COMPLETE** - TypeScript-only architecture verified (see TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)
@@ -48,6 +49,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Data Validation**: ✅ **COMPREHENSIVE** - Input sanitization, error handling, and fallback systems
 - **Cron System**: ✅ **VERIFIED OPERATIONAL** - Production schedule confirmed working with debug monitoring
 - **4-Report Analysis System**: ✅ **OPERATIONAL** - Complete modular high-confidence sentiment insights tracking workflow
+- **✅ GitHub Actions Workflow Fixed (8a1d95c)**: Automated schedules operational (2025-10-06)
+  - **Issue**: POST request to `/analyze` endpoint missing JSON body causing "Unexpected end of JSON input" error
+  - **Fix**: Added `-d '{"symbols":["AAPL","MSFT","GOOGL","TSLA","NVDA"]}'` to curl command in workflow (line 94)
+  - **Result**: All 4 automated workflows now operational (Pre-Market, Intraday, End-of-Day, Weekly)
+  - **Schedules**: 12:30 UTC (Pre-Market), 16:00 UTC (Intraday), 20:05 UTC (End-of-Day), 14:00 UTC Sunday (Weekly)
+  - **Cost**: $0/month - 100% FREE GitHub Actions for public repositories
 - **✅ TypeScript Migration COMPLETE - ALL 4 PHASES** (2025-10-01):
   - **Phase 1**: KV consolidation + router refactoring ✅
   - **Phase 2**: Infrastructure TypeScript migration (6 files: dal.ts, msg-tracking.ts, config.ts, validation-utilities.ts, kv-key-factory.ts, shared-utilities.ts) ✅
