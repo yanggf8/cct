@@ -89,13 +89,20 @@
 - **Mobile Responsive**: Optimized for desktop, tablet, and mobile devices
 - **Live Dashboard**: https://tft-trading-system.yanggf.workers.dev/ ✅ **OPERATIONAL**
 
-**🌐 Browser Push Notifications: NEXT PRIORITY**
-- **Chrome Integration**: Native browser notifications (desktop + mobile)
-- **Background Delivery**: Service Worker for offline capability
-- **Instant Alerts**: Real-time AI sentiment analysis notifications
-- **Professional Grade**: Better reliability than Facebook/Discord
-- **Zero Dependencies**: Uses existing Cloudflare infrastructure
-- **Status**: 🎯 **Ready for implementation** (next sprint)
+**📊 Sector Rotation Analysis: NEXT PRIORITY (Phase 1 MVP)**
+- **Status**: 🎯 **Design Complete** - Ready for implementation (4 days to MVP)
+- **Architecture**: Sector Rotation Data Pipeline v1.2 with risk mitigation
+- **Reviews**: Gemini 8.5/10 | Amazon Q 8.2/10 - Both recommend proceeding
+- **Approach**: MVP-first → Validate Yahoo Finance → Optimize based on metrics
+- **Data Source**: Yahoo Finance API (11 SPDR sector ETFs + SPY benchmark)
+- **Features**: OBV/CMF indicators, relative strength, rotation quadrants, money flow patterns
+- **MVP Scope**: L1 cache only, 3M timeframe, 1-year historical backfill
+- **Documentation**: See `docs/SECTOR_ROTATION_DATA_PIPELINE.md`
+- **Phase 1 Tasks**: data-validation.ts → circuit-breaker.ts → sector-data-fetcher.ts
+
+**🌐 Browser Push Notifications: DEFERRED**
+- **Status**: Parked until after Sector Rotation Phase 1 complete
+- **Rationale**: Sector analysis provides higher strategic value (institutional-grade intelligence)
 
 ### **🚀 Next Phase: Transform to Market Intelligence Platform**
 
@@ -116,7 +123,8 @@
 │  TIER 2: SECTOR ROTATION ANALYSIS (The Currents)      │
 │  → 11 SPDR Sector ETFs vs S&P 500 benchmark          │
 │  → Money flow, relative strength, rotation signals    │
-│  Status: 🎯 Next Sprint (Weeks 1-2)                   │
+│  Status: 🎯 STARTING NOW (Phase 1 MVP - 4 days)       │
+│  Design: v1.2 (Gemini 8.5/10 | Amazon Q 8.2/10)      │
 └────────────────┬────────────────────────────────────────┘
                  ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -144,21 +152,25 @@
 **Comprehensive Plan**: See **[docs/MASTER_IMPLEMENTATION_PLAN.md](docs/MASTER_IMPLEMENTATION_PLAN.md)** for complete details
 
 **Completed Achievements**:
-1. **✅ Professional Dashboard** - Main entrance to dual AI sentiment analysis system (COMPLETED)
-2. **✅ TypeScript Migration** - 100% type safety across all modules (COMPLETED)
-3. **✅ GitHub Actions Scheduling** - Unlimited schedules (COMPLETED)
+1. **✅ Professional Dashboard** - Main entrance to dual AI sentiment analysis system (COMPLETED 2025-10-06)
+2. **✅ TypeScript Migration** - 100% type safety across all modules (COMPLETED 2025-10-01)
+3. **✅ GitHub Actions Scheduling** - Unlimited schedules (COMPLETED 2025-10-02)
+4. **✅ Sector Rotation Design** - Architecture complete with dual review approval (COMPLETED 2025-10-06)
 4. **✅ 4-Tier Analysis System** - Complete sentiment workflow (COMPLETED)
 
 **Next Priorities**:
-1. **🌐 Browser Push Notifications** - Chrome-native alerts (replacing Teams/Facebook)
-2. **📊 Sector Rotation Analysis** - 11 SPDR ETFs vs S&P 500
-3. **🔍 Market Drivers Detection** - FRED API + VIX analysis
+1. **📊 Sector Rotation MVP** - Phase 1 implementation (4 days, STARTING NOW)
+   - Data validation layer + Circuit breaker + Sector data fetcher
+   - L1 cache only, 3M timeframe, 1-year backfill
+   - Target: MVP operational by 2025-10-10
+2. **🔍 Market Drivers Detection** - FRED API + VIX integration (Weeks 3-4 after MVP validation)
 
 **Updated Timeline**:
-- **Week 1**: ✅ Dashboard + ✅ GitHub Actions (COMPLETED)
-- **Week 2**: Browser Push Notifications (NEXT SPRINT)
-- **Week 3-4**: Sector Rotation Analysis
-- **Week 5-6**: Market Drivers Detection
+- **Week 1 (Oct 1-6)**: ✅ Dashboard + ✅ GitHub Actions + ✅ Sector Design (COMPLETED)
+- **Week 2 (Oct 7-13)**: 📊 Sector Rotation MVP Phase 1 (IN PROGRESS) - data-validation.ts, circuit-breaker.ts, sector-data-fetcher.ts
+- **Week 3 (Decision Point)**: Evaluate MVP metrics → Go/No-Go for Phase 2
+- **Week 3-4**: 🔍 Market Drivers Detection (if Yahoo Finance validated)
+- **Week 5-6**: Temporal Sentiment Analysis (multi-timeframe)
 - **Week 7-12**: Advanced UI enhancements + analytics dashboards
 
 **Key Components**:
@@ -470,4 +482,4 @@ For technical support or questions:
 - **Documentation**: See `/docs` directory for detailed guides
 - **Issues**: Check maintenance guide for troubleshooting
 
-*Last Updated: 2025-10-06 | Version: 8a1d95c (GitHub Actions Fixed) | Dashboard Quality: 8.5/10 | Integration Tests: 15/15 Passed | Workflows: Operational*
+*Last Updated: 2025-10-06 | Version: 8a1d95c (GitHub Actions Fixed) | Dashboard Quality: 8.5/10 | Integration Tests: 15/15 Passed | Workflows: Operational | **Sector Pipeline v1.2: Design Complete** (Gemini 8.5/10 | Amazon Q 8.2/10)*

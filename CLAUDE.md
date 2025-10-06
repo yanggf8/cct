@@ -23,18 +23,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Scheduling Strategy](docs/CRON_OPTIMIZATION.md) - GitHub Actions setup (unlimited, $0/month)
 - [Cost Optimization](docs/COST_OPTIMIZATION.md) - Stay 100% free with GitHub Actions
 - [Feature Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md) - Sector + Market details
+- **[Sector Rotation Pipeline v1.2](docs/SECTOR_ROTATION_DATA_PIPELINE.md)** - Architecture + Implementation (Gemini 8.5/10 | Amazon Q 8.2/10)
 
 ---
 
 ## Production System Status
 
-**Current Version**: 2025-10-06 (100/100 Production-Ready Enterprise Architecture with Market Clock Widget)
+**Current Version**: 2025-10-06 (100/100 Production-Ready + Sector Pipeline Designed)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
 - **Deployment Version**: 8a1d95c ✅ **VERIFIED OPERATIONAL** (GitHub Actions Fixed)
 - **Dashboard Quality**: ✅ **8.5/10 PROFESSIONAL GRADE** - Enterprise trading platform with Market Clock widget and 6-widget layout
 - **Integration Tests**: ✅ **15/15 PASSED (100%)** - Complete verification with hard evidence (see INTEGRATION_TEST_EVIDENCE.md)
 - **GitHub Actions**: ✅ **OPERATIONAL** - Automated workflows fixed and running (commit 8a1d95c)
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI sentiment analysis system with full TypeScript coverage and professional navigation
+- **📊 Sector Rotation Pipeline**: ✅ **v1.2 DESIGN COMPLETE** - Architecture reviewed and approved (Gemini 8.5/10 | Amazon Q 8.2/10), ready for Phase 1 MVP implementation
 - **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with 100% TypeScript core (legacy JS archived)
 - **Production Verification**: ✅ **COMPLETE** - TypeScript-only architecture verified (see TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)
 - **AI Models**: ✅ **DUAL AI SYSTEM** - GPT-OSS-120B + DistilBERT-SST-2 with simple agreement logic
@@ -382,8 +384,9 @@ src/modules/
 2. **Sector Analysis** (The Currents) → Capital flow and sector rotation
 3. **Stock Selection** (Current ✅) → Context-aware individual picks
 
-### 📊 Phase 1: Sector Rotation Analysis (Weeks 1-2) - NEXT SPRINT
-**Status**: 🎯 Ready to implement (Feasibility: 9.5/10)
+### 📊 Phase 1: Sector Rotation Analysis (Week 2: Oct 7-13) - **STARTING NOW**
+**Status**: 🎯 **Design Complete** (v1.2) → **Implementation Phase 1 MVP** (4 days)
+**Architecture Reviews**: Gemini 8.5/10 | Amazon Q 8.2/10 - Both recommend proceeding with confidence
 
 **Scope**: Professional sector-level intelligence (NOT individual stock grouping)
 - Track 11 SPDR sector ETFs (XLK, XLV, XLF, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB)
@@ -396,15 +399,25 @@ src/modules/
 - Zero new API dependencies
 - 100% free infrastructure
 
-**Key Deliverables**:
-- Relative strength rankings (1M, 3M, 6M timeframes)
-- Sector rotation signals (leading strength → emerging weakness)
-- Money flow analysis (accumulation vs distribution)
-- Integration with existing 4-tier reporting system
+**MVP Phase 1 Deliverables** (4 days - Oct 7-10):
+1. `src/modules/data-validation.ts` - OHLCV validation layer (mandatory for data quality)
+2. `src/modules/circuit-breaker.ts` - Protect against Yahoo Finance failures (CLOSED/OPEN/HALF_OPEN states)
+3. `src/modules/sector-data-fetcher.ts` - Batch fetching with rate limiting and retry logic
+4. Extend `kv-key-factory.ts` - Add sector key types (sector_snapshot, sector_history, sector_indicators)
+5. L1 memory cache only (60s TTL) - Validate 75% cache hit assumption
+6. Single timeframe: 3M history only
+7. Historical backfill: 1 year (252 trading days, not 5 years)
+8. Single endpoint: `/api/sectors/snapshot`
+
+**Decision Point** (Week 3):
+- Evaluate: Yahoo Finance uptime >95%, cache hit rate >70%, circuit breaker opens <5/day
+- Go/No-Go for Phase 2 based on real metrics
 
 **Professional Value**: Identify where institutional capital is flowing → Validate/invalidate stock picks based on sector strength
 
-**See**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` (Section: Sector Analysis)
+**Documentation**:
+- **Architecture**: `docs/SECTOR_ROTATION_DATA_PIPELINE.md` (v1.2 - Complete with implementation notes)
+- **Feature Analysis**: `docs/FEATURE_FEASIBILITY_ANALYSIS.md` (Section: Sector Analysis)
 
 ---
 
