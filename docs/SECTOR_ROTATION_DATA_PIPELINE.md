@@ -1,10 +1,13 @@
 # 📊 Sector Rotation Data Pipeline Architecture
 
-**Version**: 1.1 (Revised with Gemini Feedback)
-**Date**: 2025-10-06
-**Status**: 🎯 Design Complete - Ready for MVP Implementation
-**Gemini Review**: 8.5/10 - Professional and well-thought-out design
-**Implementation Approach**: Cautious MVP → Validate → Optimize
+**Version**: 1.3 (Revised with Rovodev Critical Production Fixes)
+**Date**: 2025-10-07
+**Status**: 🎯 Design Complete - Phase 0 Critical Fixes → Phase 1 MVP
+**AI Reviews**:
+- Gemini: 8.5/10 - Professional and well-thought-out design
+- Amazon Q: 8.2/10 - Solid architecture with tactical refinements
+- Rovodev: 8.7/10 - Strong foundation, critical production gaps identified
+**Implementation Approach**: Phase 0 Fixes (1 hour) → Phase 1 MVP (4 days) → Decision Point
 
 ---
 
@@ -89,7 +92,101 @@ This document outlines the architecture for a robust **Sector Rotation Data Pipe
 
 ---
 
-## 🛡️ Phase 0: Risk Mitigation (CRITICAL - Before Implementation)
+## 🚨 Phase 0: Critical Production Fixes (1 hour - MUST DO FIRST)
+
+**Rovodev Review Identified Critical Gaps** (8.7/10 - Highest Score, but found production-breaking issues)
+
+### **Issue #1: Cloudflare Workers L1 Cache Volatility** ⚠️ CRITICAL
+
+**Problem**: L1 memory cache is NOT shared across Worker isolates
+- Each Worker instance has its own isolated memory
+- Cold starts → 0% cache hit rate → thundering herd
+- Could spike to 100+ concurrent API requests → rate limit ban
+
+**Solution**: Add minimal L2 KV cache even in MVP
+
+```typescript
+// src/modules/sector-cache-manager.ts
+interface CacheConfig {
+  l1: {
+    enabled: true;
+    ttl: 60;        // 60 seconds (in-memory)
+    maxSize: 100;   // LRU cache
+  };
+  l2: {
+    enabled: true;  // ✅ NEW: Add L2 KV cache for MVP
+    ttl: 120;       // 120 seconds (KV storage)
+    kvPrefix: 'sector_cache_';
+  };
+}
+```
+
+**Impact**: Prevents 0% cache hit on cold starts, stabilizes request rate
+
+**Implementation Time**: 30 minutes
+
+---
+
+### **Issue #2: No Concurrency Control** ⚠️ CRITICAL
+
+**Problem**: No limit on parallel API calls during cold starts
+- Cold start could trigger 100+ concurrent requests (12 symbols × multiple isolates)
+- Yahoo Finance could ban us instantly
+- No protection against thundering herd
+
+**Solution**: Add concurrency cap with semaphore pattern
+
+```typescript
+// src/modules/sector-data-fetcher.ts
+class Semaphore {
+  private running = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private max: number) {}
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.running >= this.max) {
+      await new Promise(resolve => this.queue.push(resolve));
+    }
+    this.running++;
+    try {
+      return await fn();
+    } finally {
+      this.running--;
+      const next = this.queue.shift();
+      if (next) next();
+    }
+  }
+}
+
+const MAX_CONCURRENT_REQUESTS = 4;
+const semaphore = new Semaphore(MAX_CONCURRENT_REQUESTS);
+
+async function batchFetch(symbols: string[], period: string): Promise<BatchResult> {
+  return Promise.all(symbols.map(symbol =>
+    semaphore.execute(() => fetchSymbolData(symbol, period))
+  ));
+}
+```
+
+**Impact**: Limits concurrent requests to 4, prevents rate limit violations
+
+**Implementation Time**: 30 minutes
+
+---
+
+### **Phase 0 Deliverables (1 hour total)**
+
+| Task | Time | Priority | Module |
+|------|------|----------|--------|
+| Add L2 KV cache layer (120s TTL) | 30 min | CRITICAL | sector-cache-manager.ts |
+| Add concurrency semaphore (4 max) | 30 min | CRITICAL | sector-data-fetcher.ts |
+
+**Total**: 1 hour before Phase 1 MVP begins
+
+---
+
+## 🛡️ Phase 0 Continued: Risk Mitigation Strategies
 
 ### 1. Yahoo Finance Fallback Plan
 
@@ -802,11 +899,11 @@ Symbols per Fetch: 12 (11 sectors + SPY)
 Daily Market Hour Requests: 78 × 12 = 936 requests
 ```
 
-**Caching Strategy**:
-- L1 Cache: 1-minute TTL (aggressive)
-- L2 Cache: 5-minute TTL (matches refresh)
-- Expected Cache Hit Rate: 80-90%
-- Actual API Calls: ~100-200 requests (with cache hits)
+**Caching Strategy** (Revised with L2 KV Cache):
+- L1 Cache: 60s TTL (in-memory, per-isolate)
+- L2 Cache: 120s TTL (KV storage, shared across isolates) ✅ NEW
+- Expected Cache Hit Rate: 75% (conservative)
+- Actual API Calls: ~234 requests (with 75% cache hit)
 
 ---
 
@@ -822,11 +919,11 @@ Symbols per Fetch: 12
 Daily After-Hour Requests: 18 × 12 = 216 requests
 ```
 
-**Caching Strategy**:
-- L1 Cache: 5-minute TTL (relaxed)
-- L3 Cache: 1-hour TTL (long-term)
-- Expected Cache Hit Rate: 95%+
-- Actual API Calls: ~10-20 requests (with cache hits)
+**Caching Strategy** (Revised with L2 KV Cache):
+- L1 Cache: 60s TTL (in-memory, per-isolate)
+- L2 Cache: 120s TTL (KV storage, shared across isolates) ✅ NEW
+- Expected Cache Hit Rate: 75% (conservative)
+- Actual API Calls: ~54 requests (with 75% cache hit)
 
 ---
 
@@ -865,17 +962,17 @@ Weekend Requests: 8 × 12 = 96 requests
 │   - Misc/Manual Requests: ~10 requests/day             │
 │   Subtotal: ~25 requests/day                            │
 │                                                          │
-│ New Sector System (with 90% cache hit rate):           │
-│   - Market Hours: 936 requests × 10% = ~94 requests    │
-│   - After Hours: 216 requests × 5% = ~11 requests      │
-│   Subtotal: ~105 requests/day                           │
+│ New Sector System (with 75% cache hit rate):           │
+│   - Market Hours: 936 requests × 25% = ~234 requests   │
+│   - After Hours: 216 requests × 25% = ~54 requests     │
+│   Subtotal: ~288 requests/day                           │
 │                                                          │
 ├──────────────────────────────────────────────────────────┤
-│ Total Daily Requests: ~130 requests/day                 │
-│ Peak Hourly Rate: ~20 requests/hour (during market)    │
+│ Total Daily Requests: ~313 requests/day                 │
+│ Peak Hourly Rate: ~35 requests/hour (during market)    │
 │ Yahoo Finance Limit: 2000 requests/hour                │
-│ Utilization: 1% of limit                                │
-│ Safety Margin: 99% headroom ✅                          │
+│ Utilization: 1.75% of limit                             │
+│ Safety Margin: 98.25% headroom ✅                       │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -939,12 +1036,11 @@ export const SECTOR_CONFIG = {
     WEEKEND: 21600          // 6 hours
   },
 
-  // Cache TTL (seconds)
+  // Cache TTL (seconds) - Revised with L2 KV Cache
   CACHE_TTL: {
-    L1_MARKET: 60,          // 1 minute
-    L1_AFTER_HOURS: 300,    // 5 minutes
-    L2_MARKET: 300,         // 5 minutes
-    L3_AFTER_HOURS: 3600    // 1 hour
+    L1_MEMORY: 60,          // 1 minute (in-memory, per-isolate)
+    L2_KV: 120,             // 2 minutes (KV storage, shared) ✅ NEW
+    L3_KV_AFTER_HOURS: 3600 // 1 hour (after hours only)
   },
 
   // Timeframes for analysis
@@ -1073,89 +1169,121 @@ interface SectorRotationData {
 
 ---
 
-### **Phase 1: MVP Implementation (Week 1, Days 1-4)**
+### **Phase 1: MVP Implementation (4 days - Oct 7-10)**
 
-#### **Scope: Essential Features Only**
+#### **Scope: Essential Features + Critical Fixes**
 
-**✅ DO Implement (MVP)**:
-1. `sector-data-fetcher.ts` - Batch fetching with rate limiting & circuit breaker
-2. `circuit-breaker.ts` - Prevent cascading failures
-3. L1 Memory Cache ONLY - Simple Map-based caching (60s TTL market hours)
-4. Basic OBV/CMF calculations
-5. Extend KV Key Factory for sector keys
-6. Single endpoint: `GET /api/sectors/snapshot`
-7. Single timeframe: 3-month history only
-8. Monitoring & alerting integration
+**✅ DO Implement (MVP) - REVISED with Rovodev Recommendations**:
+1. `data-validation.ts` - OHLCV validation layer (validateOHLCVBar, validateVolume) ✅ NEW
+2. `circuit-breaker.ts` - Prevent cascading failures with CLOSED/OPEN/HALF_OPEN states
+3. `sector-data-fetcher.ts` - Batch fetching with:
+   - Rate limiting integration
+   - Circuit breaker integration
+   - **Concurrency cap (4 max concurrent requests)** ✅ NEW (Rovodev critical fix)
+   - Retry logic with exponential backoff
+4. `sector-cache-manager.ts` - **L1 (60s) + L2 KV (120s) caching** ✅ REVISED (was L1-only)
+5. Basic OBV/CMF calculations
+6. Extend KV Key Factory for sector keys (5 new types)
+7. Single endpoint: `GET /api/sectors/snapshot`
+8. Single timeframe: 3-month history only
+9. Historical backfill: 1 year (252 trading days, not 5 years)
 
 **❌ DEFER to Phase 2 (Optimize)**:
-- L2/L3 KV caching layers (add if L1 hit rate <70%)
+- L3 KV caching layer (1-hour TTL after hours)
+- Per-symbol circuit breakers
 - Complex rotation quadrant analysis
-- Automated historical backfill (manual load for MVP)
 - Multiple timeframes (1M, 6M, 1Y)
 - Full dashboard integration
+- NYSE holiday calendar
 
-**Why MVP First**:
-- Validate Yahoo Finance stability (biggest risk)
-- Test realistic cache hit rates (75% assumed, but unknown)
-- Faster time-to-value (4 days vs 12 days)
-- Easier to pivot if assumptions are wrong
+**Why This Revised MVP**:
+- **Addresses Rovodev critical gaps** (L1 cache volatility, concurrency control)
+- **Validates Yahoo Finance stability** (biggest risk)
+- **Tests realistic cache hit rates** (75% with L1+L2, not 90% L1-only)
+- **Prevents production failures** (concurrency cap, data validation)
+- **Still fast to implement** (4 days)
 
-#### **MVP Tasks**:
+#### **Revised MVP Tasks**:
 
-**Day 1-2: Core Data Pipeline**
-1. Implement `circuit-breaker.ts` with CLOSED/OPEN/HALF_OPEN states
-2. Create `sector-data-fetcher.ts` with:
-   - Batch fetching (12 symbols in parallel)
+**Day 1 (Oct 7): Foundation + Critical Fixes**
+1. ✅ Implement `data-validation.ts` with:
+   - validateOHLCVBar() - Check high/low/open/close relationships
+   - validateVolume() - ETF volume threshold (>10k)
+   - Catches Yahoo Finance data corruption early
+2. ✅ Implement `circuit-breaker.ts` with:
+   - CLOSED/OPEN/HALF_OPEN state machine
+   - 5 failure threshold, 60s timeout
+   - Integration hooks for sector-data-fetcher
+
+**Day 2 (Oct 8): Data Fetching + Concurrency Control**
+3. ✅ Create `sector-data-fetcher.ts` with:
+   - Semaphore class (MAX_CONCURRENT_REQUESTS = 4) ✅ CRITICAL
+   - Batch fetching (12 symbols with concurrency cap)
    - Circuit breaker integration
-   - 1.8s delays between requests
-   - Retry logic (3 attempts, exponential backoff)
-3. Extend `kv-key-factory.ts` with sector key types
-4. Add `SECTOR_CONFIG` to `config.ts` (11 ETFs + SPY)
+   - Rate limiter integration (20 req/min)
+   - Data validation before returning
+4. ✅ Extend `kv-key-factory.ts` with sector key types:
+   - sector_snapshot, sector_history, sector_indicators, sector_rotation, sector_cache
 
-**Day 3: Basic Caching & Indicators**
-5. Implement L1 memory cache (simple Map, 60s TTL)
-6. Create `sector-indicators.ts` with OBV/CMF calculations
-7. Calculate basic relative strength (3M only)
+**Day 3 (Oct 9): Caching + Integration**
+5. ✅ Implement `sector-cache-manager.ts` with:
+   - L1 memory cache (60s TTL, LRU eviction)
+   - **L2 KV cache (120s TTL, shared across isolates)** ✅ CRITICAL FIX
+   - Smart cache key generation
+   - Hit rate tracking
+6. ✅ Create `sector-indicators.ts` with:
+   - calculateOBV() - On-Balance Volume
+   - calculateCMF() - Chaikin Money Flow (20-period)
+   - calculateRelativeStrength() - vs SPY (3M only)
 
-**Day 4: API & Monitoring**
-8. Add `GET /api/sectors/snapshot` endpoint
-9. Integrate with existing monitoring system
-10. Add cache hit rate tracking
-11. Manual historical backfill (run script once)
+**Day 4 (Oct 10): API + Testing + Backfill**
+7. ✅ Add `GET /api/sectors/snapshot` endpoint
+8. ✅ Integrate with existing monitoring system
+9. ✅ Add cache hit rate tracking (L1 + L2 separate metrics)
+10. ✅ **Historical backfill script** (1-year data for 12 symbols)
+11. ✅ End-to-end testing (circuit breaker, caching, validation)
+12. ✅ Deploy to production, monitor for 24 hours
 
 #### **MVP Deliverables**:
 - ✅ All 12 sector symbols fetching successfully
+- ✅ Data validation layer (catches corrupt OHLCV bars before caching)
 - ✅ Circuit breaker operational (prevents API hammering)
-- ✅ L1 cache with hit rate monitoring
+- ✅ Concurrency cap (4 max concurrent requests, prevents thundering herd)
+- ✅ **L1 + L2 caching** with hit rate monitoring (L1 per-isolate, L2 shared KV)
 - ✅ OBV/CMF indicators calculated correctly
 - ✅ Relative strength vs SPY (3M timeframe)
 - ✅ Single API endpoint returning sector snapshot
-- ✅ Monitoring dashboard showing metrics
+- ✅ Monitoring dashboard showing L1/L2 cache metrics
+- ✅ 1-year historical backfill (252 trading days)
 
-#### **MVP Success Criteria**:
-- [ ] Yahoo Finance stable for 7+ days (no >3 day outages)
-- [ ] Cache hit rate >70% with L1 only
+#### **MVP Success Criteria (Week 3 Decision Point - Oct 13)**:
+- [ ] Yahoo Finance uptime >95% over 7 days
+- [ ] **Combined L1+L2 cache hit rate >70%** (revised from L1-only)
 - [ ] API response time <2s for snapshot
-- [ ] Zero circuit breaker OPEN states (or <5 per day)
-- [ ] Data quality: 100% valid OHLCV bars
+- [ ] Circuit breaker opens <5/day
+- [ ] Data quality: 100% valid OHLCV bars (validation layer working)
+- [ ] No concurrency-related rate limit violations
 
 ---
 
-### **Decision Point: Week 1 End**
+### **Decision Point: Week 3 (Oct 13) - Go/No-Go for Phase 2**
 
-**After MVP runs for 1 week in production, evaluate:**
+**After MVP runs for 1 week in production (Oct 7-13), evaluate:**
 
 | Metric | Target | Actual | Decision |
 |--------|--------|--------|----------|
-| Yahoo Finance Uptime | >95% | ? | If <95%: Pause & evaluate paid alternatives |
-| L1 Cache Hit Rate | >70% | ? | If <70%: Add L2/L3 layers in Phase 2 |
+| Yahoo Finance Uptime | >95% | ? | If <95%: Switch to Alpha Vantage |
+| **L1+L2 Cache Hit Rate** | >70% | ? | If <70%: Add L3 layer + increase TTLs |
 | Circuit Breaker Opens | <5/day | ? | If >10/day: Yahoo Finance too unreliable |
-| API Latency | <2s | ? | If >5s: Add aggressive caching |
+| API Latency | <2s | ? | If >5s: Increase cache TTLs |
+| Data Validation Errors | <1% | ? | If >5%: Yahoo Finance data quality poor |
+| Concurrency Violations | 0 | ? | If >0: Reduce concurrency cap to 3 |
 
 **Go/No-Go Decision**:
-- **GO to Phase 2**: If Yahoo Finance uptime >95% and cache hit >70%
-- **PAUSE**: If circuit breaker opens >10/day → Evaluate Alpha Vantage
-- **PIVOT**: If cache hit <70% → Implement L2/L3 caching immediately
+- **✅ GO to Phase 2**: Yahoo Finance uptime >95% AND cache hit >70% AND circuit breaker <5/day
+- **⏸️ PAUSE**: Circuit breaker >10/day → Evaluate Alpha Vantage migration
+- **🔄 PIVOT**: Cache hit <70% → Add L3 layer (1-hour TTL after hours)
+- **🚨 ABORT**: Data validation errors >5% → Yahoo Finance unreliable, switch to paid API
 
 ---
 
@@ -1534,38 +1662,99 @@ Response: { success: boolean, refreshedAt: string }
 This **Sector Rotation Data Pipeline** provides a pragmatic, risk-mitigated approach to institutional-grade sector analysis while maintaining cost efficiency and respecting API rate limits.
 
 **Key Design Principles**:
-- ✅ **Conservative rate budget** (313 requests/day with 75% cache hit, 98% under Yahoo Finance limit)
+- ✅ **Conservative rate budget** (313 requests/day with 75% cache hit, 98.25% under Yahoo Finance limit)
 - ✅ **MVP-first approach** (Validate Yahoo Finance reliability before full optimization)
 - ✅ **Circuit breaker protection** (Prevent cascading failures with formal state machine)
+- ✅ **Concurrency control** (4 max concurrent requests, prevents thundering herd)
+- ✅ **L1 + L2 caching** (60s memory + 120s KV, prevents cold start cache misses)
+- ✅ **Data validation layer** (Catches corrupt OHLCV bars before caching)
 - ✅ **Provider fallback plan** (Alpha Vantage, Polygon.io alternatives documented)
 - ✅ **Scalable architecture** (Easy expansion to more sectors/timeframes)
 
-**Gemini Review Results**:
-- **Overall Rating**: 8.5/10 - Professional and well-thought-out design
-- **Strengths**: Sound architecture, realistic performance targets, good scalability
-- **Risks Addressed**: Yahoo Finance dependency, circuit breaker, historical backfill
-- **Revisions Made**: Conservative cache assumptions (75% not 90%), explicit fallback plans
+---
 
-**Implementation Strategy**:
-1. **Phase 1 (MVP)**: 4 days - Essential features only, validate assumptions
-2. **Decision Point**: Week 1 end - Evaluate metrics, go/no-go decision
-3. **Phase 2**: Conditional optimization based on MVP metrics
-4. **Phase 3**: Full integration and production deployment
+## 📊 AI Review Summary
 
-**Ready for MVP Implementation**: All critical risks mitigated, conservative assumptions validated, rollback plan defined.
+### **Three Independent AI Assessments**
+
+| AI Model | Score | Key Feedback | Critical Concerns |
+|----------|-------|--------------|-------------------|
+| **Gemini** | 8.5/10 | Professional and well-thought-out design | Conservative cache assumptions needed (75% not 90%) |
+| **Amazon Q** | 8.2/10 | Solid architecture with tactical refinements | 1-year backfill better than 5-year, data validation mandatory |
+| **Rovodev** | **8.7/10** | Strong foundation, highest score | **L1 cache volatility, no concurrency control** |
+
+### **Rovodev Critical Production Gaps (v1.3 Fixes)**
+
+**Issue #1: Cloudflare Workers L1 Cache Volatility** ⚠️
+- **Gap**: L1 memory cache not shared across Worker isolates
+- **Risk**: Cold starts → 0% cache hit → thundering herd (100+ concurrent requests)
+- **Fix**: Added L2 KV cache (120s TTL) even in MVP
+- **Impact**: Prevents rate limit violations on cold starts
+
+**Issue #2: No Concurrency Control** ⚠️
+- **Gap**: No limit on parallel API calls
+- **Risk**: Could spike to 100+ concurrent requests → instant ban
+- **Fix**: Added Semaphore class with 4 max concurrent requests
+- **Impact**: Limits burst requests, protects against thundering herd
+
+### **Consensus Recommendations**
+
+**All Three AIs Agreed On**:
+1. ✅ Yahoo Finance dependency is primary risk → Circuit breaker + fallback plan essential
+2. ✅ 75% cache hit rate more realistic than 90%
+3. ✅ 1-year historical backfill better than 5-year for MVP
+4. ✅ Data validation layer mandatory (validateOHLCVBar)
+5. ✅ MVP-first approach correct (validate before optimize)
+
+**Rovodev Unique Insights** (Production-Breaking Issues):
+1. ⚠️ Workers L1 cache is per-isolate → Need L2 KV cache
+2. ⚠️ No concurrency cap → Need Semaphore pattern (4 max)
+3. 📝 Cache hit rate inconsistencies in doc (75% vs 90%)
+4. 📝 Per-symbol circuit breakers better than provider-level
+5. 📝 NYSE holiday calendar missing (wasted API calls)
 
 ---
 
-*Document Version: 1.2 (Amazon Q Implementation Notes Added)*
-*Last Updated: 2025-10-06*
-*Gemini Review: 8.5/10 | Amazon Q Review: 8.2/10*
-*Status: ✅ Design Complete - Ready for MVP Phase 1 Implementation*
-*Next Step: Create data-validation.ts → circuit-breaker.ts → sector-data-fetcher.ts*
+## 🚀 Implementation Strategy
 
-**Critical Changes in v1.2**:
-- Historical backfill: 5 years → 1 year for MVP
-- Added mandatory data validation layer (validateOHLCVBar)
-- Added KV storage limit warnings (25MB)
-- Refresh interval recommendation: 4 minutes (not 5)
-- Enhanced CMF with negative range validation
-- Automated health monitoring specification
+**Phase 0: Critical Fixes (1 hour - Oct 7)**
+1. Add L2 KV cache (120s TTL) - Fixes Workers isolate issue
+2. Add Semaphore (4 max concurrent) - Prevents thundering herd
+
+**Phase 1: MVP Implementation (4 days - Oct 7-10)**
+1. data-validation.ts - OHLCV validation layer
+2. circuit-breaker.ts - Failure protection
+3. sector-data-fetcher.ts - Batch fetching + concurrency control
+4. sector-cache-manager.ts - L1 (60s) + L2 KV (120s)
+5. sector-indicators.ts - OBV/CMF calculations
+6. Historical backfill - 1 year (252 trading days)
+
+**Decision Point (Week 3 - Oct 13)**
+- Evaluate: Yahoo Finance uptime >95%, cache hit >70%, circuit breaker <5/day
+- Go/No-Go for Phase 2 optimization
+
+**Phase 2: Full Optimization (3 days - Conditional)**
+- Add L3 KV cache (1-hour after hours)
+- Per-symbol circuit breakers
+- Multiple timeframes (1M, 6M, 1Y)
+- Dashboard integration
+
+---
+
+**Ready for Implementation**: ✅ All critical production gaps addressed, three independent AI reviews completed, conservative assumptions validated, rollback plan defined.
+
+---
+
+*Document Version: **1.3** (Rovodev Critical Production Fixes)*
+*Last Updated: 2025-10-07*
+*AI Reviews: Gemini 8.5/10 | Amazon Q 8.2/10 | **Rovodev 8.7/10** ⭐ HIGHEST*
+*Status: ✅ Design Complete - Phase 0 Fixes → Phase 1 MVP*
+*Next Step: Apply Phase 0 critical fixes (1 hour) → Start Phase 1 MVP (4 days)*
+
+**Critical Changes in v1.3** (Rovodev Production Fixes):
+- ✅ Added L2 KV cache (120s TTL) for MVP - Fixes Workers L1 volatility
+- ✅ Added Semaphore concurrency control (4 max) - Prevents thundering herd
+- ✅ Standardized cache-hit rate to 75% throughout (removed 90% references)
+- ✅ Updated MVP deliverables with data validation + concurrency cap
+- ✅ Revised decision criteria to include L1+L2 combined cache hit rate
+- ✅ Added concurrency violation monitoring to success criteria
