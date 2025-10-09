@@ -2,14 +2,33 @@
  * Sector Data Fetcher Module - TypeScript
  * Batch data fetching with semaphore concurrency control and circuit breaker protection
  * CRITICAL PRODUCTION FIX: Prevents rate limit bans during cold starts with semaphore pattern
+ * Enhanced with data validation and integrated circuit breaker
  */
 
 import { SectorCacheManager, SectorData } from './sector-cache-manager.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
 import { retryWithBackoff, type RetryOptions } from './shared-utilities.js';
+import { CircuitBreaker, CommonCircuitBreakers } from './circuit-breaker.js';
+import { DataValidator, validateOHLCVBar } from './data-validation.js';
 
 const logger = createLogger('sector-data-fetcher');
+
+// Sector Symbols Configuration
+export const SECTOR_SYMBOLS = [
+  'XLK', // Technology
+  'XLV', // Health Care
+  'XLF', // Financials
+  'XLY', // Consumer Discretionary
+  'XLC', // Communication Services
+  'XLI', // Industrials
+  'XLP', // Consumer Staples
+  'XLE', // Energy
+  'XLU', // Utilities
+  'XLRE', // Real Estate
+  'XLB', // Materials
+  'SPY'  // S&P 500 Benchmark
+] as const;
 
 // Concurrency Configuration
 const CONCURRENCY_CONFIG = {

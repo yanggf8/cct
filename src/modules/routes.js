@@ -27,8 +27,7 @@ import {
   handleHealthCheck,
   handleModelHealth,
   handleDebugEnvironment,
-  handleWeeklyReport,
-  handleFridayMarketCloseReport,
+  handleWeeklyReview,
   handleDailySummaryAPI,
   handleDailySummaryPageRequest,
   handleBackfillDailySummaries,
@@ -40,7 +39,7 @@ import {
 } from './handlers/index.js';
 
 // Import comprehensive report handlers
-import { handlePreMarketBriefing, handleIntradayCheck, handleEndOfDaySummary, handleWeeklyReview } from './handlers/index.js';
+import { handlePreMarketBriefing, handleIntradayCheck, handleEndOfDaySummary } from './handlers/index.js';
 
 // Import decomposed handler examples
 import { handleIntradayCheckDecomposed } from './handlers/intraday-decomposed.js';
@@ -59,13 +58,15 @@ import {
 // Legacy handlers that haven't been modularized yet
 import {
   handleFridayMondayPredictionsReport,
+  handleFridayMarketCloseReport,
   handleHighConfidenceTest,
   handleKVCleanup,
   handleDebugWeekendMessage,
   handleSentimentDebugTest,
   handleModelScopeTest,
   handleTestLlama,
-  handleR2Upload
+  handleR2Upload,
+  handleFacebookTest
 } from './handlers.js';
 
 // Import web notification handlers
@@ -150,14 +151,12 @@ export async function handleHttpRequest(request, env, ctx) {
   
     // Handle CORS preflight for v1 API
     if (url.pathname.startsWith('/api/v1/') && request.method === 'OPTIONS') {
-      response = handleApiV1CORS();
-      break;
+      return handleApiV1CORS();
     }
 
     // Handle v1 API routes
     if (url.pathname.startsWith('/api/v1/')) {
-      response = await handleApiV1Request(request, env, ctx);
-      break;
+      return await handleApiV1Request(request, env, ctx);
     }
 
     // Route requests to appropriate handlers
@@ -209,7 +208,7 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleNotificationStatus(request, env);
 
     case '/weekly-report':
-      return handleWeeklyReport(request, env);
+      return handleWeeklyReview(request, env);
     case '/friday-market-close-report':
       return handleFridayMarketCloseReport(request, env);
     case '/friday-monday-predictions-report':
@@ -280,7 +279,7 @@ export async function handleHttpRequest(request, env, ctx) {
     case '/admin/verify-backfill':
       return handleVerifyBackfill(request, env);
     case '/send-real-facebook':
-      return handleRealFacebookMessage(request, env);
+      return handleFacebookTest(request, env);
     case '/favicon.ico':
       // Return a simple 1x1 transparent GIF as favicon
       const faviconData = new Uint8Array([

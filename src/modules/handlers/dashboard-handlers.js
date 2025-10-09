@@ -100,7 +100,7 @@ export async function handleProfessionalDashboard(request, env, ctx) {
  */
 async function fetchHealthData(env) {
   try {
-    const healthResponse = await getHealthCheckResponse(env);
+    const healthResponse = await createHealthResponse(env);
     return {
       status: 'healthy',
       components: healthResponse,

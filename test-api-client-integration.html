@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCT API Client Integration Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a2332 0%, #2c3e50 100%);
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(79, 172, 254, 0.1);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            color: #4facfe;
+            margin: 0;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #a0b3c9;
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+        }
+
+        .test-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .test-section h2 {
+            color: #4facfe;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .test-button {
+            background: #4facfe;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .test-button:hover {
+            background: #3a8bfe;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
+        }
+
+        .test-button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .test-button.success {
+            background: #2ed573;
+        }
+
+        .test-button.error {
+            background: #ff4757;
+        }
+
+        .test-button.warning {
+            background: #ffa502;
+        }
+
+        .result-container {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-container.error {
+            border-left-color: #ff4757;
+        }
+
+        .result-container.success {
+            border-left-color: #2ed573;
+        }
+
+        .result-container.warning {
+            border-left-color: #ffa502;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .result-time {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .result-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .result-status.success {
+            background: #2ed573;
+            color: white;
+        }
+
+        .result-status.error {
+            background: #ff4757;
+            color: white;
+        }
+
+        .result-status.warning {
+            background: #ffa502;
+            color: white;
+        }
+
+        pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: rgba(79, 172, 254, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(79, 172, 254, 0.3);
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .stat-label {
+            color: #a0b3c9;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe, #00f2fe);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .cache-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .cache-stat {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .cache-stat strong {
+            color: #4facfe;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #4facfe;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .test-summary {
+            background: rgba(79, 172, 254, 0.1);
+            border: 1px solid rgba(79, 172, 254, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .test-summary h3 {
+            color: #4facfe;
+            margin-top: 0;
+        }
+
+        .summary-stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+
+        .summary-stat {
+            text-align: center;
+        }
+
+        .summary-stat .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .summary-stat .label {
+            color: #a0b3c9;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 CCT API Client Integration Test</h1>
+            <p class="subtitle">Phase 3: Frontend API Client - Comprehensive Integration Testing</p>
+        </header>
+
+        <div class="test-section">
+            <h2>📊 Test Summary</h2>
+            <div id="testSummary" class="test-summary">
+                <h3>Ready to run tests</h3>
+                <p>Click the buttons below to test API client functionality</p>
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <div class="value" id="totalTests">0</div>
+                        <div class="label">Total Tests</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="value" id="passedTests">0</div>
+                        <div class="label">Passed</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="value" id="failedTests">0</div>
+                        <div class="label">Failed</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="value" id="testProgress">0%</div>
+                        <div class="label">Progress</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🚀 Basic Functionality Tests</h2>
+            <button class="test-button" onclick="testApiClientInitialization()">Test API Client Initialization</button>
+            <button class="test-button" onclick="testApiKeyValidation()">Test API Key Validation</button>
+            <button class="test-button" onclick="testApiDocumentation()">Test API Documentation</button>
+            <button class="test-button" onclick="runAllBasicTests()">Run All Basic Tests</button>
+            <div id="basicTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📈 Sentiment Analysis Tests</h2>
+            <button class="test-button" onclick="testSentimentAnalysis()">Test Sentiment Analysis</button>
+            <button class="test-button" onclick="testSymbolSentiment()">Test Symbol Sentiment</button>
+            <button class="test-button" onclick="testMarketSentiment()">Test Market Sentiment</button>
+            <button class="test-button" onclick="testSectorSentiment()">Test Sector Sentiment</button>
+            <button class="test-button" onclick="runAllSentimentTests()">Run All Sentiment Tests</button>
+            <div id="sentimentTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Report Tests</h2>
+            <button class="test-button" onclick="testDailyReport()">Test Daily Report</button>
+            <button class="test-button" onclick="testPreMarketReport()">Test Pre-Market Report</button>
+            <button class="test-button" onclick="testIntradayReport()">Test Intraday Report</button>
+            <button class="test-button" onclick="testEndOfDayReport()">Test End-of-Day Report</button>
+            <button class="test-button" onclick="runAllReportTests()">Run All Report Tests</button>
+            <div id="reportTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Data & Health Tests</h2>
+            <button class="test-button" onclick="testSystemHealth()">Test System Health</button>
+            <button class="test-button" onclick="testAvailableSymbols()">Test Available Symbols</button>
+            <button class="test-button" onclick="testSymbolHistory()">Test Symbol History</button>
+            <button class="test-button" onclick="runAllDataTests()">Run All Data Tests</button>
+            <div id="dataTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🏢 Sector & Market Drivers Tests</h2>
+            <button class="test-button" onclick="testSectorSnapshot()">Test Sector Snapshot</button>
+            <button class="test-button" onclick="testMarketDriversSnapshot()">Test Market Drivers</button>
+            <button class="test-button" onclick="testMacroDrivers()">Test Macro Drivers</button>
+            <button class="test-button" onclick="testMarketRegime()">Test Market Regime</button>
+            <button class="test-button" onclick="runAllSectorTests()">Run All Sector Tests</button>
+            <div id="sectorTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>⚡ Performance & Caching Tests</h2>
+            <button class="test-button" onclick="testCachePerformance()">Test Cache Performance</button>
+            <button class="test-button" onclick="testBatchRequests()">Test Batch Requests</button>
+            <button class="test-button" onclick="testErrorHandling()">Test Error Handling</button>
+            <button class="test-button" onclick="testConcurrentRequests()">Test Concurrent Requests</button>
+            <button class="test-button" onclick="runAllPerformanceTests()">Run All Performance Tests</button>
+            <div id="performanceTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Cache Statistics</h2>
+            <div class="cache-info" id="cacheStats">
+                <div class="cache-stat">
+                    <strong>Cache Status:</strong> <span id="cacheStatus">Loading...</span>
+                </div>
+                <div class="cache-stat">
+                    <strong>Total Requests:</strong> <span id="totalRequests">0</span>
+                </div>
+                <div class="cache-stat">
+                    <strong>Cache Hits:</strong> <span id="cacheHits">0</span>
+                </div>
+                <div class="cache-stat">
+                    <strong>Hit Rate:</strong> <span id="hitRate">0%</span>
+                </div>
+                <div class="cache-stat">
+                    <strong>LRU Size:</strong> <span id="lruSize">0</span>
+                </div>
+                <div class="cache-stat">
+                    <strong>Errors:</strong> <span id="cacheErrors">0</span>
+                </div>
+            </div>
+            <button class="test-button" onclick="updateCacheStats()">Update Cache Stats</button>
+            <button class="test-button" onclick="clearCache()">Clear Cache</button>
+        </div>
+
+        <div class="test-section">
+            <h2>🎯 Comprehensive Tests</h2>
+            <button class="test-button" onclick="testComprehensiveAnalysis()">Test Comprehensive Analysis</button>
+            <button class="test-button" onclick="testTodaysAnalysis()">Test Today's Analysis</button>
+            <button class="test-button" onclick="testQuickMarketCheck()">Test Quick Market Check</button>
+            <button class="test-button" onclick="runAllComprehensiveTests()">Run All Comprehensive Tests</button>
+            <div id="comprehensiveTestResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🏁 Run All Tests</h2>
+            <button class="test-button" onclick="runAllTests()" style="background: #2ed573; font-size: 16px; padding: 15px 30px;">Run Complete Test Suite</button>
+            <button class="test-button" onclick="resetTests()" style="background: #ff4757;">Reset All Tests</button>
+            <div id="allTestResults"></div>
+        </div>
+    </div>
+
+    <!-- Load API Client and Dependencies -->
+    <script src="/js/api-cache.js"></script>
+    <script src="/js/api-types.js"></script>
+    <script src="/js/api-client.js"></script>
+
+    <script>
+        // Test Management
+        const testResults = {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            details: []
+        };
+
+        let apiClient;
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeTestSuite();
+        });
+
+        function initializeTestSuite() {
+            try {
+                // Initialize API client
+                apiClient = new CCTApiClient({
+                    enableCache: true,
+                    timeout: 15000,
+                    baseUrl: '/api/v1'
+                });
+
+                updateCacheStats();
+                updateTestSummary();
+                console.log('✅ Test suite initialized successfully');
+            } catch (error) {
+                console.error('❌ Failed to initialize test suite:', error);
+                addTestResult('basicTestResults', 'Initialization', false, error.message);
+            }
+        }
+
+        function updateTestSummary() {
+            document.getElementById('totalTests').textContent = testResults.total;
+            document.getElementById('passedTests').textContent = testResults.passed;
+            document.getElementById('failedTests').textContent = testResults.failed;
+
+            const progress = testResults.total > 0 ?
+                Math.round((testResults.passed / testResults.total) * 100) : 0;
+            document.getElementById('testProgress').textContent = progress + '%';
+
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = progress + '%';
+            progressBar.textContent = progress + '%';
+        }
+
+        function addTestResult(containerId, testName, success, data, duration = null) {
+            testResults.total++;
+            if (success) {
+                testResults.passed++;
+            } else {
+                testResults.failed++;
+            }
+
+            updateTestSummary();
+
+            const container = document.getElementById(containerId);
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result-container ${success ? 'success' : 'error'}`;
+
+            const timestamp = new Date().toLocaleTimeString();
+            const durationText = duration ? ` (${duration}ms)` : '';
+
+            resultDiv.innerHTML = `
+                <div class="result-header">
+                    <div>
+                        <strong>${testName}</strong>
+                        <span class="result-time">${timestamp}${durationText}</span>
+                    </div>
+                    <div class="result-status ${success ? 'success' : 'error'}">
+                        ${success ? 'PASS' : 'FAIL'}
+                    </div>
+                </div>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+
+            container.appendChild(resultDiv);
+            container.scrollTop = container.scrollHeight;
+
+            return resultDiv;
+        }
+
+        // Basic Functionality Tests
+        async function testApiClientInitialization() {
+            try {
+                const startTime = Date.now();
+                const result = new CCTApiClient();
+                const duration = Date.now() - startTime;
+
+                const success = result && typeof result.request === 'function';
+                addTestResult('basicTestResults', 'API Client Initialization', success, {
+                    success: success,
+                    baseUrl: result.baseUrl,
+                    timeout: result.timeout,
+                    enableCache: result.enableCache
+                }, duration);
+            } catch (error) {
+                addTestResult('basicTestResults', 'API Client Initialization', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testApiKeyValidation() {
+            try {
+                const startTime = Date.now();
+                const isValid = await apiClient.validateApiKey();
+                const duration = Date.now() - startTime;
+
+                addTestResult('basicTestResults', 'API Key Validation', true, {
+                    valid: isValid,
+                    apiKey: apiClient.apiKey.substring(0, 3) + '***'
+                }, duration);
+            } catch (error) {
+                addTestResult('basicTestResults', 'API Key Validation', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testApiDocumentation() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getApiDocumentation();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('basicTestResults', 'API Documentation', success, {
+                    success: success,
+                    title: result?.data?.title,
+                    version: result?.data?.version,
+                    status: result?.data?.status,
+                    requestId: result?.requestId
+                }, duration);
+            } catch (error) {
+                addTestResult('basicTestResults', 'API Documentation', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Sentiment Analysis Tests
+        async function testSentimentAnalysis() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getSentimentAnalysis(['AAPL', 'MSFT']);
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sentimentTestResults', 'Sentiment Analysis', success, {
+                    success: success,
+                    analysis_date: result?.data?.analysis_date,
+                    symbols_analyzed: result?.data?.symbols_analyzed?.length || 0,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sentimentTestResults', 'Sentiment Analysis', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testSymbolSentiment() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getSymbolSentiment('AAPL');
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sentimentTestResults', 'Symbol Sentiment', success, {
+                    success: success,
+                    symbol: result?.data?.symbol,
+                    sentiment_score: result?.data?.sentiment_analysis?.current_sentiment?.score,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sentimentTestResults', 'Symbol Sentiment', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testMarketSentiment() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getMarketSentiment();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sentimentTestResults', 'Market Sentiment', success, {
+                    success: success,
+                    sentiment_index: result?.data?.market_overview?.sentiment_index,
+                    market_bias: result?.data?.market_overview?.market_bias,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sentimentTestResults', 'Market Sentiment', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testSectorSentiment() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getSectorSentiment(['XLK', 'XLF']);
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sentimentTestResults', 'Sector Sentiment', success, {
+                    success: success,
+                    sectors_count: result?.data?.sectors?.length || 0,
+                    market_breadth: result?.data?.market_breadth,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sentimentTestResults', 'Sector Sentiment', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Report Tests
+        async function testDailyReport() {
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const startTime = Date.now();
+                const result = await apiClient.getDailyReport(today);
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('reportTestResults', 'Daily Report', success, {
+                    success: success,
+                    report_date: result?.data?.report_date,
+                    market_status: result?.data?.market_summary?.market_status,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('reportTestResults', 'Daily Report', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testPreMarketReport() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getPreMarketReport();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('reportTestResults', 'Pre-Market Report', success, {
+                    success: success,
+                    report_date: result?.data?.report_date,
+                    high_confidence_signals: result?.data?.high_confidence_signals?.length || 0,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('reportTestResults', 'Pre-Market Report', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testIntradayReport() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getIntradayReport();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('reportTestResults', 'Intraday Report', success, {
+                    success: success,
+                    check_time: result?.data?.check_time,
+                    market_status: result?.data?.market_status?.current_level,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('reportTestResults', 'Intraday Report', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testEndOfDayReport() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getEndOfDayReport();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('reportTestResults', 'End-of-Day Report', success, {
+                    success: success,
+                    report_date: result?.data?.report_date,
+                    closing_summary: result?.data?.closing_summary?.daily_change,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('reportTestResults', 'End-of-Day Report', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Data & Health Tests
+        async function testSystemHealth() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getSystemHealth();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('dataTestResults', 'System Health', success, {
+                    success: success,
+                    system_status: result?.data?.system_status,
+                    uptime: result?.data?.uptime,
+                    components_count: result?.data?.components?.length || 0,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('dataTestResults', 'System Health', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testAvailableSymbols() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getAvailableSymbols();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('dataTestResults', 'Available Symbols', success, {
+                    success: success,
+                    total_count: result?.data?.total_count,
+                    symbols_sample: result?.data?.available_symbols?.slice(0, 3).map(s => s.symbol),
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('dataTestResults', 'Available Symbols', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testSymbolHistory() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getSymbolHistory('AAPL', { period: '5d' });
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('dataTestResults', 'Symbol History', success, {
+                    success: success,
+                    symbol: result?.data?.symbol,
+                    data_points: result?.data?.data_points?.length || 0,
+                    period: result?.data?.period,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('dataTestResults', 'Symbol History', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Sector & Market Drivers Tests
+        async function testSectorSnapshot() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getSectorSnapshot();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sectorTestResults', 'Sector Snapshot', success, {
+                    success: success,
+                    snapshot_time: result?.data?.snapshot_time,
+                    sectors_count: result?.data?.sector_performance?.length || 0,
+                    rotation_strength: result?.data?.rotation_analysis?.rotation_strength,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sectorTestResults', 'Sector Snapshot', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testMarketDriversSnapshot() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getMarketDriversSnapshot();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sectorTestResults', 'Market Drivers Snapshot', success, {
+                    success: success,
+                    snapshot_time: result?.data?.snapshot_time,
+                    market_regime: result?.data?.market_regime?.current_regime,
+                    risk_level: result?.data?.risk_level,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sectorTestResults', 'Market Drivers Snapshot', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testMacroDrivers() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getMacroDrivers();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sectorTestResults', 'Macro Drivers', success, {
+                    success: success,
+                    economic_indicators_count: result?.data?.economic_indicators?.length || 0,
+                    fed_stance: result?.data?.monetary_policy?.fed_stance,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sectorTestResults', 'Macro Drivers', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testMarketRegime() {
+            try {
+                const startTime = Date.now();
+                const result = await apiClient.getMarketRegime();
+                const duration = Date.now() - startTime;
+
+                const success = result && result.success && result.data;
+                addTestResult('sectorTestResults', 'Market Regime', success, {
+                    success: success,
+                    current_regime: result?.data?.current_regime?.name,
+                    confidence: result?.data?.regime_probability?.current_regime_prob,
+                    cached: result?.cached || false,
+                    cacheHit: result?.cacheHit || false
+                }, duration);
+            } catch (error) {
+                addTestResult('sectorTestResults', 'Market Regime', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Performance & Caching Tests
+        async function testCachePerformance() {
+            try {
+                const results = [];
+                const iterations = 5;
+
+                // First request (cache miss)
+                const start1 = Date.now();
+                const result1 = await apiClient.getSystemHealth();
+                const time1 = Date.now() - start1;
+                results.push({ request: 1, time: time1, cached: result1.cached });
+
+                // Subsequent requests (cache hits)
+                for (let i = 2; i <= iterations; i++) {
+                    const start = Date.now();
+                    const result = await apiClient.getSystemHealth();
+                    const time = Date.now() - start;
+                    results.push({ request: i, time, cached: result.cached });
+                }
+
+                const avgTime = results.reduce((sum, r) => sum + r.time, 0) / results.length;
+                const cacheHits = results.filter(r => r.cached).length;
+                const cacheHitRate = (cacheHits / (iterations - 1)) * 100;
+
+                addTestResult('performanceTestResults', 'Cache Performance', true, {
+                    iterations: iterations,
+                    first_request_time: results[0].time,
+                    cache_hit_times: results.slice(1).map(r => r.time),
+                    average_time: Math.round(avgTime),
+                    cache_hit_rate: cacheHitRate.toFixed(1) + '%',
+                    performance_improvement: Math.round((results[0].time / (results.slice(1).reduce((sum, r) => sum + r.time, 0) / (iterations - 1))) * 10) / 10 + 'x'
+                });
+
+                updateCacheStats();
+            } catch (error) {
+                addTestResult('performanceTestResults', 'Cache Performance', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testBatchRequests() {
+            try {
+                const startTime = Date.now();
+                const results = await apiClient.batchRequests([
+                    () => apiClient.getSystemHealth(),
+                    () => apiClient.getMarketSentiment(),
+                    () => apiClient.getSectorSnapshot()
+                ]);
+                const duration = Date.now() - startTime;
+
+                const success = results && results.length === 3 && results.every(r => r.success);
+                addTestResult('performanceTestResults', 'Batch Requests', success, {
+                    success: success,
+                    requests_completed: results.length,
+                    total_time: duration,
+                    average_time_per_request: Math.round(duration / results.length),
+                    all_successful: results.every(r => r.success)
+                }, duration);
+            } catch (error) {
+                addTestResult('performanceTestResults', 'Batch Requests', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testErrorHandling() {
+            try {
+                // Test with invalid endpoint
+                const result1 = await apiClient.request('/invalid/endpoint');
+
+                // Test with invalid symbol
+                const result2 = await apiClient.getSymbolSentiment('');
+
+                addTestResult('performanceTestResults', 'Error Handling', false, {
+                    test_result: "Both requests should have failed but didn't",
+                    invalid_endpoint_result: result1,
+                    empty_symbol_result: result2
+                });
+            } catch (error) {
+                // Expected behavior - errors should be thrown
+                addTestResult('performanceTestResults', 'Error Handling', true, {
+                    success: true,
+                    error_caught: true,
+                    error_type: error.constructor.name,
+                    error_message: error.message
+                });
+            }
+        }
+
+        async function testConcurrentRequests() {
+            try {
+                const startTime = Date.now();
+                const concurrentRequests = 10;
+
+                const promises = Array.from({ length: concurrentRequests }, (_, i) =>
+                    apiClient.getSystemHealth().then(result => ({ id: i + 1, success: result.success, cached: result.cached }))
+                );
+
+                const results = await Promise.all(promises);
+                const duration = Date.now() - startTime;
+
+                const successCount = results.filter(r => r.success).length;
+                const cacheHitCount = results.filter(r => r.cached).length;
+
+                addTestResult('performanceTestResults', 'Concurrent Requests', successCount === concurrentRequests, {
+                    success: successCount === concurrentRequests,
+                    total_requests: concurrentRequests,
+                    successful_requests: successCount,
+                    cache_hits: cacheHitCount,
+                    total_time: duration,
+                    avg_time_per_request: Math.round(duration / concurrentRequests)
+                }, duration);
+            } catch (error) {
+                addTestResult('performanceTestResults', 'Concurrent Requests', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Comprehensive Tests
+        async function testComprehensiveAnalysis() {
+            try {
+                const startTime = Date.now();
+                const results = await apiClient.getComprehensiveAnalysis();
+                const duration = Date.now() - startTime;
+
+                const success = results && results.length === 4 && results.every(r => r.success);
+                addTestResult('comprehensiveTestResults', 'Comprehensive Analysis', success, {
+                    success: success,
+                    completed_requests: results.length,
+                    total_time: duration,
+                    avg_time_per_request: Math.round(duration / results.length),
+                    all_successful: results.every(r => r.success)
+                }, duration);
+            } catch (error) {
+                addTestResult('comprehensiveTestResults', 'Comprehensive Analysis', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testTodaysAnalysis() {
+            try {
+                const startTime = Date.now();
+                const results = await apiClient.getTodaysAnalysis();
+                const duration = Date.now() - startTime;
+
+                const success = results && results.length === 4;
+                addTestResult('comprehensiveTestResults', "Today's Analysis", success, {
+                    success: success,
+                    completed_requests: results.length,
+                    total_time: duration,
+                    reports_generated: results.filter(r => r.success).length
+                }, duration);
+            } catch (error) {
+                addTestResult('comprehensiveTestResults', "Today's Analysis", false, {
+                    error: error.message
+                });
+            }
+        }
+
+        async function testQuickMarketCheck() {
+            try {
+                const startTime = Date.now();
+                const results = await apiClient.quickMarketCheck();
+                const duration = Date.now() - startTime;
+
+                const success = results && results.length === 3 && results.every(r => r.success);
+                addTestResult('comprehensiveTestResults', 'Quick Market Check', success, {
+                    success: success,
+                    completed_requests: results.length,
+                    total_time: duration,
+                    avg_time_per_request: Math.round(duration / results.length),
+                    all_successful: results.every(r => r.success)
+                }, duration);
+            } catch (error) {
+                addTestResult('comprehensiveTestResults', 'Quick Market Check', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        // Batch Test Functions
+        async function runAllBasicTests() {
+            await testApiClientInitialization();
+            await testApiKeyValidation();
+            await testApiDocumentation();
+        }
+
+        async function runAllSentimentTests() {
+            await testSentimentAnalysis();
+            await testSymbolSentiment();
+            await testMarketSentiment();
+            await testSectorSentiment();
+        }
+
+        async function runAllReportTests() {
+            await testDailyReport();
+            await testPreMarketReport();
+            await testIntradayReport();
+            await testEndOfDayReport();
+        }
+
+        async function runAllDataTests() {
+            await testSystemHealth();
+            await testAvailableSymbols();
+            await testSymbolHistory();
+        }
+
+        async function runAllSectorTests() {
+            await testSectorSnapshot();
+            await testMarketDriversSnapshot();
+            await testMacroDrivers();
+            await testMarketRegime();
+        }
+
+        async function runAllPerformanceTests() {
+            await testCachePerformance();
+            await testBatchRequests();
+            await testErrorHandling();
+            await testConcurrentRequests();
+        }
+
+        async function runAllComprehensiveTests() {
+            await testComprehensiveAnalysis();
+            await testTodaysAnalysis();
+            await testQuickMarketCheck();
+        }
+
+        async function runAllTests() {
+            const startTime = Date.now();
+
+            addTestResult('allTestResults', 'Test Suite Started', true, {
+                message: 'Running complete test suite...',
+                start_time: new Date().toISOString()
+            });
+
+            try {
+                await runAllBasicTests();
+                await runAllSentimentTests();
+                await runAllReportTests();
+                await runAllDataTests();
+                await runAllSectorTests();
+                await runAllPerformanceTests();
+                await runAllComprehensiveTests();
+
+                const duration = Date.now() - startTime;
+
+                addTestResult('allTestResults', 'Test Suite Completed', true, {
+                    total_tests: testResults.total,
+                    passed: testResults.passed,
+                    failed: testResults.failed,
+                    success_rate: ((testResults.passed / testResults.total) * 100).toFixed(1) + '%',
+                    total_duration: duration + 'ms'
+                }, duration);
+
+                updateCacheStats();
+            } catch (error) {
+                addTestResult('allTestResults', 'Test Suite Error', false, {
+                    error: error.message
+                });
+            }
+        }
+
+        function resetTests() {
+            testResults.total = 0;
+            testResults.passed = 0;
+            testResults.failed = 0;
+            testResults.details = [];
+
+            // Clear all result containers
+            const containers = [
+                'basicTestResults', 'sentimentTestResults', 'reportTestResults',
+                'dataTestResults', 'sectorTestResults', 'performanceTestResults',
+                'comprehensiveTestResults', 'allTestResults'
+            ];
+
+            containers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) {
+                    container.innerHTML = '';
+                }
+            });
+
+            updateTestSummary();
+            console.log('🔄 Test suite reset');
+        }
+
+        function updateCacheStats() {
+            if (apiClient && apiClient.getCacheStats) {
+                const stats = apiClient.getCacheStats();
+
+                document.getElementById('cacheStatus').textContent = 'Active';
+                document.getElementById('totalRequests').textContent = stats.overall.totalRequests;
+                document.getElementById('cacheHits').textContent = stats.overall.cacheHits;
+                document.getElementById('hitRate').textContent = (stats.overall.hitRate * 100).toFixed(1) + '%';
+                document.getElementById('lruSize').textContent = stats.lruCache.size;
+                document.getElementById('cacheErrors').textContent = stats.overall.totalRequests > 0 ?
+                    stats.overall.errors : 0;
+            }
+        }
+
+        function clearCache() {
+            if (apiClient && apiClient.clearCache) {
+                apiClient.clearCache();
+                updateCacheStats();
+                addTestResult('performanceTestResults', 'Cache Cleared', true, {
+                    message: 'Cache cleared successfully',
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+
+        // Auto-update cache stats every 5 seconds
+        setInterval(updateCacheStats, 5000);
+    </script>
+</body>
+</html>

@@ -47,9 +47,23 @@ export {
 
 // Weekly report handlers (non-Facebook)
 export {
-  handleWeeklyReport,
-  handleFridayMarketCloseReport
+  handleWeeklyReview
 } from './weekly-review-handlers.js';
+
+// Briefing handlers
+export {
+  handlePreMarketBriefing
+} from './briefing-handlers.js';
+
+// Intraday handlers
+export {
+  handleIntradayCheck
+} from './intraday-handlers.js';
+
+// End-of-day handlers
+export {
+  handleEndOfDaySummary
+} from './end-of-day-handlers.js';
 
 // Web notification handlers (replaces Facebook integration)
 export {

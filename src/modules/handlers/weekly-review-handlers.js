@@ -836,8 +836,8 @@ export async function sendWeeklyReviewWithTracking(analysisResult, env, cronExec
   // Generate the weekly analysis data using the report module
   const weeklyData = analysisResult || await generateWeeklyReviewAnalysis(env, new Date());
 
-  // Import Facebook messaging function and send message
-  const { sendFacebookMessage } = await import('../facebook.js');
+  // Facebook integration removed - no longer sending messages
+  // const { sendFacebookMessage } = await import('../facebook.js');
 
   const now = new Date();
   const weeklyAccuracy = weeklyData.accuracy || 68;
@@ -875,34 +875,23 @@ export async function sendWeeklyReviewWithTracking(analysisResult, env, cronExec
 
   console.log(`✅ [WEEKLY-REVIEW] ${cronExecutionId} Message constructed (${reportText.length} chars)`);
 
-  // Send via Facebook messaging
+  // Facebook integration removed - no longer sending messages
   try {
-    const fbResult = await sendFacebookMessage(reportText, env);
-
-    if (fbResult.success) {
-      console.log(`✅ [WEEKLY-REVIEW] ${cronExecutionId} Facebook message sent successfully`);
-      return {
-        success: true,
-        facebook_success: true,
-        timestamp: now.toISOString(),
-        weekly_accuracy: weeklyAccuracy,
-        total_trades: totalTrades,
-        analysis_data_available: !!analysisResult
-      };
-    } else {
-      console.error(`❌ [WEEKLY-REVIEW] ${cronExecutionId} Facebook send failed:`, fbResult.error);
-      return {
-        success: false,
-        facebook_success: false,
-        facebook_error: fbResult.error,
-        timestamp: now.toISOString()
-      };
-    }
+    console.log(`✅ [WEEKLY-REVIEW] ${cronExecutionId} Weekly review generated (Facebook disabled)`);
+    return {
+      success: true,
+      facebook_success: false, // Disabled
+      timestamp: now.toISOString(),
+      weekly_accuracy: weeklyAccuracy,
+      total_trades: totalTrades,
+      analysis_data_available: !!analysisResult,
+      note: 'Facebook integration removed'
+    };
   } catch (error) {
-    console.error(`❌ [WEEKLY-REVIEW] ${cronExecutionId} Error sending message:`, error);
+    console.error(`❌ [WEEKLY-REVIEW] ${cronExecutionId} Error in weekly review:`, error);
     return {
       success: false,
-      facebook_success: false,
+      facebook_success: false, // Disabled
       error: error.message,
       timestamp: now.toISOString()
     };

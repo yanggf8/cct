@@ -54,7 +54,17 @@ export const KeyTypes = {
   SECTOR_SNAPSHOT: 'sector_snapshot',
   SECTOR_INDICATORS: 'sector_indicators',
   SECTOR_PERFORMANCE: 'sector_performance',
-  SECTOR_RELATIVE_STRENGTH: 'sector_relative_strength'
+  SECTOR_RELATIVE_STRENGTH: 'sector_relative_strength',
+
+  // Market Drivers Data (NEW - Phase 2 implementation)
+  MARKET_DRIVERS_SNAPSHOT: 'market_drivers_snapshot',
+  MARKET_DRIVERS_MACRO: 'market_drivers_macro',
+  MARKET_DRIVERS_MARKET_STRUCTURE: 'market_drivers_market_structure',
+  MARKET_DRIVERS_GEOPOLITICAL: 'market_drivers_geopolitical',
+  MARKET_DRIVERS_REGIME: 'market_drivers_regime',
+  MARKET_DRIVERS_HISTORY: 'market_drivers_history',
+  MARKET_DRIVERS_FRED_DATA: 'market_drivers_fred_data',
+  MARKET_DRIVERS_RISK_ASSESSMENT: 'market_drivers_risk_assessment'
 } as const;
 
 export type KeyType = typeof KeyTypes[keyof typeof KeyTypes];
@@ -99,7 +109,17 @@ const KEY_TEMPLATES: Record<KeyType, string> = {
   [KeyTypes.SECTOR_SNAPSHOT]: 'sector_snapshot_{date}',
   [KeyTypes.SECTOR_INDICATORS]: 'sector_indicators_{symbol}_{date}',
   [KeyTypes.SECTOR_PERFORMANCE]: 'sector_performance_{date}',
-  [KeyTypes.SECTOR_RELATIVE_STRENGTH]: 'sector_relative_strength_{symbol}_{date}'
+  [KeyTypes.SECTOR_RELATIVE_STRENGTH]: 'sector_relative_strength_{symbol}_{date}',
+
+  // Market Drivers Data Templates (NEW - Phase 2 implementation)
+  [KeyTypes.MARKET_DRIVERS_SNAPSHOT]: 'market_drivers_snapshot_{date}',
+  [KeyTypes.MARKET_DRIVERS_MACRO]: 'market_drivers_macro_{date}',
+  [KeyTypes.MARKET_DRIVERS_MARKET_STRUCTURE]: 'market_drivers_market_structure_{date}',
+  [KeyTypes.MARKET_DRIVERS_GEOPOLITICAL]: 'market_drivers_geopolitical_{date}',
+  [KeyTypes.MARKET_DRIVERS_REGIME]: 'market_drivers_regime_{date}',
+  [KeyTypes.MARKET_DRIVERS_HISTORY]: 'market_drivers_history_{date}_{regimeType}',
+  [KeyTypes.MARKET_DRIVERS_FRED_DATA]: 'market_drivers_fred_data_{series}_{date}',
+  [KeyTypes.MARKET_DRIVERS_RISK_ASSESSMENT]: 'market_drivers_risk_assessment_{date}'
 };
 
 /**
@@ -142,7 +162,17 @@ const KEY_TTL_CONFIG: Record<KeyType, number> = {
   [KeyTypes.SECTOR_SNAPSHOT]: 300, // 5 minutes
   [KeyTypes.SECTOR_INDICATORS]: 600, // 10 minutes
   [KeyTypes.SECTOR_PERFORMANCE]: 900, // 15 minutes
-  [KeyTypes.SECTOR_RELATIVE_STRENGTH]: 600 // 10 minutes
+  [KeyTypes.SECTOR_RELATIVE_STRENGTH]: 600, // 10 minutes
+
+  // Market Drivers Data TTL (NEW - Phase 2 implementation)
+  [KeyTypes.MARKET_DRIVERS_SNAPSHOT]: 600, // 10 minutes
+  [KeyTypes.MARKET_DRIVERS_MACRO]: 3600, // 1 hour (FRED data updates less frequently)
+  [KeyTypes.MARKET_DRIVERS_MARKET_STRUCTURE]: 300, // 5 minutes (market data changes frequently)
+  [KeyTypes.MARKET_DRIVERS_GEOPOLITICAL]: 1800, // 30 minutes (news analysis)
+  [KeyTypes.MARKET_DRIVERS_REGIME]: 900, // 15 minutes (regime classification)
+  [KeyTypes.MARKET_DRIVERS_HISTORY]: 7776000, // 90 days (historical archive)
+  [KeyTypes.MARKET_DRIVERS_FRED_DATA]: 7200, // 2 hours (economic data)
+  [KeyTypes.MARKET_DRIVERS_RISK_ASSESSMENT]: 1800 // 30 minutes (risk scoring)
 };
 
 /**
@@ -253,6 +283,65 @@ export class KVKeyFactory {
     }
 
     return this.generateKey(KeyTypes.FACEBOOK_STATUS, baseParams);
+  }
+
+  /**
+   * Generate keys for Market Drivers data
+   */
+  static generateMarketDriversKey(
+    dataType: string,
+    date: Date | string | null = null,
+    additionalParams: Record<string, any> = {}
+  ): string {
+    let keyType: KeyType;
+
+    switch (dataType) {
+      case 'snapshot':
+        keyType = KeyTypes.MARKET_DRIVERS_SNAPSHOT;
+        break;
+      case 'macro':
+        keyType = KeyTypes.MARKET_DRIVERS_MACRO;
+        break;
+      case 'market_structure':
+        keyType = KeyTypes.MARKET_DRIVERS_MARKET_STRUCTURE;
+        break;
+      case 'geopolitical':
+        keyType = KeyTypes.MARKET_DRIVERS_GEOPOLITICAL;
+        break;
+      case 'regime':
+        keyType = KeyTypes.MARKET_DRIVERS_REGIME;
+        break;
+      case 'history':
+        keyType = KeyTypes.MARKET_DRIVERS_HISTORY;
+        break;
+      case 'fred_data':
+        keyType = KeyTypes.MARKET_DRIVERS_FRED_DATA;
+        break;
+      case 'risk_assessment':
+        keyType = KeyTypes.MARKET_DRIVERS_RISK_ASSESSMENT;
+        break;
+      default:
+        keyType = KeyTypes.MARKET_DRIVERS_SNAPSHOT;
+    }
+
+    // Handle special case for 'latest' - use today's date
+    if (date === 'latest') {
+      return this.generateDateKey(keyType, new Date(), additionalParams);
+    } else if (date) {
+      return this.generateDateKey(keyType, date, additionalParams);
+    } else {
+      return this.generateKey(keyType, additionalParams);
+    }
+  }
+
+  /**
+   * Generate test keys for health checks
+   */
+  static generateTestKey(component: string): string {
+    return this.generateKey(KeyTypes.TEST_DATA, {
+      testName: this.sanitizeValue(component),
+      timestamp: Date.now()
+    });
   }
 
   /**
@@ -386,6 +475,23 @@ export class KVKeyFactory {
     if (key.startsWith('test_')) return KeyTypes.TEST_DATA;
     if (key.startsWith('debug_')) return KeyTypes.DEBUG_DATA;
 
+    // Sector rotation keys
+    if (key.startsWith('sector_data_')) return KeyTypes.SECTOR_DATA;
+    if (key.startsWith('sector_snapshot_')) return KeyTypes.SECTOR_SNAPSHOT;
+    if (key.startsWith('sector_indicators_')) return KeyTypes.SECTOR_INDICATORS;
+    if (key.startsWith('sector_performance_')) return KeyTypes.SECTOR_PERFORMANCE;
+    if (key.startsWith('sector_relative_strength_')) return KeyTypes.SECTOR_RELATIVE_STRENGTH;
+
+    // Market Drivers keys
+    if (key.startsWith('market_drivers_snapshot_')) return KeyTypes.MARKET_DRIVERS_SNAPSHOT;
+    if (key.startsWith('market_drivers_macro_')) return KeyTypes.MARKET_DRIVERS_MACRO;
+    if (key.startsWith('market_drivers_market_structure_')) return KeyTypes.MARKET_DRIVERS_MARKET_STRUCTURE;
+    if (key.startsWith('market_drivers_geopolitical_')) return KeyTypes.MARKET_DRIVERS_GEOPOLITICAL;
+    if (key.startsWith('market_drivers_regime_')) return KeyTypes.MARKET_DRIVERS_REGIME;
+    if (key.startsWith('market_drivers_history_')) return KeyTypes.MARKET_DRIVERS_HISTORY;
+    if (key.startsWith('market_drivers_fred_data_')) return KeyTypes.MARKET_DRIVERS_FRED_DATA;
+    if (key.startsWith('market_drivers_risk_assessment_')) return KeyTypes.MARKET_DRIVERS_RISK_ASSESSMENT;
+
     return KeyTypes.TEMPORARY;
   }
 }
@@ -420,12 +526,109 @@ export const KeyHelpers = {
   getFacebookKey: (messageType: string): string => KVKeyFactory.generateFacebookKey(messageType),
 
   /**
+   * Sector Rotation Helper Functions (NEW - Rovodev production fixes)
+   */
+  /**
+   * Get sector data key for symbol
+   */
+  getSectorDataKey: (symbol: string, timestamp?: number): string =>
+    KVKeyFactory.generateKey(KeyTypes.SECTOR_DATA, {
+      symbol: KVKeyFactory.sanitizeValue(symbol),
+      timestamp: timestamp || Date.now()
+    }),
+
+  /**
+   * Get sector snapshot key for date
+   */
+  getSectorSnapshotKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.SECTOR_SNAPSHOT, date),
+
+  /**
+   * Get sector indicators key for symbol and date
+   */
+  getSectorIndicatorsKey: (symbol: string, date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.SECTOR_INDICATORS, date, {
+      symbol: KVKeyFactory.sanitizeValue(symbol)
+    }),
+
+  /**
+   * Get sector performance key for date
+   */
+  getSectorPerformanceKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.SECTOR_PERFORMANCE, date),
+
+  /**
+   * Get sector relative strength key for symbol and date
+   */
+  getSectorRelativeStrengthKey: (symbol: string, date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.SECTOR_RELATIVE_STRENGTH, date, {
+      symbol: KVKeyFactory.sanitizeValue(symbol)
+    }),
+
+  /**
    * Get TTL options for KV operations
    */
   getKVOptions: (keyType: KeyType, additionalOptions: KVOptions = {}): KVOptions => ({
     expirationTtl: KVKeyFactory.getTTL(keyType),
     ...additionalOptions
-  })
+  }),
+
+  /**
+   * Market Drivers Helper Functions (NEW - Phase 2 implementation)
+   */
+  /**
+   * Get market drivers snapshot key for date
+   */
+  getMarketDriversSnapshotKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.MARKET_DRIVERS_SNAPSHOT, date),
+
+  /**
+   * Get market drivers macro data key for date
+   */
+  getMarketDriversMacroKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.MARKET_DRIVERS_MACRO, date),
+
+  /**
+   * Get market drivers market structure key for date
+   */
+  getMarketDriversMarketStructureKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.MARKET_DRIVERS_MARKET_STRUCTURE, date),
+
+  /**
+   * Get market drivers geopolitical risk key for date
+   */
+  getMarketDriversGeopoliticalKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.MARKET_DRIVERS_GEOPOLITICAL, date),
+
+  /**
+   * Get market drivers regime analysis key for date
+   */
+  getMarketDriversRegimeKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.MARKET_DRIVERS_REGIME, date),
+
+  /**
+   * Get market drivers history key for date and regime type
+   */
+  getMarketDriversHistoryKey: (date: Date | string, regimeType: string): string =>
+    KVKeyFactory.generateKey(KeyTypes.MARKET_DRIVERS_HISTORY, {
+      date: typeof date === 'string' ? date : new Date(date).toISOString().split('T')[0],
+      regimeType: KVKeyFactory.sanitizeValue(regimeType)
+    }),
+
+  /**
+   * Get FRED data key for series and date
+   */
+  getMarketDriversFredDataKey: (series: string, date?: Date | string): string =>
+    KVKeyFactory.generateKey(KeyTypes.MARKET_DRIVERS_FRED_DATA, {
+      series: KVKeyFactory.sanitizeValue(series),
+      date: date ? (typeof date === 'string' ? date : new Date(date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]
+    }),
+
+  /**
+   * Get market drivers risk assessment key for date
+   */
+  getMarketDriversRiskAssessmentKey: (date?: Date | string): string =>
+    KVKeyFactory.generateDateKey(KeyTypes.MARKET_DRIVERS_RISK_ASSESSMENT, date)
 };
 
 export default KVKeyFactory;

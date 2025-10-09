@@ -165,7 +165,9 @@
       "Bash(gh:*)",
       "Bash(open:*)",
       "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy)",
-      "Bash(./test-api-v1-integration.sh:*)"
+      "Bash(./test-api-v1-integration.sh:*)",
+      "Bash(./test-sector-rotation-api.sh:*)",
+      "Bash(./test-market-drivers-api.sh:*)"
     ],
     "deny": [],
     "ask": []

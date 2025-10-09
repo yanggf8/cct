@@ -17,7 +17,7 @@ const logger = createLogger('health-handlers');
  * Handle basic health check requests
  */
 export const handleHealthCheck = createHealthHandler('system-health', async (env, ctx) => {
-  const healthResponse = await getHealthCheckResponse(env);
+  const healthResponse = await createHealthResponse(env);
 
   // Track health check metrics
   BusinessMetrics.apiRequest('/health', 'GET', 200, Date.now() - ctx.startTime);

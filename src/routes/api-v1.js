@@ -8,6 +8,8 @@ import { ApiResponseFactory, HttpStatus, generateRequestId as genReqId } from '.
 import { handleSentimentRoutes } from './sentiment-routes.ts';
 import { handleReportRoutes } from './report-routes.ts';
 import { handleDataRoutes } from './data-routes.ts';
+import { handleSectorRotationRoutes } from './sector-rotation-routes.ts';
+import { handleMarketDriversRoutes } from './market-drivers-routes.js';
 
 /**
  * Main v1 API Router
@@ -31,13 +33,19 @@ export async function handleApiV1Request(request, env, ctx) {
       return await handleReportRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/data/')) {
       return await handleDataRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/sectors/')) {
+      // Route to sector rotation API
+      return await handleSectorRotationRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/market-drivers/')) {
+      // Route to market drivers API
+      return await handleMarketDriversRoutes(request, env, path, headers);
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
         {
           title: 'CCT API v1',
           version: '1.0.0',
-          description: 'RESTful API for dual AI sentiment analysis',
+          description: 'RESTful API for dual AI sentiment analysis, sector rotation, and market drivers intelligence',
           available_endpoints: {
             sentiment: {
               analysis: 'GET /api/v1/sentiment/analysis',
@@ -56,6 +64,21 @@ export async function handleApiV1Request(request, env, ctx) {
               symbols: 'GET /api/v1/data/symbols',
               history: 'GET /api/v1/data/history/:symbol',
               health: 'GET /api/v1/data/health',
+            },
+            sectors: {
+              snapshot: 'GET /api/v1/sectors/snapshot',
+              health: 'GET /api/v1/sectors/health',
+              symbols: 'GET /api/v1/sectors/symbols',
+            },
+            market_drivers: {
+              snapshot: 'GET /api/v1/market-drivers/snapshot',
+              enhanced_snapshot: 'GET /api/v1/market-drivers/snapshot/enhanced',
+              macro: 'GET /api/v1/market-drivers/macro',
+              market_structure: 'GET /api/v1/market-drivers/market-structure',
+              regime: 'GET /api/v1/market-drivers/regime',
+              geopolitical: 'GET /api/v1/market-drivers/geopolitical',
+              history: 'GET /api/v1/market-drivers/history',
+              health: 'GET /api/v1/market-drivers/health',
             },
           },
           documentation: 'https://github.com/yanggf8/cct',

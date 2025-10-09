@@ -2,12 +2,15 @@
  * Sector Cache Manager Module - TypeScript
  * Multi-layer caching system for sector rotation data with L1 (memory) + L2 (KV) cache
  * CRITICAL PRODUCTION FIX: Prevents thundering herd on Worker cold starts
+ * Enhanced with new sector key types and data validation integration
  */
 
 import { createDAL } from './dal.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
+import { DataValidator, validateOHLCVBar } from './data-validation.js';
+import { CircuitBreaker, CommonCircuitBreakers } from './circuit-breaker.js';
 
 const logger = createLogger('sector-cache-manager');
 
@@ -63,16 +66,20 @@ export interface CacheMetrics {
 }
 
 /**
- * Sector Cache Manager with dual-layer caching
+ * Sector Cache Manager with dual-layer caching and enhanced protection
  */
 export class SectorCacheManager {
   private l1Cache = new Map<string, CacheEntry<SectorData>>();
   private l2DAL: any;
+  private validator: DataValidator;
+  private circuitBreaker: CircuitBreaker;
   private metrics: CacheMetrics;
   private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(env: any) {
     this.l2DAL = createDAL(env);
+    this.validator = new DataValidator();
+    this.circuitBreaker = CommonCircuitBreakers.yahooFinance();
     this.metrics = this.initializeMetrics();
     this.startCleanupTimer();
   }
@@ -133,16 +140,21 @@ export class SectorCacheManager {
   }
 
   /**
-   * Set sector data to both cache layers
+   * Set sector data to both cache layers with validation
    */
   async setSectorData(symbol: string, data: SectorData): Promise<void> {
     const cacheKey = this.getCacheKey(symbol);
 
     try {
+      // Validate data before caching
+      if (!this.validateSectorData(data)) {
+        throw new Error(`Invalid sector data for ${symbol}: validation failed`);
+      }
+
       // Set to L1 cache
       this.setToL1(cacheKey, data);
 
-      // Set to L2 cache (KV) with retry logic
+      // Set to L2 cache (KV) with circuit breaker protection
       await this.setToL2(cacheKey, data);
 
       logger.debug(`Cached sector data for ${symbol}`);
@@ -254,7 +266,7 @@ export class SectorCacheManager {
   }
 
   /**
-   * Set data to L2 cache (KV)
+   * Set data to L2 cache (KV) with circuit breaker protection
    */
   private async setToL2(cacheKey: string, data: SectorData): Promise<void> {
     const entry: CacheEntry<SectorData> = {
@@ -264,23 +276,76 @@ export class SectorCacheManager {
       hits: 0
     };
 
-    const kvOptions = KeyHelpers.getKVOptions(KeyTypes.MARKET_DATA_CACHE, {
+    // Use new sector key type instead of generic market data cache
+    const kvOptions = KeyHelpers.getKVOptions(KeyTypes.SECTOR_DATA, {
       expirationTtl: CACHE_CONFIG.L2_TTL,
       metadata: {
         type: 'sector_data',
         timestamp: entry.timestamp,
-        version: '1.0'
+        version: '2.0',
+        validated: true
       }
     });
 
-    await this.l2DAL.write(cacheKey, entry, kvOptions);
+    // Use circuit breaker for KV operations
+    await this.circuitBreaker.execute(async () => {
+      await this.l2DAL.write(cacheKey, entry, kvOptions);
+    });
   }
 
   /**
-   * Generate cache key
+   * Validate sector data
+   */
+  private validateSectorData(data: SectorData): boolean {
+    try {
+      // Basic validation
+      if (!data || typeof data !== 'object') {
+        return false;
+      }
+
+      // Required fields
+      const requiredFields = ['symbol', 'name', 'price', 'change', 'changePercent', 'volume', 'timestamp'];
+      for (const field of requiredFields) {
+        if (data[field] === undefined || data[field] === null) {
+          logger.warn(`Missing required field: ${field}`);
+          return false;
+        }
+      }
+
+      // Type validation
+      if (typeof data.price !== 'number' || isNaN(data.price) || data.price <= 0) {
+        logger.warn(`Invalid price: ${data.price}`);
+        return false;
+      }
+
+      if (typeof data.volume !== 'number' || isNaN(data.volume) || data.volume < 0) {
+        logger.warn(`Invalid volume: ${data.volume}`);
+        return false;
+      }
+
+      // Timestamp validation (not too old, not too far in future)
+      const now = Date.now();
+      const maxAge = 600000; // 10 minutes
+      const futureTolerance = 60000; // 1 minute future tolerance
+
+      if (data.timestamp < now - maxAge || data.timestamp > now + futureTolerance) {
+        logger.warn(`Invalid timestamp: ${data.timestamp}, now: ${now}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('Error validating sector data:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Generate cache key using KV key factory
    */
   private getCacheKey(symbol: string): string {
-    return `sector_data_${symbol.toLowerCase()}`;
+    // Use the new sector data key helper
+    return KeyHelpers.getSectorDataKey(symbol);
   }
 
   /**
@@ -407,6 +472,7 @@ export class SectorCacheManager {
     overallHitRate: number;
     totalRequests: number;
     memoryUsage: number;
+    circuitBreakerStatus: any;
   } {
     this.updateMetrics();
 
@@ -416,8 +482,75 @@ export class SectorCacheManager {
       l2HitRate: this.metrics.l2HitRate,
       overallHitRate: this.metrics.overallHitRate,
       totalRequests: this.metrics.totalRequests,
-      memoryUsage: this.estimateMemoryUsage()
+      memoryUsage: this.estimateMemoryUsage(),
+      circuitBreakerStatus: this.circuitBreaker.getMetrics()
     };
+  }
+
+  /**
+   * Get sector snapshot data (new method)
+   */
+  async getSectorSnapshot(date?: Date | string): Promise<Map<string, SectorData> | null> {
+    const snapshotKey = KeyHelpers.getSectorSnapshotKey(date);
+
+    try {
+      const result = await this.circuitBreaker.execute(async () => {
+        return await this.l2DAL.read(snapshotKey);
+      });
+
+      if (result && result.data) {
+        return new Map(Object.entries(result.data));
+      }
+      return null;
+    } catch (error) {
+      logger.error(`Error getting sector snapshot:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Set sector snapshot data
+   */
+  async setSectorSnapshot(data: Map<string, SectorData>, date?: Date | string): Promise<void> {
+    const snapshotKey = KeyHelpers.getSectorSnapshotKey(date);
+    const dataObj = Object.fromEntries(data);
+
+    try {
+      const kvOptions = KeyHelpers.getKVOptions(KeyTypes.SECTOR_SNAPSHOT, {
+        metadata: {
+          type: 'sector_snapshot',
+          timestamp: Date.now(),
+          symbolCount: data.size,
+          version: '2.0'
+        }
+      });
+
+      await this.circuitBreaker.execute(async () => {
+        await this.l2DAL.write(snapshotKey, dataObj, kvOptions);
+      });
+
+      logger.info(`Stored sector snapshot with ${data.size} symbols`);
+    } catch (error) {
+      logger.error(`Error setting sector snapshot:`, error);
+    }
+  }
+
+  /**
+   * Preload sector data for common symbols
+   */
+  async preloadSectorData(symbols: string[]): Promise<void> {
+    logger.info(`Preloading sector data for ${symbols.length} symbols`);
+
+    const promises = symbols.map(async (symbol) => {
+      try {
+        await this.getSectorData(symbol);
+      } catch (error) {
+        logger.error(`Error preloading ${symbol}:`, error);
+      }
+    });
+
+    await Promise.allSettled(promises);
+    logger.info('Sector data preloading completed');
   }
 
   /**

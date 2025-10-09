@@ -19,7 +19,7 @@ import {
   extractSymbolsParam,
   generateRequestId
 } from './api-v1.js';
-import { performDualAIAnalysis } from '../modules/tmp_rovodev_dual-ai-analysis.adapter.ts';
+import { performDualAIComparison } from '../modules/dual-ai-analysis.ts';
 import { createDAL } from '../modules/dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -165,7 +165,7 @@ async function handleSentimentAnalysis(
     // Perform fresh analysis
     logger.info('SentimentAnalysis', 'Starting analysis', { symbols: symbols.join(','), requestId });
 
-    const analysisResult = await performDualAIAnalysis(symbols, env);
+    const analysisResult = await performDualAIComparison(symbols, env);
 
     // Transform to v1 response format
     const response: SentimentAnalysisResponse = {
@@ -281,7 +281,7 @@ async function handleSymbolSentiment(
     // Perform fresh analysis for single symbol
     logger.info('SymbolSentiment', 'Starting analysis', { symbol, requestId });
 
-    const analysisResult = await performDualAIAnalysis([symbol], env);
+    const analysisResult = await performDualAIComparison([symbol], env);
 
     if (!analysisResult.signals || analysisResult.signals.length === 0) {
       return new Response(

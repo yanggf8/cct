@@ -1171,14 +1171,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
                         const modal = document.createElement('div');
                         modal.id = 'notification-modal';
-                        modal.style.cssText = `
-                            position: fixed;
-                            top: 60px;
-                            right: 20px;
-                            z-index: 1000;
-                            max-width: 400px;
-                            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                        `;
+                        modal.style.cssText = 'position: fixed; top: 60px; right: 20px; z-index: 1000; max-width: 400px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);';
 
                         modal.appendChild(notificationUI);
                         document.body.appendChild(modal);
