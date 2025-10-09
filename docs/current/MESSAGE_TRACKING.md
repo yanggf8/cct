@@ -6,7 +6,7 @@
 
 ## Overview
 
-Generic, platform-agnostic message delivery tracking system compatible with multiple messengers (Facebook, Telegram, Slack, Discord, Email, SMS, etc.).
+Generic, platform-agnostic message delivery tracking system compatible with multiple messengers (Chrome Web Notifications, Telegram, Slack, Discord, Email, SMS, etc.).
 
 ## Architecture
 
@@ -24,7 +24,7 @@ Generic, platform-agnostic message delivery tracking system compatible with mult
 
 ```typescript
 export type MessengerPlatform =
-  | 'facebook'
+  | 'chrome_web_notification'
   | 'telegram'
   | 'slack'
   | 'discord'
@@ -71,7 +71,7 @@ const tracker = createMessageTracker(env);
 
 // Step 1: Create tracking BEFORE sending
 const trackingResult = await tracker.createTracking(
-  'facebook',
+  'chrome_web_notification',
   'morning_predictions',
   recipientId,
   {
@@ -170,15 +170,15 @@ console.log('Success rate:', allStats.success_rate + '%');
 console.log('By status:', allStats.by_status);
 console.log('By platform:', allStats.by_platform);
 
-// Facebook only
-const fbStats = await tracker.getStats('facebook');
-console.log('Facebook messages:', fbStats.total);
+// Chrome Web Notifications only
+const webNotifStats = await tracker.getStats('chrome_web_notification');
+console.log('Chrome Web Notification messages:', webNotifStats.total);
 ```
 
 ### 2. List Messages by Platform
 
 ```javascript
-const messages = await tracker.listByPlatform('facebook', 10);
+const messages = await tracker.listByPlatform('chrome_web_notification', 10);
 for (const msg of messages) {
   console.log(`[${msg.status}] ${msg.message_type} - ${msg.created_at}`);
 }
@@ -192,28 +192,24 @@ const deletedCount = await tracker.cleanup(90);
 console.log(`Cleaned up ${deletedCount} old tracking records`);
 ```
 
-## Integration with Facebook Messaging
+## Integration with Chrome Web Notifications
 
-All 5 Facebook messaging functions now use message tracking:
+Chrome Web Notifications use message tracking for reliable delivery:
 
-### Before (Direct KV Storage)
-```javascript
-// 36+ KV operations embedded in facebook.js
-const messagingKey = `facebook_status_${date}_${messageType}`;
-await env.TRADING_RESULTS.put(messagingKey, JSON.stringify({...}));
-// ... send message ...
-const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
-updatedKvData.status = 'sent';
-await env.TRADING_RESULTS.put(messagingKey, JSON.stringify(updatedKvData));
-```
-
-### After (Message Tracking)
+### Current Architecture (Web Notifications + Tracking)
 ```javascript
 // Pure messaging + tracking separation
 const tracker = createMessageTracker(env);
-const { tracking_id } = await tracker.createTracking('facebook', 'daily_report');
-// ... send message ...
-await tracker.updateStatus(tracking_id, 'sent', message_id);
+const { tracking_id } = await tracker.createTracking('chrome_web_notification', 'pre_market_briefing');
+// ... send web notification ...
+await tracker.updateStatus(tracking_id, 'sent', notification_id);
+```
+
+### Benefits
+- Platform-agnostic tracking works across all notification types
+- Clean separation of concerns
+- Comprehensive delivery analytics
+- GDPR-friendly data management
 ```
 
 ## Benefits
@@ -268,4 +264,4 @@ See `src/modules/msg-tracking-example.js` for comprehensive usage examples inclu
 
 - [Data Access Layer](./DATA_ACCESS_LAYER.md) - TypeScript DAL for KV operations
 - [KV Key Factory](./KV_KEY_FACTORY.md) - Key generation and management
-- [Facebook Integration](./FACEBOOK_INTEGRATION.md) - Facebook messaging implementation
+- [Web Notifications](../WEB_NOTIFICATIONS.md) - Chrome browser notification system

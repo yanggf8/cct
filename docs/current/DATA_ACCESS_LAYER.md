@@ -14,14 +14,14 @@ Centralized, type-safe TypeScript Data Access Layer for all KV storage operation
 
 ### Complete - 4 Phases (2025-09-30)
 
-**Phase 1: Facebook Messaging** (36 operations)
-- facebook.js
+**Phase 1: Legacy Messaging** (36 operations)
+- facebook.js (archived - replaced by web-notifications.ts)
 
 **Phase 2: Core System** (26 operations)
 - scheduler.js, backfill.js, daily-summary.js, data.js, http-data-handlers.js
 
 **Phase 3: High-Priority Files** (31 operations)
-- facebook-handlers.js, analysis-handlers.js, health-handlers.js, analysis.js, report-data-retrieval.js, tomorrow-outlook-tracker.js, monitoring.js
+- analysis-handlers.js, health-handlers.js, analysis.js, report-data-retrieval.js, tomorrow-outlook-tracker.js, monitoring.js (facebook-handlers.js archived)
 
 **Phase 4: Business Logic Completion** (18 operations)
 - cron-signal-tracking.js, signal-tracking.js, performance-baseline.js, handlers.js

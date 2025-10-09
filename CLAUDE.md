@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Week 11-12**: Polish + Production deployment
 
 **Key Changes**:
-1. ✅ Replace Facebook Messenger → Professional web interface (Next.js + MUI)
+1. ✅ Replace Facebook Messenger → Chrome web notifications (native browser)
 2. ✅ Add Sector Rotation Analysis (11 SPDR ETFs vs S&P 500)
 3. ✅ Add Market Drivers Detection (FRED API + VIX + Geopolitical risk)
 4. ✅ GitHub Actions Scheduling: Unlimited schedules (replaces 3-cron limit + Durable Objects, $0/month)
@@ -50,7 +50,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Code Quality**: ✅ **OPTIMIZED** - 60% boilerplate reduction through comprehensive utility modules
 - **Data Validation**: ✅ **COMPREHENSIVE** - Input sanitization, error handling, and fallback systems
 - **Cron System**: ✅ **VERIFIED OPERATIONAL** - Production schedule confirmed working with debug monitoring
-- **4-Report Analysis System**: ✅ **OPERATIONAL** - Complete modular high-confidence sentiment insights tracking workflow
+- **4 Moment Analysis System**: ✅ **OPERATIONAL** - Complete modular high-confidence sentiment insights tracking workflow
 - **✅ GitHub Actions Workflow Fixed (8a1d95c)**: Automated schedules operational (2025-10-06)
   - **Issue**: POST request to `/analyze` endpoint missing JSON body causing "Unexpected end of JSON input" error
   - **Fix**: Added `-d '{"symbols":["AAPL","MSFT","GOOGL","TSLA","NVDA"]}'` to curl command in workflow (line 94)
@@ -61,14 +61,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **Phase 1**: KV consolidation + router refactoring ✅
   - **Phase 2**: Infrastructure TypeScript migration (6 files: dal.ts, msg-tracking.ts, config.ts, validation-utilities.ts, kv-key-factory.ts, shared-utilities.ts) ✅
   - **Phase 3**: Business logic TypeScript migration (4 files: analysis.ts, dual-ai-analysis.ts, per_symbol_analysis.ts, enhanced_analysis.ts) ✅
-  - **Phase 4**: Data & messaging TypeScript migration (3 files: data.ts, facebook.ts, scheduler.ts) ✅
+  - **Phase 4**: Data & messaging TypeScript migration (3 files: data.ts, web-notifications.ts, scheduler.ts) ✅
   - **Total**: 13 core TypeScript modules with 100+ type definitions
   - **Type Safety**: Full TypeScript coverage with compile-time validation across all layers
   - **Code Change**: +2% lines for comprehensive type safety (minimal overhead)
   - **Zero Breaking Changes**: Full backward compatibility maintained
   - **Migration Grade**: A+ (100/100)
   - **Documentation**: Complete phase docs in docs/REFACTORING_PHASE_*_COMPLETE.md
-- **✅ Facebook Error #10 RESOLVED**: Removed problematic messaging_type and MESSAGE_TAG fields (2025-09-29)
+- **✅ Web Notification System**: Chrome browser notifications replacing Facebook (2025-10-08)
 - **✅ Professional Navigation System**: 4-report navigation implemented with modern glass-morphism design (2025-10-06)
 - **✅ Professional Dashboard Upgraded (8.5/10 Quality)**: Enterprise trading platform with Market Clock widget (2025-10-06)
   - **TypeScript Implementation**: Full type safety with proper interfaces (Env, DashboardData) and comprehensive error handling
@@ -106,7 +106,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Signal Generation**: AGREEMENT → STRONG_POSITIVE/STRONG_NEGATIVE, PARTIAL → MODERATE_POSITIVE/MODERATE_NEGATIVE, DISAGREEMENT → MIXED/NEUTRAL
 - **Parallel Processing**: Both models run simultaneously using Promise.all for optimal performance
 - **HTML Visualization**: Enhanced dual AI sentiment display with model comparison, agreement badges, sentiment insight panels
-- **Legacy Compatibility**: Seamless integration with existing 4-report system and Facebook messaging
+- **Legacy Compatibility**: Seamless integration with existing 4-report system and web notifications
 
 ### Centralized Configuration System
 - **Configuration Hub**: All system configuration centralized in `src/modules/config.ts` (TypeScript)
@@ -146,13 +146,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Cleanup**: Automatic old record cleanup with configurable retention
 - **Refactoring Impact**: Removed 36+ direct KV operations from facebook.js
 
-### 4-Tier High-Confidence Sentiment Analysis System
+### 4 Moment Report System
 ```
-Facebook Messenger (Unified Flow Notifications)
-├─ Morning (8:30 AM): Pre-Market Briefing Link - High-confidence sentiment insights (≥70%)
-├─ Midday (12:00 PM): Intraday Check Link - Real-time sentiment performance tracking
-├─ Daily (4:05 PM): End-of-Day Summary Link - Market close sentiment + tomorrow outlook
-└─ Sunday (10:00 AM): Weekly Review Link - Comprehensive sentiment pattern analysis
+Chrome Web Notifications (Native Browser Notifications)
+├─ Morning (8:30 AM): Pre-Market Briefing - High-confidence sentiment insights (≥70%)
+├─ Midday (12:00 PM): Intraday Check - Real-time sentiment performance tracking
+├─ Daily (4:05 PM): End-of-Day Summary - Market close sentiment + tomorrow outlook
+└─ Sunday (10:00 AM): Weekly Review - Comprehensive sentiment pattern analysis
 
 Comprehensive Report Pages (Detailed Sentiment Analysis)
 ├─ Pre-Market Briefing (/pre-market-briefing)
@@ -180,7 +180,7 @@ Comprehensive Report Pages (Detailed Sentiment Analysis)
 ## Key Features
 
 ### Comprehensive High-Confidence Sentiment Analysis System
-- **4-Report Workflow**: Complete daily sentiment analysis cycle with high-confidence sentiment focus (≥70%)
+- **4 Moment Workflow**: Complete daily sentiment analysis cycle with high-confidence sentiment focus (≥70%)
 - **Unified Information Flow**: Facebook notifications → Comprehensive web sentiment reports
 - **Real-Time Tracking**: Morning sentiment predictions tracked through intraday to market close
 - **Pattern Recognition**: Weekly sentiment analysis with model optimization recommendations
@@ -212,14 +212,15 @@ Comprehensive Report Pages (Detailed Sentiment Analysis)
 - **Optimization Insights**: Data-driven recommendations for model improvements
 - **Interactive Charts**: Daily sentiment accuracy trends with Chart.js visualizations
 
-### Unified Facebook Messaging System
-- **4-Tier Notification Flow**: Each message type links to specific comprehensive sentiment report
-- **High-Confidence Focus**: All messages emphasize ≥70% confidence sentiment insights
-- **Symbol-Specific**: Detailed positive/negative sentiment symbol breakdowns in notifications
-- **Compelling CTAs**: Action-oriented links driving traffic to detailed sentiment analysis
-- **✅ Error #10 Resolution**: Fixed Facebook API policy restrictions by removing problematic messaging_type and MESSAGE_TAG fields
-- **✅ Real Sentiment Analysis**: Now delivers actual market sentiment insights instead of test content
-- **✅ All 4 Message Types Working**: Pre-Market Briefing, Intraday Check, End-of-Day Summary, Weekly Review
+### Web Notification System (Chrome Browser)
+- **4 Moment Browser Notifications**: Each notification type links to specific comprehensive sentiment report
+- **Native Browser Experience**: Chrome web notifications with rich media and action buttons
+- **High-Confidence Focus**: All notifications emphasize ≥70% confidence sentiment insights
+- **Interactive Actions**: View Report, Dismiss, and custom actions for each notification type
+- **User Preferences**: Configurable notification types, quiet hours, confidence thresholds
+- **✅ Chrome Integration**: Native browser notifications with Service Worker support
+- **✅ Real Sentiment Analysis**: Delivers actual market sentiment insights via push notifications
+- **✅ All 4 Notification Types Working**: Pre-Market Briefing, Intraday Check, End-of-Day Summary, Weekly Review
 
 ### Production Infrastructure
 - **KV Storage**: Enhanced hybrid pipeline with consistency retry logic and verification
@@ -240,7 +241,7 @@ src/modules/handlers/    - Domain-specific handler modules
 ├── analysis-handlers.js   - Core trading analysis endpoints
 ├── http-data-handlers.js       - Data retrieval & KV operations
 ├── health-handlers.js     - System health & monitoring
-├── facebook-handlers.js   - Social media integrations
+├── web-notification-handlers.js - Chrome browser notifications
 ├── summary-handlers.js    - Daily summary & backfill
 ├── briefing-handlers.js   - Pre-market briefing system
 ├── intraday-handlers.js   - Intraday performance tracking
@@ -305,12 +306,19 @@ src/modules/
 
 ### API Endpoints
 
-#### Core 4-Report Analysis System with Professional Navigation
+#### Core 4 Moment Analysis System with Professional Navigation
 - **Pre-Market Briefing**: `/pre-market-briefing` - Morning high-confidence signals (≥70%) with navigation
 - **Intraday Performance**: `/intraday-check` - Real-time signal performance tracking with navigation
 - **End-of-Day Summary**: `/end-of-day-summary` - Market close analysis & tomorrow outlook with navigation
 - **Weekly Review**: `/weekly-review` - Comprehensive high-confidence signal analysis with navigation
 - **Navigation Features**: Modern glass-morphism design, hover effects, active state highlighting, mobile-responsive
+
+#### Web Notification APIs
+- **Subscribe**: `/api/notifications/subscribe` - Subscribe to Chrome notifications
+- **Preferences**: `/api/notifications/preferences` - Update notification preferences
+- **Test**: `/api/notifications/test` - Send test notification
+- **History**: `/api/notifications/history` - Get notification history
+- **Status**: `/api/notifications/status` - Get notification system status
 
 #### Analysis & Data APIs
 - **Manual Analysis**: `/analyze` - On-demand analysis execution
@@ -530,7 +538,7 @@ Rovodev identified production-breaking issues in Workers environment:
 - **Risk Management**: Position sizing and portfolio optimization
 
 ## Important Notes
-- **4-Tier Analysis Flow**: Complete trading cycle from pre-market to weekly review
+- **4 Moment Analysis Flow**: Complete trading cycle from pre-market to weekly review
 - **High-Confidence Focus**: All reports prioritize ≥70% confidence signals for actionable insights
 - **Unified Information Architecture**: Facebook notifications → Comprehensive web reports
 - **Cost Efficiency**: 100% free Cloudflare AI models and workers

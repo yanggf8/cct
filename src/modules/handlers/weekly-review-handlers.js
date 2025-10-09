@@ -124,7 +124,7 @@ async function generateWeeklyReviewHTML(weeklyData, env) {
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* 4-Report Navigation Styles */
+        /* 4 Moment Navigation Styles */
         .report-navigation {
             margin: 20px 0;
             display: flex;
@@ -519,7 +519,7 @@ async function generateWeeklyReviewHTML(weeklyData, env) {
 </head>
 <body>
     <div class="container">
-        <!-- 4-Report Navigation -->
+        <!-- 4 Moment Navigation -->
         <div class="report-navigation">
             <span style="color: #4facfe; font-weight: 600; margin-right: 10px;">📈 Navigate Reports:</span>
             <a href="/pre-market-briefing" class="nav-report-btn">📅 Pre-Market</a>

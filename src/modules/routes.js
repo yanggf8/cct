@@ -27,11 +27,8 @@ import {
   handleHealthCheck,
   handleModelHealth,
   handleDebugEnvironment,
-  handleFacebookTest,
-  handleTestAllFacebookMessages,
   handleWeeklyReport,
   handleFridayMarketCloseReport,
-  handleRealFacebookMessage,
   handleDailySummaryAPI,
   handleDailySummaryPageRequest,
   handleBackfillDailySummaries,
@@ -43,10 +40,7 @@ import {
 } from './handlers/index.js';
 
 // Import comprehensive report handlers
-import { handlePreMarketBriefing } from './handlers/briefing-handlers.js';
-import { handleIntradayCheck } from './handlers/intraday-handlers.js';
-import { handleEndOfDaySummary } from './handlers/end-of-day-handlers.js';
-import { handleWeeklyReview } from './handlers/weekly-review-handlers.js';
+import { handlePreMarketBriefing, handleIntradayCheck, handleEndOfDaySummary, handleWeeklyReview } from './handlers/index.js';
 
 // Import decomposed handler examples
 import { handleIntradayCheckDecomposed } from './handlers/intraday-decomposed.js';
@@ -74,12 +68,22 @@ import {
   handleR2Upload
 } from './handlers.js';
 
+// Import web notification handlers
+import {
+  handleNotificationSubscription,
+  handleNotificationUnsubscription,
+  handleNotificationPreferences,
+  handleNotificationHistory,
+  handleTestNotification,
+  handleNotificationStatus
+} from './handlers/web-notification-handlers.js';
+
 /**
  * Validate request for sensitive endpoints
  */
 function validateRequest(request, url, env) {
-  // Check API key for sensitive endpoints
-  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-facebook', '/test-high-confidence', '/test-sentiment', '/test-all-facebook', '/analyze-symbol', '/admin/backfill-daily-summaries', '/admin/verify-backfill', '/send-real-facebook'];
+  // Check API key for sensitive endpoints (removed Facebook endpoints)
+  const sensitiveEndpoints = ['/analyze', '/enhanced-feature-analysis', '/technical-analysis', '/r2-upload', '/test-high-confidence', '/test-sentiment', '/analyze-symbol', '/admin/backfill-daily-summaries', '/admin/verify-backfill', '/api/notifications/test'];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
     const apiKey = request.headers.get('X-API-KEY');
@@ -175,8 +179,20 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleAlertTest(request, env);
     case '/enhancement-status':
       return handleEnhancementStatus(request, env);
-    case '/test-facebook':
-      return handleFacebookTest(request, env);
+    // Web Notification System (replaces Facebook integration)
+    case '/api/notifications/subscribe':
+      return handleNotificationSubscription(request, env);
+    case '/api/notifications/unsubscribe':
+      return handleNotificationUnsubscription(request, env);
+    case '/api/notifications/preferences':
+      return handleNotificationPreferences(request, env);
+    case '/api/notifications/history':
+      return handleNotificationHistory(request, env);
+    case '/api/notifications/test':
+      return handleTestNotification(request, env);
+    case '/api/notifications/status':
+      return handleNotificationStatus(request, env);
+
     case '/weekly-report':
       return handleWeeklyReport(request, env);
     case '/friday-market-close-report':
@@ -238,8 +254,6 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleModelHealth(request, env);
     case '/r2-upload':
       return handleR2Upload(request, env);
-    case '/test-all-facebook':
-      return handleTestAllFacebookMessages(request, env);
     case '/analyze-symbol':
       return handlePerSymbolAnalysis(request, env);
     case '/cron-health':
@@ -291,6 +305,10 @@ export async function handleHttpRequest(request, env, ctx) {
             '/intraday-check - Real-time signal performance tracking',
             '/end-of-day-summary - Market close analysis & tomorrow outlook',
             '/weekly-review - Comprehensive high-confidence signal analysis',
+            '/api/notifications/subscribe - Subscribe to web notifications',
+            '/api/notifications/preferences - Update notification preferences',
+            '/api/notifications/test - Test web notifications',
+            '/api/notifications/status - Notification system status',
             '/test-sentiment - Sentiment enhancement validation',
             '/analyze-symbol?symbol=AAPL - Fine-grained per-symbol analysis',
             '/cron-health - Cron job execution health monitoring'
@@ -308,7 +326,9 @@ export async function handleHttpRequest(request, env, ctx) {
         available_endpoints: [
           '/', '/health', '/model-health', '/analyze', '/results', '/fact-table',
           '/weekly-analysis', '/api/weekly-data', '/pre-market-briefing', '/intraday-check',
-          '/end-of-day-summary', '/weekly-review', '/test-sentiment', '/daily-summary'
+          '/end-of-day-summary', '/weekly-review', '/api/notifications/subscribe',
+          '/api/notifications/preferences', '/api/notifications/test', '/api/notifications/status',
+          '/test-sentiment', '/daily-summary'
         ]
       }, null, 2), {
         status: 404,

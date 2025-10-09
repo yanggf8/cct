@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Professional Navigation System provides seamless navigation between all 4 reports in the TFT Trading System with modern glass-morphism design and responsive user experience.
+The Professional Navigation System provides seamless navigation between all 4 moments in the TFT Trading System with modern glass-morphism design and responsive user experience.
 
 ## 🎯 Features Implemented
 
 ### Navigation Components
-- **4-Report Navigation**: Seamless navigation between Pre-Market, Intraday, End-of-Day, and Weekly Review reports
+- **4 Moment Navigation**: Seamless navigation between Pre-Market, Intraday, End-of-Day, and Weekly Review moments
 - **Modern Design**: Glass-morphism effect with backdrop blur and transparency
 - **Interactive Elements**: Hover animations, active state highlighting, smooth transitions
 - **Mobile Responsive**: Adapts layout for desktop and mobile devices

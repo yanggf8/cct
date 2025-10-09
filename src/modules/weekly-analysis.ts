@@ -36,7 +36,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
         }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px; }
 
-        /* 4-Report Navigation Styles */
+        /* 4 Moment Navigation Styles */
         .nav-report-btn {
             display: inline-flex;
             align-items: center;
@@ -133,7 +133,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
             <h1>📊 Dual AI Comparison Dashboard</h1>
             <p>Comprehensive prediction accuracy and model performance review</p>
 
-            <!-- 4-Report Navigation -->
+            <!-- 4 Moment Navigation -->
             <div class="report-navigation" style="margin: 20px 0; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; background: rgba(79, 172, 254, 0.1); padding: 15px; border-radius: 12px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);">
                 <span style="color: #4facfe; font-weight: 600; margin-right: 10px;">📈 Navigate Reports:</span>
                 <a href="/pre-market-briefing" class="nav-report-btn">📅 Pre-Market</a>

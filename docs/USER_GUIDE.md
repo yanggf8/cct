@@ -11,7 +11,7 @@ The Dual AI Sentiment Analysis System provides **institutional-grade market inte
 ### **What Makes Our System Different**
 
 - **🤖 Dual AI Comparison**: GPT-OSS-120B + DistilBERT-SST-2 for comprehensive analysis
-- **📊 4-Tier Analysis**: Complete daily workflow from pre-market to weekly review
+- **📊 4 Moment Analysis**: Complete daily workflow from pre-market to weekly review
 - **🎯 High-Confidence Focus**: ≥70% threshold filtering for actionable signals
 - **🏠 Professional Dashboard**: Modern interface accessible on all devices
 - **📱 Mobile Optimized**: Touch-friendly design for on-the-go analysis
@@ -26,10 +26,10 @@ The Dual AI Sentiment Analysis System provides **institutional-grade market inte
 
 The dashboard is your central hub for:
 - **Real-time System Status**: AI model health and analysis availability
-- **Quick Access Links**: Direct navigation to all 4 analysis reports
+- **Quick Access Links**: Direct navigation to all 4 analysis moments
 - **Mobile-Friendly Interface**: Works seamlessly on desktop and mobile devices
 
-### **2. Understanding the 4-Tier Analysis System**
+### **2. Understanding the 4 Moment Analysis System**
 
 Our system delivers comprehensive sentiment insights through four specialized reports:
 
@@ -386,7 +386,7 @@ Our system uses **confidence thresholds** to ensure actionable insights:
 
 - **🤖 Dual AI**: GPT-OSS-120B + DistilBERT-SST-2
 - **🎯 High Confidence**: ≥70% threshold for reliable signals
-- **📊 4-Tier Analysis**: Complete daily sentiment workflow
+- **📊 4 Moment Analysis**: Complete daily sentiment workflow
 - **🏠 Professional Dashboard**: Modern, mobile-friendly interface
 
 ---
@@ -399,7 +399,7 @@ The **Dual AI Sentiment Analysis System** provides **professional-grade market i
 
 1. **🤖 Dual AI Approach**: Two complementary models provide comprehensive sentiment analysis
 2. **🎯 High-Confidence Focus**: ≥70% threshold ensures actionable insights
-3. **📊 4-Tier Workflow**: Complete daily analysis from pre-market to weekly review
+3. **📊 4 Moment Workflow**: Complete daily analysis from pre-market to weekly review
 4. **🏠 Professional Interface**: Modern, accessible dashboard for all devices
 5. **🔍 Transparent Analysis**: Clear, understandable insights with confidence metrics
 

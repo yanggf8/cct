@@ -285,7 +285,7 @@ eventSource.addEventListener('error', (err) => {
 
 ## ⏰ Event Timing Strategy
 
-### **Integration with Existing 4-Tier Schedule**
+### **Integration with Existing 4 Moment Schedule**
 
 #### **Current Schedule**
 ```

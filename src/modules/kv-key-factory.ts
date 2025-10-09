@@ -47,7 +47,14 @@ export const KeyTypes = {
   // Cache & Temporary
   MARKET_DATA_CACHE: 'market_data_cache',
   REPORT_CACHE: 'report_cache',
-  TEMPORARY: 'temporary'
+  TEMPORARY: 'temporary',
+
+  // Sector Rotation Data (NEW - Rovodev production fixes)
+  SECTOR_DATA: 'sector_data',
+  SECTOR_SNAPSHOT: 'sector_snapshot',
+  SECTOR_INDICATORS: 'sector_indicators',
+  SECTOR_PERFORMANCE: 'sector_performance',
+  SECTOR_RELATIVE_STRENGTH: 'sector_relative_strength'
 } as const;
 
 export type KeyType = typeof KeyTypes[keyof typeof KeyTypes];
@@ -85,7 +92,14 @@ const KEY_TEMPLATES: Record<KeyType, string> = {
 
   [KeyTypes.MARKET_DATA_CACHE]: 'market_cache_{symbol}_{timestamp}',
   [KeyTypes.REPORT_CACHE]: 'report_cache_{reportType}_{date}',
-  [KeyTypes.TEMPORARY]: 'temp_{purpose}_{timestamp}'
+  [KeyTypes.TEMPORARY]: 'temp_{purpose}_{timestamp}',
+
+  // Sector Rotation Data Templates (NEW - Rovodev production fixes)
+  [KeyTypes.SECTOR_DATA]: 'sector_data_{symbol}_{timestamp}',
+  [KeyTypes.SECTOR_SNAPSHOT]: 'sector_snapshot_{date}',
+  [KeyTypes.SECTOR_INDICATORS]: 'sector_indicators_{symbol}_{date}',
+  [KeyTypes.SECTOR_PERFORMANCE]: 'sector_performance_{date}',
+  [KeyTypes.SECTOR_RELATIVE_STRENGTH]: 'sector_relative_strength_{symbol}_{date}'
 };
 
 /**
@@ -121,7 +135,14 @@ const KEY_TTL_CONFIG: Record<KeyType, number> = {
 
   [KeyTypes.MARKET_DATA_CACHE]: 300, // 5 minutes
   [KeyTypes.REPORT_CACHE]: 1800, // 30 minutes
-  [KeyTypes.TEMPORARY]: 600 // 10 minutes
+  [KeyTypes.TEMPORARY]: 600, // 10 minutes
+
+  // Sector Rotation Data TTL (NEW - Rovodev production fixes)
+  [KeyTypes.SECTOR_DATA]: 120, // 2 minutes (L2 cache TTL)
+  [KeyTypes.SECTOR_SNAPSHOT]: 300, // 5 minutes
+  [KeyTypes.SECTOR_INDICATORS]: 600, // 10 minutes
+  [KeyTypes.SECTOR_PERFORMANCE]: 900, // 15 minutes
+  [KeyTypes.SECTOR_RELATIVE_STRENGTH]: 600 // 10 minutes
 };
 
 /**

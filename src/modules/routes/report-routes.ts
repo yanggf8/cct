@@ -18,7 +18,7 @@ import {
  * Register all report routes
  */
 export function registerReportRoutes(router: Router): void {
-  // 4-Tier Comprehensive Reports
+  // 4 Moment Comprehensive Reports
   router.get('/pre-market-briefing', handlePreMarketBriefing);
   router.get('/intraday-check', handleIntradayCheck);
   router.get('/end-of-day-summary', handleEndOfDaySummary);

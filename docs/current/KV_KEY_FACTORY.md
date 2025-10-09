@@ -47,10 +47,10 @@ The system supports 15 standardized key types:
 - **`END_OF_DAY_SUMMARY`** - End-of-day analysis (`end_of_day_summary_YYYY-MM-DD`)
 - **`WEEKLY_REVIEW`** - Weekly analysis (`weekly_review_YYYY-MM-DD_{weekNumber}`)
 
-#### Facebook & Messaging
-- **`FACEBOOK_MANIFEST`** - Facebook message manifest (`facebook_manifest_YYYY-MM-DD`)
-- **`FACEBOOK_STATUS`** - Facebook delivery status (`facebook_status_YYYY-MM-DD_{messageType}`)
-- **`FACEBOOK_DELIVERY`** - Facebook delivery tracking (`facebook_delivery_YYYY-MM-DD_{messageId}`)
+#### Notifications & Messaging
+- **`WEB_NOTIFICATION_SUBSCRIPTIONS`** - Chrome notification subscriptions (`web_notif_subscriptions_{userId}`)
+- **`WEB_NOTIFICATION_PREFERENCES`** - User notification preferences (`web_notif_preferences_{userId}`)
+- **`WEB_NOTIFICATION_HISTORY`** - Notification delivery history (`web_notif_history_YYYY-MM-DD`)
 
 #### Testing & Debug
 - **`TEST_DATA`** - Test data storage (`test_{testName}_{timestamp}`)
@@ -73,7 +73,7 @@ The system provides automated TTL assignment based on data type:
 | Pipeline Status | 1 hour | Very short-term pipeline state |
 | System Metadata | 30 days | Long-term system information |
 | Daily Summary | 90 days | Long-term historical data |
-| Facebook Data | 7-30 days | Message tracking and delivery |
+| Web Notification Data | 30 days | Notification subscriptions and delivery |
 | Test Data | 1 hour | Short-term testing |
 | Market Cache | 5 minutes | Real-time market data |
 | Report Cache | 30 minutes | Generated report caching |
@@ -94,9 +94,9 @@ const analysisKey = KVKeyFactory.generateDateKey(KeyTypes.ANALYSIS);
 const jobKey = KVKeyFactory.generateJobStatusKey('pre_market_analysis');
 // Result: "job_pre_market_analysis_status_2025-09-29"
 
-// Generate Facebook message key
-const facebookKey = KVKeyFactory.generateFacebookKey('morning_briefing');
-// Result: "facebook_status_2025-09-29_morning_briefing"
+// Generate Web Notification key
+const webNotifKey = KVKeyFactory.generateWebNotificationKey('morning_briefing');
+// Result: "web_notif_history_2025-09-29_morning_briefing"
 ```
 
 ### Advanced Key Generation
@@ -124,7 +124,7 @@ const dateRangeKeys = KVKeyFactory.generateDateRangeKeys(
 // Convenience helpers for common operations
 const todayAnalysis = KeyHelpers.getTodayAnalysisKey();
 const todayDualAI = KeyHelpers.getTodayDualAIKey();
-const facebookManifest = KeyHelpers.getTodayFacebookManifestKey();
+const webNotifHistory = KeyHelpers.getTodayWebNotificationHistoryKey();
 
 // Get KV options with automatic TTL
 const kvOptions = KeyHelpers.getKVOptions(KeyTypes.ANALYSIS);
@@ -207,7 +207,7 @@ The system uses template-based key generation:
 const KEY_TEMPLATES = {
   [KeyTypes.ANALYSIS]: 'analysis_{date}',
   [KeyTypes.JOB_STATUS]: 'job_{jobName}_status_{date}',
-  [KeyTypes.FACEBOOK_STATUS]: 'facebook_status_{date}_{messageType}',
+  [KeyTypes.WEB_NOTIFICATION_HISTORY]: 'web_notif_history_{date}_{messageType}',
   [KeyTypes.MARKET_DATA_CACHE]: 'market_cache_{symbol}_{timestamp}',
   // ... more templates
 };
@@ -365,7 +365,7 @@ try {
 
 ### Updated Modules
 - **`data.js`** - Analysis key generation using factory
-- **`facebook.js`** - Facebook messaging keys with standardized patterns
+- **`web-notifications.ts`** - Chrome notification keys with standardized patterns
 - **`shared-utilities.js`** - Enhanced KV utilities with factory integration
 - **`daily-summary.js`** - Daily summary keys with automatic TTL
 

@@ -320,7 +320,7 @@ if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
 
 - **[Message Tracking](./MESSAGE_TRACKING.md)** - Platform-agnostic message tracking (TypeScript)
 - **[Data Access Layer](./DATA_ACCESS_LAYER.md)** - TypeScript DAL for KV operations
-- **[4-Tier Analysis System](../4-TIER_ANALYSIS_SYSTEM.md)** - Complete sentiment analysis workflow
+- **[4 Moment Analysis System](../4-TIER_ANALYSIS_SYSTEM.md)** - Complete sentiment analysis workflow
 - **[Professional Dashboard](../DASHBOARD_DESIGN.md)** - Current dashboard implementation
 - **[CLAUDE.md](../../CLAUDE.md)** - Complete 4-report system documentation
 

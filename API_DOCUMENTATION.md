@@ -141,7 +141,7 @@ GET /analyze
 **Performance**: ~26.9 seconds for 5 symbols
 **Batch Processing**: 2 symbols per batch with 1-1.5s delays
 
-### **📊 4-Tier Reporting System**
+### **📊 4 Moment Reporting System**
 
 #### **Pre-Market Briefing**
 ```bash
@@ -298,23 +298,53 @@ GET /kv-debug
 }
 ```
 
-#### **Facebook Integration Test**
+#### **Web Notification System**
 ```bash
-GET /test-facebook
+# Subscribe to notifications
+POST /api/notifications/subscribe
+
+# Update notification preferences
+POST /api/notifications/preferences?id={subscriptionId}
+
+# Send test notification
+POST /api/notifications/test
+
+# Get notification history
+GET /api/notifications/history?id={subscriptionId}&limit=10
+
+# Get system status
+GET /api/notifications/status
 ```
 
-**Description**: Test Facebook messaging integration (Note: Error #10 is expected due to policy compliance)
+**Description**: Chrome browser notification system (replaces Facebook Messenger)
 
-**Response**:
+**Subscription Response**:
 ```json
 {
-  "success": false,
-  "error": "Facebook API error: 400 - {\"error\":{\"message\":\"(#10) This message is sent outside of allowed window.",
-  "request_id": "a57649fd-e271-457c-93cd-f29dc9e2f8fd"
+  "success": true,
+  "subscriptionId": "user_1728394000000_abc123def456",
+  "message": "Successfully subscribed to notifications"
 }
 ```
 
-*Note: Error #10 indicates proper Facebook API policy compliance*
+**Test Notification Response**:
+```json
+{
+  "success": true,
+  "message": "Test notification sent successfully",
+  "result": {
+    "sent": 1,
+    "failed": 0,
+    "errors": []
+  },
+  "notification": {
+    "id": "notif_1728394000000_xyz789uvw012",
+    "type": "pre_market",
+    "title": "🧪 Test: 📅 Pre-Market Briefing Ready",
+    "body": "High-confidence insights available for 2 symbols. Strong bullish sentiment detected"
+  }
+}
+```
 
 ### **📚 Data Access**
 
@@ -501,7 +531,8 @@ All endpoints return mobile-friendly HTML responses for browser access, plus JSO
 - **Race-Condition Free**: Atomic operations with optimistic locking
 - **Type Safety**: Complete TypeScript core with full type coverage
 - **Mobile Optimized**: Touch-friendly responsive design
-- **Real-time Monitoring**: Comprehensive health and performance tracking
+- **Real-Time Monitoring**: Comprehensive health and performance tracking
+- **🔔 Web Notifications**: Chrome browser notifications for 4 Moment alerts (NEW 2025-10-08)
 
 ### **🎯 Trading Workflow**
 1. **Pre-Market (8:30 AM)**: High-confidence signals for market open
@@ -519,4 +550,4 @@ For technical support and system monitoring:
 - **Documentation**: Complete guides in `/docs` directory
 - **Troubleshooting**: See maintenance guide for common issues
 
-*Last Updated: 2025-10-01 | Version: e650aa19-c631-474e-8da8-b3144d373ae5*
+*Last Updated: 2025-10-08 | Version: e650aa19-c631-474e-8da8-b3144d373ae5*

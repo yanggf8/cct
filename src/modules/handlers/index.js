@@ -45,14 +45,21 @@ export {
   handleDebugEnvironment
 } from './health-handlers.js';
 
-// Facebook and social media handlers
+// Weekly report handlers (non-Facebook)
 export {
-  handleFacebookTest,
-  handleTestAllFacebookMessages,
   handleWeeklyReport,
-  handleFridayMarketCloseReport,
-  handleRealFacebookMessage
-} from './facebook-handlers.js';
+  handleFridayMarketCloseReport
+} from './weekly-review-handlers.js';
+
+// Web notification handlers (replaces Facebook integration)
+export {
+  handleNotificationSubscription,
+  handleNotificationUnsubscription,
+  handleNotificationPreferences,
+  handleNotificationHistory,
+  handleTestNotification,
+  handleNotificationStatus
+} from './web-notification-handlers.js';
 
 // Daily summary and backfill handlers
 export {

@@ -507,9 +507,9 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         </div>
         <div class="nav-right">
             <div class="health-indicator" title="System Healthy"></div>
-            <div class="notification-bell">
+            <div class="notification-bell" id="notification-widget-container">
                 🔔
-                <span class="notification-badge">3</span>
+                <span class="notification-badge" id="notification-badge">0</span>
             </div>
             <div class="user-profile">
                 👤 Admin
@@ -1148,7 +1148,79 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             mobileMenuBtn.onclick = toggleMobileSidebar;
             document.querySelector('.nav-left').prepend(mobileMenuBtn);
         }
+
+        // Initialize Web Notifications
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.webNotificationClient) {
+                const container = document.getElementById('notification-widget-container');
+                const badge = document.getElementById('notification-badge');
+
+                if (container && badge) {
+                    // Add click handler to notification bell
+                    container.addEventListener('click', async function(e) {
+                        e.stopPropagation();
+
+                        // Create and show notification UI
+                        const notificationUI = window.webNotificationClient.createNotificationUI();
+
+                        // Show as dropdown/modal
+                        const existingModal = document.getElementById('notification-modal');
+                        if (existingModal) {
+                            existingModal.remove();
+                        }
+
+                        const modal = document.createElement('div');
+                        modal.id = 'notification-modal';
+                        modal.style.cssText = `
+                            position: fixed;
+                            top: 60px;
+                            right: 20px;
+                            z-index: 1000;
+                            max-width: 400px;
+                            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                        `;
+
+                        modal.appendChild(notificationUI);
+                        document.body.appendChild(modal);
+
+                        // Close modal when clicking outside
+                        setTimeout(() => {
+                            document.addEventListener('click', function closeModal(e) {
+                                if (!modal.contains(e.target) && e.target !== container) {
+                                    modal.remove();
+                                    document.removeEventListener('click', closeModal);
+                                }
+                            });
+                        }, 100);
+                    });
+
+                    // Update notification status
+                    updateNotificationStatus();
+                }
+            }
+        });
+
+        // Update notification status and badge
+        async function updateNotificationStatus() {
+            try {
+                const response = await fetch('/api/notifications/status');
+                const result = await response.json();
+
+                if (result.success && result.status) {
+                    const badge = document.getElementById('notification-badge');
+                    if (badge) {
+                        const total = result.status.total.sent || 0;
+                        badge.textContent = total > 0 ? total.toString() : '0';
+                        badge.style.display = total > 0 ? 'block' : 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to update notification status:', error);
+            }
+        }
+
     </script>
+    <script src="/js/web-notifications.js"></script>
 </body>
 </html>`;
 

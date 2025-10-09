@@ -18,7 +18,7 @@ Dual AI Comparison System
 ├── Enhanced Integration (enhanced_analysis.js)
 ├── Per-Symbol Analysis (per_symbol_analysis.js)
 ├── Data Processing (data.js)
-├── Facebook Messaging (facebook.js)
+├── Web Notifications (web-notifications.ts)
 └── HTML Generators (html-generators.js)
 ```
 
@@ -38,7 +38,7 @@ Signal Generation → Sentiment Insights (STRONG_POSITIVE/MODERATE_POSITIVE/MIXE
         ↓
 Storage → KV Storage with Dual AI Structure + Performance Tracking
         ↓
-Presentation → Facebook Messages + Web Dashboards + HTML Visualization
+Presentation → Chrome Web Notifications + Web Dashboards + HTML Visualization
 ```
 
 ## AI Models
@@ -402,7 +402,7 @@ async function performDistilBERTAnalysis(symbol, newsData, env) {
 ### Report Generation
 - **Pre-Market Analysis**: Extracts dual AI insights for high-confidence signals
 - **HTML Generators**: Specialized dual AI visualization components
-- **Facebook Messaging**: FormatDualAIReport() for agreement-based messaging
+- **Web Notifications**: FormatDualAIReport() for agreement-based notifications
 
 ### Web Interface
 - **Dual AI Signal Items**: Side-by-side model comparison displays
@@ -526,7 +526,7 @@ const AGREEMENT_THRESHOLDS = {
 - **End-to-End Pipeline**: Full analysis from news to signals
 - **Data Processing**: Dual AI data structure handling
 - **Web Interface**: HTML generation and display
-- **Facebook Integration**: Message formatting and delivery
+- **Web Notifications**: Chrome notification delivery with rich media
 
 ### Performance Tests
 - **Execution Time**: Analysis time under 30 seconds

@@ -139,7 +139,7 @@ await tracker.updateStatus(tracking_id, 'sent', messageId);
 - **PARTIAL_AGREE**: Mixed signals → CONSIDER/HOLD signal
 - **DISAGREE**: Opposite directions → AVOID signal
 
-**4-Report System**:
+**4 Moment System**:
 - Pre-Market Briefing (8:30 AM) - High-confidence signals (≥70%)
 - Intraday Performance Check (12:00 PM) - Real-time tracking
 - End-of-Day Summary (4:05 PM) - Market close + tomorrow outlook

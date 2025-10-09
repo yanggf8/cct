@@ -128,7 +128,7 @@
 
 ---
 
-### **Test 7: 4-Tier Reporting System**
+### **Test 7: 4 Moment Reporting System**
 **Commands**:
 - `curl -H "X-API-KEY: yanggf" https://tft-trading-system.yanggf.workers.dev/pre-market-briefing`
 - `curl -H "X-API-KEY: yanggf" https://tft-trading-system.yanggf.workers.dev/intraday-check`
