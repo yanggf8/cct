@@ -78,6 +78,9 @@ import {
   handleNotificationStatus
 } from './handlers/web-notification-handlers.js';
 
+// Import new v1 API router
+import { handleApiV1Request, handleApiV1CORS } from '../routes/api-v1.js';
+
 /**
  * Validate request for sensitive endpoints
  */
@@ -145,6 +148,18 @@ export async function handleHttpRequest(request, env, ctx) {
       return errorResponse;
     }
   
+    // Handle CORS preflight for v1 API
+    if (url.pathname.startsWith('/api/v1/') && request.method === 'OPTIONS') {
+      response = handleApiV1CORS();
+      break;
+    }
+
+    // Handle v1 API routes
+    if (url.pathname.startsWith('/api/v1/')) {
+      response = await handleApiV1Request(request, env, ctx);
+      break;
+    }
+
     // Route requests to appropriate handlers
     let response;
     switch (url.pathname) {
