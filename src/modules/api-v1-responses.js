@@ -90,3 +90,18 @@ export const HttpStatus = {
   INTERNAL_SERVER_ERROR: 500,
   SERVICE_UNAVAILABLE: 503,
 };
+
+// Compatibility placeholders for JS route imports
+export const SentimentAnalysisResponse = {};
+export const SymbolSentimentResponse = {};
+export const MarketSentimentData = {};
+export const SectorSentimentData = {};
+export const DailyReportResponse = {};
+export const WeeklyReportResponse = {};
+export const SymbolsResponse = {};
+export const SystemHealthResponse = {};
+
+export function extractDateParam(path) {
+  const match = path && path.match(/\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : null;
+}

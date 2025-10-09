@@ -29,16 +29,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Production System Status
 
-**Current Version**: 2025-10-06 (100/100 Production-Ready + Sector Pipeline Designed)
+**Current Version**: 2025-10-09 (100/100 Production-Ready + API v1 Implementation)
 - **Live URL**: https://tft-trading-system.yanggf.workers.dev
-- **Deployment Version**: 8a1d95c ✅ **VERIFIED OPERATIONAL** (GitHub Actions Fixed)
+- **Deployment Version**: 14a88fc ✅ **VERIFIED OPERATIONAL** (Facebook Integration Removed)
 - **Dashboard Quality**: ✅ **8.5/10 PROFESSIONAL GRADE** - Enterprise trading platform with Market Clock widget and 6-widget layout
 - **Integration Tests**: ✅ **15/15 PASSED (100%)** - Complete verification with hard evidence (see INTEGRATION_TEST_EVIDENCE.md)
-- **GitHub Actions**: ✅ **OPERATIONAL** - Automated workflows fixed and running (commit 8a1d95c)
+- **GitHub Actions**: ✅ **OPERATIONAL** - Automated workflows fixed and running
 - **System Status**: ✅ **100/100 PRODUCTION-READY** - Enterprise-grade dual AI sentiment analysis system with full TypeScript coverage and professional navigation
 - **📊 Sector Rotation Pipeline**: ✅ **v1.3 DESIGN COMPLETE** - 3 AI reviews complete (Gemini 8.5/10 | Amazon Q 8.2/10 | **Rovodev 8.7/10** ⭐), critical production fixes identified, ready for Phase 0 + Phase 1 implementation
-- **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with 100% TypeScript core (legacy JS archived)
-- **Production Verification**: ✅ **COMPLETE** - TypeScript-only architecture verified (see TYPESCRIPT_LEGACY_JS_ARCHIVE_VERIFICATION.md)
+- **Repository**: ✅ **ENTERPRISE-GRADE** - Clean modular architecture with mixed TypeScript/JavaScript implementation
+- **✅ API v1 Implementation**: RESTful API endpoints following DAC patterns with standardized response formats (2025-10-09)
+- **✅ Facebook Integration Removed**: Clean removal of Facebook Messenger dependencies and import issues (2025-10-09)
+- **Production Verification**: ✅ **COMPLETE** - Mixed TypeScript/JavaScript architecture verified
 - **AI Models**: ✅ **DUAL AI SYSTEM** - GPT-OSS-120B + DistilBERT-SST-2 with simple agreement logic
 - **Agreement Logic**: ✅ **TRANSPARENT** - AGREE/PARTIAL_AGREE/DISAGREE classification instead of complex consensus
 - **Signal Generation**: ✅ **CLEAR RULES** - AGREEMENT → STRONG_POSITIVE/STRONG_NEGATIVE, DISAGREEMENT → MIXED/NEUTRAL
@@ -68,6 +70,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **Zero Breaking Changes**: Full backward compatibility maintained
   - **Migration Grade**: A+ (100/100)
   - **Documentation**: Complete phase docs in docs/REFACTORING_PHASE_*_COMPLETE.md
+- **✅ API v1 RESTful Implementation** (2025-10-09):
+  - **DAC Pattern Implementation**: RESTful API following Domain-Application-Controller patterns
+  - **Standardized Responses**: ApiResponseFactory with consistent JSON formats
+  - **Route Organization**: Per-domain handlers (sentiment, reports, data)
+  - **Error Handling**: Centralized error responses with proper HTTP status codes
+  - **API Documentation**: Self-documenting API root endpoint at /api/v1
+  - **Mixed Architecture**: TypeScript interfaces with JavaScript route handlers for optimal compatibility
+  - **Key Files**: src/routes/api-v1.js, src/modules/api-v1-responses.js, src/routes/*-routes.ts
 - **✅ Web Notification System**: Chrome browser notifications replacing Facebook (2025-10-08)
 - **✅ Professional Navigation System**: 4-report navigation implemented with modern glass-morphism design (2025-10-06)
 - **✅ Professional Dashboard Upgraded (8.5/10 Quality)**: Enterprise trading platform with Market Clock widget (2025-10-06)
@@ -93,7 +103,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Quality Grade**: ✅ **100/100** - Production-ready enterprise architecture with complete DAL migration
 - **Report System**: ✅ **4/4 COMPLETED** - Pre-Market, Intraday, End-of-Day, Weekly Review with dual AI sentiment analysis integration
 
-**Architecture**: `100/100 Production-Ready Enterprise Architecture with Complete TypeScript Migration`
+**Architecture**: `100/100 Production-Ready Enterprise Architecture with Mixed TypeScript/JavaScript Implementation`
 
 ## Core System Architecture
 
@@ -264,10 +274,11 @@ src/modules/
 │   ├── dual-ai-analysis.ts  - Core simplified dual AI comparison module with transparent agreement logic
 │   ├── per_symbol_analysis.ts - Main analysis module using simplified dual AI system
 │   ├── data.ts              - Data processing and KV operations with dual AI structure support
-│   ├── facebook.ts          - Pure messaging layer with message tracking integration (5 functions refactored, 36+ KV ops removed)
-│   └── scheduler.ts         - Cron job management with proper handler imports
+│   ├── scheduler.ts         - Cron job management with proper handler imports
+│   └── api-v1-responses.js  - API v1 standardized response formats and utilities (NEW)
 │
-├── **JavaScript Modules (Utilities - Not Yet Migrated):**
+├── **JavaScript Modules (API v1 Implementation & Utilities):**
+│   ├── api-v1-responses.js  - API v1 standardized response formats and utilities (NEW)
 │   ├── rate-limiter.js      - Yahoo Finance API rate limiting (20 req/min) with exponential backoff
 │   ├── market-data-cache.js - Market data caching system (5-min TTL) with performance tracking
 │   ├── validation.js        - Comprehensive data validation and input sanitization
@@ -292,19 +303,31 @@ src/modules/
 │       ├── end-of-day-analysis.js   - Market close analysis & tomorrow outlook (real Yahoo data)
 │       └── weekly-review-analysis.js - Comprehensive pattern & accuracy analysis
 │
-└── **Routing Modules:**
+└── **Routing Modules (Mixed TypeScript/JavaScript):**
+    ├── api-v1.js            - API v1 main router (JavaScript with TypeScript imports)
     ├── router/index.ts      - Main TypeScript router
     ├── routes-new.ts        - New routing architecture (TypeScript)
     └── routes/
         ├── admin-routes.ts
         ├── analysis-routes.ts
-        ├── data-routes.ts
+        ├── data-routes.ts   - Converted to TypeScript
         ├── facebook-routes.ts
         ├── health-routes.ts
-        └── report-routes.ts
+        ├── report-routes.ts  - Converted to TypeScript
+        └── sentiment-routes.ts - New TypeScript module
 ```
 
 ### API Endpoints
+
+#### API v1 RESTful Implementation (NEW 2025-10-09)
+- **API Root**: `/api/v1` - Self-documenting API with available endpoints
+- **Sentiment Analysis**: `/api/v1/sentiment/analysis`, `/api/v1/sentiment/symbols/:symbol`
+- **Market Sentiment**: `/api/v1/sentiment/market`, `/api/v1/sentiment/sectors`
+- **Reports**: `/api/v1/reports/daily/:date`, `/api/v1/reports/weekly/:week`
+- **Data Access**: `/api/v1/data/symbols`, `/api/v1/data/history/:symbol`, `/api/v1/data/health`
+- **Standardized Format**: ApiResponseFactory with consistent JSON responses
+- **Error Handling**: Proper HTTP status codes and structured error messages
+- **Request Tracking**: X-Request-ID headers for debugging
 
 #### Core 4 Moment Analysis System with Professional Navigation
 - **Pre-Market Briefing**: `/pre-market-briefing` - Morning high-confidence signals (≥70%) with navigation
@@ -548,3 +571,4 @@ Rovodev identified production-breaking issues in Workers environment:
 - **Real-Time Tracking**: Morning predictions monitored through market close
 - **Pattern Recognition**: Weekly insights drive model optimization recommendations
 - **✅ Facebook Error #10 RESOLVED**: Real trading analysis messages now delivered successfully
+- when deploy with wrangler, use oauth by following shell commandenv -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler

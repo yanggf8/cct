@@ -19,7 +19,7 @@ import {
   extractSymbolsParam,
   generateRequestId
 } from './api-v1.js';
-import { performDualAIAnalysis } from '../modules/dual-ai-analysis.js';
+import { performDualAIAnalysis } from '../modules/tmp_rovodev_dual-ai-analysis.adapter.ts';
 import { createDAL } from '../modules/dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
