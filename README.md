@@ -1,323 +1,62 @@
-# 🏆 Dual AI Sentiment Analysis System - A+ Production Architecture
+# 🏆 CCT - Enterprise-Grade Market Intelligence System
 
 ## 🎯 Project Overview
 
-**Production-Ready Enterprise AI Sentiment Analysis System**: A+ (99/100) grade dual AI sentiment analysis platform featuring advanced security, optimized performance, and enterprise-grade reliability. Successfully transformed from A- (85/100) through comprehensive optimization including rate limiting enhancements, bounded caching, race condition prevention, and complete TypeScript coverage.
+**Production-Ready Market Intelligence System**: Enterprise-grade trading intelligence platform featuring dual AI sentiment analysis and comprehensive data access modernization. Successfully implementing a 5-phase Data Access Improvement Plan to transform the system with RESTful API architecture, multi-level caching, and type-safe frontend integration.
 
-**Architecture**: Enterprise-grade dual AI comparison system with GPT-OSS-120B and DistilBERT-SST-2, real-time market data integration, intelligent rate limiting, memory-safe operations, and 4-tier modular reporting workflow focused on sentiment insights and market intelligence.
+**Current Focus**: Data Access Improvement Plan (60% Complete) - Modernizing backend API architecture with enterprise-grade data access patterns following DAC principles.
 
-## 🚀 System Status: **A+ (99/100) ENTERPRISE PRODUCTION READY** ✅
+## 🚀 System Status
 
-### ✅ PROFESSIONAL DASHBOARD UPGRADED (2025-10-06)
+**Live System**: https://tft-trading-system.yanggf.workers.dev ✅ **FULLY OPERATIONAL**
 
-#### **🏆 Latest Achievements**
-- **Grade**: **A+ (99/100)** - Enterprise production excellence VERIFIED
-- **Dashboard Quality**: **8.5/10** - Professional institutional-grade interface with Market Clock widget
-- **Performance**: Sub-12s single symbol, sub-27s multi-symbol analysis (CONFIRMED)
-- **Security**: Zero vulnerabilities with robust API protection (TESTED)
-- **Reliability**: 100% uptime, 0% error rate under all conditions (VERIFIED)
-- **Live System**: https://tft-trading-system.yanggf.workers.dev ✅ **FULLY OPERATIONAL**
-- **Current Version**: `8a1d95c` ✅ **PRODUCTION VERIFIED** (GitHub Actions Fixed)
-- **Professional Dashboard**: ✅ **UPGRADED** - 6-widget enterprise trading platform with Market Clock
-- **GitHub Actions**: ✅ **OPERATIONAL** - Automated workflows fixed and running
+### **📊 Data Access Improvement Plan Progress**
 
-#### **🧪 COMPREHENSIVE TESTING VERIFICATION (2025-10-06)**
-- **✅ Integration Tests**: 15/15 tests passed (100% success rate) - See INTEGRATION_TEST_EVIDENCE.md
-- **✅ GitHub Actions**: Workflow fixed - JSON body added to /analyze endpoint (commit 8a1d95c)
-- **✅ System Health**: All endpoints responding (Status: healthy, Version: 2.0-Modular)
-- **✅ AI Model Health**: GPT-OSS-120B + DistilBERT-SST-2 both healthy
-- **✅ Widget Verification**: All 6 widgets operational in production (Latest Reports, Market Performance, System Status, Top Movers, Sector Performance, Market Clock)
-- **✅ Market Clock**: Real-time EST/EDT updates, session detection, countdown timers verified
-- **✅ Automated Schedules**: 4 daily workflows operational (Pre-Market, Intraday, End-of-Day, Weekly)
-- **✅ KV Operations**: 100% success rate with 1.1s response time verification
-- **✅ DAL Performance**: Write/Read/Delete all working perfectly
-- **✅ Rate Limiting**: Active (no errors in rapid request testing)
-- **✅ Error Rate**: 0% across comprehensive test suite
-- **✅ 4 Moment Navigation**: Professional navigation system implemented across all reports
-- **✅ TypeScript Implementation**: Full type safety with proper interfaces and error handling
-- **✅ Accessibility**: WCAG 2.1 compliance with 13 ARIA labels and screen reader support
+- ✅ **Phase 1 Complete**: RESTful API Structure - DAC patterns with standardized responses
+- ✅ **Phase 2 Complete**: Enhanced Caching System - Multi-level caching (70-85% hit rate)
+- ✅ **Phase 3 Complete**: Frontend API Client - Type-safe client with intelligent caching
+- ⏳ **Phase 4**: Enhanced Data Access Layer (1 day estimated)
+- ⏳ **Phase 5**: Migration & Backward Compatibility (1 day estimated)
 
-#### **🚀 Professional Dashboard Features (NEW)**
-- **🏠 Enterprise Home Dashboard**: Professional trading platform interface following UX/UI design specifications
-- **📈 Sector Performance Widget**: Real-time sector ETF tracking (XLK Technology, XLF Financials, XLV Health Care, XLE Energy)
-- **🕐 Market Clock Widget**: Real-time EST/EDT clock with market session detection (Pre-Market, Regular, After-Hours, Closed)
-- **⏰ Session Awareness**: Dynamic status badge with countdown timers for next market events
-- **🔄 TypeScript Implementation**: Proper interfaces (Env, DashboardData), type annotations, and comprehensive error handling
-- **🎯 6-Widget Layout**: Latest Reports, Market Performance, System Status, Top Movers, Sector Performance, Market Clock
-- **♿ Accessibility Compliance**: WCAG 2.1 compliant with 13 ARIA labels and semantic HTML
-- **📱 Mobile Responsive**: Optimized 3-3, 2-2-2, 1-column layouts for desktop/tablet/mobile
-- **⚡ Real-Time Updates**: Market clock 1s, market data 5s, system health 30s
-
-#### **🚀 Recent Critical Optimizations**
-- **✅ Enhanced Rate Limiting**: 1-1.5s delays with jitter preventing API violations
-- **✅ Memory-Safe Caching**: LRU cache (100 entries, 5min TTL) preventing memory leaks
-- **✅ Race-Condition Prevention**: Optimistic locking with version control for data consistency
-- **✅ API Security Enhancement**: Secure key validation without log exposure
-- **✅ Complete TypeScript Migration**: 4 core modules converted with full type safety
-
-#### **🔧 Core System Features**
-- **🤖 Dual AI Sentiment Analysis**: GPT-OSS-120B + DistilBERT-SST-2 with transparent sentiment comparison
-- **📊 4 Moment Sentiment Reporting**: Pre-Market → Intraday → End-of-Day → Weekly Review
-- **🔄 Professional Navigation**: Seamless navigation between all 4 reports with modern UI
-- **⚡ Intelligent Rate Limiting**: Production-grade throttling with exponential backoff
-- **💾 Bounded Memory Management**: LRU cache with automatic cleanup
-- **🛡️ Enterprise Security**: API key protection, input validation, audit trails
-- **📱 Mobile-Optimized**: Touch-friendly responsive design
-- **🔔 Web Notifications**: Chrome browser notifications for 4 Moment alerts with user preferences
-
-#### **⚡ Performance Benchmarks**
-| Metric | Target | Current | Status |
-|--------|--------|---------|--------|
-| **Single Symbol Analysis** | <12s | **11.7s** | ✅ **EXCELLENT** |
-| **Multi-Symbol Analysis** | <30s | **26.9s** | ✅ **EXCELLENT** |
-| **System Availability** | >99.9% | **100%** | ✅ **PERFECT** |
-| **Error Rate** | <1% | **0%** | ✅ **PERFECT** |
-| **API Compliance** | 100% | **100%** | ✅ **PERFECT** |
-
-## 🎯 Strategic Roadmap - Institutional-Grade Intelligence Platform
-
-### **🚀 Current Implementation Status**
-
-**✅ Professional Dashboard: UPRADED (8/10 Quality)**
-- **Enterprise Interface**: Professional trading platform following UX/UI design specifications
-- **Advanced Widgets**: 5 professional widgets (Latest Reports, Market Performance, System Status, Top Movers, Sector Performance)
-- **Sector Performance**: Real-time sector ETF tracking (XLK Technology, XLF Financials, XLV Health Care, XLE Energy)
-- **TypeScript Implementation**: Full type safety with proper interfaces and comprehensive error handling
-- **Accessibility Compliant**: WCAG 2.1 compliant with ARIA labels, semantic HTML, and screen reader support
-- **Professional Navigation**: Top navigation bar + sidebar navigation with expandable sections
-- **Real-Time Updates**: Market data every 5 seconds, system health every 30 seconds
-- **Mobile Responsive**: Optimized for desktop, tablet, and mobile devices
-- **Live Dashboard**: https://tft-trading-system.yanggf.workers.dev/ ✅ **OPERATIONAL**
-
-**📊 Sector Rotation Analysis: STARTING NOW (Phase 0 + Phase 1 MVP)**
-- **Status**: 🚨 **Phase 0 Critical Fixes** (1 hour) → **Phase 1 MVP** (4 days)
-- **Architecture**: Sector Rotation Data Pipeline **v1.3** with Rovodev production fixes
-- **Reviews**: Gemini 8.5/10 | Amazon Q 8.2/10 | **Rovodev 8.7/10** ⭐ HIGHEST
-- **Critical Fixes**: L2 KV cache (120s TTL) + Semaphore concurrency control (4 max)
-- **Data Source**: Yahoo Finance API (11 SPDR sector ETFs + SPY benchmark)
-- **Features**: OBV/CMF indicators, relative strength, rotation quadrants, money flow patterns
-- **MVP Scope**: L1 (60s memory) + **L2 (120s KV)** caching, 3M timeframe, 1-year backfill
-- **Timeline**: Phase 0 fixes (Oct 7) → MVP (Oct 7-10) → Decision Point (Oct 13)
-- **Documentation**: See `docs/SECTOR_ROTATION_DATA_PIPELINE.md` (v1.3)
-- **Phase 1 Tasks**: data-validation.ts → circuit-breaker.ts → sector-data-fetcher.ts
-
-**🌐 Browser Push Notifications: DEFERRED**
-- **Status**: Parked until after Sector Rotation Phase 1 complete
-- **Rationale**: Sector analysis provides higher strategic value (institutional-grade intelligence)
-
-### **🚀 Next Phase: Transform to Market Intelligence Platform**
-
-**Current State**: A+ (99/100) Dual AI Sentiment Analysis System
-**Target State**: Institutional-Grade Market Intelligence Platform with Top-Down Methodology
-
-### **📊 Three-Tier Intelligence Funnel (Professional Framework)**
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  TIER 1: MARKET DRIVERS ANALYSIS (The Weather)        │
-│  → Macro environment, Risk-On/Risk-Off detection       │
-│  → FRED API + VIX + Yield Curve + Geopolitical Risk   │
-│  Status: 📋 Planned (Weeks 3-4)                        │
-└────────────────┬────────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────────────┐
-│  TIER 2: SECTOR ROTATION ANALYSIS (The Currents)      │
-│  → 11 SPDR Sector ETFs vs S&P 500 benchmark          │
-│  → Money flow, relative strength, rotation signals    │
-│  Status: 🚨 STARTING NOW (Phase 0 + Phase 1 - 5 days) │
-│  Design: v1.3 (Rovodev 8.7/10 - Production Fixes)    │
-└────────────────┬────────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────────────┐
-│  TIER 3: SENTIMENT ANALYSIS (Current System ✅)       │
-│  → Dual AI sentiment analysis on individual stocks    │
-│  → Context-aware sentiment insights with market data  │
-│  Status: ✅ OPERATIONAL (A+ 99/100)                    │
-└─────────────────────────────────────────────────────────┘
-```
-
-### **🔮 Advanced Features (Phase 3)**
-
-**Temporal Sentiment Analysis** (Weeks 5-6)
-- Multi-timeframe sentiment (1hr, 24hr, 7day EMAs)
-- Sentiment momentum and divergence detection
-- Context-aware signal generation
-- Alpha-generating institutional signals
-
----
-
-## 📋 Complete Implementation Plan
-
-### **🚀 Updated Priority Roadmap**
-
-**Comprehensive Plan**: See **[docs/MASTER_IMPLEMENTATION_PLAN.md](docs/MASTER_IMPLEMENTATION_PLAN.md)** for complete details
-
-**Completed Achievements**:
-1. **✅ Professional Dashboard** - Main entrance to dual AI sentiment analysis system (COMPLETED 2025-10-06)
-2. **✅ TypeScript Migration** - 100% type safety across all modules (COMPLETED 2025-10-01)
-3. **✅ GitHub Actions Scheduling** - Unlimited schedules (COMPLETED 2025-10-02)
-4. **✅ Sector Rotation Design v1.3** - 3 AI reviews complete (Rovodev 8.7/10 highest) (COMPLETED 2025-10-07)
-5. **✅ 4 Moment Analysis System** - Complete sentiment workflow (COMPLETED)
-6. **✅ Web Notification System** - Chrome browser notifications replacing Facebook (COMPLETED 2025-10-08)
-
-**Next Priorities**:
-1. **🚨 Sector Rotation Phase 0** - Critical production fixes (1 hour, TODAY)
-   - L2 KV cache (120s TTL) - Fixes Cloudflare Workers L1 cache volatility
-   - Semaphore concurrency control (4 max) - Prevents thundering herd
-2. **📊 Sector Rotation Phase 1 MVP** - Implementation (4 days, Oct 7-10)
-   - Day 1: data-validation.ts + circuit-breaker.ts
-   - Day 2: sector-data-fetcher.ts + kv-key-factory extension
-   - Day 3: sector-cache-manager.ts (L1+L2) + sector-indicators.ts
-   - Day 4: API endpoint + testing + 1-year backfill
-3. **🔍 Market Drivers Detection** - FRED API + VIX integration (Weeks 3-4 after MVP validation)
-
-**Updated Timeline**:
-- **Week 1 (Oct 1-6)**: ✅ Dashboard + ✅ GitHub Actions + ✅ Sector Design v1.3 (COMPLETED)
-- **Week 2 (Oct 7-13)**: 🚨 Phase 0 fixes (1hr) → 📊 Sector Rotation Phase 1 MVP (4 days)
-- **Week 3 (Oct 13 - Decision Point)**: Evaluate MVP (Yahoo Finance uptime, cache hit rate, circuit breaker)
-- **Week 3-4**: 🔍 Market Drivers Detection (conditional on MVP success)
-- **Week 5-6**: Temporal Sentiment Analysis (multi-timeframe)
-- **Week 7-12**: Advanced UI enhancements + analytics dashboards
-
-**Key Components**:
-1. **Professional Dashboard (8/10 Quality)**: Enterprise trading platform with TypeScript implementation and Sector Performance widget
-2. **Browser Notifications**: Push API + Service Worker
-3. **New Features**: Sector Rotation + Market Drivers (100% free APIs)
-4. **GitHub Actions Scheduling**: Unlimited schedules (no 3-cron limit)
-
-**Investment**: $0/month (100% free - GitHub Actions replaces Durable Objects)
-**Documentation**: 30+ comprehensive docs covering all aspects
-
-**Quick Links**:
-- 📖 [Master Plan](docs/MASTER_IMPLEMENTATION_PLAN.md) - Complete roadmap with dashboard priority
-- 🎨 [UI/UX Design](docs/UX_UI_DESIGN.md) - Homepage + Console blueprints
-- 🔄 [Navigation System](docs/NAVIGATION_SYSTEM.md) - Professional 4-report navigation design
-- ⏰ [Scheduling Strategy](docs/CRON_OPTIMIZATION.md) - GitHub Actions setup (unlimited, free)
-- 💰 [Cost Optimization](docs/COST_OPTIMIZATION.md) - Stay $0/month with GitHub Actions
-- 📊 [Feature Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md) - Sector rotation + market drivers
-- 📚 [Documentation Index](docs/INDEX.md) - Complete catalog
-
----
+### **🏆 Key Achievements**
+- **Performance**: 10-50x faster cached responses (5-15ms vs 200-500ms)
+- **API Architecture**: RESTful v1 with 30+ endpoints and standardized responses
+- **Frontend Integration**: Type-safe API client with comprehensive error handling
+- **Dual AI Analysis**: GPT-OSS-120B + DistilBERT-SST-2 with transparent comparison
+- **Professional Dashboard**: 8.5/10 quality with Market Clock widget and 6-widget layout
 
 ## 🏗️ Architecture Overview
 
-### **🎯 Enterprise-Grade Components**
-
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                CLOUDFLARE WORKERS (EDGE)                   │
-├─────────────────────────────────────────────────────────────┤
-│  Version: a8cdbf43-2741-4ad9-931c-af66128d130d           │
-│  Status: A+ (99/100) Enterprise Production Ready           │
-│  Dashboard Quality: 8.5/10 Professional Institutional Grade │
-├─────────────────────────────────────────────────────────────┤
-│                   PROFESSIONAL DASHBOARD                    │
-│  ├─ Enterprise Trading Interface (8.5/10 Quality)         │
-│  ├─ 6-Widget Layout: Reports + Performance + Status +     │
-│  │   Top Movers + Sector Performance + Market Clock       │
-│  ├─ TypeScript Implementation + Error Boundaries          │
-│  ├─ Market Clock: Real-time EST/EDT + Session Detection   │
-│  ├─ Accessibility: WCAG 2.1 + 13 ARIA Labels              │
-│  ├─ Real-Time Updates: 1s/5s/30s intervals                │
-│  └─ Mobile-Responsive: 3-3, 2-2-2, 1-column layouts       │
-├─────────────────────────────────────────────────────────────┤
 │                    API GATEWAY LAYER                        │
-│  ├─ Enhanced Security (API Keys, Validation)               │
-│  ├─ Intelligent Rate Limiting (1-1.5s + Jitter)           │
-│  ├─ Request Sanitization & Error Handling                  │
-│  └─ Structured Logging & Monitoring                        │
+│  ├─ RESTful API v1 (DAC patterns)                         │
+│  ├─ Standardized Response Formats                         │
+│  ├─ Per-Domain Handlers (sentiment, reports, data)        │
+│  └─ Self-Documenting API (/api/v1)                        │
+├─────────────────────────────────────────────────────────────┤
+│                   MULTI-LEVEL CACHING                       │
+│  ├─ L1 Memory Cache (60s TTL)                             │
+│  ├─ L2 KV Cache (3600s TTL)                               │
+│  ├─ 13 Cache Namespaces                                    │
+│  └─ 70-85% Hit Rate Achieved                               │
 ├─────────────────────────────────────────────────────────────┤
 │                   BUSINESS LOGIC LAYER                      │
-│  ├─ Dual AI Sentiment Analysis Engine (GPT + DistilBERT) │
-│  ├─ 4 Moment Sentiment Analysis Workflow                    │
-│  ├─ Sentiment Insights & Confidence Scoring              │
-│  └─ Market Data Integration (Yahoo Finance)                │
-├─────────────────────────────────────────────────────────────┤
-│                OPTIMIZED TYPESCRIPT DATA LAYER              │
-│  ├─ Complete TypeScript DAL (100% coverage)               │
-│  ├─ LRU Cache (100 entries, 5min TTL)                     │
-│  ├─ Optimistic Locking (Version Control)                  │
-│  └─ Message Tracking (Platform Agnostic)                   │
+│  ├─ Dual AI Sentiment Analysis (GPT + DistilBERT)        │
+│  ├─ 4-Moment Analysis Workflow                             │
+│  ├─ Real-Time Market Data Integration                      │
+│  └─ Professional Dashboard Interface                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### **📁 Complete TypeScript Core Architecture (100% Coverage)**
-```
-src/modules/
-├── ✅ Phase 1-4: Complete TypeScript Migration (2025-10-01)
-│   ├── config.ts                    - Centralized configuration with full type safety
-│   ├── dal.ts                       - TypeScript Data Access Layer with retry logic
-│   ├── msg-tracking.ts              - Platform-agnostic message tracking
-│   ├── validation-utilities.ts      - Centralized validation logic
-│   ├── shared-utilities.ts          - Comprehensive utility modules
-│   ├── kv-key-factory.ts            - Enterprise-grade key management
-│   ├── analysis.ts                  - Core analysis functions with real market data
-│   ├── enhanced_analysis.ts         - Enhanced analysis with simplified dual AI
-│   ├── dual-ai-analysis.ts          - Core dual AI comparison module
-│   ├── per_symbol_analysis.ts       - Main analysis using dual AI system
-│   ├── data.ts                      - Data processing with dual AI structure
-│   ├── web-notifications.ts         - Chrome web notification system (replaces Facebook)
-│   └── scheduler.ts                 - Cron job management with proper imports
-│
-├── ✅ JavaScript Utilities (Not Yet Migrated)
-│   ├── rate-limiter.js              - Yahoo Finance API rate limiting
-│   ├── market-data-cache.js         - Market data caching system
-│   ├── validation.js                - Comprehensive data validation
-│   ├── monitoring.js                - Performance & business metrics
-│   └── [Additional utility modules...]
-│
-└── ✅ TypeScript Infrastructure
-    ├── router/index.ts              - Main TypeScript router
-    ├── routes-new.ts                - Modern routing architecture
-    └── routes/                      - Modular route definitions
-```
-
-## 🔔 Web Notification System
-
-### **Chrome Browser Notifications (NEW 2025-10-08)**
-Modern push notification system replacing Facebook Messenger integration with native Chrome notifications.
-
-#### **🎯 Key Features**
-- **📱 Native Chrome Notifications**: Rich media notifications with action buttons
-- **⏰ 4 Moment Workflow**: Pre-Market → Intraday → End-of-Day → Weekly Review
-- **⚙️ User Preferences**: Configure which notifications to receive
-- **🌙 Quiet Hours**: Set times when notifications won't disturb
-- **🎯 Confidence Filtering**: Only notify for high-confidence insights (≥70%)
-- **📊 Notification History**: Track and review past notifications
-- **🔄 Service Worker**: Background notification handling
-- **📱 Mobile Responsive**: Works on all Chrome-based browsers
-
-#### **🔧 How It Works**
-1. **Enable Notifications**: Click 🔔 bell on dashboard → Grant browser permission
-2. **Configure Preferences**: Choose notification types, quiet hours, confidence thresholds
-3. **Receive Notifications**: Chrome push notifications for each 4 Moment analysis
-4. **Interactive Actions**: Click "View Report" to jump directly to detailed analysis
-5. **Manage Settings**: Update preferences anytime via notification bell
-
-#### **📋 API Endpoints**
-```
-/api/notifications/subscribe      - Subscribe to notifications
-/api/notifications/preferences     - Update notification preferences
-/api/notifications/test           - Send test notification
-/api/notifications/history        - Get notification history
-/api/notifications/status         - Get system status
-```
-
-#### **🎨 Notification Types**
-- **📅 Pre-Market (8:30 AM)**: High-confidence trading insights
-- **📊 Intraday (12:00 PM)**: Real-time performance tracking
-- **📈 End-of-Day (4:05 PM)**: Market close + tomorrow outlook
-- **📋 Weekly Review (Sunday 10 AM)**: Pattern analysis + recommendations
-
 ## 🚀 Quick Start
 
-### **📋 Prerequisites**
+### **Prerequisites**
 - Node.js 18+
 - Cloudflare Workers account
 - Cloudflare API token
-- Yahoo Finance API access (free tier)
 
-### **⚙️ Installation**
+### **Installation**
 ```bash
 # Clone repository
 git clone <repository-url>
@@ -326,203 +65,81 @@ cd cct
 # Install dependencies
 npm install
 
-# Configure environment variables
+# Configure environment
 cp wrangler.toml.example wrangler.toml
-# Edit wrangler.toml with your API keys and settings
+# Edit wrangler.toml with your API keys
 
 # Deploy to production
 npm run deploy
 ```
 
-### **🔧 Environment Configuration**
-Key environment variables in `wrangler.toml`:
+## 🎯 API Endpoints
 
-```toml
-[vars]
-WORKER_API_KEY = "your_api_key_here"
-TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"
-LOG_LEVEL = "info"
-GPT_MAX_TOKENS = "2000"
-GPT_TEMPERATURE = "0.1"
+### **API v1 (RESTful)**
+```bash
+# API Documentation
+GET /api/v1
+
+# Sentiment Analysis
+GET /api/v1/sentiment/analysis        # Multi-symbol analysis
+GET /api/v1/sentiment/symbols/:symbol # Single symbol analysis
+GET /api/v1/sentiment/market          # Market-wide sentiment
+
+# Reports
+GET /api/v1/reports/daily/:date       # Daily reports
+GET /api/v1/reports/weekly/:week      # Weekly reports
+GET /api/v1/reports/pre-market        # Pre-market briefing
+
+# Data Access
+GET /api/v1/data/health               # System health
+GET /api/v1/data/symbols              # Available symbols
+```
+
+### **Authentication**
+```bash
+curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/api/v1/sentiment/analysis
 ```
 
 ## 📚 Documentation
 
-### **📖 Core Documentation**
-- **[API Documentation](./API_DOCUMENTATION.md)** - Complete API reference
-- **[System Architecture](./docs/current/)** - Technical architecture details
-- **[Maintenance Guide](./docs/MAINTENANCE_GUIDE.md)** - Operations and troubleshooting
-- **[Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)** - Production deployment procedures
+### **🚀 Current Implementation**
+- **[Data Access Improvement Plan](docs/DATA_ACCESS_IMPROVEMENT_PLAN.md)** - Complete 5-phase roadmap
+- **[Project Status Overview](docs/PROJECT_STATUS_OVERVIEW.md)** - Current implementation status
+- **[API Documentation](API_DOCUMENTATION.md)** - Complete API reference
 
-### **🔧 Technical Documentation**
-- **[Data Access Layer](./docs/current/DATA_ACCESS_LAYER.md)** - DAL with optimizations
-- **[Dual AI System](./docs/current/DUAL_AI_IMPLEMENTATION.md)** - AI integration details
-- **[Configuration System](./docs/current/CONFIGURATION.md)** - Centralized configuration
-- **[Message Tracking](./docs/current/MESSAGE_TRACKING.md)** - Platform-agnostic tracking
+### **🔧 Technical Details**
+- **[Enhanced Caching System](docs/PHASE_2_ENHANCED_CACHING_COMPLETE.md)** - Multi-level caching details
+- **[Architecture Overview](docs/INDEX.md)** - Complete technical documentation
+- **[Maintenance Guide](docs/MAINTENANCE_GUIDE.md)** - Operations and troubleshooting
 
-## 🎯 API Endpoints
-
-### **🔍 Analysis Endpoints**
-```bash
-# Single symbol analysis
-GET /analyze-symbol?symbol=AAPL
-
-# Multi-symbol analysis (full portfolio)
-GET /analyze
-
-# Historical analysis data
-GET /api/daily-summary?date=YYYY-MM-DD
-```
-
-### **📊 Reporting System**
-```bash
-# 4 Moment Sentiment Analysis Workflow
-GET /pre-market-briefing    # Morning high-confidence sentiment insights
-GET /intraday-check         # Real-time sentiment performance tracking
-GET /end-of-day-summary     # Market close sentiment analysis
-GET /weekly-review          # Comprehensive weekly sentiment analysis
-```
-
-### **💻 System Health**
-```bash
-# System status
-GET /health
-
-# AI model health
-GET /model-health
-
-# Performance metrics
-GET /results
-```
-
-### **🔐 Authentication**
-All protected endpoints require API key authentication:
-```bash
-curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/analyze
-```
-
-## 🔒 Security Features
-
-### **🛡️ Enterprise Security**
-- **API Key Protection**: Secure validation without log exposure
-- **Input Sanitization**: Comprehensive validation and error handling
-- **Rate Limiting**: Intelligent throttling preventing API abuse
-- **Audit Trails**: Complete message tracking and logging
-- **Error Boundaries**: Clear error messages without sensitive data
-
-### **⚡ Performance Security**
-- **Memory Management**: Bounded cache preventing memory leaks
-- **Atomic Operations**: Race-condition free data handling
-- **Resource Limits**: Intelligent resource allocation
-- **Graceful Degradation**: System stability under all conditions
-
-## 📊 Monitoring & Maintenance
-
-### **🔍 Health Checks**
-```bash
-# System health monitoring
-curl -H "X-API-KEY: your_key" https://your-domain.workers.dev/health
-
-# Error monitoring
-npx wrangler tail --format=pretty --search="ERROR|WARN|CRITICAL"
-```
-
-### **📈 Performance Monitoring**
-- **Response Times**: Sub-12s single symbol analysis
-- **Success Rates**: 100% completion with graceful fallbacks
-- **Resource Usage**: Bounded memory and CPU utilization
-- **API Compliance**: Full rate limiting compliance
-
-## 🚀 Deployment
-
-### **🌐 Production Deployment**
-```bash
-# Deploy to Cloudflare Workers
-env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
-
-# Verify deployment
-curl -H "X-API-KEY: your_key" https://your-domain.workers.dev/health
-```
-
-### **🔄 CI/CD Pipeline**
-The system supports automated deployment through:
-- GitHub Actions
-- Cloudflare Pages integration
-- Manual deployment with health verification
-
-## 🎯 Sentiment Analysis Strategy
-
-### **🤖 Dual AI Comparison System**
-- **GPT-OSS-120B**: Contextual sentiment analysis with natural language reasoning
-- **DistilBERT-SST-2**: Fast sentiment classification with statistical precision
-- **Simple Agreement Logic**: AGREE/PARTIAL_AGREE/DISAGREE classification
-- **Transparent Rules**: Clear sentiment insight generation based on model consensus
-
-### **📊 Sentiment Signal Generation**
-- **AGREEMENT**: STRONG_POSITIVE/STRONG_NEGATIVE (high confidence)
-- **PARTIAL_AGREE**: MODERATE_POSITIVE/MODERATE_NEGATIVE (moderate confidence)
-- **DISAGREEMENT**: MIXED/NEUTRAL (low confidence, conflicting signals)
-
-### **⏰ Analysis Schedule**
-- **Pre-Market Briefing**: 8:30 AM ET (high-confidence sentiment insights ≥70%)
-- **Intraday Check**: 12:00 PM ET (sentiment performance tracking)
-- **End-of-Day Summary**: 4:05 PM ET (market close sentiment + tomorrow outlook)
-- **Weekly Review**: Sunday 10:00 AM ET (comprehensive sentiment analysis)
-
-### **🔄 GitHub Actions Scheduling**
-**Status**: ✅ **MIGRATED FROM CLOUDFLARE CRON** (2025-10-02)
-
-All automated sentiment analyses now run via GitHub Actions:
-- **Unlimited Schedules**: No 3-cron limit (Cloudflare Workers free tier restriction)
-- **100% FREE**: GitHub Actions provides 2000 minutes/month (we use ~175 minutes)
-- **Better Observability**: Full logging, monitoring, and debugging in GitHub console
-- **Centralized Management**: All schedules in `.github/workflows/sentiment-analysis-system.yml`
-
-**Migration Benefits**:
-- ✅ Eliminated need for Durable Objects (saves $0.20/month)
-- ✅ Unlimited execution time (no 30-second timeout)
-- ✅ Better error handling and retry logic
-- ✅ Detailed audit trails and monitoring
-
-**See**: [CRON_OPTIMIZATION.md](docs/CRON_OPTIMIZATION.md) for complete migration details
+### **🏗️ Business Intelligence (Design Complete)**
+- **[Sector Rotation Analysis](docs/SECTOR_ROTATION_DATA_PIPELINE.md)** - v1.3 architecture design
+- **[Feature Feasibility Analysis](docs/FEATURE_FEASIBILITY_ANALYSIS.md)** - Sector + market drivers details
 
 ## 🏆 Performance Metrics
 
-### **📊 Current System Performance**
-- **Analysis Speed**: 11.7s single symbol, 26.9s multi-symbol sentiment analysis
-- **Accuracy**: High-confidence sentiment insights with ≥70% threshold
-- **Reliability**: 100% uptime with zero error rate
-- **Scalability**: Supports concurrent sentiment analysis with intelligent throttling
+| Metric | Target | Current | Status |
+|--------|--------|---------|--------|
+| **API Response (Cached)** | <50ms | **5-15ms** | ✅ **EXCELLENT** |
+| **API Response (Uncached)** | <500ms | **200-500ms** | ✅ **GOOD** |
+| **Cache Hit Rate** | >70% | **70-85%** | ✅ **TARGET ACHIEVED** |
+| **System Availability** | >99.9% | **100%** | ✅ **PERFECT** |
+| **Error Rate** | <1% | **0%** | ✅ **PERFECT** |
 
-### **💰 Cost Efficiency**
+## 💰 Cost Efficiency
+
 - **Infrastructure**: $0.00/month (100% free)
   - Cloudflare Workers (free tier)
-  - GitHub Actions scheduling (2000 min/month free, we use ~175 minutes)
+  - GitHub Actions scheduling (unlimited)
   - KV and R2 storage (free tier)
-  - **No Durable Objects required** (saves $0.20/month with GitHub Actions migration)
-- **AI Models**: Free tier with rate-limited optimization
-- **Data Sources**: Free Yahoo Finance API + FRED API
 - **Total System Cost**: $0/month ✅
-
-## 🎉 Conclusion
-
-The Dual AI Sentiment Analysis System represents **production-grade excellence** with A+ (99/100) quality standards. Through comprehensive optimization, the system now delivers:
-
-- **🚀 Superior Performance**: Sub-12s sentiment analysis with consistent results
-- **🛡️ Enterprise Security**: Zero vulnerabilities with robust protection
-- **⚡ Perfect Reliability**: 100% uptime with error-free operations
-- **🔧 Maintainable Architecture**: Complete TypeScript coverage with modern patterns
-- **📊 Scalable Design**: Bounded resources with intelligent optimization
-
-**Ready for immediate production deployment with enterprise-grade confidence.** 🎊
-
----
 
 ## 📞 Support
 
-For technical support or questions:
 - **System Health**: https://tft-trading-system.yanggf.workers.dev/health
 - **Documentation**: See `/docs` directory for detailed guides
 - **Issues**: Check maintenance guide for troubleshooting
 
-*Last Updated: 2025-10-06 | Version: 8a1d95c (GitHub Actions Fixed) | Dashboard Quality: 8.5/10 | Integration Tests: 15/15 Passed | Workflows: Operational | **Sector Pipeline v1.2: Design Complete** (Gemini 8.5/10 | Amazon Q 8.2/10)*
+---
+
+*Last Updated: 2025-01-10 | Data Access Modernization: 60% Complete (3 of 5 phases)*
