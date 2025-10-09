@@ -3,7 +3,7 @@
  * Handles system health, monitoring, and diagnostic endpoints
  */
 
-import { getHealthCheckResponse } from '../facebook.js';
+// Facebook integration removed - using response factory instead
 // Models removed - using GPT-OSS-120B enhanced analysis instead
 import { createLogger, logHealthCheck } from '../logging.js';
 import { createHealthHandler } from '../handler-factory.js';

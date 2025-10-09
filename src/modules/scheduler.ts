@@ -7,13 +7,8 @@ import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.j
 import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
 import { generateWeeklyReviewAnalysis } from './report/weekly-review-analysis.js';
 import { KVUtils } from './shared-utilities.js';
-import {
-  sendFridayWeekendReportWithTracking,
-  sendWeeklyAccuracyReportWithTracking,
-  sendMorningPredictionsWithTracking,
-  sendMiddayValidationWithTracking,
-  sendDailyValidationWithTracking
-} from './facebook.js';
+// Facebook imports removed - migrated to Chrome web notifications
+// No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createDAL, DataAccessLayer } from './dal.js';
 import type { CloudflareEnvironment } from '../types.js';

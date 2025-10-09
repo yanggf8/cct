@@ -6,7 +6,7 @@
 import { createLogger } from '../logging.js';
 import { createHealthResponse } from '../response-factory.js';
 import { createDAL } from '../dal.js';
-import { getHealthCheckResponse } from '../facebook.js';
+// Facebook integration removed - using response factory instead
 import { BusinessMetrics } from '../monitoring.js';
 // Utility functions for formatting
 function formatCurrency(value) {

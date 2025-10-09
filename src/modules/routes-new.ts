@@ -12,7 +12,7 @@ import { registerAnalysisRoutes } from './routes/analysis-routes.js';
 import { registerReportRoutes } from './routes/report-routes.js';
 import { registerHealthRoutes } from './routes/health-routes.js';
 import { registerAdminRoutes } from './routes/admin-routes.js';
-import { registerFacebookRoutes } from './routes/facebook-routes.js';
+// Facebook routes removed - migrated to Chrome web notifications
 import { registerDataRoutes } from './routes/data-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
