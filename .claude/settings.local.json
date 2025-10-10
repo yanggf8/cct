@@ -167,7 +167,11 @@
       "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy)",
       "Bash(./test-api-v1-integration.sh:*)",
       "Bash(./test-sector-rotation-api.sh:*)",
-      "Bash(./test-market-drivers-api.sh:*)"
+      "Bash(./test-market-drivers-api.sh:*)",
+      "mcp__amazon-q-mcp-server__ask_q",
+      "mcp__rovodev__ask-rovodev",
+      "mcp__rovodev__next-chunk",
+      "mcp__rovodev__fetch-chunk"
     ],
     "deny": [],
     "ask": []
