@@ -1,0 +1,38 @@
+name = "tft-trading-system-enhanced"
+main = "src/index-enhanced.js"
+compatibility_date = "2025-01-10"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production]
+name = "tft-trading-system"
+main = "src/index-enhanced.js"
+
+[env.staging]
+name = "tft-trading-system-staging"
+main = "src/index-enhanced.js"
+
+# KV bindings
+[[kv_namespaces]]
+binding = "TRADING_RESULTS"
+id = "trading-results-kv"
+preview_id = "trading-results-kv-preview"
+
+# R2 bindings
+[[r2_buckets]]
+binding = "TFT_TRADING_MODELS"
+bucket_name = "tft-trading-models"
+
+# D1 bindings (if needed)
+# [[d1_databases]]
+# binding = "TFT_DATABASE"
+# database_name = "tft-trading-db"
+# database_id = "your-database-id"
+
+# Variables
+[vars]
+ENVIRONMENT = "production"
+WORKER_VERSION = "2.0-enhanced"
+LOG_LEVEL = "info"
+ENABLE_CACHE = "true"
+ENABLE_MIGRATION = "true"
+NEW_API_PERCENTAGE = "10"

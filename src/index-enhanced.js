@@ -57,13 +57,17 @@ export default {
       // Initialize logging
       await import('./modules/logging.js').then(m => m.initLogging(env));
 
-      // Create enhanced request handler
-      const enhancedHandler = createEnhancedRequestHandler(env);
+      // Create enhanced request handler (cached across requests)
+      let enhancedHandler = global.enhancedRequestHandler;
+      if (!enhancedHandler) {
+        enhancedHandler = createEnhancedRequestHandler(env);
+        global.enhancedRequestHandler = enhancedHandler;
 
-      logger.info('Enhanced request handler initialized', {
-        environment: env.ENVIRONMENT || 'production',
-        version: '2.0-enhanced'
-      });
+        logger.info('Enhanced request handler initialized', {
+          environment: env.ENVIRONMENT || 'production',
+          version: '2.0-enhanced'
+        });
+      }
 
       // Handle request with enhanced system
       const response = await enhancedHandler.handleRequest(request, ctx);

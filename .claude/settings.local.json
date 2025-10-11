@@ -171,7 +171,9 @@
       "mcp__amazon-q-mcp-server__ask_q",
       "mcp__rovodev__ask-rovodev",
       "mcp__rovodev__next-chunk",
-      "mcp__rovodev__fetch-chunk"
+      "mcp__rovodev__fetch-chunk",
+      "Bash(./deploy-enhanced-system.sh:*)",
+      "Bash(./test-enhanced-system.sh:*)"
     ],
     "deny": [],
     "ask": []
