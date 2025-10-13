@@ -9,7 +9,7 @@ import { validateEnvironment, validateSymbols, validateMarketData } from './vali
 import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache, getCacheStats } from './market-data-cache.js';
 import { createLogger } from './logging.js';
-import { createDAL, type DataAccessLayer } from './dal.js';
+import { createSimplifiedEnhancedDAL, type CacheAwareResult } from './simplified-enhanced-dal.js';
 import { CONFIG } from './config.js';
 import type { CloudflareEnvironment, SentimentLayer } from '../types.js';
 import { isSignalTrackingData } from '../types.js';
@@ -520,7 +520,10 @@ async function saveHighConfidenceSignals(
       }
     };
 
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
 
     const writeResult = await dal.write(signalsKey, signalsData);
     if (!writeResult.success) {
@@ -570,7 +573,10 @@ export async function getHighConfidenceSignalsForTracking(env: CloudflareEnviron
   const trackingKey = `signal_tracking_${dateStr}`;
 
   try {
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
     const result = await dal.read(trackingKey);
     if (result.success && result.data) {
       // Use type guard instead of type assertion
@@ -603,7 +609,10 @@ export async function updateSignalPerformanceTracking(
   const trackingKey = `signal_tracking_${dateStr}`;
 
   try {
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
     const result = await dal.read(trackingKey);
 
     if (result.success && result.data) {

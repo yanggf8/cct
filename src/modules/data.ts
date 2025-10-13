@@ -7,7 +7,7 @@ import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
 import { validateKVKey, validateEnvironment, validateDate } from './validation.js';
 import { KVUtils } from './shared-utilities.js';
 import { KVKeyFactory, KeyHelpers, KeyTypes } from './kv-key-factory.js';
-import { createDAL, type DataAccessLayer } from './dal.js';
+import { createSimplifiedEnhancedDAL, type CacheAwareResult } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type Definitions
@@ -164,9 +164,12 @@ function getPrimaryModelFromSentiment(sentimentAnalysis: any): string {
 async function processAnalysisDataForDate(env: CloudflareEnvironment, dateStr: string, checkDate: Date): Promise<FactTableRecord[]> {
   const factTableData: FactTableRecord[] = [];
 
-  const dal: DataAccessLayer = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env, {
+    enableCache: true,
+    environment: env.ENVIRONMENT || 'production'
+  });
 
-  // Try to get analysis data for this date using DAL
+  // Try to get analysis data for this date using Enhanced DAL
   const analysisKey = KVKeyFactory.generateDateKey(KeyTypes.ANALYSIS, dateStr);
   const analysisResult = await dal.read(analysisKey);
 
@@ -548,9 +551,12 @@ export async function trackCronHealth(env: CloudflareEnvironment, status: 'succe
       errors: executionData.errors || []
     };
 
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
 
-    // Store latest health status using DAL
+    // Store latest health status using Enhanced DAL
     const latestResult = await dal.write('cron_health_latest', healthData);
     if (!latestResult.success) {
       logError(`Failed to store latest cron health: ${latestResult.error}`);
@@ -588,7 +594,10 @@ export async function trackCronHealth(env: CloudflareEnvironment, status: 'succe
 export async function getCronHealthStatus(env: CloudflareEnvironment): Promise<CronHealthStatus> {
   try {
     ensureLoggingInitialized(env);
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
     const healthResult = await dal.read('cron_health_latest');
 
     if (!healthResult.success || !healthResult.data) {
@@ -628,7 +637,10 @@ export async function getCronHealthStatus(env: CloudflareEnvironment): Promise<C
  */
 export async function getSymbolAnalysisByDate(env: CloudflareEnvironment, dateString: string, symbols: string[] | null = null): Promise<any[]> {
   try {
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
 
     // Use centralized symbol configuration if none provided
     if (!symbols) {
@@ -662,7 +674,10 @@ export async function getAnalysisResultsByDate(env: CloudflareEnvironment, dateS
     const validatedDate = validateDate(dateString);
     const dateString_clean = validatedDate.toISOString().split('T')[0];
 
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
     const dailyKey = validateKVKey(`analysis_${dateString_clean}`);
     const result = await dal.read(dailyKey);
 
@@ -683,9 +698,12 @@ export async function getAnalysisResultsByDate(env: CloudflareEnvironment, dateS
  */
 export async function listKVKeys(env: CloudflareEnvironment, prefix: string = ''): Promise<any[]> {
   try {
-    const dal: DataAccessLayer = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
 
-    // DAL listKeys returns all keys matching prefix (no cursor pagination yet)
+    // Enhanced DAL listKeys returns all keys matching prefix (no cursor pagination yet)
     const result = await dal.listKeys(prefix, 1000);
 
     return result.keys;

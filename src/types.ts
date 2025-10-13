@@ -548,3 +548,71 @@ export function isSystemHealth(value: unknown): value is SystemHealth {
     typeof data.services === 'object'
   );
 }
+
+// ============================================================================
+// Sector Rotation Types
+// ============================================================================
+
+/**
+ * Sector rotation analysis result
+ */
+export interface SectorRotationResult {
+  timestamp: string;
+  analysisDate: string;
+  marketConditions: {
+    overallTrend: 'bull' | 'bear' | 'neutral';
+    volatility: 'low' | 'medium' | 'high';
+    riskOn: boolean;
+  };
+  etfAnalyses: Array<{
+    symbol: string;
+    name: string;
+    sentiment: {
+      overall: 'bullish' | 'bearish' | 'neutral';
+      confidence: number;
+      reasoning: string;
+      model: string;
+    };
+    technicalIndicators: {
+      rsi: number;
+      macd: number;
+      movingAvg50: number;
+      movingAvg200: number;
+      trend: 'uptrend' | 'downtrend' | 'sideways';
+    };
+    performanceMetrics: {
+      daily: number;
+      weekly: number;
+      monthly: number;
+      ytd: number;
+      volatility: number;
+    };
+    newsSentiment: {
+      positiveCount: number;
+      negativeCount: number;
+      neutralCount: number;
+      topHeadlines: string[];
+    };
+    rotationSignal: {
+      strength: 'strong' | 'moderate' | 'weak';
+      direction: 'inflow' | 'outflow' | 'neutral';
+      reasoning: string;
+    };
+  }>;
+  topSectors: {
+    inflow: string[];
+    outflow: string[];
+  };
+  rotationSignals: {
+    leadingSector: string;
+    laggingSector: string;
+    emergingSectors: string[];
+    decliningSectors: string[];
+  };
+  executionMetrics: {
+    totalProcessingTime: number;
+    averageTimePerETF: number;
+    cacheHitRate: number;
+    rateLimitAvoided: boolean;
+  };
+}

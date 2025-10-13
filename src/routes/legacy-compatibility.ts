@@ -8,9 +8,76 @@
 
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
+import { handleApiV1Request } from './api-v1.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('legacy-compatibility');
+
+/**
+ * Internal routing function for legacy endpoint forwarding
+ * Routes transformed requests directly to API v1 handlers
+ */
+async function routeToNewEndpoint(
+  request: Request,
+  env: CloudflareEnvironment,
+  newPath: string
+): Promise<Response> {
+  try {
+    // Parse the new endpoint path and route to appropriate handler
+    const url = new URL(request.url);
+    url.pathname = newPath;
+
+    // Create a new request with the updated URL
+    const internalRequest = new Request(url, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      redirect: request.redirect,
+      integrity: request.integrity,
+      signal: request.signal,
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+      mode: request.mode,
+      credentials: request.credentials,
+      cache: request.cache
+    });
+
+    // Set up standard API headers for v1 endpoints
+    const headers = {
+      'X-Request-ID': `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      'X-API-Version': 'v1',
+      'Content-Type': 'application/json',
+    };
+
+    // Route to API v1 handler
+    const response = await handleApiV1Request(internalRequest, env, url.pathname, headers);
+
+    return response;
+
+  } catch (error: any) {
+    logger.error('Failed to route to new endpoint', {
+      newPath,
+      error: error.message,
+      stack: error.stack
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Internal routing failed',
+        message: `Failed to route to ${newPath}: ${error.message}`,
+        newEndpoint: newPath
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Error': 'Internal routing failed'
+        }
+      }
+    );
+  }
+}
 
 /**
  * Legacy endpoint mapping configuration
@@ -217,6 +284,17 @@ async function transformLegacyResponse(
       }
       break;
 
+    case '/model-health':
+      // Transform new model health format back to legacy format
+      if (responseData.success && responseData.data) {
+        responseData = {
+          timestamp: responseData.data.timestamp,
+          models: responseData.data.models || {},
+          overall_status: responseData.data.overall_status
+        };
+      }
+      break;
+
     case '/pre-market-briefing':
     case '/intraday-check':
     case '/end-of-day-summary':
@@ -285,8 +363,8 @@ export async function handleLegacyEndpoint(
     // Transform request to new API format
     const transformedRequest = await transformLegacyRequest(request, oldPath, newPath);
 
-    // Forward to new API endpoint
-    const newResponse = await fetch(transformedRequest);
+    // Route internally to new API endpoint instead of external fetch
+    const newResponse = await routeToNewEndpoint(transformedRequest, env, newPath);
 
     // Transform response back to legacy format
     const legacyResponse = await transformLegacyResponse(newResponse, oldPath, newPath);

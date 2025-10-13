@@ -10,6 +10,8 @@ import { handleReportRoutes } from './report-routes.ts';
 import { handleDataRoutes } from './data-routes.ts';
 import { handleSectorRotationRoutes } from './sector-rotation-routes.ts';
 import { handleMarketDriversRoutes } from './market-drivers-routes.js';
+import { handleMarketIntelligenceRoutes } from './market-intelligence-routes.js';
+import { handlePredictiveAnalyticsRoutes } from './predictive-analytics-routes.js';
 
 /**
  * Main v1 API Router
@@ -33,12 +35,18 @@ export async function handleApiV1Request(request, env, ctx) {
       return await handleReportRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/data/')) {
       return await handleDataRoutes(request, env, path, headers);
-    } else if (path.startsWith('/api/v1/sectors/')) {
+    } else if (path.startsWith('/api/v1/sector-rotation/')) {
       // Route to sector rotation API
       return await handleSectorRotationRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/market-drivers/')) {
       // Route to market drivers API
       return await handleMarketDriversRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/market-intelligence/')) {
+      // Route to unified market intelligence API
+      return await handleMarketIntelligenceRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/predictive/')) {
+      // Route to predictive analytics API
+      return await handlePredictiveAnalyticsRoutes(request, env, path, headers);
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -65,10 +73,11 @@ export async function handleApiV1Request(request, env, ctx) {
               history: 'GET /api/v1/data/history/:symbol',
               health: 'GET /api/v1/data/health',
             },
-            sectors: {
-              snapshot: 'GET /api/v1/sectors/snapshot',
-              health: 'GET /api/v1/sectors/health',
-              symbols: 'GET /api/v1/sectors/symbols',
+            sector_rotation: {
+              analysis: 'POST /api/v1/sector-rotation/analysis',
+              results: 'GET /api/v1/sector-rotation/results',
+              sectors: 'GET /api/v1/sector-rotation/sectors',
+              etf: 'GET /api/v1/sector-rotation/etf/:symbol',
             },
             market_drivers: {
               snapshot: 'GET /api/v1/market-drivers/snapshot',
@@ -79,6 +88,20 @@ export async function handleApiV1Request(request, env, ctx) {
               geopolitical: 'GET /api/v1/market-drivers/geopolitical',
               history: 'GET /api/v1/market-drivers/history',
               health: 'GET /api/v1/market-drivers/health',
+            },
+            market_intelligence: {
+              dashboard: 'GET /api/v1/market-intelligence/dashboard',
+              synopsis: 'GET /api/v1/market-intelligence/synopsis',
+              top_picks: 'GET /api/v1/market-intelligence/top-picks',
+              risk_report: 'GET /api/v1/market-intelligence/risk-report',
+              comprehensive_analysis: 'POST /api/v1/market-intelligence/comprehensive-analysis',
+            },
+            predictive_analytics: {
+              signals: 'GET /api/v1/predictive/signals',
+              patterns: 'GET /api/v1/predictive/patterns',
+              insights: 'GET /api/v1/predictive/insights',
+              forecast: 'GET /api/v1/predictive/forecast',
+              health: 'GET /api/v1/predictive/health',
             },
           },
           documentation: 'https://github.com/yanggf8/cct',

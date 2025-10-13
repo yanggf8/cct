@@ -11,18 +11,17 @@ import {
 } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
-  generateRequestId
+  generateRequestId,
+  parseQueryParams
 } from './api-v1.js';
-import { SectorDataFetcher, SECTOR_SYMBOLS } from '../modules/sector-data-fetcher.js';
-import { SectorCacheManager } from '../modules/sector-cache-manager.js';
-import { SectorIndicators } from '../modules/sector-indicators.js';
+import { executeSectorRotationAnalysis, getCachedSectorRotationResults, SPDR_ETFs } from '../modules/sector-rotation-workflow.js';
 import { createLogger } from '../modules/logging.js';
-import type { CloudflareEnvironment } from '../types.js';
+import type { CloudflareEnvironment, SectorRotationResult } from '../types.js';
 
 const logger = createLogger('sector-rotation-routes');
 
 /**
- * Handle all sector rotation routes
+ * Handle sector rotation analysis routes
  */
 export async function handleSectorRotationRoutes(
   request: Request,
@@ -31,9 +30,10 @@ export async function handleSectorRotationRoutes(
   headers: Record<string, string>
 ): Promise<Response> {
   const method = request.method;
+  const url = new URL(request.url);
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Sector rotation endpoints require API key authentication
+  // Validate API key for protected endpoints
   const auth = validateApiKey(request);
   if (!auth.valid) {
     return new Response(
@@ -52,34 +52,26 @@ export async function handleSectorRotationRoutes(
   }
 
   try {
-    // GET /api/v1/sectors/snapshot - Complete sector rotation snapshot
-    if (path === '/api/v1/sectors/snapshot' && method === 'GET') {
-      return await handleSectorSnapshot(request, env, headers, requestId);
+    // POST /api/v1/sector-rotation/analysis - Run complete sector rotation analysis
+    if (path === '/api/v1/sector-rotation/analysis' && method === 'POST') {
+      return await handleSectorRotationAnalysis(request, env, headers, requestId);
     }
 
-    // GET /api/v1/sectors/health - Sector rotation system health
-    if (path === '/api/v1/sectors/health' && method === 'GET') {
-      return await handleSectorHealth(request, env, headers, requestId);
+    // GET /api/v1/sector-rotation/results - Get cached analysis results
+    if (path === '/api/v1/sector-rotation/results' && method === 'GET') {
+      return await handleSectorRotationResults(request, env, headers, requestId);
     }
 
-    // GET /api/v1/sectors/symbols - Get available sector symbols
-    if (path === '/api/v1/sectors/symbols' && method === 'GET') {
-      return await handleSectorSymbols(request, env, headers, requestId);
+    // GET /api/v1/sector-rotation/sectors - Get sector information
+    if (path === '/api/v1/sector-rotation/sectors' && method === 'GET') {
+      return await handleSectorInformation(request, env, headers, requestId);
     }
 
-    // GET /api/v1/sectors/indicators/:symbol - Get indicators for specific sector
-    if (path.startsWith('/api/v1/sectors/indicators/') && method === 'GET') {
-      return await handleSectorIndicators(request, env, path, headers, requestId);
-    }
-
-    // GET /api/v1/sectors/performance - Get sector performance analysis
-    if (path === '/api/v1/sectors/performance' && method === 'GET') {
-      return await handleSectorPerformance(request, env, headers, requestId);
-    }
-
-    // GET /api/v1/sectors/relative-strength - Get relative strength analysis
-    if (path === '/api/v1/sectors/relative-strength' && method === 'GET') {
-      return await handleRelativeStrength(request, env, headers, requestId);
+    // GET /api/v1/sector-rotation/etf/:symbol - Get individual ETF analysis
+    const etfMatch = path.match(/^\/api\/v1\/sector-rotation\/etf\/([A-Z]{2,4})$/);
+    if (etfMatch && method === 'GET') {
+      const symbol = etfMatch[1];
+      return await handleETFAnalysis(symbol, request, env, headers, requestId);
     }
 
     // Method not allowed for existing paths
@@ -120,10 +112,74 @@ export async function handleSectorRotationRoutes(
 }
 
 /**
- * Handle sector snapshot endpoint
- * GET /api/v1/sectors/snapshot
+ * Handle complete sector rotation analysis
+ * POST /api/v1/sector-rotation/analysis
  */
-async function handleSectorSnapshot(
+async function handleSectorRotationAnalysis(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+
+  try {
+    logger.info('Starting sector rotation analysis', { requestId });
+
+    // Execute sequential sector rotation workflow
+    const result = await executeSectorRotationAnalysis(env);
+
+    logger.info('Sector rotation analysis completed', {
+      requestId,
+      processingTime: timer.getElapsedMs(),
+      etfsAnalyzed: result.etfAnalyses.length,
+      leadingSector: result.rotationSignals.leadingSector
+    });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.success(result, {
+          source: 'fresh',
+          ttl: 3600,
+          requestId,
+          processingTime: timer.finish(),
+        })
+      ),
+      { status: HttpStatus.OK, headers }
+    );
+
+  } catch (error: any) {
+    logger.error('Sector rotation analysis failed', {
+      requestId,
+      error: error.message,
+      stack: error.stack
+    });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          'Failed to perform sector rotation analysis',
+          'ANALYSIS_ERROR',
+          {
+            requestId,
+            error: error.message,
+            processingTime: timer.finish()
+          }
+        )
+      ),
+      {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+  }
+}
+
+/**
+ * Handle cached sector rotation results
+ * GET /api/v1/sector-rotation/results?date=2025-01-10
+ */
+async function handleSectorRotationResults(
   request: Request,
   env: CloudflareEnvironment,
   headers: Record<string, string>,
@@ -131,420 +187,154 @@ async function handleSectorSnapshot(
 ): Promise<Response> {
   const timer = new ProcessingTimer();
   const url = new URL(request.url);
+  const params = parseQueryParams(url);
 
   try {
-    // Parse query parameters
-    const useCache = url.searchParams.get('cache') !== 'false'; // Cache enabled by default
-    const includeIndicators = url.searchParams.get('indicators') !== 'false'; // Include indicators by default
+    // Get date from query params, default to today
+    const date = params.date as string;
+    const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Initialize components
-    const cacheManager = new SectorCacheManager(env);
-    const dataFetcher = new SectorDataFetcher(cacheManager);
-    const indicators = new SectorIndicators(env);
-
-    // Check cache first (if enabled)
-    if (useCache) {
-      const cacheKey = `sector_snapshot_latest`;
-      const cached = await cacheManager.getSectorData(cacheKey);
-
-      if (cached) {
-        logger.info('SectorSnapshot', 'Cache hit', { requestId });
-
-        return new Response(
-          JSON.stringify(
-            ApiResponseFactory.cached(cached, 'hit', {
-              source: 'cache',
-              ttl: 300, // 5 minutes
-              requestId,
-              processingTime: timer.getElapsedMs(),
-            })
-          ),
-          { status: HttpStatus.OK, headers }
-        );
-      }
-    }
-
-    // Fetch fresh sector data
-    const sectorResults = await dataFetcher.fetchSectorData(SECTOR_SYMBOLS);
-
-    // Convert results to array and filter successful fetches
-    const sectors = Array.from(sectorResults.entries())
-      .filter(([_, result]) => result !== null)
-      .map(([symbol, data]) => ({
-        symbol,
-        ...data,
-        lastUpdated: Date.now()
-      }));
-
-    if (sectors.length === 0) {
-      throw new Error('No sector data available');
-    }
-
-    // Calculate performance metrics
-    const benchmarkData = sectorResults.get('SPY');
-    let relativeStrengthData: any[] = [];
-
-    if (benchmarkData && includeIndicators) {
-      // Calculate relative strength for all sectors vs SPY
-      for (const [symbol, sectorData] of sectorResults.entries()) {
-        if (symbol !== 'SPY' && sectorData) {
-          const returnDiff = ((sectorData.changePercent || 0) - (benchmarkData.changePercent || 0));
-          relativeStrengthData.push({
-            symbol,
-            relativeStrength: returnDiff,
-            performance: sectorData.changePercent || 0,
-            benchmarkPerformance: benchmarkData.changePercent || 0,
-            signal: returnDiff > 0.5 ? 'outperforming' : returnDiff < -0.5 ? 'underperforming' : 'neutral'
-          });
-        }
-      }
-
-      // Sort by relative strength
-      relativeStrengthData.sort((a, b) => b.relativeStrength - a.relativeStrength);
-    }
-
-    // Build comprehensive snapshot
-    const snapshot = {
-      timestamp: Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      sectors: sectors,
-      summary: {
-        totalSectors: sectors.length,
-        benchmark: benchmarkData,
-        topPerformers: sectors
-          .filter(s => s.symbol !== 'SPY')
-          .sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0))
-          .slice(0, 3),
-        worstPerformers: sectors
-          .filter(s => s.symbol !== 'SPY')
-          .sort((a, b) => (a.changePercent || 0) - (b.changePercent || 0))
-          .slice(0, 3),
-      },
-      relativeStrength: relativeStrengthData,
-      marketSignals: {
-        overallTrend: determineOverallTrend(sectors),
-        riskOnRiskOff: determineRiskOnRiskOff(relativeStrengthData),
-        sectorRotation: detectSectorRotation(relativeStrengthData)
-      },
-      metadata: {
-        source: 'yahoo_finance',
-        dataFreshness: calculateDataFreshness(sectors),
-        cacheHitRate: cacheManager.getMetrics().overallHitRate,
-        fetchMetrics: dataFetcher.getStats()
-      }
-    };
-
-    // Cache the result (if enabled)
-    if (useCache) {
-      await cacheManager.setSectorData('sector_snapshot_latest', snapshot);
-    }
-
-    logger.info('SectorSnapshot', 'Data retrieved', {
-      sectorCount: sectors.length,
-      topPerformer: snapshot.summary.topPerformers[0]?.symbol,
-      processingTime: timer.getElapsedMs(),
-      requestId
+    logger.info('Retrieving sector rotation results', {
+      requestId,
+      targetDate
     });
 
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.success(snapshot, {
-          source: 'fresh',
-          ttl: 300,
-          requestId,
-          processingTime: timer.finish(),
-        })
-      ),
-      { status: HttpStatus.OK, headers }
-    );
-  } catch (error) {
-    logger.error('SectorSnapshot Error', error, { requestId });
+    // Try to get cached results
+    const cachedResults = await getCachedSectorRotationResults(env, targetDate);
 
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Failed to retrieve sector snapshot',
-          'DATA_ERROR',
-          {
-            requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        )
-      ),
-      {
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        headers,
-      }
-    );
-  }
-}
-
-/**
- * Handle sector health endpoint
- * GET /api/v1/sectors/health
- */
-async function handleSectorHealth(
-  request: Request,
-  env: CloudflareEnvironment,
-  headers: Record<string, string>,
-  requestId: string
-): Promise<Response> {
-  const timer = new ProcessingTimer();
-
-  try {
-    // Initialize components
-    const cacheManager = new SectorCacheManager(env);
-    const dataFetcher = new SectorDataFetcher(cacheManager);
-
-    // Test each component
-    const cacheStats = cacheManager.getMetrics();
-    const cacheHealth = { status: 'healthy', metrics: cacheStats };
-    const dataFetcherStats = dataFetcher.getStats();
-    const dataFetcherHealth = { status: 'healthy', details: { status: 'healthy', metrics: dataFetcherStats } };
-    const dataFetcherHealthStatus = dataFetcher.getHealthStatus();
-    const circuitBreakerMetrics = dataFetcherHealthStatus.circuitBreaker;
-
-    // Calculate overall status
-    const componentHealth = [
-      cacheStats.overallHitRate >= 0, // Cache is working
-      dataFetcherStats.successRate >= 0.8, // Data fetcher working
-      dataFetcherHealthStatus.semaphore.availablePermits >= 0, // Semaphore working
-      circuitBreakerMetrics.state !== 'OPEN' // Circuit breaker not open
-    ];
-
-    const overallStatus = componentHealth.filter(Boolean).length >= 3 ? 'healthy' :
-                         componentHealth.filter(Boolean).length >= 2 ? 'degraded' : 'unhealthy';
-
-    const response = {
-      status: overallStatus,
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      components: {
-        cache: cacheHealth,
-        dataFetcher: dataFetcherHealth,
-        semaphore: dataFetcherHealthStatus.semaphore,
-        circuitBreaker: circuitBreakerMetrics
-      },
-      metrics: {
-        responseTimeMs: timer.getElapsedMs(),
-        cacheHitRate: cacheStats.overallHitRate,
-        fetchSuccessRate: dataFetcherStats.successRate,
-        activeConnections: 4 - dataFetcherHealthStatus.semaphore.availablePermits,
-        queuedRequests: dataFetcherHealthStatus.semaphore.queueLength
-      },
-      capabilities: {
-        sectorCount: SECTOR_SYMBOLS.length,
-        maxConcurrency: 4,
-        cacheLayers: ['L1_Memory', 'L2_KV'],
-        indicators: ['OBV', 'CMF', 'Relative_Strength']
-      }
-    };
-
-    logger.info('SectorHealth', 'Health check completed', {
-      overallStatus,
-      processingTime: timer.getElapsedMs(),
-      requestId
-    });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.success(response, {
-          source: 'fresh',
-          ttl: 300, // 5 minutes
-          requestId,
-          processingTime: timer.finish(),
-        })
-      ),
-      { status: HttpStatus.OK, headers }
-    );
-  } catch (error) {
-    logger.error('SectorHealth Error', error, { requestId });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Failed to perform sector health check',
-          'HEALTH_CHECK_ERROR',
-          {
-            requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        )
-      ),
-      {
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        headers,
-      }
-    );
-  }
-}
-
-/**
- * Handle sector symbols endpoint
- * GET /api/v1/sectors/symbols
- */
-async function handleSectorSymbols(
-  request: Request,
-  env: CloudflareEnvironment,
-  headers: Record<string, string>,
-  requestId: string
-): Promise<Response> {
-  const timer = new ProcessingTimer();
-
-  try {
-    const symbols = SECTOR_SYMBOLS.map(symbol => ({
-      symbol,
-      name: getSectorName(symbol),
-      type: symbol === 'SPY' ? 'benchmark' : 'sector_etf',
-      description: getSectorDescription(symbol)
-    }));
-
-    const response = {
-      symbols,
-      summary: {
-        totalSymbols: symbols.length,
-        sectorCount: symbols.filter(s => s.type === 'sector_etf').length,
-        benchmark: symbols.find(s => s.type === 'benchmark')
-      }
-    };
-
-    logger.info('SectorSymbols', 'Symbols retrieved', {
-      count: symbols.length,
-      processingTime: timer.getElapsedMs(),
-      requestId
-    });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.success(response, {
-          source: 'fresh',
-          ttl: 3600, // 1 hour
-          requestId,
-          processingTime: timer.finish(),
-        })
-      ),
-      { status: HttpStatus.OK, headers }
-    );
-  } catch (error) {
-    logger.error('SectorSymbols Error', error, { requestId });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Failed to retrieve sector symbols',
-          'DATA_ERROR',
-          {
-            requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        )
-      ),
-      {
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        headers,
-      }
-    );
-  }
-}
-
-/**
- * Handle sector indicators endpoint
- * GET /api/v1/sectors/indicators/:symbol
- */
-async function handleSectorIndicators(
-  request: Request,
-  env: CloudflareEnvironment,
-  path: string,
-  headers: Record<string, string>,
-  requestId: string
-): Promise<Response> {
-  const timer = new ProcessingTimer();
-
-  try {
-    // Extract symbol from path
-    const symbol = path.split('/').pop()?.toUpperCase();
-
-    if (!symbol) {
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.error(
-            'Symbol is required',
-            'VALIDATION_ERROR',
-            { requestId }
-          )
-        ),
-        { status: HttpStatus.BAD_REQUEST, headers }
-      );
-    }
-
-    // Validate symbol
-    if (!SECTOR_SYMBOLS.includes(symbol as any)) {
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.error(
-            `Invalid symbol: ${symbol}. Must be one of: ${SECTOR_SYMBOLS.join(', ')}`,
-            'VALIDATION_ERROR',
-            { requestId }
-          )
-        ),
-        { status: HttpStatus.BAD_REQUEST, headers }
-      );
-    }
-
-    // Initialize indicators calculator
-    const indicators = new SectorIndicators(env);
-
-    // Try to get cached indicators first
-    const cachedIndicators = await indicators.getIndicators(symbol);
-
-    if (cachedIndicators) {
-      logger.info('SectorIndicators', 'Cache hit', { symbol, requestId });
+    if (cachedResults) {
+      logger.info('Sector rotation results cache hit', {
+        requestId,
+        date: targetDate,
+        processingTime: timer.getElapsedMs()
+      });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cachedIndicators, 'hit', {
+          ApiResponseFactory.success(cachedResults, {
             source: 'cache',
-            ttl: 600, // 10 minutes
+            ttl: 3600,
             requestId,
-            processingTime: timer.getElapsedMs(),
+            processingTime: timer.finish(),
           })
         ),
         { status: HttpStatus.OK, headers }
       );
     }
 
-    // If not cached, return placeholder (full implementation would fetch historical data)
-    const response = {
+    // No cached results available
+    logger.info('No cached sector rotation results found', {
+      requestId,
+      date: targetDate
+    });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          `No sector rotation analysis available for ${targetDate}. Run the analysis first.`,
+          'NO_DATA',
+          {
+            requestId,
+            date: targetDate,
+            suggestion: 'POST /api/v1/sector-rotation/analysis to generate new analysis'
+          }
+        )
+      ),
+      {
+        status: HttpStatus.NOT_FOUND,
+        headers,
+      }
+    );
+
+  } catch (error: any) {
+    logger.error('Failed to retrieve sector rotation results', {
+      requestId,
+      error: error.message
+    });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          'Failed to retrieve sector rotation results',
+          'RETRIEVAL_ERROR',
+          {
+            requestId,
+            error: error.message,
+            processingTime: timer.finish()
+          }
+        )
+      ),
+      {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+  }
+}
+
+/**
+ * Handle sector information
+ * GET /api/v1/sector-rotation/sectors
+ */
+async function handleSectorInformation(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+
+  try {
+    const sectors = Object.entries(SPDR_ETFs).map(([symbol, info]) => ({
       symbol,
-      timestamp: Date.now(),
-      message: 'Historical data calculation not implemented in MVP',
-      note: 'This would calculate OBV, CMF, and Relative Strength indicators using historical price data'
+      name: info.name,
+      description: info.description,
+      category: getSectorCategory(symbol as keyof typeof SPDR_ETFs)
+    }));
+
+    const response = {
+      sectors,
+      count: sectors.length,
+      lastUpdated: new Date().toISOString(),
+      marketConditions: {
+        status: 'active',
+        tradingHours: isMarketHours()
+      }
     };
 
-    logger.info('SectorIndicators', 'Placeholder response', { symbol, requestId });
+    logger.info('Sector information retrieved', {
+      requestId,
+      sectorCount: sectors.length,
+      processingTime: timer.getElapsedMs()
+    });
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
           source: 'fresh',
-          ttl: 600,
+          ttl: 86400, // Cache for 24 hours
           requestId,
           processingTime: timer.finish(),
         })
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('SectorIndicators Error', error, { requestId });
+
+  } catch (error: any) {
+    logger.error('Failed to retrieve sector information', {
+      requestId,
+      error: error.message
+    });
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.error(
-          'Failed to retrieve sector indicators',
-          'DATA_ERROR',
+          'Failed to retrieve sector information',
+          'SECTOR_INFO_ERROR',
           {
             requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error.message,
+            processingTime: timer.finish()
           }
         )
       ),
@@ -557,10 +347,11 @@ async function handleSectorIndicators(
 }
 
 /**
- * Handle sector performance endpoint
- * GET /api/v1/sectors/performance
+ * Handle individual ETF analysis
+ * GET /api/v1/sector-rotation/etf/:symbol
  */
-async function handleSectorPerformance(
+async function handleETFAnalysis(
+  symbol: string,
   request: Request,
   env: CloudflareEnvironment,
   headers: Record<string, string>,
@@ -569,105 +360,120 @@ async function handleSectorPerformance(
   const timer = new ProcessingTimer();
 
   try {
-    // This would provide detailed performance analysis
+    // Validate ETF symbol
+    if (!SPDR_ETFs[symbol as keyof typeof SPDR_ETFs]) {
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `Invalid ETF symbol: ${symbol}. Valid symbols: ${Object.keys(SPDR_ETFs).join(', ')}`,
+            'INVALID_SYMBOL',
+            { requestId, symbol }
+          )
+        ),
+        {
+          status: HttpStatus.BAD_REQUEST,
+          headers,
+        }
+      );
+    }
+
+    // Get cached sector rotation results
+    const today = new Date().toISOString().split('T')[0];
+    const cachedResults = await getCachedSectorRotationResults(env, today);
+
+    if (!cachedResults) {
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `No analysis data available for ${symbol}. Run sector rotation analysis first.`,
+            'NO_ANALYSIS_DATA',
+            {
+              requestId,
+              symbol,
+              suggestion: 'POST /api/v1/sector-rotation/analysis to generate new analysis'
+            }
+          )
+        ),
+        {
+          status: HttpStatus.NOT_FOUND,
+          headers,
+        }
+      );
+    }
+
+    // Find ETF analysis in results
+    const etfAnalysis = cachedResults.etfAnalyses.find(etf => etf.symbol === symbol);
+
+    if (!etfAnalysis) {
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `No analysis data found for ${symbol} in today's results`,
+            'NO_ETF_DATA',
+            { requestId, symbol }
+          )
+        ),
+        {
+          status: HttpStatus.NOT_FOUND,
+          headers,
+        }
+      );
+    }
+
+    // Add additional context to ETF analysis
     const response = {
-      message: 'Sector performance analysis endpoint',
-      note: 'This would provide detailed performance metrics, trends, and analysis',
-      availableMetrics: [
-        'daily_performance',
-        'weekly_performance',
-        'monthly_performance',
-        'year_to_date',
-        'volatility_metrics',
-        'correlation_analysis'
-      ]
+      ...etfAnalysis,
+      sectorInfo: SPDR_ETFs[symbol as keyof typeof SPDR_ETFs],
+      marketConditions: cachedResults.marketConditions,
+      rotationContext: {
+        isLeadingSector: cachedResults.rotationSignals.leadingSector === symbol,
+        isLaggingSector: cachedResults.rotationSignals.laggingSector === symbol,
+        isEmerging: cachedResults.rotationSignals.emergingSectors.includes(symbol as any),
+        isDeclining: cachedResults.rotationSignals.decliningSectors.includes(symbol as any),
+        rank: cachedResults.etfAnalyses
+          .sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)
+          .findIndex(etf => etf.symbol === symbol) + 1
+      },
+      lastUpdated: cachedResults.timestamp
     };
 
-    logger.info('SectorPerformance', 'Placeholder response', { requestId });
+    logger.info('ETF analysis retrieved', {
+      requestId,
+      symbol,
+      isLeadingSector: response.rotationContext.isLeadingSector,
+      rank: response.rotationContext.rank,
+      processingTime: timer.getElapsedMs()
+    });
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
-          source: 'fresh',
-          ttl: 300,
+          source: 'cache',
+          ttl: 3600,
           requestId,
           processingTime: timer.finish(),
         })
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('SectorPerformance Error', error, { requestId });
+
+  } catch (error: any) {
+    logger.error('Failed to retrieve ETF analysis', {
+      requestId,
+      symbol,
+      error: error.message
+    });
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.error(
-          'Failed to retrieve sector performance',
-          'DATA_ERROR',
+          'Failed to retrieve ETF analysis',
+          'ETF_ANALYSIS_ERROR',
           {
             requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        )
-      ),
-      {
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        headers,
-      }
-    );
-  }
-}
-
-/**
- * Handle relative strength endpoint
- * GET /api/v1/sectors/relative-strength
- */
-async function handleRelativeStrength(
-  request: Request,
-  env: CloudflareEnvironment,
-  headers: Record<string, string>,
-  requestId: string
-): Promise<Response> {
-  const timer = new ProcessingTimer();
-
-  try {
-    // This would provide comprehensive relative strength analysis
-    const response = {
-      message: 'Relative strength analysis endpoint',
-      note: 'This would provide comprehensive relative strength analysis vs benchmark',
-      availableAnalysis: [
-        'rs_ratio_analysis',
-        'momentum_analysis',
-        'leadership_analysis',
-        'trend_strength',
-        'rotation_signals'
-      ]
-    };
-
-    logger.info('RelativeStrength', 'Placeholder response', { requestId });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.success(response, {
-          source: 'fresh',
-          ttl: 300,
-          requestId,
-          processingTime: timer.finish(),
-        })
-      ),
-      { status: HttpStatus.OK, headers }
-    );
-  } catch (error) {
-    logger.error('RelativeStrength Error', error, { requestId });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Failed to retrieve relative strength analysis',
-          'DATA_ERROR',
-          {
-            requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            symbol,
+            error: error.message,
+            processingTime: timer.finish()
           }
         )
       ),
@@ -680,94 +486,45 @@ async function handleRelativeStrength(
 }
 
 // Helper functions
-function determineOverallTrend(sectors: any[]): 'bullish' | 'bearish' | 'neutral' {
-  if (sectors.length === 0) return 'neutral';
-
-  const positiveCount = sectors.filter(s => (s.changePercent || 0) > 0).length;
-  const negativeCount = sectors.filter(s => (s.changePercent || 0) < 0).length;
-  const totalCount = sectors.length;
-
-  if (positiveCount / totalCount > 0.6) return 'bullish';
-  if (negativeCount / totalCount > 0.6) return 'bearish';
-  return 'neutral';
-}
-
-function determineRiskOnRiskOff(relativeStrength: any[]): 'risk_on' | 'risk_off' | 'neutral' {
-  if (relativeStrength.length === 0) return 'neutral';
-
-  // Cyclical sectors (risk-on): XLK, XLY, XLI, XLC
-  // Defensive sectors (risk-off): XLV, XLP, XLU, XLE
-  const cyclicalSymbols = ['XLK', 'XLY', 'XLI', 'XLC'];
-  const defensiveSymbols = ['XLV', 'XLP', 'XLU', 'XLE'];
-
-  const cyclicalPerformance = relativeStrength
-    .filter(s => cyclicalSymbols.includes(s.symbol))
-    .reduce((sum, s) => sum + s.relativeStrength, 0) / cyclicalSymbols.length;
-
-  const defensivePerformance = relativeStrength
-    .filter(s => defensiveSymbols.includes(s.symbol))
-    .reduce((sum, s) => sum + s.relativeStrength, 0) / defensiveSymbols.length;
-
-  if (cyclicalPerformance > defensivePerformance + 0.5) return 'risk_on';
-  if (defensivePerformance > cyclicalPerformance + 0.5) return 'risk_off';
-  return 'neutral';
-}
-
-function detectSectorRotation(relativeStrength: any[]): 'active' | 'minimal' | 'neutral' {
-  if (relativeStrength.length < 2) return 'neutral';
-
-  const strengths = relativeStrength.map(s => s.relativeStrength);
-  const maxStrength = Math.max(...strengths);
-  const minStrength = Math.min(...strengths);
-  const spread = maxStrength - minStrength;
-
-  if (spread > 2.0) return 'active';
-  if (spread > 1.0) return 'minimal';
-  return 'neutral';
-}
-
-function calculateDataFreshness(sectors: any[]): number {
-  if (sectors.length === 0) return 0;
-
-  const now = Date.now();
-  const ages = sectors.map(s => now - (s.timestamp || 0));
-  const avgAge = ages.reduce((sum, age) => sum + age, 0) / ages.length;
-
-  return Math.max(0, 1 - (avgAge / (5 * 60 * 1000))); // Freshness over 5 minutes
-}
-
-function getSectorName(symbol: string): string {
-  const names: Record<string, string> = {
-    'XLK': 'Technology Select Sector SPDR Fund',
-    'XLV': 'Health Care Select Sector SPDR Fund',
-    'XLF': 'Financial Select Sector SPDR Fund',
-    'XLY': 'Consumer Discretionary Select Sector SPDR Fund',
-    'XLC': 'Communication Services Select Sector SPDR Fund',
-    'XLI': 'Industrial Select Sector SPDR Fund',
-    'XLP': 'Consumer Staples Select Sector SPDR Fund',
-    'XLE': 'Energy Select Sector SPDR Fund',
-    'XLU': 'Utilities Select Sector SPDR Fund',
-    'XLRE': 'Real Estate Select Sector SPDR Fund',
-    'XLB': 'Materials Select Sector SPDR Fund',
-    'SPY': 'SPDR S&P 500 ETF Trust'
+/**
+ * Get sector category for ETF symbol
+ */
+function getSectorCategory(symbol: string): string {
+  const categories: Record<string, string> = {
+    XLK: 'Technology',
+    XLF: 'Financial Services',
+    XLV: 'Healthcare',
+    XLE: 'Energy',
+    XLY: 'Consumer Discretionary',
+    XLP: 'Consumer Staples',
+    XLI: 'Industrials',
+    XLB: 'Materials',
+    XLU: 'Utilities',
+    XLRE: 'Real Estate',
+    XLC: 'Communication Services'
   };
-  return names[symbol] || symbol;
+
+  return categories[symbol] || 'Unknown';
 }
 
-function getSectorDescription(symbol: string): string {
-  const descriptions: Record<string, string> = {
-    'XLK': 'Companies from the technology sector, including software, hardware, and IT services',
-    'XLV': 'Companies from the health care sector, including pharmaceuticals, biotechnology, and health care providers',
-    'XLF': 'Companies from the financial sector, including banks, insurance companies, and investment firms',
-    'XLY': 'Companies from the consumer discretionary sector, including retail, automotive, and entertainment',
-    'XLC': 'Companies from the communication services sector, including telecom, media, and internet services',
-    'XLI': 'Companies from the industrial sector, including manufacturing, aerospace, and transportation',
-    'XLP': 'Companies from the consumer staples sector, including food, beverages, and household products',
-    'XLE': 'Companies from the energy sector, including oil, gas, and alternative energy companies',
-    'XLU': 'Companies from the utilities sector, including electric, gas, and water utilities',
-    'XLRE': 'Companies from the real estate sector, including REITs and real estate services',
-    'XLB': 'Companies from the materials sector, including chemicals, metals, and mining',
-    'SPY': 'Benchmark ETF tracking the S&P 500 index'
-  };
-  return descriptions[symbol] || 'Sector ETF';
+/**
+ * Check if market is currently open
+ */
+function isMarketHours(): boolean {
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+
+  // Weekend check
+  if (day === 0 || day === 6) {
+    return false;
+  }
+
+  // Market hours: 9:30 AM - 4:00 PM ET
+  const currentMinutes = hour * 60 + minute;
+  const marketOpen = 9 * 60 + 30; // 9:30 AM
+  const marketClose = 16 * 60; // 4:00 PM
+
+  return currentMinutes >= marketOpen && currentMinutes < marketClose;
 }

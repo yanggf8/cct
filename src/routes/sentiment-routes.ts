@@ -20,7 +20,7 @@ import {
   generateRequestId
 } from './api-v1.js';
 import { performDualAIComparison } from '../modules/dual-ai-analysis.ts';
-import { createDAL } from '../modules/dal.js';
+import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -128,7 +128,10 @@ async function handleSentimentAnalysis(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
   const url = new URL(request.url);
   const params = parseQueryParams(url);
 
@@ -144,14 +147,14 @@ async function handleSentimentAnalysis(
 
     // Check cache first
     const cacheKey = `sentiment_analysis_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.get<SentimentAnalysisResponse>('CACHE', cacheKey);
+    const cached = await dal.read(cacheKey);
 
-    if (cached) {
+    if (cached.success && cached.data) {
       logger.info('SentimentAnalysis', 'Cache hit', { symbols: symbols.join(','), requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 3600,
             requestId,
@@ -188,7 +191,7 @@ async function handleSentimentAnalysis(
     };
 
     // Cache the result for 1 hour
-    await dal.put('CACHE', cacheKey, response, { expirationTtl: 3600 });
+    await dal.write(cacheKey, response, { expirationTtl: 3600 });
 
     logger.info('SentimentAnalysis', 'Analysis complete', {
       symbols: symbols.join(','),
@@ -238,7 +241,10 @@ async function handleSymbolSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
 
   try {
     // Validate symbol
@@ -260,14 +266,14 @@ async function handleSymbolSentiment(
 
     // Check cache first
     const cacheKey = `symbol_sentiment_${symbol}_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.get<SymbolSentimentResponse>('CACHE', cacheKey);
+    const cached = await dal.read(cacheKey);
 
-    if (cached) {
+    if (cached.success && cached.data) {
       logger.info('SymbolSentiment', 'Cache hit', { symbol, requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 3600,
             requestId,
@@ -334,7 +340,7 @@ async function handleSymbolSentiment(
     };
 
     // Cache the result for 1 hour
-    await dal.put('CACHE', cacheKey, response, { expirationTtl: 3600 });
+    await dal.write(cacheKey, response, { expirationTtl: 3600 });
 
     logger.info('SymbolSentiment', 'Analysis complete', {
       symbol,
@@ -387,19 +393,22 @@ async function handleMarketSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
 
   try {
     // Check cache first
     const cacheKey = `market_sentiment_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.get<MarketSentimentData>('CACHE', cacheKey);
+    const cached = await dal.read(cacheKey);
 
-    if (cached) {
+    if (cached.success && cached.data) {
       logger.info('MarketSentiment', 'Cache hit', { requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 3600,
             requestId,
@@ -413,7 +422,8 @@ async function handleMarketSentiment(
     // Get recent analysis data to compute market sentiment
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
-    const analysisData = await dal.get(analysisKey, 'ANALYSIS');
+    const analysisResult = await dal.read(analysisKey);
+    const analysisData = analysisResult.success ? analysisResult.data : null;
 
     if (!analysisData || !analysisData.trading_signals) {
       return new Response(
@@ -448,7 +458,7 @@ async function handleMarketSentiment(
     };
 
     // Cache the result for 1 hour
-    await dal.put('CACHE', cacheKey, response, { expirationTtl: 3600 });
+    await dal.write(cacheKey, response, { expirationTtl: 3600 });
 
     logger.info('MarketSentiment', 'Analysis complete', {
       overallSentiment: response.overall_sentiment,
@@ -500,7 +510,10 @@ async function handleSectorSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env, {
+      enableCache: true,
+      environment: env.ENVIRONMENT || 'production'
+    });
   const url = new URL(request.url);
   const params = parseQueryParams(url);
 
@@ -527,14 +540,14 @@ async function handleSectorSentiment(
 
     // Check cache first
     const cacheKey = `sector_sentiment_${sectors.join(',')}_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.get<SectorSentimentData>('CACHE', cacheKey);
+    const cached = await dal.read(cacheKey);
 
-    if (cached) {
+    if (cached.success && cached.data) {
       logger.info('SectorSentiment', 'Cache hit', { sectors: sectors.join(','), requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 3600,
             requestId,
@@ -576,7 +589,7 @@ async function handleSectorSentiment(
     };
 
     // Cache the result for 1 hour
-    await dal.put('CACHE', cacheKey, response, { expirationTtl: 3600 });
+    await dal.write(cacheKey, response, { expirationTtl: 3600 });
 
     logger.info('SectorSentiment', 'Analysis complete', {
       sectors: sectors.join(','),
