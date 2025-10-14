@@ -419,6 +419,48 @@ function getSectorName(symbol: string): string {
 /**
  * Sector routes export
  */
+export async function getSectorIndicatorsSymbol(request: any, env: any, symbolParam?: string): Promise<Response> {
+  const loggerLocal = createLogger('sector-indicators-endpoint');
+  const start = Date.now();
+  try {
+    const services = initializeSectorServices(env);
+    const url = new URL(request.url);
+    const symbol = (symbolParam || url.pathname.split('/').pop() || '').toUpperCase();
+
+    if (!symbol || symbol.length > 10) {
+      const body = ApiResponseFactory.error('Invalid symbol','INVALID_SYMBOL', { symbol });
+      return new Response(JSON.stringify(body), { status: 400 });
+    }
+
+    // First try cached indicators from KV
+    const cached = await services.indicators.getIndicators(symbol);
+    if (cached) {
+      const body = ApiResponseFactory.success({ symbol, indicators: cached }, { source: 'cache', ttl: 900, responseTime: Date.now() - start });
+      return new Response(JSON.stringify(body), { status: 200 });
+    }
+
+    // Attempt on-demand calculation if historical data is available (getHistoricalData currently returns [])
+    const historical = await getHistoricalData(symbol, 60);
+    const spy = await getHistoricalData('SPY', 60);
+
+    if (historical.length >= 20) {
+      const calculated = await services.indicators.calculateAllIndicators(symbol, historical, spy);
+      if (calculated) {
+        await services.indicators.storeIndicators(calculated);
+        const body = ApiResponseFactory.success({ symbol, indicators: calculated }, { source: 'fresh', ttl: 900, responseTime: Date.now() - start });
+        return new Response(JSON.stringify(body), { status: 200 });
+      }
+    }
+
+    const body = ApiResponseFactory.error('Indicators not available for symbol','NO_DATA', { symbol });
+    return new Response(JSON.stringify(body), { status: 404 });
+  } catch (error:any) {
+    loggerLocal.error('Error in getSectorIndicatorsSymbol:', error);
+    const body = ApiResponseFactory.error('Sector indicators retrieval failed','SECTOR_INDICATORS_ERROR', { error: error.message });
+    return new Response(JSON.stringify(body), { status: 500 });
+  }
+}
+
 export const sectorRoutes = {
   '/api/v1/sectors/snapshot': getSectorSnapshot,
   '/api/v1/sectors/health': getSectorHealth,

@@ -32,7 +32,17 @@ export interface CloudflareEnvironment {
   FMP_API_KEY?: string;
   NEWSAPI_KEY?: string;
   WORKER_API_KEY?: string;
-
+  // Real-time data providers
+  FRED_API_KEY?: string;            // Primary FRED API key
+  FRED_API_KEYS?: string;           // Optional comma-separated list for rotation
+  
+  // Market data configuration
+  YAHOO_FINANCE_RATE_LIMIT?: string; // requests per minute
+  RATE_LIMIT_WINDOW?: string;        // window in ms
+  MARKET_DATA_CACHE_TTL?: string;    // seconds
+  
+  // Environment/mode
+  ENVIRONMENT?: string;              // 'development' | 'production' | 'staging'
   // Trading Configuration
   TRADING_SYMBOLS?: string;
   SIGNAL_CONFIDENCE_THRESHOLD?: string;

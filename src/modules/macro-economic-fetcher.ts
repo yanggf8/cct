@@ -18,9 +18,11 @@
 
 import { createLogger } from './logging.js';
 import { initializeFredApiClient, MockFredApiClient, type MacroEconomicSnapshot } from './fred-api-client.js';
+import { createFredApiClient, createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { MacroDrivers } from './market-drivers.js';
 import { MarketDriversCacheManager } from './market-drivers-cache-manager.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('macro-economic-fetcher');
 
@@ -32,6 +34,8 @@ export interface MacroEconomicFetcherOptions {
   useMockData?: boolean;
   cacheManager?: MarketDriversCacheManager;
   enableCaching?: boolean;
+  environment?: CloudflareEnvironment;
+  forceMockClient?: boolean;
 }
 
 /**
@@ -78,24 +82,41 @@ export class MacroEconomicFetcher {
   private circuitBreaker;
   private enableCaching: boolean;
   private useMockData: boolean;
+  private environment?: CloudflareEnvironment;
 
   constructor(options: MacroEconomicFetcherOptions) {
-    this.useMockData = options.useMockData || !options.fredApiKey;
+    this.environment = options.environment;
     this.enableCaching = options.enableCaching !== false;
     this.cacheManager = options.cacheManager;
 
-    // Initialize FRED API client or mock client
-    if (this.useMockData) {
-      logger.info('Using mock FRED API client for development');
-      this.fredApiClient = new MockFredApiClient();
-    } else {
-      logger.info('Initializing FRED API client with real API');
-      this.fredApiClient = initializeFredApiClient({
-        apiKey: options.fredApiKey!,
-        rateLimitDelay: 1000,
-        maxRetries: 3,
-        cacheEnabled: true,
+    // Determine if we should use mock data
+    this.useMockData = options.forceMockClient ||
+                      options.useMockData ||
+                      !options.fredApiKey;
+
+    // Initialize FRED API client using the new factory
+    if (this.environment && !options.forceMockClient) {
+      // Use the enhanced factory with environment configuration
+      logger.info('Initializing FRED API client with environment configuration');
+      this.fredApiClient = createFredApiClient(this.environment, {
+        forceMock: this.useMockData,
+        enableLogging: true,
+        customApiKey: options.fredApiKey
       });
+    } else {
+      // Fallback to legacy initialization
+      if (this.useMockData) {
+        logger.info('Using mock FRED API client for development');
+        this.fredApiClient = new MockFredApiClient();
+      } else {
+        logger.info('Initializing FRED API client with real API (legacy mode)');
+        this.fredApiClient = initializeFredApiClient({
+          apiKey: options.fredApiKey!,
+          rateLimitDelay: 1000,
+          maxRetries: 3,
+          cacheEnabled: true,
+        });
+      }
     }
 
     // Initialize circuit breaker

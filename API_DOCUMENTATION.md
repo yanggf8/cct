@@ -607,4 +607,45 @@ For technical support and system monitoring:
 - **Documentation**: Complete guides in `/docs` directory
 - **Troubleshooting**: See maintenance guide for common issues
 
-*Last Updated: 2025-10-08 | Version: e650aa19-c631-474e-8da8-b3144d373ae5*
+## New Endpoints (Predictive Analytics Exposure)
+
+### GET /api/v1/sentiment/fine-grained/:symbol
+- Description: Deep per-symbol dual-AI fine-grained sentiment analysis with news context
+- Auth: X-API-Key required
+- Cache: KV 60 minutes (key: fine_grained_sentiment_{symbol}_{date})
+- Response: Symbol analysis with sentiment layers, confidence metrics, trading signals, metadata
+
+### POST /api/v1/sentiment/fine-grained/batch
+- Description: Batch fine-grained dual-AI analysis for multiple symbols
+- Body: { "symbols": ["AAPL","MSFT", ...] }
+- Auth: X-API-Key required
+- Cache: Response is fresh; per-symbol results may be cached
+- Response: { results: [...], statistics: {...}, execution_metadata: {...} }
+
+### GET /api/v1/technical/symbols/:symbol
+- Description: Independent technical analysis (33 indicators) signal for a symbol
+- Auth: X-API-Key required
+- Cache: KV 30 minutes (key: technical_signal_{symbol}_{date})
+- Response: { symbol, current_price, predicted_price, direction, confidence, technical_score, feature_summary, ... }
+
+### POST /api/v1/technical/analysis
+- Description: Batch independent technical analysis for multiple symbols
+- Body: { "symbols": ["AAPL","MSFT", ...] }
+- Auth: X-API-Key required
+- Response: { timestamp, feature_count, symbols_analyzed, technical_signals: { [symbol]: signal }, system_performance }
+
+### GET /api/v1/sectors/indicators/:symbol
+- Description: Sector indicators (OBV, CMF, Relative Strength vs SPY) for a sector symbol
+- Auth: X-API-Key required
+- Cache: Pulls from cached indicators if available; attempts on-demand calc if historical data present
+- Response: { symbol, indicators: { obv, cmf, relativeStrength, overallSignal, confidence } }
+
+### GET /api/v1/market-drivers/regime/details
+- Description: Enhanced regime analysis with factor contributions, regime strength, transition risk, historical context, trading implications
+- Auth: X-API-Key required
+- Cache: 10 minutes
+- Response: { date, timestamp, regime, enhanced_regime, transition_risk, factor_contributions, regime_strength, historical_context, trading_implications }
+
+---
+
+*Last Updated: 2025-10-14 | Version: 1.1.0*

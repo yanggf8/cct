@@ -14,6 +14,7 @@ import { registerHealthRoutes } from './routes/health-routes.js';
 import { registerAdminRoutes } from './routes/admin-routes.js';
 // Facebook routes removed - migrated to Chrome web notifications
 import { registerDataRoutes } from './routes/data-routes.js';
+import { registerRealTimeRoutes } from './routes/real-time-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -27,8 +28,8 @@ export function createAppRouter(): Router {
   registerReportRoutes(router);
   registerHealthRoutes(router);
   registerAdminRoutes(router);
-  registerFacebookRoutes(router);
   registerDataRoutes(router);
+  registerRealTimeRoutes(router);
 
   return router;
 }

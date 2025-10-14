@@ -50,14 +50,26 @@ export interface TradingConfig {
 }
 
 export interface MarketDataConfig {
-  CACHE_TTL: number;
-  RATE_LIMIT_REQUESTS_PER_MINUTE: number;
-  RATE_LIMIT_WINDOW_MS: number;
+  FRED_API_KEY?: string;
+  FRED_API_BASE_URL: string;
+  FRED_RATE_LIMIT_DELAY_MS: number;
+  FRED_MAX_RETRIES: number;
+  FRED_CACHE_ENABLED: boolean;
   YAHOO_FINANCE_BASE_URL: string;
+  YAHOO_FINANCE_RATE_LIMIT: number;
   API_TIMEOUT_MS: number;
   MAX_RETRIES: number;
   BACKOFF_MULTIPLIER: number;
   INITIAL_BACKOFF_MS: number;
+  VIX_SYMBOL: string;
+  MARKET_DATA_SYMBOLS: string[];
+  REFRESH_INTERVALS: {
+    MARKET_HOURS: number;
+    AFTER_HOURS: number;
+    WEEKEND: number;
+    FRED_ECONOMIC_DATA: number;
+    MARKET_STRUCTURE: number;
+  };
 }
 
 export interface AIModelConfig {
@@ -225,14 +237,25 @@ export const CONFIG: SystemConfig = {
 
   // Market Data Configuration
   MARKET_DATA: {
-    CACHE_TTL: 300,
-    RATE_LIMIT_REQUESTS_PER_MINUTE: 20,
-    RATE_LIMIT_WINDOW_MS: 60000,
+    FRED_API_BASE_URL: 'https://api.stlouisfed.org/fred',
+    FRED_RATE_LIMIT_DELAY_MS: 1000,
+    FRED_MAX_RETRIES: 3,
+    FRED_CACHE_ENABLED: true,
     YAHOO_FINANCE_BASE_URL: 'https://query1.finance.yahoo.com',
+    YAHOO_FINANCE_RATE_LIMIT: 20,
     API_TIMEOUT_MS: 10000,
     MAX_RETRIES: 3,
     BACKOFF_MULTIPLIER: 2,
-    INITIAL_BACKOFF_MS: 1000
+    INITIAL_BACKOFF_MS: 1000,
+    VIX_SYMBOL: '^VIX',
+    MARKET_DATA_SYMBOLS: ['^VIX', '^TNX', '^TYX', 'DX-Y.NYB', 'GC=F', 'CL=F'],
+    REFRESH_INTERVALS: {
+      MARKET_HOURS: 300, // 5 minutes during market hours
+      AFTER_HOURS: 1800, // 30 minutes after hours
+      WEEKEND: 3600, // 1 hour on weekends
+      FRED_ECONOMIC_DATA: 3600, // 1 hour for economic data
+      MARKET_STRUCTURE: 300, // 5 minutes for market structure data
+    }
   },
 
   // AI Model Configuration
@@ -387,6 +410,8 @@ export function isValidSymbol(symbol: string): boolean {
  * Get environment-aware configuration
  */
 export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
+  const mode = (env.ENVIRONMENT || 'development').toLowerCase();
+
   return {
     ...CONFIG,
     TRADING: {
@@ -399,7 +424,7 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
     },
     LOGGING: {
       ...CONFIG.LOGGING,
-      LEVEL: env.LOG_LEVEL || 'info'
+      LEVEL: env.LOG_LEVEL || (mode === 'production' ? 'info' : 'debug')
     },
     AI_MODELS: {
       ...CONFIG.AI_MODELS,
@@ -416,9 +441,20 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
     },
     MARKET_DATA: {
       ...CONFIG.MARKET_DATA,
-      CACHE_TTL: parseInt(env.MARKET_DATA_CACHE_TTL) || CONFIG.MARKET_DATA.CACHE_TTL,
-      RATE_LIMIT_REQUESTS_PER_MINUTE: parseInt(env.YAHOO_FINANCE_RATE_LIMIT) || CONFIG.MARKET_DATA.RATE_LIMIT_REQUESTS_PER_MINUTE,
-      RATE_LIMIT_WINDOW_MS: parseInt(env.RATE_LIMIT_WINDOW) || CONFIG.MARKET_DATA.RATE_LIMIT_WINDOW_MS
+      FRED_API_KEY: env.FRED_API_KEY || env.FRED_API_KEYS?.split(',')[0]?.trim() || (mode === 'development' ? 'demo-key' : undefined),
+      FRED_RATE_LIMIT_DELAY_MS: parseInt(env.FRED_RATE_LIMIT_DELAY_MS) || CONFIG.MARKET_DATA.FRED_RATE_LIMIT_DELAY_MS,
+      FRED_MAX_RETRIES: parseInt(env.FRED_MAX_RETRIES) || CONFIG.MARKET_DATA.FRED_MAX_RETRIES,
+      FRED_CACHE_ENABLED: env.FRED_CACHE_ENABLED !== 'false',
+      YAHOO_FINANCE_RATE_LIMIT: parseInt(env.YAHOO_FINANCE_RATE_LIMIT) || CONFIG.MARKET_DATA.YAHOO_FINANCE_RATE_LIMIT,
+      VIX_SYMBOL: env.VIX_SYMBOL || CONFIG.MARKET_DATA.VIX_SYMBOL,
+      MARKET_DATA_SYMBOLS: env.MARKET_DATA_SYMBOLS ? env.MARKET_DATA_SYMBOLS.split(',').map(s => s.trim()) : CONFIG.MARKET_DATA.MARKET_DATA_SYMBOLS,
+      REFRESH_INTERVALS: {
+        MARKET_HOURS: parseInt(env.MARKET_REFRESH_MARKET_HOURS) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.MARKET_HOURS,
+        AFTER_HOURS: parseInt(env.MARKET_REFRESH_AFTER_HOURS) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.AFTER_HOURS,
+        WEEKEND: parseInt(env.MARKET_REFRESH_WEEKEND) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.WEEKEND,
+        FRED_ECONOMIC_DATA: parseInt(env.FRED_REFRESH_ECONOMIC_DATA) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.FRED_ECONOMIC_DATA,
+        MARKET_STRUCTURE: parseInt(env.MARKET_REFRESH_STRUCTURE) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.MARKET_STRUCTURE,
+      }
     },
     ANALYSIS: {
       ...CONFIG.ANALYSIS,
@@ -427,6 +463,81 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
     }
   };
 }
+
+/**
+ * API environment validation and key helpers
+ */
+export function validateAPIEnvironment(env: CloudflareEnvironment): void {
+  const mode = (env.ENVIRONMENT || 'development').toLowerCase();
+  if (mode === 'production') {
+    const missing: string[] = [];
+    if (!env.FRED_API_KEY && !env.FRED_API_KEYS) missing.push('FRED_API_KEY or FRED_API_KEYS');
+    if (missing.length) {
+      throw new Error(`Missing required API configuration for production: ${missing.join(', ')}`);
+    }
+  }
+}
+
+export function getFredApiKeys(env: CloudflareEnvironment): string[] {
+  const keys = env.FRED_API_KEYS || env.FRED_API_KEY || '';
+  return keys
+    .split(',')
+    .map(k => k.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Validate API key and check if real API integration is available
+ */
+export function isRealAPIAvailable(env: CloudflareEnvironment): boolean {
+  const config = getEnvConfig(env);
+  const mode = (env.ENVIRONMENT || 'development').toLowerCase();
+
+  // Check if FRED API key is configured and not a demo/mock key
+  const hasRealFREDKey = config.MARKET_DATA.FRED_API_KEY &&
+    !['demo-key', 'mock-key', 'test-key'].includes(config.MARKET_DATA.FRED_API_KEY);
+
+  // In production mode, require real API keys
+  if (mode === 'production') {
+    return hasRealFREDKey;
+  }
+
+  // In development mode, allow demo key but log warning
+  if (!hasRealFREDKey) {
+    console.warn('⚠️ Using demo/mock FRED API key. Set FRED_API_KEY environment variable for real data.');
+  }
+
+  return true; // Always available in dev mode
+}
+
+/**
+ * Get API configuration with proper validation
+ */
+export function getAPIConfiguration(env: CloudflareEnvironment) {
+  const config = getEnvConfig(env);
+  const isRealAPI = isRealAPIAvailable(env);
+
+  return {
+    fred: {
+      apiKey: config.MARKET_DATA.FRED_API_KEY,
+      baseUrl: config.MARKET_DATA.FRED_API_BASE_URL,
+      rateLimitDelay: config.MARKET_DATA.FRED_RATE_LIMIT_DELAY_MS,
+      maxRetries: config.MARKET_DATA.FRED_MAX_RETRIES,
+      cacheEnabled: config.MARKET_DATA.FRED_CACHE_ENABLED,
+      isRealData: isRealAPI && !['demo-key', 'mock-key', 'test-key'].includes(config.MARKET_DATA.FRED_API_KEY || '')
+    },
+    yahooFinance: {
+      baseUrl: config.MARKET_DATA.YAHOO_FINANCE_BASE_URL,
+      rateLimit: config.MARKET_DATA.YAHOO_FINANCE_RATE_LIMIT,
+      symbols: config.MARKET_DATA.MARKET_DATA_SYMBOLS,
+      vixSymbol: config.MARKET_DATA.VIX_SYMBOL
+    },
+    refreshIntervals: config.MARKET_DATA.REFRESH_INTERVALS,
+    isDevelopment: (env.ENVIRONMENT || 'development').toLowerCase() === 'development',
+    isProduction: (env.ENVIRONMENT || 'development').toLowerCase() === 'production'
+  };
+}
+
 
 /**
  * Get KV TTL by key type

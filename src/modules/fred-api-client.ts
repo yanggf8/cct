@@ -266,6 +266,13 @@ export class FredApiClient {
       const data = await response.json();
 
       if (data.error_code) {
+        // If key-related error, try rotation
+        const msg = `${data.error_message || ''}`.toLowerCase();
+        if ((msg.includes('api key') || msg.includes('invalid key')) && this.rotateApiKey() && retries < this.maxRetries) {
+          logger.warn('FRED API key error detected, rotating key and retrying');
+          await this.delay(this.rateLimitDelay);
+          return this.makeRequest(url, retries + 1);
+        }
         throw new Error(`FRED API Error ${data.error_code}: ${data.error_message}`);
       }
 
@@ -654,10 +661,11 @@ export function initializeFredApiClient(options: FredApiClientOptions): FredApiC
 
 /**
  * Mock FRED API Client for development/testing
+ * Only used when explicitly requested or when no API key is available
  */
 export class MockFredApiClient extends FredApiClient {
   constructor() {
-    super({ apiKey: 'mock-key' });
+    super({ apiKey: 'demo-key' });
   }
 
   async getMacroEconomicSnapshot(): Promise<MacroEconomicSnapshot> {

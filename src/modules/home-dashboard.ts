@@ -551,7 +551,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     🔬 Analytics
                 </div>
                 <ul class="nav-items" id="analytics-items" style="display: none;">
-                    <li><a href="#" class="nav-item">🔄 Sector Rotation</a></li>
+                    <li><a href="/sector-rotation" class="nav-item">🔄 Sector Rotation</a></li>
                     <li><a href="#" class="nav-item">🎯 Market Drivers</a></li>
                 </ul>
             </div>
@@ -1027,8 +1027,64 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             refreshTopMovers();
         });
 
-        // Sector Performance Widget Functions
-        function refreshSectorData() {
+        // Sector Performance Widget Functions - Live Data Integration
+        async function refreshSectorData() {
+            try {
+                // Add visual loading state
+                const widget = document.getElementById('sector-performance');
+                if (widget) {
+                    widget.style.opacity = '0.7';
+                }
+
+                // Fetch live sector data from API
+                const response = await window.cctApi.getSectorSnapshot();
+
+                if (response.success && response.data && response.data.sectors) {
+                    // Update the 4 main sectors displayed in the widget
+                    const displaySectors = ['XLK', 'XLF', 'XLV', 'XLE'];
+
+                    response.data.sectors.forEach(sector => {
+                        if (displaySectors.includes(sector.symbol)) {
+                            const changeElement = document.getElementById(sector.symbol.toLowerCase() + '-change');
+                            const valueElement = document.getElementById(sector.symbol.toLowerCase() + '-value');
+
+                            if (changeElement && valueElement) {
+                                const changePercent = sector.changePercent || 0;
+                                const price = sector.price || sector.baseValue || 0;
+
+                                changeElement.textContent = (changePercent >= 0 ? '+' : '') + changePercent.toFixed(2) + '%';
+                                changeElement.style.color = changePercent >= 0 ? '#00ff88' : '#ff4757';
+                                valueElement.textContent = '$' + price.toFixed(2);
+                            }
+                        }
+                    });
+
+                    // Update widget metadata if available
+                    const metadata = response.data.metadata;
+                    if (metadata && widget) {
+                        widget.setAttribute('data-cache-hit', metadata.cacheHit);
+                        widget.setAttribute('data-response-time', metadata.responseTime + 'ms');
+                    }
+                } else {
+                    // Fallback to mock data if API fails
+                    console.warn('Sector API unavailable, using fallback data');
+                    refreshSectorDataFallback();
+                }
+            } catch (error) {
+                console.error('Error fetching sector data:', error);
+                // Fallback to mock data
+                refreshSectorDataFallback();
+            } finally {
+                // Remove loading state
+                const widget = document.getElementById('sector-performance');
+                if (widget) {
+                    widget.style.opacity = '1';
+                }
+            }
+        }
+
+        // Fallback function for sector data (original mock implementation)
+        function refreshSectorDataFallback() {
             const sectors = [
                 { symbol: 'XLK', name: 'Technology', baseValue: 245.67 },
                 { symbol: 'XLF', name: 'Financials', baseValue: 41.23 },

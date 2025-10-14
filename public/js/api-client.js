@@ -439,6 +439,17 @@ class CCTApiClient {
   }
 
   /**
+   * Get enhanced market regime details
+   * @param {Object} options - Additional options
+   * @returns {Promise<EnhancedRegimeResponse>}
+   */
+  async getEnhancedMarketRegime(options = {}) {
+    return this.request('/market-drivers/regime/details', {
+      params: options
+    });
+  }
+
+  /**
    * Get geopolitical risk data
    * @param {Object} options - Additional options
    * @returns {Promise<GeopoliticalResponse>}
@@ -588,6 +599,238 @@ CCTApiClient.prototype.quickMarketCheck = async function(options = {}) {
     () => this.getMarketSentiment(),
     () => this.getSectorSnapshot()
   ]);
+};
+
+// ========================================
+// PREDICTIVE ANALYTICS ENDPOINTS
+// ========================================
+
+/**
+ * Get fine-grained sentiment analysis for symbols
+ * @param {string|string[]} symbols - Stock symbol(s)
+ * @param {Object} options - Additional options
+ * @returns {Promise<FineGrainedSentimentResponse>}
+ */
+CCTApiClient.prototype.getFineGrainedSentiment = async function(symbols, options = {}) {
+  const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
+
+  if (symbolsArray.length === 1) {
+    return this.request(`/sentiment/fine-grained/${symbolsArray[0]}`, { params: options });
+  } else {
+    return this.request('/sentiment/fine-grained/batch', {
+      method: 'POST',
+      body: { symbols: symbolsArray, ...options }
+    });
+  }
+};
+
+/**
+ * Get technical analysis for symbols
+ * @param {string|string[]} symbols - Stock symbol(s)
+ * @param {Object} options - Additional options
+ * @returns {Promise<TechnicalAnalysisResponse>}
+ */
+CCTApiClient.prototype.getTechnicalAnalysis = async function(symbols, options = {}) {
+  const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
+
+  if (symbolsArray.length === 1) {
+    return this.request(`/technical/symbols/${symbolsArray[0]}`, { params: options });
+  } else {
+    return this.request('/technical/analysis', {
+      method: 'POST',
+      body: { symbols: symbolsArray, ...options }
+    });
+  }
+};
+
+/**
+ * Get sector indicators for sector symbols
+ * @param {string|string[]} symbols - Sector symbol(s)
+ * @param {Object} options - Additional options
+ * @returns {Promise<SectorIndicatorsResponse>}
+ */
+CCTApiClient.prototype.getSectorIndicators = async function(symbols, options = {}) {
+  const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
+  const results = [];
+
+  for (const symbol of symbolsArray) {
+    const response = await this.request(`/sectors/indicators/${symbol}`, { params: options });
+    if (response.success) {
+      results.push(response.data);
+    }
+  }
+
+  return { success: true, data: results };
+};
+
+/**
+ * Get predictive signals and forecasts
+ * @param {Object} options - Additional options (symbols, timeRange, includeForecasts)
+ * @returns {Promise<PredictiveSignalsResponse>}
+ */
+CCTApiClient.prototype.getPredictiveSignals = async function(options = {}) {
+  return this.request('/predictive/signals', { params: options });
+};
+
+/**
+ * Get predictive patterns analysis
+ * @param {Object} options - Additional options
+ * @returns {Promise<PredictivePatternsResponse>}
+ */
+CCTApiClient.prototype.getPredictivePatterns = async function(options = {}) {
+  return this.request('/predictive/patterns', { params: options });
+};
+
+/**
+ * Get comprehensive predictive insights
+ * @param {Object} options - Additional options
+ * @returns {Promise<PredictiveInsightsResponse>}
+ */
+CCTApiClient.prototype.getPredictiveInsights = async function(options = {}) {
+  return this.request('/predictive/insights', { params: options });
+};
+
+/**
+ * Get market forecast
+ * @param {Object} options - Additional options (timeframe, includeRisk, includeRegime)
+ * @returns {Promise<MarketForecastResponse>}
+ */
+CCTApiClient.prototype.getMarketForecast = async function(options = {}) {
+  return this.request('/predictive/forecast', { params: options });
+};
+
+/**
+ * Get predictive analytics system health
+ * @param {Object} options - Additional options
+ * @returns {Promise<PredictiveHealthResponse>}
+ */
+CCTApiClient.prototype.getPredictiveHealth = async function(options = {}) {
+  return this.request('/predictive/health', { params: options });
+};
+
+// ========================================
+// REAL-TIME DATA ENDPOINTS
+// ========================================
+
+/**
+ * Get real-time data status
+ * @param {Object} options - Additional options
+ * @returns {Promise<RealtimeStatusResponse>}
+ */
+CCTApiClient.prototype.getRealtimeStatus = async function(options = {}) {
+  return this.request('/realtime/status', { params: options });
+};
+
+/**
+ * Trigger real-time data refresh
+ * @param {Object} options - Refresh options (priority, reason, symbols, incremental)
+ * @returns {Promise<RealtimeRefreshResponse>}
+ */
+CCTApiClient.prototype.refreshRealtimeData = async function(options = {}) {
+  return this.request('/realtime/refresh', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+ * Trigger pre-market cache warming
+ * @param {Object} options - Warmup options (symbols)
+ * @returns {Promise<RealtimeWarmupResponse>}
+ */
+CCTApiClient.prototype.warmupRealtimeCache = async function(options = {}) {
+  return this.request('/realtime/warmup', {
+    method: 'POST',
+    body: options
+  });
+};
+
+// ========================================
+// ADVANCED ANALYTICS ENDPOINTS
+// ========================================
+
+/**
+ * Compare multiple prediction models
+ * @param {Object} options - Comparison options (symbols, models, timeRange)
+ * @returns {Promise<ModelComparisonResponse>}
+ */
+CCTApiClient.prototype.getModelComparison = async function(options = {}) {
+  return this.request('/analytics/model-comparison', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+ * Get confidence intervals for predictions
+ * @param {Object} options - Options (symbols, confidenceLevel, timeRange, predictionType)
+ * @returns {Promise<ConfidenceIntervalsResponse>}
+ */
+CCTApiClient.prototype.getConfidenceIntervals = async function(options = {}) {
+  return this.request('/analytics/confidence-intervals', { params: options });
+};
+
+/**
+ * Generate ensemble predictions
+ * @param {Object} options - Ensemble options (symbols, models, ensembleMethod, timeRange)
+ * @returns {Promise<EnsemblePredictionResponse>}
+ */
+CCTApiClient.prototype.getEnsemblePrediction = async function(options = {}) {
+  return this.request('/analytics/ensemble-prediction', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+ * Get prediction accuracy metrics
+ * @param {Object} options - Options (timeRange, models, sectors)
+ * @returns {Promise<PredictionAccuracyResponse>}
+ */
+CCTApiClient.prototype.getPredictionAccuracy = async function(options = {}) {
+  return this.request('/analytics/prediction-accuracy', { params: options });
+};
+
+/**
+ * Get comprehensive risk assessment
+ * @param {Object} options - Risk assessment options (symbols, portfolio, timeHorizon, riskTolerance)
+ * @returns {Promise<RiskAssessmentResponse>}
+ */
+CCTApiClient.prototype.getRiskAssessment = async function(options = {}) {
+  return this.request('/analytics/risk-assessment', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+ * Get detailed model performance metrics
+ * @param {Object} options - Options (model, timeRange, metrics)
+ * @returns {Promise<ModelPerformanceResponse>}
+ */
+CCTApiClient.prototype.getModelPerformance = async function(options = {}) {
+  return this.request('/analytics/model-performance', { params: options });
+};
+
+/**
+ * Run backtesting analysis
+ * @param {Object} options - Backtest options (symbols, strategy, startDate, endDate, initialCapital)
+ * @returns {Promise<BacktestResponse>}
+ */
+CCTApiClient.prototype.runBacktest = async function(options = {}) {
+  return this.request('/analytics/backtest', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+ * Get advanced analytics system health
+ * @param {Object} options - Additional options
+ * @returns {Promise<AdvancedAnalyticsHealthResponse>}
+ */
+CCTApiClient.prototype.getAdvancedAnalyticsHealth = async function(options = {}) {
+  return this.request('/analytics/health', { params: options });
 };
 
 // Export for global use

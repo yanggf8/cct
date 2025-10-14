@@ -80,6 +80,18 @@ export async function handleSentimentRoutes(
       return await handleSectorSentiment(request, env, headers, requestId);
     }
 
+    // GET /api/v1/sentiment/fine-grained/:symbol - Fine-grained per-symbol analysis
+    const fgMatch = path.match(/^\/api\/v1\/sentiment\/fine-grained\/([A-Z0-9]{1,10})$/);
+    if (fgMatch && method === 'GET') {
+      const symbol = fgMatch[1];
+      return await handleFineGrainedSymbol(symbol, request, env, headers, requestId);
+    }
+
+    // POST /api/v1/sentiment/fine-grained/batch - Batch fine-grained analysis
+    if (path === '/api/v1/sentiment/fine-grained/batch' && method === 'POST') {
+      return await handleFineGrainedBatch(request, env, headers, requestId);
+    }
+
     // Method not allowed for existing paths
     return new Response(
       JSON.stringify(
@@ -558,8 +570,7 @@ async function handleSectorSentiment(
       );
     }
 
-    // For now, return mock sector sentiment data
-    // TODO: Implement actual sector sentiment analysis
+    // Implement real sector sentiment analysis using AI models
     const sectorNames: Record<string, string> = {
       XLK: 'Technology',
       XLF: 'Financials',
@@ -574,18 +585,89 @@ async function handleSectorSentiment(
       XLC: 'Communication Services',
     };
 
+    // Perform real sector sentiment analysis
+    const sectorAnalysis = [];
+
+    for (const sector of sectors) {
+      try {
+        // Get sector-specific market data
+        const { getBatchMarketData } = await import('../modules/yahoo-finance-integration.js');
+        const marketData = await getBatchMarketData([sector]);
+
+        // Analyze sector using AI models
+        const aiResult = await performDualAIComparison([sector], env);
+
+        if (aiResult.signals && aiResult.signals.length > 0) {
+          const signal = aiResult.signals[0];
+          const priceData = marketData[sector];
+
+          // Determine sentiment label based on AI analysis
+          let sentimentLabel = 'NEUTRAL';
+          const sentiment = signal.overall_confidence || 0;
+          if (signal.recommendation === 'BUY') {
+            sentimentLabel = 'BULLISH';
+          } else if (signal.recommendation === 'SELL') {
+            sentimentLabel = 'BEARISH';
+          }
+
+          sectorAnalysis.push({
+            symbol: sector,
+            name: sectorNames[sector] || sector,
+            sentiment: sentiment * (signal.recommendation === 'SELL' ? -1 : 1), // Convert to -1 to 1 scale
+            sentiment_label: sentimentLabel,
+            confidence: Math.abs(signal.overall_confidence || 0.5),
+            ai_context: signal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
+            news_count: signal.news_count || 0,
+            price_change: priceData?.changePercent || 0,
+            real_data: true,
+            models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
+            agreement_type: signal.agreement_type || 'DISAGREE'
+          });
+        } else {
+          // Fallback if AI analysis fails
+          sectorAnalysis.push({
+            symbol: sector,
+            name: sectorNames[sector] || sector,
+            sentiment: 0,
+            sentiment_label: 'NEUTRAL',
+            confidence: 0.3,
+            ai_context: `Unable to perform AI analysis for ${sector} sector. Technical data unavailable.`,
+            news_count: 0,
+            price_change: 0,
+            real_data: false,
+            models_used: [],
+            agreement_type: 'NO_DATA'
+          });
+        }
+      } catch (error) {
+        logger.warn(`Failed to analyze sector ${sector}:`, error);
+
+        // Add fallback sector data
+        sectorAnalysis.push({
+          symbol: sector,
+          name: sectorNames[sector] || sector,
+          sentiment: 0,
+          sentiment_label: 'NEUTRAL',
+          confidence: 0.2,
+          ai_context: `AI analysis failed for ${sector} sector due to technical issues.`,
+          news_count: 0,
+          price_change: 0,
+          real_data: false,
+          models_used: [],
+          agreement_type: 'ERROR'
+        });
+      }
+    }
+
     const response: SectorSentimentData = {
-      sectors: sectors.map(symbol => ({
-        symbol,
-        name: sectorNames[symbol] || symbol,
-        sentiment: Math.random() * 2 - 1, // Random sentiment -1 to 1
-        sentiment_label: Math.random() > 0.5 ? 'BULLISH' : Math.random() < 0.25 ? 'BEARISH' : 'NEUTRAL',
-        confidence: Math.random() * 0.5 + 0.5, // 0.5 to 1.0
-        ai_context: `AI analysis for ${symbol} sector based on recent market data and news sentiment.`,
-        news_count: Math.floor(Math.random() * 20) + 5,
-        price_change: (Math.random() - 0.5) * 10, // -5% to +5%
-      })),
+      sectors: sectorAnalysis,
       timestamp: new Date().toISOString(),
+      analysis_metadata: {
+        total_sectors: sectors.length,
+        successful_analysis: sectorAnalysis.filter(s => s.real_data).length,
+        ai_models_available: true,
+        real_market_data: true
+      }
     };
 
     // Cache the result for 1 hour

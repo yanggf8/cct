@@ -6,7 +6,9 @@
 import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
 import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
 import { generateWeeklyReviewAnalysis } from './report/weekly-review-analysis.js';
+import { performSectorRotationAnalysis } from './sector-rotation-workflow.js';
 import { KVUtils } from './shared-utilities.js';
+import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // Facebook imports removed - migrated to Chrome web notifications
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
@@ -97,6 +99,10 @@ export async function handleScheduledEvent(
     // 0 14 * * SUN = 2:00 PM UTC = 10:00 AM EST/9:00 AM EDT Sunday - Weekly Review
     triggerMode = 'weekly_review_analysis';
     predictionHorizons = []; // No predictions, just pattern analysis
+  } else if (utcHour === 13 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
+    // 30 13 * * 1-5 = 1:30 PM UTC = 9:30 AM EST/8:30 AM EDT - Sector Rotation Refresh
+    triggerMode = 'sector_rotation_refresh';
+    predictionHorizons = []; // No predictions, just sector data refresh
   } else {
     console.log(`⚠️ [CRON] Unrecognized schedule: UTC ${utcHour}:${utcMinute} (Day ${utcDay}) | EST/EDT ${estHour}:${estMinute} (Day ${estDay})`);
     return new Response('Unrecognized cron schedule', { status: 400 });
@@ -112,6 +118,25 @@ export async function handleScheduledEvent(
   try {
     let analysisResult: AnalysisResult | null = null;
 
+    // Real-time Data Manager integration for live data freshness and cache warming
+    try {
+      const rtdm = initializeRealTimeDataManager(env);
+      if (triggerMode === 'morning_prediction_alerts') {
+        await rtdm.warmCachesForMarketOpen(undefined, ctx);
+        await rtdm.refreshAll({ priority: 'high', reason: 'pre_market' }, ctx);
+      } else if (triggerMode === 'midday_validation_prediction') {
+        await rtdm.refreshIncremental(ctx);
+      } else if (triggerMode === 'next_day_market_prediction') {
+        await rtdm.refreshAll({ priority: 'normal', reason: 'end_of_day', incremental: true }, ctx);
+      } else if (triggerMode === 'weekly_review_analysis') {
+        await rtdm.refreshAll({ priority: 'low', reason: 'weekly' }, ctx);
+      } else if (triggerMode === 'sector_rotation_refresh') {
+        await rtdm.refreshAll({ priority: 'normal', reason: 'intraday', incremental: true }, ctx);
+      }
+    } catch (rtdmError: any) {
+      console.warn('Real-time Data Manager update failed (continuing with scheduled task):', rtdmError?.message || rtdmError);
+    }
+
     if (triggerMode === 'weekly_review_analysis') {
       // Sunday 10:00 AM - Weekly Review Analysis
       console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly review analysis`);
@@ -125,6 +150,38 @@ export async function handleScheduledEvent(
 
       console.log(`✅ [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly review analysis completed`);
       return new Response('Weekly review analysis completed successfully', { status: 200 });
+
+    } else if (triggerMode === 'sector_rotation_refresh') {
+      // 9:30 AM EST - Sector Rotation Data Refresh
+      console.log(`🔄 [CRON-SECTORS] ${cronExecutionId} Refreshing sector rotation data`);
+
+      try {
+        // Perform sector rotation analysis
+        const sectorResult = await performSectorRotationAnalysis(env, {
+          triggerMode,
+          currentTime: estTime,
+          cronExecutionId
+        });
+
+        if (sectorResult) {
+          console.log(`✅ [CRON-SECTORS] ${cronExecutionId} Sector rotation data refreshed successfully`, {
+            sectors_analyzed: sectorResult.sectors?.length || 0,
+            top_performer: sectorResult.summary?.topPerformer,
+            worst_performer: sectorResult.summary?.worstPerformer
+          });
+        } else {
+          console.log(`⚠️ [CRON-SECTORS] ${cronExecutionId} Sector rotation analysis returned null`);
+        }
+      } catch (sectorError: any) {
+        console.error(`❌ [CRON-SECTORS] ${cronExecutionId} Sector rotation refresh failed:`, {
+          error: sectorError.message,
+          stack: sectorError.stack
+        });
+        // Continue execution - sector refresh failure is not critical
+      }
+
+      console.log(`✅ [CRON-COMPLETE-SECTORS] ${cronExecutionId} Sector rotation refresh completed`);
+      return new Response('Sector rotation refresh completed successfully', { status: 200 });
 
     } else {
       // Enhanced pre-market analysis with sentiment

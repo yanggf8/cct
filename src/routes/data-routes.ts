@@ -163,16 +163,45 @@ async function handleAvailableSymbols(
       'AMZN', 'META', 'BRK.B', 'JPM', 'JNJ'
     ];
 
-    // Enhanced symbol data with mock information
-    const symbolsData = defaultSymbols.map(symbol => ({
-      symbol,
-      name: getSymbolName(symbol),
-      sector: getSymbolSector(symbol),
-      market_cap: Math.floor(Math.random() * 2000000000000) + 100000000000, // Random market cap
-      price: Math.random() * 500 + 50, // Random price
-      exchange: 'NASDAQ',
-      currency: 'USD',
-    }));
+    // Fetch real market data for symbols
+    let symbolsData = [];
+
+    try {
+      // Import Yahoo Finance integration for real data
+      const { getBatchMarketData } = await import('../modules/yahoo-finance-integration.js');
+
+      // Fetch real market data
+      const marketData = await getBatchMarketData(defaultSymbols);
+
+      symbolsData = defaultSymbols.map(symbol => {
+        const data = marketData[symbol];
+        return {
+          symbol,
+          name: getSymbolName(symbol),
+          sector: getSymbolSector(symbol),
+          market_cap: data?.marketCap || null,
+          price: data?.price || null,
+          exchange: data?.exchange || 'NASDAQ',
+          currency: data?.currency || 'USD',
+          last_updated: data?.lastUpdated || new Date().toISOString(),
+          real_data: !!data
+        };
+      });
+    } catch (error) {
+      logger.warn('Failed to fetch real market data, using fallback', { error, requestId });
+
+      // Fallback to enhanced symbol data with realistic mock information
+      symbolsData = defaultSymbols.map(symbol => ({
+        symbol,
+        name: getSymbolName(symbol),
+        sector: getSymbolSector(symbol),
+        market_cap: null, // Explicitly null to indicate no real data
+        price: null,     // Explicitly null to indicate no real data
+        exchange: 'NASDAQ',
+        currency: 'USD',
+        real_data: false
+      }));
+    }
 
     const response: SymbolsResponse = {
       symbols: symbolsData,
@@ -283,31 +312,70 @@ async function handleSymbolHistory(
       );
     }
 
-    // Generate mock historical data
-    const historicalData = [];
-    let currentPrice = Math.random() * 500 + 100;
+    // Try to fetch real historical data
+    let historicalData = [];
 
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      // Skip weekends
-      if (d.getDay() === 0 || d.getDay() === 6) continue;
+    try {
+      // Import Yahoo Finance integration for real historical data
+      const { getHistoricalData } = await import('../modules/yahoo-finance-integration.js');
 
-      const priceChange = (Math.random() - 0.5) * currentPrice * 0.05; // ±5% daily change
-      currentPrice = Math.max(currentPrice + priceChange, 10); // Minimum price of $10
+      // Fetch real historical data
+      const realData = await getHistoricalData(symbol, days);
 
-      const high = currentPrice * (1 + Math.random() * 0.03);
-      const low = currentPrice * (1 - Math.random() * 0.03);
-      const volume = Math.floor(Math.random() * 10000000) + 1000000;
+      if (realData && realData.length > 0) {
+        historicalData = realData.map(d => ({
+          date: d.date,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+          volume: d.volume,
+          adjusted_close: d.adjClose || d.close,
+        }));
 
-      historicalData.push({
-        date: d.toISOString().split('T')[0],
-        open: currentPrice,
-        high: high,
-        low: low,
-        close: currentPrice,
-        volume: volume,
-        adjusted_close: currentPrice,
+        logger.info('SymbolHistory', 'Real historical data fetched', {
+          symbol,
+          dataPoints: historicalData.length,
+          requestId
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to fetch real historical data, using simulation', {
+        symbol,
+        error: error.message,
+        requestId
       });
     }
+
+    // If no real data available, generate realistic simulation
+    if (historicalData.length === 0) {
+      let currentPrice = Math.random() * 500 + 100;
+
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        // Skip weekends
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+
+        const priceChange = (Math.random() - 0.5) * currentPrice * 0.05; // ±5% daily change
+        currentPrice = Math.max(currentPrice + priceChange, 10); // Minimum price of $10
+
+        const high = currentPrice * (1 + Math.random() * 0.03);
+        const low = currentPrice * (1 - Math.random() * 0.03);
+        const volume = Math.floor(Math.random() * 10000000) + 1000000;
+
+        historicalData.push({
+          date: d.toISOString().split('T')[0],
+          open: currentPrice,
+          high: high,
+          low: low,
+          close: currentPrice,
+          volume: volume,
+          adjusted_close: currentPrice,
+        });
+      }
+    }
+
+    const currentPrice = historicalData[historicalData.length - 1]?.close || 0;
+    const hasRealData = historicalData.length > 0 && historicalData.some(d => d.volume > 10000000); // Heuristic for real data
 
     const response = {
       symbol,
@@ -318,11 +386,18 @@ async function handleSymbolHistory(
       data: historicalData,
       summary: {
         current_price: currentPrice,
-        period_change: ((currentPrice - historicalData[0]?.close) / historicalData[0]?.close * 100).toFixed(2),
-        period_high: Math.max(...historicalData.map(d => d.high)),
-        period_low: Math.min(...historicalData.map(d => d.low)),
-        average_volume: Math.floor(historicalData.reduce((sum, d) => sum + d.volume, 0) / historicalData.length),
+        period_change: historicalData.length > 1 ?
+          ((currentPrice - historicalData[0]?.close) / historicalData[0]?.close * 100).toFixed(2) : '0.00',
+        period_high: historicalData.length > 0 ? Math.max(...historicalData.map(d => d.high)) : 0,
+        period_low: historicalData.length > 0 ? Math.min(...historicalData.map(d => d.low)) : 0,
+        average_volume: historicalData.length > 0 ?
+          Math.floor(historicalData.reduce((sum, d) => sum + d.volume, 0) / historicalData.length) : 0,
       },
+      metadata: {
+        data_source: hasRealData ? 'yahoo_finance' : 'simulation',
+        real_data: hasRealData,
+        last_updated: new Date().toISOString(),
+      }
     };
 
     // Cache for 30 minutes
@@ -651,25 +726,51 @@ async function checkDistilBERTModelHealth(env: CloudflareEnvironment): Promise<{
   }
 }
 
-async function checkYahooFinanceHealth(env: CloudflareEnvironment): Promise<{ status: string }> {
+async function checkYahooFinanceHealth(env: CloudflareEnvironment): Promise<{ status: string; details?: any }> {
   try {
-    // Simple KV operation test to verify system connectivity
-    const testKey = KVKeyFactory.generateTestKey('yahoo_finance_health');
-    const testData = { timestamp: Date.now(), test: 'yahoo_finance' };
+    // Test real Yahoo Finance API connectivity
+    const { healthCheck } = await import('../modules/yahoo-finance-integration.js');
+    const health = await healthCheck();
 
-    // This would typically test actual Yahoo Finance API, but we'll test system health instead
-    return { status: 'healthy' };
-  } catch {
-    return { status: 'unhealthy' };
+    return {
+      status: health.status === 'healthy' ? 'healthy' : 'unhealthy',
+      details: health
+    };
+  } catch (error) {
+    return { status: 'unhealthy', details: { error: error.message } };
   }
 }
 
-async function checkNewsAPIHealth(env: CloudflareEnvironment): Promise<{ status: string }> {
+async function checkNewsAPIHealth(env: CloudflareEnvironment): Promise<{ status: string; details?: any }> {
   try {
-    // Similar to Yahoo Finance, test system capability
-    return { status: 'healthy' };
-  } catch {
-    return { status: 'unhealthy' };
+    // Test news API connectivity (could be expanded to real news API)
+    // For now, test that the system can handle news processing
+    const testKey = KVKeyFactory.generateTestKey('news_api_health');
+    const testData = {
+      timestamp: Date.now(),
+      test: 'news_api',
+      headlines: [
+        { title: 'Test Headline 1', sentiment: 'neutral' },
+        { title: 'Test Headline 2', sentiment: 'positive' }
+      ]
+    };
+
+    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData), { expirationTtl: 60 });
+    const retrieved = await env.TRADING_RESULTS.get(testKey);
+    await env.TRADING_RESULTS.delete(testKey);
+
+    const retrievedData = retrieved ? JSON.parse(retrieved) : null;
+    const isHealthy = retrievedData && retrievedData.headlines.length === 2;
+
+    return {
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      details: {
+        test_passed: isHealthy,
+        headlines_processed: retrievedData?.headlines.length || 0
+      }
+    };
+  } catch (error) {
+    return { status: 'unhealthy', details: { error: error.message } };
   }
 }
 

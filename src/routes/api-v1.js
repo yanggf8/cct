@@ -9,9 +9,13 @@ import { handleSentimentRoutes } from './sentiment-routes.ts';
 import { handleReportRoutes } from './report-routes.ts';
 import { handleDataRoutes } from './data-routes.ts';
 import { handleSectorRotationRoutes } from './sector-rotation-routes.ts';
+import { sectorRoutes } from './sector-routes.ts';
 import { handleMarketDriversRoutes } from './market-drivers-routes.js';
 import { handleMarketIntelligenceRoutes } from './market-intelligence-routes.js';
 import { handlePredictiveAnalyticsRoutes } from './predictive-analytics-routes.js';
+import { handleTechnicalRoutes } from './technical-routes.ts';
+import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.ts';
+import { getSectorIndicatorsSymbol } from './sector-routes.ts';
 
 /**
  * Main v1 API Router
@@ -38,6 +42,24 @@ export async function handleApiV1Request(request, env, ctx) {
     } else if (path.startsWith('/api/v1/sector-rotation/')) {
       // Route to sector rotation API
       return await handleSectorRotationRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/sectors/')) {
+      // Route to sectors API v1 endpoints
+      const sectorsPath = path.replace('/api/v1', '');
+      if (sectorsPath === '/sectors/snapshot' && sectorRoutes['/api/v1/sectors/snapshot']) {
+        return await sectorRoutes['/api/v1/sectors/snapshot'](request, env);
+      } else if (sectorsPath === '/sectors/health' && sectorRoutes['/api/v1/sectors/health']) {
+        return await sectorRoutes['/api/v1/sectors/health'](request, env);
+      } else if (sectorsPath === '/sectors/symbols' && sectorRoutes['/api/v1/sectors/symbols']) {
+        return await sectorRoutes['/api/v1/sectors/symbols'](request, env);
+      } else {
+        // Dynamic path: /api/v1/sectors/indicators/:symbol
+        const indMatch = path.match(/^\/api\/v1\/sectors\/indicators\/([A-Z0-9]{1,10})$/);
+        if (indMatch && getSectorIndicatorsSymbol) {
+          return await getSectorIndicatorsSymbol(request, env, indMatch[1]);
+        }
+        const body = ApiResponseFactory.error('Sectors endpoint not found', 'NOT_FOUND', { requested_path: path });
+        return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
+      }
     } else if (path.startsWith('/api/v1/market-drivers/')) {
       // Route to market drivers API
       return await handleMarketDriversRoutes(request, env, path, headers);
@@ -47,6 +69,10 @@ export async function handleApiV1Request(request, env, ctx) {
     } else if (path.startsWith('/api/v1/predictive/')) {
       // Route to predictive analytics API
       return await handlePredictiveAnalyticsRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/technical/')) {
+      return await handleTechnicalRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/analytics/')) {
+      return await handleAdvancedAnalyticsRoutes(request, env, path, headers);
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -79,6 +105,11 @@ export async function handleApiV1Request(request, env, ctx) {
               sectors: 'GET /api/v1/sector-rotation/sectors',
               etf: 'GET /api/v1/sector-rotation/etf/:symbol',
             },
+            sectors: {
+              snapshot: 'GET /api/v1/sectors/snapshot',
+              health: 'GET /api/v1/sectors/health',
+              symbols: 'GET /api/v1/sectors/symbols',
+            },
             market_drivers: {
               snapshot: 'GET /api/v1/market-drivers/snapshot',
               enhanced_snapshot: 'GET /api/v1/market-drivers/snapshot/enhanced',
@@ -102,6 +133,20 @@ export async function handleApiV1Request(request, env, ctx) {
               insights: 'GET /api/v1/predictive/insights',
               forecast: 'GET /api/v1/predictive/forecast',
               health: 'GET /api/v1/predictive/health',
+            },
+            advanced_analytics: {
+              model_comparison: 'POST /api/v1/analytics/model-comparison',
+              confidence_intervals: 'GET /api/v1/analytics/confidence-intervals',
+              ensemble_prediction: 'POST /api/v1/analytics/ensemble-prediction',
+              prediction_accuracy: 'GET /api/v1/analytics/prediction-accuracy',
+              risk_assessment: 'POST /api/v1/analytics/risk-assessment',
+              model_performance: 'GET /api/v1/analytics/model-performance',
+              backtest: 'POST /api/v1/analytics/backtest',
+              health: 'GET /api/v1/analytics/health',
+            },
+            technical_analysis: {
+              symbols: 'GET /api/v1/technical/symbols/:symbol',
+              analysis: 'POST /api/v1/technical/analysis',
             },
           },
           documentation: 'https://github.com/yanggf8/cct',

@@ -17,17 +17,51 @@ const logger = createLogger('health-handlers');
  * Handle basic health check requests
  */
 export const handleHealthCheck = createHealthHandler('system-health', async (env, ctx) => {
-  const healthResponse = await createHealthResponse(env);
+  // Build comprehensive data source health
+  const services = {};
+  try {
+    // FRED health via macro-economic fetcher
+    const { initializeMacroEconomicFetcher } = await import('../macro-economic-fetcher.js');
+    const macroFetcher = initializeMacroEconomicFetcher({ fredApiKey: env.FRED_API_KEY || env.FRED_API_KEYS, useMockData: !(env.FRED_API_KEY || env.FRED_API_KEYS) });
+    const fredHealth = await macroFetcher.healthCheck();
+    services.fred = fredHealth.status;
+
+    // Yahoo Finance health
+    const yahoo = await import('../yahoo-finance-integration.js');
+    const yahooHealth = await yahoo.healthCheck();
+    services.yahoo = yahooHealth.status;
+
+    // KV health
+    const dal = createDAL(env);
+    const testKey = `health_check_${Date.now()}`;
+    const writeResult = await dal.write(testKey, 'ok', { expirationTtl: 60 });
+    const readResult = await dal.read(testKey);
+    await dal.deleteKey(testKey);
+    services.kv = writeResult.success && readResult.success ? 'healthy' : 'unhealthy';
+  } catch (e) {
+    services.error = e.message;
+  }
+
+  const healthData = {
+    services,
+    environment: env.ENVIRONMENT || 'development',
+    configured: {
+      fred_api_key: !!(env.FRED_API_KEY || env.FRED_API_KEYS),
+      worker_api_key: !!env.WORKER_API_KEY
+    }
+  };
+
+  const response = createHealthResponse(healthData);
 
   // Track health check metrics
   BusinessMetrics.apiRequest('/health', 'GET', 200, Date.now() - ctx.startTime);
 
   logHealthCheck('basic-health', 'healthy', {
     requestId: ctx.requestId,
-    components: healthResponse
+    components: healthData
   });
 
-  return healthResponse;
+  return response;
 });
 
 /**

@@ -15,7 +15,8 @@
  */
 
 import { createLogger } from './logging.js';
-import { rateLimitedFetch } from './rate-limiter.js';
+import { rateLimitedFetch, configureYahooRateLimiter } from './rate-limiter.js';
+import { getMarketDataConfig } from './config.js';
 
 const logger = createLogger('yahoo-finance-integration');
 
@@ -47,6 +48,10 @@ export interface MarketData {
  */
 export async function getMarketData(symbol: string): Promise<MarketData | null> {
   try {
+    // Ensure rate limiter reflects current config each call
+    const cfg = getMarketDataConfig();
+    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+
     logger.debug(`Fetching market data for ${symbol}`);
 
     const url = `${YAHOO_FINANCE_API_URL}/${symbol}?interval=1d&range=1d`;
@@ -171,6 +176,10 @@ export async function getMarketStructureIndicators(): Promise<{
   ];
 
   try {
+    // Configure rate limiter dynamically from config
+    const cfg = getMarketDataConfig();
+    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+
     const batchData = await getBatchMarketData(symbols);
 
     return {

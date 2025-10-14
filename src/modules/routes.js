@@ -5,6 +5,7 @@
 
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
 import { handleHomeDashboardPage } from './home-dashboard.js';
+import { handleSectorRotationDashboardPage } from './sector-rotation-dashboard.js';
 import { createRequestLogger, initLogging } from './logging.js';
 import { PerformanceMonitor, BusinessMetrics } from './monitoring.js';
 
@@ -246,6 +247,8 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyAnalysisPage(request, env);
     case '/api/weekly-data':
       return handleWeeklyDataAPI(request, env);
+    case '/sector-rotation':
+      return handleSectorRotationDashboardPage(request, env);
     case '/daily-summary':
       response = await handleDailySummaryPageRequest(request, env);
       break;

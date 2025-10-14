@@ -68,6 +68,14 @@ class RateLimiter {
 const yahooFinanceRateLimiter = new RateLimiter(20, 60000); // 20 requests per minute
 const fallbackApiRateLimiter = new RateLimiter(10, 60000); // 10 requests per minute for fallback
 
+export function configureYahooRateLimiter(maxRequests, windowMs) {
+  if (typeof maxRequests === 'number' && maxRequests > 0) {
+    yahooFinanceRateLimiter.maxRequests = maxRequests;
+  }
+  if (typeof windowMs === 'number' && windowMs > 0) {
+    yahooFinanceRateLimiter.windowMs = windowMs;
+  }
+}
 /**
  * Rate-limited fetch for Yahoo Finance API
  */
