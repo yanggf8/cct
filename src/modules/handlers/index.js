@@ -45,7 +45,7 @@ export {
   handleDebugEnvironment
 } from './health-handlers.js';
 
-// Weekly report handlers (non-Facebook)
+// Weekly review handlers
 export {
   handleWeeklyReview
 } from './weekly-review-handlers.js';

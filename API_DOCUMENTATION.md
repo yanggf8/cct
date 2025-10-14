@@ -2,11 +2,12 @@
 
 ## 🎯 Overview
 
-**A+ (99/100) Enterprise Production System**: Complete API reference for the optimized enterprise trading system featuring enhanced security, intelligent rate limiting, memory-safe operations, and race-condition prevention.
+**A+ (99/100) Enterprise Production System**: Complete API reference for the optimized enterprise trading system featuring enhanced security, intelligent rate limiting, memory-safe operations, race-condition prevention, and **NEW Sector Rotation Analysis System**.
 
 **Current Version**: `e650aa19-c631-474e-8da8-b3144d373ae5`
 **Live System**: https://tft-trading-system.yanggf.workers.dev ✅ **FULLY OPERATIONAL**
 **System Grade**: A+ (99/100) Production Ready ✅ **COMPREHENSIVE TESTING COMPLETE**
+**🆕 NEW**: Sector Rotation System fully deployed with 11 sector ETFs analysis
 
 ## 🧪 Performance Verification (2025-10-01)
 
@@ -34,6 +35,62 @@ https://tft-trading-system.yanggf.workers.dev
 ```
 
 ## 📊 API Endpoints
+
+### **🔄 Sector Rotation System (🆕 NEW!)**
+
+#### **Sector Health & Testing**
+```bash
+GET /api/sectors/health
+GET /api/sectors/test
+GET /api/sectors/config
+```
+
+#### **Real-Time Market Data**
+```bash
+GET /api/sectors/snapshot    # Real-time sector data (11 sectors + SPY)
+GET /api/sectors/analysis     # Complete rotation analysis with quadrants
+```
+
+#### **Performance Metrics**
+- **Sector Snapshot**: ~18s (12 API calls with rate limiting)
+- **Sector Analysis**: ~18s (same data, additional calculations)
+- **System Test**: ~5s (1 symbol only)
+- **Health Check**: ~2s (cached status)
+
+#### **Sample Sector Snapshot Response**
+```json
+{
+  "success": true,
+  "data": {
+    "timestamp": "2025-01-14T02:12:37.359Z",
+    "sectors": [
+      {
+        "symbol": "XLK",
+        "name": "Technology",
+        "price": 285.17,
+        "change": 6.78,
+        "changePercent": 2.44,
+        "volume": 11014300,
+        "quadrant": "Leading Strength",
+        "relativeStrength": 104.87,
+        "momentum": 2.44
+      }
+      ],
+    "spy": {
+        "symbol": "SPY",
+        "name": "S&P 500",
+        "price": 663.04,
+        "change": 10.02,
+        "changePercent": 1.53
+      },
+    "metadata": {
+      "fetchedAt": "2025-01-14T02:12:37.359Z",
+      "apiCalls": 12,
+      "fetchTimeMs": 16604
+    }
+  }
+}
+```
 
 ### **🔍 Analysis Endpoints**
 

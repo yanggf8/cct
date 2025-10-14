@@ -175,7 +175,11 @@
       "Bash(./deploy-enhanced-system.sh:*)",
       "Bash(./test-enhanced-system.sh:*)",
       "mcp__cortex__semantic_search",
-      "mcp__cortex__real_time_status"
+      "mcp__cortex__real_time_status",
+      "Bash(./test-sector-simple.sh:*)",
+      "Bash(./test-backend-build.sh:*)",
+      "Bash(./test-backend-working.sh:*)",
+      "Bash(./quick-backend-test.sh:*)"
     ],
     "deny": [],
     "ask": []
