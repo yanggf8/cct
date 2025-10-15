@@ -19,7 +19,7 @@ import {
   extractSymbolsParam,
   generateRequestId
 } from './api-v1.js';
-import { performDualAIComparison } from '../modules/dual-ai-analysis.ts';
+import { batchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -80,17 +80,18 @@ export async function handleSentimentRoutes(
       return await handleSectorSentiment(request, env, headers, requestId);
     }
 
-    // GET /api/v1/sentiment/fine-grained/:symbol - Fine-grained per-symbol analysis
-    const fgMatch = path.match(/^\/api\/v1\/sentiment\/fine-grained\/([A-Z0-9]{1,10})$/);
-    if (fgMatch && method === 'GET') {
-      const symbol = fgMatch[1];
-      return await handleFineGrainedSymbol(symbol, request, env, headers, requestId);
-    }
+    // Note: Fine-grained endpoints temporarily removed - not yet implemented
+    // // GET /api/v1/sentiment/fine-grained/:symbol - Fine-grained per-symbol analysis
+    // const fgMatch = path.match(/^\/api\/v1\/sentiment\/fine-grained\/([A-Z0-9]{1,10})$/);
+    // if (fgMatch && method === 'GET') {
+    //   const symbol = fgMatch[1];
+    //   return await handleFineGrainedSymbol(symbol, request, env, headers, requestId);
+    // }
 
-    // POST /api/v1/sentiment/fine-grained/batch - Batch fine-grained analysis
-    if (path === '/api/v1/sentiment/fine-grained/batch' && method === 'POST') {
-      return await handleFineGrainedBatch(request, env, headers, requestId);
-    }
+    // // POST /api/v1/sentiment/fine-grained/batch - Batch fine-grained analysis
+    // if (path === '/api/v1/sentiment/fine-grained/batch' && method === 'POST') {
+    //   return await handleFineGrainedBatch(request, env, headers, requestId);
+    // }
 
     // Method not allowed for existing paths
     return new Response(
@@ -107,7 +108,12 @@ export async function handleSentimentRoutes(
       }
     );
   } catch (error) {
-    logger.error('SentimentRoutes Error', error, { requestId, path, method });
+    logger.error('SentimentRoutes Error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      requestId,
+      path,
+      method
+    });
 
     return new Response(
       JSON.stringify(
@@ -180,20 +186,20 @@ async function handleSentimentAnalysis(
     // Perform fresh analysis
     logger.info('SentimentAnalysis', 'Starting analysis', { symbols: symbols.join(','), requestId });
 
-    const analysisResult = await performDualAIComparison(symbols, env);
+    const analysisResult = await batchDualAIAnalysis(symbols, env);
 
-    // Transform to v1 response format
+    // Transform BatchDualAIAnalysisResult to v1 response format
     const response: SentimentAnalysisResponse = {
       symbols,
       analysis: {
         timestamp: new Date().toISOString(),
         market_sentiment: {
-          overall_sentiment: analysisResult.overall_sentiment || 0,
-          sentiment_label: analysisResult.overall_sentiment_label || 'NEUTRAL',
-          confidence: analysisResult.overall_confidence || 0.5,
+          overall_sentiment: calculateOverallSentiment(analysisResult.results),
+          sentiment_label: getSentimentLabel(calculateOverallSentiment(analysisResult.results)),
+          confidence: calculateOverallConfidence(analysisResult.results),
         },
-        signals: analysisResult.signals || [],
-        overall_confidence: analysisResult.overall_confidence || 0.5,
+        signals: transformBatchResultsToSignals(analysisResult.results),
+        overall_confidence: calculateOverallConfidence(analysisResult.results),
       },
       metadata: {
         analysis_time_ms: timer.getElapsedMs(),
@@ -223,7 +229,10 @@ async function handleSentimentAnalysis(
       { status: HttpStatus.OK, headers }
     );
   } catch (error) {
-    logger.error('SentimentAnalysis Error', error, { requestId });
+    logger.error('SentimentAnalysis Error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId
+      });
 
     return new Response(
       JSON.stringify(
@@ -299,9 +308,9 @@ async function handleSymbolSentiment(
     // Perform fresh analysis for single symbol
     logger.info('SymbolSentiment', 'Starting analysis', { symbol, requestId });
 
-    const analysisResult = await performDualAIComparison([symbol], env);
+    const analysisResult = await batchDualAIAnalysis([symbol], env);
 
-    if (!analysisResult.signals || analysisResult.signals.length === 0) {
+    if (!analysisResult.results || analysisResult.results.length === 0 || analysisResult.results[0].error) {
       return new Response(
         JSON.stringify(
           ApiResponseFactory.error(
@@ -317,37 +326,38 @@ async function handleSymbolSentiment(
       );
     }
 
-    const signalData = analysisResult.signals[0];
+    const singleResult = analysisResult.results[0];
+    const transformedSignal = transformBatchResultsToSignals([singleResult])[0];
 
     // Transform to v1 response format
     const response: SymbolSentimentResponse = {
       symbol,
       analysis: {
         gpt_analysis: {
-          sentiment: signalData.gpt_sentiment || 'neutral',
-          confidence: signalData.gpt_confidence || 0.5,
-          reasoning: signalData.gpt_reasoning || '',
+          sentiment: transformedSignal.gpt_sentiment || 'neutral',
+          confidence: transformedSignal.gpt_confidence || 0.5,
+          reasoning: transformedSignal.gpt_reasoning || '',
           model: 'GPT-OSS-120B',
         },
         distilbert_analysis: {
-          sentiment: signalData.distilbert_sentiment || 'neutral',
-          confidence: signalData.distilbert_confidence || 0.5,
+          sentiment: transformedSignal.distilbert_sentiment || 'neutral',
+          confidence: transformedSignal.distilbert_confidence || 0.5,
           sentiment_breakdown: {
-            positive: signalData.distilbert_positive || 0,
-            negative: signalData.distilbert_negative || 0,
-            neutral: signalData.distilbert_neutral || 0,
+            positive: transformedSignal.distilbert_positive || 0,
+            negative: transformedSignal.distilbert_negative || 0,
+            neutral: transformedSignal.distilbert_neutral || 0,
           },
           model: 'DistilBERT-SST-2',
         },
         agreement: {
-          type: signalData.agreement_type || 'DISAGREE',
-          confidence: signalData.overall_confidence || 0.5,
-          recommendation: signalData.recommendation || 'HOLD',
+          type: transformedSignal.agreement_type || 'DISAGREE',
+          confidence: transformedSignal.overall_confidence || 0.5,
+          recommendation: transformedSignal.recommendation || 'HOLD',
         },
       },
       news: {
-        articles_analyzed: signalData.news_count || 0,
-        top_articles: signalData.top_articles || [],
+        articles_analyzed: transformedSignal.news_count || 0,
+        top_articles: transformedSignal.top_articles || [],
       },
     };
 
@@ -372,7 +382,11 @@ async function handleSymbolSentiment(
       { status: HttpStatus.OK, headers }
     );
   } catch (error) {
-    logger.error('SymbolSentiment Error', error, { requestId, symbol });
+    logger.error('SymbolSentiment Error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId,
+        symbol
+      });
 
     return new Response(
       JSON.stringify(
@@ -490,7 +504,10 @@ async function handleMarketSentiment(
       { status: HttpStatus.OK, headers }
     );
   } catch (error) {
-    logger.error('MarketSentiment Error', error, { requestId });
+    logger.error('MarketSentiment Error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId
+      });
 
     return new Response(
       JSON.stringify(
@@ -595,33 +612,34 @@ async function handleSectorSentiment(
         const marketData = await getBatchMarketData([sector]);
 
         // Analyze sector using AI models
-        const aiResult = await performDualAIComparison([sector], env);
+        const aiResult = await batchDualAIAnalysis([sector], env);
 
-        if (aiResult.signals && aiResult.signals.length > 0) {
-          const signal = aiResult.signals[0];
+        if (aiResult.results && aiResult.results.length > 0 && !aiResult.results[0].error) {
+          const result = aiResult.results[0];
+          const transformedSignal = transformBatchResultsToSignals([result])[0];
           const priceData = marketData[sector];
 
           // Determine sentiment label based on AI analysis
           let sentimentLabel = 'NEUTRAL';
-          const sentiment = signal.overall_confidence || 0;
-          if (signal.recommendation === 'BUY') {
+          const sentiment = transformedSignal.overall_confidence || 0;
+          if (transformedSignal.recommendation === 'BUY') {
             sentimentLabel = 'BULLISH';
-          } else if (signal.recommendation === 'SELL') {
+          } else if (transformedSignal.recommendation === 'SELL') {
             sentimentLabel = 'BEARISH';
           }
 
           sectorAnalysis.push({
             symbol: sector,
             name: sectorNames[sector] || sector,
-            sentiment: sentiment * (signal.recommendation === 'SELL' ? -1 : 1), // Convert to -1 to 1 scale
+            sentiment: sentiment * (transformedSignal.recommendation === 'SELL' ? -1 : 1), // Convert to -1 to 1 scale
             sentiment_label: sentimentLabel,
-            confidence: Math.abs(signal.overall_confidence || 0.5),
-            ai_context: signal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
-            news_count: signal.news_count || 0,
+            confidence: Math.abs(transformedSignal.overall_confidence || 0.5),
+            ai_context: transformedSignal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
+            news_count: transformedSignal.news_count || 0,
             price_change: priceData?.changePercent || 0,
             real_data: true,
             models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
-            agreement_type: signal.agreement_type || 'DISAGREE'
+            agreement_type: transformedSignal.agreement_type || 'DISAGREE'
           });
         } else {
           // Fallback if AI analysis fails
@@ -640,7 +658,10 @@ async function handleSectorSentiment(
           });
         }
       } catch (error) {
-        logger.warn(`Failed to analyze sector ${sector}:`, error);
+        logger.warn(`Failed to analyze sector ${sector}:`, {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          sector
+        });
 
         // Add fallback sector data
         sectorAnalysis.push({
@@ -691,7 +712,10 @@ async function handleSectorSentiment(
       { status: HttpStatus.OK, headers }
     );
   } catch (error) {
-    logger.error('SectorSentiment Error', error, { requestId });
+    logger.error('SectorSentiment Error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId
+      });
 
     return new Response(
       JSON.stringify(
@@ -710,4 +734,73 @@ async function handleSectorSentiment(
       }
     );
   }
+}
+
+// Helper functions to transform BatchDualAIAnalysisResult to v1 response format
+
+function calculateOverallSentiment(results: any[]): number {
+  if (!results || results.length === 0) return 0;
+
+  const validResults = results.filter(r => !r.error && r.signal);
+  if (validResults.length === 0) return 0;
+
+  const sentiments = validResults.map(r => {
+    const direction = r.signal.direction;
+    if (direction === 'bullish' || direction === 'up') return 1;
+    if (direction === 'bearish' || direction === 'down') return -1;
+    return 0;
+  });
+
+  return sentiments.reduce((sum, sentiment) => sum + sentiment, 0) / sentiments.length;
+}
+
+function getSentimentLabel(sentiment: number): string {
+  if (sentiment > 0.1) return 'BULLISH';
+  if (sentiment < -0.1) return 'BEARISH';
+  return 'NEUTRAL';
+}
+
+function calculateOverallConfidence(results: any[]): number {
+  if (!results || results.length === 0) return 0.5;
+
+  const validResults = results.filter(r => !r.error && r.models);
+  if (validResults.length === 0) return 0.5;
+
+  const confidences = validResults.map(r => {
+    const gptConf = r.models.gpt?.confidence || 0;
+    const dbConf = r.models.distilbert?.confidence || 0;
+    return (gptConf + dbConf) / 2;
+  });
+
+  return confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length;
+}
+
+function transformBatchResultsToSignals(results: any[]): any[] {
+  if (!results || results.length === 0) return [];
+
+  return results.filter(r => !r.error).map(result => ({
+    symbol: result.symbol,
+    overall_confidence: calculateOverallConfidence([result]),
+    recommendation: getRecommendationFromSignal(result.signal),
+    agreement_type: result.comparison?.agreement_type || 'DISAGREE',
+    gpt_sentiment: result.models.gpt?.direction || 'neutral',
+    gpt_confidence: result.models.gpt?.confidence || 0.5,
+    gpt_reasoning: result.models.gpt?.reasoning || '',
+    distilbert_sentiment: result.models.distilbert?.direction || 'neutral',
+    distilbert_confidence: result.models.distilbert?.confidence || 0.5,
+    distilbert_positive: result.models.distilbert?.sentiment_breakdown?.bullish || 0,
+    distilbert_negative: result.models.distilbert?.sentiment_breakdown?.bearish || 0,
+    distilbert_neutral: result.models.distilbert?.sentiment_breakdown?.neutral || 0,
+    news_count: result.models.gpt?.articles_analyzed || result.models.distilbert?.articles_analyzed || 0,
+    top_articles: [] // Could be populated if needed
+  }));
+}
+
+function getRecommendationFromSignal(signal: any): string {
+  if (!signal) return 'HOLD';
+
+  const action = signal.action;
+  if (action?.includes('BUY')) return 'BUY';
+  if (action?.includes('SELL')) return 'SELL';
+  return 'HOLD';
 }

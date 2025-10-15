@@ -21,7 +21,7 @@ import { createFredApiClientWithHealthCheck, type FredClientFactoryOptions } fro
 import { getAPIConfiguration } from './config.js';
 import { getMarketStructureIndicators, healthCheck as yahooHealthCheck } from './yahoo-finance-integration.js';
 import { CacheManager } from './cache-manager.js';
-import { CircuitBreakerFactory } from './circuit-breaker.js';
+import { CircuitBreakerFactory, CircuitState } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('api-health-monitor');
@@ -80,7 +80,7 @@ export class APIHealthMonitor {
   private options: APIHealthMonitorOptions;
   private healthChecks: Map<string, APIHealthCheck> = new Map();
   private isMonitoring = false;
-  private monitoringInterval?: NodeJS.Timeout;
+  private monitoringInterval?: ReturnType<typeof setInterval>;
 
   constructor(env: CloudflareEnvironment, options: APIHealthMonitorOptions = {}) {
     this.env = env;
@@ -384,9 +384,9 @@ export class APIHealthMonitor {
 
       // Determine health based on circuit breaker state
       let status: APIHealthStatus = 'healthy';
-      if (metrics.state === 'open') {
+      if (metrics.state === CircuitState.OPEN) {
         status = 'unhealthy';
-      } else if (metrics.state === 'half-open') {
+      } else if (metrics.state === CircuitState.HALF_OPEN) {
         status = 'degraded';
       }
 

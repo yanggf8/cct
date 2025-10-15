@@ -6,10 +6,10 @@
  */
 
 import { KVNamespace } from '@cloudflare/workers-types';
-import { createDAL, type DAL } from './dal.js';
+import { createDAL, DataAccessLayer as DAL } from './dal.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
-import { retryWithBackoff, type RetryOptions } from './shared-utilities.js';
+import { ErrorUtils, type RetryOptions } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
 
 const logger = createLogger('cache-manager');
@@ -60,7 +60,7 @@ export interface CacheNamespace {
  */
 export class CacheManager {
   private dal: DAL;
-  private keyFactory: KVKeyFactory;
+  private keyFactory = KVKeyFactory;
   private l1Cache: Map<string, CacheEntry<any>> = new Map();
   private l1MaxSize: number;
   private stats: CacheStats;
@@ -75,7 +75,6 @@ export class CacheManager {
     } = {}
   ) {
     this.dal = createDAL(env);
-    this.keyFactory = new KVKeyFactory();
     this.l1MaxSize = options.l1MaxSize || 1000;
     this.enabled = options.enabled !== false;
 
@@ -266,7 +265,11 @@ export class CacheManager {
       return null;
 
     } catch (error) {
-      logger.error(`Cache get error for ${fullKey}:`, error);
+      logger.error(`Cache get error for ${fullKey}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        fullKey,
+        namespace
+      });
       this.stats.errors++;
       return fetchFn ? await fetchFn() : null;
     }
@@ -307,7 +310,11 @@ export class CacheManager {
       logger.debug(`Cache set: ${fullKey}`);
 
     } catch (error) {
-      logger.error(`Cache set error for ${fullKey}:`, error);
+      logger.error(`Cache set error for ${fullKey}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        fullKey,
+        namespace
+      });
       this.stats.errors++;
     }
   }
@@ -323,17 +330,19 @@ export class CacheManager {
       this.l1Cache.delete(fullKey);
 
       // Delete from L2
-      const kvKey = this.keyFactory.createKey(
+      const kvKey = this.keyFactory.generateKey(
         KeyTypes.TEMPORARY,
-        fullKey,
-        0 // TTL doesn't matter for deletion
+        { purpose: fullKey, timestamp: 0 }
       );
       await this.dal.deleteKey(kvKey);
 
       logger.debug(`Cache delete: ${fullKey}`);
 
     } catch (error) {
-      logger.error(`Cache delete error for ${fullKey}:`, error);
+      logger.error(`Cache delete error for ${fullKey}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        fullKey
+      });
       this.stats.errors++;
     }
   }
@@ -356,7 +365,7 @@ export class CacheManager {
 
         // Clear L2
         const kvKeys = await this.dal.listKeys(`${prefix}*`);
-        for (const kvKey of kvKeys) {
+        for (const kvKey of kvKeys.keys) {
           await this.dal.deleteKey(kvKey);
         }
 
@@ -367,7 +376,7 @@ export class CacheManager {
 
         // Clear all L2 cache keys
         const allKeys = await this.dal.listKeys('cache:*');
-        for (const key of allKeys) {
+        for (const key of allKeys.keys) {
           await this.dal.deleteKey(key);
         }
 
@@ -375,7 +384,10 @@ export class CacheManager {
       }
 
     } catch (error) {
-      logger.error('Cache clear error:', error);
+      logger.error('Cache clear error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        namespace
+      });
       this.stats.errors++;
     }
   }
@@ -424,11 +436,10 @@ export class CacheManager {
    * Get value from L2 cache (KV)
    */
   private async getFromL2<T>(key: string, namespace: string): Promise<T | null> {
-    const kvKey = this.keyFactory.createKey(
-      KeyTypes.TEMPORARY,
-      key,
-      0 // TTL doesn't matter for reading
-    );
+    const kvKey = this.keyFactory.generateKey(
+        KeyTypes.TEMPORARY,
+        { purpose: key, timestamp: 0 }
+      );
 
     const result = await this.dal.read(kvKey);
     if (!result) return null;
@@ -446,7 +457,11 @@ export class CacheManager {
       return cacheEntry.data;
 
     } catch (error) {
-      logger.error(`L2 cache parse error for ${key}:`, error);
+      logger.error(`L2 cache parse error for ${key}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        key,
+        kvKey
+      });
       await this.dal.deleteKey(kvKey);
       return null;
     }
@@ -469,11 +484,10 @@ export class CacheManager {
       lastAccessed: Date.now()
     };
 
-    const kvKey = this.keyFactory.createKey(
-      KeyTypes.TEMPORARY,
-      key,
-      ttl
-    );
+    const kvKey = this.keyFactory.generateKey(
+        KeyTypes.TEMPORARY,
+        { purpose: key, timestamp: ttl }
+      );
 
     await this.dal.write(kvKey, JSON.stringify(entry));
   }
@@ -610,7 +624,7 @@ export class CacheManager {
 
       // Cleanup L2 cache (handled by KV TTL, but we can check)
       const allKeys = await this.dal.listKeys('cache:*');
-      for (const kvKey of allKeys) {
+      for (const kvKey of allKeys.keys) {
         const result = await this.dal.read(kvKey);
         if (result) {
           try {
@@ -630,7 +644,9 @@ export class CacheManager {
       logger.info(`Cache cleanup completed: ${cleanedCount} entries removed`);
 
     } catch (error) {
-      logger.error('Cache cleanup error:', error);
+      logger.error('Cache cleanup error:', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       this.stats.errors++;
     }
   }

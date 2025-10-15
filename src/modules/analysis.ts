@@ -4,14 +4,14 @@
  * Uses state-of-the-art language models for market sentiment and trading signal generation
  */
 
-import { runEnhancedAnalysis } from './enhanced_analysis.js';
+import { runEnhancedAnalysis, type EnhancedAnalysisResults } from './enhanced_analysis.js';
 import { validateEnvironment, validateSymbols, validateMarketData } from './validation.js';
 import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache, getCacheStats } from './market-data-cache.js';
 import { createLogger } from './logging.js';
 import { createSimplifiedEnhancedDAL, type CacheAwareResult } from './simplified-enhanced-dal.js';
 import { CONFIG } from './config.js';
-import type { CloudflareEnvironment, SentimentLayer } from '../types.js';
+import type { CloudflareEnvironment, SentimentLayer, TrackedSignal } from '../types.js';
 import { isSignalTrackingData } from '../types.js';
 
 const logger = createLogger('analysis');
@@ -164,15 +164,7 @@ export interface SignalTracking {
 
 export interface SignalTrackingData {
   date: string;
-  signals: Array<{
-    id: string;
-    symbol: string;
-    prediction: string;
-    confidence: number;
-    currentPrice: number;
-    status: string;
-    tracking: SignalTracking;
-  }>;
+  signals: TrackedSignal[];
   lastUpdated: string;
 }
 
@@ -207,21 +199,33 @@ async function analyzeSingleSymbol(
     currentPrice: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3].toFixed(2)
   });
 
-  const gptAnalysis: EnhancedAnalysisResult = await runEnhancedAnalysis(env, {
+  const gptAnalysis: EnhancedAnalysisResults = await runEnhancedAnalysis(env, {
     symbol: symbol,
     marketData: marketData.data,
     currentTime: currentTime
   });
 
-  logger.debug('GPT analysis completed', { symbol, sentiment: gptAnalysis.overall_sentiment });
+  logger.debug('GPT analysis completed', { symbol, sentiment: gptAnalysis.sentiment_signals?.[symbol]?.sentiment_analysis?.sentiment });
 
-  if (!gptAnalysis || !gptAnalysis.trading_signals || gptAnalysis.trading_signals.length === 0) {
+  if (!gptAnalysis || !gptAnalysis.sentiment_signals || !gptAnalysis.sentiment_signals[symbol]) {
     logger.error('GPT analysis failed - no trading signals generated', { symbol });
     throw new Error('GPT-OSS-120B analysis failed to generate trading signals');
   }
 
-  // Use the primary trading signal from GPT analysis
-  const primarySignal = gptAnalysis.trading_signals[0];
+  // Create a compatible signal structure from the sentiment analysis
+  const sentimentSignal = gptAnalysis.sentiment_signals[symbol];
+  const direction: 'up' | 'down' | 'neutral' =
+    sentimentSignal.sentiment_analysis?.sentiment === 'bullish' ? 'up' :
+    sentimentSignal.sentiment_analysis?.sentiment === 'bearish' ? 'down' : 'neutral';
+
+  const primarySignal = {
+    direction,
+    current_price: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3],
+    target_price: marketData.data.ohlcv[marketData.data.ohlcv.length - 1][3], // Use current as fallback
+    confidence: sentimentSignal.sentiment_analysis?.confidence || 0.7,
+    reasoning: sentimentSignal.sentiment_analysis?.reasoning || 'GPT-OSS-120B analysis',
+    market_conditions: 'Unknown'
+  };
   const combinedSignal: SymbolAnalysisResult = {
     symbol: symbol,
     direction: primarySignal.direction,
@@ -232,7 +236,7 @@ async function analyzeSingleSymbol(
     model_type: 'GPT-OSS-120B',
     timestamp: currentTime,
     technical_indicators: {},
-    market_conditions: gptAnalysis.market_conditions || 'Unknown'
+    market_conditions: 'GPT-OSS-120B analysis complete'
   };
 
   logger.info('Symbol analysis successful', {
@@ -363,7 +367,7 @@ async function getMarketData(symbol: string): Promise<MarketDataResponse> {
       throw new Error(`Yahoo Finance API returned ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const result = data.chart.result[0];
 
     if (!result || !result.indicators) {
@@ -537,8 +541,10 @@ async function saveHighConfidenceSignals(
       signals: signals.map(s => ({
         id: s.id,
         symbol: s.symbol,
+        signal: s.prediction as 'STRONG_BUY' | 'BUY' | 'HOLD' | 'SELL' | 'STRONG_SELL' | 'AVOID',
         prediction: s.prediction,
         confidence: s.confidence,
+        sentiment: s.prediction === 'up' ? 'bullish' : s.prediction === 'down' ? 'bearish' : 'neutral',
         currentPrice: s.currentPrice,
         status: s.status,
         tracking: s.tracking

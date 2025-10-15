@@ -171,6 +171,7 @@ export interface AnalysisResult {
  * Individual signal for tracking
  */
 export interface TrackedSignal {
+  id: string;
   symbol: string;
   signal: Signal;
   confidence: number;
@@ -180,6 +181,20 @@ export interface TrackedSignal {
     distilbert?: ModelAnalysis;
   };
   comparison?: DualAIComparison;
+  // Additional properties for signal tracking
+  prediction: string;
+  currentPrice: number;
+  status: string;
+  tracking: {
+    morningSignal: {
+      prediction: string;
+      confidence: number;
+      generatedAt: string;
+    };
+    intradayPerformance: any;
+    endOfDayPerformance: any;
+    weeklyPerformance: any;
+  };
 }
 
 /**
@@ -450,12 +465,30 @@ export function isSignalTrackingData(value: unknown): value is SignalTrackingDat
   if (!value || typeof value !== 'object') return false;
   const data = value as any;
 
-  return (
-    typeof data.date === 'string' &&
-    Array.isArray(data.signals) &&
-    typeof data.metadata === 'object' &&
-    typeof data.metadata.total_signals === 'number'
+  // Check basic structure
+  const hasValidDate = typeof data.date === 'string';
+  const hasValidSignals = Array.isArray(data.signals);
+
+  if (!hasValidDate || !hasValidSignals) return false;
+
+  // Check signal structure - ensure they have required TrackedSignal properties
+  const hasValidSignalStructure = data.signals.length === 0 || data.signals.every((signal: any) =>
+    typeof signal.id === 'string' &&
+    typeof signal.symbol === 'string' &&
+    typeof signal.prediction === 'string' &&
+    typeof signal.confidence === 'number' &&
+    typeof signal.currentPrice === 'number' &&
+    typeof signal.status === 'string' &&
+    typeof signal.tracking === 'object'
   );
+
+  if (!hasValidSignalStructure) return false;
+
+  // Check for either metadata (from types.ts) or lastUpdated (from analysis.ts)
+  const hasMetadata = typeof data.metadata === 'object' && typeof data.metadata.total_signals === 'number';
+  const hasLastUpdated = typeof data.lastUpdated === 'string';
+
+  return hasMetadata || hasLastUpdated;
 }
 
 /**
