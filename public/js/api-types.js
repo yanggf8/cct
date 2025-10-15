@@ -538,7 +538,8 @@ export const SectorSymbolsResponse = {
       description: 'string'
     },
     sector_mapping: {
-      [key: string]: 'string'
+      type: 'object',
+      additionalProperties: 'string'
     }
   }
 };

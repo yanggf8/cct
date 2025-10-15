@@ -101,6 +101,17 @@ export const WeeklyReportResponse = {};
 export const SymbolsResponse = {};
 export const SystemHealthResponse = {};
 
+// Backtesting API Response Types
+export const BacktestRunResponse = {};
+export const BacktestStatusResponse = {};
+export const BacktestResultsResponse = {};
+export const BacktestPerformanceResponse = {};
+export const BacktestComparisonResponse = {};
+export const BacktestHistoryResponse = {};
+export const BacktestValidationResponse = {};
+export const WalkForwardResponse = {};
+export const MonteCarloResponse = {};
+
 export function extractDateParam(path) {
   const match = path && path.match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : null;

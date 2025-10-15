@@ -56,7 +56,7 @@ class CCTApiClient {
    * Core request method with error handling and caching
    */
   async request(endpoint, options = {}) {
-    const url = `${this.baseUrl}${endpoint}`;
+    let url = `${this.baseUrl}${endpoint}`;
     const cacheKey = `${options.method || 'GET'}:${url}:${JSON.stringify(options.params || {})}`;
 
     // Check cache first for GET requests
@@ -831,6 +831,215 @@ CCTApiClient.prototype.runBacktest = async function(options = {}) {
  */
 CCTApiClient.prototype.getAdvancedAnalyticsHealth = async function(options = {}) {
   return this.request('/analytics/health', { params: options });
+};
+
+// ========================================
+// BACKTESTING ENDPOINTS
+// ========================================
+
+/**
+   * Run a new backtest
+   * @param {Object} config - Backtest configuration
+   * @returns {Promise<BacktestRunResponse>}
+   */
+CCTApiClient.prototype.runBacktest = async function(config = {}) {
+  return this.request('/backtesting/run', {
+    method: 'POST',
+    body: config
+  });
+};
+
+/**
+   * Get backtest run status
+   * @param {string} runId - Backtest run ID
+   * @returns {Promise<BacktestStatusResponse>}
+   */
+CCTApiClient.prototype.getBacktestStatus = async function(runId) {
+  if (!runId) {
+    throw new Error('Run ID is required');
+  }
+  return this.request(`/backtesting/status/${runId}`);
+};
+
+/**
+   * Get detailed backtest results
+   * @param {string} runId - Backtest run ID
+   * @returns {Promise<BacktestResultsResponse>}
+   */
+CCTApiClient.prototype.getBacktestResults = async function(runId) {
+  if (!runId) {
+    throw new Error('Run ID is required');
+  }
+  return this.request(`/backtesting/results/${runId}`);
+};
+
+/**
+   * Get backtest performance metrics
+   * @param {string} runId - Backtest run ID
+   * @returns {Promise<BacktestPerformanceResponse>}
+   */
+CCTApiClient.prototype.getBacktestPerformance = async function(runId) {
+  if (!runId) {
+    throw new Error('Run ID is required');
+  }
+  return this.request(`/backtesting/performance/${runId}`);
+};
+
+/**
+   * Compare multiple backtest runs
+   * @param {Object} options - Comparison options (runIds, metrics)
+   * @returns {Promise<BacktestComparisonResponse>}
+   */
+CCTApiClient.prototype.compareBacktests = async function(options = {}) {
+  return this.request('/backtesting/compare', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+   * Get backtest history with filtering
+   * @param {Object} options - Filter options (status, strategy, dateFrom, dateTo, page, limit)
+   * @returns {Promise<BacktestHistoryResponse>}
+   */
+CCTApiClient.prototype.getBacktestHistory = async function(options = {}) {
+  return this.request('/backtesting/history', { params: options });
+};
+
+/**
+   * Run backtest validation
+   * @param {Object} options - Validation options (runId, validationType, confidenceLevel)
+   * @returns {Promise<BacktestValidationResponse>}
+   */
+CCTApiClient.prototype.validateBacktest = async function(options = {}) {
+  return this.request('/backtesting/validation', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+   * Run walk-forward optimization
+   * @param {Object} options - Walk-forward options (strategy, symbols, trainingPeriod, testingPeriod)
+   * @returns {Promise<WalkForwardResponse>}
+   */
+CCTApiClient.prototype.runWalkForward = async function(options = {}) {
+  return this.request('/backtesting/walk-forward', {
+    method: 'POST',
+    body: options
+  });
+};
+
+/**
+   * Run Monte Carlo simulation
+   * @param {Object} options - Monte Carlo options (runId, simulations, confidenceIntervals)
+   * @returns {Promise<MonteCarloResponse>}
+   */
+CCTApiClient.prototype.runMonteCarlo = async function(options = {}) {
+  return this.request('/backtesting/monte-carlo', {
+    method: 'POST',
+    body: options
+  });
+};
+
+// ========================================
+// BACKTESTING CONVENIENCE METHODS
+// ========================================
+
+/**
+   * Get comprehensive backtest analysis
+   * @param {string} runId - Backtest run ID
+   * @returns {Promise<Object>} Complete backtest analysis
+   */
+CCTApiClient.prototype.getBacktestAnalysis = async function(runId) {
+  if (!runId) {
+    throw new Error('Run ID is required');
+  }
+
+  return this.batchRequests([
+    () => this.getBacktestResults(runId),
+    () => this.getBacktestPerformance(runId),
+    () => this.getBacktestStatus(runId)
+  ]);
+};
+
+/**
+   * Create and run backtest with common configuration
+   * @param {Object} options - Backtest options
+   * @returns {Promise<Object>} Backtest run results
+   */
+CCTApiClient.prototype.quickBacktest = async function(options = {}) {
+  const defaultConfig = {
+    symbols: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
+    strategy: 'default',
+    startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+    initialCapital: 100000,
+    commission: 0.001,
+    slippage: 0.0001
+  };
+
+  const config = { ...defaultConfig, ...options };
+
+  // Run backtest
+  const runResponse = await this.runBacktest(config);
+  if (!runResponse.success) {
+    throw new Error('Failed to start backtest');
+  }
+
+  const runId = runResponse.data.runId;
+
+  // Poll for completion (simplified - in production would use WebSocket or SSE)
+  let status = await this.getBacktestStatus(runId);
+  let attempts = 0;
+  const maxAttempts = 60; // 5 minutes max wait
+
+  while (status.data.status !== 'completed' && status.data.status !== 'failed' && attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    status = await this.getBacktestStatus(runId);
+    attempts++;
+  }
+
+  if (status.data.status === 'failed') {
+    throw new Error(`Backtest failed: ${status.data.error?.message || 'Unknown error'}`);
+  }
+
+  if (status.data.status !== 'completed') {
+    throw new Error('Backtest timed out');
+  }
+
+  // Get complete results
+  return this.getBacktestAnalysis(runId);
+};
+
+/**
+   * Compare strategy performance
+   * @param {Array} strategies - Array of strategy configurations
+   * @param {Object} options - Comparison options
+   * @returns {Promise<Object>} Strategy comparison results
+   */
+CCTApiClient.prototype.compareStrategies = async function(strategies = [], options = {}) {
+  if (strategies.length < 2) {
+    throw new Error('At least 2 strategies required for comparison');
+  }
+
+  const runIds = [];
+
+  // Run all strategies in parallel
+  const runPromises = strategies.map(async (strategy, index) => {
+    const config = { ...strategy, ...options, name: `Strategy ${index + 1}` };
+    const runResponse = await this.runBacktest(config);
+    return runResponse.data.runId;
+  });
+
+  const resolvedRunIds = await Promise.all(runPromises);
+  runIds.push(...resolvedRunIds);
+
+  // Wait for all backtests to complete (simplified)
+  await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
+
+  // Get comparison
+  return this.compareBacktests({ runIds });
 };
 
 // Export for global use

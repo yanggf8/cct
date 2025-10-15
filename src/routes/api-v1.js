@@ -15,7 +15,11 @@ import { handleMarketIntelligenceRoutes } from './market-intelligence-routes.js'
 import { handlePredictiveAnalyticsRoutes } from './predictive-analytics-routes.js';
 import { handleTechnicalRoutes } from './technical-routes.ts';
 import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.ts';
+import { handleRealtimeRoutes } from './realtime-routes.ts';
+import { handleBacktestingRoutes } from './backtesting-routes.ts';
+import { handlePortfolioRequest } from './portfolio-routes.ts';
 import { getSectorIndicatorsSymbol } from './sector-routes.ts';
+import { handleRiskManagementRequest } from './risk-management-routes.ts';
 
 /**
  * Main v1 API Router
@@ -73,6 +77,16 @@ export async function handleApiV1Request(request, env, ctx) {
       return await handleTechnicalRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/analytics/')) {
       return await handleAdvancedAnalyticsRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/realtime/')) {
+      return await handleRealtimeRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/backtesting/')) {
+      return await handleBacktestingRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/portfolio/')) {
+      // Route to portfolio optimization API
+      return await handlePortfolioRequest(request, env, ctx);
+    } else if (path.startsWith('/api/v1/risk/')) {
+      // Route to risk management API
+      return await handleRiskManagementRequest(request, env, ctx);
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -147,6 +161,52 @@ export async function handleApiV1Request(request, env, ctx) {
             technical_analysis: {
               symbols: 'GET /api/v1/technical/symbols/:symbol',
               analysis: 'POST /api/v1/technical/analysis',
+            },
+            realtime: {
+              stream: 'GET /api/v1/realtime/stream',
+              status: 'GET /api/v1/realtime/status',
+              refresh: 'POST /api/v1/realtime/refresh',
+            },
+            backtesting: {
+              run: 'POST /api/v1/backtesting/run',
+              status: 'GET /api/v1/backtesting/status/:runId',
+              results: 'GET /api/v1/backtesting/results/:runId',
+              performance: 'GET /api/v1/backtesting/performance/:runId',
+              compare: 'POST /api/v1/backtesting/compare',
+              history: 'GET /api/v1/backtesting/history',
+              validation: 'POST /api/v1/backtesting/validation',
+              walk_forward: 'POST /api/v1/backtesting/walk-forward',
+              monte_carlo: 'POST /api/v1/backtesting/monte-carlo',
+            },
+            portfolio_optimization: {
+              correlation: 'POST /api/v1/portfolio/correlation',
+              optimize: 'POST /api/v1/portfolio/optimize',
+              efficient_frontier: 'POST /api/v1/portfolio/efficient-frontier',
+              risk_metrics: 'POST /api/v1/portfolio/risk-metrics',
+              stress_test: 'POST /api/v1/portfolio/stress-test',
+              attribution: 'POST /api/v1/portfolio/attribution',
+              analytics: 'POST /api/v1/portfolio/analytics',
+            },
+            portfolio_rebalancing: {
+              create_strategy: 'POST /api/v1/portfolio/rebalancing/strategy',
+              analyze: 'POST /api/v1/portfolio/rebalancing/analyze',
+              execute: 'POST /api/v1/portfolio/rebalancing/execute',
+              monitor: 'POST /api/v1/portfolio/rebalancing/monitor',
+              tax_harvest: 'POST /api/v1/portfolio/rebalancing/tax-harvest',
+              dynamic_allocation: 'POST /api/v1/portfolio/rebalancing/dynamic-allocation',
+              stress_test: 'POST /api/v1/portfolio/rebalancing/stress-test',
+            },
+            risk_management: {
+              assessment: 'POST /api/v1/risk/assessment',
+              market: 'POST /api/v1/risk/market',
+              concentration: 'POST /api/v1/risk/concentration',
+              liquidity: 'POST /api/v1/risk/liquidity',
+              stress_test: 'POST /api/v1/risk/stress-test',
+              compliance: 'POST /api/v1/risk/compliance',
+              regulatory_report: 'POST /api/v1/risk/regulatory-report',
+              limits: 'POST /api/v1/risk/limits',
+              analytics: 'POST /api/v1/risk/analytics',
+              health: 'GET /api/v1/risk/health',
             },
           },
           documentation: 'https://github.com/yanggf8/cct',

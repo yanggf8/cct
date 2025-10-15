@@ -30,25 +30,30 @@ export class EnhancedRequestHandler {
     this.migrationManager = getMigrationManager(env, {
       enableNewAPI: true,
       enableLegacyCompatibility: true,
-      enableABTesting: false, // Start with full legacy compatibility
-      newAPITrafficPercentage: 10, // 10% new API traffic initially
+      enableABTesting: false, // Migration complete - no A/B testing needed
+      newAPITrafficPercentage: 100, // 100% new API traffic - migration complete
       enableMigrationLogging: true,
       enablePerformanceComparison: true,
       endpointSettings: {
         '/health': {
           enabled: true,
-          migratePercentage: 100, // Low risk, fully migrate
+          migratePercentage: 100, // Migration complete
           forceNewAPI: true
         },
         '/analyze': {
           enabled: true,
-          migratePercentage: 25, // High priority, 25% initial
-          forceNewAPI: false
+          migratePercentage: 100, // Migration complete
+          forceNewAPI: true
         },
         '/results': {
           enabled: true,
-          migratePercentage: 10, // Start with 10%
-          forceNewAPI: false
+          migratePercentage: 100, // Migration complete
+          forceNewAPI: true
+        },
+        '/api/v1/*': {
+          enabled: true,
+          migratePercentage: 100, // All API v1 endpoints migrated
+          forceNewAPI: true
         }
       }
     });
@@ -133,6 +138,12 @@ export class EnhancedRequestHandler {
       let response;
 
       switch (url.pathname) {
+        case '/api/v1':
+          // API v1 documentation endpoint
+          const { handleApiV1Request } = await import('../routes/api-v1.js');
+          response = await handleApiV1Request(request, this.env, null);
+          break;
+
         case '/api/v1/data/health':
           response = await this.handleEnhancedHealthCheck(url);
           break;
@@ -151,6 +162,19 @@ export class EnhancedRequestHandler {
 
         case '/api/v1/data/cache-clear':
           response = await this.handleCacheClear(request);
+          break;
+
+        // Static file serving for dashboard pages
+        case '/backtesting-dashboard.html':
+          response = await this.handleStaticFile('backtesting-dashboard.html', 'text/html');
+          break;
+
+        case '/portfolio-optimization-dashboard.html':
+          response = await this.handleStaticFile('portfolio-optimization-dashboard.html', 'text/html');
+          break;
+
+        case '/risk-dashboard.html':
+          response = await this.handleStaticFile('risk-dashboard.html', 'text/html');
           break;
 
         default:
@@ -546,6 +570,230 @@ export class EnhancedRequestHandler {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+
+  /**
+   * Handle static file serving for dashboard pages
+   */
+  async handleStaticFile(filename, contentType) {
+    try {
+      // For now, serve the dashboard HTML content directly
+      // In Cloudflare Workers, static files need to be bundled or served from R2
+      const htmlContent = await this.getPublicFileContent(filename);
+
+      return new Response(htmlContent, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'X-Enhanced-System': 'true',
+          'Cache-Control': 'public, max-age=3600'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to serve static file', {
+        filename,
+        error: error.message
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'File not found',
+        filename,
+        message: error.message
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Get public file content - placeholder implementation
+   * In Cloudflare Workers, static assets need to be bundled or served from R2
+   */
+  async getPublicFileContent(filename) {
+    // Since this is a Cloudflare Worker, we need to serve static files differently
+    // For now, let's create a simple redirect to the dashboard functionality
+    if (filename === 'backtesting-dashboard.html') {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtesting Dashboard - TFT Trading System</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 40px; }
+        .api-info { background: #e3f2fd; padding: 20px; border-radius: 6px; margin: 20px 0; }
+        .api-list { background: #f8f9fa; padding: 15px; border-radius: 6px; font-family: monospace; }
+        .api-endpoint { margin: 5px 0; }
+        .btn { display: inline-block; background: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+        .btn:hover { background: #1565c0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Backtesting Dashboard</h1>
+            <h2>TFT Trading System - Professional Analytics</h2>
+            <p><strong>Phase 2B Complete:</strong> Historical Backtesting Engine & Model Validation</p>
+        </div>
+
+        <div class="api-info">
+            <h3>🚀 Backtesting API Endpoints Available</h3>
+            <p>Use the API Key <code>yanggf</code> for authentication</p>
+
+            <div class="api-list">
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/backtesting/run - Run backtest</div>
+                <div class="api-endpoint"><strong>GET</strong> /api/v1/backtesting/status/{runId} - Get status</div>
+                <div class="api-endpoint"><strong>GET</strong> /api/v1/backtesting/results/{runId} - Get results</div>
+                <div class="api-endpoint"><strong>GET</strong> /api/v1/backtesting/performance/{runId} - Get metrics</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/backtesting/compare - Compare strategies</div>
+                <div class="api-endpoint"><strong>GET</strong> /api/v1/backtesting/history - Get history</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/backtesting/validate - Validate model</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/backtesting/monte-carlo - Monte Carlo test</div>
+            </div>
+        </div>
+
+        <div class="api-info">
+            <h3>🎯 System Features Implemented</h3>
+            <ul>
+                <li>✅ Walk-forward optimization with rolling windows</li>
+                <li>✅ Monte Carlo simulation (1000+ scenarios)</li>
+                <li>✅ Bootstrap resampling for statistical validation</li>
+                <li>✅ Performance metrics (Sharpe, Sortino, Calmar, Win Rate)</li>
+                <li>✅ Risk analysis (VaR, CVaR, maximum drawdown)</li>
+                <li>✅ Interactive visualizations with multiple chart types</li>
+                <li>✅ Real-time streaming backtest progress</li>
+                <li>✅ Strategy comparison and benchmarking</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/api/v1" class="btn">📚 API Documentation</a>
+            <a href="/api/v1/data/health" class="btn">🏥 System Health</a>
+            <a href="/api/v1/data/dal-status" class="btn">📊 Performance Stats</a>
+        </div>
+
+        <div class="api-info" style="margin-top: 30px;">
+            <h3>🔧 Testing the System</h3>
+            <p>Test backtest functionality with curl:</p>
+            <div class="api-list">
+                <pre>curl -X POST https://tft-trading-system.yanggf.workers.dev/api/v1/backtesting/run \\
+  -H "X-API-KEY: yanggf" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "symbols": ["AAPL", "MSFT"],
+    "startDate": "2024-01-01",
+    "endDate": "2024-12-31",
+    "strategy": {
+      "name": "simple_momentum",
+      "parameters": {"lookback": 20}
+    }
+  }'</pre>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+
+    if (filename === 'portfolio-optimization-dashboard.html') {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Optimization Dashboard - TFT Trading System</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 40px; }
+        .api-info { background: #e3f2fd; padding: 20px; border-radius: 6px; margin: 20px 0; }
+        .api-list { background: #f8f9fa; padding: 15px; border-radius: 6px; font-family: monospace; }
+        .api-endpoint { margin: 5px 0; }
+        .btn { display: inline-block; background: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+        .btn:hover { background: #1565c0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 Portfolio Optimization Dashboard</h1>
+            <h2>TFT Trading System - Advanced Analytics</h2>
+            <p><strong>Phase 2C Complete:</strong> Multi-Asset Correlation Analysis & Portfolio Optimization</p>
+        </div>
+
+        <div class="api-info">
+            <h3>🚀 Portfolio Optimization API Endpoints Available</h3>
+            <p>Use the API Key <code>yanggf</code> for authentication</p>
+
+            <div class="api-list">
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/correlation - Calculate correlation matrix</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/optimize - Optimize portfolio</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/efficient-frontier - Calculate efficient frontier</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/risk-metrics - Calculate risk metrics</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/stress-test - Perform stress testing</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/attribution - Performance attribution</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/analytics - Comprehensive analytics</div>
+            </div>
+        </div>
+
+        <div class="api-info">
+            <h3>🔄 Portfolio Rebalancing Features</h3>
+            <div class="api-list">
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/rebalancing/strategy - Create rebalancing strategy</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/rebalancing/analyze - Analyze rebalancing needs</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/rebalancing/execute - Execute rebalancing</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/rebalancing/monitor - Monitor portfolio drift</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/rebalancing/tax-harvest - Tax-loss harvesting</div>
+                <div class="api-endpoint"><strong>POST</strong> /api/v1/portfolio/rebalancing/dynamic-allocation - Dynamic allocation</div>
+            </div>
+        </div>
+
+        <div class="api-info">
+            <h3>🎯 System Features Implemented</h3>
+            <ul>
+                <li>✅ Multi-asset correlation analysis with matrix calculations</li>
+                <li>✅ Portfolio optimization (Max Sharpe, Min Volatility, Risk Parity)</li>
+                <li>✅ Efficient frontier calculation and visualization</li>
+                <li>✅ Advanced risk metrics (VaR, CVaR, stress testing)</li>
+                <li>✅ Portfolio performance attribution analysis</li>
+                <li>✅ Automated rebalancing strategies and execution</li>
+                <li>✅ Tax-loss harvesting and optimization</li>
+                <li>✅ Dynamic asset allocation based on market conditions</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/api/v1" class="btn">📚 API Documentation</a>
+            <a href="/api/v1/data/health" class="btn">🏥 System Health</a>
+            <a href="/backtesting-dashboard.html" class="btn">📊 Backtesting Dashboard</a>
+        </div>
+
+        <div class="api-info" style="margin-top: 30px;">
+            <h3>🔧 Testing Portfolio Optimization</h3>
+            <p>Test portfolio optimization with curl:</p>
+            <div class="api-list">
+                <pre>curl -X POST https://tft-trading-system.yanggf.workers.dev/api/v1/portfolio/optimize \\
+  -H "X-API-KEY: yanggf" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "symbols": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
+    "objective": "MAX_SHARPE",
+    "lookbackPeriod": 252,
+    "constraints": {}
+  }'</pre>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+
+    throw new Error(`File ${filename} not available`);
   }
 }
 

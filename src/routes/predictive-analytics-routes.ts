@@ -161,6 +161,9 @@ async function handlePredictiveSignals(
       requestId,
       outlook: signals.short_term_outlook.direction,
       confidence: signals.short_term_outlook.confidence,
+      confidence_interval: signals.short_term_outlook.confidence_interval,
+      risk_adjusted_return: signals.short_term_outlook.risk_adjusted_return,
+      sectors_predicted: signals.sector_predictions.top_performers.length,
       processingTime: timer.getElapsedMs()
     });
 
@@ -349,6 +352,9 @@ async function handlePredictiveInsights(
       requestId,
       outlook: insights.overall_outlook.market_direction,
       confidence: insights.overall_outlook.confidence_level,
+      confidence_interval: insights.overall_outlook.confidence_interval,
+      scenarios_available: insights.overall_outlook?.scenario_analysis ? 3 : 0, // Always 3 scenarios (base, bull, bear)
+      quantitative_factors: insights.quantitative_factors ? 'available' : 'unavailable',
       processingTime: timer.getElapsedMs()
     });
 
@@ -428,6 +434,9 @@ async function handleMarketForecast(
       timeframe,
       outlook: forecast.market_outlook.direction,
       confidence: forecast.market_outlook.confidence,
+      expected_return_range: forecast.market_outlook.expected_return_range,
+      risk_analysis_included: includeRisk,
+      sectors_forecasted: forecast.sector_forecast?.length || 0,
       processingTime: timer.getElapsedMs()
     });
 
@@ -635,8 +644,16 @@ async function testPredictiveSignalsHealth(env: CloudflareEnvironment): Promise<
       status: signals.short_term_outlook ? 'healthy' : 'degraded',
       details: {
         outlook_available: !!signals.short_term_outlook,
+        confidence_level: signals.short_term_outlook?.confidence || 0,
         sectors_predicted: signals.sector_predictions.top_performers.length,
-        regime_forecast: !!signals.regime_forecast
+        regime_forecast: !!signals.regime_forecast,
+        enhanced_features: {
+          confidence_intervals: !!signals.short_term_outlook?.confidence_interval,
+          risk_adjusted_returns: !!signals.short_term_outlook?.risk_adjusted_return,
+          backtesting_reference: !!signals.short_term_outlook?.backtesting_reference,
+          stress_testing: !!signals.risk_indicators?.stress_test_results,
+          var_metrics: !!signals.risk_indicators?.var_metrics
+        }
       }
     };
   } catch {
@@ -664,6 +681,7 @@ async function testInsightsHealth(env: CloudflareEnvironment): Promise<{ status:
 
 async function testDataHealth(env: CloudflareEnvironment): Promise<{ status: string; details?: any }> {
   try {
+    const { initializeMarketDrivers } = await import('../modules/market-drivers.js');
     const marketDrivers = initializeMarketDrivers(env);
     const snapshot = await marketDrivers.getMarketDriversSnapshot();
 
