@@ -6,6 +6,7 @@
 import { handleWeeklyAnalysisPage, handleWeeklyDataAPI } from './weekly-analysis.js';
 import { handleHomeDashboardPage } from './home-dashboard.js';
 import { handleSectorRotationDashboardPage } from './sector-rotation-dashboard.js';
+import { servePredictiveAnalyticsDashboard } from './predictive-analytics-dashboard.js';
 import { createRequestLogger, initLogging } from './logging.js';
 import { PerformanceMonitor, BusinessMetrics } from './monitoring.js';
 
@@ -86,6 +87,7 @@ import { handleApiV1Request, handleApiV1CORS } from '../routes/api-v1.js';
 // Import sector rotation routes
 import { handleSectorRoute } from '../routes/sector-routes-simple.js';
 
+
 /**
  * Validate request for sensitive endpoints
  */
@@ -158,14 +160,14 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleApiV1CORS();
     }
 
-    // Handle v1 API routes
-    if (url.pathname.startsWith('/api/v1/')) {
-      return await handleApiV1Request(request, env, ctx);
-    }
-
     // Handle sector rotation routes
     if (url.pathname.startsWith('/api/sectors/')) {
       return await handleSectorRoute(request, env, ctx);
+    }
+
+    // Handle v1 API routes (this handles all /api/v1/* including market-drivers, market-intelligence, predictive)
+    if (url.pathname.startsWith('/api/v1/')) {
+      return await handleApiV1Request(request, env, ctx);
     }
 
     // Route requests to appropriate handlers
@@ -249,6 +251,9 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleWeeklyDataAPI(request, env);
     case '/sector-rotation':
       return handleSectorRotationDashboardPage(request, env);
+    case '/predictive-analytics':
+      response = await servePredictiveAnalyticsDashboard(request, env);
+      break;
     case '/daily-summary':
       response = await handleDailySummaryPageRequest(request, env);
       break;
@@ -338,6 +343,7 @@ export async function handleHttpRequest(request, env, ctx) {
             '/test-sentiment - Sentiment enhancement validation',
             '/analyze-symbol?symbol=AAPL - Fine-grained per-symbol analysis',
             '/cron-health - Cron job execution health monitoring',
+            '/predictive-analytics - AI-powered predictive analytics dashboard (NEW)',
             '/api/sectors/snapshot - Sector rotation snapshot (NEW)',
             '/api/sectors/analysis - Complete sector rotation analysis (NEW)',
             '/api/sectors/health - Sector system health check (NEW)',

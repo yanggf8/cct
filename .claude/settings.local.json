@@ -179,7 +179,8 @@
       "Bash(./test-sector-simple.sh:*)",
       "Bash(./test-backend-build.sh:*)",
       "Bash(./test-backend-working.sh:*)",
-      "Bash(./quick-backend-test.sh:*)"
+      "Bash(./quick-backend-test.sh:*)",
+      "mcp__gemini-cli__fetch-chunk"
     ],
     "deny": [],
     "ask": []

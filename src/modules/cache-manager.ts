@@ -10,7 +10,7 @@ import { createDAL, type DAL } from './dal.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
 import { retryWithBackoff, type RetryOptions } from './shared-utilities.js';
-import { KVKeyFactory, KVKeyType } from './kv-key-factory.js';
+import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
 
 const logger = createLogger('cache-manager');
 
@@ -324,7 +324,7 @@ export class CacheManager {
 
       // Delete from L2
       const kvKey = this.keyFactory.createKey(
-        KVKeyType.CACHE_DATA,
+        KeyTypes.TEMPORARY,
         fullKey,
         0 // TTL doesn't matter for deletion
       );
@@ -425,7 +425,7 @@ export class CacheManager {
    */
   private async getFromL2<T>(key: string, namespace: string): Promise<T | null> {
     const kvKey = this.keyFactory.createKey(
-      KVKeyType.CACHE_DATA,
+      KeyTypes.TEMPORARY,
       key,
       0 // TTL doesn't matter for reading
     );
@@ -470,7 +470,7 @@ export class CacheManager {
     };
 
     const kvKey = this.keyFactory.createKey(
-      KVKeyType.CACHE_DATA,
+      KeyTypes.TEMPORARY,
       key,
       ttl
     );

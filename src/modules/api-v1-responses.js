@@ -105,3 +105,10 @@ export function extractDateParam(path) {
   const match = path && path.match(/\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : null;
 }
+
+// API Key Validation Helper
+export function validateApiKey(request) {
+  const apiKey = request.headers.get('X-API-Key');
+  const validKeys = ['yanggf', 'demo', 'test'];
+  return { valid: validKeys.includes(apiKey), key: apiKey };
+}

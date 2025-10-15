@@ -501,7 +501,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
                             callbacks: {
                                 label: function(context) {
                                     const value = context.parsed.y;
-                                    return value >= 0 ? `+${value.toFixed(2)}%` : `${value.toFixed(2)}%`;
+                                    return value >= 0 ? \`+\${value.toFixed(2)}%\` : \`\${value.toFixed(2)}%\`;
                                 }
                             }
                         }
@@ -526,7 +526,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
                                 color: 'rgba(255, 255, 255, 0.8)',
                                 font: { size: 11 },
                                 callback: function(value) {
-                                    return value >= 0 ? `+${value}%` : `${value}%`;
+                                    return value >= 0 ? \`+\${value}%\` : \`\${value}%\`;
                                 }
                             }
                         }

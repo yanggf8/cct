@@ -776,3 +776,15 @@ export async function getCachedSectorRotationResults(env: CloudflareEnvironment,
 
   return null;
 }
+
+/**
+ * Alias function for scheduler compatibility
+ */
+export async function performSectorRotationAnalysis(env: CloudflareEnvironment, options?: any): Promise<SectorRotationResult | null> {
+  try {
+    return await executeSectorRotationAnalysis(env);
+  } catch (error: any) {
+    console.error('Sector rotation analysis failed:', error);
+    return null;
+  }
+}
