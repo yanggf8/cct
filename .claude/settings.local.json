@@ -180,7 +180,15 @@
       "Bash(./test-backend-build.sh:*)",
       "Bash(./test-backend-working.sh:*)",
       "Bash(./quick-backend-test.sh:*)",
-      "mcp__gemini-cli__fetch-chunk"
+      "mcp__gemini-cli__fetch-chunk",
+      "Bash(./test-all-new-features.sh:*)",
+      "Bash(./test-backtesting-api.sh:*)",
+      "Bash(./test-portfolio-api.sh:*)",
+      "Bash(./test-risk-management-api.sh:*)",
+      "Bash(./test-ai-predictive-api.sh:*)",
+      "Bash(wc:*)",
+      "Bash(./test-auth-security.sh)",
+      "Bash(./test-workflows.sh:*)"
     ],
     "deny": [],
     "ask": []
