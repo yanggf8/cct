@@ -24,9 +24,19 @@ export class RiskManagementRoutesHandler {
    */
   async handleRiskAssessment(request) {
     try {
-      const { portfolioData, marketData = {} } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData || !portfolioData.portfolioId) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData, marketData = {};
+      if (requestData.portfolio && requestData.portfolio.portfolioId) {
+        // Test format: { portfolio: { portfolioId, weights, ... } }
+        portfolioData = requestData.portfolio;
+        marketData = requestData.marketData || {};
+      } else if (requestData.portfolioData && requestData.portfolioData.portfolioId) {
+        // Expected format: { portfolioData: { portfolioId, weights, ... } }
+        portfolioData = requestData.portfolioData;
+        marketData = requestData.marketData || {};
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data with portfolioId is required',
           'INVALID_REQUEST'
@@ -75,9 +85,19 @@ export class RiskManagementRoutesHandler {
    */
   async handleMarketRiskAssessment(request) {
     try {
-      const { portfolioData, marketData = {} } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData, marketData = {};
+      if (requestData.portfolio) {
+        // Test format: { portfolio: { weights, betas, ... } }
+        portfolioData = requestData.portfolio;
+        marketData = requestData.marketData || {};
+      } else if (requestData.portfolioData) {
+        // Expected format: { portfolioData: { weights, betas, ... } }
+        portfolioData = requestData.portfolioData;
+        marketData = requestData.marketData || {};
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data is required',
           'INVALID_REQUEST'
@@ -115,9 +135,15 @@ export class RiskManagementRoutesHandler {
    */
   async handleConcentrationRiskAssessment(request) {
     try {
-      const { portfolioData } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData;
+      if (requestData.portfolio) {
+        portfolioData = requestData.portfolio;
+      } else if (requestData.portfolioData) {
+        portfolioData = requestData.portfolioData;
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data is required',
           'INVALID_REQUEST'
@@ -155,9 +181,17 @@ export class RiskManagementRoutesHandler {
    */
   async handleLiquidityRiskAssessment(request) {
     try {
-      const { portfolioData, marketData = {} } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData, marketData = {};
+      if (requestData.portfolio) {
+        portfolioData = requestData.portfolio;
+        marketData = requestData.marketData || {};
+      } else if (requestData.portfolioData) {
+        portfolioData = requestData.portfolioData;
+        marketData = requestData.marketData || {};
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data is required',
           'INVALID_REQUEST'
@@ -195,9 +229,17 @@ export class RiskManagementRoutesHandler {
    */
   async handleStressTest(request) {
     try {
-      const { portfolioData, scenarios = [] } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData || !portfolioData.portfolioId) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData, scenarios = [];
+      if (requestData.portfolio && requestData.portfolio.portfolioId) {
+        portfolioData = requestData.portfolio;
+        scenarios = requestData.scenarios || [];
+      } else if (requestData.portfolioData && requestData.portfolioData.portfolioId) {
+        portfolioData = requestData.portfolioData;
+        scenarios = requestData.scenarios || [];
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data with portfolioId is required',
           'INVALID_REQUEST'
@@ -243,9 +285,19 @@ export class RiskManagementRoutesHandler {
    */
   async handleComplianceAssessment(request) {
     try {
-      const { portfolioData, clientData = {}, frameworks = [] } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData || !portfolioData.portfolioId) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData, clientData = {}, frameworks = [];
+      if (requestData.portfolio && requestData.portfolio.portfolioId) {
+        portfolioData = requestData.portfolio;
+        clientData = requestData.clientData || {};
+        frameworks = requestData.frameworks || [];
+      } else if (requestData.portfolioData && requestData.portfolioData.portfolioId) {
+        portfolioData = requestData.portfolioData;
+        clientData = requestData.clientData || {};
+        frameworks = requestData.frameworks || [];
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data with portfolioId is required',
           'INVALID_REQUEST'
@@ -338,9 +390,15 @@ export class RiskManagementRoutesHandler {
    */
   async handleRiskLimitsCheck(request) {
     try {
-      const { portfolioData } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData;
+      if (requestData.portfolio) {
+        portfolioData = requestData.portfolio;
+      } else if (requestData.portfolioData) {
+        portfolioData = requestData.portfolioData;
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data is required',
           'INVALID_REQUEST'
@@ -382,9 +440,19 @@ export class RiskManagementRoutesHandler {
    */
   async handleRiskAnalytics(request) {
     try {
-      const { portfolioData, marketData = {}, includeStressTest = false } = await request.json();
+      const requestData = await request.json();
 
-      if (!portfolioData || !portfolioData.portfolioId) {
+      // Handle both direct and nested portfolio data structures
+      let portfolioData, marketData = {}, includeStressTest = false;
+      if (requestData.portfolio && requestData.portfolio.portfolioId) {
+        portfolioData = requestData.portfolio;
+        marketData = requestData.marketData || {};
+        includeStressTest = requestData.includeStressTest || false;
+      } else if (requestData.portfolioData && requestData.portfolioData.portfolioId) {
+        portfolioData = requestData.portfolioData;
+        marketData = requestData.marketData || {};
+        includeStressTest = requestData.includeStressTest || false;
+      } else {
         const body = ApiResponseFactory.error(
           'Portfolio data with portfolioId is required',
           'INVALID_REQUEST'
