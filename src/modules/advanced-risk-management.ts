@@ -6,14 +6,98 @@
 
 import { createDAL } from './dal.js';
 
+// TypeScript type definitions
+interface CloudflareEnvironment {
+  AI: any;
+  TRADING_RESULTS: KVNamespace;
+  [key: string]: any;
+}
+
+interface PortfolioData {
+  portfolioId: string;
+  weights?: Record<string, number>;
+  betas?: Record<string, number>;
+  totalValue?: number;
+  volatility?: number;
+  correlationMatrix?: { matrix: number[][] };
+}
+
+interface MarketData {
+  vix?: number;
+  regime?: string;
+  [key: string]: any;
+}
+
+interface RiskLimits {
+  maxVaR: number;
+  maxConcentration: number;
+  maxSectorWeight: number;
+  maxLeverage: number;
+  minLiquidityRatio: number;
+  maxCorrelation: number;
+}
+
+interface ComplianceFramework {
+  name: string;
+  rules: string[];
+  checks: string[];
+}
+
+interface ComplianceFrameworks {
+  [framework: string]: ComplianceFramework;
+}
+
+interface AlertThresholds {
+  riskScore: { high: number; critical: number };
+  varLimit: { high: number; critical: number };
+  concentration: { high: number; critical: number };
+  correlation: { high: number; critical: number };
+  liquidity: { high: number; critical: number };
+}
+
+interface RiskAssessment {
+  id: string;
+  portfolioId: string;
+  assessmentDate: string;
+  riskScores: Record<string, number>;
+  overallRiskScore: number;
+  riskLevel: typeof RISK_LEVELS[keyof typeof RISK_LEVELS];
+  categoryBreakdown: Record<string, any>;
+  recommendations: any[];
+  stressTestResults: Record<string, any>;
+  complianceStatus: Record<string, any>;
+  riskLimits: any;
+  alerts: any[];
+}
+
+interface StressTest {
+  id: string;
+  portfolioId: string;
+  testDate: string;
+  scenarios: Record<string, any>;
+  aggregateResults: any;
+  worstCaseScenario: any;
+  recommendations: any[];
+}
+
+interface ComplianceCheck {
+  id: string;
+  portfolioId: string;
+  checkDate: string;
+  frameworks: Record<string, any>;
+  overallCompliance: boolean;
+  violations: any[];
+  recommendations: any[];
+}
+
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: CloudflareEnvironment, key: string): Promise<any> {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env, key, data, ttl) {
+async function setKVStore(env: CloudflareEnvironment, key: string, data: any, ttl?: number): Promise<boolean> {
   const dal = createDAL(env);
   const result = await dal.write(key, data, { expirationTtl: ttl });
   return result.success;
@@ -63,7 +147,12 @@ export const RISK_LEVELS = {
  * Advanced Risk Management Engine
  */
 export class AdvancedRiskManagementEngine {
-  constructor(env) {
+  private env: CloudflareEnvironment;
+  private riskLimits: RiskLimits;
+  private complianceFrameworks: ComplianceFrameworks;
+  private alertThresholds: AlertThresholds;
+
+  constructor(env: CloudflareEnvironment) {
     this.env = env;
     this.riskLimits = this.initializeRiskLimits();
     this.complianceFrameworks = this.initializeComplianceFrameworks();
@@ -73,7 +162,7 @@ export class AdvancedRiskManagementEngine {
   /**
    * Perform comprehensive risk assessment
    */
-  async performRiskAssessment(portfolioData, marketData = {}) {
+  async performRiskAssessment(portfolioData: PortfolioData, marketData: MarketData = {}): Promise<RiskAssessment> {
     try {
       const assessment = {
         id: this.generateAssessmentId(),

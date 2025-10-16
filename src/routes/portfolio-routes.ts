@@ -189,13 +189,25 @@ export class PortfolioRoutesHandler {
    */
   async handlePortfolioRiskMetrics(request) {
     try {
+      const requestData = await request.json();
+
+      // Handle both object and array formats for weights
+      let weights, symbols;
+      if (requestData.weights && typeof requestData.weights === 'object' && !Array.isArray(requestData.weights)) {
+        // Convert object format to array format
+        symbols = Object.keys(requestData.weights);
+        weights = Object.values(requestData.weights);
+      } else {
+        // Use array format directly
+        weights = requestData.weights;
+        symbols = requestData.symbols;
+      }
+
       const {
-        weights,
-        symbols,
         lookbackPeriod = 252,
         includeStressTest = false,
         scenarios = []
-      } = await request.json();
+      } = requestData;
 
       if (!weights || !Array.isArray(weights) || weights.length === 0) {
         const body = ApiResponseFactory.error(
@@ -274,12 +286,24 @@ export class PortfolioRoutesHandler {
    */
   async handleStressTesting(request) {
     try {
+      const requestData = await request.json();
+
+      // Handle both object and array formats for weights
+      let weights, symbols;
+      if (requestData.weights && typeof requestData.weights === 'object' && !Array.isArray(requestData.weights)) {
+        // Convert object format to array format
+        symbols = Object.keys(requestData.weights);
+        weights = Object.values(requestData.weights);
+      } else {
+        // Use array format directly
+        weights = requestData.weights;
+        symbols = requestData.symbols;
+      }
+
       const {
-        weights,
-        symbols,
         scenarios = [],
         lookbackPeriod = 252
-      } = await request.json();
+      } = requestData;
 
       if (!weights || !symbols || weights.length !== symbols.length) {
         const body = ApiResponseFactory.error(
@@ -313,13 +337,25 @@ export class PortfolioRoutesHandler {
    */
   async handlePerformanceAttribution(request) {
     try {
+      const requestData = await request.json();
+
+      // Handle both object and array formats for weights
+      let weights, symbols;
+      if (requestData.weights && typeof requestData.weights === 'object' && !Array.isArray(requestData.weights)) {
+        // Convert object format to array format
+        symbols = Object.keys(requestData.weights);
+        weights = Object.values(requestData.weights);
+      } else {
+        // Use array format directly
+        weights = requestData.weights;
+        symbols = requestData.symbols;
+      }
+
       const {
-        weights,
         benchmarkWeights,
-        symbols,
         lookbackPeriod = 252,
         factorReturns = {}
-      } = await request.json();
+      } = requestData;
 
       if (!weights || !benchmarkWeights || !symbols) {
         const body = ApiResponseFactory.error(
