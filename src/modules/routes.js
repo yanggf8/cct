@@ -89,6 +89,143 @@ import { handleSectorRoute } from '../routes/sector-routes-simple.js';
 
 
 /**
+ * Serve static files for critical assets
+ */
+async function serveStaticFile(pathname) {
+  // Security check - prevent directory traversal
+  if (pathname.includes('..') || pathname.includes('//')) {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  // Only handle specific critical static files that we need
+  if (pathname === '/js/api-client.js') {
+    // Return a basic API client implementation
+    const apiClientJS = `
+// CCT API Client for Trading Platform
+console.log('CCT API Client module loaded');
+
+class CCTApiClient {
+    constructor() {
+        this.baseUrl = '';
+        this.cache = new Map();
+    }
+
+    async getSectorSnapshot() {
+        try {
+            const response = await fetch('/api/v1/sectors/snapshot');
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Failed to fetch sector snapshot:', error);
+            throw error;
+        }
+    }
+
+    async get(endpoint) {
+        try {
+            const response = await fetch(this.baseUrl + endpoint);
+            return await response.json();
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
+        }
+    }
+}
+
+// Initialize global API client
+window.cctApi = new CCTApiClient();
+console.log('CCT API Client initialized');
+`;
+
+    return new Response(apiClientJS, {
+      headers: {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'public, max-age=3600'
+      }
+    });
+  }
+
+  if (pathname === '/js/web-notifications.js') {
+    // Return a basic web notifications implementation
+    const webNotificationsJS = `
+// Web Notifications System for CCT Trading Platform
+console.log('Web Notifications module loaded');
+
+// Notification System
+class WebNotificationSystem {
+    constructor() {
+        this.isSupported = 'Notification' in window;
+        this.permission = this.isSupported ? Notification.permission : 'denied';
+        this.statistics = {
+            preMarket: { sent: 0, failed: 0 },
+            intraday: { sent: 0, failed: 0 },
+            endOfDay: { sent: 0, failed: 0 },
+            weeklyReview: { sent: 0, failed: 0 }
+        };
+    }
+
+    async requestPermission() {
+        if (!this.isSupported) {
+            console.warn('Notifications not supported in this browser');
+            return false;
+        }
+
+        if (this.permission === 'default') {
+            this.permission = await Notification.requestPermission();
+        }
+
+        return this.permission === 'granted';
+    }
+
+    async sendNotification(title, options = {}) {
+        if (!this.isSupported || this.permission !== 'granted') {
+            console.warn('Notification permission not granted');
+            return false;
+        }
+
+        try {
+            const notification = new Notification(title, {
+                icon: '/favicon.ico',
+                badge: '/favicon.ico',
+                tag: 'cct-trading',
+                requireInteraction: false,
+                ...options
+            });
+
+            // Auto-close after 5 seconds
+            setTimeout(() => {
+                notification.close();
+            }, 5000);
+
+            return true;
+        } catch (error) {
+            console.error('Failed to send notification:', error);
+            return false;
+        }
+    }
+}
+
+// Global notification system
+window.cctNotifications = new WebNotificationSystem();
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Web Notifications initialized');
+});
+`;
+
+    return new Response(webNotificationsJS, {
+      headers: {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'public, max-age=3600'
+      }
+    });
+  }
+
+  return null; // Not a static file we handle
+}
+
+/**
  * Validate request for sensitive endpoints
  */
 function validateRequest(request, url, env) {
@@ -141,6 +278,15 @@ export async function handleHttpRequest(request, env, ctx) {
   }
 
   try {
+    // Handle static files first
+    if (url.pathname.startsWith('/js/') || url.pathname.startsWith('/css/') ||
+        url.pathname.startsWith('/images/') || url.pathname.startsWith('/assets/')) {
+      const staticResponse = await serveStaticFile(url.pathname);
+      if (staticResponse) {
+        return staticResponse;
+      }
+    }
+
     // Input validation and API key check for sensitive endpoints
     const validationResult = validateRequest(request, url, env);
     if (!validationResult.valid) {

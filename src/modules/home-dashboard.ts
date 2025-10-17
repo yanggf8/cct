@@ -1039,7 +1039,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                 // Fetch live sector data from API
                 const response = window.cctApi ? await window.cctApi.getSectorSnapshot() : null;
 
-                if (response.success && response.data && response.data.sectors) {
+                if (response && response.success && response.data && response.data.sectors) {
                     // Update the 4 main sectors displayed in the widget
                     const displaySectors = ['XLK', 'XLF', 'XLV', 'XLE'];
 
@@ -1066,14 +1066,12 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                         widget.setAttribute('data-response-time', metadata.responseTime + 'ms');
                     }
                 } else {
-                    // Fallback to mock data if API fails
-                    console.warn('Sector API unavailable, using fallback data');
-                    refreshSectorDataFallback();
+                    // Log the API failure gracefully
+                    console.warn('Sector API unavailable - response:', response);
                 }
             } catch (error) {
                 console.error('Error fetching sector data:', error);
-                // Fallback to mock data
-                refreshSectorDataFallback();
+                // No fallback - just log the error
             } finally {
                 // Remove loading state
                 const widget = document.getElementById('sector-performance');
@@ -1269,6 +1267,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         }
 
     </script>
+    <script src="js/api-client.js"></script>
     <script src="js/web-notifications.js"></script>
 </body>
 </html>`;
