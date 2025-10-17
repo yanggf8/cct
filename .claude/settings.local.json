@@ -189,7 +189,8 @@
       "Bash(wc:*)",
       "Bash(./test-auth-security.sh)",
       "Bash(./test-workflows.sh:*)",
-      "Bash(./test-ai-model-stability.sh:*)"
+      "Bash(./test-ai-model-stability.sh:*)",
+      "Bash(./test-dashboard-fixes.sh:*)"
     ],
     "deny": [],
     "ask": []

@@ -316,10 +316,7 @@ export async function handleHttpRequest(request, env, ctx) {
       });
     default:
       // Default response for root and unknown paths
-      if (url.pathname === '/') {
-        // Serve professional dashboard
-        return handleProfessionalDashboard(request, env, ctx);
-      }
+      // Note: '/' is handled above in the switch case
 
       if (url.pathname === '/status') {
         return new Response(JSON.stringify({
