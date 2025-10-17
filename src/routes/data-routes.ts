@@ -35,7 +35,7 @@ export async function handleDataRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Note: Some data endpoints may not require API key for public access
-  const publicEndpoints = ['/api/v1/data/symbols'];
+  const publicEndpoints = ['/api/v1/data/symbols', '/api/v1/data/health'];
   const isPublicEndpoint = publicEndpoints.some(endpoint => path.startsWith(endpoint));
 
   if (!isPublicEndpoint) {
