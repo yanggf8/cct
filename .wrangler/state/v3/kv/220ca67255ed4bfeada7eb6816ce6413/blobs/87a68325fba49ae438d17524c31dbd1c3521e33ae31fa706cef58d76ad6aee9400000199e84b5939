@@ -1,0 +1,1 @@
+{"id":"migration_1760538876217_qcdjo9btq","timestamp":"2025-10-15T14:34:36.217Z","type":"new_api_request","endpoint":"/api/v1/predictive/signals","responseTime":13,"success":true,"metadata":{"reason":"Default to new API","responseStatus":200}}

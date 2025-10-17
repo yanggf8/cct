@@ -1037,7 +1037,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                 }
 
                 // Fetch live sector data from API
-                const response = await window.cctApi.getSectorSnapshot();
+                const response = window.cctApi ? await window.cctApi.getSectorSnapshot() : null;
 
                 if (response.success && response.data && response.data.sectors) {
                     // Update the 4 main sectors displayed in the widget
@@ -1269,7 +1269,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         }
 
     </script>
-    <script src="/js/web-notifications.js"></script>
+    <script src="js/web-notifications.js"></script>
 </body>
 </html>`;
 

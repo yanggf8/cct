@@ -89,7 +89,7 @@ const LEGACY_MAPPINGS = {
 
   // Health endpoints
   '/health': '/api/v1/data/health',
-  '/model-health': '/api/v1/data/health?model=true',
+  // '/model-health': '/api/v1/data/health?model=true', // Exclude - handled by dedicated handler
   '/cron-health': '/api/v1/data/health?cron=true',
 
   // Data endpoints

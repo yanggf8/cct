@@ -1,0 +1,1 @@
+{"id":"migration_1760538895715_hz3ulhm1y","timestamp":"2025-10-15T14:34:55.715Z","type":"new_api_request","endpoint":"/api/v1/predictive/health","responseTime":34,"success":true,"metadata":{"reason":"Default to new API","responseStatus":200}}
