@@ -155,7 +155,10 @@ export async function handleHttpRequest(request, env, ctx) {
       return errorResponse;
     }
   
-    // Handle specific routes first before API v1 routing
+    // Handle health endpoints before authentication validation (public access)
+    if (url.pathname === '/health') {
+      return handleHealthCheck(request, env);
+    }
     if (url.pathname === '/model-health') {
       return handleModelHealth(request, env);
     }
@@ -193,8 +196,6 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleIndependentTechnicalAnalysis(request, env);
     case '/results':
       return handleGetResults(request, env);
-    case '/health':
-      return handleHealthCheck(request, env);
     // Optimization test endpoints (disabled for now)
     // case '/test-optimization':
     //   return handleOptimizationTest(request, env);
