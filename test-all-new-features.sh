@@ -24,6 +24,7 @@ OVERALL_PASSED=0
 
 # Test suites
 declare -A TEST_SUITES
+TEST_SUITES[ai_stability]="test-ai-model-stability.sh"
 TEST_SUITES[backtesting]="test-backtesting-api.sh"
 TEST_SUITES[portfolio]="test-portfolio-api.sh"
 TEST_SUITES[risk]="test-risk-management-api.sh"
@@ -167,6 +168,11 @@ if test_endpoint_direct "/api/v1/data/health" "Data Health"; then
 fi
 validation_tests=$((validation_tests + 1))
 
+if test_endpoint_direct "/api/v1/data/health?model=true" "AI Model Health"; then
+    validation_passed=$((validation_passed + 1))
+fi
+validation_tests=$((validation_tests + 1))
+
 # Results Summary
 echo -e "${CYAN}=====================================${NC}"
 echo -e "${CYAN}📊 Final Test Results Summary${NC}"
@@ -202,6 +208,7 @@ if [[ $total_passed -eq $total_tests ]]; then
     echo -e "${CYAN}🚀 System Status: FULLY OPERATIONAL${NC}"
     echo ""
     echo -e "${BLUE}✅ New Features Successfully Validated:${NC}"
+    echo "• AI Model Stability Infrastructure (Timeouts, Retry, Circuit Breaker)"
     echo "• Institutional-grade Backtesting Engine"
     echo "• Advanced Portfolio Optimization"
     echo "• Comprehensive Risk Management"

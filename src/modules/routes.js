@@ -155,6 +155,11 @@ export async function handleHttpRequest(request, env, ctx) {
       return errorResponse;
     }
   
+    // Handle specific routes first before API v1 routing
+    if (url.pathname === '/model-health') {
+      return handleModelHealth(request, env);
+    }
+
     // Handle CORS preflight for v1 API
     if (url.pathname.startsWith('/api/v1/') && request.method === 'OPTIONS') {
       return handleApiV1CORS();
@@ -281,8 +286,6 @@ export async function handleHttpRequest(request, env, ctx) {
       return handleTestLlama(request, env);
     case '/debug-env':
       return handleDebugEnvironment(request, env);
-    case '/model-health':
-      return handleModelHealth(request, env);
     case '/r2-upload':
       return handleR2Upload(request, env);
     case '/analyze-symbol':

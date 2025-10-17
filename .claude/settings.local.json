@@ -188,7 +188,8 @@
       "Bash(./test-ai-predictive-api.sh:*)",
       "Bash(wc:*)",
       "Bash(./test-auth-security.sh)",
-      "Bash(./test-workflows.sh:*)"
+      "Bash(./test-workflows.sh:*)",
+      "Bash(./test-ai-model-stability.sh:*)"
     ],
     "deny": [],
     "ask": []

@@ -7,6 +7,7 @@
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment_utils.js';
 import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
+import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type Definitions
@@ -127,6 +128,28 @@ function ensureLoggingInitialized(env: CloudflareEnvironment): void {
   }
 }
 
+// Get AI model circuit breakers
+function getAICircuitBreakers() {
+  return {
+    gpt: CircuitBreakerFactory.getInstance('ai-model-gpt', {
+      failureThreshold: 3,
+      successThreshold: 2,
+      openTimeout: 60000, // 1 minute
+      halfOpenTimeout: 30000, // 30 seconds
+      halfOpenMaxCalls: 3,
+      resetTimeout: 300000 // 5 minutes
+    }),
+    distilbert: CircuitBreakerFactory.getInstance('ai-model-distilbert', {
+      failureThreshold: 3,
+      successThreshold: 2,
+      openTimeout: 60000, // 1 minute
+      halfOpenTimeout: 30000, // 30 seconds
+      halfOpenMaxCalls: 3,
+      resetTimeout: 300000 // 5 minutes
+    })
+  };
+}
+
 /**
  * Main dual AI comparison function
  * Runs both AI models in parallel and provides simple comparison
@@ -198,7 +221,33 @@ export async function performDualAIComparison(
 }
 
 /**
- * GPT Analysis (Same as before but standalone)
+ * Retry utility for AI calls with exponential backoff
+ */
+async function retryAIcall<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (attempt === maxRetries - 1) throw error;
+
+      // Don't retry on certain errors
+      if (error.message.includes('invalid') || error.message.includes('authentication')) {
+        throw error;
+      }
+
+      const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+/**
+ * GPT Analysis with timeout protection and retry logic
  */
 async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
@@ -226,10 +275,21 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
 
 ${newsContext}`;
 
-    const response = await env.AI.run('@cf/openchat/openchat-3.5-0106', {
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      max_tokens: 600
+    // Add circuit breaker, timeout protection and retry logic
+    const circuitBreaker = getAICircuitBreakers().gpt;
+    const response = await retryAIcall(async () => {
+      return await circuitBreaker.execute(async () => {
+        return await Promise.race([
+          env.AI.run('@cf/openchat/openchat-3.5-0106', {
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1,
+            max_tokens: 600
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('AI model timeout')), 30000) // 30s timeout
+          )
+        ]);
+      });
     });
 
     const analysisData = parseNaturalLanguageResponse(response.response);
@@ -246,6 +306,28 @@ ${newsContext}`;
 
   } catch (error: any) {
     logError(`GPT analysis failed for ${symbol}:`, error);
+
+    // Handle timeout and circuit breaker specifically
+    if (error.message === 'AI model timeout') {
+      return {
+        model: 'gpt-oss-120b',
+        direction: 'neutral',
+        confidence: 0,
+        reasoning: 'Model timed out - temporary issue',
+        error: 'TIMEOUT'
+      };
+    }
+
+    if (error.message.includes('Circuit breaker is OPEN')) {
+      return {
+        model: 'gpt-oss-120b',
+        direction: 'neutral',
+        confidence: 0,
+        reasoning: 'AI model temporarily unavailable - circuit breaker active',
+        error: 'CIRCUIT_BREAKER_OPEN'
+      };
+    }
+
     return {
       model: 'gpt-oss-120b',
       direction: 'neutral',
@@ -257,7 +339,7 @@ ${newsContext}`;
 }
 
 /**
- * DistilBERT Analysis (Same as before but standalone)
+ * DistilBERT Analysis with timeout protection and retry logic
  */
 async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
@@ -276,10 +358,21 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
         try {
           const text = `${article.title}. ${article.summary || ''}`.substring(0, 500);
 
-          const response = await env.AI.run(
-            '@cf/huggingface/distilbert-sst-2-int8',
-            { text: text }
-          );
+          // Add circuit breaker, timeout protection and retry logic for each article
+          const circuitBreaker = getAICircuitBreakers().distilbert;
+          const response = await retryAIcall(async () => {
+            return await circuitBreaker.execute(async () => {
+              return await Promise.race([
+                env.AI.run(
+                  '@cf/huggingface/distilbert-sst-2-int8',
+                  { text: text }
+                ),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error('DistilBERT model timeout')), 20000) // 20s timeout
+                )
+              ]);
+            });
+          });
 
           const result = response[0];
           return {
@@ -289,6 +382,10 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
             title: article.title.substring(0, 100)
           };
         } catch (error: any) {
+          // Handle timeout specifically
+          if (error.message === 'DistilBERT model timeout') {
+            return { index, sentiment: 'neutral', confidence: 0, error: 'TIMEOUT' };
+          }
           return { index, sentiment: 'neutral', confidence: 0, error: error.message };
         }
       })
@@ -322,6 +419,28 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
 
   } catch (error: any) {
     logError(`DistilBERT analysis failed for ${symbol}:`, error);
+
+    // Handle timeout and circuit breaker specifically
+    if (error.message.includes('timeout')) {
+      return {
+        model: 'distilbert-sst-2-int8',
+        direction: 'neutral',
+        confidence: 0,
+        reasoning: 'Model timed out - temporary issue',
+        error: 'TIMEOUT'
+      };
+    }
+
+    if (error.message.includes('Circuit breaker is OPEN')) {
+      return {
+        model: 'distilbert-sst-2-int8',
+        direction: 'neutral',
+        confidence: 0,
+        reasoning: 'AI model temporarily unavailable - circuit breaker active',
+        error: 'CIRCUIT_BREAKER_OPEN'
+      };
+    }
+
     return {
       model: 'distilbert-sst-2-int8',
       direction: 'neutral',
