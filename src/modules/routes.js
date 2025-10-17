@@ -132,6 +132,14 @@ export async function handleHttpRequest(request, env, ctx) {
   // Log incoming request
   const startTime = requestLogger.logRequest(request);
 
+  // Handle health endpoints before authentication validation (public access)
+  if (url.pathname === '/health') {
+    return handleHealthCheck(request, env);
+  }
+  if (url.pathname === '/model-health') {
+    return handleModelHealth(request, env);
+  }
+
   try {
     // Input validation and API key check for sensitive endpoints
     const validationResult = validateRequest(request, url, env);
@@ -153,14 +161,6 @@ export async function handleHttpRequest(request, env, ctx) {
       monitor.complete(errorResponse);
       requestLogger.logResponse(errorResponse, url.pathname, startTime);
       return errorResponse;
-    }
-  
-    // Handle health endpoints before authentication validation (public access)
-    if (url.pathname === '/health') {
-      return handleHealthCheck(request, env);
-    }
-    if (url.pathname === '/model-health') {
-      return handleModelHealth(request, env);
     }
 
     // Handle CORS preflight for v1 API
