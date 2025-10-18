@@ -190,7 +190,8 @@
       "Bash(./test-auth-security.sh)",
       "Bash(./test-workflows.sh:*)",
       "Bash(./test-ai-model-stability.sh:*)",
-      "Bash(./test-dashboard-fixes.sh:*)"
+      "Bash(./test-dashboard-fixes.sh:*)",
+      "Bash(./test-console-error-fixes.sh:*)"
     ],
     "deny": [],
     "ask": []
