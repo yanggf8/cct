@@ -25,7 +25,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sector Rotation Analysis - Market Intelligence Platform</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -715,11 +715,8 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         // Run comprehensive analysis
         async function runAnalysis() {
             try {
-                const response = await fetch('/api/v1/sector-rotation/analysis', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                const response = await window.cctApi.request('/api/v1/sector-rotation/analysis', {
+                    method: 'POST'
                 });
 
                 if (response.ok) {
@@ -770,8 +767,8 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
             grid.innerHTML = \`<div class="error">\${message}</div>\`;
         }
     </script>
-    <script src="/js/api-client.js"></script>
-    <script src="/js/api-cache.js"></script>
+    <script src="/js/api-client.js?v=20251018-2"></script>
+    <script src="/js/api-cache.js?v=20251018-2"></script>
 </body>
 </html>`;
 

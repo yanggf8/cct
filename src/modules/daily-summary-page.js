@@ -16,7 +16,8 @@ export async function handleDailySummaryPage(request, env) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Analysis Summary - TFT Trading System</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+  <script src="js/api-client.js?v=20251018-2"></script>
     <style>
         * {
             margin: 0;
@@ -684,7 +685,7 @@ export async function handleDailySummaryPage(request, env) {
                     '/api/daily-summary?date=' + currentDate :
                     '/api/daily-summary';
 
-                const response = await fetch(apiUrl);
+                const response = await window.cctApi.request(apiUrl);
                 if (!response.ok) {
                     throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }
@@ -965,7 +966,7 @@ export async function handleDailySummaryPage(request, env) {
         async function loadKPIData() {
             try {
                 // Fetch KPI data from optimization endpoint
-                const response = await fetch('/test-kpi');
+                const response = await window.cctApi.request('/test-kpi');
                 if (!response.ok) {
                     console.warn('KPI endpoint not available, using defaults');
                     updateKPIDisplay({

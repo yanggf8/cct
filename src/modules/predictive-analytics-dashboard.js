@@ -28,8 +28,8 @@ export async function servePredictiveAnalyticsDashboard(request, env) {
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
 
     <!-- API Client -->
-    <script src="/js/api-client.js"></script>
-    <script src="/js/api-cache.js"></script>
+    <script src="/js/api-client.js?v=20251018-2"></script>
+    <script src="/js/api-cache.js?v=20251018-2"></script>
 
     <style>
         * {

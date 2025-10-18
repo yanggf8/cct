@@ -437,7 +437,16 @@ export function legacyCompatibilityMiddleware(
   const url = new URL(request.url);
   const path = url.pathname;
 
-  if (isLegacyEndpoint(path)) {
+  // Exclude HTML page routes from legacy compatibility
+  // These should serve HTML pages, not redirect to API endpoints
+  const htmlPageRoutes = [
+    '/weekly-analysis',
+    '/daily-summary',
+    '/sector-rotation',
+    '/predictive-analytics'
+  ];
+
+  if (isLegacyEndpoint(path) && !htmlPageRoutes.includes(path)) {
     logger.info('Legacy endpoint detected', {
       path,
       userAgent: request.headers.get('User-Agent'),

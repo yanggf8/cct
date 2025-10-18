@@ -15,7 +15,8 @@ export async function handleWeeklyAnalysisPage(request, env) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dual AI Comparison Dashboard - TFT Trading System</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+  <script src="js/api-client.js?v=20251018-2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -263,7 +264,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 
                 // Build API URL with parameters
                 const apiUrl = '/api/weekly-data?week=' + selectedWeek + '&range=' + selectedRange;
-                const response = await fetch(apiUrl);
+                const response = await window.cctApi.request(apiUrl);
                 if (!response.ok) {
                     throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }
