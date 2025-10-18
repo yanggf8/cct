@@ -191,7 +191,9 @@
       "Bash(./test-workflows.sh:*)",
       "Bash(./test-ai-model-stability.sh:*)",
       "Bash(./test-dashboard-fixes.sh:*)",
-      "Bash(./test-console-error-fixes.sh:*)"
+      "Bash(./test-console-error-fixes.sh:*)",
+      "Bash(./test-specific-console-fixes.sh:*)",
+      "Bash(./test-local-console-fixes.sh:*)"
     ],
     "deny": [],
     "ask": []
