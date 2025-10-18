@@ -18,6 +18,7 @@ import {
 import { createDAL } from '../modules/dal.js';
 import { createLogger } from '../modules/logging.js';
 import { KVKeyFactory } from '../modules/kv-key-factory.js';
+import { createCacheManager } from '../modules/cache-manager.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('data-routes');
@@ -611,7 +612,7 @@ async function handleSystemHealth(
 
     // Check storage systems
     const kvHealthy = await checkKVStorageHealth(env);
-    const cacheHealthy = await checkCacheHealth(dal);
+    const cacheHealthy = await checkCacheHealth(env);
 
     // Calculate overall status
     const servicesHealthy = [
@@ -646,7 +647,27 @@ async function handleSystemHealth(
         uptime_percentage: overallHealthy ? 99.9 : 95.0,
         average_response_time_ms: timer.getElapsedMs(),
         error_rate_percentage: overallHealthy ? 0.1 : 2.5,
-        cache_hit_rate: cacheHealthy.hitRate || 0.75,
+        cache_hit_rate: cacheHealthy.hitRate || 0,
+      },
+      // Enhanced cache metrics
+      cache: cacheHealthy.metrics ? {
+        enabled: cacheHealthy.health?.enabled || true,
+        status: cacheHealthy.health?.status || cacheHealthy.status,
+        hitRate: cacheHealthy.hitRate || 0,
+        l1HitRate: cacheHealthy.metrics.l1HitRate || 0,
+        l2HitRate: cacheHealthy.metrics.l2HitRate || 0,
+        l1Size: cacheHealthy.metrics.l1Size || 0,
+        totalRequests: cacheHealthy.metrics.totalRequests || 0,
+        l1Hits: cacheHealthy.metrics.l1Hits || 0,
+        l2Hits: cacheHealthy.metrics.l2Hits || 0,
+        misses: cacheHealthy.metrics.misses || 0,
+        evictions: cacheHealthy.metrics.evictions || 0,
+        namespaces: cacheHealthy.health?.namespaces || 0,
+        metricsHealth: cacheHealthy.health?.metricsHealth || { status: 'unknown', issues: [] }
+      } : {
+        enabled: false,
+        status: cacheHealthy.status,
+        hitRate: cacheHealthy.hitRate || 0
       },
       alerts: generateAlerts({
         gptHealthy,
@@ -789,18 +810,54 @@ async function checkKVStorageHealth(env: CloudflareEnvironment): Promise<{ statu
   }
 }
 
-async function checkCacheHealth(dal: any): Promise<{ status: string; hitRate?: number }> {
+async function checkCacheHealth(env: CloudflareEnvironment): Promise<{
+  status: string;
+  hitRate?: number;
+  metrics?: any;
+  health?: any;
+}> {
   try {
+    // Create CacheManager instance to get real metrics
+    const cacheManager = createCacheManager(env);
+
     // Test cache operations
     const testKey = 'cache_health_test';
     const testData = { timestamp: Date.now() };
 
-    await dal.put('CACHE', testKey, testData, { expirationTtl: 300 });
-    const retrieved = await dal.get('CACHE', testKey);
-    await dal.delete('CACHE', testKey);
+    await cacheManager.set('api_responses', testKey, testData);
+    const retrieved = await cacheManager.get('api_responses', testKey);
+    await cacheManager.delete('api_responses', testKey);
 
-    return { status: retrieved ? 'healthy' : 'unhealthy', hitRate: 0.85 }; // Mock hit rate
-  } catch {
+    // Get real cache statistics
+    const stats = cacheManager.getStats();
+    const healthStatus = cacheManager.getHealthStatus();
+    const metricsStats = cacheManager.getMetricsStats();
+
+    return {
+      status: retrieved ? 'healthy' : 'unhealthy',
+      hitRate: stats.overallHitRate,
+      metrics: {
+        l1HitRate: stats.l1HitRate,
+        l2HitRate: stats.l2HitRate,
+        overallHitRate: stats.overallHitRate,
+        l1Size: stats.l1Size,
+        totalRequests: stats.totalRequests,
+        l1Hits: stats.l1Hits,
+        l2Hits: stats.l2Hits,
+        misses: stats.misses,
+        evictions: stats.evictions
+      },
+      health: {
+        status: healthStatus.status,
+        enabled: healthStatus.enabled,
+        namespaces: healthStatus.namespaces,
+        metricsHealth: healthStatus.metricsHealth
+      }
+    };
+  } catch (error) {
+    logger.error('CacheHealth', 'Cache health check failed', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
     return { status: 'unhealthy' };
   }
 }
