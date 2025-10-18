@@ -16,7 +16,7 @@ import {
   validateApiKey,
   generateRequestId
 } from './api-v1.js';
-import { createDAL } from '../modules/dal.js';
+import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -143,7 +143,7 @@ async function handleDailyReport(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   const url = new URL(request.url);
 
   try {
@@ -315,7 +315,7 @@ async function handleWeeklyReport(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
 
   try {
     // Validate week format
@@ -497,7 +497,7 @@ async function handlePreMarketReport(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
 
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -664,7 +664,7 @@ async function handleEndOfDayReport(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
 
   try {
     const today = new Date().toISOString().split('T')[0];

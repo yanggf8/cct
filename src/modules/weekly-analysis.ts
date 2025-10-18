@@ -250,8 +250,22 @@ export async function handleWeeklyAnalysisPage(request, env) {
     <script>
         let accuracyChart;
 
+        // Helper function to wait for API client to be available
+        async function waitForApiClient(maxRetries = 10, delay = 100) {
+            for (let i = 0; i < maxRetries; i++) {
+                if (window.cctApi && typeof window.cctApi.request === 'function') {
+                    return window.cctApi;
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            throw new Error('API client not available after waiting. Please refresh the page.');
+        }
+
         async function loadData() {
             try {
+                // Wait for API client to be available
+                const apiClient = await waitForApiClient();
+
                 document.getElementById('loading').style.display = 'block';
                 document.getElementById('error').style.display = 'none';
                 document.getElementById('content').style.display = 'none';
@@ -264,7 +278,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 
                 // Build API URL with parameters
                 const apiUrl = '/api/weekly-data?week=' + selectedWeek + '&range=' + selectedRange;
-                const response = await window.cctApi.request(apiUrl);
+                const response = await apiClient.request(apiUrl);
                 if (!response.ok) {
                     throw new Error('HTTP ' + response.status + ': ' + response.statusText);
                 }

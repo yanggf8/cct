@@ -98,9 +98,9 @@ const LEGACY_MAPPINGS = {
   '/weekly-analysis': '/api/v1/reports/weekly/latest',
 
   // Report endpoints
-  '/pre-market-briefing': '/api/v1/reports/pre-market',
-  '/intraday-check': '/api/v1/reports/intraday',
-  '/end-of-day-summary': '/api/v1/reports/end-of-day',
+  '/pre-market-briefing': '/api/v1/reports/daily',
+  '/intraday-check': '/api/v1/reports/daily',
+  '/end-of-day-summary': '/api/v1/reports/daily',
   '/weekly-review': '/api/v1/reports/weekly/latest',
 
   // Test endpoints
