@@ -61,7 +61,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trading Dashboard - Market Intelligence Platform</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -1267,8 +1267,8 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         }
 
     </script>
-    <script src="js/api-client.js"></script>
-    <script src="js/web-notifications.js"></script>
+    <script src="js/api-client.js?v=20251018-2"></script>
+    <script src="js/web-notifications.js?v=20251018-2"></script>
 </body>
 </html>`;
 
