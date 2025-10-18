@@ -89,7 +89,7 @@ export const RequestValidation = {
    * Validate API key
    */
   validateAPIKey(request: Request, env: CloudflareEnvironment): boolean {
-    const apiKey = request.headers.get('X-API-KEY');
+    const apiKey = request.headers.get('X-API-Key');
     const validKey = env.WORKER_API_KEY;
 
     if (!validKey) {

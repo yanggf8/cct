@@ -45,7 +45,7 @@ export function createHandler(serviceName, handlerFn, options = {}) {
 
       // Authentication check if required
       if (enableAuth && requiredAuth) {
-        const apiKey = request.headers.get('X-API-KEY');
+        const apiKey = request.headers.get('X-API-Key');
         if (!apiKey || apiKey !== env.WORKER_API_KEY) {
           logger.warn('Unauthorized access attempt', { requestId, userAgent });
           throw new Error('Unauthorized');

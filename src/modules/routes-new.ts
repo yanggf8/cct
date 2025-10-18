@@ -103,7 +103,7 @@ export function validateRequest(apiKey: string) {
     ctx: ExecutionContext,
     next: () => Promise<Response>
   ): Promise<Response> => {
-    const providedKey = request.headers.get('X-API-KEY');
+    const providedKey = request.headers.get('X-API-Key');
 
     if (providedKey !== apiKey) {
       return new Response(

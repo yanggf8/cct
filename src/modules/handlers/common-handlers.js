@@ -390,7 +390,7 @@ export function validateRequestEnvironment(request, env, requiredEnvVars = []) {
   }
 
   // Check API key for sensitive operations
-  const apiKey = request.headers.get('X-API-KEY');
+  const apiKey = request.headers.get('X-API-Key');
   if (requiredEnvVars.includes('WORKER_API_KEY') && (!apiKey || apiKey !== env.WORKER_API_KEY)) {
     errors.push('Invalid or missing API key');
   }
