@@ -11,6 +11,7 @@ import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
 import { ErrorUtils, type RetryOptions } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
+import { cacheMetrics, type CacheNamespace as MetricsCacheNamespace } from './cache-metrics.js';
 
 const logger = createLogger('cache-manager');
 
@@ -228,9 +229,12 @@ export class CacheManager {
         const l1Result = this.getFromL1<T>(fullKey, cacheNs.l1Config.ttl);
         if (l1Result !== null) {
           this.stats.l1Hits++;
+          cacheMetrics.recordHit('L1', namespace as MetricsCacheNamespace);
           logger.debug(`L1 cache hit: ${fullKey}`);
           return l1Result;
         }
+        // Record L1 miss only if we attempted L1 lookup
+        cacheMetrics.recordMiss('L1', namespace as MetricsCacheNamespace);
       }
 
       // Try L2 cache
@@ -238,6 +242,7 @@ export class CacheManager {
         const l2Result = await this.getFromL2<T>(fullKey, namespace);
         if (l2Result !== null) {
           this.stats.l2Hits++;
+          cacheMetrics.recordHit('L2', namespace as MetricsCacheNamespace);
           logger.debug(`L2 cache hit: ${fullKey}`);
 
           // Promote to L1 cache
@@ -247,6 +252,8 @@ export class CacheManager {
 
           return l2Result;
         }
+        // Record L2 miss only if we attempted L2 lookup
+        cacheMetrics.recordMiss('L2', namespace as MetricsCacheNamespace);
       }
 
       // Cache miss - fetch data if function provided
@@ -548,7 +555,21 @@ export class CacheManager {
   }
 
   /**
-   * Get health status
+   * Get comprehensive metrics including detailed health info
+   */
+  getMetricsStats() {
+    return cacheMetrics.getStats();
+  }
+
+  /**
+   * Get metrics summary for logging
+   */
+  getMetricsSummary(): string {
+    return cacheMetrics.getSummary();
+  }
+
+  /**
+   * Get health status (enhanced with metrics-based assessment)
    */
   getHealthStatus(): {
     enabled: boolean;
@@ -557,14 +578,33 @@ export class CacheManager {
     l1MaxSize: number;
     hitRate: number;
     status: 'healthy' | 'warning' | 'error';
+    metricsHealth: {
+      status: 'healthy' | 'degraded' | 'unhealthy';
+      issues: string[];
+    };
   } {
     this.updateStats();
 
+    // Get metrics-based health assessment
+    const metricsStats = cacheMetrics.getStats();
+    const metricsHealth = metricsStats.health;
+
+    // Combine error-based and metrics-based status
     let status: 'healthy' | 'warning' | 'error' = 'healthy';
+
+    // Check for errors first
     if (this.stats.errors > 0) {
       status = 'warning';
     }
     if (this.stats.errors > 10) {
+      status = 'error';
+    }
+
+    // Downgrade status based on metrics health
+    if (metricsHealth.status === 'degraded' && status === 'healthy') {
+      status = 'warning';
+    }
+    if (metricsHealth.status === 'unhealthy') {
       status = 'error';
     }
 
@@ -574,12 +614,13 @@ export class CacheManager {
       l1Size: this.stats.l1Size,
       l1MaxSize: this.l1MaxSize,
       hitRate: this.stats.overallHitRate,
-      status
+      status,
+      metricsHealth
     };
   }
 
   /**
-   * Reset statistics
+   * Reset statistics (both internal and metrics)
    */
   resetStats(): void {
     this.stats = {
@@ -595,7 +636,8 @@ export class CacheManager {
       evictions: 0,
       errors: 0
     };
-    logger.info('Cache statistics reset');
+    cacheMetrics.reset();
+    logger.info('Cache statistics reset (including metrics)');
   }
 
   /**
