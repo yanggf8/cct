@@ -51,17 +51,17 @@ RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/d
 
 if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
     # Check if cache info exists
-    if echo "$RESPONSE" | jq -e '.data.cache' >/dev/null 2>&1; then
+    if echo "$RESPONSE" | jq -e '.cache' >/dev/null 2>&1; then
         test_passed "Cache metrics present in health endpoint"
 
         # Verify cache structure
-        if echo "$RESPONSE" | jq -e '.data.cache.enabled' >/dev/null 2>&1; then
+        if echo "$RESPONSE" | jq -e '.cache.enabled' >/dev/null 2>&1; then
             test_passed "Cache enabled status available"
         else
             test_failed "Cache enabled status missing" "enabled field" "not found"
         fi
 
-        if echo "$RESPONSE" | jq -e '.data.cache.hitRate' >/dev/null 2>&1; then
+        if echo "$RESPONSE" | jq -e '.cache.hitRate' >/dev/null 2>&1; then
             test_passed "Cache hit rate available"
         else
             test_failed "Cache hit rate missing" "hitRate field" "not found"
@@ -88,8 +88,8 @@ done
 # Check cache metrics after requests
 RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
 
-if echo "$RESPONSE" | jq -e '.data.cache.hitRate' >/dev/null 2>&1; then
-    HIT_RATE=$(echo "$RESPONSE" | jq -r '.data.cache.hitRate')
+if echo "$RESPONSE" | jq -e '.cache.hitRate' >/dev/null 2>&1; then
+    HIT_RATE=$(echo "$RESPONSE" | jq -r '.cache.hitRate')
     if (( $(echo "$HIT_RATE >= 0" | bc -l) )); then
         test_passed "Cache hit rate tracking functional (${HIT_RATE}%)"
     else
@@ -124,8 +124,8 @@ echo -e "${BLUE}Test 4: Cache Health Status Assessment${NC}"
 
 RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
 
-if echo "$RESPONSE" | jq -e '.data.cache.status' >/dev/null 2>&1; then
-    STATUS=$(echo "$RESPONSE" | jq -r '.data.cache.status')
+if echo "$RESPONSE" | jq -e '.cache.status' >/dev/null 2>&1; then
+    STATUS=$(echo "$RESPONSE" | jq -r '.cache.status')
 
     case $STATUS in
         "healthy"|"warning"|"error"|"degraded"|"unhealthy")
@@ -185,10 +185,10 @@ echo -e "${BLUE}Test 7: Cache Metrics Accuracy${NC}"
 
 RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
 
-if echo "$RESPONSE" | jq -e '.data.cache' >/dev/null 2>&1; then
+if echo "$RESPONSE" | jq -e '.cache' >/dev/null 2>&1; then
     # Extract cache stats
-    L1_SIZE=$(echo "$RESPONSE" | jq -r '.data.cache.l1Size // "unknown"')
-    OVERALL_HIT_RATE=$(echo "$RESPONSE" | jq -r '.data.cache.hitRate // "unknown"')
+    L1_SIZE=$(echo "$RESPONSE" | jq -r '.cache.l1Size // "unknown"')
+    OVERALL_HIT_RATE=$(echo "$RESPONSE" | jq -r '.cache.hitRate // "unknown"')
 
     if [ "$L1_SIZE" != "unknown" ]; then
         test_passed "L1 cache size tracked: $L1_SIZE entries"
@@ -239,7 +239,7 @@ echo -e "${BLUE}Test 9: Cache Metrics Consistency${NC}"
 
 # Get initial metrics
 METRICS1=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health" | \
-           jq -r '.data.cache.hitRate // 0')
+           jq -r '.cache.hitRate // 0')
 
 # Make some more requests
 timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" \
@@ -248,7 +248,7 @@ sleep 0.5
 
 # Get updated metrics
 METRICS2=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health" | \
-           jq -r '.data.cache.hitRate // 0')
+           jq -r '.cache.hitRate // 0')
 
 # Metrics should be consistent (either same or increased)
 if [ "$METRICS1" != "null" ] && [ "$METRICS2" != "null" ]; then

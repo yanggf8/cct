@@ -8,6 +8,7 @@ import { getMigrationManager, migrationMiddleware } from '../routes/migration-ma
 import { legacyCompatibilityMiddleware } from '../routes/legacy-compatibility.js';
 import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
+import { createCacheManager } from './cache-manager.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-request-handler');
@@ -292,6 +293,51 @@ export class EnhancedRequestHandler {
     const dalStats = this.dal.getPerformanceStats();
     const migrationConfig = this.migrationManager.getConfig();
 
+    // Create CacheManager instance to get comprehensive cache metrics
+    let cacheData = null;
+    try {
+      const cacheManager = createCacheManager(this.env);
+
+      // Get comprehensive cache statistics
+      const cacheStats = cacheManager.getStats();
+      const cacheHealthStatus = cacheManager.getHealthStatus();
+      const cacheMetricsStats = cacheManager.getMetricsStats();
+
+      cacheData = {
+        enabled: cacheHealthStatus.enabled,
+        status: cacheHealthStatus.status,
+        hitRate: cacheStats.overallHitRate,
+        l1HitRate: cacheStats.l1HitRate,
+        l2HitRate: cacheStats.l2HitRate,
+        l1Size: cacheStats.l1Size,
+        totalRequests: cacheStats.totalRequests,
+        l1Hits: cacheStats.l1Hits,
+        l2Hits: cacheStats.l2Hits,
+        misses: cacheStats.misses,
+        evictions: cacheStats.evictions,
+        namespaces: cacheHealthStatus.namespaces,
+        metricsHealth: cacheHealthStatus.metricsHealth,
+        detailedMetrics: {
+          overallHitRate: cacheMetricsStats.overallHitRate,
+          l1HitRate: cacheMetricsStats.l1HitRate,
+          l2HitRate: cacheMetricsStats.l2HitRate,
+          totalRequests: cacheMetricsStats.totalRequests,
+          l1Hits: cacheMetricsStats.l1Hits,
+          l1Misses: cacheMetricsStats.l1Misses,
+          l2Hits: cacheMetricsStats.l2Hits,
+          l2Misses: cacheMetricsStats.l2Misses,
+          thresholdAlerts: cacheMetricsStats.thresholdAlerts
+        }
+      };
+    } catch (error: any) {
+      logger.error('Failed to get cache metrics', { error: error.message });
+      cacheData = {
+        enabled: false,
+        status: 'error',
+        error: error.message
+      };
+    }
+
     return new Response(JSON.stringify({
       success: true,
       timestamp: new Date().toISOString(),
@@ -305,6 +351,7 @@ export class EnhancedRequestHandler {
         cache: dalStats.cache,
         operations: dalStats.performance
       },
+      cache: cacheData,
       migration: {
         enabled: migrationConfig.enableNewAPI,
         legacy_compatibility: migrationConfig.enableLegacyCompatibility,
