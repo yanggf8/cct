@@ -1,21 +1,24 @@
 /**
  * Message Tracking Usage Example
- * Shows how to use the generic message tracking module from JavaScript
+ * Shows how to use the generic message tracking module from TypeScript
  */
 
 import { createMessageTracker } from './msg-tracking.js';
+import type { CloudflareEnvironment } from '../../types.js';
 
 /**
  * Example: Sending a Facebook message with tracking
  */
-export async function exampleFacebookMessageWithTracking(env) {
+export async function exampleFacebookMessageWithTracking(
+  env: CloudflareEnvironment
+): Promise<void> {
   const tracker = createMessageTracker(env);
 
   // Step 1: Create tracking record BEFORE sending
   const trackingResult = await tracker.createTracking(
     'facebook',                      // platform
     'morning_predictions',           // message type
-    env.FACEBOOK_RECIPIENT_ID,      // recipient
+    env.FACEBOOK_RECIPIENT_ID!,      // recipient
     {                                // metadata
       symbols_processed: 5,
       analysis_date: '2025-09-30',
@@ -49,7 +52,7 @@ export async function exampleFacebookMessageWithTracking(env) {
     );
 
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as any;
 
       // Step 3: Update tracking status to 'sent'
       await tracker.updateStatus(
@@ -73,7 +76,7 @@ export async function exampleFacebookMessageWithTracking(env) {
       console.error('Message failed:', errorText);
     }
 
-  } catch (error) {
+  } catch (error: any) {
     // Step 5: Update tracking on exception
     await tracker.updateStatus(
       trackingId,
@@ -89,13 +92,15 @@ export async function exampleFacebookMessageWithTracking(env) {
 /**
  * Example: Sending Telegram message with tracking
  */
-export async function exampleTelegramMessageWithTracking(env) {
+export async function exampleTelegramMessageWithTracking(
+  env: CloudflareEnvironment
+): Promise<void> {
   const tracker = createMessageTracker(env);
 
   const trackingResult = await tracker.createTracking(
     'telegram',
     'alert',
-    env.TELEGRAM_CHAT_ID,
+    env.TELEGRAM_CHAT_ID!,
     {
       alert_type: 'price_movement',
       symbol: 'AAPL'
@@ -109,7 +114,9 @@ export async function exampleTelegramMessageWithTracking(env) {
 /**
  * Example: Get message statistics
  */
-export async function exampleGetMessageStats(env) {
+export async function exampleGetMessageStats(
+  env: CloudflareEnvironment
+): Promise<void> {
   const tracker = createMessageTracker(env);
 
   // All platforms
@@ -127,7 +134,9 @@ export async function exampleGetMessageStats(env) {
 /**
  * Example: List recent Facebook messages
  */
-export async function exampleListFacebookMessages(env) {
+export async function exampleListFacebookMessages(
+  env: CloudflareEnvironment
+): Promise<void> {
   const tracker = createMessageTracker(env);
 
   const messages = await tracker.listByPlatform('facebook', 10);
@@ -139,7 +148,9 @@ export async function exampleListFacebookMessages(env) {
 /**
  * Example: Cleanup old tracking records
  */
-export async function exampleCleanupOldTracking(env) {
+export async function exampleCleanupOldTracking(
+  env: CloudflareEnvironment
+): Promise<void> {
   const tracker = createMessageTracker(env);
 
   // Delete tracking records older than 90 days
@@ -149,7 +160,7 @@ export async function exampleCleanupOldTracking(env) {
 
 /**
  * BEFORE (facebook.js with embedded KV):
- * ```js
+ * ```ts
  * const messagingKey = `facebook_status_${date}_${messageType}`;
  * await env.TRADING_RESULTS.put(messagingKey, JSON.stringify({...}));
  * // ... send message ...
@@ -159,7 +170,7 @@ export async function exampleCleanupOldTracking(env) {
  * ```
  *
  * AFTER (pure messaging + tracking):
- * ```js
+ * ```ts
  * const tracker = createMessageTracker(env);
  * const { tracking_id } = await tracker.createTracking('facebook', 'daily_report');
  * // ... send message ...
