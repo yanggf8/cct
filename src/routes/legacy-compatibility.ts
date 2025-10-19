@@ -81,6 +81,8 @@ async function routeToNewEndpoint(
 
 /**
  * Legacy endpoint mapping configuration
+ * Note: Test endpoints and direct handlers are excluded from legacy compatibility
+ * They should be handled directly by their respective handlers, not mapped to API v1
  */
 const LEGACY_MAPPINGS = {
   // Analysis endpoints
@@ -90,24 +92,24 @@ const LEGACY_MAPPINGS = {
   // Health endpoints
   '/health': '/api/v1/data/health',
   // '/model-health': '/api/v1/data/health?model=true', // Exclude - handled by dedicated handler
-  '/cron-health': '/api/v1/data/health?cron=true',
+  // '/cron-health': '/api/v1/data/health?cron=true', // Exclude - direct handler, not API endpoint
 
-  // Data endpoints
-  '/results': '/api/v1/reports/daily/latest',
-  '/api/daily-summary': '/api/v1/reports/daily/latest',
+  // Data endpoints - EXCLUDED from legacy compatibility (direct handlers)
+  // '/results': '/api/v1/reports/daily', // Exclude - direct handler, let it be handled directly
+  '/api/daily-summary': '/api/v1/reports/daily',
   '/weekly-analysis': '/api/v1/reports/weekly/latest',
 
-  // Report endpoints
-  '/pre-market-briefing': '/api/v1/reports/daily',
-  '/intraday-check': '/api/v1/reports/daily',
-  '/end-of-day-summary': '/api/v1/reports/daily',
-  '/weekly-review': '/api/v1/reports/weekly/latest',
+  // Report endpoints - EXCLUDED from legacy compatibility (direct handlers)
+  // '/pre-market-briefing': '/api/v1/reports/daily', // Exclude - direct handler
+  // '/intraday-check': '/api/v1/reports/daily', // Exclude - direct handler
+  // '/end-of-day-summary': '/api/v1/reports/daily', // Exclude - direct handler
+  // '/weekly-review': '/api/v1/reports/weekly/latest', // Exclude - direct handler
 
-  // Test endpoints
-  '/test-sentiment': '/api/v1/test/sentiment',
-  '/test-facebook': '/api/v1/test/notifications',
-  '/kv-debug': '/api/v1/data/kv-debug',
-  '/kv-verification-test': '/api/v1/data/kv-test'
+  // Test endpoints - EXCLUDED from legacy compatibility (direct handlers)
+  // '/test-sentiment': '/api/v1/test/sentiment', // Exclude - direct handler
+  // '/test-facebook': '/api/v1/test/notifications', // Exclude - direct handler
+  // '/kv-debug': '/api/v1/data/kv-debug', // Exclude - direct handler, no API v1 equivalent
+  // '/kv-verification-test': '/api/v1/data/kv-test', // Exclude - direct handler, no API v1 equivalent
 } as const;
 
 /**
@@ -437,16 +439,30 @@ export function legacyCompatibilityMiddleware(
   const url = new URL(request.url);
   const path = url.pathname;
 
-  // Exclude HTML page routes from legacy compatibility
-  // These should serve HTML pages, not redirect to API endpoints
-  const htmlPageRoutes = [
+  // Exclude direct handlers and HTML page routes from legacy compatibility
+  // These should be handled by their direct handlers, not redirected to API endpoints
+  const excludedRoutes = [
+    // HTML page routes
     '/weekly-analysis',
     '/daily-summary',
     '/sector-rotation',
-    '/predictive-analytics'
+    '/predictive-analytics',
+    // Direct handler routes (test endpoints, utilities, reports)
+    '/results',
+    '/kv-debug',
+    '/cron-health',
+    '/kv-verification-test',
+    '/test-sentiment',
+    '/test-facebook',
+    '/pre-market-briefing',
+    '/intraday-check',
+    '/end-of-day-summary',
+    '/weekly-review',
+    '/intraday-check-decomposed',
+    '/intraday-check-refactored'
   ];
 
-  if (isLegacyEndpoint(path) && !htmlPageRoutes.includes(path)) {
+  if (isLegacyEndpoint(path) && !excludedRoutes.includes(path)) {
     logger.info('Legacy endpoint detected', {
       path,
       userAgent: request.headers.get('User-Agent'),

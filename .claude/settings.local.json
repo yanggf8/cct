@@ -199,7 +199,8 @@
       "Bash(./test-cache-metrics.sh)",
       "Bash(sort:*)",
       "Bash(git checkout:*)",
-      "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy:*)"
+      "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy:*)",
+      "Bash(./test-typescript-migration.sh:*)"
     ],
     "deny": [],
     "ask": []

@@ -46,6 +46,7 @@ import { handlePreMarketBriefing, handleIntradayCheck, handleEndOfDaySummary } f
 
 // Import decomposed handler examples
 import { handleIntradayCheckDecomposed } from './handlers/intraday-decomposed.js';
+import { handleIntradayCheckRefactored } from './handlers/intraday-refactored.js';
 
 // Legacy handlers that haven't been modularized yet
 import {
@@ -450,6 +451,9 @@ export async function handleHttpRequest(
       case '/predictive-analytics':
         response = await servePredictiveAnalyticsDashboard(request, env);
         break;
+      case '/predictive-analytics-dashboard':
+        response = await servePredictiveAnalyticsDashboard(request, env);
+        break;
       case '/daily-summary':
         response = await handleDailySummaryPageRequest(request, env);
         break;
@@ -461,6 +465,9 @@ export async function handleHttpRequest(
         break;
       case '/intraday-check-decomposed':
         response = await handleIntradayCheckDecomposed(request, env);
+        break;
+      case '/intraday-check-refactored':
+        response = await handleIntradayCheckRefactored(request, env);
         break;
       case '/end-of-day-summary':
         response = await handleEndOfDaySummary(request, env);
