@@ -3,11 +3,36 @@
  * Consolidates common functions used across sentiment modules
  */
 
+// Type definitions
+interface ParsedSentimentResponse {
+  sentiment: string;
+  confidence: number;
+  price_impact: string;
+  reasoning: string;
+  time_horizon: string;
+  key_factors: string[];
+  market_context: string;
+}
+
+interface ModelCost {
+  input_tokens: number;
+  output_tokens: number;
+  input_cost: number;
+  output_cost: number;
+  total_cost: number;
+  model: string;
+}
+
+interface ModelPricing {
+  input: number;
+  output: number;
+}
+
 /**
  * Parse natural language response from AI models (GPT, Llama, etc.)
  * Extracts sentiment, confidence, and reasoning from unstructured text
  */
-export function parseNaturalLanguageResponse(content) {
+export function parseNaturalLanguageResponse(content: string): ParsedSentimentResponse {
   const lowerContent = content.toLowerCase();
 
   // Extract sentiment
@@ -57,11 +82,13 @@ export function parseNaturalLanguageResponse(content) {
  * Structured logger with log levels and request ID support
  */
 export class SentimentLogger {
-  constructor(requestId = null) {
+  private requestId: string;
+
+  constructor(requestId: string | null = null) {
     this.requestId = requestId || Math.random().toString(36).substring(7);
   }
 
-  _log(level, message, data = null) {
+  private _log(level: string, message: string, data: any = null): void {
     const timestamp = new Date().toISOString();
     const prefix = `[${timestamp}] [${level}] [${this.requestId}]`;
 
@@ -72,19 +99,19 @@ export class SentimentLogger {
     }
   }
 
-  info(message, data) {
+  info(message: string, data?: any): void {
     this._log('INFO', message, data);
   }
 
-  warn(message, data) {
+  warn(message: string, data?: any): void {
     this._log('WARN', message, data);
   }
 
-  error(message, data) {
+  error(message: string, data?: any): void {
     this._log('ERROR', message, data);
   }
 
-  debug(message, data) {
+  debug(message: string, data?: any): void {
     this._log('DEBUG', message, data);
   }
 }
@@ -92,8 +119,12 @@ export class SentimentLogger {
 /**
  * Calculate cost estimates for different AI models
  */
-export function calculateModelCost(model, inputTokens, outputTokens) {
-  const pricing = {
+export function calculateModelCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number
+): ModelCost {
+  const pricing: Record<string, ModelPricing> = {
     'glm-4.5': {
       input: 0.59 / 1000000,  // $0.59 per M tokens
       output: 2.19 / 1000000  // $2.19 per M tokens
@@ -123,8 +154,8 @@ export function calculateModelCost(model, inputTokens, outputTokens) {
 /**
  * Map sentiment strings to trading directions
  */
-export function mapSentimentToDirection(sentiment) {
-  const mapping = {
+export function mapSentimentToDirection(sentiment: string): string {
+  const mapping: Record<string, string> = {
     'BULLISH': 'UP',
     'BEARISH': 'DOWN',
     'NEUTRAL': 'NEUTRAL',
@@ -137,7 +168,7 @@ export function mapSentimentToDirection(sentiment) {
 /**
  * Check if two sentiment directions agree
  */
-export function checkDirectionAgreement(direction1, direction2) {
+export function checkDirectionAgreement(direction1: string, direction2: string): boolean {
   const normalize1 = direction1?.toUpperCase();
   const normalize2 = direction2?.toUpperCase();
 
@@ -153,3 +184,93 @@ export function checkDirectionAgreement(direction1, direction2) {
 
   return false;
 }
+
+/**
+ * Convert confidence percentage to reliability level
+ */
+export function confidenceToReliability(confidence: number): 'high' | 'medium' | 'low' {
+  if (confidence >= 0.8) return 'high';
+  if (confidence >= 0.6) return 'medium';
+  return 'low';
+}
+
+/**
+ * Generate sentiment signal based on confidence and sentiment
+ */
+export function generateSentimentSignal(
+  sentiment: string,
+  confidence: number
+): {
+  signal: 'BUY' | 'SELL' | 'HOLD';
+  strength: 'strong' | 'moderate' | 'weak';
+  confidence: number;
+} {
+  const direction = mapSentimentToDirection(sentiment);
+  const reliability = confidenceToReliability(confidence);
+
+  let signal: 'BUY' | 'SELL' | 'HOLD';
+  let strength: 'strong' | 'moderate' | 'weak';
+
+  if (direction === 'UP') {
+    signal = confidence >= 0.7 ? 'BUY' : 'HOLD';
+  } else if (direction === 'DOWN') {
+    signal = confidence >= 0.7 ? 'SELL' : 'HOLD';
+  } else {
+    signal = 'HOLD';
+  }
+
+  if (reliability === 'high') {
+    strength = 'strong';
+  } else if (reliability === 'medium') {
+    strength = 'moderate';
+  } else {
+    strength = 'weak';
+  }
+
+  return {
+    signal,
+    strength,
+    confidence
+  };
+}
+
+/**
+ * Format sentiment data for API response
+ */
+export function formatSentimentForAPI(
+  parsed: ParsedSentimentResponse,
+  symbol?: string,
+  timestamp?: string
+): {
+  symbol?: string;
+  sentiment: string;
+  confidence: number;
+  direction: string;
+  price_impact: string;
+  reasoning: string;
+  signal: string;
+  strength: string;
+  timestamp: string;
+} {
+  const signal = generateSentimentSignal(parsed.sentiment, parsed.confidence);
+  const direction = mapSentimentToDirection(parsed.sentiment);
+
+  return {
+    symbol,
+    sentiment: parsed.sentiment,
+    confidence: parsed.confidence,
+    direction,
+    price_impact: parsed.price_impact,
+    reasoning: parsed.reasoning,
+    signal: signal.signal,
+    strength: signal.strength,
+    timestamp: timestamp || new Date().toISOString()
+  };
+}
+
+// Export types for external use
+export type {
+  ParsedSentimentResponse,
+  ModelCost,
+  ModelPricing
+};

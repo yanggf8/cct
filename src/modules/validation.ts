@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('validation');
 
@@ -272,3 +273,79 @@ export type {
   OHLCVCandle,
   MarketDataResponse
 };
+
+/**
+ * Validate Cloudflare Environment
+ */
+export function validateEnvironment(env: CloudflareEnvironment): void {
+  if (!env) {
+    throw new ValidationError('Environment object is required', 'env', env);
+  }
+
+  if (!env.TRADING_RESULTS) {
+    throw new ValidationError('TRADING_RESULTS KV namespace is required', 'env.TRADING_RESULTS', env.TRADING_RESULTS);
+  }
+
+  // Optional validations
+  if (env.FMP_API_KEY && typeof env.FMP_API_KEY !== 'string') {
+    throw new ValidationError('FMP_API_KEY must be a string', 'env.FMP_API_KEY', typeof env.FMP_API_KEY);
+  }
+
+  if (env.NEWSAPI_KEY && typeof env.NEWSAPI_KEY !== 'string') {
+    throw new ValidationError('NEWSAPI_KEY must be a string', 'env.NEWSAPI_KEY', typeof env.NEWSAPI_KEY);
+  }
+}
+
+/**
+ * Validate Request Object
+ */
+export function validateRequest(request: Request): void {
+  if (!request) {
+    throw new ValidationError('Request object is required', 'request', request);
+  }
+
+  if (!(request instanceof Request)) {
+    throw new ValidationError('Invalid request object', 'request', typeof request);
+  }
+}
+
+/**
+ * Validate KV Key Format
+ */
+export function validateKVKey(key: string): string {
+  if (!key || typeof key !== 'string') {
+    throw new ValidationError('KV key must be a non-empty string', 'key', key);
+  }
+
+  // Basic key format validation
+  if (key.length > 512) {
+    throw new ValidationError('KV key too long (max 512 characters)', 'key', key);
+  }
+
+  // Prevent invalid characters that could cause KV issues
+  if (/[<>:"\\|?*]/.test(key)) {
+    throw new ValidationError('KV key contains invalid characters', 'key', key);
+  }
+
+  return key.trim();
+}
+
+/**
+ * Safe Validation Wrapper - returns error message instead of throwing
+ */
+export function safeValidate<T>(
+  value: any,
+  validator: (val: any) => T,
+  context: string = 'validation'
+): { success: boolean; result?: T; error?: string } {
+  try {
+    const result = validator(value);
+    return { success: true, result };
+  } catch (error: any) {
+    logger.warn(`Safe validation failed for ${context}`, {
+      error: error.message,
+      value: value
+    });
+    return { success: false, error: error.message };
+  }
+}

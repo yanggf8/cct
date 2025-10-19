@@ -3,6 +3,9 @@
  * Standardizes all date operations to EST/EDT for trading data consistency
  */
 
+// Import KVKeyFactory for key generation
+import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
+
 /**
  * Get current date in EST/EDT timezone as YYYY-MM-DD string
  */
@@ -88,4 +91,30 @@ export function getLastNDaysEST(days: number): string[] {
   }
 
   return dates;
+}
+
+/**
+ * Get KV key for daily summary
+ */
+export function getDailySummaryKVKey(date: string): string {
+  return KVKeyFactory.createKey(KeyTypes.DAILY_SUMMARY, { date });
+}
+
+/**
+ * Get KV key for daily analysis
+ */
+export function getDailyAnalysisKVKey(date: string): string {
+  return KVKeyFactory.createKey(KeyTypes.ANALYSIS, { date });
+}
+
+/**
+ * Check if a date is a trading day (weekdays, excluding holidays)
+ * Simple implementation - checks if it's a weekday
+ */
+export function isTradingDay(dateStr: string): boolean {
+  const date = new Date(dateStr + 'T00:00:00');
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+
+  // Return true for weekdays (Monday-Friday)
+  return dayOfWeek >= 1 && dayOfWeek <= 5;
 }

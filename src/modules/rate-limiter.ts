@@ -7,11 +7,32 @@ import { createLogger } from './logging.js';
 
 const logger = createLogger('rate-limiter');
 
+// Type definitions
+interface RateLimiterStatus {
+  requestsInWindow: number;
+  maxRequests: number;
+  windowMs: number;
+  remaining: number;
+  retryAfter: number;
+}
+
+interface BatchRequestResult {
+  error?: string;
+  url?: string;
+  status?: number;
+  statusText?: string;
+  headers?: Headers;
+}
+
 /**
  * Simple rate limiter implementation
  */
 class RateLimiter {
-  constructor(maxRequests = 20, windowMs = 60000) { // 20 requests per minute by default
+  private maxRequests: number;
+  private windowMs: number;
+  private requests: number[];
+
+  constructor(maxRequests: number = 20, windowMs: number = 60000) { // 20 requests per minute by default
     this.maxRequests = maxRequests;
     this.windowMs = windowMs;
     this.requests = [];
@@ -20,7 +41,7 @@ class RateLimiter {
   /**
    * Check if request is allowed
    */
-  isAllowed() {
+  isAllowed(): boolean {
     const now = Date.now();
 
     // Remove old requests outside the window
@@ -38,7 +59,7 @@ class RateLimiter {
   /**
    * Get time until next request is allowed
    */
-  getRetryAfter() {
+  getRetryAfter(): number {
     if (this.requests.length === 0) return 0;
 
     const oldestRequest = Math.min(...this.requests);
@@ -50,7 +71,7 @@ class RateLimiter {
   /**
    * Get current status
    */
-  getStatus() {
+  getStatus(): RateLimiterStatus {
     const now = Date.now();
     const activeRequests = this.requests.filter(timestamp => now - timestamp < this.windowMs);
 
@@ -68,7 +89,7 @@ class RateLimiter {
 const yahooFinanceRateLimiter = new RateLimiter(20, 60000); // 20 requests per minute
 const fallbackApiRateLimiter = new RateLimiter(10, 60000); // 10 requests per minute for fallback
 
-export function configureYahooRateLimiter(maxRequests, windowMs) {
+export function configureYahooRateLimiter(maxRequests: number, windowMs: number): void {
   if (typeof maxRequests === 'number' && maxRequests > 0) {
     yahooFinanceRateLimiter.maxRequests = maxRequests;
   }
@@ -76,10 +97,15 @@ export function configureYahooRateLimiter(maxRequests, windowMs) {
     yahooFinanceRateLimiter.windowMs = windowMs;
   }
 }
+
 /**
  * Rate-limited fetch for Yahoo Finance API
  */
-export async function rateLimitedFetch(url, options = {}, rateLimiter = yahooFinanceRateLimiter) {
+export async function rateLimitedFetch(
+  url: string,
+  options: RequestInit = {},
+  rateLimiter: RateLimiter = yahooFinanceRateLimiter
+): Promise<Response> {
   const status = rateLimiter.getStatus();
 
   if (!rateLimiter.isAllowed()) {
@@ -121,7 +147,7 @@ export async function rateLimitedFetch(url, options = {}, rateLimiter = yahooFin
 
     return response;
 
-  } catch (error) {
+  } catch (error: any) {
     if (error.name === 'AbortError') {
       logger.warn('Request timeout', { url });
       throw new Error('Request timeout - Yahoo Finance API did not respond');
@@ -133,14 +159,14 @@ export async function rateLimitedFetch(url, options = {}, rateLimiter = yahooFin
 /**
  * Get Yahoo Finance rate limiter status
  */
-export function getYahooFinanceRateStatus() {
+export function getYahooFinanceRateStatus(): RateLimiterStatus {
   return yahooFinanceRateLimiter.getStatus();
 }
 
 /**
  * Reset rate limiter (for testing)
  */
-export function resetRateLimiter() {
+export function resetRateLimiter(): void {
   yahooFinanceRateLimiter.requests = [];
   fallbackApiRateLimiter.requests = [];
 }
@@ -148,8 +174,11 @@ export function resetRateLimiter() {
 /**
  * Batch rate-limited requests with intelligent spacing
  */
-export async function batchRateLimitedRequests(urls, options = {}) {
-  const results = [];
+export async function batchRateLimitedRequests(
+  urls: string[],
+  options: RequestInit = {}
+): Promise<BatchRequestResult[]> {
+  const results: BatchRequestResult[] = [];
   const batchSize = 3; // Process 3 at a time
   const delayBetweenBatches = 2000; // 2 second delay between batches
 
@@ -159,15 +188,16 @@ export async function batchRateLimitedRequests(urls, options = {}) {
     logger.info(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(urls.length / batchSize)}`);
 
     // Process batch in parallel but with rate limiting
-    const batchPromises = batch.map(async (url, index) => {
+    const batchPromises = batch.map(async (url: string, index: number): Promise<BatchRequestResult> => {
       // Stagger requests within batch by 200ms each
       if (index > 0) {
         await new Promise(resolve => setTimeout(resolve, index * 200));
       }
 
       try {
-        return await rateLimitedFetch(url, options);
-      } catch (error) {
+        const response = await rateLimitedFetch(url, options);
+        return { url, status: response.status, statusText: response.statusText, headers: response.headers };
+      } catch (error: any) {
         logger.warn(`Request failed in batch: ${url}`, { error: error.message });
         return { error: error.message, url };
       }
@@ -189,13 +219,17 @@ export async function batchRateLimitedRequests(urls, options = {}) {
 /**
  * Smart retry with exponential backoff
  */
-export async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
-  let lastError;
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error) {
+    } catch (error: any) {
       lastError = error;
 
       if (attempt === maxRetries) {
@@ -215,3 +249,22 @@ export async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
 
   throw lastError;
 }
+
+/**
+ * Create a new rate limiter instance
+ */
+export function createRateLimiter(
+  maxRequests: number = 20,
+  windowMs: number = 60000
+): RateLimiter {
+  return new RateLimiter(maxRequests, windowMs);
+}
+
+// Export the default rate limiters
+export { yahooFinanceRateLimiter, fallbackApiRateLimiter };
+
+// Export types for external use
+export type {
+  RateLimiterStatus,
+  BatchRequestResult
+};
