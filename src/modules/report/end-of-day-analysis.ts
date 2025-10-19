@@ -5,18 +5,120 @@
 
 import { createLogger } from '../logging.js';
 import { rateLimitedFetch } from '../rate-limiter.js';
+import type { CloudflareEnvironment } from '../../types.js';
+
+// Type definitions
+interface TradingSignal {
+  sentiment_layers?: Array<{
+    sentiment: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+  overall_confidence?: number;
+  primary_direction?: string;
+}
+
+interface AnalysisSignal {
+  trading_signals?: TradingSignal;
+  sentiment_layers?: Array<{
+    sentiment: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+}
+
+interface AnalysisData {
+  symbols_analyzed: string[];
+  trading_signals: Record<string, AnalysisSignal>;
+}
+
+interface MarketClosePerformance {
+  symbol: string;
+  closePrice: number | null;
+  dayChange: number | null;
+  volume: number | null;
+  previousClose?: number | null;
+  timestamp?: number;
+  dataAge?: number;
+  error?: string;
+  dataSource?: string;
+}
+
+interface MarketCloseData {
+  [symbol: string]: MarketClosePerformance;
+}
+
+interface SignalBreakdown {
+  ticker: string;
+  predicted: string;
+  predictedDirection: string;
+  actual: string;
+  actualDirection: string;
+  confidence: number;
+  confidenceLevel: 'high' | 'medium' | 'low';
+  correct: boolean;
+}
+
+interface TopPerformer {
+  ticker: string;
+  performance: string;
+}
+
+interface SignalPerformance {
+  overallAccuracy: number;
+  totalSignals: number;
+  correctCalls: number;
+  wrongCalls: number;
+  modelGrade: string;
+  topWinners: TopPerformer[];
+  topLosers: TopPerformer[];
+  signalBreakdown: SignalBreakdown[];
+}
+
+interface TomorrowOutlook {
+  marketBias: string;
+  volatilityLevel: string;
+  confidenceLevel: string;
+  keyFocus: string;
+}
+
+interface MarketInsights {
+  modelPerformance: string;
+  sectorAnalysis: string;
+  volatilityPatterns: string;
+  signalQuality: string;
+}
+
+interface EndOfDayResult extends SignalPerformance {
+  tomorrowOutlook: TomorrowOutlook;
+  insights: MarketInsights;
+  marketCloseTime: string;
+}
+
+interface MorningPredictions {
+  [symbol: string]: any;
+}
+
+interface IntradayData {
+  [symbol: string]: any;
+}
 
 const logger = createLogger('end-of-day-analysis');
 
 /**
  * Generate comprehensive end-of-day analysis
  */
-export async function generateEndOfDayAnalysis(analysisData, morningPredictions, intradayData, env) {
+export async function generateEndOfDayAnalysis(
+  analysisData: AnalysisData | null,
+  morningPredictions: MorningPredictions | null,
+  intradayData: IntradayData | null,
+  env: CloudflareEnvironment
+): Promise<EndOfDayResult> {
   logger.info('Generating end-of-day market close analysis');
 
   try {
     // Get final market close data
-    const marketCloseData = await getMarketClosePerformance(analysisData.symbols_analyzed, env);
+    const marketCloseData = await getMarketClosePerformance(analysisData?.symbols_analyzed || [], env);
 
     // Analyze high-confidence signal performance
     const signalPerformance = analyzeHighConfidenceSignals(
@@ -29,7 +131,7 @@ export async function generateEndOfDayAnalysis(analysisData, morningPredictions,
     const tomorrowOutlook = generateTomorrowOutlook(analysisData, signalPerformance);
 
     // Compile comprehensive end-of-day data
-    const endOfDayResults = {
+    const endOfDayResults: EndOfDayResult = {
       ...signalPerformance,
       tomorrowOutlook,
       insights: generateMarketInsights(signalPerformance, marketCloseData),
@@ -38,7 +140,7 @@ export async function generateEndOfDayAnalysis(analysisData, morningPredictions,
 
     return endOfDayResults;
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Error generating end-of-day analysis', { error: error.message });
     return getDefaultEndOfDayData();
   }
@@ -47,16 +149,20 @@ export async function generateEndOfDayAnalysis(analysisData, morningPredictions,
 /**
  * Analyze performance of high-confidence signals at market close
  */
-function analyzeHighConfidenceSignals(analysisData, morningPredictions, marketCloseData) {
-  const signals = analysisData.trading_signals || {};
+function analyzeHighConfidenceSignals(
+  analysisData: AnalysisData | null,
+  morningPredictions: MorningPredictions | null,
+  marketCloseData: MarketCloseData
+): SignalPerformance {
+  const signals = analysisData?.trading_signals || {};
   const CONFIDENCE_THRESHOLD = 0.70;
 
   let totalSignals = 0;
   let correctCalls = 0;
   let wrongCalls = 0;
-  const signalBreakdown = [];
-  const topWinners = [];
-  const topLosers = [];
+  const signalBreakdown: SignalBreakdown[] = [];
+  const topWinners: TopPerformer[] = [];
+  const topLosers: TopPerformer[] = [];
 
   // Process each symbol
   Object.keys(signals).forEach(symbol => {
@@ -74,7 +180,7 @@ function analyzeHighConfidenceSignals(analysisData, morningPredictions, marketCl
 
     // Get market close performance
     const closePerformance = marketCloseData[symbol];
-    if (closePerformance) {
+    if (closePerformance && closePerformance.dayChange !== null) {
       const actualDirection = closePerformance.dayChange > 0 ? 'up' : 'down';
       const isCorrect = predictedDirection === actualDirection;
 
@@ -134,8 +240,11 @@ function analyzeHighConfidenceSignals(analysisData, morningPredictions, marketCl
 /**
  * Generate tomorrow's market outlook based on current analysis
  */
-function generateTomorrowOutlook(analysisData, signalPerformance) {
-  const signals = analysisData.trading_signals || {};
+function generateTomorrowOutlook(
+  analysisData: AnalysisData | null,
+  signalPerformance: SignalPerformance
+): TomorrowOutlook {
+  const signals = analysisData?.trading_signals || {};
   const symbolCount = Object.keys(signals).length;
 
   // Analyze sentiment distribution for tomorrow
@@ -176,7 +285,10 @@ function generateTomorrowOutlook(analysisData, signalPerformance) {
 /**
  * Generate market insights based on performance
  */
-function generateMarketInsights(signalPerformance, marketCloseData) {
+function generateMarketInsights(
+  signalPerformance: SignalPerformance,
+  marketCloseData: MarketCloseData
+): MarketInsights {
   return {
     modelPerformance: `Strong ${signalPerformance.overallAccuracy}% accuracy on high-confidence signals with effective risk management.`,
     sectorAnalysis: 'Technology sector showed mixed results with established players outperforming growth names.',
@@ -188,9 +300,12 @@ function generateMarketInsights(signalPerformance, marketCloseData) {
 /**
  * Get real market close performance data from Yahoo Finance API
  */
-async function getMarketClosePerformance(symbols, env) {
+async function getMarketClosePerformance(
+  symbols: string[],
+  env: CloudflareEnvironment
+): Promise<MarketCloseData> {
   logger.info(`Fetching market close data for ${symbols.length} symbols`);
-  const performance = {};
+  const performance: MarketCloseData = {};
 
   for (const symbol of symbols) {
     try {
@@ -246,7 +361,7 @@ async function getMarketClosePerformance(symbols, env) {
 
       logger.info(`Market data for ${symbol}: $${closePrice.toFixed(2)} (${dayChange > 0 ? '+' : ''}${dayChange.toFixed(2)}%)`);
 
-    } catch (error) {
+    } catch (error: any) {
       logger.warn(`Failed to get market data for ${symbol}: ${error.message}`);
 
       // Use fallback data with clear indication it's not real
@@ -267,7 +382,7 @@ async function getMarketClosePerformance(symbols, env) {
 /**
  * Determine model grade based on accuracy
  */
-function getModelGrade(accuracy) {
+function getModelGrade(accuracy: number): string {
   if (accuracy >= 80) return 'A';
   if (accuracy >= 75) return 'A-';
   if (accuracy >= 70) return 'B+';
@@ -281,7 +396,7 @@ function getModelGrade(accuracy) {
 /**
  * Identify key focus area for tomorrow
  */
-function identifyTomorrowFocus(signals, performance) {
+function identifyTomorrowFocus(signals: Record<string, AnalysisSignal>, performance: SignalPerformance): string {
   const focuses = ['Tech Earnings', 'Fed Policy', 'Sector Rotation', 'Volatility', 'Economic Data'];
   return focuses[Math.floor(Math.random() * focuses.length)];
 }
@@ -289,7 +404,7 @@ function identifyTomorrowFocus(signals, performance) {
 /**
  * Default end-of-day data when no real data is available
  */
-function getDefaultEndOfDayData() {
+function getDefaultEndOfDayData(): EndOfDayResult {
   return {
     overallAccuracy: 73,
     totalSignals: 6,
@@ -328,6 +443,24 @@ function getDefaultEndOfDayData() {
       volatilityLevel: 'Moderate',
       confidenceLevel: 'High',
       keyFocus: 'Tech Earnings'
-    }
+    },
+    marketCloseTime: new Date().toISOString()
   };
 }
+
+// Export types for external use
+export type {
+  TradingSignal,
+  AnalysisSignal,
+  AnalysisData,
+  MarketClosePerformance,
+  MarketCloseData,
+  SignalBreakdown,
+  TopPerformer,
+  SignalPerformance,
+  TomorrowOutlook,
+  MarketInsights,
+  EndOfDayResult,
+  MorningPredictions,
+  IntradayData
+};

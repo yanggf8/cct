@@ -5,12 +5,89 @@
 
 import { createLogger } from '../logging.js';
 
+// Type definitions
+interface TradingSignal {
+  sentiment_layers?: Array<{
+    sentiment: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+  overall_confidence?: number;
+  primary_direction?: string;
+}
+
+interface AIModel {
+  direction: string;
+  confidence: number;
+}
+
+interface DualAIComparison {
+  agree: boolean;
+  agreement_type: string;
+}
+
+interface TradingSignalData {
+  direction: string;
+  strength: 'STRONG' | 'MODERATE' | 'WEAK';
+  action: string;
+}
+
+interface AnalysisSignal {
+  analysis_type?: string;
+  models?: {
+    gpt?: AIModel;
+    distilbert?: AIModel;
+  };
+  comparison?: DualAIComparison;
+  signal?: TradingSignalData;
+  trading_signals?: TradingSignal;
+  sentiment_layers?: Array<{
+    sentiment: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+}
+
+interface AnalysisData {
+  trading_signals: Record<string, AnalysisSignal>;
+}
+
+interface ProcessedSignal {
+  symbol: string;
+  sentiment: string;
+  direction: string;
+  confidence: number;
+  expectedMove: string;
+  driver: string;
+  aiInsights?: {
+    agree: boolean;
+    agreement_type: string;
+    gpt_direction?: string;
+    distilbert_direction?: string;
+    signal_action?: string;
+  };
+}
+
+interface PreMarketResult {
+  bias: string;
+  biasDisplay: string;
+  confidence: number;
+  bullishCount: number;
+  bearishCount: number;
+  totalSymbols: number;
+  highConfidenceUps: ProcessedSignal[];
+  highConfidenceDowns: ProcessedSignal[];
+  strongestSectors: string[];
+  weakestSectors: string[];
+  riskItems: Array<{ symbol: string; description: string }>;
+}
+
 const logger = createLogger('pre-market-analysis');
 
 /**
  * Generate high-confidence pre-market signals from analysis data
  */
-export function generatePreMarketSignals(analysisData) {
+export function generatePreMarketSignals(analysisData: AnalysisData | null): PreMarketResult {
   logger.info('Processing pre-market signals with high-confidence filtering');
 
   const CONFIDENCE_THRESHOLD = 0.70; // 70%
@@ -30,7 +107,7 @@ export function generatePreMarketSignals(analysisData) {
   let bearishCount = 0;
   let totalConfidence = 0;
 
-  const processedSignals = symbols.map(symbol => {
+  const processedSignals: ProcessedSignal[] = symbols.map(symbol => {
     const signal = signals[symbol];
     const tradingSignals = signal.trading_signals || signal;
 
@@ -39,7 +116,7 @@ export function generatePreMarketSignals(analysisData) {
                      signal.models?.gpt ||
                      signal.comparison?.agree !== undefined;
 
-    let sentiment, confidence, direction, aiInsights = null;
+    let sentiment: string, confidence: number, direction: string, aiInsights: ProcessedSignal['aiInsights'] = null;
 
     if (isDualAI) {
       // Process dual AI analysis
@@ -129,7 +206,7 @@ export function generatePreMarketSignals(analysisData) {
 /**
  * Calculate expected price movement based on confidence
  */
-function calculateExpectedMove(confidence) {
+function calculateExpectedMove(confidence: number): string {
   const baseMove = 1.0; // Base 1% move
   const confidenceMultiplier = confidence / 100;
   const move = baseMove * (1 + confidenceMultiplier);
@@ -139,7 +216,7 @@ function calculateExpectedMove(confidence) {
 /**
  * Generate market driver based on sentiment and confidence
  */
-function generateMarketDriver(sentiment, confidence) {
+function generateMarketDriver(sentiment: string, confidence: number): string {
   const drivers = {
     bullish: {
       high: ['Strong earnings momentum', 'Technical breakout pattern', 'Sector leadership', 'Positive sentiment surge'],
@@ -159,8 +236,8 @@ function generateMarketDriver(sentiment, confidence) {
   };
 
   const confidenceLevel = confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low';
-  const driverList = drivers[sentiment] || drivers.neutral;
-  const levelDrivers = driverList[confidenceLevel] || driverList.medium;
+  const driverList = drivers[sentiment as keyof typeof drivers] || drivers.neutral;
+  const levelDrivers = driverList[confidenceLevel as keyof typeof driverList] || driverList.medium;
 
   return levelDrivers[Math.floor(Math.random() * levelDrivers.length)];
 }
@@ -168,7 +245,7 @@ function generateMarketDriver(sentiment, confidence) {
 /**
  * Identify strongest sectors (simplified mapping for now)
  */
-function identifyStrongestSectors(signals) {
+function identifyStrongestSectors(signals: ProcessedSignal[]): string[] {
   // For now, use symbol mapping - in future this will be real sector analysis
   const techSymbols = ['AAPL', 'MSFT', 'GOOGL', 'NVDA'];
   const techStrength = signals
@@ -181,14 +258,14 @@ function identifyStrongestSectors(signals) {
 /**
  * Identify weakest sectors (simplified mapping for now)
  */
-function identifyWeakestSectors(signals) {
+function identifyWeakestSectors(signals: ProcessedSignal[]): string[] {
   return ['Energy', 'Utilities']; // Placeholder - will be real analysis in Phase 2
 }
 
 /**
  * Generate risk items based on signals
  */
-function generateRiskItems(signals) {
+function generateRiskItems(signals: ProcessedSignal[]): Array<{ symbol: string; description: string }> {
   const highVolatilitySymbols = signals.filter(s => s.confidence < 60);
 
   return [
@@ -200,7 +277,7 @@ function generateRiskItems(signals) {
 /**
  * Default pre-market data when no analysis is available
  */
-function getDefaultPreMarketData() {
+function getDefaultPreMarketData(): PreMarketResult {
   return {
     bias: 'neutral',
     biasDisplay: 'NEUTRAL',
@@ -223,3 +300,15 @@ function getDefaultPreMarketData() {
     ]
   };
 }
+
+// Export types for external use
+export type {
+  TradingSignal,
+  AIModel,
+  DualAIComparison,
+  TradingSignalData,
+  AnalysisSignal,
+  AnalysisData,
+  ProcessedSignal,
+  PreMarketResult
+};

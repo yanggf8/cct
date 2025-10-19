@@ -4,13 +4,105 @@
  */
 
 import { createLogger } from '../logging.js';
+import type { CloudflareEnvironment } from '../../types.js';
+
+// Type definitions
+interface TradingSignal {
+  sentiment_layers?: Array<{
+    sentiment: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+  overall_confidence?: number;
+  primary_direction?: string;
+}
+
+interface AnalysisSignal {
+  trading_signals?: TradingSignal;
+  sentiment_layers?: Array<{
+    sentiment: string;
+    confidence: number;
+    reasoning: string;
+  }>;
+}
+
+interface AnalysisData {
+  symbols_analyzed: string[];
+  trading_signals: Record<string, AnalysisSignal>;
+}
+
+interface CurrentPrice {
+  current: number;
+  change: number;
+  changePercent: number;
+}
+
+interface CurrentPrices {
+  [symbol: string]: CurrentPrice;
+}
+
+interface SymbolPerformance {
+  symbol: string;
+  current: number;
+  change: number;
+  direction: string;
+}
+
+interface OnTrackSignal {
+  ticker: string;
+  predicted: string;
+  predictedDirection: string;
+  actual: string;
+  actualDirection: string;
+}
+
+interface Divergence {
+  ticker: string;
+  predicted: string;
+  predictedDirection: string;
+  actual: string;
+  actualDirection: string;
+  level: 'high' | 'medium';
+  reason: string;
+}
+
+interface ModelHealth {
+  status: 'on-track' | 'warning' | 'error';
+  display: string;
+}
+
+interface RecalibrationAlert {
+  status: 'yes' | 'no';
+  message: string;
+}
+
+interface IntradayResult {
+  modelHealth: ModelHealth;
+  totalSignals: number;
+  correctCalls: number;
+  wrongCalls: number;
+  pendingCalls: number;
+  divergences: Divergence[];
+  onTrackSignals: OnTrackSignal[];
+  avgDivergence: number;
+  liveAccuracy: number;
+  recalibrationAlert: RecalibrationAlert;
+}
+
+interface MorningPredictions {
+  [symbol: string]: any;
+}
 
 const logger = createLogger('intraday-analysis');
 
 /**
  * Generate real-time intraday performance tracking
  */
-export async function generateIntradayPerformance(analysisData, morningPredictions, env) {
+export async function generateIntradayPerformance(
+  analysisData: AnalysisData | null,
+  morningPredictions: MorningPredictions | null,
+  env: CloudflareEnvironment
+): Promise<IntradayResult> {
   logger.info('Generating real-time intraday performance tracking');
 
   // If no morning predictions available, return empty state
@@ -32,7 +124,7 @@ export async function generateIntradayPerformance(analysisData, morningPredictio
 
     return performanceResults;
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Error generating intraday performance', { error: error.message });
     return getDefaultIntradayData();
   }
@@ -41,9 +133,13 @@ export async function generateIntradayPerformance(analysisData, morningPredictio
 /**
  * Compare morning predictions against current market performance
  */
-function comparePerformanceVsPredictions(morningPredictions, currentPrices, analysisData) {
+function comparePerformanceVsPredictions(
+  morningPredictions: MorningPredictions,
+  currentPrices: CurrentPrices,
+  analysisData: AnalysisData
+): IntradayResult {
   const signals = analysisData.trading_signals || {};
-  const results = {
+  const results: IntradayResult = {
     modelHealth: { status: 'on-track', display: '✅ On Track' },
     totalSignals: 0,
     correctCalls: 0,
@@ -118,10 +214,10 @@ function comparePerformanceVsPredictions(morningPredictions, currentPrices, anal
 /**
  * Get current market prices for symbols (placeholder - will be real API call)
  */
-async function getCurrentMarketPrices(symbols, env) {
+async function getCurrentMarketPrices(symbols: string[], env: CloudflareEnvironment): Promise<CurrentPrices> {
   // This will be implemented with real market data API
   // For now, return mock data structure
-  const prices = {};
+  const prices: CurrentPrices = {};
 
   symbols.forEach(symbol => {
     prices[symbol] = {
@@ -137,7 +233,7 @@ async function getCurrentMarketPrices(symbols, env) {
 /**
  * Get current performance for a specific symbol
  */
-function getCurrentSymbolPerformance(symbol, currentPrices) {
+function getCurrentSymbolPerformance(symbol: string, currentPrices: CurrentPrices): SymbolPerformance | null {
   const price = currentPrices[symbol];
   if (!price) return null;
 
@@ -152,8 +248,12 @@ function getCurrentSymbolPerformance(symbol, currentPrices) {
 /**
  * Generate reason for signal divergence
  */
-function generateDivergenceReason(symbol, predictedDirection, actualPerformance) {
-  const reasons = {
+function generateDivergenceReason(
+  symbol: string,
+  predictedDirection: string,
+  actualPerformance: SymbolPerformance
+): string {
+  const reasons: Record<string, string[]> = {
     'AAPL': ['Product announcement impact', 'Supply chain news', 'iPhone sales data'],
     'MSFT': ['Cloud earnings beat/miss', 'Azure growth rates', 'Corporate spending'],
     'GOOGL': ['Ad revenue concerns', 'Search trends', 'YouTube performance'],
@@ -168,7 +268,7 @@ function generateDivergenceReason(symbol, predictedDirection, actualPerformance)
 /**
  * Update model health status based on performance
  */
-function updateModelHealth(results) {
+function updateModelHealth(results: IntradayResult): void {
   if (results.liveAccuracy < 50) {
     results.modelHealth.status = 'error';
     results.modelHealth.display = '🚨 Off Track';
@@ -190,7 +290,7 @@ function updateModelHealth(results) {
 /**
  * Default intraday data when no real data is available
  */
-function getDefaultIntradayData() {
+function getDefaultIntradayData(): IntradayResult {
   return {
     modelHealth: { status: 'on-track', display: '✅ On Track' },
     liveAccuracy: 68,
@@ -232,3 +332,19 @@ function getDefaultIntradayData() {
     }
   };
 }
+
+// Export types for external use
+export type {
+  TradingSignal,
+  AnalysisSignal,
+  AnalysisData,
+  CurrentPrice,
+  CurrentPrices,
+  SymbolPerformance,
+  OnTrackSignal,
+  Divergence,
+  ModelHealth,
+  RecalibrationAlert,
+  IntradayResult,
+  MorningPredictions
+};
