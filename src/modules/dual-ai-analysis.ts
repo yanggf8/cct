@@ -5,7 +5,7 @@
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
-import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment_utils.js';
+import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils.js';
 import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';

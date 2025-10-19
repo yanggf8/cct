@@ -5,7 +5,7 @@
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
 import { performDualAIComparison, batchDualAIAnalysis, type DualAIComparisonResult, type BatchDualAIAnalysisResult } from './dual-ai-analysis.js';
-import { mapSentimentToDirection } from './sentiment_utils.js';
+import { mapSentimentToDirection } from './sentiment-utils.js';
 import { storeSymbolAnalysis, getSymbolAnalysisByDate, batchStoreAnalysisResults } from './data.js';
 import { initLogging, logInfo, logError, logSentimentDebug, logAIDebug, logKVDebug, logWarn } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';

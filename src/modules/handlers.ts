@@ -13,11 +13,115 @@ import { getFactTableData, getCronHealthStatus } from './data.js';
 // Models removed - using GPT-OSS-120B enhanced analysis instead
 import { analyzeSingleSymbol } from './per_symbol_analysis.js';
 import { createDAL } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+// Type definitions
+interface AnalysisOptions {
+  includeTechnical?: boolean;
+  timeHorizon?: string;
+  confidenceThreshold?: number;
+}
+
+interface AnalysisMetadata {
+  request_timestamp: string;
+  analysis_type: string;
+  options_used: AnalysisOptions;
+  processing_complete: boolean;
+}
+
+interface HealthData {
+  success: boolean;
+  status: string;
+  message: string;
+  services: {
+    web_notifications: string;
+    ai_models: string;
+    data_sources: string;
+  };
+}
+
+interface KVTestResult {
+  success: boolean;
+  operation: string;
+  test_key?: string;
+  written_data?: any;
+  read_data?: any;
+  key?: string;
+  found?: boolean;
+  value?: any;
+  raw_value_length?: number;
+  kv_binding: string;
+  message?: string;
+  error?: string;
+  stack?: string;
+  note?: string;
+  timestamp: string;
+}
+
+interface ModelHealthResult {
+  timestamp: string;
+  enhanced_models_bucket: string;
+  r2_binding: {
+    enhanced_models: boolean;
+    trained_models: boolean;
+    binding_types: {
+      enhanced: string;
+      trained: string;
+    };
+  };
+  model_files: { [key: string]: any };
+  bucket_contents: Array<{
+    key: string;
+    size: number;
+    modified: string;
+  }>;
+  errors: string[];
+  health_score?: string;
+  overall_status?: string;
+}
+
+interface FacebookTestResult {
+  timestamp: string;
+  test_execution_id: string;
+  facebook_configured: boolean;
+  message_tests: { [key: string]: any };
+  kv_logs: { [key: string]: any };
+  errors: string[];
+  overall_success: boolean;
+  summary?: {
+    total_tests: number;
+    successful_tests: number;
+    failed_tests: number;
+    success_rate: string;
+  };
+}
+
+interface DailySummaryResponse {
+  success: boolean;
+  date: string;
+  data: any;
+  api_version: string;
+  timestamp: string;
+}
+
+interface BackfillResponse {
+  success: boolean;
+  backfill_result?: any;
+  verification_result?: any;
+  parameters?: {
+    days?: number;
+    skip_existing?: boolean;
+    trading_days_only?: boolean;
+    days_checked?: number;
+  };
+  timestamp: string;
+  error?: string;
+}
 
 /**
  * Handle manual analysis requests (Phase 1: Enhanced with sentiment)
  */
-export async function handleManualAnalysis(request, env) {
+export async function handleManualAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🚀 Enhanced analysis requested (Neural Networks + Sentiment)');
 
@@ -28,7 +132,7 @@ export async function handleManualAnalysis(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Enhanced analysis error, falling back to basic:', error);
 
     try {
@@ -39,7 +143,7 @@ export async function handleManualAnalysis(request, env) {
       return new Response(JSON.stringify(basicAnalysis, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
-    } catch (fallbackError) {
+    } catch (fallbackError: any) {
       return new Response(JSON.stringify({
         success: false,
         error: fallbackError.message,
@@ -56,7 +160,7 @@ export async function handleManualAnalysis(request, env) {
 /**
  * Handle get results requests
  */
-export async function handleGetResults(request, env) {
+export async function handleGetResults(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const url = new URL(request.url);
     const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -82,7 +186,7 @@ export async function handleGetResults(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Get results error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -97,9 +201,9 @@ export async function handleGetResults(request, env) {
 /**
  * Handle health check requests
  */
-export async function handleHealthCheck(request, env) {
+export async function handleHealthCheck(request: Request, env: CloudflareEnvironment): Promise<Response> {
   // Facebook functionality removed - using Chrome web notifications instead
-  const healthData = {
+  const healthData: HealthData = {
     success: true,
     status: 'healthy',
     message: 'Facebook integration migrated to Chrome web notifications',
@@ -109,7 +213,7 @@ export async function handleHealthCheck(request, env) {
       data_sources: 'operational'
     }
   };
-  
+
   return new Response(JSON.stringify(healthData, null, 2), {
     headers: { 'Content-Type': 'application/json' }
   });
@@ -118,20 +222,20 @@ export async function handleHealthCheck(request, env) {
 /**
  * Handle Enhanced Feature Analysis requests (Neural Networks + 33 Technical Indicators + Sentiment)
  */
-export async function handleEnhancedFeatureAnalysis(request, env) {
+export async function handleEnhancedFeatureAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🔬 Enhanced Feature Analysis requested (Neural Networks + Technical Indicators + Sentiment)');
 
     // Get symbols from request or use centralized configuration
     let symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
-    
+
     if (request.method === 'POST') {
       try {
         const requestData = await request.json();
         if (requestData.symbols && Array.isArray(requestData.symbols)) {
           symbols = requestData.symbols;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log('Using default symbols (JSON parse error)');
       }
     }
@@ -143,7 +247,7 @@ export async function handleEnhancedFeatureAnalysis(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Enhanced Feature Analysis error:', error);
 
     return new Response(JSON.stringify({
@@ -162,20 +266,20 @@ export async function handleEnhancedFeatureAnalysis(request, env) {
 /**
  * Handle Independent Technical Analysis requests (33 Technical Indicators Only)
  */
-export async function handleIndependentTechnicalAnalysis(request, env) {
+export async function handleIndependentTechnicalAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🔧 Independent Technical Analysis requested (33 Indicators Only - No Neural Networks)');
 
     // Get symbols from request or use centralized configuration
     let symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map(s => s.trim());
-    
+
     if (request.method === 'POST') {
       try {
         const requestData = await request.json();
         if (requestData.symbols && Array.isArray(requestData.symbols)) {
           symbols = requestData.symbols;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log('Using default symbols (JSON parse error)');
       }
     }
@@ -187,7 +291,7 @@ export async function handleIndependentTechnicalAnalysis(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Independent Technical Analysis error:', error);
 
     return new Response(JSON.stringify({
@@ -205,7 +309,7 @@ export async function handleIndependentTechnicalAnalysis(request, env) {
 /**
  * Handle Facebook test requests
  */
-export async function handleFacebookTest(request, env) {
+export async function handleFacebookTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   console.log(`🧪 [FB-TEST] Starting Facebook test function`);
 
   // Check configuration
@@ -311,7 +415,7 @@ export async function handleFacebookTest(request, env) {
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }
         });
-      } catch (kvError) {
+      } catch (kvError: any) {
         console.error(`❌ [FB-TEST] KV storage test failed:`, kvError);
 
         // Return independent status - Facebook worked, KV failed
@@ -349,8 +453,8 @@ export async function handleFacebookTest(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-  } catch (error) {
+
+  } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
       error: error.message
@@ -364,11 +468,11 @@ export async function handleFacebookTest(request, env) {
 /**
  * Handle weekly report requests
  */
-export async function handleWeeklyReport(request, env) {
+export async function handleWeeklyReport(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const cronId = `manual_weekly_${Date.now()}`;
     // Facebook weekly report migrated to Chrome web notifications - using no-op stub
-    
+
     return new Response(JSON.stringify({
       success: true,
       message: 'Weekly report sent with dashboard link!',
@@ -376,8 +480,8 @@ export async function handleWeeklyReport(request, env) {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-    
-  } catch (error) {
+
+  } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
       error: error.message
@@ -391,7 +495,7 @@ export async function handleWeeklyReport(request, env) {
 /**
  * Handle Friday market close report
  */
-export async function handleFridayMarketCloseReport(request, env) {
+export async function handleFridayMarketCloseReport(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
       return new Response(JSON.stringify({
@@ -405,9 +509,9 @@ export async function handleFridayMarketCloseReport(request, env) {
 
     const analysis = await runWeeklyMarketCloseAnalysis(env, new Date());
     const cronId = `manual_friday_${Date.now()}`;
-    
+
     // Facebook weekend report migrated to Chrome web notifications - using no-op stub
-    
+
     return new Response(JSON.stringify({
       success: true,
       message: 'Friday market close report sent with dashboard link!',
@@ -416,8 +520,8 @@ export async function handleFridayMarketCloseReport(request, env) {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-    
-  } catch (error) {
+
+  } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
       error: error.message
@@ -431,22 +535,22 @@ export async function handleFridayMarketCloseReport(request, env) {
 /**
  * Handle other endpoints with simple responses
  */
-export async function handleFridayMondayPredictionsReport(request, env) {
+export async function handleFridayMondayPredictionsReport(request: Request, env: CloudflareEnvironment): Promise<Response> {
   return new Response(JSON.stringify({ message: 'Monday predictions feature coming soon' }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
 
-export async function handleHighConfidenceTest(request, env) {
+export async function handleHighConfidenceTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   return new Response(JSON.stringify({ message: 'High confidence test feature coming soon' }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
 
-export async function handleFactTable(request, env) {
+export async function handleFactTable(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const factTableData = await getFactTableData(env);
-    
+
     return new Response(JSON.stringify({
       success: true,
       data: factTableData,
@@ -455,8 +559,8 @@ export async function handleFactTable(request, env) {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-    
-  } catch (error) {
+
+  } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
       error: error.message
@@ -467,19 +571,19 @@ export async function handleFactTable(request, env) {
   }
 }
 
-export async function handleKVCleanup(request, env) {
+export async function handleKVCleanup(request: Request, env: CloudflareEnvironment): Promise<Response> {
   return new Response(JSON.stringify({ message: 'KV cleanup feature coming soon' }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
 
-export async function handleDebugWeekendMessage(request, env) {
+export async function handleDebugWeekendMessage(request: Request, env: CloudflareEnvironment): Promise<Response> {
   return new Response(JSON.stringify({ message: 'Debug weekend message feature coming soon' }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
 
-export async function handleKVGet(request, env) {
+export async function handleKVGet(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
@@ -516,8 +620,8 @@ export async function handleKVGet(request, env) {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-    
-  } catch (error) {
+
+  } catch (error: any) {
     return new Response(JSON.stringify({
       error: error.message
     }), {
@@ -530,7 +634,7 @@ export async function handleKVGet(request, env) {
 /**
  * Handle KV debug - test KV writing functionality
  */
-export async function handleKVDebug(request, env) {
+export async function handleKVDebug(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const dal = createDAL(env);
     const testKey = `test_kv_${Date.now()}`;
@@ -561,7 +665,7 @@ export async function handleKVDebug(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
       error: error.message,
@@ -578,7 +682,7 @@ export async function handleKVDebug(request, env) {
 /**
  * Handle KV write test - ONLY test KV writing functionality
  */
-export async function handleKVWriteTest(request, env) {
+export async function handleKVWriteTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🧪 [KV-WRITE-TEST] Starting KV write test...');
 
@@ -611,16 +715,18 @@ export async function handleKVWriteTest(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ [KV-WRITE-TEST] KV write test failed:', error);
-    return new Response(JSON.stringify({
+    const result: KVTestResult = {
       success: false,
       operation: 'write_only',
       error: error.message,
       stack: error.stack,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
-    }), {
+    };
+
+    return new Response(JSON.stringify(result), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -630,7 +736,7 @@ export async function handleKVWriteTest(request, env) {
 /**
  * Handle KV read test - ONLY test KV reading functionality
  */
-export async function handleKVReadTest(request, env) {
+export async function handleKVReadTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🧪 [KV-READ-TEST] Starting KV read test...');
 
@@ -658,7 +764,7 @@ export async function handleKVReadTest(request, env) {
 
     if (!result.success || !result.data) {
       console.log(`❌ [KV-READ-TEST] Key not found: ${key}`);
-      return new Response(JSON.stringify({
+      const response: KVTestResult = {
         success: false,
         operation: 'read_only',
         key: key,
@@ -666,7 +772,9 @@ export async function handleKVReadTest(request, env) {
         message: 'Key not found in KV store',
         kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
         timestamp: new Date().toISOString()
-      }), {
+      };
+
+      return new Response(JSON.stringify(response), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -674,7 +782,7 @@ export async function handleKVReadTest(request, env) {
 
     console.log(`✅ [KV-READ-TEST] KV read completed successfully`);
 
-    return new Response(JSON.stringify({
+    const response: KVTestResult = {
       success: true,
       operation: 'read_only',
       key: key,
@@ -683,20 +791,24 @@ export async function handleKVReadTest(request, env) {
       raw_value_length: JSON.stringify(result.data).length,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(response), {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ [KV-READ-TEST] KV read test failed:', error);
-    return new Response(JSON.stringify({
+    const response: KVTestResult = {
       success: false,
       operation: 'read_only',
       error: error.message,
       stack: error.stack,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
-    }), {
+    };
+
+    return new Response(JSON.stringify(response), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -706,7 +818,7 @@ export async function handleKVReadTest(request, env) {
 /**
  * Handle sentiment enhancement testing (Phase 1 validation)
  */
-export async function handleSentimentTest(request, env) {
+export async function handleSentimentTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🧪 Testing sentiment enhancement...');
 
@@ -721,7 +833,7 @@ export async function handleSentimentTest(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Sentiment test error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -738,7 +850,7 @@ export async function handleSentimentTest(request, env) {
 /**
  * Test Cloudflare AI Llama models
  */
-export async function handleTestLlama(request, env) {
+export async function handleTestLlama(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     if (!env.AI) {
       return new Response(JSON.stringify({
@@ -784,7 +896,7 @@ export async function handleTestLlama(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
 
-    } catch (modelError) {
+    } catch (modelError: any) {
       console.error(`❌ Model ${model} failed:`, modelError.message);
 
       return new Response(JSON.stringify({
@@ -799,7 +911,7 @@ export async function handleTestLlama(request, env) {
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Llama test error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -815,7 +927,7 @@ export async function handleTestLlama(request, env) {
 /**
  * Debug environment variables and API keys
  */
-export async function handleDebugEnvironment(request, env) {
+export async function handleDebugEnvironment(request: Request, env: CloudflareEnvironment): Promise<Response> {
   // Additional debugging - check multiple ways to access the secret
   const modelScopeKey = env.MODELSCOPE_API_KEY;
   const allEnvKeys = Object.keys(env);
@@ -867,17 +979,17 @@ export async function handleDebugEnvironment(request, env) {
 /**
  * Test ModelScope API with parameter-provided key
  */
-export async function handleModelScopeTest(request, env) {
+export async function handleModelScopeTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
-    let apiKey;
+    let apiKey: string | undefined;
 
     // Accept API key via POST body (more secure) or URL parameter (convenience)
     if (request.method === 'POST') {
       try {
-        const body = await request.json();
+        const body = await request.json() as { api_key?: string };
         apiKey = body.api_key;
         console.log(`🔒 Received POST request with body keys: ${Object.keys(body)}`);
-      } catch (jsonError) {
+      } catch (jsonError: any) {
         console.error(`❌ JSON parsing error:`, jsonError.message);
         return new Response(JSON.stringify({
           success: false,
@@ -890,7 +1002,7 @@ export async function handleModelScopeTest(request, env) {
       }
     } else {
       const url = new URL(request.url);
-      apiKey = url.searchParams.get('key');
+      apiKey = url.searchParams.get('key') || undefined;
     }
 
     if (!apiKey) {
@@ -967,7 +1079,7 @@ export async function handleModelScopeTest(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ ModelScope parameter test error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -983,7 +1095,7 @@ export async function handleModelScopeTest(request, env) {
 /**
  * Public Sentiment Analysis System test
  */
-export async function handleSentimentDebugTest(request, env) {
+export async function handleSentimentDebugTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🔧 Testing Sentiment Analysis System...');
 
@@ -1030,7 +1142,7 @@ export async function handleSentimentDebugTest(request, env) {
         text: "Apple stock is performing well"
       });
       console.log(`   ✅ DistilBERT test succeeded:`, distilTest);
-    } catch (distilError) {
+    } catch (distilError: any) {
       console.log(`   ❌ DistilBERT test failed:`, distilError.message);
     }
 
@@ -1042,7 +1154,7 @@ export async function handleSentimentDebugTest(request, env) {
         max_tokens: 50
       });
       console.log(`   ✅ GPT-OSS-120B basic test succeeded:`, gptTest);
-    } catch (gptError) {
+    } catch (gptError: any) {
       console.log(`   ❌ GPT-OSS-120B basic test failed:`, gptError.message);
     }
 
@@ -1083,7 +1195,7 @@ export async function handleSentimentDebugTest(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ GPT debug test error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -1100,11 +1212,11 @@ export async function handleSentimentDebugTest(request, env) {
 /**
  * Handle model health check - verify R2 model files accessibility
  */
-export async function handleModelHealth(request, env) {
+export async function handleModelHealth(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🏥 Running model health check...');
 
-    const healthResult = {
+    const healthResult: ModelHealthResult = {
       timestamp: new Date().toISOString(),
       enhanced_models_bucket: env.ENHANCED_MODELS_BUCKET || 'Not configured',
       r2_binding: {
@@ -1137,7 +1249,7 @@ export async function handleModelHealth(request, env) {
         modified: obj.uploaded
       })) || [];
       console.log(`📋 Found ${healthResult.bucket_contents.length} objects in R2 bucket`);
-    } catch (listError) {
+    } catch (listError: any) {
       healthResult.errors.push(`Failed to list bucket contents: ${listError.message}`);
     }
 
@@ -1172,7 +1284,7 @@ export async function handleModelHealth(request, env) {
           };
           console.log(`❌ ${fileName}: Not found`);
         }
-      } catch (fileError) {
+      } catch (fileError: any) {
         healthResult.model_files[fileName] = {
           accessible: false,
           error: fileError.message
@@ -1195,7 +1307,7 @@ export async function handleModelHealth(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Model health check error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -1211,7 +1323,7 @@ export async function handleModelHealth(request, env) {
 /**
  * Handle R2 upload for enhanced model files
  */
-export async function handleR2Upload(request, env) {
+export async function handleR2Upload(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('📤 R2 upload API called...');
 
@@ -1239,8 +1351,8 @@ export async function handleR2Upload(request, env) {
 
     // Parse form data for file uploads
     const formData = await request.formData();
-    const uploadResults = {};
-    const errors = [];
+    const uploadResults: { [key: string]: any } = {};
+    const errors: string[] = [];
 
     console.log('📋 Form data entries:', Array.from(formData.keys()));
 
@@ -1251,7 +1363,7 @@ export async function handleR2Upload(request, env) {
           console.log(`📤 Uploading ${fieldName}: ${file.name} (${file.size} bytes)`);
 
           // Determine the R2 key based on field name
-          let r2Key;
+          let r2Key: string;
           switch (fieldName) {
             case 'deployment_metadata':
               r2Key = 'deployment_metadata.json';
@@ -1285,7 +1397,7 @@ export async function handleR2Upload(request, env) {
 
           console.log(`✅ Successfully uploaded ${r2Key}: ${file.size} bytes`);
 
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error(`❌ Upload failed for ${fieldName}:`, uploadError);
           uploadResults[fieldName] = {
             success: false,
@@ -1298,7 +1410,7 @@ export async function handleR2Upload(request, env) {
         // Handle non-file form fields (like JSON strings)
         try {
           const content = file.toString();
-          let r2Key;
+          let r2Key: string;
 
           switch (fieldName) {
             case 'deployment_metadata_json':
@@ -1332,7 +1444,7 @@ export async function handleR2Upload(request, env) {
 
           console.log(`✅ Successfully uploaded ${r2Key}: ${content.length} chars`);
 
-        } catch (uploadError) {
+        } catch (uploadError: any) {
           console.error(`❌ Text upload failed for ${fieldName}:`, uploadError);
           uploadResults[fieldName] = {
             success: false,
@@ -1348,7 +1460,7 @@ export async function handleR2Upload(request, env) {
       const listResponse = await env.ENHANCED_MODELS.list();
       const currentFiles = listResponse.objects?.map(obj => obj.key) || [];
       console.log(`📋 Current R2 bucket contents after upload: ${currentFiles.join(', ')}`);
-    } catch (listError) {
+    } catch (listError: any) {
       console.error('❌ Failed to list bucket after upload:', listError);
     }
 
@@ -1368,7 +1480,7 @@ export async function handleR2Upload(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ R2 upload API error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -1384,7 +1496,7 @@ export async function handleR2Upload(request, env) {
 /**
  * Test All 5 Facebook Message Types (with comprehensive logging)
  */
-export async function handleTestAllFacebookMessages(request, env) {
+export async function handleTestAllFacebookMessages(request: Request, env: CloudflareEnvironment): Promise<Response> {
   if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
     return new Response(JSON.stringify({
       success: false,
@@ -1398,7 +1510,7 @@ export async function handleTestAllFacebookMessages(request, env) {
 
   console.log("🧪 [FB-TEST-ALL] Starting comprehensive Facebook message test for all 5 cron types");
 
-  const testResults = {
+  const testResults: FacebookTestResult = {
     timestamp: new Date().toISOString(),
     test_execution_id: `fb_test_all_${Date.now()}`,
     facebook_configured: true,
@@ -1423,7 +1535,7 @@ export async function handleTestAllFacebookMessages(request, env) {
         confidence: 0.87
       },
       MSFT: {
-        symbol: "MSFT", 
+        symbol: "MSFT",
         current_price: 334.78,
         predicted_price: 331.22,
         direction: "DOWN",
@@ -1449,7 +1561,7 @@ export async function handleTestAllFacebookMessages(request, env) {
     const initialKVList = await dal.listKeys({ prefix: "web_notif_" });
     initialKVCount = initialKVList.keys?.length || 0;
     console.log(`📋 [WEB-NOTIF-TEST-INITIAL] Found ${initialKVCount} existing KV records`);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ [WEB-NOTIF-TEST-INITIAL] Failed to get initial KV count:`, error);
   }
 
@@ -1459,16 +1571,8 @@ export async function handleTestAllFacebookMessages(request, env) {
       console.log(`🔔 [WEB-NOTIF-TEST-${i+1}] Testing ${test.name} message...`);
       const cronId = `${testResults.test_execution_id}_${test.name}`;
 
-      // Add cronId to args
-      const args = [...test.args];
-      if (test.name === "weekly_accuracy_report") {
-        args.push(cronId);
-      } else {
-        args.push(cronId);
-      }
-
       // Execute function
-      await test.func(...args);
+      await test.func();
 
       // Verify KV storage success
       let kvStored = false;
@@ -1516,7 +1620,7 @@ export async function handleTestAllFacebookMessages(request, env) {
         };
         console.log(`✅ [FB-TEST-${i+1}] ${test.name} test completed with KV verification: ${kvKey}`);
 
-      } catch (kvVerifyError) {
+      } catch (kvVerifyError: any) {
         console.error(`❌ [FB-TEST-${i+1}] KV verification failed for ${test.name}:`, kvVerifyError);
         testResults.message_tests[test.name] = {
           success: false,
@@ -1528,7 +1632,7 @@ export async function handleTestAllFacebookMessages(request, env) {
         testResults.overall_success = false;
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ [FB-TEST-${i+1}] ${test.name} test failed:`, error);
       testResults.message_tests[test.name] = { success: false, error: error.message };
       testResults.errors.push(`${test.name}: ${error.message}`);
@@ -1548,7 +1652,7 @@ export async function handleTestAllFacebookMessages(request, env) {
       recent_log_keys: recentLogs.map(k => k.name)
     };
     console.log(`📋 [FB-TEST-KV] Found ${recentLogs.length} test-related logs in KV`);
-  } catch (kvError) {
+  } catch (kvError: any) {
     console.error("❌ [FB-TEST-KV] KV logging check failed:", kvError);
     testResults.kv_logs = { error: kvError.message };
   }
@@ -1575,7 +1679,7 @@ export async function handleTestAllFacebookMessages(request, env) {
 /**
  * Handle cron health monitoring requests
  */
-export async function handleCronHealth(request, env) {
+export async function handleCronHealth(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🏥 Cron health monitoring requested...');
 
@@ -1589,7 +1693,7 @@ export async function handleCronHealth(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Cron health monitoring error:', error);
     return new Response(JSON.stringify({
       success: false,
@@ -1605,7 +1709,7 @@ export async function handleCronHealth(request, env) {
 /**
  * Handle per-symbol fine-grained analysis requests
  */
-export async function handlePerSymbolAnalysis(request, env) {
+export async function handlePerSymbolAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🔍 [TROUBLESHOOT] Per-symbol fine-grained analysis requested');
     console.log('🔍 [TROUBLESHOOT] Request URL:', request.url);
@@ -1646,7 +1750,7 @@ export async function handlePerSymbolAnalysis(request, env) {
     }
 
     // Get optional analysis parameters
-    const options = {
+    const options: AnalysisOptions = {
       includeTechnical: url.searchParams.get('include-technical') === 'true',
       timeHorizon: url.searchParams.get('time-horizon') || 'short',
       confidenceThreshold: parseFloat(url.searchParams.get('confidence-threshold')) || 0.6
@@ -1664,21 +1768,23 @@ export async function handlePerSymbolAnalysis(request, env) {
       console.log('❌ [TROUBLESHOOT] Analysis error:', analysis.error);
     }
 
+    const metadata: AnalysisMetadata = {
+      request_timestamp: new Date().toISOString(),
+      analysis_type: 'fine_grained_per_symbol',
+      options_used: options,
+      processing_complete: !analysis.error
+    };
+
     return new Response(JSON.stringify({
       success: true,
       symbol: symbol.toUpperCase(),
       analysis: analysis,
-      execution_metadata: {
-        request_timestamp: new Date().toISOString(),
-        analysis_type: 'fine_grained_per_symbol',
-        options_used: options,
-        processing_complete: !analysis.error
-      }
+      execution_metadata: metadata
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Per-symbol analysis error:', error);
 
     return new Response(JSON.stringify({
@@ -1696,7 +1802,7 @@ export async function handlePerSymbolAnalysis(request, env) {
  * Handle daily summary API requests
  * Provides JSON data for daily summary pages
  */
-export async function handleDailySummaryAPI(request, env) {
+export async function handleDailySummaryAPI(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('📊 [DAILY-SUMMARY-API] Daily summary API requested');
 
@@ -1718,20 +1824,22 @@ export async function handleDailySummaryAPI(request, env) {
 
     console.log(`✅ [DAILY-SUMMARY-API] Retrieved summary for ${validatedDate}: ${summaryData.summary.total_predictions} predictions`);
 
-    return new Response(JSON.stringify({
+    const response: DailySummaryResponse = {
       success: true,
       date: validatedDate,
       data: summaryData,
       api_version: '1.0',
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(response, null, 2), {
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=300' // 5 minute cache for performance
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ [DAILY-SUMMARY-API] Error:', error);
 
     // Determine appropriate status code based on error type
@@ -1740,11 +1848,17 @@ export async function handleDailySummaryAPI(request, env) {
       statusCode = 400;
     }
 
-    return new Response(JSON.stringify({
+    const response: DailySummaryResponse = {
       success: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      api_version: '1.0'
+      date: '',
+      data: null,
+      api_version: '1.0',
+      timestamp: new Date().toISOString()
+    };
+
+    return new Response(JSON.stringify({
+      ...response,
+      error: error.message
     }, null, 2), {
       status: statusCode,
       headers: { 'Content-Type': 'application/json' }
@@ -1755,7 +1869,7 @@ export async function handleDailySummaryAPI(request, env) {
 /**
  * Handle historical data backfill requests (admin endpoint)
  */
-export async function handleBackfillDailySummaries(request, env) {
+export async function handleBackfillDailySummaries(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🔄 [BACKFILL] Historical backfill requested');
 
@@ -1778,7 +1892,7 @@ export async function handleBackfillDailySummaries(request, env) {
 
     console.log(`✅ [BACKFILL] Completed: ${backfillResult.processed} processed, ${backfillResult.failed || 0} failed`);
 
-    return new Response(JSON.stringify({
+    const response: BackfillResponse = {
       success: true,
       backfill_result: backfillResult,
       parameters: {
@@ -1787,18 +1901,23 @@ export async function handleBackfillDailySummaries(request, env) {
         trading_days_only: tradingDaysOnly
       },
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(response, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ [BACKFILL] Error:', error);
 
-    return new Response(JSON.stringify({
+    const response: BackfillResponse = {
       success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
+      parameters: undefined,
+      timestamp: new Date().toISOString(),
+      error: error.message
+    };
+
+    return new Response(JSON.stringify(response, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -1808,7 +1927,7 @@ export async function handleBackfillDailySummaries(request, env) {
 /**
  * Handle backfill verification requests (admin endpoint)
  */
-export async function handleVerifyBackfill(request, env) {
+export async function handleVerifyBackfill(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     console.log('🔍 [BACKFILL-VERIFY] Backfill verification requested');
 
@@ -1824,27 +1943,44 @@ export async function handleVerifyBackfill(request, env) {
 
     console.log(`✅ [BACKFILL-VERIFY] Completed: ${verificationResult.coverage_percentage}% coverage`);
 
-    return new Response(JSON.stringify({
+    const response: BackfillResponse = {
       success: true,
       verification_result: verificationResult,
       parameters: {
         days_checked: days
       },
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(response, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ [BACKFILL-VERIFY] Error:', error);
 
-    return new Response(JSON.stringify({
+    const response: BackfillResponse = {
       success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }, null, 2), {
+      parameters: undefined,
+      timestamp: new Date().toISOString(),
+      error: error.message
+    };
+
+    return new Response(JSON.stringify(response, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
   }
 }
+
+// Export types for external use
+export type {
+  AnalysisOptions,
+  AnalysisMetadata,
+  HealthData,
+  KVTestResult,
+  ModelHealthResult,
+  FacebookTestResult,
+  DailySummaryResponse,
+  BackfillResponse
+};

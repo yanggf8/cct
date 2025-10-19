@@ -198,7 +198,8 @@
       "Read(///**)",
       "Bash(./test-cache-metrics.sh)",
       "Bash(sort:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy:*)"
     ],
     "deny": [],
     "ask": []
