@@ -5,15 +5,93 @@
 
 import { createLogger } from './logging.js';
 
+// Type definitions
+interface Metric {
+  value: string | number;
+  label: string;
+  trend?: string;
+  trendColor?: string;
+  color?: string;
+  description?: string;
+  progress?: number;
+  progressColor?: string;
+}
+
+interface Tab {
+  id: string;
+  label: string;
+  active?: boolean;
+}
+
+interface Signal {
+  symbol: string;
+  direction: string;
+  confidence?: number;
+  reason?: string;
+  targetPrice?: number;
+  analysis?: string;
+}
+
+interface ModelResult {
+  direction?: string;
+  confidence?: number;
+  reasoning?: string;
+  sentiment_breakdown?: {
+    bullish?: number;
+    bearish?: number;
+    neutral?: number;
+  };
+}
+
+interface Comparison {
+  agree?: boolean;
+  agreement_type?: string;
+  details?: {
+    match_direction?: string;
+    confidence_spread?: number;
+  };
+}
+
+interface TradingSignal {
+  direction?: string;
+  action?: string;
+  strength?: string;
+  reasoning?: string;
+}
+
+interface DualAISignal {
+  symbol: string;
+  comparison?: Comparison;
+  models?: {
+    gpt?: ModelResult;
+    distilbert?: ModelResult;
+  };
+  signal?: TradingSignal;
+}
+
+interface Validation {
+  missing?: string[];
+  completionRate?: number;
+}
+
+interface SentimentData {
+  bullish?: number;
+  bearish?: number;
+  neutral?: number;
+}
+
+interface AgreementStats {
+  agreementRate: number;
+  avgConfidence: number;
+  highConfidenceSignals: number;
+}
+
 const logger = createLogger('html-generators');
 
 /**
  * Common HTML header template
- * @param {string} title - Page title
- * @param {string} description - Page description
- * @returns {string} HTML header
  */
-export function generateHTMLHeader(title, description) {
+export function generateHTMLHeader(title: string, description: string): string {
   const timestamp = new Date().toISOString();
 
   return `<!DOCTYPE html>
@@ -367,9 +445,6 @@ export function generateHTMLHeader(title, description) {
             .container { padding: 10px; }
             .header { padding: 1.5rem; }
             .metrics-grid { grid-template-columns: 1fr; }
-            .container { padding: 10px; }
-            .header { padding: 1.5rem; }
-            .metrics-grid { grid-template-columns: 1fr; }
             .nav-tabs { flex-wrap: wrap; }
             .nav-tab { flex: 1; min-width: 120px; }
         }
@@ -386,10 +461,8 @@ export function generateHTMLHeader(title, description) {
 
 /**
  * Common HTML footer template
- * @param {string} systemStatus - System status description
- * @returns {string} HTML footer
  */
-export function generateHTMLFooter(systemStatus = 'Operational') {
+export function generateHTMLFooter(systemStatus: string = 'Operational'): string {
   return `
         <div class="footer">
             <p><strong>Dual AI Sentiment Analysis System</strong> | Status: <span class="status-badge status-healthy">${systemStatus}</span></p>
@@ -422,10 +495,8 @@ export function generateHTMLFooter(systemStatus = 'Operational') {
 
 /**
  * Generate metrics display grid
- * @param {Array<Object>} metrics - Array of metric objects
- * @returns {string} HTML for metrics grid
  */
-export function generateMetricsGrid(metrics) {
+export function generateMetricsGrid(metrics: Metric[]): string {
   const metricCards = metrics.map(metric => `
         <div class="metric-card">
             <div class="metric-value">${metric.value}</div>
@@ -441,10 +512,8 @@ export function generateMetricsGrid(metrics) {
 
 /**
  * Generate signal display item
- * @param {Object} signal - Signal object
- * @returns {string} HTML for signal item
  */
-export function generateSignalItem(signal) {
+export function generateSignalItem(signal: Signal): string {
   const directionClass = signal.direction.toLowerCase();
   const confidence = signal.confidence || 0;
   const confidencePercentage = Math.round(confidence * 100);
@@ -464,10 +533,8 @@ export function generateSignalItem(signal) {
 
 /**
  * Generate dual AI signal display item with enhanced model comparison
- * @param {Object} signal - Dual AI signal object
- * @returns {string} HTML for dual AI signal item
  */
-export function generateDualAISignalItem(signal) {
+export function generateDualAISignalItem(signal: DualAISignal): string {
   const comparison = signal.comparison || {};
   const models = signal.models || {};
   const tradingSignal = signal.signal || {};
@@ -579,11 +646,8 @@ export function generateDualAISignalItem(signal) {
 
 /**
  * Generate waiting/pending state display
- * @param {string} message - Wait message
- * @param {Object} validation - Validation result object
- * @returns {string} HTML for waiting state
  */
-export function generateWaitingDisplay(message, validation = null) {
+export function generateWaitingDisplay(message: string, validation: Validation | null = null): string {
   const missingInfo = validation && validation.missing ? `
         <div class="warning-container">
             <h4>⏳ Waiting for Required Data</h4>
@@ -605,11 +669,8 @@ export function generateWaitingDisplay(message, validation = null) {
 
 /**
  * Generate error display
- * @param {string} error - Error message
- * @param {Object} details - Additional error details
- * @returns {string} HTML for error display
  */
-export function generateErrorDisplay(error, details = null) {
+export function generateErrorDisplay(error: string, details: any = null): string {
   const detailsHtml = details ? `
         <div style="margin-top: 1rem; font-size: 0.9rem;">
             <strong>Details:</strong>
@@ -627,11 +688,8 @@ export function generateErrorDisplay(error, details = null) {
 
 /**
  * Generate success display
- * @param {string} message - Success message
- * @param {Object} data - Success data
- * @returns {string} HTML for success display
  */
-export function generateSuccessDisplay(message, data = null) {
+export function generateSuccessDisplay(message: string, data: any = null): string {
   const dataHtml = data ? `
         <div style="margin-top: 1rem;">
             <strong>Results:</strong>
@@ -649,10 +707,8 @@ export function generateSuccessDisplay(message, data = null) {
 
 /**
  * Generate loading spinner
- * @param {string} message - Loading message
- * @returns {string} HTML for loading spinner
  */
-export function generateLoadingSpinner(message = 'Loading...') {
+export function generateLoadingSpinner(message: string = 'Loading...'): string {
   return `
         <div style="text-align: center; padding: 2rem;">
             <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
@@ -668,10 +724,8 @@ export function generateLoadingSpinner(message = 'Loading...') {
 
 /**
  * Generate navigation tabs
- * @param {Array<Object>} tabs - Array of tab objects { id, label, active }
- * @returns {string} HTML for navigation tabs
  */
-export function generateNavigationTabs(tabs) {
+export function generateNavigationTabs(tabs: Tab[]): string {
   const tabButtons = tabs.map(tab => `
         <button class="nav-tab ${tab.active ? 'active' : ''}" data-tab="${tab.id}">
             ${tab.label}
@@ -685,23 +739,15 @@ export function generateNavigationTabs(tabs) {
 
 /**
  * Complete page generator
- * @param {string} title - Page title
- * @param {string} description - Page description
- * @param {string} content - Page content
- * @param {string} status - System status
- * @returns {string} Complete HTML page
  */
-export function generateCompletePage(title, description, content, status = 'Operational') {
+export function generateCompletePage(title: string, description: string, content: string, status: string = 'Operational'): string {
   return generateHTMLHeader(title, description) + content + generateHTMLFooter(status);
 }
 
 /**
  * Generate enhanced metrics grid with trend indicators
- * @param {Array<Object>} metrics - Array of metric objects
- * @param {string} title - Grid title
- * @returns {string} HTML for enhanced metrics grid
  */
-export function generateEnhancedMetricsGrid(metrics, title = 'Performance Metrics') {
+export function generateEnhancedMetricsGrid(metrics: Metric[], title: string = 'Performance Metrics'): string {
   const metricCards = metrics.map(metric => `
         <div class="metric-card" style="position: relative; overflow: hidden;">
             <div class="metric-value" style="color: ${metric.color || '#2c3e50'};">${metric.value}</div>
@@ -736,10 +782,8 @@ export function generateEnhancedMetricsGrid(metrics, title = 'Performance Metric
 
 /**
  * Generate comprehensive dual AI analysis summary
- * @param {Object} analysis - Analysis data
- * @returns {string} HTML for dual AI summary
  */
-export function generateDualAISummary(analysis) {
+export function generateDualAISummary(analysis: Record<string, DualAISignal>): string {
   const totalSignals = Object.keys(analysis || {}).length;
   const agreementStats = calculateAgreementStats(analysis);
 
@@ -769,10 +813,8 @@ export function generateDualAISummary(analysis) {
 
 /**
  * Generate market sentiment overview
- * @param {Object} sentiment - Sentiment data
- * @returns {string} HTML for sentiment overview
  */
-export function generateMarketSentimentOverview(sentiment) {
+export function generateMarketSentimentOverview(sentiment: SentimentData): string {
   const bullish = sentiment.bullish || 0;
   const bearish = sentiment.bearish || 0;
   const neutral = sentiment.neutral || 0;
@@ -841,10 +883,8 @@ export function generateMarketSentimentOverview(sentiment) {
 
 /**
  * Calculate agreement statistics from analysis data
- * @param {Object} analysis - Analysis data
- * @returns {Object} Agreement statistics
  */
-function calculateAgreementStats(analysis) {
+function calculateAgreementStats(analysis: Record<string, DualAISignal>): AgreementStats {
   const signals = Object.values(analysis || {});
   const totalSignals = signals.length;
 
@@ -888,4 +928,18 @@ export default {
   generateEnhancedMetricsGrid,
   generateDualAISummary,
   generateMarketSentimentOverview
+};
+
+// Export types for external use
+export type {
+  Metric,
+  Tab,
+  Signal,
+  ModelResult,
+  Comparison,
+  TradingSignal,
+  DualAISignal,
+  Validation,
+  SentimentData,
+  AgreementStats
 };
