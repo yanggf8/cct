@@ -81,7 +81,7 @@ export {
   handleDailySummaryPageRequest,
   handleBackfillDailySummaries,
   handleVerifyBackfill
-} from './summary-handlers.js';
+} from './summary-handlers.ts';
 
 // Refactored handler examples
 export {
