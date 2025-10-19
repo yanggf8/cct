@@ -4,9 +4,274 @@
  */
 
 /**
- * Send Facebook Messenger alert
+ * Interface for Cloudflare environment variables
  */
-async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
+export interface CloudflareEnvironment {
+  FACEBOOK_PAGE_TOKEN?: string;
+  FACEBOOK_RECIPIENT_ID?: string;
+  LINE_CHANNEL_TOKEN?: string;
+  LINE_USER_ID?: string;
+}
+
+/**
+ * Alert level enumeration
+ */
+export type AlertLevel = 'HIGH_CONFIDENCE' | 'MEDIUM_CONFIDENCE' | 'LOW_CONFIDENCE';
+
+/**
+ * Trading signal interface
+ */
+export interface TradingSignal {
+  symbol: string;
+  action: string;
+  current_price: number;
+  confidence: number;
+  reasoning: string;
+  components?: {
+    price_prediction?: {
+      predicted_price?: number;
+      confidence?: number;
+      time_horizon?: string;
+    };
+    sentiment_analysis?: {
+      overall_sentiment?: string;
+      confidence?: number;
+      key_factors?: string[];
+    };
+  };
+}
+
+/**
+ * Performance metrics interface
+ */
+export interface PerformanceMetrics {
+  success_rate: number;
+  avg_confidence: number;
+  signal_distribution: {
+    BUY?: number;
+    SELL?: number;
+    HOLD?: number;
+  };
+}
+
+/**
+ * Analysis results interface
+ */
+export interface AnalysisResults {
+  trading_signals: Record<string, TradingSignal>;
+  performance_metrics: PerformanceMetrics;
+}
+
+/**
+ * Alert interface
+ */
+export interface TradingAlert {
+  symbol: string;
+  level: AlertLevel;
+  timestamp?: Date;
+  message?: string;
+}
+
+/**
+ * Facebook Graph API response interface
+ */
+export interface FacebookGraphResponse {
+  recipient_id: string;
+  message_id: string;
+}
+
+/**
+ * Facebook Graph API error interface
+ */
+export interface FacebookGraphError {
+  error: {
+    message: string;
+    type: string;
+    code: number;
+    error_subcode?: number;
+  };
+}
+
+/**
+ * LINE Messaging API response interface
+ */
+export interface LineMessageResponse {
+  [key: string]: any;
+}
+
+/**
+ * LINE Messaging API error interface
+ */
+export interface LineMessageError {
+  error: {
+    message: string;
+    details?: any[];
+  };
+}
+
+/**
+ * Facebook message recipient interface
+ */
+export interface FacebookRecipient {
+  id: string;
+}
+
+/**
+ * Facebook message interface
+ */
+export interface FacebookMessage {
+  text?: string;
+  attachment?: {
+    type: 'template';
+    payload: {
+      template_type: 'generic';
+      elements: FacebookGenericElement[];
+    };
+  };
+}
+
+/**
+ * Facebook generic template element interface
+ */
+export interface FacebookGenericElement {
+  title: string;
+  subtitle?: string;
+  image_url?: string;
+  buttons?: FacebookButton[];
+}
+
+/**
+ * Facebook button interface
+ */
+export interface FacebookButton {
+  type: 'web_url' | 'postback';
+  url?: string;
+  title: string;
+  payload?: string;
+}
+
+/**
+ * Facebook message request payload interface
+ */
+export interface FacebookMessageRequest {
+  recipient: FacebookRecipient;
+  message: FacebookMessage;
+  messaging_type: 'UPDATE' | 'MESSAGE_TAG' | 'RESPONSE';
+}
+
+/**
+ * LINE message action interface
+ */
+export interface LineMessageAction {
+  type: 'uri' | 'postback';
+  label: string;
+  uri?: string;
+  data?: string;
+}
+
+/**
+ * LINE flex content interface
+ */
+export interface LineFlexContent {
+  type: string;
+  text?: string;
+  weight?: 'bold' | 'normal';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
+  color?: string;
+  align?: 'start' | 'center' | 'end';
+  margin?: string;
+  spacing?: string;
+  wrap?: boolean;
+  flex?: number;
+  url?: string;
+  aspectRatio?: string;
+  aspectMode?: string;
+  layout?: 'horizontal' | 'vertical' | 'baseline';
+  contents?: LineFlexContent[];
+  action?: LineMessageAction;
+  style?: string;
+  height?: string;
+}
+
+/**
+ * LINE bubble container interface
+ */
+export interface LineBubbleContainer {
+  type: 'bubble';
+  hero?: {
+    type: 'image';
+    url: string;
+    size?: string;
+    aspectRatio?: string;
+    aspectMode?: string;
+  };
+  body: {
+    type: 'box';
+    layout: 'vertical';
+    contents: LineFlexContent[];
+  };
+  footer?: {
+    type: 'box';
+    layout: 'vertical';
+    spacing?: string;
+    contents: LineFlexContent[];
+    flex?: number;
+  };
+}
+
+/**
+ * LINE carousel container interface
+ */
+export interface LineCarouselContainer {
+  type: 'carousel';
+  contents: LineBubbleContainer[];
+}
+
+/**
+ * LINE flex message interface
+ */
+export interface LineFlexMessage {
+  type: 'flex';
+  altText: string;
+  contents: LineCarouselContainer;
+}
+
+/**
+ * LINE sticker message interface
+ */
+export interface LineStickerMessage {
+  type: 'sticker';
+  packageId: string;
+  stickerId: string;
+}
+
+/**
+ * LINE message push request interface
+ */
+export interface LineMessagePushRequest {
+  to: string;
+  messages: (LineFlexMessage | LineStickerMessage | { type: 'text'; text: string })[];
+}
+
+/**
+ * Company domain mapping interface
+ */
+export interface CompanyDomainMap {
+  [symbol: string]: string;
+}
+
+/**
+ * Send Facebook Messenger alert
+ *
+ * @param alerts - Array of trading alerts
+ * @param analysisResults - Complete analysis results with trading signals
+ * @param env - Cloudflare environment variables
+ */
+export async function sendFacebookMessengerAlert(
+  alerts: TradingAlert[],
+  analysisResults: AnalysisResults,
+  env: CloudflareEnvironment
+): Promise<void> {
   if (!env.FACEBOOK_PAGE_TOKEN || !env.FACEBOOK_RECIPIENT_ID) {
     console.log('⚠️ Facebook Messenger not configured - skipping');
     return;
@@ -14,12 +279,12 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
 
   try {
     const highConfidenceAlerts = alerts.filter(a => a.level === 'HIGH_CONFIDENCE');
-    
+
     if (highConfidenceAlerts.length === 0) return;
 
     // Format message for Messenger
     let messageText = `🎯 Trading Alert - ${highConfidenceAlerts.length} High Confidence Signals\n\n`;
-    
+
     highConfidenceAlerts.forEach(alert => {
       const signal = analysisResults.trading_signals[alert.symbol];
       if (signal) {
@@ -52,18 +317,18 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
           text: messageText
         },
         messaging_type: 'UPDATE'
-      })
+      } as FacebookMessageRequest)
     });
 
     if (response.ok) {
       console.log('✅ Facebook Messenger alert sent successfully');
-      
+
       // Send individual signal cards for high-value signals
       for (const alert of highConfidenceAlerts.slice(0, 3)) { // Max 3 detailed cards
         await sendFacebookSignalCard(alert, analysisResults.trading_signals[alert.symbol], env);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limiting
       }
-      
+
     } else {
       const error = await response.text();
       console.error('❌ Facebook Messenger alert failed:', error);
@@ -76,16 +341,24 @@ async function sendFacebookMessengerAlert(alerts, analysisResults, env) {
 
 /**
  * Send detailed signal card via Facebook Messenger
+ *
+ * @param alert - Trading alert information
+ * @param signal - Detailed trading signal
+ * @param env - Cloudflare environment variables
  */
-async function sendFacebookSignalCard(alert, signal, env) {
+export async function sendFacebookSignalCard(
+  alert: TradingAlert,
+  signal: TradingSignal,
+  env: CloudflareEnvironment
+): Promise<void> {
   try {
     const priceComp = signal.components?.price_prediction || {};
     const sentComp = signal.components?.sentiment_analysis || {};
-    
+
     // Create rich card template
-    const cardTemplate = {
+    const cardTemplate: FacebookMessageRequest = {
       recipient: {
-        id: env.FACEBOOK_RECIPIENT_ID
+        id: env.FACEBOOK_RECIPIENT_ID!
       },
       message: {
         attachment: {
@@ -133,8 +406,16 @@ async function sendFacebookSignalCard(alert, signal, env) {
 
 /**
  * Send LINE (Taiwan) alert
+ *
+ * @param alerts - Array of trading alerts
+ * @param analysisResults - Complete analysis results with trading signals
+ * @param env - Cloudflare environment variables
  */
-async function sendLINEAlert(alerts, analysisResults, env) {
+export async function sendLINEAlert(
+  alerts: TradingAlert[],
+  analysisResults: AnalysisResults,
+  env: CloudflareEnvironment
+): Promise<void> {
   if (!env.LINE_CHANNEL_TOKEN || !env.LINE_USER_ID) {
     console.log('⚠️ LINE not configured - skipping');
     return;
@@ -142,7 +423,7 @@ async function sendLINEAlert(alerts, analysisResults, env) {
 
   try {
     const highConfidenceAlerts = alerts.filter(a => a.level === 'HIGH_CONFIDENCE');
-    
+
     if (highConfidenceAlerts.length === 0) return;
 
     // Create LINE Flex Message for rich formatting
@@ -157,17 +438,17 @@ async function sendLINEAlert(alerts, analysisResults, env) {
       body: JSON.stringify({
         to: env.LINE_USER_ID,
         messages: [flexMessage]
-      })
+      } as LineMessagePushRequest)
     });
 
     if (response.ok) {
       console.log('✅ LINE alert sent successfully');
-      
+
       // Send follow-up sticker for high-impact signals
       if (highConfidenceAlerts.length >= 3) {
         await sendLINESticker(env.LINE_USER_ID, env.LINE_CHANNEL_TOKEN);
       }
-      
+
     } else {
       const error = await response.text();
       console.error('❌ LINE alert failed:', error);
@@ -180,16 +461,23 @@ async function sendLINEAlert(alerts, analysisResults, env) {
 
 /**
  * Create LINE Flex Message for trading alerts
+ *
+ * @param alerts - Array of high confidence alerts
+ * @param analysisResults - Complete analysis results
+ * @returns LINE Flex Message object
  */
-function createLINEFlexMessage(alerts, analysisResults) {
+export function createLINEFlexMessage(
+  alerts: TradingAlert[],
+  analysisResults: AnalysisResults
+): LineFlexMessage {
   const perf = analysisResults.performance_metrics;
-  
+
   // Create signal bubbles
-  const signalBubbles = alerts.slice(0, 5).map(alert => {
+  const signalBubbles: LineBubbleContainer[] = alerts.slice(0, 5).map(alert => {
     const signal = analysisResults.trading_signals[alert.symbol];
-    const actionColor = signal.action.includes('BUY') ? '#00C851' : 
+    const actionColor = signal.action.includes('BUY') ? '#00C851' :
                        signal.action.includes('SELL') ? '#FF4444' : '#33B5E5';
-    
+
     return {
       type: 'bubble',
       hero: {
@@ -293,7 +581,7 @@ function createLINEFlexMessage(alerts, analysisResults) {
   });
 
   // Create summary bubble
-  const summaryBubble = {
+  const summaryBubble: LineBubbleContainer = {
     type: 'bubble',
     body: {
       type: 'box',
@@ -410,8 +698,11 @@ function createLINEFlexMessage(alerts, analysisResults) {
 
 /**
  * Send celebratory LINE sticker for strong signals
+ *
+ * @param userId - LINE user ID
+ * @param token - LINE channel access token
  */
-async function sendLINESticker(userId, token) {
+export async function sendLINESticker(userId: string, token: string): Promise<void> {
   try {
     await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
@@ -428,7 +719,7 @@ async function sendLINESticker(userId, token) {
             stickerId: '1988'  // Money/success sticker
           }
         ]
-      })
+      } as LineMessagePushRequest)
     });
   } catch (error) {
     console.error('❌ LINE sticker error:', error);
@@ -437,11 +728,14 @@ async function sendLINESticker(userId, token) {
 
 /**
  * Get company domain for logo fetching
+ *
+ * @param symbol - Stock symbol
+ * @returns Company domain string
  */
-function getCompanyDomain(symbol) {
-  const domainMap = {
+export function getCompanyDomain(symbol: string): string {
+  const domainMap: CompanyDomainMap = {
     'AAPL': 'apple.com',
-    'TSLA': 'tesla.com', 
+    'TSLA': 'tesla.com',
     'MSFT': 'microsoft.com',
     'GOOGL': 'google.com',
     'NVDA': 'nvidia.com',
@@ -449,14 +743,20 @@ function getCompanyDomain(symbol) {
     'META': 'meta.com',
     'NFLX': 'netflix.com'
   };
-  
+
   return domainMap[symbol] || 'yahoo.com';
 }
 
 /**
  * Send critical system alert via all messenger platforms
+ *
+ * @param errorMessage - Error message to send
+ * @param env - Cloudflare environment variables
  */
-async function sendCriticalMessengerAlert(errorMessage, env) {
+export async function sendCriticalMessengerAlert(
+  errorMessage: string,
+  env: CloudflareEnvironment
+): Promise<void> {
   const criticalMessage = `🚨 CRITICAL ALERT\n\n交易系統發生嚴重錯誤：\n${errorMessage}\n\n請立即檢查系統狀態。\n\nTime: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`;
 
   // Send to Facebook Messenger
@@ -472,7 +772,7 @@ async function sendCriticalMessengerAlert(errorMessage, env) {
           recipient: { id: env.FACEBOOK_RECIPIENT_ID },
           message: { text: criticalMessage },
           messaging_type: 'UPDATE'
-        })
+        } as FacebookMessageRequest)
       });
     } catch (error) {
       console.error('❌ Critical Facebook alert failed:', error);
@@ -501,7 +801,7 @@ async function sendCriticalMessengerAlert(errorMessage, env) {
               stickerId: '1990'  // Warning sticker
             }
           ]
-        })
+        } as LineMessagePushRequest)
       });
     } catch (error) {
       console.error('❌ Critical LINE alert failed:', error);
@@ -509,9 +809,29 @@ async function sendCriticalMessengerAlert(errorMessage, env) {
   }
 }
 
-// Export functions for use in main worker
-export {
-  sendFacebookMessengerAlert,
-  sendLINEAlert,
-  sendCriticalMessengerAlert
+// Export all types for external use
+export type {
+  CloudflareEnvironment,
+  AlertLevel,
+  TradingSignal,
+  PerformanceMetrics,
+  AnalysisResults,
+  TradingAlert,
+  FacebookGraphResponse,
+  FacebookGraphError,
+  LineMessageResponse,
+  LineMessageError,
+  FacebookRecipient,
+  FacebookMessage,
+  FacebookGenericElement,
+  FacebookButton,
+  FacebookMessageRequest,
+  LineMessageAction,
+  LineFlexContent,
+  LineBubbleContainer,
+  LineCarouselContainer,
+  LineFlexMessage,
+  LineStickerMessage,
+  LineMessagePushRequest,
+  CompanyDomainMap
 };
