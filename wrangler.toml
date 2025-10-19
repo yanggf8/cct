@@ -1,7 +1,7 @@
 # Wrangler configuration for Production-Ready Enterprise Trading System
 
 name = "tft-trading-system"
-main = "src/index.js"
+main = "src/index.ts"
 compatibility_date = "2024-01-01"
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 

@@ -229,7 +229,7 @@ export class EnhancedRequestHandler {
     });
 
     // Import original handler dynamically
-    const { handleHttpRequest } = await import('./routes.js');
+    const { handleHttpRequest } = await import('./routes.ts');
 
     try {
       const response = await handleHttpRequest(request, this.env, null);
@@ -274,7 +274,7 @@ export class EnhancedRequestHandler {
    */
   private async handleFallbackRequest(request: Request, reason: string): Promise<Response> {
     // Import original handler and enhance it with DAL injection
-    const { handleHttpRequest } = await import('./routes.js');
+    const { handleHttpRequest } = await import('./routes.ts');
 
     // Temporarily inject enhanced DAL into environment for handlers
     const enhancedEnv = {

@@ -14,22 +14,64 @@ import { handleMarketDriversRoutes } from './market-drivers-routes.js';
 import { handleMarketIntelligenceRoutes } from './market-intelligence-routes.js';
 import { handlePredictiveAnalyticsRoutes } from './predictive-analytics-routes.js';
 import { handleTechnicalRoutes } from './technical-routes.ts';
-import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.ts';
-import { handleRealtimeRoutes } from './realtime-routes.ts';
-import { handleBacktestingRoutes } from './backtesting-routes.ts';
+import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.js';
+import { handleRealtimeRoutes } from './realtime-routes.js';
+import { handleBacktestingRoutes } from './backtesting-routes.js';
 import { handlePortfolioRequest } from './portfolio-routes.ts';
 import { getSectorIndicatorsSymbol } from './sector-routes.ts';
-import { handleRiskManagementRequest } from './risk-management-routes.ts';
+import { handleRiskManagementRequest } from './risk-management-routes.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+interface RequestHeaders {
+  'X-Request-ID': string;
+  'X-API-Version': string;
+  'Content-Type': string;
+}
+
+interface APIEndpoint {
+  [key: string]: string | APIEndpoint;
+}
+
+interface ApiDocumentation {
+  title: string;
+  version: string;
+  description: string;
+  available_endpoints: {
+    sentiment: APIEndpoint;
+    reports: APIEndpoint;
+    data: APIEndpoint;
+    sector_rotation: APIEndpoint;
+    sectors: APIEndpoint;
+    market_drivers: APIEndpoint;
+    market_intelligence: APIEndpoint;
+    predictive_analytics: APIEndpoint;
+    advanced_analytics: APIEndpoint;
+    technical_analysis: APIEndpoint;
+    realtime: APIEndpoint;
+    backtesting: APIEndpoint;
+    portfolio_optimization: APIEndpoint;
+    portfolio_rebalancing: APIEndpoint;
+    risk_management: APIEndpoint;
+  };
+  documentation: string;
+  status: string;
+}
+
+interface ApiKeyValidation {
+  valid: boolean;
+  key: string | null;
+}
 
 /**
  * Main v1 API Router
  */
-export async function handleApiV1Request(request, env, ctx) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-
+export async function handleApiV1Request(
+  request: Request,
+  env: CloudflareEnvironment,
+  path: string
+): Promise<Response> {
   // Add request ID to headers for tracking
-  const headers = {
+  const headers: RequestHeaders = {
     'X-Request-ID': genReqId(),
     'X-API-Version': 'v1',
     'Content-Type': 'application/json',
@@ -83,10 +125,10 @@ export async function handleApiV1Request(request, env, ctx) {
       return await handleBacktestingRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/portfolio/')) {
       // Route to portfolio optimization API
-      return await handlePortfolioRequest(request, env, ctx);
+      return await handlePortfolioRequest(request, env, {} as ExecutionContext);
     } else if (path.startsWith('/api/v1/risk/')) {
       // Route to risk management API
-      return await handleRiskManagementRequest(request, env, ctx);
+      return await handleRiskManagementRequest(request, env, {} as ExecutionContext);
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -208,10 +250,10 @@ export async function handleApiV1Request(request, env, ctx) {
               analytics: 'POST /api/v1/risk/analytics',
               health: 'GET /api/v1/risk/health',
             },
-          },
+          } as ApiDocumentation['available_endpoints'],
           documentation: 'https://github.com/yanggf8/cct',
           status: 'operational',
-        },
+        } as ApiDocumentation,
         { requestId: headers['X-Request-ID'] }
       );
       return new Response(JSON.stringify(body), { status: HttpStatus.OK, headers });
@@ -219,7 +261,7 @@ export async function handleApiV1Request(request, env, ctx) {
       const body = ApiResponseFactory.error('Endpoint not found', 'NOT_FOUND', { requested_path: path });
       return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('API v1 Error:', error);
     const body = ApiResponseFactory.error('Internal server error', 'INTERNAL_ERROR', { message: error?.message });
     return new Response(JSON.stringify(body), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
@@ -229,7 +271,7 @@ export async function handleApiV1Request(request, env, ctx) {
 /**
  * CORS preflight handler for API v1
  */
-export function handleApiV1CORS() {
+export function handleApiV1CORS(): Response {
   return new Response(null, {
     status: 200,
     headers: {
@@ -244,26 +286,26 @@ export function handleApiV1CORS() {
 /**
  * Exported helpers used by per-domain route modules
  */
-export function generateRequestId() {
+export function generateRequestId(): string {
   return genReqId();
 }
 
-export function validateApiKey(request) {
+export function validateApiKey(request: Request): ApiKeyValidation {
   const apiKey = request.headers.get('X-API-Key');
   const validKeys = ['yanggf', 'demo', 'test'];
-  return { valid: validKeys.includes(apiKey), key: apiKey };
+  return { valid: validKeys.includes(apiKey || ''), key: apiKey };
 }
 
 // Utility helpers used by route modules
-export function parseQueryParams(url) {
-  const params = {};
+export function parseQueryParams(url: URL): Record<string, string> {
+  const params: Record<string, string> = {};
   for (const [k, v] of url.searchParams.entries()) {
     params[k] = v;
   }
   return params;
 }
 
-export function extractSymbolsParam(params) {
+export function extractSymbolsParam(params: Record<string, string>): string[] {
   const raw = params.symbols || params.symbol || '';
   if (!raw) return [];
   return raw

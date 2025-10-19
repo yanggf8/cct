@@ -193,7 +193,11 @@
       "Bash(./test-dashboard-fixes.sh:*)",
       "Bash(./test-console-error-fixes.sh:*)",
       "Bash(./test-specific-console-fixes.sh:*)",
-      "Bash(./test-local-console-fixes.sh:*)"
+      "Bash(./test-local-console-fixes.sh:*)",
+      "Bash(git rm:*)",
+      "Read(///**)",
+      "Bash(./test-cache-metrics.sh)",
+      "Bash(sort:*)"
     ],
     "deny": [],
     "ask": []

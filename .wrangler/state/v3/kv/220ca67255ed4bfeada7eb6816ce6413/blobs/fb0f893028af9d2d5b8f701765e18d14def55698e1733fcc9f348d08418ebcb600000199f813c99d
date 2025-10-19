@@ -1,0 +1,1 @@
+{"id":"migration_1760803670429_7thb20zsh","timestamp":"2025-10-18T16:07:50.429Z","type":"new_api_request","endpoint":"/api/sectors/snapshot","responseTime":16753,"success":true,"metadata":{"reason":"Default to new API","responseStatus":200}}

@@ -6,7 +6,7 @@
 /**
  * Get current date in EST/EDT timezone as YYYY-MM-DD string
  */
-export function getCurrentDateEST() {
+export function getCurrentDateEST(): string {
   const now = new Date();
   const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   return estTime.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -15,18 +15,15 @@ export function getCurrentDateEST() {
 /**
  * Get current datetime in EST/EDT timezone as ISO string
  */
-export function getCurrentDateTimeEST() {
+export function getCurrentDateTimeEST(): string {
   const now = new Date();
   return new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" })).toISOString();
 }
 
 /**
  * Validate and normalize date parameter from API requests
- * @param {string} dateStr - Date string from URL parameter
- * @returns {string} Validated YYYY-MM-DD date string
- * @throws {Error} If date format is invalid
  */
-export function validateDateParameter(dateStr) {
+export function validateDateParameter(dateStr?: string): string {
   if (!dateStr) {
     return getCurrentDateEST();
   }
@@ -54,10 +51,8 @@ export function validateDateParameter(dateStr) {
 
 /**
  * Convert a date string to EST timezone for display
- * @param {string} dateStr - YYYY-MM-DD date string
- * @returns {string} Formatted date for display
  */
-export function formatDateForDisplay(dateStr) {
+export function formatDateForDisplay(dateStr: string): string {
   const date = new Date(dateStr + 'T00:00:00');
   return date.toLocaleDateString('en-US', {
     timeZone: 'America/New_York',
@@ -70,9 +65,8 @@ export function formatDateForDisplay(dateStr) {
 
 /**
  * Get yesterday's date in EST/EDT timezone
- * @returns {string} YYYY-MM-DD format
  */
-export function getYesterdayEST() {
+export function getYesterdayEST(): string {
   const now = new Date();
   const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   estTime.setDate(estTime.getDate() - 1);
@@ -81,11 +75,9 @@ export function getYesterdayEST() {
 
 /**
  * Get array of date strings for the last N days (including today)
- * @param {number} days - Number of days to include
- * @returns {string[]} Array of YYYY-MM-DD date strings in descending order
  */
-export function getLastNDaysEST(days) {
-  const dates = [];
+export function getLastNDaysEST(days: number): string[] {
+  const dates: string[] = [];
   const now = new Date();
   const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
 
@@ -96,47 +88,4 @@ export function getLastNDaysEST(days) {
   }
 
   return dates;
-}
-
-/**
- * Check if a date is a weekend (Saturday or Sunday)
- * @param {string} dateStr - YYYY-MM-DD date string
- * @returns {boolean} True if weekend
- */
-export function isWeekend(dateStr) {
-  const date = new Date(dateStr + 'T00:00:00');
-  const dayOfWeek = date.getDay();
-  return dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
-}
-
-/**
- * Check if a date is a trading day (weekday, not holiday)
- * Note: This is a simplified check. For production, you'd want a proper holiday calendar
- * @param {string} dateStr - YYYY-MM-DD date string
- * @returns {boolean} True if likely a trading day
- */
-export function isTradingDay(dateStr) {
-  return !isWeekend(dateStr);
-}
-
-/**
- * Generate KV storage key for daily summary
- * @param {string} dateStr - YYYY-MM-DD date string
- * @returns {string} KV storage key
- */
-export function getDailySummaryKVKey(dateStr) {
-  return `daily_summary_${dateStr}`;
-}
-
-/**
- * Generate KV storage key for daily analysis (granular)
- * @param {string} dateStr - YYYY-MM-DD date string
- * @param {string} symbol - Stock symbol (optional)
- * @returns {string} KV storage key
- */
-export function getDailyAnalysisKVKey(dateStr, symbol = null) {
-  if (symbol) {
-    return `analysis_${dateStr}_${symbol}`;
-  }
-  return `analysis_${dateStr}`;
 }

@@ -9,14 +9,33 @@
 import { createEnhancedRequestHandler } from './modules/enhanced-request-handler.js';
 import { handleScheduledEvent } from './modules/scheduler.js';
 import { createLogger } from './modules/logging.js';
+import type { CloudflareEnvironment } from './types.js';
 
 const logger = createLogger('worker-enhanced');
+
+interface EnhancedWorkerAPI {
+  scheduled(event: any, env: CloudflareEnvironment, ctx: ExecutionContext): Promise<any>;
+  fetch(request: Request, env: CloudflareEnvironment, ctx: ExecutionContext): Promise<Response>;
+}
+
+interface SystemStatus {
+  status: 'operational' | 'error';
+  version: string;
+  timestamp: string;
+  dal?: any;
+  migration?: any;
+  error?: string;
+}
 
 export default {
   /**
    * Handle scheduled cron events (unchanged from original)
    */
-  async scheduled(controller, env, ctx) {
+  async scheduled(
+    controller: { scheduledTime: number; cron: string },
+    env: CloudflareEnvironment,
+    ctx: ExecutionContext
+  ): Promise<any> {
     try {
       // Initialize logging
       await import('./modules/logging.js').then(m => m.initLogging(env));
@@ -34,7 +53,7 @@ export default {
 
       return result;
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Scheduled event failed', {
         error: error.message,
         stack: error.stack,
@@ -49,7 +68,7 @@ export default {
   /**
    * Handle HTTP requests with enhanced data access system
    */
-  async fetch(request, env, ctx) {
+  async fetch(request: Request, env: CloudflareEnvironment, ctx: ExecutionContext): Promise<Response> {
     // Initialize enhanced system
     const startTime = Date.now();
 
@@ -58,10 +77,10 @@ export default {
       await import('./modules/logging.js').then(m => m.initLogging(env));
 
       // Create enhanced request handler (cached across requests)
-      let enhancedHandler = global.enhancedRequestHandler;
+      let enhancedHandler = (global as any).enhancedRequestHandler;
       if (!enhancedHandler) {
         enhancedHandler = createEnhancedRequestHandler(env);
-        global.enhancedRequestHandler = enhancedHandler;
+        (global as any).enhancedRequestHandler = enhancedHandler;
 
         logger.info('Enhanced request handler initialized', {
           environment: env.ENVIRONMENT || 'production',
@@ -87,7 +106,7 @@ export default {
 
       return response;
 
-    } catch (error) {
+    } catch (error: any) {
       // Enhanced error handling
       logger.error('Request failed', {
         method: request.method,
@@ -116,14 +135,14 @@ export default {
       return errorResponse;
     }
   }
-};
+} as EnhancedWorkerAPI;
 
 /**
  * Development helper: Reset enhanced handler cache
  */
-export function resetEnhancedHandler() {
-  if (global.enhancedRequestHandler) {
-    delete global.enhancedRequestHandler;
+export function resetEnhancedHandler(): void {
+  if ((global as any).enhancedRequestHandler) {
+    delete (global as any).enhancedRequestHandler;
     logger.info('Enhanced request handler cache reset');
   }
 }
@@ -131,7 +150,7 @@ export function resetEnhancedHandler() {
 /**
  * Development helper: Get system status
  */
-export async function getSystemStatus(env) {
+export async function getSystemStatus(env: CloudflareEnvironment): Promise<SystemStatus> {
   try {
     const handler = createEnhancedRequestHandler(env);
 
@@ -148,7 +167,7 @@ export async function getSystemStatus(env) {
       dal: dalStats,
       migration: migrationStats
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       status: 'error',
       error: error.message,
