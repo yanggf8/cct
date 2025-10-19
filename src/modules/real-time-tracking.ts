@@ -7,13 +7,93 @@ import { createLogger } from './logging.js';
 import { kvStorageManager } from './kv-storage-manager.js';
 import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache } from './market-data-cache.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+// Type definitions
+interface TrackingConfig {
+  // Update intervals (in milliseconds)
+  PRICE_UPDATE_INTERVAL: number; // 5 minutes
+  SIGNAL_CHECK_INTERVAL: number; // 10 minutes
+  PERFORMANCE_UPDATE_INTERVAL: number; // 15 minutes
+
+  // Performance thresholds
+  DIVERGENCE_THRESHOLD_HIGH: number; // 5% divergence
+  DIVERGENCE_THRESHOLD_MEDIUM: number; // 2% divergence
+  ACCURACY_THRESHOLD_HIGH: number; // 80% accuracy
+  ACCURACY_THRESHOLD_LOW: number; // 60% accuracy
+
+  // Confidence levels
+  HIGH_CONFIDENCE_MIN: number;
+  VERY_HIGH_CONFIDENCE_MIN: number;
+}
+
+interface PriceData {
+  symbol: string;
+  currentPrice: number;
+  previousPrice: number;
+  change: number;
+  changePercent: number;
+  timestamp: number;
+  volume: number;
+  lastUpdated: number;
+}
+
+interface PriceCache {
+  [symbol: string]: PriceData;
+}
+
+interface SignalPerformance {
+  currentPrice: number;
+  changePercent: number;
+  isCorrect: boolean;
+  accuracy: number;
+  divergenceLevel: 'low' | 'medium' | 'high';
+  status: 'pending' | 'tracking' | 'validated' | 'divergent';
+  lastUpdated: number;
+  priceTimestamp: number;
+}
+
+interface SignalTracking {
+  intradayPerformance?: SignalPerformance;
+}
+
+interface SignalData {
+  id: string;
+  symbol: string;
+  prediction: 'up' | 'down' | 'neutral';
+  predictedPrice: number;
+  currentPrice: number;
+  confidence: number;
+  status: 'pending' | 'tracking' | 'validated' | 'divergent';
+  tracking?: SignalTracking;
+}
+
+interface SignalSummary {
+  totalSignals: number;
+  highConfidenceSignals: number;
+  validatedSignals: number;
+  divergentSignals: number;
+  trackingSignals: number;
+  averageAccuracy: number;
+  topPerformers: SignalPerformanceInfo[];
+  underperformers: SignalPerformanceInfo[];
+  signalsByStatus: { [status: string]: SignalData[] };
+}
+
+interface SignalPerformanceInfo {
+  symbol: string;
+  confidence: number;
+  accuracy: number;
+  divergenceLevel: string;
+  status: string;
+}
 
 const logger = createLogger('real-time-tracking');
 
 /**
  * Real-time tracking configuration
  */
-const TRACKING_CONFIG = {
+const TRACKING_CONFIG: TrackingConfig = {
   // Update intervals (in milliseconds)
   PRICE_UPDATE_INTERVAL: 5 * 60 * 1000, // 5 minutes
   SIGNAL_CHECK_INTERVAL: 10 * 60 * 1000, // 10 minutes
@@ -34,22 +114,20 @@ const TRACKING_CONFIG = {
  * Real-time price tracking
  */
 class RealTimePriceTracker {
-  constructor() {
-    this.priceCache = new Map();
-    this.lastUpdateTime = new Map();
-  }
+  private priceCache: Map<string, PriceData> = new Map();
+  private lastUpdateTime: Map<string, number> = new Map();
 
   /**
    * Get current market price for a symbol
    */
-  async getCurrentPrice(symbol) {
+  async getCurrentPrice(symbol: string): Promise<PriceData | null> {
     try {
       // Use cached data if recent (within 5 minutes)
       const lastUpdate = this.lastUpdateTime.get(symbol);
       const now = Date.now();
 
       if (lastUpdate && (now - lastUpdate < TRACKING_CONFIG.PRICE_UPDATE_INTERVAL)) {
-        return this.priceCache.get(symbol);
+        return this.priceCache.get(symbol) || null;
       }
 
       // Fetch fresh data from Yahoo Finance
@@ -63,7 +141,7 @@ class RealTimePriceTracker {
         throw new Error(`Yahoo Finance API returned ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       const result = data.chart.result[0];
 
       if (!result || !result.indicators) {
@@ -82,7 +160,7 @@ class RealTimePriceTracker {
       const currentPrice = quote.close[latestIndex];
       const previousPrice = quote.close[latestIndex - 1] || currentPrice;
 
-      const priceData = {
+      const priceData: PriceData = {
         symbol,
         currentPrice,
         previousPrice,
@@ -104,7 +182,7 @@ class RealTimePriceTracker {
       });
 
       return priceData;
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to get current price', {
         symbol,
         error: error.message
@@ -116,8 +194,8 @@ class RealTimePriceTracker {
   /**
    * Get batch prices for multiple symbols
    */
-  async getBatchPrices(symbols) {
-    const prices = {};
+  async getBatchPrices(symbols: string[]): Promise<PriceCache> {
+    const prices: PriceCache = {};
     const promises = symbols.map(async (symbol) => {
       const price = await this.getCurrentPrice(symbol);
       return { symbol, price };
@@ -127,7 +205,9 @@ class RealTimePriceTracker {
 
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && result.value) {
-        prices[result.value.symbol] = result.value.price;
+        if (result.value.price) {
+          prices[result.value.symbol] = result.value.price;
+        }
       } else {
         logger.warn('Failed to get price for symbol', {
           symbol: symbols[index],
@@ -142,7 +222,7 @@ class RealTimePriceTracker {
   /**
    * Clear price cache
    */
-  clearCache() {
+  clearCache(): void {
     this.priceCache.clear();
     this.lastUpdateTime.clear();
     logger.info('Cleared price tracking cache');
@@ -153,19 +233,21 @@ class RealTimePriceTracker {
  * Real-time signal performance tracking
  */
 class RealTimeSignalTracker {
+  private priceTracker: RealTimePriceTracker;
+  private activeSignals: Map<string, SignalData> = new Map();
+
   constructor() {
     this.priceTracker = new RealTimePriceTracker();
-    this.activeSignals = new Map();
   }
 
   /**
    * Load active signals for tracking
    */
-  async loadActiveSignals(env, date) {
+  async loadActiveSignals(env: CloudflareEnvironment, date: Date): Promise<void> {
     try {
       const signalsData = await kvStorageManager.getHighConfidenceSignals(env, date);
       if (signalsData && signalsData.signals) {
-        signalsData.signals.forEach(signal => {
+        signalsData.signals.forEach((signal: SignalData) => {
           this.activeSignals.set(signal.id, signal);
         });
 
@@ -174,7 +256,7 @@ class RealTimeSignalTracker {
           signalCount: signalsData.signals.length
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to load active signals', {
         date: date.toISOString().split('T')[0],
         error: error.message
@@ -185,7 +267,7 @@ class RealTimeSignalTracker {
   /**
    * Update all signal performances in real-time
    */
-  async updateAllSignalPerformances(env, date) {
+  async updateAllSignalPerformances(env: CloudflareEnvironment, date: Date): Promise<void> {
     const symbols = Array.from(this.activeSignals.values()).map(s => s.symbol);
     const uniqueSymbols = [...new Set(symbols)];
 
@@ -198,7 +280,7 @@ class RealTimeSignalTracker {
     const currentPrices = await this.priceTracker.getBatchPrices(uniqueSymbols);
 
     // Update each signal's performance
-    const updates = [];
+    const updates: Promise<void>[] = [];
     for (const [signalId, signal] of this.activeSignals) {
       const currentPrice = currentPrices[signal.symbol];
       if (currentPrice) {
@@ -219,7 +301,7 @@ class RealTimeSignalTracker {
   /**
    * Calculate signal performance based on current price
    */
-  calculateSignalPerformance(signal, currentPrice) {
+  calculateSignalPerformance(signal: SignalData, currentPrice: PriceData): SignalPerformance {
     const prediction = signal.prediction;
     const predictedPrice = signal.predictedPrice;
     const currentPriceValue = currentPrice.currentPrice;
@@ -245,7 +327,7 @@ class RealTimeSignalTracker {
     const actualChange = currentPriceValue - signal.currentPrice;
     const divergence = Math.abs(predictedChange - actualChange) / Math.abs(signal.currentPrice);
 
-    let divergenceLevel = 'low';
+    let divergenceLevel: 'low' | 'medium' | 'high' = 'low';
     if (divergence > TRACKING_CONFIG.DIVERGENCE_THRESHOLD_HIGH) {
       divergenceLevel = 'high';
     } else if (divergence > TRACKING_CONFIG.DIVERGENCE_THRESHOLD_MEDIUM) {
@@ -253,7 +335,7 @@ class RealTimeSignalTracker {
     }
 
     // Determine signal status
-    let status = signal.status;
+    let status: 'pending' | 'tracking' | 'validated' | 'divergent' = signal.status;
     if (divergenceLevel === 'high' && !isCorrect) {
       status = 'divergent';
     } else if (isCorrect && accuracy > TRACKING_CONFIG.ACCURACY_THRESHOLD_HIGH) {
@@ -277,11 +359,19 @@ class RealTimeSignalTracker {
   /**
    * Update individual signal performance
    */
-  async updateSignalPerformance(env, signalId, performanceUpdate, date) {
+  async updateSignalPerformance(
+    env: CloudflareEnvironment,
+    signalId: string,
+    performanceUpdate: SignalPerformance,
+    date: Date
+  ): Promise<void> {
     try {
       // Update in-memory tracking
       const signal = this.activeSignals.get(signalId);
       if (signal) {
+        if (!signal.tracking) {
+          signal.tracking = {};
+        }
         signal.tracking.intradayPerformance = performanceUpdate;
         signal.status = performanceUpdate.status;
       }
@@ -299,7 +389,7 @@ class RealTimeSignalTracker {
         status: performanceUpdate.status,
         accuracy: performanceUpdate.accuracy.toFixed(2)
       });
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to update signal performance', {
         signalId,
         error: error.message
@@ -310,10 +400,10 @@ class RealTimeSignalTracker {
   /**
    * Get signal summary for intraday report
    */
-  async getSignalSummary(env, date) {
+  async getSignalSummary(env: CloudflareEnvironment, date: Date): Promise<SignalSummary> {
     const signals = Array.from(this.activeSignals.values());
 
-    const summary = {
+    const summary: SignalSummary = {
       totalSignals: signals.length,
       highConfidenceSignals: signals.filter(s => s.confidence >= TRACKING_CONFIG.HIGH_CONFIDENCE_MIN).length,
       validatedSignals: signals.filter(s => s.status === 'validated').length,
@@ -328,7 +418,7 @@ class RealTimeSignalTracker {
     // Calculate average accuracy
     const validPerformances = signals
       .map(s => s.tracking?.intradayPerformance?.accuracy)
-      .filter(acc => acc !== undefined && acc !== null);
+      .filter(acc => acc !== undefined && acc !== null) as number[];
 
     if (validPerformances.length > 0) {
       summary.averageAccuracy = validPerformances.reduce((sum, acc) => sum + acc, 0) / validPerformances.length;
@@ -366,7 +456,7 @@ class RealTimeSignalTracker {
   /**
    * Get divergent signals for alerting
    */
-  getDivergentSignals() {
+  getDivergentSignals(): SignalData[] {
     return Array.from(this.activeSignals.values()).filter(signal =>
       signal.tracking?.intradayPerformance?.divergenceLevel === 'high'
     );
@@ -375,7 +465,7 @@ class RealTimeSignalTracker {
   /**
    * Clear active signals
    */
-  clearActiveSignals() {
+  clearActiveSignals(): void {
     this.activeSignals.clear();
     this.priceTracker.clearCache();
     logger.info('Cleared active signals tracking');
@@ -390,4 +480,16 @@ export {
   RealTimeSignalTracker,
   TRACKING_CONFIG,
   realTimeSignalTracker
+};
+
+// Export types for external use
+export type {
+  TrackingConfig,
+  PriceData,
+  PriceCache,
+  SignalPerformance,
+  SignalTracking,
+  SignalData,
+  SignalSummary,
+  SignalPerformanceInfo
 };

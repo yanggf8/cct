@@ -8,6 +8,127 @@ import { kvStorageManager } from './kv-storage-manager.js';
 import { rateLimitedFetch } from './rate-limiter.js';
 import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
 import { createDAL } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+// Type definitions
+interface SignalAnalysis {
+  sentiment_layers?: Array<{
+    sentiment?: string;
+    confidence?: number;
+    reasoning?: string;
+  }>;
+  reasoning?: string;
+}
+
+interface TradingSignal {
+  enhanced_prediction?: {
+    direction: 'up' | 'down' | 'neutral';
+    confidence: number;
+  };
+  current_price: number;
+  predicted_price: number;
+  sentiment_layers?: Array<{
+    sentiment?: string;
+    confidence?: number;
+    reasoning?: string;
+  }>;
+  reasoning?: string;
+}
+
+interface AnalysisData {
+  trading_signals?: { [symbol: string]: TradingSignal };
+}
+
+interface MorningPrediction {
+  id: string;
+  symbol: string;
+  prediction: 'up' | 'down' | 'neutral';
+  confidence: number;
+  morningPrice: number;
+  predictedPrice: number;
+  timestamp: string;
+  status: 'pending' | 'tracking' | 'validated' | 'divergent';
+  analysis: SignalAnalysis;
+  currentPrice?: number;
+  currentChange?: number;
+  performance?: PredictionPerformance;
+  lastUpdated?: string;
+}
+
+interface PredictionPerformance {
+  isCorrect: boolean;
+  accuracy: number;
+  divergenceLevel: 'low' | 'medium' | 'high';
+  status: 'pending' | 'tracking' | 'validated' | 'divergent';
+  predictedChange: number;
+  actualChange: number;
+}
+
+interface PredictionsData {
+  date: string;
+  predictions: MorningPrediction[];
+  metadata: {
+    totalSignals: number;
+    averageConfidence: number;
+    bullishCount: number;
+    bearishCount: number;
+    generatedAt: string;
+  };
+  lastPerformanceUpdate?: string;
+}
+
+interface CurrentPrice {
+  currentPrice: number;
+  changePercent: number;
+  timestamp: number;
+}
+
+interface PriceData {
+  [symbol: string]: CurrentPrice;
+}
+
+interface PerformanceSummary {
+  totalSignals: number;
+  averageAccuracy: number;
+  validatedSignals: number;
+  divergentSignals: number;
+}
+
+interface EndOfDaySummary {
+  date?: string;
+  summary: {
+    totalSignals: number;
+    correctSignals: number;
+    validatedSignals: number;
+    divergentSignals: number;
+    averageAccuracy: number;
+    successRate: number;
+  };
+  topPerformers: Array<{
+    symbol: string;
+    prediction: string;
+    confidence: number;
+    accuracy: number;
+    status: string;
+  }>;
+  underperformers: Array<{
+    symbol: string;
+    prediction: string;
+    confidence: number;
+    accuracy: number;
+    status: string;
+  }>;
+  tomorrowOutlook: TomorrowOutlook;
+  generatedAt?: string;
+}
+
+interface TomorrowOutlook {
+  marketBias: 'bullish' | 'bearish' | 'neutral';
+  confidence: 'high' | 'medium' | 'low';
+  keyFocus: string;
+  reasoning: string;
+  recommendations: string[];
+}
 
 const logger = createLogger('cron-signal-tracking');
 
@@ -15,6 +136,8 @@ const logger = createLogger('cron-signal-tracking');
  * Signal Tracking for Cron-Based System
  */
 class CronSignalTracker {
+  private confidenceThreshold: number;
+
   constructor() {
     this.confidenceThreshold = 70;
   }
@@ -22,13 +145,17 @@ class CronSignalTracker {
   /**
    * Save morning predictions for tracking throughout the day
    */
-  async saveMorningPredictions(env, analysisData, date) {
+  async saveMorningPredictions(
+    env: CloudflareEnvironment,
+    analysisData: AnalysisData,
+    date: Date
+  ): Promise<boolean> {
     const dateStr = date.toISOString().split('T')[0];
     const predictionsKey = `morning_predictions_${dateStr}`;
 
     try {
       // Extract high-confidence signals from analysis
-      const highConfidenceSignals = [];
+      const highConfidenceSignals: MorningPrediction[] = [];
 
       for (const [symbol, signal] of Object.entries(analysisData.trading_signals || {})) {
         if (signal.enhanced_prediction && signal.enhanced_prediction.confidence >= (this.confidenceThreshold / 100)) {
@@ -55,7 +182,7 @@ class CronSignalTracker {
       }
 
       // Save predictions for later tracking
-      const predictionsData = {
+      const predictionsData: PredictionsData = {
         date: dateStr,
         predictions: highConfidenceSignals,
         metadata: {
@@ -96,7 +223,7 @@ class CronSignalTracker {
             bullishCount: predictionsData.metadata.bullishCount,
             bearishCount: predictionsData.metadata.bearishCount
           });
-        } catch (statusError) {
+        } catch (statusError: any) {
           logger.warn('Failed to update morning predictions job status', {
             date: dateStr,
             error: statusError.message
@@ -114,7 +241,7 @@ class CronSignalTracker {
         return false;
       }
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to save morning predictions', {
         date: dateStr,
         error: error.message
@@ -126,7 +253,7 @@ class CronSignalTracker {
   /**
    * Get morning predictions for performance tracking
    */
-  async getMorningPredictions(env, date) {
+  async getMorningPredictions(env: CloudflareEnvironment, date: Date): Promise<PredictionsData | null> {
     const dateStr = date.toISOString().split('T')[0];
     const predictionsKey = `morning_predictions_${dateStr}`;
 
@@ -134,9 +261,9 @@ class CronSignalTracker {
       const dal = createDAL(env);
       const result = await dal.read(predictionsKey);
       if (result.success && result.data) {
-        return result.data;
+        return result.data as PredictionsData;
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to retrieve morning predictions', {
         date: dateStr,
         error: error.message
@@ -149,7 +276,10 @@ class CronSignalTracker {
   /**
    * Update signal performance with current prices (for intraday check)
    */
-  async updateSignalPerformance(env, date) {
+  async updateSignalPerformance(
+    env: CloudflareEnvironment,
+    date: Date
+  ): Promise<PredictionsData | null> {
     const dateStr = date.toISOString().split('T')[0];
     const predictionsData = await this.getMorningPredictions(env, date);
 
@@ -180,7 +310,7 @@ class CronSignalTracker {
       });
 
       // Save updated predictions
-      const updatedData = {
+      const updatedData: PredictionsData = {
         ...predictionsData,
         predictions: updatedPredictions,
         lastPerformanceUpdate: new Date().toISOString()
@@ -203,7 +333,7 @@ class CronSignalTracker {
 
       return updatedData;
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to update signal performance', {
         date: dateStr,
         error: error.message
@@ -215,8 +345,8 @@ class CronSignalTracker {
   /**
    * Get current prices for multiple symbols
    */
-  async getCurrentPrices(symbols) {
-    const prices = {};
+  async getCurrentPrices(symbols: string[]): Promise<PriceData> {
+    const prices: PriceData = {};
 
     for (const symbol of symbols) {
       try {
@@ -227,7 +357,7 @@ class CronSignalTracker {
         });
 
         if (response.ok) {
-          const data = await response.json();
+          const data = await response.json() as any;
           const result = data.chart.result[0];
 
           if (result && result.indicators && result.timestamp) {
@@ -246,7 +376,7 @@ class CronSignalTracker {
             };
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         logger.warn('Failed to get current price', { symbol, error: error.message });
       }
     }
@@ -257,7 +387,10 @@ class CronSignalTracker {
   /**
    * Calculate prediction performance
    */
-  calculatePredictionPerformance(prediction, currentPrice) {
+  calculatePredictionPerformance(
+    prediction: MorningPrediction,
+    currentPrice: CurrentPrice
+  ): PredictionPerformance {
     const predictedChange = prediction.predictedPrice - prediction.morningPrice;
     const actualChange = currentPrice.currentPrice - prediction.morningPrice;
     const morningPrice = prediction.morningPrice;
@@ -279,12 +412,12 @@ class CronSignalTracker {
 
     // Calculate divergence
     const divergence = Math.abs(predictedChange - actualChange) / Math.abs(morningPrice);
-    let divergenceLevel = 'low';
+    let divergenceLevel: 'low' | 'medium' | 'high' = 'low';
     if (divergence > 0.05) divergenceLevel = 'high';
     else if (divergence > 0.02) divergenceLevel = 'medium';
 
     // Determine status
-    let status = prediction.status;
+    let status: 'pending' | 'tracking' | 'validated' | 'divergent' = prediction.status;
     if (isCorrect && accuracy > 0.7) {
       status = 'validated';
     } else if (divergenceLevel === 'high') {
@@ -306,7 +439,7 @@ class CronSignalTracker {
   /**
    * Generate end-of-day summary
    */
-  async generateEndOfDaySummary(env, date) {
+  async generateEndOfDaySummary(env: CloudflareEnvironment, date: Date): Promise<EndOfDaySummary> {
     const dateStr = date.toISOString().split('T')[0];
     const predictionsData = await this.getMorningPredictions(env, date);
 
@@ -329,13 +462,13 @@ class CronSignalTracker {
       // Get top performers
       const topPerformers = predictions
         .filter(p => p.performance?.accuracy > 0)
-        .sort((a, b) => b.performance.accuracy - a.performance.accuracy)
+        .sort((a, b) => b.performance!.accuracy - a.performance!.accuracy)
         .slice(0, 3);
 
       // Get underperformers
       const underperformers = predictions
         .filter(p => p.performance?.accuracy !== undefined)
-        .sort((a, b) => a.performance.accuracy - b.performance.accuracy)
+        .sort((a, b) => a.performance!.accuracy - b.performance!.accuracy)
         .slice(0, 3);
 
       // Generate tomorrow outlook based on today's performance
@@ -374,7 +507,7 @@ class CronSignalTracker {
         generatedAt: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to generate end-of-day summary', {
         date: dateStr,
         error: error.message
@@ -386,8 +519,11 @@ class CronSignalTracker {
   /**
    * Generate tomorrow outlook based on today's performance
    */
-  generateTomorrowOutlook(predictions, performance) {
-    const outlook = {
+  generateTomorrowOutlook(
+    predictions: MorningPrediction[],
+    performance: PerformanceSummary
+  ): TomorrowOutlook {
+    const outlook: TomorrowOutlook = {
       marketBias: 'neutral',
       confidence: 'medium',
       keyFocus: 'Market Open',
@@ -430,7 +566,7 @@ class CronSignalTracker {
         outlook.recommendations.push('Reduce position sizes and focus on validation');
       }
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to generate tomorrow outlook', { error: error.message });
     }
 
@@ -440,7 +576,7 @@ class CronSignalTracker {
   /**
    * Calculate directional accuracy
    */
-  calculateDirectionalAccuracy(predictions, direction) {
+  calculateDirectionalAccuracy(predictions: MorningPrediction[], direction: 'up' | 'down'): number {
     const directionSignals = predictions.filter(p => p.prediction === direction);
     if (directionSignals.length === 0) return 0;
 
@@ -451,10 +587,13 @@ class CronSignalTracker {
   /**
    * Get default summary
    */
-  getDefaultSummary() {
+  private getDefaultSummary(): EndOfDaySummary {
     return {
       summary: {
         totalSignals: 0,
+        correctSignals: 0,
+        validatedSignals: 0,
+        divergentSignals: 0,
         averageAccuracy: 0,
         successRate: 0
       },
@@ -477,4 +616,19 @@ const cronSignalTracker = new CronSignalTracker();
 export {
   CronSignalTracker,
   cronSignalTracker
+};
+
+// Export types for external use
+export type {
+  SignalAnalysis,
+  TradingSignal,
+  AnalysisData,
+  MorningPrediction,
+  PredictionPerformance,
+  PredictionsData,
+  CurrentPrice,
+  PriceData,
+  PerformanceSummary,
+  EndOfDaySummary,
+  TomorrowOutlook
 };
