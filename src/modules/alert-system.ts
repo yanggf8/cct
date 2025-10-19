@@ -6,43 +6,168 @@
 import { createLogger } from './logging.js';
 import { CONFIG } from './config.js';
 import { BusinessKPI } from './monitoring.js';
+import type { CloudflareEnvironment } from '../types.js';
 
-const logger = createLogger('alert-system');
-
-/**
- * Alert severity levels
- */
+// Type definitions
 export const AlertSeverity = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
   CRITICAL: 'critical'
-};
+} as const;
 
-/**
- * Alert types
- */
+export type AlertSeverityType = typeof AlertSeverity[keyof typeof AlertSeverity];
+
 export const AlertType = {
   PERFORMANCE: 'performance',
   KPI_DEVIATION: 'kpi_deviation',
   SYSTEM_ERROR: 'system_error',
   BUSINESS_METRIC: 'business_metric'
-};
+} as const;
+
+export type AlertTypeType = typeof AlertType[keyof typeof AlertType];
+
+interface BaseAlert {
+  id: string;
+  type: AlertTypeType;
+  severity: AlertSeverityType;
+  title?: string;
+  description?: string;
+  service?: string;
+  operation?: string;
+  timestamp?: string;
+}
+
+interface KPIDeviationAlert extends BaseAlert {
+  type: AlertTypeType.KPI_DEVIATION;
+  operation: string;
+  currentValue: number | string;
+  target?: number | string;
+  deviation: string;
+}
+
+interface PerformanceAlert extends BaseAlert {
+  type: AlertTypeType.PERFORMANCE;
+  operation: string;
+  error?: string;
+  [key: string]: any;
+}
+
+interface SystemErrorAlert extends BaseAlert {
+  type: AlertTypeType.SYSTEM_ERROR;
+  service: string;
+  error: string;
+}
+
+interface BusinessMetricAlert extends BaseAlert {
+  type: AlertTypeType.BUSINESS_METRIC;
+  [key: string]: any;
+}
+
+export type Alert = KPIDeviationAlert | PerformanceAlert | SystemErrorAlert | BusinessMetricAlert;
+
+interface FormattedAlert {
+  id: string;
+  title: string;
+  description: string;
+  severity: AlertSeverityType;
+  service: string;
+  currentValue: string;
+  target?: string;
+  timestamp: string;
+}
+
+interface SuppressionRule {
+  until: number;
+  createdAt: number;
+}
+
+interface AlertHistoryEntry extends Alert {
+  recordedAt: number;
+}
+
+interface AlertResult {
+  success: boolean;
+  suppressed?: boolean;
+  results?: Array<{
+    status: 'fulfilled' | 'rejected';
+    value: any;
+    reason: string | null;
+  }>;
+  error?: string;
+}
+
+interface ChannelResult {
+  success: boolean;
+  channel?: string;
+  skipped?: boolean;
+  reason?: string;
+}
+
+interface SlackPayload {
+  text: string;
+  attachments: Array<{
+    color: string;
+    fields: Array<{
+      title: string;
+      value: string;
+      short: boolean;
+    }>;
+    footer: string;
+    ts: number;
+  }>;
+}
+
+interface DiscordEmbed {
+  title: string;
+  description: string;
+  color: number;
+  fields: Array<{
+    name: string;
+    value: string;
+    inline: boolean;
+  }>;
+  footer: {
+    text: string;
+  };
+  timestamp: string;
+}
+
+interface DiscordPayload {
+  embeds: DiscordEmbed[];
+}
+
+interface EmailPayload {
+  to: string;
+  subject: string;
+  html: string;
+}
+
+interface AlertStats {
+  total: number;
+  bySeverity: Record<string, number>;
+  byType: Record<string, number>;
+  timeframe: string;
+}
+
+const logger = createLogger('alert-system');
 
 /**
  * Advanced Alert Manager
  */
 export class AlertManager {
-  constructor(env) {
+  private env: CloudflareEnvironment;
+  private alertHistory: Map<string, AlertHistoryEntry> = new Map();
+  private suppressionRules: Map<string, SuppressionRule> = new Map();
+
+  constructor(env: CloudflareEnvironment) {
     this.env = env;
-    this.alertHistory = new Map();
-    this.suppressionRules = new Map();
   }
 
   /**
    * Send alert with webhook integration
    */
-  async sendAlert(alert) {
+  async sendAlert(alert: Alert): Promise<AlertResult> {
     try {
       // Check suppression rules
       if (this.isAlertSuppressed(alert)) {
@@ -77,11 +202,11 @@ export class AlertManager {
         results: results.map(r => ({
           status: r.status,
           value: r.status === 'fulfilled' ? r.value : null,
-          reason: r.status === 'rejected' ? r.reason?.message : null
+          reason: r.status === 'rejected' ? r.reason?.message || null : null
         }))
       };
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to send alert', {
         alertId: alert.id,
         error: error.message,
@@ -95,13 +220,13 @@ export class AlertManager {
   /**
    * Send Slack alert via webhook
    */
-  async sendSlackAlert(alert) {
+  private async sendSlackAlert(alert: FormattedAlert): Promise<ChannelResult> {
     const slackWebhook = this.env.SLACK_WEBHOOK_URL;
     if (!slackWebhook) {
       return { skipped: true, reason: 'No Slack webhook configured' };
     }
 
-    const payload = {
+    const payload: SlackPayload = {
       text: `🚨 ${alert.title}`,
       attachments: [{
         color: this.getSeverityColor(alert.severity),
@@ -153,13 +278,13 @@ export class AlertManager {
   /**
    * Send Discord alert via webhook
    */
-  async sendDiscordAlert(alert) {
+  private async sendDiscordAlert(alert: FormattedAlert): Promise<ChannelResult> {
     const discordWebhook = this.env.DISCORD_WEBHOOK_URL;
     if (!discordWebhook) {
       return { skipped: true, reason: 'No Discord webhook configured' };
     }
 
-    const payload = {
+    const payload: DiscordPayload = {
       embeds: [{
         title: `🚨 ${alert.title}`,
         description: alert.description,
@@ -209,7 +334,7 @@ export class AlertManager {
   /**
    * Send email alert (via webhook service)
    */
-  async sendEmailAlert(alert) {
+  private async sendEmailAlert(alert: FormattedAlert): Promise<ChannelResult> {
     const emailWebhook = this.env.EMAIL_WEBHOOK_URL;
     const alertEmail = this.env.ALERT_EMAIL;
 
@@ -217,7 +342,7 @@ export class AlertManager {
       return { skipped: true, reason: 'No email webhook/address configured' };
     }
 
-    const payload = {
+    const payload: EmailPayload = {
       to: alertEmail,
       subject: `🚨 TFT Trading System Alert: ${alert.title}`,
       html: this.generateEmailHTML(alert)
@@ -239,15 +364,15 @@ export class AlertManager {
   /**
    * Format alert for notifications
    */
-  formatAlert(alert) {
+  private formatAlert(alert: Alert): FormattedAlert {
     return {
       id: alert.id,
       title: alert.title || this.generateTitle(alert),
       description: alert.description || this.generateDescription(alert),
       severity: alert.severity,
       service: alert.service || 'TFT Trading System',
-      currentValue: this.formatValue(alert.currentValue),
-      target: this.formatValue(alert.target),
+      currentValue: this.formatValue(this.extractCurrentValue(alert)),
+      target: alert.target ? this.formatValue(alert.target) : undefined,
       timestamp: alert.timestamp || new Date().toISOString()
     };
   }
@@ -255,7 +380,7 @@ export class AlertManager {
   /**
    * Generate email HTML content
    */
-  generateEmailHTML(alert) {
+  private generateEmailHTML(alert: FormattedAlert): string {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: ${this.getSeverityColor(alert.severity)};">
@@ -296,9 +421,25 @@ export class AlertManager {
   }
 
   /**
+   * Extract current value from alert based on type
+   */
+  private extractCurrentValue(alert: Alert): number | string {
+    switch (alert.type) {
+      case AlertType.KPI_DEVIATION:
+        return alert.currentValue;
+      case AlertType.PERFORMANCE:
+        return alert.currentValue || 'N/A';
+      case AlertType.SYSTEM_ERROR:
+        return 'N/A';
+      default:
+        return alert.currentValue || 'N/A';
+    }
+  }
+
+  /**
    * Check if alert should be suppressed
    */
-  isAlertSuppressed(alert) {
+  private isAlertSuppressed(alert: Alert): boolean {
     const key = `${alert.type}_${alert.operation || alert.service}`;
     const suppression = this.suppressionRules.get(key);
 
@@ -311,7 +452,7 @@ export class AlertManager {
   /**
    * Record alert in history
    */
-  recordAlert(alert) {
+  private recordAlert(alert: Alert): void {
     const key = alert.id || `${alert.type}_${Date.now()}`;
     this.alertHistory.set(key, {
       ...alert,
@@ -328,7 +469,7 @@ export class AlertManager {
   /**
    * Add alert suppression rule
    */
-  suppressAlert(type, operation, durationMs) {
+  suppressAlert(type: AlertTypeType, operation: string, durationMs: number): void {
     const key = `${type}_${operation}`;
     this.suppressionRules.set(key, {
       until: Date.now() + durationMs,
@@ -346,14 +487,14 @@ export class AlertManager {
   /**
    * Generate alert title
    */
-  generateTitle(alert) {
+  private generateTitle(alert: Alert): string {
     switch (alert.type) {
       case AlertType.KPI_DEVIATION:
-        return `KPI Alert: ${alert.operation} ${alert.deviation}`;
+        return `KPI Alert: ${(alert as KPIDeviationAlert).operation} ${(alert as KPIDeviationAlert).deviation}`;
       case AlertType.PERFORMANCE:
         return `Performance Alert: ${alert.operation}`;
       case AlertType.SYSTEM_ERROR:
-        return `System Error: ${alert.service}`;
+        return `System Error: ${(alert as SystemErrorAlert).service}`;
       default:
         return `System Alert: ${alert.type}`;
     }
@@ -362,14 +503,15 @@ export class AlertManager {
   /**
    * Generate alert description
    */
-  generateDescription(alert) {
+  private generateDescription(alert: Alert): string {
     switch (alert.type) {
       case AlertType.KPI_DEVIATION:
-        return `${alert.operation} is ${alert.deviation} (Current: ${alert.currentValue}, Target: ${alert.target})`;
+        const kpiAlert = alert as KPIDeviationAlert;
+        return `${kpiAlert.operation} is ${kpiAlert.deviation} (Current: ${kpiAlert.currentValue}, Target: ${kpiAlert.target})`;
       case AlertType.PERFORMANCE:
         return `Performance issue detected in ${alert.operation}`;
       case AlertType.SYSTEM_ERROR:
-        return `System error occurred: ${alert.error}`;
+        return `System error occurred: ${(alert as SystemErrorAlert).error}`;
       default:
         return `Alert triggered for ${alert.operation || alert.service}`;
     }
@@ -378,7 +520,7 @@ export class AlertManager {
   /**
    * Format values for display
    */
-  formatValue(value) {
+  private formatValue(value: number | string | null | undefined): string {
     if (value === null || value === undefined) return 'N/A';
     if (typeof value === 'number') {
       if (value > 1000) return `${Math.round(value)}ms`;
@@ -391,7 +533,7 @@ export class AlertManager {
   /**
    * Get severity color for Slack
    */
-  getSeverityColor(severity) {
+  private getSeverityColor(severity: AlertSeverityType): string {
     switch (severity) {
       case AlertSeverity.CRITICAL: return 'danger';
       case AlertSeverity.HIGH: return 'warning';
@@ -404,7 +546,7 @@ export class AlertManager {
   /**
    * Get severity color hex for Discord
    */
-  getSeverityColorHex(severity) {
+  private getSeverityColorHex(severity: AlertSeverityType): number {
     switch (severity) {
       case AlertSeverity.CRITICAL: return 0xff0000;
       case AlertSeverity.HIGH: return 0xff6600;
@@ -417,7 +559,7 @@ export class AlertManager {
   /**
    * Get recent alerts
    */
-  getRecentAlerts(limit = 10) {
+  getRecentAlerts(limit: number = 10): AlertHistoryEntry[] {
     const alerts = Array.from(this.alertHistory.values())
       .sort((a, b) => b.recordedAt - a.recordedAt)
       .slice(0, limit);
@@ -428,14 +570,14 @@ export class AlertManager {
   /**
    * Get alert statistics
    */
-  getAlertStats(timeframe = '24h') {
+  getAlertStats(timeframe: string = '24h'): AlertStats {
     const timeframeMs = this.parseTimeframe(timeframe);
     const since = Date.now() - timeframeMs;
 
     const recentAlerts = Array.from(this.alertHistory.values())
       .filter(alert => alert.recordedAt >= since);
 
-    const stats = {
+    const stats: AlertStats = {
       total: recentAlerts.length,
       bySeverity: {},
       byType: {},
@@ -453,8 +595,8 @@ export class AlertManager {
   /**
    * Parse timeframe string to milliseconds
    */
-  parseTimeframe(timeframe) {
-    const timeframeMap = {
+  private parseTimeframe(timeframe: string): number {
+    const timeframeMap: Record<string, number> = {
       '1h': 3600000,
       '6h': 21600000,
       '24h': 86400000,
@@ -468,12 +610,12 @@ export class AlertManager {
 /**
  * Global alert manager instance
  */
-let globalAlertManager = null;
+let globalAlertManager: AlertManager | null = null;
 
 /**
  * Get or create global alert manager
  */
-export function getAlertManager(env) {
+export function getAlertManager(env: CloudflareEnvironment): AlertManager {
   if (!globalAlertManager) {
     globalAlertManager = new AlertManager(env);
   }
@@ -483,10 +625,16 @@ export function getAlertManager(env) {
 /**
  * Convenience function to send KPI alert
  */
-export async function sendKPIAlert(env, operation, currentValue, target, severity = AlertSeverity.MEDIUM) {
+export async function sendKPIAlert(
+  env: CloudflareEnvironment,
+  operation: string,
+  currentValue: number,
+  target: number,
+  severity: AlertSeverityType = AlertSeverity.MEDIUM
+): Promise<AlertResult> {
   const alertManager = getAlertManager(env);
 
-  const alert = {
+  const alert: KPIDeviationAlert = {
     id: `kpi_${operation}_${Date.now()}`,
     type: AlertType.KPI_DEVIATION,
     operation,
@@ -503,10 +651,15 @@ export async function sendKPIAlert(env, operation, currentValue, target, severit
 /**
  * Convenience function to send performance alert
  */
-export async function sendPerformanceAlert(env, operation, details, severity = AlertSeverity.MEDIUM) {
+export async function sendPerformanceAlert(
+  env: CloudflareEnvironment,
+  operation: string,
+  details: Omit<PerformanceAlert, 'id' | 'type' | 'severity' | 'timestamp'>,
+  severity: AlertSeverityType = AlertSeverity.MEDIUM
+): Promise<AlertResult> {
   const alertManager = getAlertManager(env);
 
-  const alert = {
+  const alert: PerformanceAlert = {
     id: `perf_${operation}_${Date.now()}`,
     type: AlertType.PERFORMANCE,
     operation,
@@ -521,17 +674,38 @@ export async function sendPerformanceAlert(env, operation, details, severity = A
 /**
  * Convenience function to send system error alert
  */
-export async function sendSystemErrorAlert(env, service, error, severity = AlertSeverity.HIGH) {
+export async function sendSystemErrorAlert(
+  env: CloudflareEnvironment,
+  service: string,
+  error: Error | string,
+  severity: AlertSeverityType = AlertSeverity.HIGH
+): Promise<AlertResult> {
   const alertManager = getAlertManager(env);
 
-  const alert = {
+  const errorMessage = error instanceof Error ? error.message : error;
+
+  const alert: SystemErrorAlert = {
     id: `error_${service}_${Date.now()}`,
     type: AlertType.SYSTEM_ERROR,
     service,
-    error: error.message || error,
+    error: errorMessage,
     severity,
     timestamp: new Date().toISOString()
   };
 
   return await alertManager.sendAlert(alert);
 }
+
+// Export types for external use
+export type {
+  Alert,
+  FormattedAlert,
+  AlertHistoryEntry,
+  AlertResult,
+  ChannelResult,
+  AlertStats,
+  SuppressionRule,
+  SlackPayload,
+  DiscordPayload,
+  EmailPayload
+};
