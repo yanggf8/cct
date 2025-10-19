@@ -4,13 +4,61 @@
  */
 
 import { createLogger } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+// Type definitions
+export type StrategyType = 'CRITICAL' | 'STANDARD' | 'BACKGROUND';
+
+export interface RetryStrategy {
+  maxRetries: number;
+  baseDelay: number; // milliseconds
+  maxDelay: number;  // milliseconds
+  timeout: number;   // milliseconds
+}
+
+export interface ConsistencyConfig {
+  MAX_CONSISTENCY_DELAY: number;
+  RETRY_STRATEGIES: {
+    CRITICAL: RetryStrategy;
+    STANDARD: RetryStrategy;
+    BACKGROUND: RetryStrategy;
+  };
+}
+
+export interface ConsistencyOptions {
+  strategy?: StrategyType;
+  timeout?: number;
+  description?: string;
+}
+
+export interface AtomicOperationOptions {
+  timeout?: number;
+  rollbackOnFailure?: boolean;
+  consistencyCheck?: (env: CloudflareEnvironment, operationId: string, result: any) => Promise<boolean>;
+  rollback?: (env: CloudflareEnvironment, operationId: string, result: any) => Promise<void>;
+}
+
+export interface AtomicOperationResult {
+  success: boolean;
+  result: any;
+  consistencyAchieved: boolean;
+  error?: string;
+}
+
+export interface DependencyConsistencyResult {
+  isValid: boolean;
+  consistentJobs: string[];
+  inconsistentJobs: string[];
+}
+
+export type ConsistencyCondition = (env: CloudflareEnvironment, key: string) => Promise<boolean>;
 
 const logger = createLogger('kv-consistency');
 
 /**
  * KV Eventual Consistency Configuration
  */
-const CONSISTENCY_CONFIG = {
+export const CONSISTENCY_CONFIG: ConsistencyConfig = {
   // Cloudflare KV eventual consistency window (up to 60 seconds)
   MAX_CONSISTENCY_DELAY: 60000, // 60 seconds
 
@@ -44,12 +92,8 @@ const CONSISTENCY_CONFIG = {
 
 /**
  * Exponential backoff with jitter for retry delays
- * @param {number} attempt - Current attempt number (0-based)
- * @param {number} baseDelay - Base delay in milliseconds
- * @param {number} maxDelay - Maximum delay in milliseconds
- * @returns {number} Delay in milliseconds
  */
-function calculateBackoffDelay(attempt, baseDelay, maxDelay) {
+function calculateBackoffDelay(attempt: number, baseDelay: number, maxDelay: number): number {
   const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
   // Add jitter (±20%) to prevent thundering herd
   const jitter = exponentialDelay * 0.2 * (Math.random() * 2 - 1);
@@ -58,13 +102,13 @@ function calculateBackoffDelay(attempt, baseDelay, maxDelay) {
 
 /**
  * Wait for KV consistency with configurable timeout
- * @param {string} key - KV key to monitor
- * @param {Function} condition - Function that returns true when consistency is achieved
- * @param {Object} env - Environment object
- * @param {Object} options - Consistency options
- * @returns {Promise<boolean>} True if consistency achieved within timeout
  */
-export async function waitForConsistency(key, condition, env, options = {}) {
+export async function waitForConsistency(
+  key: string,
+  condition: ConsistencyCondition,
+  env: CloudflareEnvironment,
+  options: ConsistencyOptions = {}
+): Promise<boolean> {
   const {
     strategy = 'STANDARD',
     timeout = CONSISTENCY_CONFIG.RETRY_STRATEGIES.STANDARD.timeout,
@@ -95,7 +139,7 @@ export async function waitForConsistency(key, condition, env, options = {}) {
         });
         return true;
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.debug('Consistency check failed', {
         key,
         attempt,
@@ -133,16 +177,16 @@ export async function waitForConsistency(key, condition, env, options = {}) {
 
 /**
  * Read-after-write consistency pattern for critical operations
- * @param {string} key - KV key that was written
- * @param {string} expectedValue - Expected value to verify
- * @param {Object} env - Environment object
- * @param {Object} options - Consistency options
- * @returns {Promise<boolean>} True if write is consistent
  */
-export async function verifyWriteConsistency(key, expectedValue, env, options = {}) {
+export async function verifyWriteConsistency(
+  key: string,
+  expectedValue: string,
+  env: CloudflareEnvironment,
+  options: ConsistencyOptions = {}
+): Promise<boolean> {
   return waitForConsistency(
     key,
-    async (env, key) => {
+    async (env: CloudflareEnvironment, key: string) => {
       const actualValue = await env.TRADING_RESULTS.get(key);
       return actualValue === expectedValue;
     },
@@ -157,18 +201,18 @@ export async function verifyWriteConsistency(key, expectedValue, env, options = 
 
 /**
  * Status consistency pattern for job status updates
- * @param {string} date - Date string
- * @param {string} jobType - Job type
- * @param {string} expectedStatus - Expected status
- * @param {Object} env - Environment object
- * @returns {Promise<boolean>} True if status is consistent
  */
-export async function verifyStatusConsistency(date, jobType, expectedStatus, env) {
+export async function verifyStatusConsistency(
+  date: string,
+  jobType: string,
+  expectedStatus: string,
+  env: CloudflareEnvironment
+): Promise<boolean> {
   const statusKey = `job_status_${date}`;
 
   return waitForConsistency(
     statusKey,
-    async (env, key) => {
+    async (env: CloudflareEnvironment, key: string) => {
       const statusData = await env.TRADING_RESULTS.get(key);
       if (!statusData) return false;
 
@@ -185,14 +229,14 @@ export async function verifyStatusConsistency(date, jobType, expectedStatus, env
 
 /**
  * Dependency consistency pattern for multi-job pipelines
- * @param {string} date - Date string
- * @param {Array<string>} dependencies - Required job types
- * @param {Object} env - Environment object
- * @returns {Promise<{isValid: boolean, consistentJobs: Array<string>, inconsistentJobs: Array<string>}>}
  */
-export async function verifyDependencyConsistency(date, dependencies, env) {
+export async function verifyDependencyConsistency(
+  date: string,
+  dependencies: string[],
+  env: CloudflareEnvironment
+): Promise<DependencyConsistencyResult> {
   const statusKey = `job_status_${date}`;
-  const results = {
+  const results: DependencyConsistencyResult = {
     isValid: false,
     consistentJobs: [],
     inconsistentJobs: []
@@ -200,7 +244,7 @@ export async function verifyDependencyConsistency(date, dependencies, env) {
 
   await waitForConsistency(
     statusKey,
-    async (env, key) => {
+    async (env: CloudflareEnvironment, key: string) => {
       try {
         const statusData = await env.TRADING_RESULTS.get(key);
         if (!statusData) return false;
@@ -219,7 +263,7 @@ export async function verifyDependencyConsistency(date, dependencies, env) {
 
         results.isValid = allConsistent;
         return allConsistent;
-      } catch (error) {
+      } catch (error: any) {
         logger.debug('Dependency consistency check failed', {
           date,
           error: error.message
@@ -239,13 +283,13 @@ export async function verifyDependencyConsistency(date, dependencies, env) {
 
 /**
  * Atomic-like operation pattern for complex KV operations
- * @param {string} operationId - Unique operation identifier
- * @param {Function} operation - Function performing the KV operations
- * @param {Object} env - Environment object
- * @param {Object} options - Operation options
- * @returns {Promise<{success: boolean, result: any, consistencyAchieved: boolean}>}
  */
-export async function executeAtomicLikeOperation(operationId, operation, env, options = {}) {
+export async function executeAtomicLikeOperation(
+  operationId: string,
+  operation: (env: CloudflareEnvironment) => Promise<any>,
+  env: CloudflareEnvironment,
+  options: AtomicOperationOptions = {}
+): Promise<AtomicOperationResult> {
   const {
     timeout = CONSISTENCY_CONFIG.MAX_CONSISTENCY_DELAY,
     rollbackOnFailure = true
@@ -265,7 +309,7 @@ export async function executeAtomicLikeOperation(operationId, operation, env, op
     // Verify consistency with timeout
     const consistencyAchieved = await waitForConsistency(
       operationId,
-      async (env, key) => {
+      async (env: CloudflareEnvironment, key: string) => {
         // Operation-specific consistency check
         if (options.consistencyCheck) {
           return await options.consistencyCheck(env, operationId, result);
@@ -301,7 +345,7 @@ export async function executeAtomicLikeOperation(operationId, operation, env, op
         try {
           await options.rollback(env, operationId, result);
           logger.info('Rollback completed', { operationId });
-        } catch (rollbackError) {
+        } catch (rollbackError: any) {
           logger.error('Rollback failed', {
             operationId,
             error: rollbackError.message
@@ -316,7 +360,7 @@ export async function executeAtomicLikeOperation(operationId, operation, env, op
       };
     }
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Atomic-like operation failed', {
       operationId,
       error: error.message,
@@ -327,7 +371,7 @@ export async function executeAtomicLikeOperation(operationId, operation, env, op
       try {
         await options.rollback(env, operationId, null);
         logger.info('Rollback completed after error', { operationId });
-      } catch (rollbackError) {
+      } catch (rollbackError: any) {
         logger.error('Rollback failed after error', {
           operationId,
           error: rollbackError.message
@@ -346,10 +390,8 @@ export async function executeAtomicLikeOperation(operationId, operation, env, op
 
 /**
  * Get consistency configuration for different operation types
- * @param {string} operationType - Type of operation
- * @returns {Object} Configuration for the operation type
  */
-export function getConsistencyConfig(operationType) {
+export function getConsistencyConfig(operationType: string): RetryStrategy {
   switch (operationType) {
     case 'job_status':
     case 'dependency_validation':
@@ -368,6 +410,71 @@ export function getConsistencyConfig(operationType) {
   }
 }
 
+/**
+ * Helper function to create a consistency check function for KV existence
+ */
+export function createExistenceCheck(expectedValue?: string): ConsistencyCondition {
+  return async (env: CloudflareEnvironment, key: string): Promise<boolean> => {
+    try {
+      const value = await env.TRADING_RESULTS.get(key);
+      if (expectedValue !== undefined) {
+        return value === expectedValue;
+      }
+      return value !== null && value !== undefined;
+    } catch (error) {
+      logger.debug('Existence check failed', { key, error: (error as Error).message });
+      return false;
+    }
+  };
+}
+
+/**
+ * Helper function to create a consistency check function for JSON data
+ */
+export function createJsonCheck<T = any>(
+  validator: (data: T) => boolean
+): ConsistencyCondition {
+  return async (env: CloudflareEnvironment, key: string): Promise<boolean> => {
+    try {
+      const value = await env.TRADING_RESULTS.get(key);
+      if (!value) return false;
+
+      const data = JSON.parse(value) as T;
+      return validator(data);
+    } catch (error) {
+      logger.debug('JSON consistency check failed', { key, error: (error as Error).message });
+      return false;
+    }
+  };
+}
+
+/**
+ * Batch consistency verification for multiple keys
+ */
+export async function verifyBatchConsistency(
+  checks: Array<{ key: string; condition: ConsistencyCondition; options?: ConsistencyOptions }>,
+  env: CloudflareEnvironment
+): Promise<Array<{ key: string; consistent: boolean; error?: string }>> {
+  const results = await Promise.allSettled(
+    checks.map(async ({ key, condition, options }) => {
+      const consistent = await waitForConsistency(key, condition, env, options);
+      return { key, consistent };
+    })
+  );
+
+  return results.map(result => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    } else {
+      return {
+        key: 'unknown',
+        consistent: false,
+        error: result.reason?.message || 'Unknown error'
+      };
+    }
+  });
+}
+
 export default {
   waitForConsistency,
   verifyWriteConsistency,
@@ -375,5 +482,19 @@ export default {
   verifyDependencyConsistency,
   executeAtomicLikeOperation,
   getConsistencyConfig,
+  createExistenceCheck,
+  createJsonCheck,
+  verifyBatchConsistency,
   CONSISTENCY_CONFIG
+};
+
+// Export types for external use
+export type {
+  RetryStrategy,
+  ConsistencyConfig,
+  ConsistencyOptions,
+  AtomicOperationOptions,
+  AtomicOperationResult,
+  DependencyConsistencyResult,
+  ConsistencyCondition
 };
