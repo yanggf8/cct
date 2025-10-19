@@ -7,10 +7,241 @@ import { createLogger } from '../logging.js';
 
 const logger = createLogger('weekly-review-analysis');
 
+// ============================================================================
+// Type Definitions and Interfaces
+// ============================================================================
+
+/**
+ * Cloudflare Environment interface
+ */
+export interface CloudflareEnvironment {
+  TRADING_RESULTS: KVNamespace;
+}
+
+/**
+ * Performance level for weekly analysis
+ */
+export type PerformanceLevel = 'excellent' | 'strong' | 'moderate' | 'needs-improvement';
+
+/**
+ * Trend direction for various metrics
+ */
+export type TrendDirection = 'improving' | 'declining' | 'stable' | 'increasingly-bullish' | 'increasingly-bearish' | 'neutral';
+
+/**
+ * Market bias indicators
+ */
+export type MarketBias = 'bullish' | 'bearish' | 'neutral' | 'neutral-bullish';
+
+/**
+ * Insight levels for categorizing messages
+ */
+export type InsightLevel = 'positive' | 'warning' | 'info' | 'negative';
+
+/**
+ * Insight types for categorization
+ */
+export type InsightType = 'performance' | 'consistency' | 'trend' | 'patterns';
+
+/**
+ * Confidence levels for outlook
+ */
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+/**
+ * Volatility expectations
+ */
+export type VolatilityLevel = 'high' | 'moderate' | 'low';
+
+/**
+ * Performance consistency indicators
+ */
+export type ConsistencyLevel = 'high' | 'medium' | 'low';
+
+/**
+ * Pattern strength indicators
+ */
+export type PatternStrength = 'high' | 'medium' | 'low';
+
+/**
+ * Rotation strength for sector analysis
+ */
+export type RotationStrength = 'strong' | 'moderate' | 'weak';
+
+/**
+ * Weekly momentum indicators
+ */
+export type WeeklyMomentum = 'bullish' | 'bearish' | 'neutral';
+
+/**
+ * Daily result entry from KV storage
+ */
+export interface DailyResult {
+  date: string;
+  accuracy: number;
+  signals: number;
+  topSymbol: string | null;
+  marketBias: MarketBias;
+}
+
+/**
+ * Weekly performance data structure
+ */
+export interface WeeklyPerformanceData {
+  tradingDays: number;
+  totalSignals: number;
+  dailyResults: DailyResult[];
+  topPerformers: WeeklyPerformer[];
+  underperformers: WeeklyPerformer[];
+}
+
+/**
+ * Individual performer (top or underperforming)
+ */
+export interface WeeklyPerformer {
+  symbol: string;
+  weeklyGain?: string;
+  weeklyLoss?: string;
+  consistency: ConsistencyLevel;
+}
+
+/**
+ * Pattern analysis results
+ */
+export interface PatternAnalysis {
+  overallPerformance: PerformanceLevel;
+  consistencyScore: number;
+  dailyVariations: DailyVariation[];
+  strongDays: string[];
+  weakDays: string[];
+  patternStrength: PatternStrength;
+}
+
+/**
+ * Daily variation in performance
+ */
+export interface DailyVariation {
+  day: string;
+  accuracy: number;
+  signals: number;
+  bias: MarketBias;
+}
+
+/**
+ * Accuracy metrics for the week
+ */
+export interface AccuracyMetrics {
+  weeklyAverage: number;
+  bestDay: number;
+  worstDay: number;
+  consistency: number;
+  totalSignals: number;
+  avgDailySignals: number;
+  trend: TrendDirection;
+}
+
+/**
+ * Weekly trend analysis
+ */
+export interface WeeklyTrends {
+  accuracyTrend: TrendDirection;
+  volumeTrend: TrendDirection;
+  biasTrend: TrendDirection;
+  consistencyTrend: TrendDirection | 'improving' | 'variable';
+  weeklyMomentum: WeeklyMomentum;
+}
+
+/**
+ * Individual insight or recommendation
+ */
+export interface WeeklyInsight {
+  type: InsightType;
+  level: InsightLevel;
+  message: string;
+}
+
+/**
+ * Sector rotation analysis
+ */
+export interface SectorRotation {
+  dominantSectors: string[];
+  rotatingSectors: string[];
+  rotationStrength: RotationStrength;
+  nextWeekPotential: string[];
+}
+
+/**
+ * Next week outlook and recommendations
+ */
+export interface NextWeekOutlook {
+  marketBias: MarketBias;
+  confidenceLevel: ConfidenceLevel;
+  keyFocus: string;
+  expectedVolatility: VolatilityLevel;
+  recommendedApproach: string;
+}
+
+/**
+ * Weekly overview summary
+ */
+export interface WeeklyOverview {
+  totalTradingDays: number;
+  totalSignals: number;
+  weeklyPerformance: PerformanceLevel;
+  modelConsistency: number;
+}
+
+/**
+ * Complete weekly review analysis result
+ */
+export interface WeeklyReviewAnalysis {
+  weeklyOverview: WeeklyOverview;
+  accuracyMetrics: AccuracyMetrics;
+  patternAnalysis: PatternAnalysis;
+  trends: WeeklyTrends;
+  insights: WeeklyInsight[];
+  topPerformers: WeeklyPerformer[];
+  underperformers: WeeklyPerformer[];
+  sectorRotation: SectorRotation;
+  nextWeekOutlook: NextWeekOutlook;
+}
+
+/**
+ * Trading signal structure from KV data
+ */
+export interface TradingSignal {
+  sentiment_layers?: Array<{
+    confidence: number;
+    [key: string]: any;
+  }>;
+  [key: string]: any;
+}
+
+/**
+ * Analysis data structure from KV storage
+ */
+export interface AnalysisData {
+  symbols_analyzed?: string[];
+  pre_market_analysis?: {
+    confidence?: number;
+    bias?: MarketBias;
+    [key: string]: any;
+  };
+  trading_signals?: Record<string, TradingSignal>;
+  [key: string]: any;
+}
+
+// ============================================================================
+// Main Functions
+// ============================================================================
+
 /**
  * Generate comprehensive weekly review analysis
  */
-export async function generateWeeklyReviewAnalysis(env, currentTime) {
+export async function generateWeeklyReviewAnalysis(
+  env: CloudflareEnvironment,
+  currentTime: number | string | Date
+): Promise<WeeklyReviewAnalysis> {
   logger.info('Generating comprehensive weekly review analysis');
 
   try {
@@ -47,7 +278,7 @@ export async function generateWeeklyReviewAnalysis(env, currentTime) {
     };
 
   } catch (error) {
-    logger.error('Error generating weekly review analysis', { error: error.message });
+    logger.error('Error generating weekly review analysis', { error: (error as Error).message });
     return getDefaultWeeklyReviewData();
   }
 }
@@ -55,8 +286,11 @@ export async function generateWeeklyReviewAnalysis(env, currentTime) {
 /**
  * Get weekly performance data from KV storage
  */
-async function getWeeklyPerformanceData(env, currentTime) {
-  const weeklyData = {
+async function getWeeklyPerformanceData(
+  env: CloudflareEnvironment,
+  currentTime: number | string | Date
+): Promise<WeeklyPerformanceData> {
+  const weeklyData: WeeklyPerformanceData = {
     tradingDays: 5,
     totalSignals: 0,
     dailyResults: [],
@@ -73,7 +307,7 @@ async function getWeeklyPerformanceData(env, currentTime) {
       const dailyData = await env.TRADING_RESULTS.get(`analysis_${dateStr}`);
 
       if (dailyData) {
-        const parsed = JSON.parse(dailyData);
+        const parsed: AnalysisData = JSON.parse(dailyData);
         weeklyData.totalSignals += parsed.symbols_analyzed?.length || 0;
         weeklyData.dailyResults.push({
           date: dateStr,
@@ -84,7 +318,9 @@ async function getWeeklyPerformanceData(env, currentTime) {
         });
       }
     } catch (error) {
-      logger.warn(`Failed to get data for ${date.toISOString().split('T')[0]}`, { error: error.message });
+      logger.warn(`Failed to get data for ${date.toISOString().split('T')[0]}`, {
+        error: (error as Error).message
+      });
     }
   }
 
@@ -97,8 +333,8 @@ async function getWeeklyPerformanceData(env, currentTime) {
 /**
  * Analyze weekly patterns and trends
  */
-function analyzeWeeklyPatterns(weeklyData) {
-  const patterns = {
+function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalysis {
+  const patterns: PatternAnalysis = {
     overallPerformance: 'strong',
     consistencyScore: 0,
     dailyVariations: [],
@@ -147,7 +383,7 @@ function analyzeWeeklyPatterns(weeklyData) {
 /**
  * Calculate weekly accuracy metrics
  */
-function calculateWeeklyAccuracy(weeklyData) {
+function calculateWeeklyAccuracy(weeklyData: WeeklyPerformanceData): AccuracyMetrics {
   if (!weeklyData.dailyResults || !Array.isArray(weeklyData.dailyResults) || weeklyData.dailyResults.length === 0) {
     return getDefaultAccuracyMetrics();
   }
@@ -169,7 +405,7 @@ function calculateWeeklyAccuracy(weeklyData) {
 /**
  * Identify weekly trends
  */
-function identifyWeeklyTrends(weeklyData, patternAnalysis) {
+function identifyWeeklyTrends(weeklyData: WeeklyPerformanceData, patternAnalysis: PatternAnalysis): WeeklyTrends {
   if (!weeklyData.dailyResults || !Array.isArray(weeklyData.dailyResults) || weeklyData.dailyResults.length === 0) {
     return {
       accuracyTrend: 'stable',
@@ -192,8 +428,12 @@ function identifyWeeklyTrends(weeklyData, patternAnalysis) {
 /**
  * Generate weekly insights and recommendations
  */
-function generateWeeklyInsights(patternAnalysis, accuracyMetrics, trends) {
-  const insights = [];
+function generateWeeklyInsights(
+  patternAnalysis: PatternAnalysis,
+  accuracyMetrics: AccuracyMetrics,
+  trends: WeeklyTrends
+): WeeklyInsight[] {
+  const insights: WeeklyInsight[] = [];
 
   // Performance insights
   if (accuracyMetrics.weeklyAverage > 70) {
@@ -243,7 +483,7 @@ function generateWeeklyInsights(patternAnalysis, accuracyMetrics, trends) {
 /**
  * Analyze sector rotation patterns (placeholder for future implementation)
  */
-function analyzeSectorRotation(weeklyData) {
+function analyzeSectorRotation(weeklyData: WeeklyPerformanceData): SectorRotation {
   return {
     dominantSectors: ['Technology', 'Healthcare'],
     rotatingSectors: ['Energy', 'Financials'],
@@ -255,9 +495,9 @@ function analyzeSectorRotation(weeklyData) {
 /**
  * Generate next week outlook
  */
-function generateNextWeekOutlook(trends, patternAnalysis) {
-  let confidence = 'medium';
-  let bias = 'neutral';
+function generateNextWeekOutlook(trends: WeeklyTrends, patternAnalysis: PatternAnalysis): NextWeekOutlook {
+  let confidence: ConfidenceLevel = 'medium';
+  let bias: MarketBias = 'neutral';
   let keyFocus = 'Earnings Season';
 
   // Determine confidence based on consistency
@@ -283,11 +523,15 @@ function generateNextWeekOutlook(trends, patternAnalysis) {
   };
 }
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
- * Helper functions
+ * Get last trading days (excluding weekends)
  */
-function getLastTradingDays(currentTime, count) {
-  const dates = [];
+function getLastTradingDays(currentTime: number | string | Date, count: number): Date[] {
+  const dates: Date[] = [];
   const current = new Date(currentTime);
 
   // Go back to find trading days (weekdays)
@@ -308,12 +552,18 @@ function getLastTradingDays(currentTime, count) {
   return dates.reverse(); // Return in chronological order
 }
 
-function getDayName(index) {
+/**
+ * Get day name from index
+ */
+function getDayName(index: number): string {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   return days[index] || `Day ${index + 1}`;
 }
 
-function getTopPerformingSymbol(analysisData) {
+/**
+ * Get top performing symbol from analysis data
+ */
+function getTopPerformingSymbol(analysisData: AnalysisData): string | null {
   const signals = analysisData.trading_signals || {};
   const symbols = Object.keys(signals);
 
@@ -335,7 +585,10 @@ function getTopPerformingSymbol(analysisData) {
   return topSymbol;
 }
 
-function aggregateWeeklyPerformance(weeklyData) {
+/**
+ * Aggregate weekly performance data
+ */
+function aggregateWeeklyPerformance(weeklyData: WeeklyPerformanceData): void {
   if (weeklyData.dailyResults.length === 0) return;
 
   // Aggregate top performers and underperformers (simplified)
@@ -351,7 +604,10 @@ function aggregateWeeklyPerformance(weeklyData) {
   ];
 }
 
-function calculateAccuracyTrend(accuracies) {
+/**
+ * Calculate accuracy trend from array of accuracies
+ */
+function calculateAccuracyTrend(accuracies: number[]): TrendDirection {
   if (accuracies.length < 2) return 'stable';
 
   const firstHalf = accuracies.slice(0, Math.floor(accuracies.length / 2));
@@ -365,11 +621,17 @@ function calculateAccuracyTrend(accuracies) {
   return 'stable';
 }
 
-function calculateVolumeTrend(signals) {
+/**
+ * Calculate volume trend from array of signal counts
+ */
+function calculateVolumeTrend(signals: number[]): TrendDirection {
   return calculateAccuracyTrend(signals); // Same logic for volume
 }
 
-function calculateBiasTrend(biases) {
+/**
+ * Calculate bias trend from array of market biases
+ */
+function calculateBiasTrend(biases: MarketBias[]): TrendDirection {
   const bullishCount = biases.filter(b => b === 'bullish').length;
   const bearishCount = biases.filter(b => b === 'bearish').length;
 
@@ -378,7 +640,10 @@ function calculateBiasTrend(biases) {
   return 'neutral';
 }
 
-function determineWeeklyMomentum(dailyResults) {
+/**
+ * Determine weekly momentum from recent daily results
+ */
+function determineWeeklyMomentum(dailyResults: DailyResult[]): WeeklyMomentum {
   if (dailyResults.length < 2) return 'neutral';
 
   const recentDays = dailyResults.slice(-2);
@@ -389,7 +654,10 @@ function determineWeeklyMomentum(dailyResults) {
   return 'neutral';
 }
 
-function generateRecommendedApproach(confidence, bias) {
+/**
+ * Generate recommended approach based on confidence and bias
+ */
+function generateRecommendedApproach(confidence: ConfidenceLevel, bias: MarketBias): string {
   if (confidence === 'high' && bias === 'bullish') {
     return 'Aggressive positioning with high-confidence signals';
   } else if (confidence === 'low') {
@@ -399,7 +667,10 @@ function generateRecommendedApproach(confidence, bias) {
   }
 }
 
-function getDefaultAccuracyMetrics() {
+/**
+ * Get default accuracy metrics when no real data is available
+ */
+function getDefaultAccuracyMetrics(): AccuracyMetrics {
   return {
     weeklyAverage: 68,
     bestDay: 78,
@@ -414,7 +685,7 @@ function getDefaultAccuracyMetrics() {
 /**
  * Default weekly review data when no real data is available
  */
-function getDefaultWeeklyReviewData() {
+function getDefaultWeeklyReviewData(): WeeklyReviewAnalysis {
   return {
     weeklyOverview: {
       totalTradingDays: 5,
