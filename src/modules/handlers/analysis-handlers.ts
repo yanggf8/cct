@@ -1,31 +1,169 @@
 /**
- * Analysis-related HTTP Request Handlers
- * Handles core trading analysis functionality
+ * Analysis-related HTTP Request Handlers - TypeScript
+ * Handles core trading analysis functionality with comprehensive type safety
  */
 
-import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from '../analysis.js';
-import { runEnhancedAnalysis, validateSentimentEnhancement } from '../enhanced_analysis.js';
-import { runEnhancedFeatureAnalysis } from '../enhanced_feature_analysis.js';
-import { runIndependentTechnicalAnalysis } from '../independent_technical_analysis.js';
-import { analyzeSingleSymbol } from '../per_symbol_analysis.js';
-import { createLogger } from '../logging.js';
-import { createHandler, createAPIHandler } from '../handler-factory.js';
-import { createAnalysisResponse } from '../response-factory.js';
-import { BusinessMetrics } from '../monitoring.js';
-import { getJobStatus, validateDependencies } from '../kv-utils.js';
-import { createDAL } from '../dal.js';
+import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from '../analysis.ts';
+import { runEnhancedAnalysis, validateSentimentEnhancement, type EnhancedAnalysisResults, type ValidationResult } from '../enhanced_analysis.ts';
+import { runEnhancedFeatureAnalysis } from '../enhanced_feature_analysis.ts';
+import { runIndependentTechnicalAnalysis } from '../independent_technical_analysis.ts';
+import { analyzeSingleSymbol, type PerSymbolAnalysisResult } from '../per_symbol_analysis.ts';
+import { createLogger } from '../logging.ts';
+import { createHandler, createAPIHandler, type EnhancedContext } from '../handler-factory.ts';
+import { createAnalysisResponse, type AnalysisResponseOptions } from '../response-factory.ts';
+import { BusinessMetrics } from '../monitoring.ts';
+import { getJobStatus, validateDependencies } from '../kv-utils.ts';
+import { createDAL, type DALInstance } from '../dal.ts';
+import type { CloudflareEnvironment } from '../../types.ts';
 
 const logger = createLogger('analysis-handlers');
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Base error response structure
+ */
+interface BaseErrorResponse {
+  success: false;
+  error: string;
+  request_id: string;
+  timestamp: string;
+  symbol?: string;
+  usage?: string;
+  action_required?: string;
+  date?: string;
+  analysis_found?: boolean;
+  symbols_analyzed?: number;
+}
+
+/**
+ * Morning predictions response structure
+ */
+interface MorningPredictionsResponse {
+  success: boolean;
+  message?: string;
+  request_id: string;
+  date: string;
+  predictions_stored?: boolean;
+  signal_count?: number;
+  high_confidence_signals?: number;
+  average_confidence?: string;
+  predictions_key?: string;
+  timestamp?: string;
+  error?: string;
+  action_required?: string;
+  analysis_found?: boolean;
+  symbols_analyzed?: number;
+}
+
+/**
+ * Status management response structure
+ */
+interface StatusManagementResponse {
+  success: boolean;
+  request_id: string;
+  date: string;
+  job_statuses: Record<string, any>;
+  data_exists: Record<string, boolean>;
+  dependency_validation: {
+    pre_market_briefing: any;
+    intraday_check: any;
+    end_of_day_summary: any;
+  };
+  timestamp?: string;
+  error?: string;
+}
+
+/**
+ * KV verification test results structure
+ */
+interface KVVerificationResults {
+  test_operations: {
+    put_with_verification: {
+      success: boolean;
+      duration?: number;
+      key?: string;
+      bytes?: number;
+      error?: string;
+    };
+    get_with_retry: {
+      success: boolean;
+      duration?: number;
+      key?: string;
+      bytes?: number;
+      integrity_check?: boolean;
+      error?: string;
+    };
+    job_status_system: {
+      success: boolean;
+      duration?: number;
+      status?: any;
+      update_successful?: boolean;
+      error?: string;
+    };
+    dependency_validation: {
+      success: boolean;
+      duration?: number;
+      validation_result?: any;
+      system_functional?: boolean;
+      error?: string;
+    };
+    cleanup: {
+      success: boolean;
+      key?: string;
+      error?: string;
+    };
+  };
+  data_integrity: Record<string, any>;
+  logging_output: any[];
+  performance_metrics: Record<string, any>;
+  overall_metrics: {
+    total_operations: number;
+    successful_operations: number;
+    success_rate: string;
+    kv_system_healthy: boolean;
+    test_duration: number;
+  };
+}
+
+/**
+ * KV verification test response structure
+ */
+interface KVVerificationResponse extends KVVerificationResults {
+  success: boolean;
+  request_id: string;
+  test_date: string;
+  error?: string;
+  timestamp?: string;
+}
+
+/**
+ * Analysis request context interface
+ */
+interface AnalysisContext extends EnhancedContext {
+  requestId: string;
+}
+
+/**
+ * Handler function with proper typing
+ */
+type HandlerFunction = (request: Request, env: CloudflareEnvironment, ctx: AnalysisContext) => Promise<Response>;
+
+// ============================================================================
+// Handler Functions
+// ============================================================================
 
 /**
  * Handle manual analysis requests (Enhanced with sentiment)
  */
-export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async (request, env, ctx) => {
+export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async (request: Request, env: CloudflareEnvironment, ctx: AnalysisContext): Promise<Response> => {
   // Track business metrics
   BusinessMetrics.analysisRequested('manual_enhanced', 5);
 
   try {
-    const analysis = await runEnhancedAnalysis(env, {
+    const analysis: EnhancedAnalysisResults = await runEnhancedAnalysis(env, {
       triggerMode: 'manual_analysis_enhanced',
       requestId: ctx.requestId
     });
@@ -36,14 +174,16 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       analysis.execution_metrics?.total_time_ms || 0
     );
 
-    return createAnalysisResponse(analysis, {
+    const options: AnalysisResponseOptions = {
       requestId: ctx.requestId,
       symbolsAnalyzed: analysis.symbols_analyzed?.length || 0,
       processingTime: analysis.execution_metrics?.total_time_ms,
       confidence: analysis.overall_confidence
-    });
+    };
 
-  } catch (error) {
+    return createAnalysisResponse(analysis, options);
+
+  } catch (error: any) {
     // Try fallback to basic analysis
     try {
       const basicAnalysis = await runBasicAnalysis(env, {
@@ -51,20 +191,22 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
         requestId: ctx.requestId
       });
 
-      basicAnalysis.fallback_reason = error.message;
+      (basicAnalysis as any).fallback_reason = error.message;
 
       BusinessMetrics.analysisCompleted('manual_fallback',
         basicAnalysis.symbols_analyzed?.length || 0,
         basicAnalysis.execution_metrics?.total_time_ms || 0
       );
 
-      return createAnalysisResponse(basicAnalysis, {
+      const options: AnalysisResponseOptions = {
         requestId: ctx.requestId,
         symbolsAnalyzed: basicAnalysis.symbols_analyzed?.length || 0,
         processingTime: basicAnalysis.execution_metrics?.total_time_ms,
         fallbackReason: error.message
-      });
-    } catch (fallbackError) {
+      };
+
+      return createAnalysisResponse(basicAnalysis, options);
+    } catch (fallbackError: any) {
       BusinessMetrics.analysisFailed('manual_enhanced', fallbackError.name);
       throw fallbackError; // Let factory handle error response
     }
@@ -78,7 +220,7 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
 /**
  * Handle enhanced feature analysis requests
  */
-export async function handleEnhancedFeatureAnalysis(request, env) {
+export async function handleEnhancedFeatureAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
 
   try {
@@ -97,19 +239,21 @@ export async function handleEnhancedFeatureAnalysis(request, env) {
     return new Response(JSON.stringify(analysis, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Enhanced feature analysis failed', {
       requestId,
       error: error.message,
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({
+    const errorResponse: BaseErrorResponse = {
       success: false,
       error: error.message,
       request_id: requestId,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -119,7 +263,7 @@ export async function handleEnhancedFeatureAnalysis(request, env) {
 /**
  * Handle independent technical analysis requests
  */
-export async function handleIndependentTechnicalAnalysis(request, env) {
+export async function handleIndependentTechnicalAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
 
   try {
@@ -138,19 +282,21 @@ export async function handleIndependentTechnicalAnalysis(request, env) {
     return new Response(JSON.stringify(analysis, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Independent technical analysis failed', {
       requestId,
       error: error.message,
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({
+    const errorResponse: BaseErrorResponse = {
       success: false,
       error: error.message,
       request_id: requestId,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -160,7 +306,7 @@ export async function handleIndependentTechnicalAnalysis(request, env) {
 /**
  * Handle per-symbol analysis requests
  */
-export async function handlePerSymbolAnalysis(request, env) {
+export async function handlePerSymbolAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
   const url = new URL(request.url);
   const symbol = url.searchParams.get('symbol');
@@ -168,12 +314,16 @@ export async function handlePerSymbolAnalysis(request, env) {
   try {
     if (!symbol) {
       logger.warn('Per-symbol analysis requested without symbol parameter', { requestId });
-      return new Response(JSON.stringify({
+
+      const errorResponse: BaseErrorResponse = {
         success: false,
         error: 'Symbol parameter is required',
         request_id: requestId,
+        timestamp: new Date().toISOString(),
         usage: '/analyze-symbol?symbol=AAPL'
-      }, null, 2), {
+      };
+
+      return new Response(JSON.stringify(errorResponse, null, 2), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -181,7 +331,7 @@ export async function handlePerSymbolAnalysis(request, env) {
 
     logger.info('Per-symbol analysis requested', { requestId, symbol });
 
-    const analysis = await analyzeSingleSymbol(symbol, env, { requestId });
+    const analysis: PerSymbolAnalysisResult = await analyzeSingleSymbol(symbol, env, { requestId });
 
     logger.info('Per-symbol analysis completed', {
       requestId,
@@ -193,21 +343,23 @@ export async function handlePerSymbolAnalysis(request, env) {
     return new Response(JSON.stringify(analysis, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Per-symbol analysis failed', {
       requestId,
-      symbol,
+      symbol: symbol || undefined,
       error: error.message,
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({
+    const errorResponse: BaseErrorResponse = {
       success: false,
       error: error.message,
-      symbol: symbol,
+      symbol: symbol || undefined,
       request_id: requestId,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -217,13 +369,13 @@ export async function handlePerSymbolAnalysis(request, env) {
 /**
  * Handle sentiment testing requests
  */
-export async function handleSentimentTest(request, env) {
+export async function handleSentimentTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
 
   try {
     logger.info('Sentiment validation test requested', { requestId });
 
-    const validation = await validateSentimentEnhancement(env, { requestId });
+    const validation: ValidationResult = await validateSentimentEnhancement(env, { requestId });
 
     logger.info('Sentiment validation completed', {
       requestId,
@@ -234,28 +386,31 @@ export async function handleSentimentTest(request, env) {
     return new Response(JSON.stringify(validation, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Sentiment validation test failed', {
       requestId,
       error: error.message,
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({
+    const errorResponse: BaseErrorResponse = {
       success: false,
       error: error.message,
       request_id: requestId,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
   }
 }
+
 /**
  * Handle morning predictions generation from existing analysis data
  */
-export async function handleGenerateMorningPredictions(request, env) {
+export async function handleGenerateMorningPredictions(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
@@ -264,19 +419,22 @@ export async function handleGenerateMorningPredictions(request, env) {
     logger.info('🌅 Morning predictions generation requested', { requestId, date: dateStr });
 
     // Check if analysis data exists for today
-    const dal = createDAL(env);
+    const dal: DALInstance = createDAL(env);
     const analysisKey = `analysis_${dateStr}`;
     const analysisResult = await dal.read(analysisKey);
 
     if (!analysisResult.success || !analysisResult.data) {
       logger.warn('⚠️ No analysis data found for today', { requestId, date: dateStr });
-      return new Response(JSON.stringify({
+
+      const errorResponse: MorningPredictionsResponse = {
         success: false,
         error: 'No analysis data found for today. Run analysis first.',
         request_id: requestId,
         date: dateStr,
         action_required: 'Run /analyze endpoint first'
-      }, null, 2), {
+      };
+
+      return new Response(JSON.stringify(errorResponse, null, 2), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -298,7 +456,7 @@ export async function handleGenerateMorningPredictions(request, env) {
       const predictionsResult = await dal.read(predictionsKey);
       const predictions = predictionsResult.success ? predictionsResult.data : null;
 
-      return new Response(JSON.stringify({
+      const successResponse: MorningPredictionsResponse = {
         success: true,
         message: 'Morning predictions generated and stored successfully',
         request_id: requestId,
@@ -306,29 +464,34 @@ export async function handleGenerateMorningPredictions(request, env) {
         predictions_stored: !!predictions,
         signal_count: predictions?.predictions?.length || 0,
         high_confidence_signals: predictions?.metadata?.totalSignals || 0,
-        average_confidence: predictions?.metadata?.averageConfidence?.toFixed(1) || 0,
+        average_confidence: predictions?.metadata?.averageConfidence?.toFixed(1) || '0',
         predictions_key: predictionsKey,
         timestamp: new Date().toISOString()
-      }, null, 2), {
+      };
+
+      return new Response(JSON.stringify(successResponse, null, 2), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     } else {
       logger.error('❌ Failed to generate morning predictions', { requestId, date: dateStr });
-      return new Response(JSON.stringify({
+
+      const errorResponse: MorningPredictionsResponse = {
         success: false,
         error: 'Failed to generate morning predictions from analysis data',
         request_id: requestId,
         date: dateStr,
         analysis_found: !!analysis,
         symbols_analyzed: analysis.symbols_analyzed?.length || 0
-      }, null, 2), {
+      };
+
+      return new Response(JSON.stringify(errorResponse, null, 2), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('❌ Morning predictions generation failed', {
       requestId,
       date: dateStr,
@@ -336,13 +499,15 @@ export async function handleGenerateMorningPredictions(request, env) {
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({
+    const errorResponse: MorningPredictionsResponse = {
       success: false,
       error: error.message,
       request_id: requestId,
       date: dateStr,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -352,7 +517,7 @@ export async function handleGenerateMorningPredictions(request, env) {
 /**
  * Handle status management for testing the KV pipeline
  */
-export async function handleStatusManagement(request, env) {
+export async function handleStatusManagement(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
@@ -362,27 +527,28 @@ export async function handleStatusManagement(request, env) {
 
     // Get all job statuses for today
     const jobTypes = ['analysis', 'morning_predictions', 'pre_market_briefing', 'intraday_check', 'end_of_day_summary'];
-    const statuses = {};
+    const statuses: Record<string, any> = {};
 
     for (const jobType of jobTypes) {
       try {
         const status = await getJobStatus(jobType, dateStr, env);
         statuses[jobType] = status;
-      } catch (error) {
+      } catch (error: any) {
         statuses[jobType] = { status: 'missing', error: error.message };
       }
     }
 
     // Check key data existence
-    const dataKeys = {
+    const dataKeys: Record<string, string> = {
       analysis: `analysis_${dateStr}`,
       morning_predictions: `morning_predictions_${dateStr}`,
       intraday_tracking: `intraday_tracking_${dateStr}`,
       eod_summary: `eod_summary_${dateStr}`
     };
 
-    const dal = createDAL(env);
-    const dataExists = {};
+    const dal: DALInstance = createDAL(env);
+    const dataExists: Record<string, boolean> = {};
+
     for (const [keyName, keyValue] of Object.entries(dataKeys)) {
       try {
         const result = await dal.read(keyValue);
@@ -392,7 +558,7 @@ export async function handleStatusManagement(request, env) {
       }
     }
 
-    return new Response(JSON.stringify({
+    const successResponse: StatusManagementResponse = {
       success: true,
       request_id: requestId,
       date: dateStr,
@@ -404,21 +570,32 @@ export async function handleStatusManagement(request, env) {
         end_of_day_summary: await validateDependencies(dateStr, ['intraday_check'], env).catch(() => ({ isValid: false, error: 'Validation failed' }))
       },
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(successResponse, null, 2), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('❌ [STATUS] Status management failed', { requestId, error: error.message });
 
-    return new Response(JSON.stringify({
+    const errorResponse: StatusManagementResponse = {
       success: false,
-      error: error.message,
       request_id: requestId,
       date: dateStr,
+      job_statuses: {},
+      data_exists: {},
+      dependency_validation: {
+        pre_market_briefing: { isValid: false, error: 'Failed' },
+        intraday_check: { isValid: false, error: 'Failed' },
+        end_of_day_summary: { isValid: false, error: 'Failed' }
+      },
+      error: error.message,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -428,7 +605,7 @@ export async function handleStatusManagement(request, env) {
 /**
  * Handle comprehensive KV verification and logging test
  */
-export async function handleKVVerificationTest(request, env) {
+export async function handleKVVerificationTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
@@ -444,17 +621,30 @@ export async function handleKVVerificationTest(request, env) {
       data: 'KV verification test data'
     });
 
-    const results = {
-      test_operations: {},
+    const results: KVVerificationResults = {
+      test_operations: {
+        put_with_verification: { success: false },
+        get_with_retry: { success: false },
+        job_status_system: { success: false },
+        dependency_validation: { success: false },
+        cleanup: { success: false }
+      },
       data_integrity: {},
       logging_output: [],
-      performance_metrics: {}
+      performance_metrics: {},
+      overall_metrics: {
+        total_operations: 0,
+        successful_operations: 0,
+        success_rate: '0%',
+        kv_system_healthy: false,
+        test_duration: 0
+      }
     };
 
     // Test 1: PUT with verification
     const putStartTime = Date.now();
     try {
-      const { putWithVerification, logKVOperation } = await import('../kv-utils.js');
+      const { putWithVerification } = await import('../kv-utils.js');
       const success = await putWithVerification(testKey, testValue, env, {
         expirationTtl: 300 // 5 minutes
       });
@@ -467,7 +657,7 @@ export async function handleKVVerificationTest(request, env) {
       };
 
       logger.info('KV PUT test completed', { success, duration: Date.now() - putStartTime });
-    } catch (error) {
+    } catch (error: any) {
       results.test_operations.put_with_verification = {
         success: false,
         error: error.message,
@@ -495,7 +685,7 @@ export async function handleKVVerificationTest(request, env) {
         duration: Date.now() - getStartTime,
         integrity: retrievedValue === testValue
       });
-    } catch (error) {
+    } catch (error: any) {
       results.test_operations.get_with_retry = {
         success: false,
         error: error.message,
@@ -527,7 +717,7 @@ export async function handleKVVerificationTest(request, env) {
         duration: Date.now() - statusStartTime,
         status: status?.status
       });
-    } catch (error) {
+    } catch (error: any) {
       results.test_operations.job_status_system = {
         success: false,
         error: error.message,
@@ -554,7 +744,7 @@ export async function handleKVVerificationTest(request, env) {
         duration: Date.now() - dependencyStartTime,
         validation: validation.isValid
       });
-    } catch (error) {
+    } catch (error: any) {
       results.test_operations.dependency_validation = {
         success: false,
         error: error.message,
@@ -574,7 +764,7 @@ export async function handleKVVerificationTest(request, env) {
       };
 
       logger.info('KV cleanup test completed', { success: true });
-    } catch (error) {
+    } catch (error: any) {
       results.test_operations.cleanup = {
         success: false,
         error: error.message,
@@ -605,31 +795,52 @@ export async function handleKVVerificationTest(request, env) {
       overallHealth: successRate >= 80
     });
 
-    return new Response(JSON.stringify({
+    const successResponse: KVVerificationResponse = {
       success: true,
       request_id: requestId,
       test_date: dateStr,
       ...results,
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(successResponse, null, 2), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     logger.error('❌ [KV VERIFICATION] Comprehensive KV test failed', {
       requestId,
       error: error.message,
       stack: error.stack
     });
 
-    return new Response(JSON.stringify({
+    const errorResponse: KVVerificationResponse = {
       success: false,
-      error: error.message,
       request_id: requestId,
-      date: dateStr,
+      test_date: dateStr,
+      error: error.message,
+      test_operations: {
+        put_with_verification: { success: false },
+        get_with_retry: { success: false },
+        job_status_system: { success: false },
+        dependency_validation: { success: false },
+        cleanup: { success: false }
+      },
+      data_integrity: {},
+      logging_output: [],
+      performance_metrics: {},
+      overall_metrics: {
+        total_operations: 0,
+        successful_operations: 0,
+        success_rate: '0%',
+        kv_system_healthy: false,
+        test_duration: 0
+      },
       timestamp: new Date().toISOString()
-    }, null, 2), {
+    };
+
+    return new Response(JSON.stringify(errorResponse, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
