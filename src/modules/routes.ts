@@ -69,7 +69,7 @@ import {
   handleNotificationHistory,
   handleTestNotification,
   handleNotificationStatus
-} from './handlers/web-notification-handlers.js';
+} from './handlers/web-notification-handlers.ts';
 
 // Import new v1 API router
 import { handleApiV1Request, handleApiV1CORS } from '../routes/api-v1.js';
