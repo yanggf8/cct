@@ -1,235 +1,250 @@
 /**
- * Professional Dashboard Handlers
+ * Professional Dashboard Handlers - TypeScript
  * Main dashboard with 7 key widgets using Pico.css framework
+ *
+ * This module handles the professional dashboard with comprehensive type safety
+ * and widget data processing for the TFT Trading System.
  */
 
 import { createLogger } from '../logging.js';
 import { createHealthResponse } from '../response-factory.js';
 import { createDAL } from '../dal.js';
-// Facebook integration removed - using response factory instead
 import { BusinessMetrics } from '../monitoring.js';
-// Utility functions for formatting
-function formatCurrency(value) {
-  if (typeof value !== 'number' || isNaN(value)) return '$0.00';
+import type { CloudflareEnvironment } from '../../types.js';
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Market index data structure
+ */
+export interface MarketIndex {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+}
+
+/**
+ * Market data structure with indices and last update time
+ */
+export interface MarketData {
+  indices: MarketIndex[];
+  lastUpdate: string;
+}
+
+/**
+ * AI model health status
+ */
+export interface ModelHealthStatus {
+  status: 'active' | 'inactive' | 'error';
+  lastUsed: string | null;
+}
+
+/**
+ * Model health data structure
+ */
+export interface ModelHealthData {
+  status: 'healthy' | 'error' | 'warning';
+  models: Record<string, ModelHealthStatus>;
+  lastAnalysis: string | null;
+  analysisCount: number;
+  error?: string;
+}
+
+/**
+ * System health components status
+ */
+export interface HealthComponents {
+  kv: string;
+  ai: string;
+  api: string;
+  [key: string]: string;
+}
+
+/**
+ * System health data structure
+ */
+export interface HealthData {
+  status: 'healthy' | 'error' | 'warning';
+  components?: HealthComponents;
+  uptime: number;
+  lastUpdate: string;
+  error?: string;
+}
+
+/**
+ * Sentiment signal data
+ */
+export interface SentimentSignal {
+  symbol: string;
+  sentiment: string;
+  confidence: number;
+  signal: string;
+  reasoning?: string;
+}
+
+/**
+ * Latest analysis data structure
+ */
+export interface LatestAnalysisData {
+  status: 'available' | 'no_data' | 'error';
+  timestamp?: string;
+  signals: SentimentSignal[];
+  confidence: number;
+  summary?: string;
+  market_sentiment?: string;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Sector performance data
+ */
+export interface SectorPerformance {
+  name: string;
+  symbol: string;
+  performance: number;
+  status: 'bullish' | 'bearish' | 'neutral';
+}
+
+/**
+ * Sector data structure
+ */
+export interface SectorData {
+  sectors: SectorPerformance[];
+  lastUpdate: string;
+}
+
+/**
+ * Complete widget data for dashboard
+ */
+export interface DashboardWidgetData {
+  health: HealthData;
+  modelHealth: ModelHealthData;
+  latestAnalysis: LatestAnalysisData;
+  marketData: MarketData;
+  sectorData: SectorData;
+}
+
+/**
+ * Market status information
+ */
+export interface MarketStatus {
+  isOpen: boolean;
+  nextEvent: string;
+}
+
+/**
+ * Dashboard generation context
+ */
+export interface DashboardContext {
+  requestId: string;
+  startTime: number;
+}
+
+// ============================================================================
+// Utility Functions with TypeScript
+// ============================================================================
+
+/**
+ * Format currency values with USD formatting
+ * @param value - Numeric value to format
+ * @returns Formatted currency string
+ */
+export function formatCurrency(value: number | string | undefined | null): string {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (typeof numValue !== 'number' || isNaN(numValue)) return '$0.00';
+
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
-  }).format(value);
-}
-
-function formatPercentage(value) {
-  if (typeof value !== 'number' || isNaN(value)) return '0.00%';
-  return `${value.toFixed(2)}%`;
-}
-
-function formatNumber(value) {
-  if (typeof value !== 'number' || isNaN(value)) return '0';
-  return new Intl.NumberFormat('en-US').format(value);
-}
-
-const logger = createLogger('dashboard-handlers');
-
-/**
- * Handle main dashboard request with 7 professional widgets
- */
-export async function handleProfessionalDashboard(request, env, ctx) {
-  const requestId = crypto.randomUUID();
-  const startTime = Date.now();
-
-  try {
-    logger.info('Professional dashboard requested', { requestId });
-
-    // Fetch data for all widgets
-    const [
-      healthData,
-      modelHealthData,
-      latestAnalysis,
-      marketData,
-      sectorData
-    ] = await Promise.allSettled([
-      fetchHealthData(env),
-      fetchModelHealthData(env),
-      fetchLatestAnalysis(env),
-      fetchMarketData(env),
-      fetchSectorData(env)
-    ]);
-
-    // Process widget data
-    const widgetData = {
-      health: healthData.status === 'fulfilled' ? healthData.value : getDefaultHealthData(),
-      modelHealth: modelHealthData.status === 'fulfilled' ? modelHealthData.value : getDefaultModelHealthData(),
-      latestAnalysis: latestAnalysis.status === 'fulfilled' ? latestAnalysis.value : getDefaultAnalysisData(),
-      marketData: marketData.status === 'fulfilled' ? marketData.value : getDefaultMarketData(),
-      sectorData: sectorData.status === 'fulfilled' ? sectorData.value : getDefaultSectorData()
-    };
-
-    // Generate HTML dashboard
-    const html = generateDashboardHTML(widgetData, env);
-
-    // Track metrics
-    BusinessMetrics.apiRequest('/', 'GET', 200, Date.now() - startTime);
-
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html',
-        'Cache-Control': 'public, max-age=60', // 1 minute cache for real-time data
-        'X-Request-ID': requestId
-      }
-    });
-
-  } catch (error) {
-    logger.error('Dashboard generation failed', { requestId, error: error.message });
-
-    // Return error dashboard
-    const errorHTML = generateErrorDashboard(error.message, requestId);
-
-    return new Response(errorHTML, {
-      status: 500,
-      headers: {
-        'Content-Type': 'text/html',
-        'X-Request-ID': requestId
-      }
-    });
-  }
+  }).format(numValue);
 }
 
 /**
- * Fetch system health data
+ * Format percentage values
+ * @param value - Numeric value to format as percentage
+ * @returns Formatted percentage string
  */
-async function fetchHealthData(env) {
-  try {
-    const healthResponse = await createHealthResponse(env);
-    return {
-      status: 'healthy',
-      components: healthResponse,
-      uptime: Date.now() - (env.WORKER_START_TIME || Date.now()),
-      lastUpdate: new Date().toISOString()
-    };
-  } catch (error) {
-    return {
-      status: 'error',
-      error: error.message,
-      lastUpdate: new Date().toISOString()
-    };
-  }
+export function formatPercentage(value: number | string | undefined | null): string {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (typeof numValue !== 'number' || isNaN(numValue)) return '0.00%';
+
+  return `${numValue.toFixed(2)}%`;
 }
 
 /**
- * Fetch model health data
+ * Format numbers with locale-specific formatting
+ * @param value - Numeric value to format
+ * @returns Formatted number string
  */
-async function fetchModelHealthData(env) {
-  try {
-    const dal = createDAL(env);
+export function formatNumber(value: number | string | undefined | null): string {
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  if (typeof numValue !== 'number' || isNaN(numValue)) return '0';
 
-    // Get latest analysis data
-    const latestAnalysis = await dal.getAnalysis();
-
-    return {
-      status: 'healthy',
-      models: {
-        'GPT-OSS-120B': { status: 'active', lastUsed: latestAnalysis?.timestamp || null },
-        'DistilBERT-SST-2': { status: 'active', lastUsed: latestAnalysis?.timestamp || null }
-      },
-      lastAnalysis: latestAnalysis?.timestamp || null,
-      analysisCount: latestAnalysis ? 1 : 0
-    };
-  } catch (error) {
-    return {
-      status: 'error',
-      error: error.message,
-      models: {}
-    };
-  }
+  return new Intl.NumberFormat('en-US').format(numValue);
 }
 
 /**
- * Fetch latest analysis data
+ * Determine CSS class for change values
+ * @param change - Numeric change value
+ * @returns CSS class name
  */
-async function fetchLatestAnalysis(env) {
-  try {
-    const dal = createDAL(env);
-    const analysis = await dal.getAnalysis();
+export function getChangeClass(change: number): string {
+  if (change > 0) return 'change-positive';
+  if (change < 0) return 'change-negative';
+  return 'change-neutral';
+}
 
-    if (!analysis) {
-      return {
-        status: 'no_data',
-        message: 'No analysis data available',
-        signals: [],
-        confidence: 0
-      };
+/**
+ * Get current market status based on time
+ * @returns Market status information
+ */
+export function getMarketStatus(): MarketStatus {
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const currentTime = hour * 60 + minute;
+
+  // Market hours: 9:30 AM - 4:00 PM EST, Monday - Friday
+  const marketOpen = 9 * 60 + 30; // 9:30 AM
+  const marketClose = 16 * 60; // 4:00 PM
+
+  const isOpen = day >= 1 && day <= 5 && currentTime >= marketOpen && currentTime < marketClose;
+
+  let nextEvent = '';
+  if (isOpen) {
+    const minutesUntilClose = marketClose - currentTime;
+    nextEvent = `Market closes in ${Math.floor(minutesUntilClose / 60)}h ${minutesUntilClose % 60}m`;
+  } else if (day >= 1 && day <= 5) {
+    if (currentTime < marketOpen) {
+      const minutesUntilOpen = marketOpen - currentTime;
+      nextEvent = `Market opens in ${Math.floor(minutesUntilOpen / 60)}h ${minutesUntilOpen % 60}m`;
+    } else {
+      nextEvent = 'Market opens tomorrow at 9:30 AM';
     }
-
-    return {
-      status: 'available',
-      timestamp: analysis.timestamp,
-      signals: analysis.signals || [],
-      confidence: analysis.overall_confidence || 0,
-      summary: analysis.summary || '',
-      market_sentiment: analysis.market_sentiment || 'neutral'
-    };
-  } catch (error) {
-    return {
-      status: 'error',
-      error: error.message,
-      signals: [],
-      confidence: 0
-    };
+  } else {
+    nextEvent = 'Market opens Monday at 9:30 AM';
   }
+
+  return { isOpen, nextEvent };
 }
 
-/**
- * Fetch market data (indices)
- */
-async function fetchMarketData(env) {
-  try {
-    const dal = createDAL(env);
-
-    // Get market data from cache or fetch fresh
-    const marketData = {
-      indices: [
-        { symbol: 'SPY', name: 'S&P 500', price: 0, change: 0, changePercent: 0 },
-        { symbol: 'QQQ', name: 'NASDAQ', price: 0, change: 0, changePercent: 0 },
-        { symbol: 'DIA', name: 'DOW', price: 0, change: 0, changePercent: 0 },
-        { symbol: 'VIX', name: 'VIX', price: 0, change: 0, changePercent: 0 }
-      ],
-      lastUpdate: new Date().toISOString()
-    };
-
-    // Try to get cached market data
-    try {
-      const cached = await dal.read('market_data_cache');
-      if (cached && Date.now() - cached.timestamp < 300000) { // 5 minutes
-        marketData.indices = cached.data || marketData.indices;
-      }
-    } catch (e) {
-      // Use default values if cache is unavailable
-    }
-
-    return marketData;
-  } catch (error) {
-    return getDefaultMarketData();
-  }
-}
+// ============================================================================
+// Default Data Functions
+// ============================================================================
 
 /**
- * Fetch sector data
+ * Get default health data when actual data is unavailable
+ * @returns Default health data structure
  */
-async function fetchSectorData(env) {
-  try {
-    // For now, return default sector data
-    // This will be enhanced when sector rotation is implemented
-    return getDefaultSectorData();
-  } catch (error) {
-    return getDefaultSectorData();
-  }
-}
-
-/**
- * Default data functions
- */
-function getDefaultHealthData() {
+export function getDefaultHealthData(): HealthData {
   return {
     status: 'healthy',
     components: { kv: 'healthy', ai: 'healthy', api: 'healthy' },
@@ -238,7 +253,11 @@ function getDefaultHealthData() {
   };
 }
 
-function getDefaultModelHealthData() {
+/**
+ * Get default model health data when actual data is unavailable
+ * @returns Default model health data structure
+ */
+export function getDefaultModelHealthData(): ModelHealthData {
   return {
     status: 'healthy',
     models: {
@@ -250,7 +269,11 @@ function getDefaultModelHealthData() {
   };
 }
 
-function getDefaultAnalysisData() {
+/**
+ * Get default analysis data when no analysis is available
+ * @returns Default analysis data structure
+ */
+export function getDefaultAnalysisData(): LatestAnalysisData {
   return {
     status: 'no_data',
     message: 'No analysis data available',
@@ -259,7 +282,11 @@ function getDefaultAnalysisData() {
   };
 }
 
-function getDefaultMarketData() {
+/**
+ * Get default market data when market data is unavailable
+ * @returns Default market data structure
+ */
+export function getDefaultMarketData(): MarketData {
   return {
     indices: [
       { symbol: 'SPY', name: 'S&P 500', price: 0, change: 0, changePercent: 0 },
@@ -271,7 +298,11 @@ function getDefaultMarketData() {
   };
 }
 
-function getDefaultSectorData() {
+/**
+ * Get default sector data when sector data is unavailable
+ * @returns Default sector data structure
+ */
+export function getDefaultSectorData(): SectorData {
   return {
     sectors: [
       { name: 'Technology', symbol: 'XLK', performance: 0, status: 'neutral' },
@@ -284,10 +315,179 @@ function getDefaultSectorData() {
   };
 }
 
+// ============================================================================
+// Data Fetching Functions
+// ============================================================================
+
 /**
- * Generate complete dashboard HTML
+ * Fetch system health data from the environment
+ * @param env - Cloudflare environment
+ * @returns Health data structure
  */
-function generateDashboardHTML(data, env) {
+export async function fetchHealthData(env: CloudflareEnvironment): Promise<HealthData> {
+  try {
+    const healthResponse = await createHealthResponse(env);
+    return {
+      status: 'healthy',
+      components: (healthResponse as any).data as HealthComponents,
+      uptime: Date.now() - (env.WORKER_START_TIME || Date.now()),
+      lastUpdate: new Date().toISOString()
+    };
+  } catch (error: any) {
+    return {
+      status: 'error',
+      error: error.message,
+      uptime: 0,
+      lastUpdate: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Fetch AI model health data
+ * @param env - Cloudflare environment
+ * @returns Model health data structure
+ */
+export async function fetchModelHealthData(env: CloudflareEnvironment): Promise<ModelHealthData> {
+  try {
+    const dal = createDAL(env);
+
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+
+    // Get latest analysis data
+    const latestAnalysis = await dal.getAnalysis(today);
+
+    // Handle different DAL response formats
+    const analysisData = (latestAnalysis as any)?.data || latestAnalysis;
+
+    return {
+      status: 'healthy',
+      models: {
+        'GPT-OSS-120B': { status: 'active', lastUsed: analysisData?.timestamp || null },
+        'DistilBERT-SST-2': { status: 'active', lastUsed: analysisData?.timestamp || null }
+      },
+      lastAnalysis: analysisData?.timestamp || null,
+      analysisCount: analysisData ? 1 : 0
+    };
+  } catch (error: any) {
+    return {
+      status: 'error',
+      error: error.message,
+      models: {},
+      lastAnalysis: null,
+      analysisCount: 0
+    };
+  }
+}
+
+/**
+ * Fetch latest analysis data
+ * @param env - Cloudflare environment
+ * @returns Latest analysis data structure
+ */
+export async function fetchLatestAnalysis(env: CloudflareEnvironment): Promise<LatestAnalysisData> {
+  try {
+    const dal = createDAL(env);
+
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+
+    const analysis = await dal.getAnalysis(today);
+
+    // Handle different DAL response formats
+    const analysisData = (analysis as any)?.data || analysis;
+
+    if (!analysisData) {
+      return {
+        status: 'no_data',
+        message: 'No analysis data available',
+        signals: [],
+        confidence: 0
+      };
+    }
+
+    return {
+      status: 'available',
+      timestamp: analysisData.timestamp,
+      signals: analysisData.signals || [],
+      confidence: analysisData.overall_confidence || 0,
+      summary: analysisData.summary || '',
+      market_sentiment: analysisData.market_sentiment || 'neutral'
+    };
+  } catch (error: any) {
+    return {
+      status: 'error',
+      error: error.message,
+      signals: [],
+      confidence: 0
+    };
+  }
+}
+
+/**
+ * Fetch market data (indices) with caching
+ * @param env - Cloudflare environment
+ * @returns Market data structure
+ */
+export async function fetchMarketData(env: CloudflareEnvironment): Promise<MarketData> {
+  try {
+    const dal = createDAL(env);
+
+    // Get market data from cache or fetch fresh
+    const marketData: MarketData = {
+      indices: [
+        { symbol: 'SPY', name: 'S&P 500', price: 0, change: 0, changePercent: 0 },
+        { symbol: 'QQQ', name: 'NASDAQ', price: 0, change: 0, changePercent: 0 },
+        { symbol: 'DIA', name: 'DOW', price: 0, change: 0, changePercent: 0 },
+        { symbol: 'VIX', name: 'VIX', price: 0, change: 0, changePercent: 0 }
+      ],
+      lastUpdate: new Date().toISOString()
+    };
+
+    // Try to get cached market data
+    try {
+      const cached = await dal.read('market_data_cache');
+      const cachedData = (cached as any)?.data || cached;
+      if (cachedData && Date.now() - cachedData.timestamp < 300000) { // 5 minutes
+        marketData.indices = cachedData.data || marketData.indices;
+      }
+    } catch (e) {
+      // Use default values if cache is unavailable
+    }
+
+    return marketData;
+  } catch (error) {
+    return getDefaultMarketData();
+  }
+}
+
+/**
+ * Fetch sector performance data
+ * @param env - Cloudflare environment
+ * @returns Sector data structure
+ */
+export async function fetchSectorData(env: CloudflareEnvironment): Promise<SectorData> {
+  try {
+    // For now, return default sector data
+    // This will be enhanced when sector rotation is implemented
+    return getDefaultSectorData();
+  } catch (error) {
+    return getDefaultSectorData();
+  }
+}
+
+// ============================================================================
+// HTML Generation Functions
+// ============================================================================
+
+/**
+ * Generate complete dashboard HTML with all widgets
+ * @param data - Dashboard widget data
+ * @param env - Cloudflare environment
+ * @returns Complete HTML string for dashboard
+ */
+export function generateDashboardHTML(data: DashboardWidgetData, env: CloudflareEnvironment): string {
   const currentTime = new Date().toISOString();
   const marketStatus = getMarketStatus();
 
@@ -992,9 +1192,12 @@ function generateDashboardHTML(data, env) {
 }
 
 /**
- * Generate error dashboard HTML
+ * Generate error dashboard HTML when dashboard fails to load
+ * @param errorMessage - Error message to display
+ * @param requestId - Request ID for tracking
+ * @returns Error dashboard HTML string
  */
-function generateErrorDashboard(errorMessage, requestId) {
+export function generateErrorDashboard(errorMessage: string, requestId: string): string {
   return `
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -1097,42 +1300,113 @@ function generateErrorDashboard(errorMessage, requestId) {
 </html>`;
 }
 
+// ============================================================================
+// Main Dashboard Handler
+// ============================================================================
+
+const logger = createLogger('dashboard-handlers');
+
 /**
- * Helper functions
+ * Handle main dashboard request with 7 professional widgets
+ * This is the main entry point for the professional dashboard
+ *
+ * @param request - HTTP request object
+ * @param env - Cloudflare environment
+ * @param ctx - Execution context
+ * @returns HTTP response with dashboard HTML
  */
-function getMarketStatus() {
-  const now = new Date();
-  const day = now.getDay();
-  const hour = now.getHours();
-  const minute = now.getMinutes();
-  const currentTime = hour * 60 + minute;
+export async function handleProfessionalDashboard(
+  request: Request,
+  env: CloudflareEnvironment,
+  ctx: any
+): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
 
-  // Market hours: 9:30 AM - 4:00 PM EST, Monday - Friday
-  const marketOpen = 9 * 60 + 30; // 9:30 AM
-  const marketClose = 16 * 60; // 4:00 PM
+  try {
+    logger.info('Professional dashboard requested', { requestId });
 
-  const isOpen = day >= 1 && day <= 5 && currentTime >= marketOpen && currentTime < marketClose;
+    // Fetch data for all widgets using Promise.allSettled for resilience
+    const [
+      healthData,
+      modelHealthData,
+      latestAnalysis,
+      marketData,
+      sectorData
+    ] = await Promise.allSettled([
+      fetchHealthData(env),
+      fetchModelHealthData(env),
+      fetchLatestAnalysis(env),
+      fetchMarketData(env),
+      fetchSectorData(env)
+    ]);
 
-  let nextEvent = '';
-  if (isOpen) {
-    const minutesUntilClose = marketClose - currentTime;
-    nextEvent = `Market closes in ${Math.floor(minutesUntilClose / 60)}h ${minutesUntilClose % 60}m`;
-  } else if (day >= 1 && day <= 5) {
-    if (currentTime < marketOpen) {
-      const minutesUntilOpen = marketOpen - currentTime;
-      nextEvent = `Market opens in ${Math.floor(minutesUntilOpen / 60)}h ${minutesUntilOpen % 60}m`;
-    } else {
-      nextEvent = 'Market opens tomorrow at 9:30 AM';
-    }
-  } else {
-    nextEvent = 'Market opens Monday at 9:30 AM';
+    // Process widget data with fallbacks for failed promises
+    const widgetData: DashboardWidgetData = {
+      health: healthData.status === 'fulfilled' ? healthData.value : getDefaultHealthData(),
+      modelHealth: modelHealthData.status === 'fulfilled' ? modelHealthData.value : getDefaultModelHealthData(),
+      latestAnalysis: latestAnalysis.status === 'fulfilled' ? latestAnalysis.value : getDefaultAnalysisData(),
+      marketData: marketData.status === 'fulfilled' ? marketData.value : getDefaultMarketData(),
+      sectorData: sectorData.status === 'fulfilled' ? sectorData.value : getDefaultSectorData()
+    };
+
+    // Generate HTML dashboard
+    const html = generateDashboardHTML(widgetData, env);
+
+    // Track metrics with BusinessMetrics
+    BusinessMetrics.apiRequest('/', 'GET', 200, Date.now() - startTime);
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'public, max-age=60', // 1 minute cache for real-time data
+        'X-Request-ID': requestId
+      }
+    });
+
+  } catch (error: any) {
+    logger.error('Dashboard generation failed', {
+      requestId,
+      error: error.message,
+      stack: error.stack
+    });
+
+    // Return error dashboard with user-friendly error message
+    const errorHTML = generateErrorDashboard(error.message, requestId);
+
+    return new Response(errorHTML, {
+      status: 500,
+      headers: {
+        'Content-Type': 'text/html',
+        'X-Request-ID': requestId
+      }
+    });
   }
-
-  return { isOpen, nextEvent };
 }
 
-function getChangeClass(change) {
-  if (change > 0) return 'change-positive';
-  if (change < 0) return 'change-negative';
-  return 'change-neutral';
-}
+// ============================================================================
+// Module Exports
+// ============================================================================
+
+export default {
+  handleProfessionalDashboard,
+  generateDashboardHTML,
+  generateErrorDashboard,
+  fetchHealthData,
+  fetchModelHealthData,
+  fetchLatestAnalysis,
+  fetchMarketData,
+  fetchSectorData,
+  formatCurrency,
+  formatPercentage,
+  formatNumber,
+  getChangeClass,
+  getMarketStatus,
+  getDefaultHealthData,
+  getDefaultModelHealthData,
+  getDefaultAnalysisData,
+  getDefaultMarketData,
+  getDefaultSectorData
+};
+
+// All types are already exported above in their respective sections
