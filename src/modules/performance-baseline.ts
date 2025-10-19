@@ -7,6 +7,91 @@ import { createLogger } from './logging.js';
 import { CONFIG } from './config.js';
 import { BusinessKPI, SystemMetrics } from './monitoring.js';
 import { createDAL } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+// Type definitions
+export type TrendType = 'insufficient-data' | 'baseline-establishing' | 'stable' | 'improving' | 'degrading';
+export type OperationStatus = 'unknown' | 'excellent' | 'good' | 'acceptable' | 'poor';
+export type OverallHealth = 'unknown' | 'excellent' | 'good' | 'acceptable' | 'needs-attention';
+
+interface MeasurementMetadata {
+  [key: string]: any;
+}
+
+interface PerformanceMeasurement {
+  operation: string;
+  value: number;
+  timestamp: number;
+  metadata: MeasurementMetadata;
+}
+
+interface OperationReport {
+  measurements: number;
+  average: number;
+  min: number;
+  max: number;
+  trend: TrendType;
+  target: number | null;
+  status: OperationStatus;
+}
+
+interface PerformanceAlert {
+  severity: 'medium' | 'high';
+  operation: string;
+  message: string;
+  current: number;
+  target: number | null;
+  trend?: TrendType;
+  status?: OperationStatus;
+}
+
+interface PerformanceRecommendation {
+  type: 'performance';
+  priority: 'medium' | 'high';
+  operation: string;
+  message: string;
+  action: string;
+}
+
+interface KeyMetric {
+  average: number;
+  target: number | null;
+  status: OperationStatus;
+  trend: TrendType;
+}
+
+interface WeeklySummary {
+  period: string;
+  generatedAt: string;
+  overallHealth: OverallHealth;
+  keyMetrics: Record<string, KeyMetric>;
+  trends: {
+    improving: number;
+    stable: number;
+    degrading: number;
+  };
+  recommendations: PerformanceRecommendation[];
+}
+
+interface BaselineReport {
+  timeframe: string;
+  generatedAt: string;
+  operations: Record<string, OperationReport>;
+  summary: {
+    totalMeasurements: number;
+    operationsTracked: number;
+    trends: {
+      improving: number;
+      stable: number;
+      degrading: number;
+    };
+  };
+}
+
+interface RequestTracker {
+  start: () => number;
+  end: (startTime: number, env: CloudflareEnvironment, metadata?: MeasurementMetadata) => Promise<number>;
+}
 
 const logger = createLogger('performance-baseline');
 
@@ -14,18 +99,24 @@ const logger = createLogger('performance-baseline');
  * Performance baseline tracking
  */
 export class PerformanceBaseline {
-  constructor(env) {
+  private env: CloudflareEnvironment;
+  private metrics: Map<string, PerformanceMeasurement[]> = new Map();
+  private trends: Map<string, TrendType> = new Map();
+
+  constructor(env: CloudflareEnvironment) {
     this.env = env;
-    this.metrics = new Map();
-    this.trends = new Map();
   }
 
   /**
    * Record a performance measurement
    */
-  async recordMeasurement(operation, value, metadata = {}) {
+  async recordMeasurement(
+    operation: string,
+    value: number,
+    metadata: MeasurementMetadata = {}
+  ): Promise<void> {
     const timestamp = Date.now();
-    const measurement = {
+    const measurement: PerformanceMeasurement = {
       operation,
       value,
       timestamp,
@@ -51,7 +142,7 @@ export class PerformanceBaseline {
       this.metrics.set(operation, []);
     }
 
-    const operationMetrics = this.metrics.get(operation);
+    const operationMetrics = this.metrics.get(operation)!;
     operationMetrics.push(measurement);
 
     // Keep only recent measurements in memory (last 100)
@@ -70,7 +161,7 @@ export class PerformanceBaseline {
   /**
    * Calculate performance trend for an operation
    */
-  calculateTrend(operation) {
+  calculateTrend(operation: string): TrendType {
     const measurements = this.metrics.get(operation) || [];
     if (measurements.length < 2) return 'insufficient-data';
 
@@ -92,12 +183,12 @@ export class PerformanceBaseline {
   /**
    * Get performance baseline report
    */
-  async getBaselineReport(timeframe = '24h') {
+  async getBaselineReport(timeframe: string = '24h'): Promise<BaselineReport> {
     const now = Date.now();
     const timeframeMs = this.parseTimeframe(timeframe);
     const since = now - timeframeMs;
 
-    const report = {
+    const report: BaselineReport = {
       timeframe,
       generatedAt: new Date().toISOString(),
       operations: {},
@@ -121,7 +212,7 @@ export class PerformanceBaseline {
       const values = recentMeasurements.map(m => m.value);
       const trend = this.calculateTrend(operation);
 
-      const operationReport = {
+      const operationReport: OperationReport = {
         measurements: recentMeasurements.length,
         average: values.reduce((sum, v) => sum + v, 0) / values.length,
         min: Math.min(...values),
@@ -147,8 +238,8 @@ export class PerformanceBaseline {
   /**
    * Get operation target based on business KPIs
    */
-  getOperationTarget(operation) {
-    const targetMap = {
+  private getOperationTarget(operation: string): number | null {
+    const targetMap: Record<string, number> = {
       'api_response_time': CONFIG.BUSINESS_KPI.RESPONSE_TIME_TARGET_MS,
       'analysis_duration': 30000, // 30 seconds
       'kv_operation_time': 1000, // 1 second
@@ -161,7 +252,7 @@ export class PerformanceBaseline {
   /**
    * Get operation status vs target
    */
-  getOperationStatus(operation, values) {
+  private getOperationStatus(operation: string, values: number[]): OperationStatus {
     const target = this.getOperationTarget(operation);
     if (!target) return 'unknown';
 
@@ -189,8 +280,8 @@ export class PerformanceBaseline {
   /**
    * Parse timeframe string to milliseconds
    */
-  parseTimeframe(timeframe) {
-    const timeframeMap = {
+  private parseTimeframe(timeframe: string): number {
+    const timeframeMap: Record<string, number> = {
       '1h': 3600000,
       '6h': 21600000,
       '24h': 86400000,
@@ -204,8 +295,8 @@ export class PerformanceBaseline {
   /**
    * Check for performance alerts
    */
-  async checkPerformanceAlerts() {
-    const alerts = [];
+  async checkPerformanceAlerts(): Promise<PerformanceAlert[]> {
+    const alerts: PerformanceAlert[] = [];
     const report = await this.getBaselineReport('1h');
 
     for (const [operation, data] of Object.entries(report.operations)) {
@@ -247,10 +338,10 @@ export class PerformanceBaseline {
   /**
    * Get weekly performance summary
    */
-  async getWeeklySummary() {
+  async getWeeklySummary(): Promise<WeeklySummary> {
     const weeklyReport = await this.getBaselineReport('7d');
 
-    const summary = {
+    const summary: WeeklySummary = {
       period: '7 days',
       generatedAt: new Date().toISOString(),
       overallHealth: this.calculateOverallHealth(weeklyReport),
@@ -280,7 +371,7 @@ export class PerformanceBaseline {
   /**
    * Calculate overall health from report
    */
-  calculateOverallHealth(report) {
+  private calculateOverallHealth(report: BaselineReport): OverallHealth {
     let excellentCount = 0;
     let goodCount = 0;
     let acceptableCount = 0;
@@ -310,8 +401,8 @@ export class PerformanceBaseline {
   /**
    * Generate performance recommendations
    */
-  generateRecommendations(report) {
-    const recommendations = [];
+  private generateRecommendations(report: BaselineReport): PerformanceRecommendation[] {
+    const recommendations: PerformanceRecommendation[] = [];
 
     for (const [operation, data] of Object.entries(report.operations)) {
       if (data.trend === 'degrading') {
@@ -337,17 +428,82 @@ export class PerformanceBaseline {
 
     return recommendations.slice(0, 5); // Limit to top 5 recommendations
   }
+
+  /**
+   * Get performance statistics for all operations
+   */
+  async getPerformanceStatistics(): Promise<{
+    totalOperations: number;
+    totalMeasurements: number;
+    operationCounts: Record<string, number>;
+    averagePerformance: Record<string, number>;
+    trendDistribution: Record<TrendType, number>;
+  }> {
+    const stats = {
+      totalOperations: this.metrics.size,
+      totalMeasurements: 0,
+      operationCounts: {} as Record<string, number>,
+      averagePerformance: {} as Record<string, number>,
+      trendDistribution: {
+        'insufficient-data': 0,
+        'baseline-establishing': 0,
+        'stable': 0,
+        'improving': 0,
+        'degrading': 0
+      } as Record<TrendType, number>
+    };
+
+    for (const [operation, measurements] of this.metrics.entries()) {
+      const measurementCount = measurements.length;
+      stats.totalMeasurements += measurementCount;
+      stats.operationCounts[operation] = measurementCount;
+
+      if (measurementCount > 0) {
+        const values = measurements.map(m => m.value);
+        stats.averagePerformance[operation] = values.reduce((sum, v) => sum + v, 0) / values.length;
+        stats.trendDistribution[this.calculateTrend(operation)]++;
+      }
+    }
+
+    return stats;
+  }
+
+  /**
+   * Clear old performance data
+   */
+  async clearOldData(olderThanDays: number = 30): Promise<number> {
+    const cutoffTime = Date.now() - (olderThanDays * 24 * 60 * 60 * 1000);
+    let clearedCount = 0;
+
+    for (const [operation, measurements] of this.metrics.entries()) {
+      const originalLength = measurements.length;
+      const filteredMeasurements = measurements.filter(m => m.timestamp >= cutoffTime);
+
+      if (filteredMeasurements.length < originalLength) {
+        this.metrics.set(operation, filteredMeasurements);
+        clearedCount += (originalLength - filteredMeasurements.length);
+      }
+    }
+
+    logger.info('Cleared old performance data', {
+      clearedCount,
+      olderThanDays,
+      cutoffTime: new Date(cutoffTime).toISOString()
+    });
+
+    return clearedCount;
+  }
 }
 
 /**
  * Global performance tracker instance
  */
-let globalTracker = null;
+let globalTracker: PerformanceBaseline | null = null;
 
 /**
  * Get or create global performance tracker
  */
-export function getPerformanceTracker(env) {
+export function getPerformanceTracker(env: CloudflareEnvironment): PerformanceBaseline {
   if (!globalTracker) {
     globalTracker = new PerformanceBaseline(env);
   }
@@ -357,12 +513,16 @@ export function getPerformanceTracker(env) {
 /**
  * Middleware to automatically track request performance
  */
-export function trackRequestPerformance(operation) {
+export function trackRequestPerformance(operation: string): RequestTracker {
   return {
-    start: () => {
+    start: (): number => {
       return Date.now();
     },
-    end: async (startTime, env, metadata = {}) => {
+    end: async (
+      startTime: number,
+      env: CloudflareEnvironment,
+      metadata: MeasurementMetadata = {}
+    ): Promise<number> => {
       const duration = Date.now() - startTime;
       const tracker = getPerformanceTracker(env);
       await tracker.recordMeasurement(operation, duration, metadata);
@@ -376,3 +536,41 @@ export function trackRequestPerformance(operation) {
     }
   };
 }
+
+/**
+ * Performance monitoring middleware for handlers
+ */
+export function createPerformanceMiddleware(operation: string) {
+  return (request: Request, env: CloudflareEnvironment, ctx: ExecutionContext, next: () => Promise<Response>) => {
+    const tracker = trackRequestPerformance(operation);
+    const startTime = tracker.start();
+
+    return next().finally(async () => {
+      const duration = await tracker.end(startTime, env, {
+        method: request.method,
+        url: request.url,
+        userAgent: request.headers.get('User-Agent') || 'unknown'
+      });
+    });
+  };
+}
+
+export default {
+  PerformanceBaseline,
+  getPerformanceTracker,
+  trackRequestPerformance,
+  createPerformanceMiddleware
+};
+
+// Export types for external use
+export type {
+  MeasurementMetadata,
+  PerformanceMeasurement,
+  OperationReport,
+  PerformanceAlert,
+  PerformanceRecommendation,
+  KeyMetric,
+  WeeklySummary,
+  BaselineReport,
+  RequestTracker
+};
