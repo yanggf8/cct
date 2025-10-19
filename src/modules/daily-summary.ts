@@ -14,14 +14,115 @@ import {
 import { getSymbolAnalysisByDate } from './data.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createDAL } from './dal.js';
+import type { CloudflareEnvironment } from '../types.js';
+
+// Type definitions
+interface SentimentCounts {
+  bullish: number;
+  bearish: number;
+  neutral: number;
+}
+
+interface MorningPrediction {
+  direction: 'UP' | 'DOWN' | 'NEUTRAL' | 'UNKNOWN';
+  confidence: number;
+  sentiment: string;
+  reasoning: string;
+}
+
+interface MiddayUpdate {
+  ai_confidence: number;
+  technical_confidence: number;
+  confidence_difference: number;
+  conflict: boolean;
+  conflict_severity: 'none' | 'moderate' | 'high';
+}
+
+interface DailyValidation {
+  predicted_direction: string;
+  actual_direction: string;
+  correct: boolean | null;
+  price_accuracy: number | null;
+}
+
+interface NextDayOutlook {
+  direction: string;
+  confidence: number;
+  key_factors: string[];
+}
+
+interface ProcessedSymbolData {
+  symbol: string;
+  morning_prediction: MorningPrediction;
+  midday_update: MiddayUpdate;
+  daily_validation: DailyValidation;
+  next_day_outlook: NextDayOutlook;
+  articles_analyzed: number;
+  analysis_timestamp: string;
+}
+
+interface SummaryMetrics {
+  overall_accuracy: number;
+  total_predictions: number;
+  correct_predictions: number;
+  average_confidence: number;
+  major_conflicts: string[];
+  sentiment_distribution: SentimentCounts;
+  system_status: "operational" | "no_data" | "error";
+}
+
+interface ChartsData {
+  confidence_trend: Array<{
+    symbol: string;
+    morning: number;
+    midday_ai: number;
+    midday_technical: number;
+  }>;
+  accuracy_breakdown: {
+    labels: string[];
+    predicted: string[];
+    conflicts: boolean[];
+    confidence_levels: number[];
+  };
+  conflict_analysis: Array<{
+    symbol: string;
+    ai_confidence: number;
+    technical_confidence: number;
+    difference: number;
+    severity: string;
+  }>;
+  generated_for_date: string;
+}
+
+interface DailySummary {
+  date: string;
+  display_date: string;
+  is_trading_day: boolean;
+  generated_at: string;
+  summary: SummaryMetrics;
+  symbols: ProcessedSymbolData[];
+  charts_data: ChartsData;
+}
+
+interface AnalysisRecord {
+  symbol: string;
+  trading_signals?: any;
+  sentiment_layers?: Array<{
+    sentiment?: string;
+    confidence?: number;
+    reasoning?: string;
+  }>;
+  articles_analyzed?: number;
+  timestamp?: string;
+}
 
 /**
  * Generate daily summary data structure
- * @param {string} dateStr - YYYY-MM-DD date string
- * @param {Object} env - Cloudflare environment
- * @returns {Object} Daily summary data
  */
-export async function generateDailySummary(dateStr, env) {
+export async function generateDailySummary(
+  dateStr: string,
+  env: CloudflareEnvironment
+): Promise<DailySummary> {
   console.log(`📊 [DAILY-SUMMARY] Generating summary for ${dateStr}`);
 
   try {
@@ -34,12 +135,12 @@ export async function generateDailySummary(dateStr, env) {
     }
 
     // Process symbol-level data
-    const symbols = [];
+    const symbols: ProcessedSymbolData[] = [];
     let totalPredictions = 0;
     let correctPredictions = 0;
     let totalConfidence = 0;
-    const majorConflicts = [];
-    const sentimentCounts = { bullish: 0, bearish: 0, neutral: 0 };
+    const majorConflicts: string[] = [];
+    const sentimentCounts: SentimentCounts = { bullish: 0, bearish: 0, neutral: 0 };
 
     for (const record of analysisData) {
       const symbolData = await processSymbolData(record, dateStr);
@@ -65,7 +166,7 @@ export async function generateDailySummary(dateStr, env) {
       if (symbolData.morning_prediction && symbolData.morning_prediction.sentiment) {
         const sentiment = symbolData.morning_prediction.sentiment.toLowerCase();
         if (sentimentCounts.hasOwnProperty(sentiment)) {
-          sentimentCounts[sentiment]++;
+          sentimentCounts[sentiment as keyof SentimentCounts]++;
         }
       }
     }
@@ -77,7 +178,7 @@ export async function generateDailySummary(dateStr, env) {
     // Generate charts data
     const chartsData = generateChartsData(symbols, dateStr);
 
-    const summary = {
+    const summary: DailySummary = {
       date: dateStr,
       display_date: formatDateForDisplay(dateStr),
       is_trading_day: isTradingDay(dateStr),
@@ -98,7 +199,7 @@ export async function generateDailySummary(dateStr, env) {
     console.log(`✅ [DAILY-SUMMARY] Generated summary for ${dateStr}: ${totalPredictions} symbols, ${Math.round(overallAccuracy * 100)}% accuracy`);
     return summary;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ [DAILY-SUMMARY] Error generating summary for ${dateStr}:`, error);
     throw error;
   }
@@ -106,11 +207,11 @@ export async function generateDailySummary(dateStr, env) {
 
 /**
  * Process individual symbol data into daily summary format
- * @param {Object} record - Symbol analysis record from KV storage
- * @param {string} dateStr - Date string for context
- * @returns {Object} Processed symbol data
  */
-async function processSymbolData(record, dateStr) {
+async function processSymbolData(
+  record: AnalysisRecord,
+  dateStr: string
+): Promise<ProcessedSymbolData> {
   try {
     // Extract symbol from record
     const symbol = record.symbol || 'UNKNOWN';
@@ -121,7 +222,7 @@ async function processSymbolData(record, dateStr) {
     const primarySentiment = sentimentLayers[0] || {};
 
     // Morning prediction data
-    const morningPrediction = {
+    const morningPrediction: MorningPrediction = {
       direction: tradingSignals.primary_direction || 'NEUTRAL',
       confidence: tradingSignals.overall_confidence || primarySentiment.confidence || 0,
       sentiment: primarySentiment.sentiment || 'neutral',
@@ -134,7 +235,7 @@ async function processSymbolData(record, dateStr) {
     const confidenceDiff = Math.abs(aiConfidence - technicalConfidence);
     const hasConflict = confidenceDiff > 0.15; // 15% difference threshold
 
-    const middayUpdate = {
+    const middayUpdate: MiddayUpdate = {
       ai_confidence: aiConfidence,
       technical_confidence: technicalConfidence,
       confidence_difference: confidenceDiff,
@@ -144,7 +245,7 @@ async function processSymbolData(record, dateStr) {
 
     // Daily validation (actual vs predicted - simplified for now)
     // In a real implementation, you'd compare against actual market data
-    const dailyValidation = {
+    const dailyValidation: DailyValidation = {
       predicted_direction: morningPrediction.direction,
       actual_direction: 'UNKNOWN', // Would be populated with real market data
       correct: null, // Would be calculated based on actual data
@@ -152,7 +253,7 @@ async function processSymbolData(record, dateStr) {
     };
 
     // Next day outlook (sentiment-driven prediction)
-    const nextDayOutlook = {
+    const nextDayOutlook: NextDayOutlook = {
       direction: morningPrediction.direction, // Simplified - would use more sophisticated logic
       confidence: Math.max(0.5, morningPrediction.confidence * 0.9), // Slightly reduced confidence for next day
       key_factors: ['AI sentiment analysis', 'Technical indicators', 'Market momentum']
@@ -168,7 +269,7 @@ async function processSymbolData(record, dateStr) {
       analysis_timestamp: record.timestamp || dateStr
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ [DAILY-SUMMARY] Error processing symbol data:`, error);
     return generateEmptySymbolData(record.symbol || 'UNKNOWN');
   }
@@ -176,11 +277,11 @@ async function processSymbolData(record, dateStr) {
 
 /**
  * Generate charts data for visualization
- * @param {Array} symbols - Array of processed symbol data
- * @param {string} dateStr - Date string
- * @returns {Object} Charts data structure
  */
-function generateChartsData(symbols, dateStr) {
+function generateChartsData(
+  symbols: ProcessedSymbolData[],
+  dateStr: string
+): ChartsData {
   const confidenceTrend = symbols.map(symbol => ({
     symbol: symbol.symbol,
     morning: symbol.morning_prediction.confidence,
@@ -213,10 +314,8 @@ function generateChartsData(symbols, dateStr) {
 
 /**
  * Generate empty daily summary for dates with no data
- * @param {string} dateStr - YYYY-MM-DD date string
- * @returns {Object} Empty daily summary structure
  */
-function generateEmptyDailySummary(dateStr) {
+function generateEmptyDailySummary(dateStr: string): DailySummary {
   return {
     date: dateStr,
     display_date: formatDateForDisplay(dateStr),
@@ -242,10 +341,8 @@ function generateEmptyDailySummary(dateStr) {
 
 /**
  * Generate empty symbol data structure
- * @param {string} symbol - Stock symbol
- * @returns {Object} Empty symbol data
  */
-function generateEmptySymbolData(symbol) {
+function generateEmptySymbolData(symbol: string): ProcessedSymbolData {
   return {
     symbol: symbol,
     morning_prediction: {
@@ -279,11 +376,11 @@ function generateEmptySymbolData(symbol) {
 
 /**
  * Retrieve daily summary from KV storage or generate if not exists
- * @param {string} dateStr - YYYY-MM-DD date string
- * @param {Object} env - Cloudflare environment
- * @returns {Object} Daily summary data
  */
-export async function getDailySummary(dateStr, env) {
+export async function getDailySummary(
+  dateStr: string,
+  env: CloudflareEnvironment
+): Promise<DailySummary> {
   const validatedDate = validateDateParameter(dateStr);
   const kvKey = getDailySummaryKVKey(validatedDate);
 
@@ -297,7 +394,7 @@ export async function getDailySummary(dateStr, env) {
 
     if (cachedResult.success && cachedResult.data) {
       console.log(`✅ [DAILY-SUMMARY] Found cached summary for ${validatedDate}`);
-      return cachedResult.data;
+      return cachedResult.data as DailySummary;
     }
 
     // Generate summary if not cached
@@ -319,8 +416,22 @@ export async function getDailySummary(dateStr, env) {
 
     return summary;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ [DAILY-SUMMARY] Error retrieving/generating summary for ${validatedDate}:`, error);
     throw error;
   }
 }
+
+// Export types for external use
+export type {
+  SentimentCounts,
+  MorningPrediction,
+  MiddayUpdate,
+  DailyValidation,
+  NextDayOutlook,
+  ProcessedSymbolData,
+  SummaryMetrics,
+  ChartsData,
+  DailySummary,
+  AnalysisRecord
+};
