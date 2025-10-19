@@ -3,10 +3,15 @@
  * Handles serving the daily summary HTML page
  */
 
+import type { CloudflareEnvironment } from '../../types.js';
+
 /**
  * Handle daily summary page requests
  */
-export async function handleDailySummaryPage(request, env) {
+export async function handleDailySummaryPage(
+  request: Request,
+  env: CloudflareEnvironment
+): Promise<Response> {
   try {
     // In Cloudflare Workers, we'll embed the HTML directly
     // This is the same pattern used by weekly-analysis.js
@@ -482,7 +487,6 @@ export async function handleDailySummaryPage(request, env) {
             .kpi-value {
                 font-size: 1.8rem;
             }
-        }
 
             .stat-card .value {
                 font-size: 2rem;
@@ -1062,7 +1066,7 @@ export async function handleDailySummaryPage(request, env) {
     console.error('Error serving daily summary page:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error as Error).message,
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,

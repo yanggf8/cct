@@ -3,26 +3,28 @@
  * Handles system health, monitoring, and diagnostic endpoints
  */
 
-// Facebook integration removed - using response factory instead
-// Models removed - using GPT-OSS-120B enhanced analysis instead
 import { createLogger, logHealthCheck } from '../logging.js';
 import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { createDAL } from '../dal.js';
+import type { CloudflareEnvironment } from '../../../types.js';
 
 const logger = createLogger('health-handlers');
 
 /**
  * Handle basic health check requests
  */
-export const handleHealthCheck = createHealthHandler('system-health', async (env, ctx) => {
+export const handleHealthCheck = createHealthHandler('system-health', async (env: CloudflareEnvironment, ctx: any) => {
   // Build comprehensive data source health
-  const services = {};
+  const services: Record<string, any> = {};
   try {
     // FRED health via macro-economic fetcher
     const { initializeMacroEconomicFetcher } = await import('../macro-economic-fetcher.js');
-    const macroFetcher = initializeMacroEconomicFetcher({ fredApiKey: env.FRED_API_KEY || env.FRED_API_KEYS, useMockData: !(env.FRED_API_KEY || env.FRED_API_KEYS) });
+    const macroFetcher = initializeMacroEconomicFetcher({
+      fredApiKey: env.FRED_API_KEY || env.FRED_API_KEYS,
+      useMockData: !(env.FRED_API_KEY || env.FRED_API_KEYS)
+    });
     const fredHealth = await macroFetcher.healthCheck();
     services.fred = fredHealth.status;
 
@@ -38,7 +40,7 @@ export const handleHealthCheck = createHealthHandler('system-health', async (env
     const readResult = await dal.read(testKey);
     await dal.deleteKey(testKey);
     services.kv = writeResult.success && readResult.success ? 'healthy' : 'unhealthy';
-  } catch (e) {
+  } catch (e: any) {
     services.error = e.message;
   }
 
@@ -67,13 +69,16 @@ export const handleHealthCheck = createHealthHandler('system-health', async (env
 /**
  * Handle model health check requests
  */
-export async function handleModelHealth(request, env) {
+export async function handleModelHealth(
+  request: Request,
+  env: CloudflareEnvironment
+): Promise<Response> {
   const requestId = crypto.randomUUID();
 
   try {
     logger.info('Model health check requested', { requestId });
 
-    const healthResults = {
+    const healthResults: any = {
       timestamp: new Date().toISOString(),
       request_id: requestId,
       models: {},
@@ -97,7 +102,7 @@ export async function handleModelHealth(request, env) {
         };
 
         logger.debug('GPT-OSS-120B model test successful', { requestId });
-      } catch (gptError) {
+      } catch (gptError: any) {
         healthResults.models.gpt_oss_120b = {
           status: 'unhealthy',
           error: gptError.message
@@ -124,7 +129,7 @@ export async function handleModelHealth(request, env) {
         };
 
         logger.debug('DistilBERT model test successful', { requestId });
-      } catch (distilbertError) {
+      } catch (distilbertError: any) {
         healthResults.models.distilbert = {
           status: 'unhealthy',
           error: distilbertError.message
@@ -167,7 +172,7 @@ export async function handleModelHealth(request, env) {
 
         logger.warn('R2 model bucket not configured', { requestId });
       }
-    } catch (r2Error) {
+    } catch (r2Error: any) {
       healthResults.models.neural_networks = {
         status: 'unhealthy',
         error: r2Error.message
@@ -204,7 +209,7 @@ export async function handleModelHealth(request, env) {
       } else {
         throw new Error('One or more DAL operations failed');
       }
-    } catch (kvError) {
+    } catch (kvError: any) {
       healthResults.models.kv_storage = {
         status: 'unhealthy',
         error: kvError.message
@@ -220,7 +225,7 @@ export async function handleModelHealth(request, env) {
     logHealthCheck('model-health', healthResults.overall_status, {
       requestId,
       modelsChecked: Object.keys(healthResults.models).length,
-      healthyModels: Object.values(healthResults.models).filter(m => m.status === 'healthy').length
+      healthyModels: Object.values(healthResults.models).filter((m: any) => m.status === 'healthy').length
     });
 
     return new Response(JSON.stringify(healthResults, null, 2), {
@@ -228,7 +233,7 @@ export async function handleModelHealth(request, env) {
              healthResults.overall_status === 'degraded' ? 206 : 500,
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Model health check failed completely', {
       requestId,
       error: error.message,
@@ -256,7 +261,10 @@ export async function handleModelHealth(request, env) {
 /**
  * Handle debug environment requests
  */
-export async function handleDebugEnvironment(request, env) {
+export async function handleDebugEnvironment(
+  request: Request,
+  env: CloudflareEnvironment
+): Promise<Response> {
   const requestId = crypto.randomUUID();
 
   try {
@@ -297,7 +305,7 @@ export async function handleDebugEnvironment(request, env) {
     return new Response(JSON.stringify(envInfo, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Debug environment failed', {
       requestId,
       error: error.message,
