@@ -3,175 +3,326 @@
  * Tracks performance of morning high-confidence signals
  */
 
-import { createLogger } from '../logging.js';
-import { createHandler } from '../handler-factory.js';
+import { createLogger, type Logger } from '../logging.js';
+import { createHandler, type HandlerFunction } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
-import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
+import {
+  getWithRetry,
+  updateJobStatus,
+  validateDependencies,
+  getJobStatus,
+  type CloudflareEnvironment,
+  type EnhancedContext
+} from '../kv-utils.js';
 import { validateRequest, validateEnvironment } from '../validation.js';
 
-const logger = createLogger('intraday-handlers');
+const logger: Logger = createLogger('intraday-handlers');
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
+/**
+ * Intraday signal performance data
+ */
+export interface IntradaySignal {
+  symbol: string;
+  predicted: string;
+  predictedDirection: 'up' | 'down' | 'flat';
+  actual: string;
+  actualDirection: 'up' | 'down' | 'flat';
+  performance?: number;
+  confidence?: number;
+  reason?: string;
+}
+
+/**
+ * Divergence tracking information
+ */
+export interface DivergenceData extends IntradaySignal {
+  level: 'high' | 'medium' | 'low';
+  reason?: string;
+}
+
+/**
+ * Model health status information
+ */
+export interface ModelHealthStatus {
+  status: 'on-track' | 'divergence' | 'off-track';
+  display: string;
+  accuracy?: number;
+  lastUpdated?: string;
+}
+
+/**
+ * Performance tracking summary
+ */
+export interface PerformanceTracking {
+  totalSignals: number;
+  correctCalls: number;
+  wrongCalls: number;
+  pendingCalls: number;
+  avgDivergence: number;
+  liveAccuracy: number;
+}
+
+/**
+ * Recalibration alert information
+ */
+export interface RecalibrationAlert {
+  status: 'yes' | 'no' | 'warning';
+  message: string;
+  threshold: number;
+  currentValue?: number;
+}
+
+/**
+ * Complete intraday performance data
+ */
+export interface IntradayPerformanceData {
+  modelHealth: ModelHealthStatus;
+  liveAccuracy: number;
+  totalSignals: number;
+  correctCalls: number;
+  wrongCalls: number;
+  pendingCalls: number;
+  avgDivergence: number;
+  divergences: DivergenceData[];
+  onTrackSignals: IntradaySignal[];
+  recalibrationAlert: RecalibrationAlert;
+  lastUpdated?: string;
+  generatedAt?: string;
+}
+
+/**
+ * Dependency validation result
+ */
+export interface DependencyValidation {
+  isValid: boolean;
+  completed: string[];
+  missing: string[];
+  requiredJobs: string[];
+  completionRate: number;
+  date: string;
+}
+
+/**
+ * Job status update metadata
+ */
+export interface JobStatusMetadata {
+  requestId: string;
+  startTime?: string;
+  endTime?: string;
+  processingTimeMs?: number;
+  signalCount?: number;
+  missingDependencies?: string[];
+  error?: string;
+  phase?: string;
+  reason?: string;
+}
+
+/**
+ * HTML generation context
+ */
+export interface HTMLGenerationContext {
+  date: Date;
+  env: CloudflareEnvironment;
+  requestId?: string;
+  processingTime?: number;
+}
+
+/**
+ * API Response headers
+ */
+export interface ResponseHeaders {
+  'Content-Type': string;
+  'Cache-Control'?: string;
+  'X-Request-ID'?: string;
+  'X-Processing-Time'?: string;
+}
+
+// ============================================================================
+// Main Handler Function
+// ============================================================================
 
 /**
  * Generate Intraday Performance Check Page
  */
-export const handleIntradayCheck = createHandler('intraday-check', async (request, env) => {
-  const requestId = crypto.randomUUID();
-  const startTime = Date.now();
-  const today = new Date();
-  const dateStr = today.toISOString().split('T')[0];
+export const handleIntradayCheck: HandlerFunction = createHandler(
+  'intraday-check',
+  async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
+    const requestId: string = crypto.randomUUID();
+    const startTime: number = Date.now();
+    const today: Date = new Date();
+    const dateStr: string = today.toISOString().split('T')[0];
 
-  logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
-    requestId,
-    date: dateStr,
-    url: request.url,
-    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
-  });
+    logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
+      requestId,
+      date: dateStr,
+      url: request.url,
+      userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+    });
 
-  // Validate inputs
-  validateRequest(request);
-  validateEnvironment(env);
+    // Validate inputs
+    validateRequest(request);
+    validateEnvironment(env);
 
-  logger.debug('✅ [INTRADAY] Input validation passed', { requestId });
+    logger.debug('✅ [INTRADAY] Input validation passed', { requestId });
 
-  // Check dependencies using new status system
-  logger.debug('🔗 [INTRADAY] Checking dependencies', { requestId });
+    // Check dependencies using new status system
+    logger.debug('🔗 [INTRADAY] Checking dependencies', { requestId });
 
-  try {
-    const validation = await validateDependencies(dateStr, ['morning_predictions', 'pre_market_briefing'], env);
+    try {
+      const validation: DependencyValidation = await validateDependencies(
+        dateStr,
+        ['morning_predictions', 'pre_market_briefing'],
+        env
+      );
 
-    if (!validation.isValid) {
-      logger.warn('⚠️ [INTRADAY] Dependencies not satisfied', {
+      if (!validation.isValid) {
+        logger.warn('⚠️ [INTRADAY] Dependencies not satisfied', {
+          requestId,
+          missing: validation.missing,
+          completionRate: validation.completionRate
+        });
+
+        // Set job status to waiting
+        await updateJobStatus('intraday_check', dateStr, 'waiting', env, {
+          requestId,
+          missingDependencies: validation.missing,
+          reason: 'Dependencies not satisfied'
+        } as JobStatusMetadata);
+
+        // Return a helpful error response
+        const html: string = generateIntradayWaitingHTML(validation, today);
+        return new Response(html, {
+          headers: {
+            'Content-Type': 'text/html',
+            'Cache-Control': 'no-cache',
+            'X-Request-ID': requestId,
+            'X-Processing-Time': `${Date.now() - startTime}ms`
+          } as ResponseHeaders
+        });
+      }
+
+      logger.info('✅ [INTRADAY] Dependencies validated', {
         requestId,
-        missing: validation.missing,
+        completed: validation.completed,
         completionRate: validation.completionRate
       });
-
-      // Set job status to waiting
-      await updateJobStatus('intraday_check', dateStr, 'waiting', env, {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('❌ [INTRADAY] Dependency validation failed', {
         requestId,
-        missingDependencies: validation.missing,
-        reason: 'Dependencies not satisfied'
+        error: errorMessage
       });
 
-      // Return a helpful error response
-      const html = generateIntradayWaitingHTML(validation, today);
-      return new Response(html, {
-        headers: {
-          'Content-Type': 'text/html',
-          'Cache-Control': 'no-cache',
-          'X-Request-ID': requestId,
-          'X-Processing-Time': `${Date.now() - startTime}ms`
-        }
-      });
-    }
-
-    logger.info('✅ [INTRADAY] Dependencies validated', {
-      requestId,
-      completed: validation.completed,
-      completionRate: validation.completionRate
-    });
-  } catch (error) {
-    logger.error('❌ [INTRADAY] Dependency validation failed', {
-      requestId,
-      error: error.message
-    });
-
-    await updateJobStatus('intraday_check', dateStr, 'failed', env, {
-      requestId,
-      error: error.message,
-      phase: 'dependency_validation'
-    });
-
-    throw error;
-  }
-
-  // Set job status to running
-  await updateJobStatus('intraday_check', dateStr, 'running', env, {
-    requestId,
-    startTime: new Date().toISOString()
-  });
-
-  // Get today's intraday data using new data retrieval system
-  logger.debug('🔍 [INTRADAY] Retrieving intraday check data', {
-    requestId,
-    date: dateStr
-  });
-
-  let intradayData = null;
-
-  try {
-    intradayData = await getIntradayCheckData(env, today);
-
-    if (intradayData) {
-      logger.info('✅ [INTRADAY] Intraday data retrieved successfully', {
+      await updateJobStatus('intraday_check', dateStr, 'failed', env, {
         requestId,
-        signalCount: intradayData.signals?.length || 0,
-        hasData: true
-      });
-    } else {
-      logger.warn('⚠️ [INTRADAY] No intraday data found for today', {
-        requestId
-      });
+        error: errorMessage,
+        phase: 'dependency_validation'
+      } as JobStatusMetadata);
+
+      throw error;
     }
-  } catch (error) {
-    logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
+
+    // Set job status to running
+    await updateJobStatus('intraday_check', dateStr, 'running', env, {
       requestId,
-      error: error.message
+      startTime: new Date().toISOString()
+    } as JobStatusMetadata);
+
+    // Get today's intraday data using new data retrieval system
+    logger.debug('🔍 [INTRADAY] Retrieving intraday check data', {
+      requestId,
+      date: dateStr
     });
 
-    await updateJobStatus('intraday_check', dateStr, 'failed', env, {
+    let intradayData: IntradayPerformanceData | null = null;
+
+    try {
+      intradayData = await getIntradayCheckData(env, today) as IntradayPerformanceData | null;
+
+      if (intradayData) {
+        logger.info('✅ [INTRADAY] Intraday data retrieved successfully', {
+          requestId,
+          signalCount: intradayData.signals?.length || 0,
+          hasData: true
+        });
+      } else {
+        logger.warn('⚠️ [INTRADAY] No intraday data found for today', {
+          requestId
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
+        requestId,
+        error: errorMessage
+      });
+
+      await updateJobStatus('intraday_check', dateStr, 'failed', env, {
+        requestId,
+        error: errorMessage,
+        phase: 'data_retrieval'
+      } as JobStatusMetadata);
+
+      throw error;
+    }
+
+    const generationStartTime: number = Date.now();
+    logger.debug('🎨 [INTRADAY] Generating HTML content', {
       requestId,
-      error: error.message,
-      phase: 'data_retrieval'
+      hasIntradayData: !!intradayData
     });
 
-    throw error;
+    const html: string = await generateIntradayCheckHTML(intradayData, today, env);
+
+    const totalTime: number = Date.now() - startTime;
+    const generationTime: number = Date.now() - generationStartTime;
+
+    logger.info('✅ [INTRADAY] Intraday performance check generated successfully', {
+      requestId,
+      totalTimeMs: totalTime,
+      generationTimeMs: generationTime,
+      signalCount: intradayData?.signals?.length || 0,
+      htmlLength: html.length
+    });
+
+    // Update job status to done
+    await updateJobStatus('intraday_check', dateStr, 'done', env, {
+      requestId,
+      endTime: new Date().toISOString(),
+      processingTimeMs: totalTime,
+      signalCount: intradayData?.signals?.length || 0
+    } as JobStatusMetadata);
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'public, max-age=180', // 3 minute cache for intraday
+        'X-Request-ID': requestId,
+        'X-Processing-Time': `${totalTime}ms`
+      } as ResponseHeaders
+    });
   }
+);
 
-  const generationStartTime = Date.now();
-  logger.debug('🎨 [INTRADAY] Generating HTML content', {
-    requestId,
-    hasIntradayData: !!intradayData
-  });
-
-  const html = await generateIntradayCheckHTML(intradayData, today, env);
-
-  const totalTime = Date.now() - startTime;
-  const generationTime = Date.now() - generationStartTime;
-
-  logger.info('✅ [INTRADAY] Intraday performance check generated successfully', {
-    requestId,
-    totalTimeMs: totalTime,
-    generationTimeMs: generationTime,
-    signalCount: intradayData?.signals?.length || 0,
-    htmlLength: html.length
-  });
-
-  // Update job status to done
-  await updateJobStatus('intraday_check', dateStr, 'done', env, {
-    requestId,
-    endTime: new Date().toISOString(),
-    processingTimeMs: totalTime,
-    signalCount: intradayData?.signals?.length || 0
-  });
-
-  return new Response(html, {
-    headers: {
-      'Content-Type': 'text/html',
-      'Cache-Control': 'public, max-age=180', // 3 minute cache for intraday
-      'X-Request-ID': requestId,
-      'X-Processing-Time': `${totalTime}ms`
-    }
-  });
-});
+// ============================================================================
+// HTML Generation Functions
+// ============================================================================
 
 /**
  * Generate comprehensive intraday check HTML
  */
-async function generateIntradayCheckHTML(intradayData, date, env) {
+async function generateIntradayCheckHTML(
+  intradayData: IntradayPerformanceData | null,
+  date: Date,
+  env: CloudflareEnvironment
+): Promise<string> {
   // Process intraday data for HTML format
-  const formattedData = intradayData || getDefaultIntradayData();
+  const formattedData: IntradayPerformanceData = intradayData || getDefaultIntradayData();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -609,7 +760,7 @@ async function generateIntradayCheckHTML(intradayData, date, env) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${(formattedData.divergences || []).map(div => `
+                        ${(formattedData.divergences || []).map((div: DivergenceData) => `
                             <tr>
                                 <td class="ticker">${div.symbol}</td>
                                 <td class="predicted ${div.predictedDirection}">${div.predicted}</td>
@@ -638,7 +789,7 @@ async function generateIntradayCheckHTML(intradayData, date, env) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${(formattedData.onTrackSignals || []).map(signal => `
+                        ${(formattedData.onTrackSignals || []).map((signal: IntradaySignal) => `
                             <tr>
                                 <td class="ticker">${signal.symbol}</td>
                                 <td class="predicted ${signal.predictedDirection}">${signal.predicted}</td>
@@ -678,8 +829,8 @@ async function generateIntradayCheckHTML(intradayData, date, env) {
 /**
  * Generate waiting HTML when dependencies are not satisfied
  */
-function generateIntradayWaitingHTML(validation, date) {
-  const time = new Date().toLocaleTimeString('en-US', {
+function generateIntradayWaitingHTML(validation: DependencyValidation, date: Date): string {
+  const time: string = new Date().toLocaleTimeString('en-US', {
     timeZone: 'America/New_York',
     hour: '2-digit',
     minute: '2-digit'
@@ -906,10 +1057,10 @@ function generateIntradayWaitingHTML(validation, date) {
             <div>Completion: <strong>${Math.round(validation.completionRate * 100)}%</strong> (${validation.completed.length}/${validation.requiredJobs.length} jobs)</div>
 
             <ul class="dependency-list">
-                ${validation.requiredJobs.map(job => {
-                  const isMissing = validation.missing.includes(job);
-                  const status = isMissing ? 'missing' : 'completed';
-                  const display = job.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                ${validation.requiredJobs.map((job: string) => {
+                  const isMissing: boolean = validation.missing.includes(job);
+                  const status: string = isMissing ? 'missing' : 'completed';
+                  const display: string = job.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
 
                   return `
                     <li class="dependency-item ${status}">
@@ -981,7 +1132,7 @@ function generateIntradayWaitingHTML(validation, date) {
 /**
  * Default intraday data when no analysis is available
  */
-function getDefaultIntradayData() {
+function getDefaultIntradayData(): IntradayPerformanceData {
   return {
     modelHealth: { status: 'on-track', display: '✅ On Track' },
     liveAccuracy: 68,
@@ -992,7 +1143,7 @@ function getDefaultIntradayData() {
     avgDivergence: 1.8,
     divergences: [
       {
-        ticker: 'TSLA',
+        symbol: 'TSLA',
         predicted: '↑ Expected',
         predictedDirection: 'up',
         actual: '↓ -3.5%',
@@ -1003,14 +1154,14 @@ function getDefaultIntradayData() {
     ],
     onTrackSignals: [
       {
-        ticker: 'AAPL',
+        symbol: 'AAPL',
         predicted: '↑ +1.5%',
         predictedDirection: 'up',
         actual: '↑ +1.3%',
         actualDirection: 'up'
       },
       {
-        ticker: 'MSFT',
+        symbol: 'MSFT',
         predicted: '↑ +1.2%',
         predictedDirection: 'up',
         actual: '↑ +1.4%',
@@ -1019,7 +1170,27 @@ function getDefaultIntradayData() {
     ],
     recalibrationAlert: {
       status: 'no',
-      message: 'No recalibration needed - accuracy above 60% threshold'
-    }
+      message: 'No recalibration needed - accuracy above 60% threshold',
+      threshold: 60
+    },
+    generatedAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   };
 }
+
+// ============================================================================
+// Export Types for External Use
+// ============================================================================
+
+export type {
+  IntradaySignal,
+  DivergenceData,
+  ModelHealthStatus,
+  PerformanceTracking,
+  RecalibrationAlert,
+  IntradayPerformanceData,
+  DependencyValidation,
+  JobStatusMetadata,
+  HTMLGenerationContext,
+  ResponseHeaders
+};
