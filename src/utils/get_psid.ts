@@ -1,15 +1,16 @@
 // Simple webhook to capture your PSID when you message the page
-const express = require('express');
+import express, { Request, Response } from 'express';
+
 const app = express();
 
 app.use(express.json());
 
 // Webhook verification (Facebook requires this)
-app.get('/webhook', (req, res) => {
+app.get('/webhook', (req: Request, res: Response) => {
   const VERIFY_TOKEN = 'TFT_TRADING_WEBHOOK';
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
+  const mode = req.query['hub.mode'] as string;
+  const token = req.query['hub.verify_token'] as string;
+  const challenge = req.query['hub.challenge'] as string;
 
   if (mode && token === VERIFY_TOKEN) {
     console.log('✅ Webhook verified');
@@ -20,14 +21,14 @@ app.get('/webhook', (req, res) => {
 });
 
 // Capture incoming messages and extract PSID
-app.post('/webhook', (req, res) => {
-  const body = req.body;
+app.post('/webhook', (req: Request, res: Response) => {
+  const body = req.body as any;
 
   if (body.object === 'page') {
-    body.entry.forEach((entry) => {
+    body.entry.forEach((entry: any) => {
       const messaging = entry.messaging;
       if (messaging) {
-        messaging.forEach((event) => {
+        messaging.forEach((event: any) => {
           const senderId = event.sender.id;
           const message = event.message;
 
