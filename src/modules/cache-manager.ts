@@ -12,6 +12,25 @@ import { getTimeout, getRetryCount } from './config.js';
 import { ErrorUtils, type RetryOptions } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
 import { cacheMetrics, type CacheNamespace as MetricsCacheNamespace } from './cache-metrics.js';
+import { EnhancedHashCache, createEnhancedHashCache } from './enhanced-hash-cache.js';
+import {
+  getCacheConfig,
+  getCacheNamespaces,
+  type EnhancedCacheConfig,
+  type EnhancedCacheNamespace
+} from './enhanced-cache-config.js';
+import {
+  EnhancedCachePromotionManager,
+  getPromotionManager,
+  type PromotionContext,
+  type PromotionDecision
+} from './enhanced-cache-promotion.js';
+import {
+  EnhancedCacheMetricsManager,
+  getMetricsManager,
+  type CacheHealthAssessment,
+  type PerformanceThresholds
+} from './enhanced-cache-metrics.js';
 
 const logger = createLogger('cache-manager');
 
@@ -62,22 +81,49 @@ export interface CacheNamespace {
 export class CacheManager {
   private dal: DAL;
   private keyFactory = KVKeyFactory;
-  private l1Cache: Map<string, CacheEntry<any>> = new Map();
+  private l1Cache: EnhancedHashCache<any>;
   private l1MaxSize: number;
   private stats: CacheStats;
   private namespaces: Map<string, CacheNamespace> = new Map();
   private enabled: boolean;
+  private promotionManager: EnhancedCachePromotionManager;
+  private metricsManager: EnhancedCacheMetricsManager;
 
   constructor(
     env: any,
     options: {
-      l1MaxSize?: number;
       enabled?: boolean;
+      environment?: 'development' | 'production' | 'test';
+      enablePromotion?: boolean;
+      enableMetrics?: boolean;
+      metricsThresholds?: Partial<PerformanceThresholds>;
     } = {}
   ) {
     this.dal = createDAL(env);
-    this.l1MaxSize = options.l1MaxSize || 1000;
     this.enabled = options.enabled !== false;
+
+    // Initialize enhanced HashCache with global defaults
+    this.l1Cache = createEnhancedHashCache<any>({
+      maxSize: 1000,
+      maxMemoryMB: 10,
+      defaultTTL: 900, // 15 minutes
+      cleanupInterval: 60, // 1 minute
+      enableStats: true,
+    });
+
+    this.l1MaxSize = 1000;
+
+    // Initialize enhanced promotion manager
+    this.promotionManager = getPromotionManager();
+    this.promotionManager.setEnabled(options.enablePromotion !== false);
+
+    // Initialize enhanced metrics manager
+    this.metricsManager = getMetricsManager();
+    this.metricsManager.setEnabled(options.enableMetrics !== false);
+
+    if (options.metricsThresholds) {
+      this.metricsManager.updateThresholds(options.metricsThresholds);
+    }
 
     this.stats = {
       totalRequests: 0,
@@ -93,104 +139,38 @@ export class CacheManager {
       errors: 0
     };
 
-    this.initializeDefaultNamespaces();
+    this.initializeEnhancedNamespaces();
   }
 
   /**
-   * Initialize default cache namespaces
+   * Initialize enhanced cache namespaces with centralized configuration
    */
-  private initializeDefaultNamespaces(): void {
-    // Analysis data cache
-    this.addNamespace({
-      name: 'analysis',
-      prefix: 'analysis',
-      l1Config: {
-        name: 'analysis_l1',
-        ttl: 60, // 1 minute
-        maxSize: 100,
-        enabled: true
-      },
-      l2Config: {
-        name: 'analysis_l2',
-        ttl: 3600, // 1 hour
-        enabled: true
-      },
-      version: '1.0'
-    });
+  private initializeEnhancedNamespaces(): void {
+    const enhancedNamespaces = getCacheNamespaces();
 
-    // Market data cache
-    this.addNamespace({
-      name: 'market_data',
-      prefix: 'market_data',
-      l1Config: {
-        name: 'market_data_l1',
-        ttl: 30, // 30 seconds
-        maxSize: 200,
-        enabled: true
-      },
-      l2Config: {
-        name: 'market_data_l2',
-        ttl: 300, // 5 minutes
-        enabled: true
-      },
-      version: '1.0'
-    });
+    for (const enhancedNs of enhancedNamespaces) {
+      // Convert enhanced namespace to legacy format for compatibility
+      const legacyNs: CacheNamespace = {
+        name: enhancedNs.name,
+        prefix: enhancedNs.prefix,
+        l1Config: {
+          name: `${enhancedNs.name}_l1`,
+          ttl: enhancedNs.config.l1TTL,
+          maxSize: enhancedNs.config.l1MaxSize || 100,
+          enabled: true,
+        },
+        l2Config: {
+          name: `${enhancedNs.name}_l2`,
+          ttl: enhancedNs.config.l2TTL,
+          enabled: enhancedNs.config.persistToL2,
+        },
+        version: enhancedNs.version,
+      };
 
-    // Sector data cache
-    this.addNamespace({
-      name: 'sector_data',
-      prefix: 'sector_data',
-      l1Config: {
-        name: 'sector_data_l1',
-        ttl: 45, // 45 seconds
-        maxSize: 150,
-        enabled: true
-      },
-      l2Config: {
-        name: 'sector_data_l2',
-        ttl: 600, // 10 minutes
-        enabled: true
-      },
-      version: '1.0'
-    });
+      this.namespaces.set(enhancedNs.name, legacyNs);
+    }
 
-    // Report cache
-    this.addNamespace({
-      name: 'reports',
-      prefix: 'reports',
-      l1Config: {
-        name: 'reports_l1',
-        ttl: 300, // 5 minutes
-        maxSize: 50,
-        enabled: true
-      },
-      l2Config: {
-        name: 'reports_l2',
-        ttl: 1800, // 30 minutes
-        enabled: true
-      },
-      version: '1.0'
-    });
-
-    // API response cache
-    this.addNamespace({
-      name: 'api_responses',
-      prefix: 'api_responses',
-      l1Config: {
-        name: 'api_responses_l1',
-        ttl: 120, // 2 minutes
-        maxSize: 300,
-        enabled: true
-      },
-      l2Config: {
-        name: 'api_responses_l2',
-        ttl: 900, // 15 minutes
-        enabled: true
-      },
-      version: '1.0'
-    });
-
-    logger.info(`Initialized ${this.namespaces.size} cache namespaces`);
+    logger.info(`Initialized ${this.namespaces.size} enhanced cache namespaces`);
   }
 
   /**
@@ -226,7 +206,7 @@ export class CacheManager {
     try {
       // Try L1 cache first
       if (cacheNs.l1Config.enabled) {
-        const l1Result = this.getFromL1<T>(fullKey, cacheNs.l1Config.ttl);
+        const l1Result = await this.getFromL1<T>(fullKey, cacheNs.l1Config.ttl);
         if (l1Result !== null) {
           this.stats.l1Hits++;
           cacheMetrics.recordHit('L1', namespace as MetricsCacheNamespace);
@@ -245,9 +225,9 @@ export class CacheManager {
           cacheMetrics.recordHit('L2', namespace as MetricsCacheNamespace);
           logger.debug(`L2 cache hit: ${fullKey}`);
 
-          // Promote to L1 cache
+          // Intelligent promotion to L1 cache
           if (cacheNs.l1Config.enabled) {
-            this.setToL1(fullKey, l2Result, cacheNs.l1Config.ttl);
+            await this.intelligentPromotion(fullKey, namespace, l2Result);
           }
 
           return l2Result;
@@ -305,7 +285,7 @@ export class CacheManager {
       // Set L1 cache
       if (cacheNs.l1Config.enabled) {
         const l1TTL = customTTL?.l1 || cacheNs.l1Config.ttl;
-        this.setToL1(fullKey, data, l1TTL);
+        await this.setToL1(fullKey, data, l1TTL);
       }
 
       // Set L2 cache
@@ -364,9 +344,10 @@ export class CacheManager {
         const prefix = `${namespace}:`;
 
         // Clear L1
-        for (const key of this.l1Cache.keys()) {
+        const l1Keys = this.l1Cache.keys();
+        for (const key of l1Keys) {
           if (key.startsWith(prefix)) {
-            this.l1Cache.delete(key);
+            await this.l1Cache.delete(key);
           }
         }
 
@@ -379,7 +360,7 @@ export class CacheManager {
         logger.info(`Cleared cache namespace: ${namespace}`);
       } else {
         // Clear all cache
-        this.l1Cache.clear();
+        await this.l1Cache.clear();
 
         // Clear all L2 cache keys
         const allKeys = await this.dal.listKeys('cache:*');
@@ -400,43 +381,17 @@ export class CacheManager {
   }
 
   /**
-   * Get value from L1 cache
+   * Get value from L1 cache (using Enhanced HashCache)
    */
-  private getFromL1<T>(key: string, ttl: number): T | null {
-    const entry = this.l1Cache.get(key);
-    if (!entry) return null;
-
-    const now = Date.now();
-    if (now - entry.timestamp > (ttl * 1000)) {
-      // Expired
-      this.l1Cache.delete(key);
-      return null;
-    }
-
-    // Update access statistics
-    entry.hits++;
-    entry.lastAccessed = now;
-    return entry.data;
+  private async getFromL1<T>(key: string, ttl: number): Promise<T | null> {
+    return await this.l1Cache.get(key);
   }
 
   /**
-   * Set value in L1 cache with eviction policy
+   * Set value in L1 cache (using Enhanced HashCache)
    */
-  private setToL1<T>(key: string, data: T, ttl: number): void {
-    // Check if we need to evict entries
-    if (this.l1Cache.size >= this.l1MaxSize) {
-      this.evictLRU();
-    }
-
-    const entry: CacheEntry<T> = {
-      data,
-      timestamp: Date.now(),
-      ttl,
-      hits: 0,
-      lastAccessed: Date.now()
-    };
-
-    this.l1Cache.set(key, entry);
+  private async setToL1<T>(key: string, data: T, ttl: number): Promise<void> {
+    await this.l1Cache.set(key, data, ttl);
   }
 
   /**
@@ -499,26 +454,7 @@ export class CacheManager {
     await this.dal.write(kvKey, JSON.stringify(entry));
   }
 
-  /**
-   * Evict least recently used entries from L1 cache
-   */
-  private evictLRU(): void {
-    let oldestKey = '';
-    let oldestTime = Date.now();
-
-    for (const [key, entry] of this.l1Cache.entries()) {
-      if (entry.lastAccessed < oldestTime) {
-        oldestTime = entry.lastAccessed;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey) {
-      this.l1Cache.delete(oldestKey);
-      this.stats.evictions++;
-      logger.debug(`L1 cache evicted: ${oldestKey}`);
-    }
-  }
+  // Note: evictLRU method removed - EnhancedHashCache handles eviction internally
 
   /**
    * Build cache key with namespace
@@ -531,10 +467,13 @@ export class CacheManager {
   }
 
   /**
-   * Update cache statistics
+   * Update cache statistics (including enhanced HashCache stats)
    */
   private updateStats(): void {
-    this.stats.l1Size = this.l1Cache.size;
+    const l1Stats = this.l1Cache.getStats();
+    this.stats.l1Size = l1Stats.currentSize;
+    this.stats.evictions = l1Stats.evictions; // Get evictions from enhanced cache
+
     this.stats.l1HitRate = this.stats.totalRequests > 0
       ? this.stats.l1Hits / this.stats.totalRequests
       : 0;
@@ -552,6 +491,282 @@ export class CacheManager {
   getStats(): CacheStats {
     this.updateStats();
     return { ...this.stats };
+  }
+
+  /**
+   * Get enhanced L1 cache statistics (new method)
+   */
+  getL1Stats() {
+    return this.l1Cache.getStats();
+  }
+
+  /**
+   * Get detailed L1 cache information (new method)
+   */
+  getL1DetailedInfo() {
+    return this.l1Cache.getDetailedInfo();
+  }
+
+  /**
+   * Get enhanced configuration for a namespace
+   */
+  getEnhancedConfig(namespace: string): EnhancedCacheConfig | null {
+    try {
+      return getCacheConfig(namespace);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get all enhanced configurations
+   */
+  getAllEnhancedConfigs(): Record<string, EnhancedCacheConfig> {
+    return getCacheConfig ? require('./enhanced-cache-config.js').getAllCacheConfigs() : {};
+  }
+
+  /**
+   * Get cache configuration summary
+   */
+  getConfigurationSummary() {
+    const configManager = require('./enhanced-cache-config.js').createEnhancedCacheConfigManager();
+    return configManager.getConfigSummary();
+  }
+
+  /**
+   * Intelligent cache promotion using enhanced promotion manager
+   */
+  private async intelligentPromotion(
+    fullKey: string,
+    namespace: string,
+    data: any
+  ): Promise<void> {
+    try {
+      // Get enhanced configuration for this namespace
+      const enhancedConfig = this.getEnhancedConfig(namespace);
+      if (!enhancedConfig) {
+        // Fallback to simple promotion
+        await this.setToL1(fullKey, data, enhancedConfig?.l1TTL || 900);
+        return;
+      }
+
+      // Create promotion context
+      const context: PromotionContext = {
+        key: fullKey,
+        namespace,
+        accessCount: 1, // This is an L2 hit, so count as access
+        lastAccess: Date.now(),
+        data,
+        dataSize: this.estimateDataSize(data),
+        config: enhancedConfig,
+      };
+
+      // Make promotion decision
+      const decision = await this.promotionManager.shouldPromote(context);
+
+      // Promote if decision says yes
+      if (decision.shouldPromote) {
+        const success = await this.promotionManager.promoteToL1(
+          this.l1Cache,
+          context,
+          decision
+        );
+
+        if (success) {
+          logger.debug('Intelligent promotion successful', {
+            key: fullKey.substring(0, 50),
+            namespace,
+            strategy: decision.strategy,
+            reason: decision.reason,
+            priority: decision.priority,
+          });
+        } else {
+          logger.debug('Intelligent promotion failed, using fallback', {
+            key: fullKey.substring(0, 50),
+            namespace,
+          });
+          // Fallback to simple promotion
+          await this.setToL1(fullKey, data, enhancedConfig.l1TTL);
+        }
+      } else {
+        logger.debug('Intelligent promotion skipped', {
+          key: fullKey.substring(0, 50),
+          namespace,
+          reason: decision.reason,
+          strategy: decision.strategy,
+        });
+      }
+
+    } catch (error) {
+      logger.error('Intelligent promotion error, using fallback', {
+        key: fullKey.substring(0, 50),
+        namespace,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // Fallback to simple promotion
+      const enhancedConfig = this.getEnhancedConfig(namespace);
+      await this.setToL1(fullKey, data, enhancedConfig?.l1TTL || 900);
+    }
+  }
+
+  /**
+   * Estimate data size for promotion decisions
+   */
+  private estimateDataSize(data: any): number {
+    try {
+      const json = JSON.stringify(data);
+      return json.length * 2; // UTF-16 rough estimate
+    } catch {
+      return 1024; // 1KB fallback
+    }
+  }
+
+  /**
+   * Get promotion manager statistics
+   */
+  getPromotionStats() {
+    return this.promotionManager.getStats();
+  }
+
+  /**
+   * Get access patterns from promotion manager
+   */
+  getAccessPatterns() {
+    return this.promotionManager.getAccessPatterns();
+  }
+
+  /**
+   * Enable/disable intelligent promotion
+   */
+  setPromotionEnabled(enabled: boolean): void {
+    this.promotionManager.setEnabled(enabled);
+    logger.info(`Intelligent promotion ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Check if intelligent promotion is enabled
+   */
+  isPromotionEnabled(): boolean {
+    return this.promotionManager.isEnabled();
+  }
+
+  /**
+   * Perform comprehensive health assessment
+   */
+  async performHealthAssessment(): Promise<CacheHealthAssessment> {
+    try {
+      const promotionStats = this.promotionManager.getStats();
+      const cacheConfigs = this.getAllEnhancedConfigs();
+
+      return await this.metricsManager.assessHealth(
+        this.l1Cache,
+        this.stats,
+        promotionStats,
+        cacheConfigs
+      );
+    } catch (error) {
+      logger.error('Health assessment failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get performance trends
+   */
+  getPerformanceTrends(minutes: number = 60) {
+    return this.metricsManager.getPerformanceTrends(minutes);
+  }
+
+  /**
+   * Get metrics history
+   */
+  getMetricsHistory(minutes?: number) {
+    return this.metricsManager.getMetricsHistory(minutes);
+  }
+
+  /**
+   * Get current metrics thresholds
+   */
+  getMetricsThresholds(): PerformanceThresholds {
+    return this.metricsManager.getThresholds();
+  }
+
+  /**
+   * Update metrics thresholds
+   */
+  updateMetricsThresholds(newThresholds: Partial<PerformanceThresholds>): void {
+    this.metricsManager.updateThresholds(newThresholds);
+  }
+
+  /**
+   * Enable/disable enhanced metrics
+   */
+  setMetricsEnabled(enabled: boolean): void {
+    this.metricsManager.setEnabled(enabled);
+    logger.info(`Enhanced metrics ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Check if enhanced metrics is enabled
+   */
+  isMetricsEnabled(): boolean {
+    return this.metricsManager.isEnabled();
+  }
+
+  /**
+   * Clear metrics history
+   */
+  clearMetricsHistory(): void {
+    this.metricsManager.clearHistory();
+  }
+
+  /**
+   * Get comprehensive system status (new method)
+   */
+  async getSystemStatus(): Promise<{
+    cache: {
+      enabled: boolean;
+      namespaces: number;
+      stats: CacheStats;
+    };
+    promotion: {
+      enabled: boolean;
+      stats: any;
+    };
+    metrics: {
+      enabled: boolean;
+      lastAssessment?: CacheHealthAssessment;
+      trends: any;
+    };
+    configuration: {
+      environment: string;
+      summary: any;
+    };
+  }> {
+    const systemStatus = {
+      cache: {
+        enabled: this.enabled,
+        namespaces: this.namespaces.size,
+        stats: this.getStats(),
+      },
+      promotion: {
+        enabled: this.isPromotionEnabled(),
+        stats: this.getPromotionStats(),
+      },
+      metrics: {
+        enabled: this.isMetricsEnabled(),
+        lastAssessment: this.isMetricsEnabled() ? await this.performHealthAssessment() : undefined,
+        trends: this.isMetricsEnabled() ? this.getPerformanceTrends() : undefined,
+      },
+      configuration: {
+        environment: 'development', // Would get from enhanced config
+        summary: this.getConfigurationSummary(),
+      },
+    };
+
+    return systemStatus;
   }
 
   /**
@@ -636,8 +851,12 @@ export class CacheManager {
       evictions: 0,
       errors: 0
     };
+
+    // Reset enhanced HashCache stats
+    this.l1Cache.clear();
+
     cacheMetrics.reset();
-    logger.info('Cache statistics reset (including metrics)');
+    logger.info('Cache statistics reset (including enhanced L1 cache and metrics)');
   }
 
   /**
@@ -656,13 +875,9 @@ export class CacheManager {
     let cleanedCount = 0;
 
     try {
-      // Cleanup L1 cache
-      for (const [key, entry] of this.l1Cache.entries()) {
-        if (now - entry.timestamp > (entry.ttl * 1000)) {
-          this.l1Cache.delete(key);
-          cleanedCount++;
-        }
-      }
+      // Cleanup L1 cache (using enhanced HashCache)
+      const l1Cleaned = await this.l1Cache.cleanup();
+      cleanedCount += l1Cleaned;
 
       // Cleanup L2 cache (handled by KV TTL, but we can check)
       const allKeys = await this.dal.listKeys('cache:*');

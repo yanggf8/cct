@@ -1,3 +1,0 @@
-2025-10-14 10:10:04 - Starting TFT Sector Rotation API Integration Test
-2025-10-14 10:10:04 - Base URL: https://tft-trading-system.yanggf.workers.dev
-2025-10-14 10:10:06 - FAIL: Health success status - Expected: true, Actual: null

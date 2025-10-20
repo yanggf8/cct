@@ -1,0 +1,287 @@
+name: Enhanced Cache System Tests
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'src/modules/enhanced-*.ts'
+      - 'src/routes/enhanced-*.ts'
+      - 'src/modules/cache-manager.ts'
+      - 'test-enhanced-*.sh'
+      - 'run-regression-tests.sh'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'src/modules/enhanced-*.ts'
+      - 'src/routes/enhanced-*.ts'
+      - 'src/modules/cache-manager.ts'
+      - 'test-enhanced-*.sh'
+      - 'run-regression-tests.sh'
+  schedule:
+    # Run regression tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of test to run'
+        required: false
+        default: 'integration'
+        type: choice
+        options:
+          - integration
+          - regression
+          - baseline
+
+env:
+  API_URL: 'https://tft-trading-system.yanggf.workers.dev'
+  API_KEY: 'yanggf'
+
+jobs:
+  test-enhanced-cache:
+    name: Enhanced Cache Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl bc jq
+
+    - name: Make test scripts executable
+      run: |
+        chmod +x test-enhanced-cache-integration.sh
+        chmod +x run-regression-tests.sh
+
+    - name: Wait for deployment (if needed)
+      run: |
+        echo "Waiting for deployment to be ready..."
+        sleep 30
+
+    - name: Check API connectivity
+      run: |
+        echo "Checking API connectivity..."
+        for i in {1..10}; do
+          if curl -s --max-time 10 "$API_URL/health" | grep -q "healthy"; then
+            echo "API is ready!"
+            break
+          fi
+          echo "Attempt $i: API not ready, waiting..."
+          sleep 10
+        done
+
+    - name: Run integration tests
+      run: |
+        echo "Running enhanced cache integration tests..."
+        ./test-enhanced-cache-integration.sh
+
+    - name: Parse test results
+      if: always()
+      run: |
+        if [ -f test-results-*.log ]; then
+          echo "=== Test Results ==="
+          cat test-results-*.log
+
+          # Extract metrics for GitHub Actions
+          PASSED=$(grep -c "✅ PASS:" test-results-*.log || echo "0")
+          FAILED=$(grep -c "❌ FAIL:" test-results-*.log || echo "0")
+          TOTAL=$((PASSED + FAILED))
+
+          echo "PASSED=$PASSED" >> $GITHUB_ENV
+          echo "FAILED=$FAILED" >> $GITHUB_ENV
+          echo "TOTAL=$TOTAL" >> $GITHUB_ENV
+
+          if [ $FAILED -eq 0 ]; then
+            echo "ALL_TESTS_PASSED=true" >> $GITHUB_ENV
+          else
+            echo "ALL_TESTS_PASSED=false" >> $GITHUB_ENV
+          fi
+        else
+          echo "No test results found"
+          echo "ALL_TESTS_PASSED=false" >> $GITHUB_ENV
+        fi
+
+    - name: Generate test summary
+      if: always()
+      run: |
+        echo "## Enhanced Cache Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Total Tests | ${{ env.TOTAL }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Passed | ${{ env.PASSED }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Failed | ${{ env.FAILED }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Success Rate | ${{ env.TOTAL > 0 && env.PASSED * 100 / env.TOTAL || 0 }}% |" >> $GITHUB_STEP_SUMMARY
+        echo "| Status | ${{ env.ALL_TESTS_PASSED == 'true' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Add detailed log if there are failures
+        if [ "${{ env.ALL_TESTS_PASSED }}" = "false" ]; then
+          echo "### Failed Tests Details" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep "❌ FAIL:" test-results-*.log || echo "No failed tests found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Upload test logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: enhanced-cache-test-logs
+        path: |
+          test-results-*.log
+          response.json
+        retention-days: 7
+
+    - name: Fail on test failures
+      if: env.ALL_TESTS_PASSED == 'false'
+      run: |
+        echo "❌ Some tests failed. Check the logs for details."
+        exit 1
+
+  regression-test:
+    name: Regression Tests
+    runs-on: ubuntu-latest
+    needs: test-enhanced-cache
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl bc jq
+
+    - name: Make test scripts executable
+      run: |
+        chmod +x test-enhanced-cache-integration.sh
+        chmod +x run-regression-tests.sh
+
+    - name: Create baseline if needed
+      if: github.event.inputs.test_type == 'baseline' || ! contains(github.ref, 'refs/heads/')
+      run: |
+        echo "Creating baseline..."
+        ./run-regression-tests.sh baseline "ci-$(date +%Y%m%d-%H%M%S)"
+
+    - name: Run regression tests
+      run: |
+        echo "Running regression tests..."
+        # Get the latest baseline
+        LATEST_BASELINE=$(ls -t baselines/baseline-*.metrics 2>/dev/null | head -1 | xargs basename -s .metrics | sed 's/baseline-//' || echo "")
+
+        if [ -n "$LATEST_BASELINE" ]; then
+          echo "Comparing with baseline: $LATEST_BASELINE"
+          ./run-regression-tests.sh compare "$LATEST_BASELINE"
+        else
+          echo "No baseline found, creating one..."
+          ./run-regression-tests.sh baseline "ci-$(date +%Y%m%d-%H%M%S)"
+        fi
+
+    - name: Upload regression reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: regression-reports
+        path: reports/
+        retention-days: 30
+
+  deploy-validation:
+    name: Deploy Validation
+    runs-on: ubuntu-latest
+    needs: test-enhanced-cache
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate enhanced cache features in production
+      run: |
+        echo "Validating enhanced cache features in production..."
+
+        # Test enhanced cache endpoints
+        ENDPOINTS=(
+          "/cache-health"
+          "/cache-config"
+          "/cache-metrics"
+          "/cache-promotion"
+          "/cache-system-status"
+        )
+
+        for endpoint in "${ENDPOINTS[@]}"; do
+          echo "Testing $endpoint..."
+          response=$(curl -s -w "%{http_code}" -o response.json \
+            -H "X-API-KEY: $API_KEY" \
+            "$API_URL$endpoint" \
+            --max-time 10)
+
+          if [ "$response" = "200" ]; then
+            echo "✅ $endpoint - OK"
+          else
+            echo "❌ $endpoint - FAILED (HTTP $response)"
+            if [ -f response.json ]; then
+              cat response.json
+            fi
+            exit 1
+          fi
+        done
+
+        echo "All enhanced cache features validated successfully!"
+
+    - name: Performance validation
+      run: |
+        echo "Running performance validation..."
+
+        # Test cache warmup
+        curl -s -X POST \
+          -H "X-API-KEY: $API_KEY" \
+          -H "Content-Type: application/json" \
+          "$API_URL/cache-warmup" | jq .
+
+        # Test load performance
+        load_result=$(curl -s -X POST \
+          -H "X-API-KEY: $API_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{"operations": 50}' \
+          "$API_URL/cache-test-load")
+
+        ops_per_sec=$(echo "$load_result" | jq -r '.test.opsPerSecond // 0')
+
+        if [ "$ops_per_sec" -gt 10 ]; then
+          echo "✅ Performance validation passed - $ops_per_sec ops/sec"
+        else
+          echo "❌ Performance validation failed - only $ops_per_sec ops/sec"
+          exit 1
+        fi
+
+    - name: Health check validation
+      run: |
+        echo "Validating system health..."
+
+        health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$API_URL/cache-health")
+        status=$(echo "$health_response" | jq -r '.assessment.status // unknown')
+        score=$(echo "$health_response" | jq -r '.assessment.overallScore // 0')
+
+        echo "Health Status: $status"
+        echo "Health Score: $score/100"
+
+        if [ "$status" = "healthy" ] || [ "$status" = "degraded" ]; then
+          echo "✅ Health check passed"
+        else
+          echo "❌ Health check failed - status: $status"
+          exit 1
+        fi

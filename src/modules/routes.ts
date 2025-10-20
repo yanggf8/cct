@@ -78,6 +78,9 @@ import { handleApiV1Request, handleApiV1CORS } from '../routes/api-v1.js';
 // Import sector rotation routes
 import { handleSectorRoute } from '../routes/sector-routes-simple.js';
 
+// Import enhanced cache routes
+import { createEnhancedCacheRoutes } from '../routes/enhanced-cache-routes.js';
+
 // Type definitions
 interface ValidationResult {
   valid: boolean;
@@ -516,6 +519,30 @@ export async function handleHttpRequest(
         break;
       case '/send-real-facebook':
         response = await handleFacebookTest(request, env);
+        break;
+      case '/cache-health':
+      case '/cache-config':
+      case '/cache-metrics':
+      case '/cache-promotion':
+      case '/cache-system-status':
+      case '/cache-warmup':
+      case '/cache-test-load':
+        // Handle enhanced cache routes
+        const enhancedCacheRoutes = createEnhancedCacheRoutes(env);
+        const cacheRoute = enhancedCacheRoutes.find(route => route.path === url.pathname);
+
+        if (cacheRoute) {
+          response = await cacheRoute.handler(request, env, ctx);
+        } else {
+          response = new Response(JSON.stringify({
+            success: false,
+            error: 'Cache route not found',
+            path: url.pathname
+          }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
         break;
       case '/favicon.ico':
         // Return a simple 1x1 transparent GIF as favicon

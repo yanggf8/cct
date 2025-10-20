@@ -200,7 +200,11 @@
       "Bash(sort:*)",
       "Bash(git checkout:*)",
       "Bash(CLOUDFLARE_API_TOKEN=\"MqsT-nsm2pdQD6L5zUq1jwE7BzPZ5nFRgKbolaiC\" npx wrangler deploy:*)",
-      "Bash(./test-typescript-migration.sh:*)"
+      "Bash(./test-typescript-migration.sh:*)",
+      "Bash(./test-enhanced-cache-integration.sh:*)",
+      "Bash(./run-regression-tests.sh:*)",
+      "Bash(./validate-enhanced-cache.sh:*)",
+      "Bash(./simple-cache-test.sh:*)"
     ],
     "deny": [],
     "ask": []
