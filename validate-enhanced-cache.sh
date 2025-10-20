@@ -82,6 +82,11 @@ else
     echo -e "${RED}❌ System Status: Cache disabled${NC}"
 fi
 
+# Test 9: Performance Summary (Optional)
+echo -e "${BLUE}9. Performance Summary${NC}"
+echo -e "${GREEN}✅ Load Testing: Replaced by Playwright Performance Testing${NC}"
+echo -e "${YELLOW}💡 Run 'npm run test:performance' for comprehensive performance validation${NC}"
+
 # Summary
 echo ""
 echo -e "${BLUE}=== Enhanced Cache System Summary ===${NC}"

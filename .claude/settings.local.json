@@ -204,7 +204,12 @@
       "Bash(./test-enhanced-cache-integration.sh:*)",
       "Bash(./run-regression-tests.sh:*)",
       "Bash(./validate-enhanced-cache.sh:*)",
-      "Bash(./simple-cache-test.sh:*)"
+      "Bash(./simple-cache-test.sh:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(npx playwright install-deps:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(playwright test:*)",
+      "Bash(npx playwright test:*)"
     ],
     "deny": [],
     "ask": []

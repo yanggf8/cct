@@ -55,9 +55,16 @@
 6. **[API_DOCUMENTATION.md](../API_DOCUMENTATION.md)** - Complete API reference
    - AI dashboard endpoint documentation
    - All v1 API endpoints with examples
-   - Enhanced cache endpoints (7 new endpoints)
+   - Enhanced cache endpoints (6 new endpoints - load testing removed)
    - Predictive analytics and market intelligence APIs
    - Enhanced performance metrics and authentication guide
+
+7. **Playwright Testing Guide** - **NEW**
+   - Real user workflow testing with performance validation
+   - Cross-browser testing (Chrome, Firefox, Safari)
+   - Mobile and desktop responsiveness testing
+   - Performance baselines and monitoring
+   - Test execution commands and reporting
 
 ---
 

@@ -6,7 +6,15 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo 'Run specific test suites'",
+    "test:performance": "npx playwright test tests/performance.spec.js --reporter=list",
+    "test:workflows": "npx playwright test tests/user-workflows.spec.js --reporter=list",
+    "test:playwright": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:report": "npx playwright show-report",
+    "test:performance-all": "./test-playwright-performance.sh",
+    "test:integration": "./test-enhanced-cache-integration.sh",
+    "test:cache": "./validate-enhanced-cache.sh"
   },
   "keywords": [
     "sentiment-analysis",
@@ -30,6 +38,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250927.0",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^24.6.0",
     "typescript": "^5.9.2",
     "wrangler": "^4.37.1"

@@ -1,6 +1,7 @@
 /**
  * Enhanced Cache API Routes
- * Provides endpoints for testing and monitoring enhanced cache features
+ * Provides 6 endpoints for testing and monitoring enhanced cache features
+ * (Load testing removed - dual cache functionality covered by integration tests)
  */
 
 import { createLogger } from '../modules/logging.js';
@@ -235,70 +236,7 @@ export function createEnhancedCacheRoutes(env: any) {
       },
     },
 
-    {
-      path: '/cache-test-load',
-      method: 'POST',
-      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
-        try {
-          const body = await request.json().catch(() => ({}));
-          const { operations = 20, namespace = 'test_load' } = body;
-
-          const startTime = Date.now();
-          let successful = 0;
-          let failed = 0;
-
-          for (let i = 0; i < operations; i++) {
-            try {
-              const key = `load_test_${i}`;
-              const data = { id: i, timestamp: Date.now(), random: Math.random() };
-
-              await cacheManager.set(namespace, key, data);
-              const retrieved = await cacheManager.get(namespace, key);
-
-              if (retrieved !== null) {
-                successful++;
-              } else {
-                failed++;
-              }
-            } catch (error) {
-              failed++;
-            }
-          }
-
-          const totalTime = Date.now() - startTime;
-          const opsPerSecond = (operations / totalTime) * 1000;
-
-          return new Response(JSON.stringify({
-            success: true,
-            timestamp: new Date().toISOString(),
-            test: {
-              operations,
-              successful,
-              failed,
-              totalTime: `${totalTime}ms`,
-              opsPerSecond: Math.round(opsPerSecond),
-            },
-            cacheStats: cacheManager.getStats(),
-          }), {
-            headers: {
-              'Content-Type': 'application/json',
-              'Cache-Control': 'no-cache',
-            },
-          });
-        } catch (error) {
-          logger.error('Load test failed', { error });
-          return new Response(JSON.stringify({
-            success: false,
-            error: 'Load test failed',
-            timestamp: new Date().toISOString(),
-          }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-      },
-    },
-  ];
+    ];
 
   return routes;
 }
