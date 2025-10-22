@@ -1,0 +1,40 @@
+2025-10-22 21:20:43 - Starting KV Optimization Implementation Tests
+2025-10-22 21:20:43 - INFO: Testing cache key aliasing implementation...
+2025-10-22 21:20:44 - INFO: Testing Daily Sentiment Analysis (/analyze)
+2025-10-22 21:21:02 - PASS: Daily Sentiment Analysis
+2025-10-22 21:21:02 - SUCCESS: /analyze returned 200
+2025-10-22 21:21:03 - INFO: Testing Symbol Analysis (/api/v1/sentiment/symbols/AAPL)
+2025-10-22 21:21:17 - PASS: Symbol Analysis
+2025-10-22 21:21:17 - SUCCESS: /api/v1/sentiment/symbols/AAPL returned 200
+2025-10-22 21:21:17 - INFO: Testing Market Sentiment (/api/v1/sentiment/market)
+2025-10-22 21:21:24 - FAIL: Market Sentiment - HTTP 404 (expected 200)
+2025-10-22 21:21:24 - INFO: Testing batch operation implementation...
+2025-10-22 21:21:31 - INFO: Testing Health Check (post-batch) (/health)
+2025-10-22 21:21:31 - PASS: Health Check (post-batch)
+2025-10-22 21:21:31 - SUCCESS: /health returned 200
+2025-10-22 21:21:31 - INFO: Batch operations test completed
+2025-10-22 21:21:31 - INFO: Testing vectorized sector implementation...
+2025-10-22 21:21:31 - INFO: Testing Sector Snapshot (vectorized) (/api/sectors/snapshot)
+2025-10-22 21:21:54 - PASS: Sector Snapshot (vectorized)
+2025-10-22 21:21:54 - SUCCESS: /api/sectors/snapshot returned 200
+2025-10-22 21:21:54 - INFO: Testing Sector Analysis (vectorized) (/api/sectors/analysis)
+2025-10-22 21:22:17 - PASS: Sector Analysis (vectorized)
+2025-10-22 21:22:17 - SUCCESS: /api/sectors/analysis returned 200
+2025-10-22 21:22:17 - INFO: Testing memory-only static data implementation...
+2025-10-22 21:22:17 - INFO: Testing Symbol List (static) (/api/v1/data/symbols)
+2025-10-22 21:22:23 - PASS: Symbol List (static)
+2025-10-22 21:22:23 - SUCCESS: /api/v1/data/symbols returned 200
+2025-10-22 21:22:23 - INFO: Testing Data Health (with static info) (/api/v1/data/health)
+2025-10-22 21:22:30 - PASS: Data Health (with static info)
+2025-10-22 21:22:30 - SUCCESS: /api/v1/data/health returned 200
+2025-10-22 21:22:30 - INFO: Testing predictive pre-fetching implementation...
+2025-10-22 21:22:30 - INFO: Testing Pre-fetch Test 1 (/analyze)
+2025-10-22 21:22:46 - PASS: Pre-fetch Test 1
+2025-10-22 21:22:46 - SUCCESS: /analyze returned 200
+2025-10-22 21:22:46 - INFO: Testing Pre-fetch Test 2 (/analyze)
+2025-10-22 21:23:01 - PASS: Pre-fetch Test 2
+2025-10-22 21:23:01 - SUCCESS: /analyze returned 200
+2025-10-22 21:23:01 - INFO: Testing Pre-fetch Test 3 (/analyze)
+2025-10-22 21:23:23 - PASS: Pre-fetch Test 3
+2025-10-22 21:23:23 - SUCCESS: /analyze returned 200
+2025-10-22 21:23:23 - INFO: Testing combined optimization impact...

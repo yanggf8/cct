@@ -11,6 +11,7 @@
 
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createLogger } from './logging.js';
+import { EnhancedCacheFactory } from './enhanced-cache-factory.js';
 import type { CloudflareEnvironment } from '../types.js';
 import type {
   AnalysisData,
@@ -63,6 +64,7 @@ export class SimplifiedEnhancedDAL {
   private env: CloudflareEnvironment;
   private config: SimplifiedDALConfig;
   private cache: Map<string, { data: any; timestamp: number; ttl: number }>;
+  private optimizedCacheManager: any;
 
   // Cache statistics
   private stats = {
@@ -83,10 +85,27 @@ export class SimplifiedEnhancedDAL {
 
     this.cache = new Map();
 
+    // Initialize enhanced optimized cache manager for maximum KV efficiency
+    try {
+      this.optimizedCacheManager = EnhancedCacheFactory.createOptimizedCacheManager(env, {
+        enableKeyAliasing: true,
+        enableBatchOperations: true,
+        enableMemoryStaticData: true,
+        enablePredictivePrefetching: true,
+        enableVectorizedProcessing: true,
+        enableMonitoring: true
+      });
+      logger.info('Enhanced Optimized Cache Manager initialized for SimplifiedEnhancedDAL');
+    } catch (error) {
+      logger.warn('Failed to initialize optimized cache manager, falling back to basic cache:', error);
+      this.optimizedCacheManager = null;
+    }
+
     logger.info('Simplified Enhanced DAL initialized', {
       cacheEnabled: this.config.enableCache,
       environment: this.config.environment,
-      defaultTTL: this.config.defaultTTL
+      defaultTTL: this.config.defaultTTL,
+      hasOptimizedCache: !!this.optimizedCacheManager
     });
   }
 
@@ -209,7 +228,34 @@ export class SimplifiedEnhancedDAL {
    */
   private async get<T>(key: string, ttl?: number): Promise<CacheAwareResult<T>> {
     const { result, time } = await this.measureOperation(async () => {
-      // Check cache first
+      // Try optimized cache manager first (with predictive pre-fetching)
+      if (this.optimizedCacheManager && this.config.enableCache) {
+        try {
+          const optimizedResult = await this.optimizedCacheManager.read<T>(key, {
+            useAliasing: true,
+            useMemoryStatic: true,
+            usePredictive: true,
+            useBatching: true,
+            priority: 'high'
+          });
+
+          if (optimizedResult.success && optimizedResult.data !== null) {
+            this.stats.hits++;
+            return {
+              success: true,
+              data: optimizedResult.data,
+              cached: true,
+              cacheSource: optimizedResult.optimizations.includes('Memory-Only Static Data Hit') ? 'kv' :
+                         optimizedResult.optimizations.includes('Predictive Pre-fetch Hit') ? 'l1' : 'l2',
+              error: undefined
+            };
+          }
+        } catch (error) {
+          logger.warn('Optimized cache manager read failed, falling back to standard cache:', error);
+        }
+      }
+
+      // Check basic cache first
       const cached = this.checkCache<T>(key);
       if (cached) {
         return {
@@ -277,6 +323,31 @@ export class SimplifiedEnhancedDAL {
       try {
         const writeOptions = options || { expirationTtl: this.config.defaultTTL };
 
+        // Try optimized cache manager first for write operations
+        if (this.optimizedCacheManager && this.config.enableCache) {
+          try {
+            const optimizedResult = await this.optimizedCacheManager.write<T>(key, data, {
+              useAliasing: true,
+              useBatching: true,
+              priority: 'medium'
+            });
+
+            if (optimizedResult.success) {
+              // Invalidate basic cache entry
+              this.cache.delete(key);
+
+              return {
+                success: true,
+                cached: true,
+                error: undefined
+              };
+            }
+          } catch (error) {
+            logger.warn('Optimized cache manager write failed, falling back to standard KV:', error);
+          }
+        }
+
+        // Fallback to standard KV write
         await this.retry(
           () => this.env.TRADING_RESULTS.put(key, JSON.stringify(data), writeOptions),
           `KV put ${key}`

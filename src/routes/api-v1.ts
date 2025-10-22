@@ -17,6 +17,7 @@ import { handleTechnicalRoutes } from './technical-routes.ts';
 import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.js';
 import { handleRealtimeRoutes } from './realtime-routes.js';
 import { handleBacktestingRoutes } from './backtesting-routes.js';
+import { createEnhancedCacheRoutes } from './enhanced-cache-routes.js';
 import { handlePortfolioRequest } from './portfolio-routes.ts';
 import { getSectorIndicatorsSymbol } from './sector-routes.ts';
 import { handleRiskManagementRequest } from './risk-management-routes.js';
@@ -129,6 +130,20 @@ export async function handleApiV1Request(
     } else if (path.startsWith('/api/v1/risk/')) {
       // Route to risk management API
       return await handleRiskManagementRequest(request, env, {} as ExecutionContext);
+    } else if (path.startsWith('/api/v1/cache/')) {
+      // Route to enhanced cache API
+      const cacheRoutes = createEnhancedCacheRoutes(env);
+      const cachePath = path.replace('/api/v1', '');
+
+      // Find matching cache route
+      for (const route of cacheRoutes) {
+        if (route.path === cachePath && request.method === route.method) {
+          return await route.handler(request, env, {} as ExecutionContext);
+        }
+      }
+
+      const body = ApiResponseFactory.error('Cache endpoint not found', 'NOT_FOUND', { requested_path: path });
+      return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -249,6 +264,15 @@ export async function handleApiV1Request(
               limits: 'POST /api/v1/risk/limits',
               analytics: 'POST /api/v1/risk/analytics',
               health: 'GET /api/v1/risk/health',
+            },
+            cache: {
+              health: 'GET /api/v1/cache/health',
+              metrics: 'GET /api/v1/cache/metrics',
+              config: 'GET /api/v1/cache/config',
+              promote: 'GET /api/v1/cache/promote',
+              warmup: 'GET /api/v1/cache/warmup',
+              clear: 'DELETE /api/v1/cache/clear',
+              stats: 'GET /api/v1/cache/stats',
             },
           } as ApiDocumentation['available_endpoints'],
           documentation: 'https://github.com/yanggf8/cct',

@@ -209,7 +209,9 @@
       "Bash(npx playwright install-deps:*)",
       "Bash(npm uninstall:*)",
       "Bash(playwright test:*)",
-      "Bash(npx playwright test:*)"
+      "Bash(npx playwright test:*)",
+      "Bash(./test-kv-optimization-implementation.sh:*)",
+      "Bash(./test-comprehensive-optimization.sh:*)"
     ],
     "deny": [],
     "ask": []
