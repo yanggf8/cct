@@ -40,9 +40,11 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
 
     // Check if optimizations are explicitly enabled or if we're in development
     const shouldUseOptimized =
-      process.env.NODE_ENV === 'development' ||
       options.enableOptimized ||
-      this.isOptimizationEnabled();
+      this.isOptimizationEnabled() ||
+      env?.ENABLE_KV_OPTIMIZATIONS === 'true' ||
+      env?.USE_ENHANCED_CACHE === 'true' ||
+      env?.CACHE_OPTIMIZATION_LEVEL === 'high';
 
     if (shouldUseOptimized) {
       console.log('🚀 Creating Enhanced Optimized Cache Manager with all KV reduction features');
@@ -81,9 +83,16 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
    * Check if optimization is enabled via environment variable
    */
   isOptimizationEnabled(): boolean {
-    return process.env.ENABLE_KV_OPTIMIZATIONS === 'true' ||
-           process.env.USE_ENHANCED_CACHE === 'true' ||
-           process.env.CACHE_OPTIMIZATION_LEVEL === 'high';
+    // In Cloudflare Workers, check if available in the current context
+    try {
+      return typeof globalThis !== 'undefined' &&
+             (globalThis as any).ENABLE_KV_OPTIMIZATIONS === 'true' ||
+             (globalThis as any).USE_ENHANCED_CACHE === 'true' ||
+             (globalThis as any).CACHE_OPTIMIZATION_LEVEL === 'high';
+    } catch {
+      // Fallback: assume optimizations are enabled for production
+      return true;
+    }
   }
 
   /**
@@ -118,10 +127,18 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
   setOptimizationEnabled(enabled: boolean): void {
     if (enabled) {
       console.log('🚀 Enabling KV Optimizations');
-      process.env.ENABLE_KV_OPTIMIZATIONS = 'true';
+      try {
+        (globalThis as any).ENABLE_KV_OPTIMIZATIONS = 'true';
+      } catch {
+        // Ignore if globalThis is not available
+      }
     } else {
       console.log('📊 Disabling KV Optimizations');
-      delete process.env.ENABLE_KV_OPTIMIZATIONS;
+      try {
+        delete (globalThis as any).ENABLE_KV_OPTIMIZATIONS;
+      } catch {
+        // Ignore if globalThis is not available
+      }
     }
   }
 
