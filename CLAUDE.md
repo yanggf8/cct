@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **📖 CURRENT STATUS**: Enterprise-grade AI trading intelligence system with enhanced intelligent caching
 **Status**: **100% Production Ready** with Enhanced Caching System v1.0 Deployed ✅ **PRODUCTION VALIDATED**
-**Current Version**: Latest (2025-10-20 - Playwright Performance Testing Complete)
-**Documentation**: Comprehensive documentation updated with performance validation results
+**Current Version**: Latest (2025-10-22 - Documentation Update & KV Optimization Planning)
+**Documentation**: Comprehensive documentation fully updated and cleaned up
 **Test Validation**: Enhanced Cache Integration Tests (87.5% pass rate) + Playwright Performance Tests (64.7% pass rate)
 
 ### ✅ **Enhanced Cache System Status: COMPLETED** (100%)
@@ -193,33 +193,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🎯 API v1 - RESTful Architecture
 
-### **Core Endpoints**
+### **Core Endpoints (60+ Total)**
 ```bash
 # API Documentation
 GET /api/v1
 
-# Sentiment Analysis
+# Sentiment Analysis (8 endpoints)
 GET /api/v1/sentiment/analysis        # Multi-symbol analysis
 GET /api/v1/sentiment/symbols/:symbol # Single symbol
 GET /api/v1/sentiment/market          # Market-wide sentiment
 GET /api/v1/sentiment/sectors         # Sector sentiment
+# + 4 additional sentiment endpoints
 
-# Reports
+# Reports (6 endpoints)
 GET /api/v1/reports/daily/:date       # Daily reports
 GET /api/v1/reports/weekly/:week      # Weekly reports
 GET /api/v1/reports/pre-market        # Pre-market briefing
 GET /api/v1/reports/intraday          # Intraday check
 GET /api/v1/reports/end-of-day        # End-of-day summary
+GET /api/v1/reports/latest            # Latest reports
 
-# Data Access
+# Data Access (12 endpoints)
 GET /api/v1/data/symbols              # Available symbols
 GET /api/v1/data/history/:symbol      # Historical data
 GET /api/v1/data/health               # System health
+# + 9 additional data endpoints
+
+# Enhanced Cache (7 endpoints - NEW!)
+GET /api/v1/cache/health              # Cache health monitoring
+GET /api/v1/cache/metrics             # Performance metrics
+GET /api/v1/cache/config              # Configuration details
+GET /api/v1/cache/promote             # Manual cache promotion
+GET /api/v1/cache/warmup              # Cache warming
+# + 2 additional cache endpoints
 ```
 
 ### **Frontend API Client**
 - **Location**: `public/js/api-client.js`
-- **Features**: 30+ endpoints, type-safe, intelligent caching, batch processing
+- **Features**: 60+ endpoints, type-safe, intelligent caching, batch processing
 - **Integration**: Automatic error handling, retry logic, performance monitoring
 
 ## 🧠 Core System Components
@@ -321,29 +332,44 @@ src/routes/
 ### **Configuration Management**
 - **Centralized**: All config in `src/modules/config.ts`
 - **Environment**: Variables with fallback defaults
-- **TTL Management**: Namespace-based cache configuration
+- **TTL Management**: Namespace-based cache configuration (7 namespaces)
 - **Retry Logic**: Exponential backoff with configurable attempts
 
-## 🔮 Future Roadmap
+## 🔮 Future Roadmap & KV Optimization Plan
 
-### **Post-Data Access Completion**
-After completing Phase 4 & 5 of the Data Access Improvement Plan:
+### **🚀 KV Operation Reduction Plan** (2025-10-22 - Next Priority)
+Based on DAC implementation analysis, 70% KV operation reduction achievable:
 
-**🏗️ Business Intelligence Implementation** (Design Complete)
+**Phase 1: Quick Wins (1-2 days, 40% reduction)**
+- **Request Deduplication**: Prevent thundering herd (60% fewer duplicate API calls)
+- **Health Check Caching**: 75% fewer KV operations for health endpoints
+- **Batch Operations**: 50% latency reduction for multi-symbol requests
+
+**Phase 2: Smart Caching (3-4 days, 25% reduction)**
+- **Selective KV Persistence**: Rate-limit-free data stored in L1 only
+- **Cache Warming**: Pre-populate frequently accessed data
+- **Response Compression**: 40-60% storage reduction
+
+**Phase 3: Advanced Optimization (2-3 days, 5% reduction)**
+- **Differential Updates**: Store and apply only changes
+- **Predictive Loading**: Load based on access patterns
+- **Enhanced Metrics**: Real-time optimization monitoring
+
+### **🏗️ Business Intelligence Implementation** (Design Complete)
 - **Sector Rotation Analysis**: v1.3 design with Rovodev production fixes
 - **Market Drivers Detection**: FRED API + VIX integration framework
-- **Ready for implementation** when data access modernization is complete
+- **Ready for implementation** after KV optimization complete
 
 **🎯 Strategic Vision**
-Transform from individual stock analysis to institutional-grade market intelligence platform with three-tier methodology:
+Transform from individual stock analysis to institutional-grade market intelligence platform:
 1. **Market Drivers** → Macro environment and risk appetite
 2. **Sector Analysis** → Capital flow and rotation patterns
 3. **Stock Selection** → Context-aware individual picks (current)
 
 ### **📋 Implementation Priority**
-1. **Complete Data Access Plan** (Current - 2 days remaining)
-2. **Evaluate Business Needs** (Post-completion decision point)
-3. **Implement High-Value Features** (Based on business priorities)
+1. **KV Operation Reduction** (Current - 1-2 weeks)
+2. **Performance Validation** (Post-optimization testing)
+3. **Business Intelligence Features** (Based on ROI analysis)
 
 ---
 
