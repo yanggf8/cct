@@ -17,8 +17,9 @@ import {
 } from './api-v1.js';
 import { createDAL } from '../modules/dal.js';
 import { createLogger } from '../modules/logging.js';
-import { KVKeyFactory } from '../modules/kv-key-factory.js';
+import { KVKeyFactory, KeyTypes } from '../modules/kv-key-factory.js';
 import { createCacheManager } from '../modules/cache-manager.js';
+import { MemoryStaticDAL } from '../modules/memory-static-data.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('data-routes');
@@ -32,6 +33,18 @@ export async function handleDataRoutes(
   path: string,
   headers: Record<string, string>
 ): Promise<Response> {
+  // Add null checks for all inputs
+  if (!request || !path) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Invalid request parameters',
+        error_code: 'INVALID_REQUEST'
+      }),
+      { status: 400 }
+    );
+  }
+
   const method = request.method;
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
@@ -135,28 +148,29 @@ async function handleAvailableSymbols(
 ): Promise<Response> {
   const timer = new ProcessingTimer();
   const dal = createDAL(env);
+  const memoryStaticDAL = new MemoryStaticDAL(dal);
   const url = new URL(request.url);
 
   try {
-    // Check cache first
-    const cacheKey = 'available_symbols';
-    const cached = await dal.get<SymbolsResponse>('CACHE', cacheKey);
+    // Temporarily bypass cache for debugging
+    // const cacheKey = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, { timestamp: 'available_symbols' });
+    // const cached = await dal.read<SymbolsResponse>(cacheKey);
 
-    if (cached) {
-      logger.info('AvailableSymbols', 'Cache hit', { requestId });
+    // if (cached) {
+    //   logger.info('AvailableSymbols', 'Cache hit', { requestId });
 
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
-            source: 'cache',
-            ttl: 3600, // 1 hour
-            requestId,
-            processingTime: timer.getElapsedMs(),
-          })
-        ),
-        { status: HttpStatus.OK, headers }
-      );
-    }
+    //   return new Response(
+    //     JSON.stringify(
+    //       ApiResponseFactory.cached(cached, 'hit', {
+    //         source: 'cache',
+    //         ttl: 3600, // 1 hour
+    //         requestId,
+    //         processingTime: timer.getElapsedMs(),
+    //       })
+    //     ),
+    //     { status: HttpStatus.OK, headers }
+    //   );
+    // }
 
     // Get default symbols from configuration
     const defaultSymbols = [
@@ -164,45 +178,35 @@ async function handleAvailableSymbols(
       'AMZN', 'META', 'BRK.B', 'JPM', 'JNJ'
     ];
 
-    // Fetch real market data for symbols
-    let symbolsData = [];
+    // Get static data for memory-based lookup
+    let staticSymbolNames = {};
+    let staticSectorMappings = {};
 
     try {
-      // Import Yahoo Finance integration for real data
-      const { getBatchMarketData } = await import('../modules/yahoo-finance-integration.js');
-
-      // Fetch real market data
-      const marketData = await getBatchMarketData(defaultSymbols);
-
-      symbolsData = defaultSymbols.map(symbol => {
-        const data = marketData[symbol];
-        return {
-          symbol,
-          name: getSymbolName(symbol),
-          sector: getSymbolSector(symbol),
-          market_cap: data?.marketCap || null,
-          price: data?.price || null,
-          exchange: data?.exchange || 'NASDAQ',
-          currency: data?.currency || 'USD',
-          last_updated: data?.lastUpdated || new Date().toISOString(),
-          real_data: !!data
-        };
-      });
+      staticSymbolNames = memoryStaticDAL.get('symbol_names') || {};
+      staticSectorMappings = memoryStaticDAL.get('sector_mappings') || {};
     } catch (error) {
-      logger.warn('Failed to fetch real market data, using fallback', { error, requestId });
+      logger.warn('Failed to get static data, using helper functions', { error, requestId });
+    }
 
-      // Fallback to enhanced symbol data with realistic mock information
-      symbolsData = defaultSymbols.map(symbol => ({
+    // Use enhanced symbol data with memory static data integration
+    const symbolsData = defaultSymbols.map(symbol => {
+      // Use memory static data first, then fallback to helper functions
+      const symbolName = staticSymbolNames && staticSymbolNames[symbol] ? staticSymbolNames[symbol] : getSymbolName(symbol);
+      const sectorMapping = staticSectorMappings && staticSectorMappings[`SECTOR_${symbol}`] ? staticSectorMappings[`SECTOR_${symbol}`] : getSymbolSector(symbol);
+
+      return {
         symbol,
-        name: getSymbolName(symbol),
-        sector: getSymbolSector(symbol),
+        name: symbolName,
+        sector: sectorMapping,
         market_cap: null, // Explicitly null to indicate no real data
         price: null,     // Explicitly null to indicate no real data
         exchange: 'NASDAQ',
         currency: 'USD',
+        last_updated: new Date().toISOString(),
         real_data: false
-      }));
-    }
+      };
+    });
 
     const response: SymbolsResponse = {
       symbols: symbolsData,
@@ -213,8 +217,8 @@ async function handleAvailableSymbols(
       },
     };
 
-    // Cache for 1 hour
-    await dal.put('CACHE', cacheKey, response, { expirationTtl: 3600 });
+    // Cache for 1 hour (temporarily disabled)
+    // await dal.write(cacheKey, response);
 
     logger.info('AvailableSymbols', 'Data retrieved', {
       symbolsCount: symbolsData.length,
@@ -818,7 +822,8 @@ async function checkCacheHealth(env: CloudflareEnvironment): Promise<{
 }> {
   try {
     // Create CacheManager instance to get real metrics
-    const cacheManager = createCacheManager(env);
+    // Use enhanced cache factory for better KV efficiency
+  const cacheManager = EnhancedCacheFactory.createCacheManager(env);
 
     // Test cache operations
     const testKey = 'cache_health_test';

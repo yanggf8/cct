@@ -376,7 +376,7 @@ export async function handleHttpRequest(
 
     // Handle v1 API routes (this handles all /api/v1/* including market-drivers, market-intelligence, predictive)
     if (url.pathname.startsWith('/api/v1/')) {
-      return await handleApiV1Request(request, env, ctx);
+      return await handleApiV1Request(request, env, url.pathname);
     }
 
     // Handle notification API routes

@@ -13,6 +13,7 @@ import { ErrorUtils, type RetryOptions } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
 import { cacheMetrics, type CacheNamespace as MetricsCacheNamespace } from './cache-metrics.js';
 import { EnhancedHashCache, createEnhancedHashCache } from './enhanced-hash-cache.js';
+import { EnhancedOptimizedCacheManager } from './enhanced-optimized-cache-manager.js';
 import {
   getCacheConfig,
   getCacheNamespaces,

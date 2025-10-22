@@ -6,6 +6,7 @@
 
 import { createLogger } from '../modules/logging.js';
 import { createCacheManager } from '../modules/cache-manager.js';
+import { EnhancedCacheFactory } from '../modules/enhanced-cache-factory.js';
 
 const logger = createLogger('enhanced-cache-routes');
 
@@ -13,11 +14,12 @@ const logger = createLogger('enhanced-cache-routes');
  * Create enhanced cache routes
  */
 export function createEnhancedCacheRoutes(env: any) {
-  const cacheManager = createCacheManager(env, {
-    enabled: true,
-    enablePromotion: true,
-    enableMetrics: true,
-  });
+  // Use enhanced cache factory to create appropriate cache manager
+    const cacheManager = EnhancedCacheFactory.createCacheManager(env, {
+      enabled: true,
+      enablePromotion: true,
+      enableMetrics: true,
+    });
 
   const routes = [
     {
