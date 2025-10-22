@@ -133,7 +133,17 @@ export async function handleApiV1Request(
     } else if (path.startsWith('/api/v1/cache/')) {
       // Route to enhanced cache API
       const cacheRoutes = createEnhancedCacheRoutes(env);
-      const cachePath = path.replace('/api/v1', '');
+      const requestedPath = path.replace('/api/v1', ''); // Convert /api/v1/cache/health to /cache/health
+
+      // Map REST-style paths to enhanced cache route paths
+      let cachePath = requestedPath;
+      if (requestedPath === '/cache/health') cachePath = '/cache-health';
+      else if (requestedPath === '/cache/metrics') cachePath = '/cache-metrics';
+      else if (requestedPath === '/cache/config') cachePath = '/cache-config';
+      else if (requestedPath === '/cache/promote') cachePath = '/cache-promote';
+      else if (requestedPath === '/cache/warmup') cachePath = '/cache-warmup';
+      else if (requestedPath === '/cache/stats') cachePath = '/cache-stats';
+      else if (requestedPath === '/cache/clear') cachePath = '/cache-clear';
 
       // Find matching cache route
       for (const route of cacheRoutes) {
@@ -142,7 +152,7 @@ export async function handleApiV1Request(
         }
       }
 
-      const body = ApiResponseFactory.error('Cache endpoint not found', 'NOT_FOUND', { requested_path: path });
+      const body = ApiResponseFactory.error('Cache endpoint not found', 'NOT_FOUND', { requested_path: path, cachePath, availableRoutes: cacheRoutes.map(r => r.path) });
       return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
