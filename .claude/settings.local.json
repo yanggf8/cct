@@ -211,7 +211,8 @@
       "Bash(playwright test:*)",
       "Bash(npx playwright test:*)",
       "Bash(./test-kv-optimization-implementation.sh:*)",
-      "Bash(./test-comprehensive-optimization.sh:*)"
+      "Bash(./test-comprehensive-optimization.sh:*)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

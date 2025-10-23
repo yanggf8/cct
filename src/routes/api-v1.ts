@@ -140,10 +140,10 @@ export async function handleApiV1Request(
       if (requestedPath === '/cache/health') cachePath = '/cache-health';
       else if (requestedPath === '/cache/metrics') cachePath = '/cache-metrics';
       else if (requestedPath === '/cache/config') cachePath = '/cache-config';
-      else if (requestedPath === '/cache/promote') cachePath = '/cache-promote';
+      else if (requestedPath === '/cache/promote') cachePath = '/cache-promotion';
       else if (requestedPath === '/cache/warmup') cachePath = '/cache-warmup';
-      else if (requestedPath === '/cache/stats') cachePath = '/cache-stats';
-      else if (requestedPath === '/cache/clear') cachePath = '/cache-clear';
+      else if (requestedPath === '/cache/stats') cachePath = '/cache-system-status';
+      else if (requestedPath === '/cache/status') cachePath = '/cache-system-status';
 
       // Find matching cache route
       for (const route of cacheRoutes) {
@@ -280,8 +280,8 @@ export async function handleApiV1Request(
               metrics: 'GET /api/v1/cache/metrics',
               config: 'GET /api/v1/cache/config',
               promote: 'GET /api/v1/cache/promote',
-              warmup: 'GET /api/v1/cache/warmup',
-              clear: 'DELETE /api/v1/cache/clear',
+              warmup: 'POST /api/v1/cache/warmup',
+              status: 'GET /api/v1/cache/status',
               stats: 'GET /api/v1/cache/stats',
             },
           } as ApiDocumentation['available_endpoints'],

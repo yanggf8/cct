@@ -1,0 +1,86 @@
+[0;35m=======================================[0m
+[0;35m🚀 Comprehensive Optimization Test[0m
+[0;35m=======================================[0m
+Log file: comprehensive-optimization-20251023-095730.log
+
+2025-10-23 09:57:30 - Starting Comprehensive Optimization Tests
+[0;34m🔧 Phase 1: Enhanced Cache System Validation[0m
+
+[1;33mTest 1.1: Enhanced Cache Health Check[0m
+[0;36mℹ️  Testing Enhanced Cache Health (/api/v1/cache/health)[0m
+2025-10-23 09:57:30 - INFO: Testing Enhanced Cache Health (/api/v1/cache/health)
+[0;32m✅ Enhanced Cache Health (1.367354s)[0m
+2025-10-23 09:57:32 - PASS: Enhanced Cache Health (1.367354s)
+2025-10-23 09:57:32 - SUCCESS: /api/v1/cache/health returned 200 in 1.367354s
+
+[1;33mTest 1.2: Cache Configuration Validation[0m
+[0;36mℹ️  Testing Cache Configuration (/api/v1/cache/config)[0m
+2025-10-23 09:57:32 - INFO: Testing Cache Configuration (/api/v1/cache/config)
+[0;32m✅ Cache Configuration (1.344966s)[0m
+2025-10-23 09:57:33 - PASS: Cache Configuration (1.344966s)
+2025-10-23 09:57:33 - SUCCESS: /api/v1/cache/config returned 200 in 1.344966s
+
+[1;33mTest 1.3: Memory Static Data Performance[0m
+[0;36mℹ️  Testing Symbol List (Memory Static) (/api/v1/data/symbols)[0m
+2025-10-23 09:57:33 - INFO: Testing Symbol List (Memory Static) (/api/v1/data/symbols)
+[0;32m✅ Symbol List (Memory Static) (1.366788s)[0m
+2025-10-23 09:57:34 - PASS: Symbol List (Memory Static) (1.366788s)
+2025-10-23 09:57:34 - SUCCESS: /api/v1/data/symbols returned 200 in 1.366788s
+[0;36mℹ️  Testing memory static data cache hit performance...[0m
+2025-10-23 09:57:34 - INFO: Testing memory static data cache hit performance...
+[0;36mℹ️  Testing Memory Static Data Test 1 (/api/v1/data/symbols)[0m
+2025-10-23 09:57:34 - INFO: Testing Memory Static Data Test 1 (/api/v1/data/symbols)
+[0;32m✅ Memory Static Data Test 1 (1.430797s)[0m
+2025-10-23 09:57:36 - PASS: Memory Static Data Test 1 (1.430797s)
+2025-10-23 09:57:36 - SUCCESS: /api/v1/data/symbols returned 200 in 1.430797s
+[0;36mℹ️  Testing Memory Static Data Test 2 (/api/v1/data/symbols)[0m
+2025-10-23 09:57:36 - INFO: Testing Memory Static Data Test 2 (/api/v1/data/symbols)
+[0;32m✅ Memory Static Data Test 2 (1.429646s)[0m
+2025-10-23 09:57:37 - PASS: Memory Static Data Test 2 (1.429646s)
+2025-10-23 09:57:37 - SUCCESS: /api/v1/data/symbols returned 200 in 1.429646s
+[0;36mℹ️  Testing Memory Static Data Test 3 (/api/v1/data/symbols)[0m
+2025-10-23 09:57:37 - INFO: Testing Memory Static Data Test 3 (/api/v1/data/symbols)
+[0;32m✅ Memory Static Data Test 3 (1.346900s)[0m
+2025-10-23 09:57:39 - PASS: Memory Static Data Test 3 (1.346900s)
+2025-10-23 09:57:39 - SUCCESS: /api/v1/data/symbols returned 200 in 1.346900s
+
+[0;34m🧠 Phase 2: Predictive Pre-fetching Integration[0m
+
+[1;33mTest 2.1: Predictive Pre-fetching Pattern Learning[0m
+[0;36mℹ️  Establishing access patterns...[0m
+2025-10-23 09:57:39 - INFO: Establishing access patterns...
+[0;36mℹ️  Testing Pattern Learning 1 (/analyze)[0m
+2025-10-23 09:57:39 - INFO: Testing Pattern Learning 1 (/analyze)
+[0;32m✅ Pattern Learning 1 (0.440261s)[0m
+2025-10-23 09:57:39 - PASS: Pattern Learning 1 (0.440261s)
+2025-10-23 09:57:39 - SUCCESS: /analyze returned 200 in 0.440261s
+[0;36mℹ️  Testing Pattern Learning 2 (/analyze)[0m
+2025-10-23 09:57:40 - INFO: Testing Pattern Learning 2 (/analyze)
+[0;32m✅ Pattern Learning 2 (0.219029s)[0m
+2025-10-23 09:57:40 - PASS: Pattern Learning 2 (0.219029s)
+2025-10-23 09:57:40 - SUCCESS: /analyze returned 200 in 0.219029s
+[0;36mℹ️  Testing Pattern Learning 3 (/analyze)[0m
+2025-10-23 09:57:41 - INFO: Testing Pattern Learning 3 (/analyze)
+[0;32m✅ Pattern Learning 3 (0.850847s)[0m
+2025-10-23 09:57:42 - PASS: Pattern Learning 3 (0.850847s)
+2025-10-23 09:57:42 - SUCCESS: /analyze returned 200 in 0.850847s
+
+[1;33mTest 2.2: Pre-fetch Hit Validation[0m
+[0;36mℹ️  Testing pre-fetch effectiveness (should be faster)...[0m
+2025-10-23 09:57:42 - INFO: Testing pre-fetch effectiveness (should be faster)...
+[0;36mℹ️  Testing Pre-fetch Test 1 (/analyze)[0m
+2025-10-23 09:57:42 - INFO: Testing Pre-fetch Test 1 (/analyze)
+[0;32m✅ Pre-fetch Test 1 (0.227485s)[0m
+2025-10-23 09:57:42 - PASS: Pre-fetch Test 1 (0.227485s)
+2025-10-23 09:57:42 - SUCCESS: /analyze returned 200 in 0.227485s
+[0;36mℹ️  Testing Pre-fetch Test 2 (/analyze)[0m
+2025-10-23 09:57:42 - INFO: Testing Pre-fetch Test 2 (/analyze)
+[0;32m✅ Pre-fetch Test 2 (0.489704s)[0m
+2025-10-23 09:57:43 - PASS: Pre-fetch Test 2 (0.489704s)
+2025-10-23 09:57:43 - SUCCESS: /analyze returned 200 in 0.489704s
+
+[1;33mTest 2.3: Cache Promotion & Pre-fetching[0m
+[0;36mℹ️  Testing Manual Cache Promotion (/api/v1/cache/promote)[0m
+2025-10-23 09:57:43 - INFO: Testing Manual Cache Promotion (/api/v1/cache/promote)
+[0;31m❌ Manual Cache Promotion[0m
+2025-10-23 09:57:45 - FAIL: Manual Cache Promotion - HTTP 404 (expected 200)

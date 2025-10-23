@@ -1,0 +1,23 @@
+2025-10-23 09:44:38 - Starting Comprehensive Optimization Tests
+2025-10-23 09:44:38 - INFO: Testing Enhanced Cache Health (/api/v1/cache/health)
+2025-10-23 09:44:40 - PASS: Enhanced Cache Health (1.718997s)
+2025-10-23 09:44:40 - SUCCESS: /api/v1/cache/health returned 200 in 1.718997s
+2025-10-23 09:44:40 - INFO: Testing Cache Configuration (/api/v1/cache/config)
+2025-10-23 09:44:41 - PASS: Cache Configuration (1.247311s)
+2025-10-23 09:44:41 - SUCCESS: /api/v1/cache/config returned 200 in 1.247311s
+2025-10-23 09:44:41 - INFO: Testing Symbol List (Memory Static) (/api/v1/data/symbols)
+2025-10-23 09:44:42 - PASS: Symbol List (Memory Static) (1.282259s)
+2025-10-23 09:44:42 - SUCCESS: /api/v1/data/symbols returned 200 in 1.282259s
+2025-10-23 09:44:42 - INFO: Testing memory static data cache hit performance...
+2025-10-23 09:44:42 - INFO: Testing Memory Static Data Test 1 (/api/v1/data/symbols)
+2025-10-23 09:44:44 - PASS: Memory Static Data Test 1 (1.348528s)
+2025-10-23 09:44:44 - SUCCESS: /api/v1/data/symbols returned 200 in 1.348528s
+2025-10-23 09:44:44 - INFO: Testing Memory Static Data Test 2 (/api/v1/data/symbols)
+2025-10-23 09:44:45 - PASS: Memory Static Data Test 2 (1.412335s)
+2025-10-23 09:44:45 - SUCCESS: /api/v1/data/symbols returned 200 in 1.412335s
+2025-10-23 09:44:45 - INFO: Testing Memory Static Data Test 3 (/api/v1/data/symbols)
+2025-10-23 09:44:46 - PASS: Memory Static Data Test 3 (1.360518s)
+2025-10-23 09:44:47 - SUCCESS: /api/v1/data/symbols returned 200 in 1.360518s
+2025-10-23 09:44:47 - INFO: Establishing access patterns...
+2025-10-23 09:44:47 - INFO: Testing Pattern Learning 1 (/analyze)
+2025-10-23 09:44:47 - FAIL: Pattern Learning 1 - HTTP 500 (expected 200)

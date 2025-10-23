@@ -28,10 +28,10 @@ async function routeToNewEndpoint(
     url.pathname = newPath;
 
     // Create a new request with the updated URL
-    const internalRequest = new Request(url, {
+    // Note: GET and HEAD requests cannot have a body
+    const requestOptions: RequestInit = {
       method: request.method,
       headers: request.headers,
-      body: request.body,
       redirect: request.redirect,
       integrity: request.integrity,
       signal: request.signal,
@@ -40,7 +40,14 @@ async function routeToNewEndpoint(
       mode: request.mode,
       credentials: request.credentials,
       cache: request.cache
-    });
+    };
+
+    // Only include body for methods that support it (not GET or HEAD)
+    if (request.method !== 'GET' && request.method !== 'HEAD' && request.body) {
+      requestOptions.body = request.body;
+    }
+
+    const internalRequest = new Request(url, requestOptions);
 
     // Set up standard API headers for v1 endpoints
     const headers = {
@@ -220,10 +227,10 @@ async function transformLegacyRequest(
   }
 
   // Create new request with transformed data
-  const newRequest = new Request(newUrl, {
+  // Note: GET and HEAD requests cannot have a body
+  const requestOptions: RequestInit = {
     method: request.method,
     headers,
-    body,
     redirect: request.redirect,
     integrity: request.integrity,
     signal: request.signal,
@@ -232,7 +239,14 @@ async function transformLegacyRequest(
     mode: request.mode,
     credentials: request.credentials,
     cache: request.cache
-  });
+  };
+
+  // Only include body for methods that support it (not GET or HEAD)
+  if (request.method !== 'GET' && request.method !== 'HEAD' && body) {
+    requestOptions.body = body;
+  }
+
+  const newRequest = new Request(newUrl, requestOptions);
 
   return newRequest;
 }
