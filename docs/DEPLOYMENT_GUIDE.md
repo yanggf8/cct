@@ -66,8 +66,9 @@ compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Environment Configuration
+# Note: API keys should be set as secrets (see Security section)
+# Use: wrangler secret put API_KEY
 [vars]
-WORKER_API_KEY = "your_secure_api_key_here"
 TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"
 LOG_LEVEL = "info"
 STRUCTURED_LOGGING = "true"
@@ -131,7 +132,10 @@ wrangler secret put NEWSAPI_KEY
 ```bash
 # Generate secure API key for your application
 openssl rand -hex 32
-# Use this as your WORKER_API_KEY value
+# Use this value with: wrangler secret put API_KEY
+# Or for domain-specific keys:
+# wrangler secret put TRADING_API_KEY
+# wrangler secret put APP_API_KEY
 ```
 
 ## 🚀 Local Development
@@ -337,23 +341,24 @@ wrangler tail --format=pretty --search="performance|timeout|slow"
 #!/bin/bash
 # health_check.sh
 
-API_KEY="your_api_key"
+# X_API_KEY should be set in environment (e.g., in .zshrc)
+# export X_API_KEY="your_api_key"
 DOMAIN="https://your-domain.workers.dev"
 
 echo "=== Deployment Health Check ==="
 
 # Test system health
 echo "1. Testing system health..."
-curl -s -H "X-API-KEY: $API_KEY" "$DOMAIN/health" | jq '.status'
+curl -s -H "X-API-KEY: $X_API_KEY" "$DOMAIN/health" | jq '.status'
 
 # Test AI models
 echo "2. Testing AI models..."
-curl -s -H "X-API-KEY: $API_KEY" "$DOMAIN/model-health" | jq '.overall_status'
+curl -s -H "X-API-KEY: $X_API_KEY" "$DOMAIN/model-health" | jq '.overall_status'
 
 # Test analysis performance
 echo "3. Testing analysis performance..."
 start_time=$(date +%s)
-timeout 30 curl -s -H "X-API-KEY: $API_KEY" "$DOMAIN/analyze-symbol?symbol=AAPL" > /dev/null
+timeout 30 curl -s -H "X-API-KEY: $X_API_KEY" "$DOMAIN/analyze-symbol?symbol=AAPL" > /dev/null
 end_time=$(date +%s)
 duration=$((end_time - start_time))
 echo "Analysis completed in ${duration}s"

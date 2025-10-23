@@ -51,12 +51,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     52→- [Project Status](docs/PROJECT_STATUS_OVERVIEW.md) - Current implementation status
     53→- [API v1 Documentation](/api/v1) - Self-documenting RESTful API
     54→
-    55→### 🔒 **Enterprise Security Implementation** ✅ **NEW**
-    56→- **Critical Security Fix**: Resolved environment variable mismatch (API_KEY vs WORKER_API_KEY)
-    57→- **Proper Authentication**: X-API-KEY header validation with multi-source support
-    58→- **Production Security**: No hardcoded API keys in source code
-    59→- **Environment Variables**: Support for API_KEY, TRADING_API_KEY, APP_API_KEY, API_KEYS
-    60→- **Configuration Management**: Security best practices documented in wrangler.toml
+### 🔒 **Enterprise Security Implementation** ✅ **UPDATED**
+- **Critical Security Fix**: Resolved environment variable mismatch (API_KEY vs WORKER_API_KEY)
+- **Proper Authentication**: X-API-KEY header validation with multi-source support
+- **Production Security**: No hardcoded API keys in source code
+- **Server Environment Variables**: Support for API_KEY, TRADING_API_KEY, APP_API_KEY, API_KEYS (Cloudflare secrets)
+- **Client Testing Variable**: X_API_KEY for local testing (matches X-API-KEY HTTP header)
+- **Test Script Validation**: All 18 test scripts validate X_API_KEY before execution with helpful error messages
+- **Configuration Management**: Security best practices documented in wrangler.toml
     61→
     62→### 🚀 Enhanced Cache System Documentation
 

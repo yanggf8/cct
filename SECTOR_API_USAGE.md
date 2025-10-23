@@ -153,19 +153,19 @@ curl -H "X-API-KEY: yanggf" \
 
 ### **JavaScript/Node.js**
 ```javascript
-const API_KEY = 'yanggf';
+const X_API_KEY = process.env.X_API_KEY; // Set in environment
 const BASE_URL = 'https://tft-trading-system.yanggf.workers.dev';
 
 async function getSectorSnapshot() {
   const response = await fetch(`${BASE_URL}/api/sectors/snapshot`, {
-    headers: { 'X-API-KEY': API_KEY }
+    headers: { 'X-API-KEY': X_API_KEY }
   });
   return await response.json();
 }
 
 async function getSectorAnalysis() {
   const response = await fetch(`${BASE_URL}/api/sectors/analysis`, {
-    headers: { 'X-API-KEY': API_KEY }
+    headers: { 'X-API-KEY': X_API_KEY }
   });
   return await response.json();
 }
@@ -175,21 +175,22 @@ async function getSectorAnalysis() {
 ```python
 import requests
 import json
+import os
 
-API_KEY = 'yanggf'
+X_API_KEY = os.environ['X_API_KEY']  # Set in environment
 BASE_URL = 'https://tft-trading-system.yanggf.workers.dev'
 
 def get_sector_snapshot():
     response = requests.get(
         f'{BASE_URL}/api/sectors/snapshot',
-        headers={'X-API-KEY': API_KEY}
+        headers={'X-API-KEY': X_API_KEY}
     )
     return response.json()
 
 def get_sector_analysis():
     response = requests.get(
         f'{BASE_URL}/api/sectors/analysis',
-        headers={'X-API-KEY': API_KEY}
+        headers={'X-API-KEY': X_API_KEY}
     )
     return response.json()
 ```

@@ -196,6 +196,8 @@ The system uses enterprise-grade security with multi-source API key validation:
 - ✅ Enterprise-grade authentication without hardcoded secrets
 
 ### **Environment Setup**
+
+**Server-Side (Cloudflare Workers):**
 ```bash
 # Set your production API key
 wrangler secret put API_KEY
@@ -206,6 +208,19 @@ wrangler secret put API_KEYS "key1,key2,key3"
 # Verify configuration
 wrangler secret list
 ```
+
+**Client-Side (Local Testing):**
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export X_API_KEY="your_api_key"
+
+# Or set temporarily for a single test
+X_API_KEY="your_api_key" ./test-script.sh
+```
+
+**Key Naming Convention:**
+- **Server**: `API_KEY`, `TRADING_API_KEY`, `APP_API_KEY` (Cloudflare secrets)
+- **Client**: `X_API_KEY` (matches `X-API-KEY` HTTP header for testing)
 
 ## 🚀 Quick Start
 

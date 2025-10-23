@@ -7,7 +7,10 @@
       "Bash(/tmp/add-env-checks.sh:*)",
       "Bash(/tmp/improve-env-checks.sh:*)",
       "Bash(source:*)",
-      "Bash(X_API_KEY=\"yanggf\" bash -c 'source /home/yanggf/a/cct/test-ai-model-stability.sh 2>&1 | head -4')"
+      "Bash(X_API_KEY=\"yanggf\" bash -c 'source /home/yanggf/a/cct/test-ai-model-stability.sh 2>&1 | head -4')",
+      "Bash(cat:*)",
+      "Bash(awk:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
