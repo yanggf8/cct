@@ -47,4 +47,17 @@ else
     echo "❌ Test scripts still export API_KEY"
 fi
 
+echo -e "\n6. Server Code Validation:"
+if grep -q "env.X_API_KEY" /home/yanggf/a/cct/src/modules/*.ts; then
+    echo "✅ Server code uses X_API_KEY environment variable"
+else
+    echo "❌ Server code not updated to use X_API_KEY"
+fi
+
+if grep -q "'X-API-KEY'" /home/yanggf/a/cct/src/modules/*.ts; then
+    echo "✅ Server code uses correct header case (X-API-KEY)"
+else
+    echo "❌ Server code header case needs updating"
+fi
+
 echo -e "\n✅ Validation complete!"
