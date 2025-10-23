@@ -7,6 +7,14 @@ set -e
 # Check environment variables
 if [[ -z "${X_API_KEY:-}" ]]; then
     echo "❌ ERROR: X_API_KEY environment variable is not set"
+    echo "Please set X_API_KEY in your .zshrc or export it:"
+    echo "  export X_API_KEY=your_api_key"
+    exit 1
+fi
+echo "✅ X_API_KEY is set (length: 0)"
+# Check environment variables
+if [[ -z "${X_API_KEY:-}" ]]; then
+    echo "❌ ERROR: X_API_KEY environment variable is not set"
     echo ""
     echo "Current environment variables with API_KEY:"
     env | grep -i api_key || echo "  (none found)"
