@@ -4,6 +4,23 @@
 # Tests timeout protection, retry logic, and circuit breaker functionality
 
 set -e
+# Check environment variables
+if [[ -z "${X_API_KEY:-}" ]]; then
+    echo "❌ ERROR: X_API_KEY environment variable is not set"
+    echo ""
+    echo "Current environment variables with API_KEY:"
+    env | grep -i api_key || echo "  (none found)"
+    echo ""
+    echo "Please set X_API_KEY in your .zshrc:"
+    echo "  export X_API_KEY=your_api_key"
+    echo "  source ~/.zshrc"
+    echo ""
+    echo "Or set it temporarily:"
+    echo "  X_API_KEY=your_api_key ./test-script.sh"
+    exit 1
+fi
+echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
+echo "✅ X_API_KEY is set (length: 0)"
 
 # Colors
 RED='\033[0;31m'
@@ -21,7 +38,6 @@ echo ""
 # Test configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
 X_API_KEY="yanggf"
-export X_API_KEY
 
 # Test results
 echo -e "${CYAN}Testing all critical endpoints after documentation updates...${NC}"

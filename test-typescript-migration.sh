@@ -4,6 +4,23 @@
 # Tests all newly converted TypeScript modules and endpoints
 
 echo "🧪 TypeScript Migration Integration Tests"
+# Check environment variables
+if [[ -z "${X_API_KEY:-}" ]]; then
+    echo "❌ ERROR: X_API_KEY environment variable is not set"
+    echo ""
+    echo "Current environment variables with API_KEY:"
+    env | grep -i api_key || echo "  (none found)"
+    echo ""
+    echo "Please set X_API_KEY in your .zshrc:"
+    echo "  export X_API_KEY=your_api_key"
+    echo "  source ~/.zshrc"
+    echo ""
+    echo "Or set it temporarily:"
+    echo "  X_API_KEY=your_api_key ./test-script.sh"
+    exit 1
+fi
+echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
+echo "✅ X_API_KEY is set (length: 0)"
 echo "=================================="
 echo "Testing all newly converted TypeScript modules..."
 echo ""
