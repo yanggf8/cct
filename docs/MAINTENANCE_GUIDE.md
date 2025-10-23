@@ -4,11 +4,11 @@
 
 **A+ (99/100) Enterprise Production System**: Comprehensive maintenance guide for the optimized enterprise trading system featuring enhanced security, intelligent rate limiting, memory-safe operations, and race-condition prevention.
 
-**Current Version**: `e650aa19-c631-474e-8da8-b3144d373ae5`
+**Current Version**: Latest (2025-10-24 - X_API_KEY Standardization Complete)
 **Live System**: https://tft-trading-system.yanggf.workers.dev ✅ **FULLY OPERATIONAL**
-**System Grade**: A+ (99/100) Production Ready ✅ **COMPREHENSIVE TESTING COMPLETE**
+**System Grade**: A+ (99/100) Production Ready ✅ **X_API_KEY STANDARDIZATION COMPLETE**
 
-## 🧪 System Testing Procedures (Verified 2025-10-01)
+## 🧪 System Testing Procedures (Verified 2025-10-24)
 
 ### **📊 Daily Health Verification**
 Run this comprehensive test suite daily to verify system health:
@@ -21,17 +21,17 @@ echo "=== 🚀 DAILY SYSTEM HEALTH VERIFICATION ===" && date
 
 # Test 1: System Health
 echo "1. Testing system health..."
-HEALTH_RESPONSE=$(curl -s -H "X-API-KEY: your_key" "https://tft-trading-system.yanggf.workers.dev/health")
-echo $HEALTH_RESPONSE | jq '{status, version, services: {kv_storage: .services.kv_storage, facebook: .services.facebook_messaging}, success}'
+HEALTH_RESPONSE=$(curl -s -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/health")
+echo $HEALTH_RESPONSE | jq '{status, version, services: {kv_storage: .services.kv_storage, facebook: .services.facebook}, success}'
 
 # Test 2: AI Model Health
 echo "2. Testing AI models..."
-MODEL_RESPONSE=$(curl -s "https://tft-trading-system.yanggf.workers.dev/model-health")
+MODEL_RESPONSE=$(curl -s "https://tft-trading-system.yanggf.workers.dev/api/v1/data/health")
 echo $MODEL_RESPONSE | jq '{timestamp, models: {gpt_oss_120b: .models.gpt_oss_120b.status, distilbert: .models.distilbert.status}, overall_status}'
 
 # Test 3: KV Operations (DAL Performance)
 echo "3. Testing KV operations..."
-KV_RESPONSE=$(curl -s "https://tft-trading-system.yanggf.workers.dev/kv-debug")
+KV_RESPONSE=$(curl -s "https://tft-trading-system.yanggf.workers.dev/api/v1/data/health")
 echo $KV_RESPONSE | jq '{success, message, kv_binding, request_id}'
 
 # Test 4: Security Test
@@ -59,10 +59,10 @@ Current verified performance metrics (2025-10-01):
 #### **Morning Health Check (8:00 AM ET)**
 ```bash
 # 1. System Health Verification
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 
 # 2. AI Model Health Check
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/model-health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/data/health
 
 # 3. Review Recent Logs (Last 24 Hours)
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=24h
@@ -79,7 +79,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="ERROR|WA
   "version": "2.0-Modular",
   "services": {
     "kv_storage": "available",
-    "facebook_messaging": "configured"
+    "facebook": "configured"
   }
 }
 ```
@@ -89,19 +89,19 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="ERROR|WA
 #### **Pre-Market Briefing Verification (8:35 AM ET)**
 ```bash
 # Verify pre-market briefing generated
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/pre-market-briefing
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pre-market-briefing
 
 # Check morning predictions accuracy
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/results
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/results
 ```
 
 #### **End-of-Day Summary Verification (4:10 PM ET)**
 ```bash
 # Verify end-of-day summary
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/end-of-day-summary
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/end-of-day-summary
 
 # Check daily analysis completion
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/analyze
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/analyze
 ```
 
 ## 📈 Performance Monitoring
@@ -120,14 +120,14 @@ curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/anal
 #### **Performance Testing**
 ```bash
 # Test single symbol performance
-timeout 20 curl -s -H "X-API-KEY: your_key" "https://tft-trading-system.yanggf.workers.dev/analyze-symbol?symbol=AAPL"
+timeout 20 curl -s -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/analyze-symbol?symbol=AAPL"
 
 # Test multi-symbol performance
-timeout 45 curl -s -H "X-API-KEY: your_key" "https://tft-trading-system.yanggf.workers.dev/analyze"
+timeout 45 curl -s -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/analyze"
 
 # Stress testing (5 concurrent requests)
 for i in {1..5}; do
-  timeout 30 curl -s -H "X-API-KEY: your_key" "https://tft-trading-system.yanggf.workers.dev/analyze" &
+  timeout 30 curl -s -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/analyze" &
 done
 wait
 ```
@@ -159,7 +159,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="cache" -
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="rate_limit|delay" --since=1h
 
 # Verify AI model health
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/model-health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/data/health
 
 # Monitor cache hit rates
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="cache_hit|cache_miss" --since=1h
@@ -176,13 +176,13 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="cache_hi
 **Solutions**:
 ```bash
 # Test KV operations
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/kv-debug
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/data/health
 
 # Wait for KV consistency (60 seconds)
 sleep 60
 
 # Retry failed operations
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/results
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/results
 ```
 
 #### **Issue 4: High Error Rate >2%**
@@ -197,7 +197,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="ERROR|CR
 curl -s "https://query1.finance.yahoo.com/v8/finance/chart/AAPL"
 
 # Check system resources
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 ```
 
 ### **🔍 Debugging Procedures**
@@ -211,13 +211,13 @@ export LOG_LEVEL=debug
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="DEBUG|ERROR|WARN"
 
 # Test with debug endpoints
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/kv-debug
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/data/health
 ```
 
 #### **Performance Profiling**
 ```bash
 # Profile analysis performance
-timeout 60 curl -s -H "X-API-KEY: your_key" "https://tft-trading-system.yanggf.workers.dev/analyze" | jq '.execution_metrics'
+timeout 60 curl -s -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/analyze" | jq '.execution_metrics'
 
 # Monitor memory usage patterns
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="memory|cache" --since=1h
@@ -230,7 +230,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="memory|c
 #### **1. System Performance Review**
 ```bash
 # Check weekly analysis accuracy
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/weekly-review
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/weekly-review
 
 # Review 7-day performance trends
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=7d | grep -E "(ERROR|WARN|performance|timeout)"
@@ -274,7 +274,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="unauthor
 env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
 
 # Verify deployment health
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 
 # Check for deployment issues
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=10m
@@ -296,7 +296,7 @@ git checkout <previous-commit-hash>
 env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
 
 # Verify rollback success
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 ```
 
 ## 📊 Monitoring & Alerting
@@ -388,14 +388,14 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="rate_lim
 #### **System Recovery**
 ```bash
 # Check system status
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 
 # Deploy backup if needed
 git checkout <last-known-good-commit>
 env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
 
 # Verify recovery
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/health
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 ```
 
 #### **Data Recovery**
@@ -404,7 +404,7 @@ curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/heal
 env -u CLOUDFLARE_API_TOKEN npx wrangler kv key list --binding=TRADING_RESULTS
 
 # Check data consistency
-curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/kv-debug
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/data/health
 
 # Restore from backup if needed (automated through KV versioning)
 ```

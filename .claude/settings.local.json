@@ -21,7 +21,9 @@
       "Bash(./test-simple-validation.sh:*)",
       "Bash(/tmp/add-env-checks-final.sh:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(/tmp/update-maintenance-guide.sh:*)"
     ],
     "deny": [],
     "ask": []

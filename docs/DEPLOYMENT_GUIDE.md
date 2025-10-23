@@ -465,7 +465,7 @@ wrangler tail --format=pretty --search="unauthorized|401"
 #### **Input Validation**
 ```bash
 # Test input sanitization
-curl -H "X-API-KEY: your_key" -X POST \
+curl -H "X-API-KEY: $X_API_KEY" -X POST \
      -H "Content-Type: application/json" \
      -d '{"symbol": "<script>alert(1)</script>"}' \
      https://your-domain.workers.dev/analyze-symbol

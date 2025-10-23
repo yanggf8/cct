@@ -25,7 +25,7 @@
 All protected endpoints require API key authentication using the `X-API-KEY` header:
 
 ```bash
-curl -H "X-API-KEY: your_api_key_here" https://tft-trading-system.yanggf.workers.dev/endpoint
+curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/endpoint
 ```
 
 ## 🌐 Base URL
