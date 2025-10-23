@@ -55,7 +55,7 @@ interface PaginationInfo {
  */
 export class ApiResponseFactory {
   static success<T = any>(data: T, metadata: Record<string, any> = {}): ApiResponse<T> {
-    return {
+    const response: ApiResponse<T> = {
       success: true,
       data,
       timestamp: new Date().toISOString(),
@@ -64,6 +64,24 @@ export class ApiResponseFactory {
         ...metadata,
       },
     };
+
+    // Add root-level fields for client compatibility
+    if (data && typeof data === 'object') {
+      if ('version' in data) {
+        (response as any).version = (data as any).version;
+      }
+      if ('status' in data) {
+        (response as any).status = (data as any).status;
+      }
+      if ('title' in data) {
+        (response as any).title = (data as any).title;
+      }
+      if ('description' in data) {
+        (response as any).description = (data as any).description;
+      }
+    }
+
+    return response;
   }
 
   static cached<T = any>(data: T, cacheStatus: string = 'hit', metadata: Record<string, any> = {}): CachedApiResponse<T> {

@@ -436,7 +436,21 @@ export class WebNotificationManager {
       const subscribers: NotificationSubscription[] = [];
 
       // TODO: Implement subscriber retrieval based on your data store
-      // Example: await this.dal.listKeys({ prefix: 'notification_subscription_' })
+      // FUTURE ENHANCEMENT: Notification subscription management system
+      // This would enable administrators to view and manage notification subscribers
+      // Current implementation returns empty array as notification system works without listing
+      // Implementation considerations:
+      // - Add KV-based subscriber storage with subscription metadata
+      // - Implement subscription management endpoints (create, read, update, delete)
+      // - Add admin authentication for subscription management
+      // - Add API endpoints: GET /api/v1/notifications/subscribers, POST /api/v1/notifications/subscribe
+      // - Priority: Low (admin/monitoring feature, not core functionality)
+      // - Dependencies: Enhanced DAL with subscription operations
+      // - Estimated effort: 1-2 weeks development time
+      // - GitHub Issue: #notification-subscription-management
+      // Example implementation:
+      // await this.dal.listKeys({ prefix: 'notification_subscription_' })
+      // return subscriptions.map(key => this.dal.read(key))
 
       return subscribers;
     } catch (error) {

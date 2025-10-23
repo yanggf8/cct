@@ -1,7 +1,8 @@
 # Facebook Messenger Integration
 
 **Updated**: 2025-10-03
-**Status**: ✅ Production-Ready with Message Tracking & Error #10 Resolved
+**Status**: ⚠️ **DEPRECATED** - Replaced by Chrome Browser Notifications
+**Replacement**: System now uses native Chrome notifications instead of Facebook Messenger
 **Location**: `src/modules/facebook.ts` (TypeScript)
 
 ## Overview

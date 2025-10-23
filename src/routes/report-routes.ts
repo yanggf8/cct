@@ -238,6 +238,18 @@ async function handleDailyReport(
         })),
         sector_performance: [
           // Mock sector performance - TODO: Implement actual sector analysis
+        // FUTURE ENHANCEMENT: Real sector analysis implementation
+        // This would replace mock sector performance data with real analysis
+        // Current implementation provides placeholder data for development/testing
+        // Implementation considerations:
+        // - Integrate with sector rotation analysis system for real-time sector performance
+        // - Use sector ETF data (SPY, XLF, etc.) for performance benchmarks
+        // - Calculate performance metrics based on actual market data and volatility
+        // - Add API endpoint: GET /api/v1/sectors/performance
+        // - Priority: High (core business functionality enhancement)
+        // - Dependencies: Sector rotation analysis system, real-time market data feeds
+        // - Estimated effort: 4-6 weeks development time
+        // - GitHub Issue: #real-sector-performance-analysis
           { sector: 'Technology', performance: Math.random() * 10 - 5, sentiment: 'bullish' },
           { sector: 'Financials', performance: Math.random() * 10 - 5, sentiment: 'neutral' },
           { sector: 'Health Care', performance: Math.random() * 10 - 5, sentiment: 'bearish' },

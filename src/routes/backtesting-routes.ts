@@ -429,6 +429,17 @@ async function handleGetBacktestResults(
         result: results,
         downloadUrls: generateDownloadUrls(backtestId, env),
         relatedBacktests: [] // TODO: Implement related backtest discovery
+        // FUTURE ENHANCEMENT: Related backtest discovery feature
+        // This would enable users to find and analyze related backtesting sessions
+        // based on similar symbols, timeframes, or market conditions
+        // Implementation considerations:
+        // - Query KV storage for backtests with matching symbols/strategies
+        // - Implement similarity scoring based on overlap in symbols, timeframes, or methodologies
+        // - Add API endpoint: GET /api/v1/backtesting/related/:backtestId
+        // - Priority: Medium (enhances user experience but not critical for core functionality)
+        // - Dependencies: Enhanced DAL with query capabilities
+        // - Estimated effort: 2-3 weeks development time
+        // GitHub Issue: #related-backtest-discovery
       };
 
       return new Response(

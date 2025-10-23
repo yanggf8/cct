@@ -58,6 +58,9 @@ binding = "ENHANCED_MODELS"
 EMAIL_ENABLED = "false"
 WORKER_VERSION = "2.0"
 TIMEZONE = "America/New_York"
+# API Key Configuration (set in Cloudflare Workers dashboard for security)
+# Recommended: API_KEY (for X-API-KEY header), TRADING_API_KEY, or APP_API_KEY
+# NEVER commit actual API keys to version control
 # Trading symbols configuration
 TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"
 # Logging configuration (error, warn, info, debug)

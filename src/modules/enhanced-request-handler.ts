@@ -143,6 +143,16 @@ export class EnhancedRequestHandler {
       let response: Response;
 
       switch (url.pathname) {
+        case '/api/v1':
+          // API v1 root documentation - public access
+          response = await this.handleAPIv1Root();
+          break;
+
+        case '/results':
+          // Legacy results endpoint - requires API key
+          response = await this.handleResults(request);
+          break;
+
         case '/api/v1/data/health':
           response = await this.handleEnhancedHealthCheck();
           break;
@@ -208,6 +218,149 @@ export class EnhancedRequestHandler {
       });
 
       throw error;
+    }
+  }
+
+  /**
+   * Handle API v1 root documentation endpoint
+   */
+  private async handleAPIv1Root(): Promise<Response> {
+    // Import the API response factory
+    const { ApiResponseFactory } = await import('../modules/api-v1-responses.js');
+
+    const apiData = {
+      title: 'CCT API v1',
+      version: '1.0.0',
+      description: 'RESTful API for dual AI sentiment analysis, sector rotation, and market drivers intelligence',
+      available_endpoints: {
+        sentiment: {
+          analysis: 'GET /api/v1/sentiment/analysis',
+          symbol: 'GET /api/v1/sentiment/symbols/:symbol',
+          market: 'GET /api/v1/sentiment/market',
+          sectors: 'GET /api/v1/sentiment/sectors',
+        },
+        reports: {
+          daily: 'GET /api/v1/reports/daily/:date',
+          weekly: 'GET /api/v1/reports/weekly/:week',
+          pre_market: 'GET /api/v1/reports/pre-market',
+          intraday: 'GET /api/v1/reports/intraday',
+          end_of_day: 'GET /api/v1/reports/end-of-day',
+        },
+        data: {
+          symbols: 'GET /api/v1/data/symbols',
+          history: 'GET /api/v1/data/history/:symbol',
+          health: 'GET /api/v1/data/health',
+        },
+        enhanced_cache: {
+          health: 'GET /api/v1/cache/health',
+          metrics: 'GET /api/v1/cache/metrics',
+          config: 'GET /api/v1/cache/config',
+          promote: 'POST /api/v1/cache/promote',
+          warmup: 'POST /api/v1/cache/warmup',
+        }
+      },
+      enhanced_system: true
+    };
+
+    const body = ApiResponseFactory.success(apiData, {
+      endpoint: '/api/v1',
+      public_access: true,
+      enhanced_system: true
+    });
+
+    return new Response(JSON.stringify(body, null, 2), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Enhanced-System': 'true',
+        'X-API-Version': 'v1'
+      }
+    });
+  }
+
+  /**
+   * Handle results endpoint (legacy compatibility)
+   */
+  private async handleResults(request: Request): Promise<Response> {
+    // Import response factory and data functions
+    const { ApiResponseFactory } = await import('../modules/api-v1-responses.js');
+    const { getAnalysisResultsByDate } = await import('../modules/data.js');
+
+    // Validate API key for sensitive endpoint
+    const apiKey = request.headers.get('X-API-Key');
+    // Use proper environment variable for X-API-KEY header
+    const configuredApiKeys = this.env.API_KEYS ? this.env.API_KEYS.split(',') : [];
+    const validKeys = [this.env.API_KEY, this.env.TRADING_API_KEY, this.env.APP_API_KEY, ...configuredApiKeys];
+
+    if (!apiKey || !validKeys.includes(apiKey)) {
+      const body = ApiResponseFactory.error(
+        'API key required for this endpoint',
+        'UNAUTHORIZED',
+        { requires_api_key: true }
+      );
+
+      return new Response(JSON.stringify(body, null, 2), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Enhanced-System': 'true'
+        }
+      });
+    }
+
+    try {
+      const url = new URL(request.url);
+      const requestedDate = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+
+      // Get results using enhanced DAL
+      const results = await getAnalysisResultsByDate(this.env, requestedDate);
+
+      if (!results) {
+        const body = ApiResponseFactory.error(
+          'No results found for the requested date',
+          'NOT_FOUND',
+          { requested_date: requestedDate }
+        );
+
+        return new Response(JSON.stringify(body, null, 2), {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Enhanced-System': 'true'
+          }
+        });
+      }
+
+      const body = ApiResponseFactory.success(results, {
+        endpoint: '/results',
+        requested_date: requestedDate,
+        enhanced_system: true,
+        api_key_validated: true
+      });
+
+      return new Response(JSON.stringify(body, null, 2), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Enhanced-System': 'true',
+          'X-API-Version': 'v1'
+        }
+      });
+
+    } catch (error: any) {
+      const body = ApiResponseFactory.error(
+        'Failed to retrieve results',
+        'INTERNAL_ERROR',
+        { error_message: error.message }
+      );
+
+      return new Response(JSON.stringify(body, null, 2), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Enhanced-System': 'true'
+        }
+      });
     }
   }
 
