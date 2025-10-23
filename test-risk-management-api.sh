@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=60
 
 # Colors
@@ -41,7 +41,7 @@ test_endpoint() {
         curl_cmd="$curl_cmd -H \"Content-Type: application/json\" -d '$data'"
     fi
 
-    curl_cmd="$curl_cmd -H \"X-API-KEY: $API_KEY\" \"$API_BASE$endpoint\""
+    curl_cmd="$curl_cmd -H \"X-API-KEY: $X_API_KEY\" \"$API_BASE$endpoint\""
 
     local response=$(eval "$curl_cmd" 2>/dev/null)
     local end_time=$(date +%s)
@@ -318,7 +318,7 @@ TESTS_TOTAL=$((TESTS_TOTAL + 1))
 echo -e "${YELLOW}Testing error handling...${NC}"
 echo "Endpoint: /api/v1/risk/invalid"
 error_response=$(timeout 30 curl -s \
-    -H "X-API-KEY: $API_KEY" \
+    -H "X-API-KEY: $X_API_KEY" \
     -w "\nHTTP_CODE:%{http_code}" \
     "$API_BASE/api/v1/risk/invalid" 2>/dev/null)
 

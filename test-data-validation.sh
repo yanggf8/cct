@@ -8,7 +8,7 @@ set -e
 
 # Configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 
 # Colors
@@ -44,7 +44,7 @@ test_validation() {
     echo "Expected: HTTP $expected_code"
 
     local curl_cmd="timeout $TIMEOUT curl -s -w \"\nHTTP_CODE:%{http_code}\" -X $method"
-    curl_cmd="$curl_cmd -H \"X-API-KEY: $API_KEY\""
+    curl_cmd="$curl_cmd -H \"X-API-KEY: $X_API_KEY\""
     curl_cmd="$curl_cmd -H \"Content-Type: application/json\""
     curl_cmd="$curl_cmd -d '$payload'"
     curl_cmd="$curl_cmd \"$API_BASE$endpoint\""

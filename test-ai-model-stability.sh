@@ -20,10 +20,12 @@ echo ""
 
 # Test configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
+export X_API_KEY
 
 # Test results
-TESTS_TOTAL=0
+echo -e "${CYAN}Testing all critical endpoints after documentation updates...${NC}"
+echo -e "${CYAN}=========================================${NC}"
 TESTS_PASSED=0
 
 # Helper functions
@@ -66,20 +68,20 @@ echo ""
 
 # Test 1: Model Health Check
 run_test "AI Model Health Check" \
-    "curl -s -H 'X-API-KEY: $API_KEY' '$API_BASE/api/v1/data/health?model=true'" \
+    "curl -s -H 'X-API-KEY: $X_API_KEY' '$API_BASE/api/v1/data/health?model=true'" \
     '.data.overall_status == "healthy"' \
     30
 
 # Test 2: Basic AI Analysis (should work with new timeout protection)
 run_test "AI Analysis with Timeout Protection" \
-    "curl -s -H 'X-API-KEY: $API_KEY' '$API_BASE/analyze'" \
+    "curl -s -H 'X-API-KEY: $X_API_KEY' '$API_BASE/analyze'" \
     '"success":true' \
     60
 
 # Test 3: Verify GPT Model Results
 echo -e "${BLUE}Testing: GPT Model Analysis Results${NC}"
 TESTS_TOTAL=$((TESTS_TOTAL + 1))
-gpt_response=$(timeout 60 curl -s -H "X-API-KEY: $API_KEY" "$API_BASE/analyze")
+gpt_response=$(timeout 60 curl -s -H "X-API-KEY: $X_API_KEY" "$API_BASE/analyze")
 if echo "$gpt_response" | grep -q '"gpt_sentiment"' && echo "$gpt_response" | grep -q '"gpt_confidence"'; then
     test_passed "GPT Model Analysis Results"
 else
@@ -126,7 +128,7 @@ TESTS_TOTAL=$((TESTS_TOTAL + 1))
 circuit_test_passed=1
 for i in {1..5}; do
     echo "  Request $i..."
-    response=$(timeout 30 curl -s -H "X-API-KEY: $API_KEY" "$API_BASE/analyze")
+    response=$(timeout 30 curl -s -H "X-API-KEY: $X_API_KEY" "$API_BASE/analyze")
     if ! echo "$response" | grep -q '"success":true'; then
         echo "  Request $i failed - circuit breaker may be working"
         circuit_test_passed=0
@@ -147,7 +149,7 @@ TESTS_TOTAL=$((TESTS_TOTAL + 1))
 echo "  Waiting 10 seconds for circuit breaker recovery..."
 sleep 10
 
-recovery_response=$(timeout 60 curl -s -H "X-API-KEY: $API_KEY" "$API_BASE/analyze")
+recovery_response=$(timeout 60 curl -s -H "X-API-KEY: $X_API_KEY" "$API_BASE/analyze")
 if echo "$recovery_response" | grep -q '"success":true'; then
     test_passed "Circuit Breaker Recovery (system recovered successfully)"
 else
@@ -162,7 +164,7 @@ echo ""
 echo -e "${BLUE}Testing: Analysis Completes Within Reasonable Time${NC}"
 TESTS_TOTAL=$((TESTS_TOTAL + 1))
 start_time=$(date +%s)
-timeout_response=$(timeout 70 curl -s -H "X-API-KEY: $API_KEY" "$API_BASE/analyze")
+timeout_response=$(timeout 70 curl -s -H "X-API-KEY: $X_API_KEY" "$API_BASE/analyze")
 end_time=$(date +%s)
 duration=$((end_time - start_time))
 
@@ -180,7 +182,7 @@ concurrent_passed=1
 # Launch 3 concurrent requests
 pids=()
 for i in {1..3}; do
-    (timeout 60 curl -s -H "X-API-KEY: $API_KEY" "$API_BASE/analyze" > /tmp/concurrent_test_$i.json 2>/dev/null) &
+    (timeout 60 curl -s -H "X-API-KEY: $X_API_KEY" "$API_BASE/analyze" > /tmp/concurrent_test_$i.json 2>/dev/null) &
     pids+=($!)
 done
 

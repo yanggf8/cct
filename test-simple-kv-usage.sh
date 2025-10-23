@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=15
 
 # Colors
@@ -25,7 +25,7 @@ echo ""
 
 # Test API connectivity
 echo -e "${YELLOW}Testing API connectivity...${NC}"
-if ! curl -s -f -H "X-API-KEY: $API_KEY" --max-time $TIMEOUT "$API_URL/health" > /dev/null; then
+if ! curl -s -f -H "X-API-KEY: $X_API_KEY" --max-time $TIMEOUT "$API_URL/health" > /dev/null; then
     echo -e "${RED}ERROR: Cannot connect to API${NC}"
     exit 1
 fi
@@ -33,7 +33,7 @@ echo -e "${GREEN}✅ API connectivity confirmed${NC}"
 
 # Get current cache metrics
 echo -e "\n${YELLOW}Getting current cache metrics...${NC}"
-METRICS=$(curl -s -H "X-API-KEY: $API_KEY" --max-time $TIMEOUT "$API_URL/cache-metrics")
+METRICS=$(curl -s -H "X-API-KEY: $X_API_KEY" --max-time $TIMEOUT "$API_URL/cache-metrics")
 
 if [[ $? -ne 0 ]]; then
     echo -e "${RED}ERROR: Cannot get cache metrics${NC}"
@@ -141,6 +141,6 @@ echo -e "${CYAN}• Monitor /cache-metrics endpoint regularly${NC}"
 echo -e "${CYAN}• Implement request deduplication to reduce duplicate KV reads${NC}"
 echo -e "${CYAN}• Use health check caching to avoid repeated status queries${NC}"
 
-echo -e "\n${GREEN}🔍 Monitor with: curl -H 'X-API-KEY: $API_KEY' $API_URL/cache-metrics${NC}"
-echo -e "${GREEN}📊 Health check: curl -H 'X-API-KEY: $API_KEY' $API_URL/cache-health${NC}"
+echo -e "\n${GREEN}🔍 Monitor with: curl -H 'X-API-KEY: $X_API_KEY' $API_URL/cache-metrics${NC}"
+echo -e "${GREEN}📊 Health check: curl -H 'X-API-KEY: $X_API_KEY' $API_URL/cache-health${NC}"
 echo ""

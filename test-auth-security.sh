@@ -8,7 +8,7 @@ set -e
 
 # Configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-VALID_API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 
 # Colors
@@ -82,7 +82,7 @@ test_security() {
     echo "Endpoint: $endpoint"
 
     local curl_cmd="timeout $TIMEOUT curl -s -w \"\nHTTP_CODE:%{http_code}\" -X $method"
-    curl_cmd="$curl_cmd -H \"X-API-KEY: $VALID_API_KEY\""
+    curl_cmd="$curl_cmd -H \"X-API-KEY: $X_API_KEY\""
 
     if [[ -n "$payload" ]]; then
         curl_cmd="$curl_cmd -H \"Content-Type: application/json\" -d '$payload'"
@@ -125,12 +125,12 @@ test_auth "GET" "/api/v1/predictive/signals" "" "401" "Empty API Key"
 test_auth "GET" "/api/v1/predictive/signals" "' OR '1'='1" "401" "SQL Injection in API Key"
 
 # Test 5: Valid API Key (should work)
-test_auth "GET" "/api/v1/predictive/health" "$VALID_API_KEY" "200" "Valid API Key"
+test_auth "GET" "/api/v1/predictive/health" "$X_API_KEY" "200" "Valid API Key"
 
 # Test 6: API Key in wrong header
 echo -e "${YELLOW}Testing: API Key in Authorization header (should fail)${NC}"
 response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
-    -H "Authorization: Bearer $VALID_API_KEY" \
+    -H "Authorization: Bearer $X_API_KEY" \
     "$API_BASE/api/v1/predictive/signals" 2>/dev/null)
 http_code=$(echo "$response" | tail -1 | cut -d: -f2)
 echo "HTTP Status: $http_code"
@@ -183,7 +183,7 @@ large_payload="${large_payload%,}]}"
 
 response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
     -X POST \
-    -H "X-API-KEY: $VALID_API_KEY" \
+    -H "X-API-KEY: $X_API_KEY" \
     -H "Content-Type: application/json" \
     -d "$large_payload" \
     "$API_BASE/api/v1/portfolio/correlation" 2>/dev/null)
@@ -206,7 +206,7 @@ echo ""
 echo -e "${YELLOW}Testing: OPTIONS Request Handling${NC}"
 response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
     -X OPTIONS \
-    -H "X-API-KEY: $VALID_API_KEY" \
+    -H "X-API-KEY: $X_API_KEY" \
     "$API_BASE/api/v1/predictive/signals" 2>/dev/null)
 http_code=$(echo "$response" | tail -1 | cut -d: -f2)
 echo "HTTP Status: $http_code"
@@ -221,10 +221,10 @@ TESTS_TOTAL=$((TESTS_TOTAL + 1))
 echo ""
 
 # Test 13: DELETE on GET endpoint (should fail)
-test_auth "DELETE" "/api/v1/predictive/signals" "$VALID_API_KEY" "405" "DELETE on GET-only Endpoint"
+test_auth "DELETE" "/api/v1/predictive/signals" "$X_API_KEY" "405" "DELETE on GET-only Endpoint"
 
 # Test 14: PUT on POST endpoint (should fail)
-test_auth "PUT" "/api/v1/risk/assessment" "$VALID_API_KEY" "405" "PUT on POST-only Endpoint"
+test_auth "PUT" "/api/v1/risk/assessment" "$X_API_KEY" "405" "PUT on POST-only Endpoint"
 
 echo -e "${CYAN}=== Category 4: Rate Limiting & Abuse Prevention ===${NC}"
 echo ""
@@ -234,7 +234,7 @@ echo -e "${YELLOW}Testing: Rate Limiting (10 rapid requests)${NC}"
 success_count=0
 for i in {1..10}; do
     response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
-        -H "X-API-KEY: $VALID_API_KEY" \
+        -H "X-API-KEY: $X_API_KEY" \
         "$API_BASE/api/v1/risk/health" 2>/dev/null)
     http_code=$(echo "$response" | tail -1 | cut -d: -f2)
     if [[ "$http_code" == "200" ]]; then
@@ -263,7 +263,7 @@ echo ""
 echo -e "${YELLOW}Testing: Error Message Information Disclosure${NC}"
 response=$(timeout $TIMEOUT curl -s \
     -X POST \
-    -H "X-API-KEY: $VALID_API_KEY" \
+    -H "X-API-KEY: $X_API_KEY" \
     -H "Content-Type: application/json" \
     -d '{"invalid": "data"}' \
     "$API_BASE/api/v1/risk/assessment" 2>/dev/null)
@@ -282,7 +282,7 @@ echo ""
 # Test 17: API doesn't expose sensitive headers
 echo -e "${YELLOW}Testing: Response Headers Security${NC}"
 headers=$(timeout $TIMEOUT curl -s -I \
-    -H "X-API-KEY: $VALID_API_KEY" \
+    -H "X-API-KEY: $X_API_KEY" \
     "$API_BASE/api/v1/risk/health" 2>/dev/null)
 
 has_security_headers=true

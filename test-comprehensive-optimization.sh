@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=45
 LOG_FILE="comprehensive-optimization-$(date +%Y%m%d-%H%M%S).log"
 
@@ -63,7 +63,7 @@ make_request() {
 
     local response=$(curl -s -w '\nHTTP_CODE:%{http_code}\nTIME:%{time_total}' \
         -X "$method" \
-        -H "X-API-KEY: $API_KEY" \
+        -H "X-API-KEY: $X_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$data" \
         --max-time $TIMEOUT \

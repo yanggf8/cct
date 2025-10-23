@@ -21,7 +21,7 @@ echo ""
 
 # Test configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 
 # Test results
@@ -47,7 +47,7 @@ echo ""
 
 # Test 1: Cache metrics in health endpoint
 echo -e "${BLUE}Test 1: Cache Metrics in Health Endpoint${NC}"
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health")
 
 if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
     # Check if cache info exists
@@ -80,13 +80,13 @@ echo "Making multiple requests to generate cache activity..."
 
 # Make 5 requests to the same endpoint to test L1 caching
 for i in {1..5}; do
-    timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" \
+    timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" \
         "$API_BASE/api/v1/sentiment/symbols/AAPL" >/dev/null 2>&1
     sleep 0.5
 done
 
 # Check cache metrics after requests
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health")
 
 if echo "$RESPONSE" | jq -e '.cache.hitRate' >/dev/null 2>&1; then
     HIT_RATE=$(echo "$RESPONSE" | jq -r '.cache.hitRate')
@@ -111,7 +111,7 @@ ENDPOINTS=(
 )
 
 for endpoint in "${ENDPOINTS[@]}"; do
-    timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" \
+    timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" \
         "$API_BASE$endpoint" >/dev/null 2>&1
     sleep 0.3
 done
@@ -122,7 +122,7 @@ echo ""
 # Test 4: Cache health status levels
 echo -e "${BLUE}Test 4: Cache Health Status Assessment${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health")
 
 if echo "$RESPONSE" | jq -e '.cache.status' >/dev/null 2>&1; then
     STATUS=$(echo "$RESPONSE" | jq -r '.cache.status')
@@ -148,15 +148,15 @@ echo -e "${BLUE}Test 5: Multi-Layer Cache Metrics${NC}"
 ENDPOINT="/api/v1/sentiment/symbols/MSFT"
 
 # First request (cache miss)
-timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE$ENDPOINT" >/dev/null 2>&1
+timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE$ENDPOINT" >/dev/null 2>&1
 sleep 0.2
 
 # Second request (should hit L1)
-timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE$ENDPOINT" >/dev/null 2>&1
+timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE$ENDPOINT" >/dev/null 2>&1
 sleep 0.2
 
 # Third request (should hit L1 again)
-timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE$ENDPOINT" >/dev/null 2>&1
+timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE$ENDPOINT" >/dev/null 2>&1
 
 test_passed "Multi-layer cache operations completed"
 echo ""
@@ -167,7 +167,7 @@ echo -e "${BLUE}Test 6: Cache Performance Under Concurrent Load${NC}"
 # Make 3 concurrent requests to test cache under load
 pids=()
 for i in {1..3}; do
-    timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" \
+    timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" \
         "$API_BASE/api/v1/sentiment/analysis" >/dev/null 2>&1 &
     pids+=($!)
 done
@@ -183,7 +183,7 @@ echo ""
 # Test 7: Cache metrics after system activity
 echo -e "${BLUE}Test 7: Cache Metrics Accuracy${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health")
 
 if echo "$RESPONSE" | jq -e '.cache' >/dev/null 2>&1; then
     # Extract cache stats
@@ -220,7 +220,7 @@ ENDPOINT_PASSED=0
 
 for endpoint in "${API_V1_ENDPOINTS[@]}"; do
     ENDPOINT_TESTS=$((ENDPOINT_TESTS + 1))
-    if timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE$endpoint" | \
+    if timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE$endpoint" | \
        jq -e '.success == true' >/dev/null 2>&1; then
         ENDPOINT_PASSED=$((ENDPOINT_PASSED + 1))
     fi
@@ -238,16 +238,16 @@ echo ""
 echo -e "${BLUE}Test 9: Cache Metrics Consistency${NC}"
 
 # Get initial metrics
-METRICS1=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health" | \
+METRICS1=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health" | \
            jq -r '.cache.hitRate // 0')
 
 # Make some more requests
-timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" \
+timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" \
     "$API_BASE/api/v1/sentiment/symbols/GOOGL" >/dev/null 2>&1
 sleep 0.5
 
 # Get updated metrics
-METRICS2=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health" | \
+METRICS2=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health" | \
            jq -r '.cache.hitRate // 0')
 
 # Metrics should be consistent (either same or increased)
@@ -261,7 +261,7 @@ echo ""
 # Test 10: Cache system integration health
 echo -e "${BLUE}Test 10: Overall Cache System Integration${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health")
 
 if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
     # Check overall system health with cache

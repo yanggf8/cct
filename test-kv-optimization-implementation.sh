@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 LOG_FILE="kv-optimization-$(date +%Y%m%d-%H%M%S).log"
 
@@ -56,7 +56,7 @@ make_request() {
 
     local response=$(curl -s -w '%{http_code}' \
         -X "$method" \
-        -H "X-API-KEY: $API_KEY" \
+        -H "X-API-KEY: $X_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$data" \
         --max-time $TIMEOUT \
@@ -245,8 +245,8 @@ echo -e "  4. Monitor KV usage metrics for validation"
 echo -e "  5. Gradual production rollout with monitoring"
 
 echo -e "\n${GREEN}🔍 Monitoring Commands:${NC}"
-echo -e "  • Monitor cache metrics: curl -H 'X-API-KEY: $API_KEY' $API_URL/cache-metrics"
-echo -e "  • Check optimization stats: curl -H 'X-API-KEY: $API_KEY' $API_URL/health"
+echo -e "  • Monitor cache metrics: curl -H 'X-API-KEY: $X_API_KEY' $API_URL/cache-metrics"
+echo -e "  • Check optimization stats: curl -H 'X-API-KEY: $X_API_KEY' $API_URL/health"
 echo -e "  • Test optimized endpoints: ./test-kv-usage-tracking.sh"
 
 echo -e "\n${GREEN}📋 Log saved to: $LOG_FILE${NC}"

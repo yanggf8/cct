@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=60
 
 # Colors
@@ -33,7 +33,7 @@ test_endpoint() {
 
     local start_time=$(date +%s)
     local response=$(timeout $TIMEOUT curl -s \
-        -H "X-API-KEY: $API_KEY" \
+        -H "X-API-KEY: $X_API_KEY" \
         -w "\nHTTP_CODE:%{http_code}" \
         "$API_BASE$endpoint" 2>/dev/null)
     local end_time=$(date +%s)
@@ -104,7 +104,7 @@ TESTS_TOTAL=$((TESTS_TOTAL + 1))
 echo -e "${YELLOW}Testing error handling...${NC}"
 echo "Endpoint: /api/sectors/invalid"
 error_response=$(timeout 30 curl -s \
-    -H "X-API-KEY: $API_KEY" \
+    -H "X-API-KEY: $X_API_KEY" \
     -w "\nHTTP_CODE:%{http_code}" \
     "$API_BASE/api/sectors/invalid" 2>/dev/null)
 
@@ -125,7 +125,7 @@ echo "Making concurrent requests to test semaphore..."
 # Make 3 concurrent requests to test the semaphore limit
 pids=""
 for i in {1..3}; do
-    timeout 30 curl -s -H "X-API-KEY: $API_KEY" \
+    timeout 30 curl -s -H "X-API-KEY: $X_API_KEY" \
         "$API_BASE/api/sectors/test" > "/tmp/test_$i.log" 2>/dev/null &
     pids="$pids $!"
 done

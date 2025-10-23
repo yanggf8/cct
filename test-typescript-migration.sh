@@ -10,7 +10,7 @@ echo ""
 
 # Configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 
 # Color codes for output
@@ -37,7 +37,7 @@ run_test() {
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
     # Run curl command
-    if response=$(timeout $TIMEOUT curl -s -H "X-API-KEY: $API_KEY" "$endpoint" 2>/dev/null); then
+    if response=$(timeout $TIMEOUT curl -s -H "X-API-KEY: $X_API_KEY" "$endpoint" 2>/dev/null); then
         # Check if response contains expected field
         if echo "$response" | jq -e ".$expected_field" >/dev/null 2>&1; then
             echo -e "${GREEN}✅ PASSED${NC}"
@@ -73,7 +73,7 @@ run_status_test() {
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
     # Run curl command
-    if status_code=$(timeout $TIMEOUT curl -s -o /dev/null -w "%{http_code}" -H "X-API-KEY: $API_KEY" "$endpoint" 2>/dev/null); then
+    if status_code=$(timeout $TIMEOUT curl -s -o /dev/null -w "%{http_code}" -H "X-API-KEY: $X_API_KEY" "$endpoint" 2>/dev/null); then
         if [ "$status_code" -eq "$expected_status" ]; then
             echo -e "${GREEN}✅ PASSED${NC} - Status: $status_code"
             PASSED_TESTS=$((PASSED_TESTS + 1))
@@ -175,7 +175,7 @@ fi
 echo ""
 
 # Test 20: Method Not Allowed (POST on GET endpoint)
-if post_response=$(timeout $TIMEOUT curl -s -X POST -H "X-API-KEY: $API_KEY" "$API_BASE/health" -o /dev/null -w "%{http_code}" 2>/dev/null); then
+if post_response=$(timeout $TIMEOUT curl -s -X POST -H "X-API-KEY: $X_API_KEY" "$API_BASE/health" -o /dev/null -w "%{http_code}" 2>/dev/null); then
     if [ "$post_response" -eq "405" ]; then
         echo -e "${GREEN}✅ Test $TOTAL_TESTS: Method Not Allowed${NC} - Status: $post_response (Expected: 405)"
         PASSED_TESTS=$((PASSED_TESTS + 1))

@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=60
 LOG_FILE="test-results-$(date +%Y%m%d-%H%M%S).log"
 FAILED_TESTS=()
@@ -62,7 +62,7 @@ make_request() {
         curl_cmd="$curl_cmd -X POST -H 'Content-Type: application/json' -d '$data'"
     fi
 
-    curl_cmd="$curl_cmd -H 'X-API-KEY: $API_KEY' '$API_URL$endpoint'"
+    curl_cmd="$curl_cmd -H 'X-API-KEY: $X_API_KEY' '$API_URL$endpoint'"
 
     local http_code=$(eval "$curl_cmd")
 

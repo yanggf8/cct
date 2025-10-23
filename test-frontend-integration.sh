@@ -21,7 +21,7 @@ echo ""
 
 # Test configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 
 # Test results
@@ -88,7 +88,7 @@ echo ""
 
 # Test 3: model-health endpoint (was returning 405)
 echo -e "${BLUE}Test 3: Model Health Endpoint${NC}"
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/model-health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/model-health")
 
 if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
     test_passed "model-health endpoint returns JSON (405 fix verified)"
@@ -119,7 +119,7 @@ echo ""
 echo -e "${BLUE}Test 5: X-API-Key Header Standardization${NC}"
 
 # Test with correct header format
-RESPONSE1=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/sentiment/market")
+RESPONSE1=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/sentiment/market")
 
 if echo "$RESPONSE1" | jq -e '.success == true' >/dev/null 2>&1; then
     test_passed "X-API-Key header format standardization working"
@@ -173,7 +173,7 @@ API_PASSED=0
 
 for endpoint in "${REPORT_ENDPOINTS[@]}"; do
     API_TESTS=$((API_TESTS + 1))
-    RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE$endpoint")
+    RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE$endpoint")
 
     if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
         API_PASSED=$((API_PASSED + 1))
@@ -240,13 +240,13 @@ echo ""
 # Test 11: Sector API backend functionality
 echo -e "${BLUE}Test 11: Sector API Backend Functionality${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/sectors/health")
+RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/sectors/health")
 
 if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
     test_passed "Sector API backend operational"
 
     # Test sector snapshot endpoint
-    RESPONSE2=$(timeout 45 curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/sectors/snapshot")
+    RESPONSE2=$(timeout 45 curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/sectors/snapshot")
 
     if echo "$RESPONSE2" | jq -e '.success == true' >/dev/null 2>&1; then
         test_passed "Sector snapshot endpoint with fallback functionality"
@@ -297,7 +297,7 @@ V1_PASSED=0
 
 for endpoint in "${ENDPOINTS[@]}"; do
     V1_TESTS=$((V1_TESTS + 1))
-    RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE$endpoint")
+    RESPONSE=$(timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE$endpoint")
 
     if echo "$RESPONSE" | jq -e '.success == true' >/dev/null 2>&1; then
         V1_PASSED=$((V1_PASSED + 1))
@@ -323,7 +323,7 @@ fi
 
 # Test API endpoints
 API_OK=false
-if timeout $TIMEOUT curl -s -H "X-API-Key: $API_KEY" "$API_BASE/api/v1/data/health" | \
+if timeout $TIMEOUT curl -s -H "X-API-Key: $X_API_KEY" "$API_BASE/api/v1/data/health" | \
    jq -e '.success == true' >/dev/null 2>&1; then
     API_OK=true
 fi

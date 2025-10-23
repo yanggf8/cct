@@ -8,7 +8,7 @@ set -e
 
 # Configuration
 API_BASE="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=60
 
 # Colors
@@ -38,7 +38,7 @@ api_call() {
     local data="$3"
 
     local curl_cmd="timeout $TIMEOUT curl -s -w \"\nHTTP_CODE:%{http_code}\" -X $method"
-    curl_cmd="$curl_cmd -H \"X-API-KEY: $API_KEY\""
+    curl_cmd="$curl_cmd -H \"X-API-KEY: $X_API_KEY\""
 
     if [[ -n "$data" ]]; then
         curl_cmd="$curl_cmd -H \"Content-Type: application/json\" -d '$data'"

@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="yanggf"
+X_API_KEY="yanggf"
 TIMEOUT=30
 LOG_FILE="kv-usage-$(date +%Y%m%d-%H%M%S).log"
 
@@ -49,7 +49,7 @@ make_request_with_metrics() {
     # Make requests
     for i in $(seq 1 $request_count); do
         curl -s -w '%{http_code}' -o /dev/null \
-            -H "X-API-KEY: $API_KEY" \
+            -H "X-API-KEY: $X_API_KEY" \
             --max-time $TIMEOUT \
             "$API_URL$endpoint" > /dev/null
         sleep 0.1  # Small delay between requests
@@ -76,7 +76,7 @@ make_request_with_metrics() {
 
 # Get current cache metrics
 get_cache_metrics() {
-    curl -s -H "X-API-KEY: $API_KEY" \
+    curl -s -H "X-API-KEY: $X_API_KEY" \
         --max-time $TIMEOUT \
         "$API_URL/cache-metrics" 2>/dev/null | jq -r '.cacheStats // {}'
 }
@@ -230,7 +230,7 @@ main() {
 
     # Test basic connectivity
     echo -e "${YELLOW}Testing API connectivity...${NC}"
-    if ! curl -s -f -H "X-API-KEY: $API_KEY" --max-time $TIMEOUT "$API_URL/health" > /dev/null; then
+    if ! curl -s -f -H "X-API-KEY: $X_API_KEY" --max-time $TIMEOUT "$API_URL/health" > /dev/null; then
         echo -e "${RED}ERROR: Cannot connect to API${NC}"
         exit 1
     fi
