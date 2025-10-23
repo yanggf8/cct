@@ -55,8 +55,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Critical Security Fix**: Resolved environment variable mismatch (API_KEY vs WORKER_API_KEY)
 - **Proper Authentication**: X-API-KEY header validation with multi-source support
 - **Production Security**: No hardcoded API keys in source code
-- **Server Environment Variables**: Support for API_KEY, TRADING_API_KEY, APP_API_KEY, API_KEYS (Cloudflare secrets)
-- **Client Testing Variable**: X_API_KEY for local testing (matches X-API-KEY HTTP header)
+- **Consistent Environment Variable**: X_API_KEY used everywhere (server and client)
+- **Cloudflare Workers**: Set as secret `wrangler secret put X_API_KEY`
+- **Local Testing**: Set as environment variable `export X_API_KEY="your_api_key"`
 - **Test Script Validation**: All 18 test scripts validate X_API_KEY before execution with helpful error messages
 - **Configuration Management**: Security best practices documented in wrangler.toml
 

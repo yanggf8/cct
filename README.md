@@ -180,10 +180,8 @@ The enhanced cache system has been successfully deployed and validated with ente
 The system uses enterprise-grade security with multi-source API key validation:
 
 **Supported Environment Variables:**
-- `API_KEY` - Primary API key for X-API-KEY header validation
-- `TRADING_API_KEY` - Domain-specific trading API access
-- `APP_API_KEY` - General application API access
-- `API_KEYS` - Comma-separated list of multiple API keys
+- `X_API_KEY` - Primary API key for X-API-KEY header validation (single source of truth)
+- `API_KEYS` - Comma-separated list of multiple API keys (backup/legacy support)
 
 **Authentication Headers:**
 - `X-API-KEY` - Case-insensitive API key validation
@@ -197,19 +195,19 @@ The system uses enterprise-grade security with multi-source API key validation:
 
 ### **Environment Setup**
 
-**Server-Side (Cloudflare Workers):**
+**Production (Cloudflare Workers):**
 ```bash
-# Set your production API key
-wrangler secret put API_KEY
+# Set your API key (matches X-API-KEY header)
+wrangler secret put X_API_KEY
 
-# Or set multiple keys
+# Or set multiple keys for backup
 wrangler secret put API_KEYS "key1,key2,key3"
 
 # Verify configuration
 wrangler secret list
 ```
 
-**Client-Side (Local Testing):**
+**Local Testing:**
 ```bash
 # Add to ~/.zshrc or ~/.bashrc
 export X_API_KEY="your_api_key"
@@ -219,8 +217,9 @@ X_API_KEY="your_api_key" ./test-script.sh
 ```
 
 **Key Naming Convention:**
-- **Server**: `API_KEY`, `TRADING_API_KEY`, `APP_API_KEY` (Cloudflare secrets)
-- **Client**: `X_API_KEY` (matches `X-API-KEY` HTTP header for testing)
+- **Single Source of Truth**: `X_API_KEY` (matches `X-API-KEY` HTTP header everywhere)
+- **Cloudflare Workers**: Set as secret `wrangler secret put X_API_KEY`
+- **Local Testing**: Set as environment variable `export X_API_KEY="your_api_key"`
 
 ## 🚀 Quick Start
 

@@ -278,10 +278,10 @@ function validateRequest(request: Request, url: URL, env: CloudflareEnvironment)
 
   // For API endpoints, check for API key
   if (url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/v1/')) {
-    const apiKey = request.headers.get('X-API-Key');
-    // Use proper environment variable for X-API-KEY header
+    const apiKey = request.headers.get('X-API-KEY');
+    // Use X_API_KEY environment variable consistently
     const configuredApiKeys = env.API_KEYS ? env.API_KEYS.split(',') : [];
-    const validKeys = [env.API_KEY, env.TRADING_API_KEY, env.APP_API_KEY, ...configuredApiKeys];
+    const validKeys = [env.X_API_KEY, ...configuredApiKeys];
 
     if (!apiKey || !validKeys.includes(apiKey)) {
       return { valid: false, error: 'Invalid or missing API key' };
@@ -296,10 +296,10 @@ function validateRequest(request: Request, url: URL, env: CloudflareEnvironment)
   ];
 
   if (sensitiveEndpoints.includes(url.pathname)) {
-    const apiKey = request.headers.get('X-API-Key');
-    // Use proper environment variable for X-API-KEY header
+    const apiKey = request.headers.get('X-API-KEY');
+    // Use X_API_KEY environment variable consistently
     const configuredApiKeys = env.API_KEYS ? env.API_KEYS.split(',') : [];
-    const validKeys = [env.API_KEY, env.TRADING_API_KEY, env.APP_API_KEY, ...configuredApiKeys];
+    const validKeys = [env.X_API_KEY, ...configuredApiKeys];
 
     if (!apiKey || !validKeys.includes(apiKey)) {
       return { valid: false, error: 'API key required for this endpoint' };

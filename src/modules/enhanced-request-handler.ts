@@ -287,10 +287,10 @@ export class EnhancedRequestHandler {
     const { getAnalysisResultsByDate } = await import('../modules/data.js');
 
     // Validate API key for sensitive endpoint
-    const apiKey = request.headers.get('X-API-Key');
-    // Use proper environment variable for X-API-KEY header
+    const apiKey = request.headers.get('X-API-KEY');
+    // Use X_API_KEY environment variable consistently
     const configuredApiKeys = this.env.API_KEYS ? this.env.API_KEYS.split(',') : [];
-    const validKeys = [this.env.API_KEY, this.env.TRADING_API_KEY, this.env.APP_API_KEY, ...configuredApiKeys];
+    const validKeys = [this.env.X_API_KEY, ...configuredApiKeys];
 
     if (!apiKey || !validKeys.includes(apiKey)) {
       const body = ApiResponseFactory.error(
