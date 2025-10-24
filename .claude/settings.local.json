@@ -34,7 +34,10 @@
       "Bash(X_API_KEY=\"yanggf\" ./test-frontend-integration.sh)",
       "Bash(npm install:*)",
       "Bash(npm run dev:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(X_API_KEY=\"yanggf\" timeout 30 ./test-cache-metrics.sh:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.cloudflare.com)"
     ],
     "deny": [],
     "ask": []

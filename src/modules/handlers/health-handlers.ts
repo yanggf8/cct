@@ -89,14 +89,14 @@ export async function handleModelHealth(
     if (env.AI) {
       try {
         // Test GPT-OSS model with minimal input
-        const gptTest = await env.AI.run('@cf/openchat/openchat-3.5-0106', {
+        const gptTest = await env.AI.run('@cf/gpt-oss-120b', {
           messages: [{ role: 'user', content: 'Test' }],
           max_tokens: 5
         });
 
         healthResults.models.gpt_oss_120b = {
           status: 'healthy',
-          model: '@cf/openchat/openchat-3.5-0106',
+          model: '@cf/gpt-oss-120b',
           test_response: gptTest?.response || 'Success',
           latency_ms: 'measured'
         };

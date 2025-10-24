@@ -726,7 +726,7 @@ async function handleSystemHealth(
 async function checkGPTModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
   try {
     const start = Date.now();
-    const result = await env.AI.run('@cf/openchat/openchat-3.5-0106', {
+    const result = await env.AI.run('@cf/gpt-oss-120b', {
       messages: [{ role: 'user', content: 'Health check test message' }],
       temperature: 0.1,
       max_tokens: 50
