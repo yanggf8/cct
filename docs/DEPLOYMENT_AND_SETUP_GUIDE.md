@@ -89,6 +89,22 @@ npm run build
 npm run test:dependencies
 ```
 
+### Local Development Setup
+```bash
+# Set up environment variable for local development
+export X_API_KEY="your_api_key"
+
+# Start local development server with Miniflare
+npm run dev
+```
+
+The local development server will be available at `http://localhost:8787` with:
+- Local KV storage simulation
+- R2 bucket simulation
+- AI binding connectivity
+- Hot reload development
+- Health endpoint debugging capabilities
+
 ## Configuration
 
 ### Cloudflare Workers Setup
