@@ -823,7 +823,9 @@ async function checkCacheHealth(env: CloudflareEnvironment): Promise<{
   try {
     // Create CacheManager instance to get real metrics
     // Use enhanced cache factory for better KV efficiency
-  const cacheManager = EnhancedCacheFactory.createCacheManager(env);
+    const { EnhancedCacheFactoryImpl } = await import('../modules/enhanced-cache-factory.js');
+    const cacheFactory = EnhancedCacheFactoryImpl.getInstance();
+    const cacheManager = cacheFactory.createCacheManager(env);
 
     // Test cache operations
     const testKey = 'cache_health_test';

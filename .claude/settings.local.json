@@ -23,7 +23,18 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(find:*)",
-      "Bash(/tmp/update-maintenance-guide.sh:*)"
+      "Bash(/tmp/update-maintenance-guide.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" timeout 60 ./test-final-validation.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-final-validation.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-enhanced-cache-integration.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-auth-security.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-ai-model-stability.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-simple-validation.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-cache-metrics.sh:*)",
+      "Bash(X_API_KEY=\"yanggf\" ./test-frontend-integration.sh)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
