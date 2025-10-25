@@ -37,7 +37,9 @@
       "Bash(curl:*)",
       "Bash(X_API_KEY=\"yanggf\" timeout 30 ./test-cache-metrics.sh:*)",
       "WebSearch",
-      "WebFetch(domain:developers.cloudflare.com)"
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(X_API_KEY=\"yanggf\" bash -c 'source ./test-ai-model-stability.sh 2>&1 | head -40')",
+      "Bash(X_API_KEY=\"yanggf\" timeout 30 ./test-enhanced-cache-integration.sh:*)"
     ],
     "deny": [],
     "ask": []
