@@ -144,6 +144,8 @@ export async function handleApiV1Request(
       else if (requestedPath === '/cache/warmup') cachePath = '/cache-warmup';
       else if (requestedPath === '/cache/stats') cachePath = '/cache-system-status';
       else if (requestedPath === '/cache/status') cachePath = '/cache-system-status';
+      else if (requestedPath === '/cache/timestamps') cachePath = '/cache-timestamps';
+      else if (requestedPath === '/cache/debug') cachePath = '/cache-debug';
 
       // Find matching cache route
       for (const route of cacheRoutes) {
@@ -283,6 +285,8 @@ export async function handleApiV1Request(
               warmup: 'POST /api/v1/cache/warmup',
               status: 'GET /api/v1/cache/status',
               stats: 'GET /api/v1/cache/stats',
+              timestamps: 'GET /api/v1/cache/timestamps?namespace=sentiment_analysis&key=AAPL_sentiment',
+              debug: 'GET /api/v1/cache/debug?namespace=sentiment_analysis&key=AAPL_sentiment',
             },
           } as ApiDocumentation['available_endpoints'],
           documentation: 'https://github.com/yanggf8/cct',

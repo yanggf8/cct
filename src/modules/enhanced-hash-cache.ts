@@ -18,6 +18,10 @@ export interface EnhancedCacheEntry<T> {
   lastAccessed: number; // For LRU eviction
   hits: number; // Access count for statistics
   size: number; // Estimated size in bytes
+  // Timestamp information for L1/L2 cache tracking
+  l1Timestamp: number; // L1 cache creation timestamp
+  l2Timestamp?: number; // L2 cache creation timestamp (if available)
+  cacheSource: 'l1' | 'l2' | 'fresh'; // Source of cache entry
 }
 
 /**
@@ -32,6 +36,20 @@ export interface EnhancedCacheStats {
   hitRate: number;
   oldestEntry?: number; // Age of oldest entry in seconds
   newestEntry?: number; // Age of newest entry in seconds
+}
+
+/**
+ * Cache timestamp information for API responses
+ */
+export interface CacheTimestampInfo {
+  l1Timestamp: string; // ISO string of L1 cache time
+  l2Timestamp?: string; // ISO string of L2 cache time (if available)
+  cacheSource: 'l1' | 'l2' | 'fresh'; // Source of the data
+  ageSeconds: number; // Age of the data in seconds
+  ttlSeconds: number; // Original TTL
+  expiresAt: string; // Expiration time (ISO string)
+  isStale: boolean; // Whether data is in grace period
+  isWithinGracePeriod: boolean; // Whether data is within grace period
 }
 
 /**
@@ -172,6 +190,9 @@ export class EnhancedHashCache<T = any> {
       lastAccessed: now,
       hits: 0,
       size,
+      l1Timestamp: now,
+      l2Timestamp: undefined, // Will be set when promoted from L2
+      cacheSource: 'fresh', // Fresh data initially
     };
 
     // Check if we need to evict before adding
@@ -549,6 +570,44 @@ export class EnhancedHashCache<T = any> {
    */
   isStaleWhileRevalidateEnabled(): boolean {
     return this.config.enableStaleWhileRevalidate;
+  }
+
+  /**
+   * Get timestamp information for a cache entry
+   */
+  getTimestampInfo(key: string): CacheTimestampInfo | null {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return null;
+    }
+
+    const now = Date.now();
+    const ageSeconds = Math.floor((now - entry.l1Timestamp) / 1000);
+    const ttlSeconds = Math.floor((entry.expiresAt - entry.l1Timestamp) / 1000);
+    const isExpired = now > entry.expiresAt;
+    const gracePeriodEnd = entry.expiresAt + (this.config.staleGracePeriod * 1000);
+    const isWithinGracePeriod = isExpired && now < gracePeriodEnd;
+
+    return {
+      l1Timestamp: new Date(entry.l1Timestamp).toISOString(),
+      l2Timestamp: entry.l2Timestamp ? new Date(entry.l2Timestamp).toISOString() : undefined,
+      cacheSource: entry.cacheSource,
+      ageSeconds,
+      ttlSeconds,
+      expiresAt: new Date(entry.expiresAt).toISOString(),
+      isStale: isExpired,
+      isWithinGracePeriod
+    };
+  }
+
+  /**
+   * Get data with timestamp information
+   */
+  async getWithTimestampInfo<T>(key: string): Promise<{ data: T | null, timestampInfo: CacheTimestampInfo | null }> {
+    const data = await this.get<T>(key);
+    const timestampInfo = this.getTimestampInfo(key);
+
+    return { data, timestampInfo };
   }
 }
 

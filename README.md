@@ -4,7 +4,7 @@
 
 **Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis, predictive analytics dashboard, comprehensive data access modernization, enhanced intelligent caching, and real-time sector rotation analysis. Successfully implementing enterprise-grade architecture with RESTful API v1, DAC-inspired multi-level caching, and interactive AI-powered dashboards.
 
-**Current Status**: Production-Ready AI Trading Intelligence System ✅ **FULLY VALIDATED - L2 Cache 24-Hour Persistence & Automated Cache Warming (Updated 2025-10-27)**
+**Current Status**: Production-Ready AI Trading Intelligence System ✅ **FULLY VALIDATED - L1/L2 Timestamp Display & Cache Visibility (Updated 2025-10-27)**
 
 ## 🚀 System Status
 
@@ -12,7 +12,8 @@
 
 ### **📊 System Capabilities Overview**
 
-- ✅ **Enhanced Caching System v2.0**: DAC-inspired intelligent caching with L1/L2 architecture, memory management, and health monitoring - **PRODUCTION VALIDATED!**
+- ✅ **Enhanced Caching System v2.1**: DAC-inspired intelligent caching with L1/L2 architecture, memory management, and health monitoring - **PRODUCTION VALIDATED!**
+- ✅ **L1/L2 Timestamp Display**: Complete visibility into cache freshness with detailed timestamp tracking - **NEW!**
 - ✅ **24-Hour L2 Cache Persistence**: All cache namespaces now persist for 24 hours (86400 seconds) - **NEW!**
 - ✅ **Automated Cache Warming**: GitHub Actions with 5 daily warming schedules - **NEW!**
 - ✅ **Stale-While-Revalidate Pattern**: Background refresh with 10-minute grace period - **NEW!**
@@ -20,7 +21,7 @@
 - ✅ **Centralized Configuration**: Environment-aware cache management with 7 namespaces - **PRODUCTION VALIDATED!**
 - ✅ **Real-Time Health Monitoring**: 0-100 scoring with issue detection and recommendations - **PRODUCTION VALIDATED!**
 - ✅ **Playwright Performance Testing**: Real user workflow testing with 64.7% pass rate and performance baselines - **PRODUCTION VALIDATED!**
-- ✅ **Comprehensive Testing Suite**: 7 enhanced cache endpoints with 87.5% integration test pass rate - **VALIDATED!**
+- ✅ **Comprehensive Testing Suite**: 9 enhanced cache endpoints with 87.5% integration test pass rate - **VALIDATED!**
 - ✅ **TypeScript Migration Complete**: 99.9% migration with comprehensive type safety across the codebase
 - ✅ **API v1 RESTful Architecture**: 60+ endpoints with standardized responses and error handling
 - ✅ **Multi-Level Caching**: 70-85% hit rate achieved with intelligent cache warming
@@ -36,8 +37,9 @@
 
 ### **🏆 Key System Components**
 
-#### **Enhanced Caching System (v2.0)**
+#### **Enhanced Caching System (v2.1)**
 - **Intelligent L1/L2 Architecture**: Enhanced HashCache with memory-based limits and LRU eviction
+- **L1/L2 Timestamp Display**: Complete visibility into cache freshness with detailed timestamp tracking - **NEW!**
 - **24-Hour L2 Cache Persistence**: All cache namespaces persist for 24 hours (86400 seconds) - **NEW!**
 - **Automated Cache Warming**: GitHub Actions with 5 strategic daily warming schedules - **NEW!**
 - **Stale-While-Revalidate Pattern**: 10-minute grace period with background refresh - **NEW!**
@@ -157,7 +159,117 @@
 - **Maximum Cost Efficiency**: 90-95% reduction in KV operations
 - **Zero User Impact**: Stale-While-Revalidate provides seamless experience
 - **24/7 Reliability**: Automated warming ensures data freshness
+- **Complete Cache Visibility**: Real-time timestamp tracking and freshness monitoring
+- **Advanced Debugging**: Detailed cache entry information for optimization
 - **Scalable Architecture**: Handles high traffic with minimal KV costs
+
+## 🕐 L1/L2 Timestamp Display Implementation (2025-10-27)
+
+### **✅ COMPLETE IMPLEMENTATION**
+
+#### **Cache Timestamp Tracking System**
+- **L1/L2 Timestamp Fields**: Each cache entry tracks creation times for both cache levels
+- **Cache Source Tracking**: Identifies whether data comes from L1, L2, or fresh computation
+- **Freshness Status**: Real-time freshness indicators (FRESH, STALE, FRESH_IN_GRACE)
+- **Age Calculation**: Human-readable age formatting (e.g., "5m 30s", "2h 15m")
+
+#### **New API Endpoints**
+- **`/api/v1/cache/timestamps`**: Get detailed timestamp information for specific cache entries
+- **`/api/v1/cache/debug`**: Comprehensive cache debugging with timestamp analytics
+- **Enhanced `/api/v1/cache/metrics`**: Timestamp statistics and cache age distribution
+
+#### **Real-Time Visibility Features**
+- **Timestamp Information**: L1/L2 creation times, expiration, and age tracking
+- **Freshness Monitoring**: Grace period status and staleness indicators
+- **Cache Context**: Hit rates, memory usage, and entry statistics
+- **Performance Analytics**: Age distribution and timestamp-based metrics
+
+### 📊 **API Response Examples**
+
+#### **Timestamp Endpoint Response**:
+```json
+{
+  "success": true,
+  "timestampInfo": {
+    "l1Timestamp": "2025-10-27T08:49:10.903Z",
+    "l2Timestamp": "2025-10-27T08:45:00.000Z",
+    "cacheSource": "l1",
+    "ageSeconds": 300,
+    "ageFormatted": "5m 0s",
+    "freshnessStatus": "FRESH",
+    "isWithinGracePeriod": false
+  },
+  "cacheContext": {
+    "l1HitRate": 85,
+    "memoryUsage": "2.45 MB"
+  }
+}
+```
+
+#### **Enhanced Metrics Response**:
+```json
+{
+  "timestampStats": {
+    "totalEntries": 45,
+    "oldestEntry": "12m 30s",
+    "newestEntry": "30s",
+    "averageAge": "4m 15s",
+    "hitRate": "85%"
+  },
+  "features": {
+    "timestampsEnabled": true,
+    "staleWhileRevalidate": true,
+    "gracePeriodSeconds": 600
+  }
+}
+```
+
+### 🔧 **Technical Implementation**
+
+#### **Enhanced Cache Entry Structure**:
+```typescript
+export interface EnhancedCacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+  lastAccessed: number;
+  hits: number;
+  size: number;
+  // NEW: Timestamp tracking fields
+  l1Timestamp: number;
+  l2Timestamp?: number;
+  cacheSource: 'l1' | 'l2' | 'fresh';
+}
+```
+
+#### **Cache Manager Methods**:
+- `getWithTimestampInfo<T>()`: Get data with timestamp metadata
+- `getTimestampInfo()`: Get timestamp information for cached entry
+- `getL1TimestampInfo()`: Get L1 cache timestamp for monitoring
+
+#### **Helper Functions**:
+- `formatAge()`: Convert seconds to human-readable format
+- `formatTimeRemaining()`: Calculate time until expiration
+- `getFreshnessStatus()`: Determine freshness status with grace period
+
+### 🎯 **Benefits**
+
+#### **For Developers**:
+- **Complete visibility** into cache freshness and performance
+- **Debugging capabilities** with detailed timestamp information
+- **Performance monitoring** with age distribution and hit rates
+- **Cache optimization insights** through timestamp analytics
+
+#### **For Operations**:
+- **Cache health monitoring** with age and freshness metrics
+- **Performance tracking** with timestamp-based analytics
+- **Troubleshooting tools** for cache-related issues
+- **Resource utilization insights** through timestamp patterns
+
+#### **For Users**:
+- **Faster responses** through optimized cache management
+- **Reliable data** with freshness tracking
+- **Transparent performance** through cache status visibility
 
 ### **🎭 Playwright Performance Test Results (2025-10-20)**
 

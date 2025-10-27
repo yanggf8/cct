@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **📖 CURRENT STATUS**: Enterprise-grade AI trading intelligence system with X_API_KEY standardization
 **Status**: **100% Production Ready** with Enterprise-Grade Security & Complete Environment Variable Standardization ✅ **PRODUCTION VALIDATED**
-**Current Version**: Latest (2025-10-27 - L2 Cache 24-Hour Persistence & Automated Cache Warming Implementation)
+**Current Version**: Latest (2025-10-27 - L1/L2 Timestamp Display & Cache Visibility Implementation)
 **Documentation**: All documentation updated with consistent X_API_KEY usage
 **Test Validation**: Comprehensive validation suite with 20/21 test scripts having environment checks + API connectivity validation
 
@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Phase 5**: L2 24-Hour Persistence - ✅ Complete (86400 seconds universal TTL)
 - **Phase 6**: Automated Cache Warming - ✅ Complete (5 daily warming schedules via GitHub Actions)
 - **Phase 7**: Stale-While-Revalidate - ✅ Complete (10-minute grace period + background refresh)
+- **Phase 8**: L1/L2 Timestamp Display - ✅ Complete (Real-time cache freshness tracking + debugging)
 
 **What's Complete**:
 - ✅ **Phase 1**: Enhanced HashCache - Memory-based L1 cache with intelligent eviction
@@ -56,12 +57,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Performance Optimization**: 10-50x faster cached responses with intelligent memory management ✅ **NEW**
 
 **Recent Achievements (2025-10-27)**:
+- ✅ **L1/L2 Timestamp Display**: Implemented complete cache freshness tracking with detailed timestamp information
+- ✅ **Cache Debugging API**: Added `/cache-timestamps` and `/cache-debug` endpoints for real-time visibility
+- ✅ **Enhanced Metrics with Timestamps**: Updated `/cache-metrics` with age distribution and freshness analytics
 - ✅ **L2 Cache 24-Hour Persistence**: Updated all cache namespaces to 86400 seconds TTL for maximum data availability
 - ✅ **Automated Cache Warming**: Implemented GitHub Actions with 5 strategic daily warming schedules
 - ✅ **Stale-While-Revalidate Pattern**: Enhanced L1 cache with 10-minute grace period and background refresh
-- ✅ **Enhanced Cache Warming Endpoint**: Upgraded `/cache-warmup` with sophisticated warming strategies
-- ✅ **90-95% KV Operation Reduction**: Projected reduction through combined cache optimizations
-- ✅ **Sub-100ms Response Times**: Achieved through pre-warmed critical data and background refresh
+- ✅ **Advanced Cache Visibility**: Real-time freshness status (FRESH, STALE, FRESH_IN_GRACE) with age formatting
+- ✅ **Developer Tools**: Complete cache entry information for optimization and debugging
 
 **Previous Achievements (2025-10-25)**:
 - ✅ **Health Endpoint Debug**: Resolved EnhancedCacheFactory import issue in data routes
@@ -86,7 +89,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Test Script Validation**: All 20/21 test scripts validate X_API_KEY before execution with helpful error messages
 - **Configuration Management**: Security best practices documented in wrangler.toml
 
-### 🚀 Enhanced Cache System v2.0 Documentation
+### 🚀 Enhanced Cache System v2.1 Documentation
+
+**L1/L2 Timestamp Display & Complete Cache Visibility**:
+- **Real-Time Timestamp Tracking**: L1/L2 creation times with age formatting (e.g., "5m 30s")
+- **Freshness Status Monitoring**: FRESH, STALE, FRESH_IN_GRACE indicators with grace period tracking
+- **Cache Source Identification**: Track whether data comes from L1, L2, or fresh computation
+- **New Debugging Endpoints**: `/cache-timestamps` and `/cache-debug` for detailed cache analysis
+- **Enhanced Metrics**: Age distribution, oldest/newest entries, and timestamp-based analytics
+- **Developer Tools**: Complete cache entry information for optimization and debugging
 
 **L2 Cache 24-Hour Persistence & Automated Warming**:
 - **Universal 24-Hour TTL**: All cache namespaces persist for 86400 seconds

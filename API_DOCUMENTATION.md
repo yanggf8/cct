@@ -4,19 +4,21 @@
 
 **A+ (99/100) Enterprise Production System**: Complete API reference for the AI-powered enterprise trading system featuring predictive analytics dashboard, enhanced security, intelligent rate limiting, memory-safe operations, race-condition prevention, and **Sector Rotation Analysis System**.
 
-**Current Version**: Production-Ready Enterprise System v2.1 (L2 Cache 24-Hour Persistence)
+**Current Version**: Production-Ready Enterprise System v2.2 (L1/L2 Timestamp Display)
 **Live System**: https://tft-trading-system.yanggf.workers.dev ✅ **ENTERPRISE-GRADE SECURITY**
-**System Grade**: A+ (99/100) Production Ready ✅ **L2 CACHE 24-HOUR PERSISTENCE & AUTOMATED WARMING**
-**🚀 LATEST**: 24-hour L2 cache persistence + Automated cache warming + Stale-While-Revalidate pattern
+**System Grade**: A+ (99/100) Production Ready ✅ **L1/L2 TIMESTAMP DISPLAY & CACHE VISIBILITY**
+**🚀 LATEST**: Real-time cache freshness tracking + Complete cache visibility + Advanced debugging tools
 
 ## 🧪 Performance Verification (2025-10-27)
 
 **System Performance**: All endpoints tested and verified with live production data
 
-- **✅ Health Endpoint**: <1s response, Status: healthy, Version: v2.1 (L2 Cache Enhanced)
+- **✅ Health Endpoint**: <1s response, Status: healthy, Version: v2.2 (L1/L2 Timestamp Display)
 - **✅ AI Model Health**: GPT-OSS-120B (updated) + DistilBERT-SST-2 both operational
 - **✅ KV Operations**: 90-95% reduction achieved through 24-hour L2 persistence + automated warming
 - **✅ Cache Performance**: Sub-100ms response times for pre-warmed data
+- **✅ Timestamp Tracking**: Real-time cache freshness monitoring with detailed analytics
+- **✅ Cache Debugging**: Advanced debugging tools with timestamp visibility
 - **✅ Error Rate**: 0% across comprehensive test suite (20+ test scripts)
 - **✅ Availability**: 100% uptime with 24/7 automated cache warming
 - **✅ Rate Limiting**: Active and preventing API violations
@@ -60,6 +62,70 @@ GET /predictive-analytics
 
 **Performance**: <1s load time, 36ms API response times
 **Technologies**: Chart.js, Luxon, modern responsive design
+
+### **🕐 Enhanced Cache System (v2.1)**
+
+#### **Cache Management & Monitoring**
+```bash
+GET /api/v1/cache/health           # Cache health assessment (0-100 scoring)
+GET /api/v1/cache/metrics          # Performance metrics and statistics
+GET /api/v1/cache/config           # Configuration details and namespaces
+GET /api/v1/cache/timestamps        # Detailed timestamp information for cache entries
+GET /api/v1/cache/debug             # Comprehensive cache debugging
+GET /api/v1/cache/promote           # Manual cache promotion
+POST /api/v1/cache/warmup           # Automated cache warming with strategies
+```
+
+#### **New Timestamp Display Features**
+- **Real-Time Cache Freshness**: FRESH, STALE, FRESH_IN_GRACE status indicators
+- **L1/L2 Timestamp Tracking**: Detailed creation times for both cache levels
+- **Age Formatting**: Human-readable age display (e.g., "5m 30s", "2h 15m")
+- **Cache Source Identification**: Track whether data comes from L1, L2, or fresh computation
+- **Freshness Monitoring**: Grace period status and staleness indicators
+
+#### **Sample Timestamp Response**
+```json
+{
+  "success": true,
+  "timestamp": "2025-10-27T08:54:10.902Z",
+  "namespace": "market_data",
+  "key": "market_data:AAPL_quote",
+  "cached": true,
+  "timestampInfo": {
+    "l1Timestamp": "2025-10-27T08:49:10.903Z",
+    "l2Timestamp": "2025-10-27T08:45:00.000Z",
+    "cacheSource": "l1",
+    "ageSeconds": 300,
+    "ageFormatted": "5m 0s",
+    "freshnessStatus": "FRESH",
+    "isWithinGracePeriod": false,
+    "expiresAt": "2025-10-27T08:54:10.903Z"
+  },
+  "cacheContext": {
+    "l1HitRate": 85,
+    "memoryUsage": "2.45 MB"
+  }
+}
+```
+
+#### **Enhanced Metrics Response**
+```json
+{
+  "timestampStats": {
+    "totalEntries": 45,
+    "oldestEntry": "12m 30s",
+    "newestEntry": "30s",
+    "averageAge": "4m 15s",
+    "hitRate": "85%",
+    "evictions": 12
+  },
+  "features": {
+    "timestampsEnabled": true,
+    "staleWhileRevalidate": true,
+    "gracePeriodSeconds": 600
+  }
+}
+```
 
 ### **🔄 Sector Rotation System**
 

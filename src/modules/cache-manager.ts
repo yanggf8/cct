@@ -12,7 +12,7 @@ import { getTimeout, getRetryCount } from './config.js';
 import { ErrorUtils, type RetryOptions } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
 import { cacheMetrics, type CacheNamespace as MetricsCacheNamespace } from './cache-metrics.js';
-import { EnhancedHashCache, createEnhancedHashCache } from './enhanced-hash-cache.js';
+import { EnhancedHashCache, createEnhancedHashCache, type CacheTimestampInfo } from './enhanced-hash-cache.js';
 import { EnhancedOptimizedCacheManager } from './enhanced-optimized-cache-manager.js';
 import {
   getCacheConfig,
@@ -65,6 +65,14 @@ export interface CacheStats {
   l2Size: number;
   evictions: number;
   errors: number;
+}
+
+// Cache response with timestamp information
+export interface CacheResponse<T> {
+  data: T;
+  timestampInfo?: CacheTimestampInfo;
+  source: 'l1' | 'l2' | 'fresh';
+  hit: boolean;
 }
 
 // Cache namespace configuration
@@ -942,6 +950,144 @@ export class CacheManager {
       });
       this.stats.errors++;
     }
+  }
+
+  /**
+   * Get cache response with timestamp information
+   */
+  async getWithTimestampInfo<T>(
+    namespace: string,
+    key: string
+  ): Promise<CacheResponse<T>> {
+    this.stats.totalRequests++;
+    const fullKey = `${namespace}:${key}`;
+    const cacheNs = this.namespaces.get(namespace);
+
+    if (!cacheNs || !cacheNs.l1Config.enabled) {
+      // No caching enabled, return fresh data
+      return {
+        data: null,
+        source: 'fresh',
+        hit: false
+      };
+    }
+
+    try {
+      // Try L1 cache first
+      const l1Result = this.l1Cache.getWithTimestampInfo<T>(fullKey);
+      if (l1Result.data !== null && l1Result.timestampInfo) {
+        this.stats.l1Hits++;
+        cacheMetrics.recordHit('L1', namespace as MetricsCacheNamespace);
+
+        return {
+          data: l1Result.data,
+          timestampInfo: l1Result.timestampInfo,
+          source: 'l1',
+          hit: true
+        };
+      }
+
+      // Record L1 miss only if we attempted L1 lookup
+      cacheMetrics.recordMiss('L1', namespace as MetricsCacheNamespace);
+
+      // Try L2 cache
+      if (cacheNs.l2Config.enabled) {
+        const l2Result = await this.getFromL2WithTimestamp<T>(fullKey, namespace);
+        if (l2Result !== null) {
+          this.stats.l2Hits++;
+          cacheMetrics.recordHit('L2', namespace as MetricsCacheNamespace);
+
+          // Promote to L1 with L2 timestamp
+          await this.setToL1(fullKey, l2Result.data, cacheNs.l1Config.ttl);
+
+          // Get L1 timestamp info after promotion
+          const l1TimestampInfo = this.l1Cache.getTimestampInfo(fullKey);
+
+          return {
+            data: l2Result,
+            timestampInfo: l1TimestampInfo,
+            source: 'l2',
+            hit: true
+          };
+        }
+        // Record L2 miss only if we attempted L2 lookup
+        cacheMetrics.recordMiss('L2', namespace as MetricsCacheNamespace);
+      }
+
+      this.stats.misses++;
+      return {
+        data: null,
+        source: 'fresh',
+        hit: false
+      };
+
+    } catch (error) {
+      logger.error(`Cache getWithTimestampInfo error for ${namespace}:${key}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        namespace,
+        key: fullKey
+      });
+      this.stats.errors++;
+      return {
+        data: null,
+        source: 'fresh',
+        hit: false
+      };
+    }
+  }
+
+  /**
+   * Get L2 cache data with timestamp information
+   */
+  private async getFromL2WithTimestamp<T>(
+    key: string,
+    namespace: string
+  ): Promise<T | null> {
+    const kvKey = this.keyFactory.generateKey(
+        KeyTypes.TEMPORARY,
+        namespace,
+        key
+    );
+
+    const result = await this.dal.read(kvKey);
+    if (!result) return null;
+
+    try {
+      const cacheEntry: CacheEntry<T> = JSON.parse(result);
+      const now = Date.now();
+
+      // Check if expired
+      if (now - cacheEntry.timestamp > (cacheEntry.ttl * 1000)) {
+        await this.dal.deleteKey(kvKey);
+        return null;
+      }
+
+      return cacheEntry.data;
+
+    } catch (error) {
+      logger.error(`L2 cache parse error for ${key}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        key,
+        kvKey
+      });
+      await this.dal.deleteKey(kvKey);
+      return null;
+    }
+  }
+
+  /**
+   * Get timestamp information for a cached entry
+   */
+  getTimestampInfo(namespace: string, key: string): CacheTimestampInfo | null {
+    const fullKey = `${namespace}:${key}`;
+    return this.l1Cache.getTimestampInfo(fullKey);
+  }
+
+  /**
+   * Get L1 cache timestamp information for monitoring
+   */
+  getL1TimestampInfo(key: string): CacheTimestampInfo | null {
+    return this.l1Cache.getTimestampInfo(key);
   }
 }
 

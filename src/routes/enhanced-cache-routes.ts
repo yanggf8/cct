@@ -11,6 +11,46 @@ import { EnhancedCacheFactory } from '../modules/enhanced-cache-factory.js';
 const logger = createLogger('enhanced-cache-routes');
 
 /**
+ * Helper functions for timestamp formatting
+ */
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${seconds % 60}s`;
+  } else {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  }
+}
+
+function formatTimeRemaining(expiresAt: string): string {
+  const now = Date.now();
+  const expiryTime = new Date(expiresAt).getTime();
+  const remainingMs = expiryTime - now;
+
+  if (remainingMs <= 0) {
+    return 'Expired';
+  }
+
+  const remainingSeconds = Math.floor(remainingMs / 1000);
+  return formatAge(remainingSeconds);
+}
+
+function getFreshnessStatus(timestampInfo: any): string {
+  if (timestampInfo.isWithinGracePeriod) {
+    return 'FRESH_IN_GRACE';
+  } else if (timestampInfo.isStale) {
+    return 'STALE';
+  } else {
+    return 'FRESH';
+  }
+}
+
+/**
  * Cache warmup data generators
  * These functions create realistic test data for different cache namespaces
  */
@@ -291,16 +331,35 @@ export function createEnhancedCacheRoutes(env: any) {
         try {
           const stats = cacheManager.getStats();
           const l1Stats = cacheManager.getL1Stats();
+          const l1DetailedInfo = cacheManager.getL1DetailedInfo();
           const promotionStats = cacheManager.getPromotionStats();
           const trends = cacheManager.getPerformanceTrends();
+
+          // Calculate timestamp statistics
+          const timestampStats = {
+            totalEntries: l1Stats.currentSize,
+            oldestEntry: l1Stats.oldestEntry ? formatAge(l1Stats.oldestEntry) : 'N/A',
+            newestEntry: l1Stats.newestEntry ? formatAge(l1Stats.newestEntry) : 'N/A',
+            averageAge: l1DetailedInfo.averageAge ? formatAge(Math.floor(l1DetailedInfo.averageAge)) : 'N/A',
+            memoryUsage: l1DetailedInfo.currentMemoryMB.toFixed(2) + ' MB',
+            hitRate: Math.round(l1Stats.hitRate * 100) + '%',
+            evictions: l1Stats.evictions
+          };
 
           return new Response(JSON.stringify({
             success: true,
             timestamp: new Date().toISOString(),
             cacheStats: stats,
             l1Stats: l1Stats,
+            l1DetailedInfo: l1DetailedInfo,
             promotionStats: promotionStats,
             trends: trends,
+            timestampStats: timestampStats,
+            features: {
+              timestampsEnabled: true,
+              staleWhileRevalidate: cacheManager.l1Cache.isStaleWhileRevalidateEnabled(),
+              gracePeriodSeconds: 600 // 10 minutes
+            }
           }), {
             headers: {
               'Content-Type': 'application/json',
@@ -537,6 +596,170 @@ export function createEnhancedCacheRoutes(env: any) {
           return new Response(JSON.stringify({
             success: false,
             error: 'Cache warmup failed',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/cache-timestamps',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const url = new URL(request.url);
+          const namespace = url.searchParams.get('namespace') || 'sentiment_analysis';
+          const key = url.searchParams.get('key');
+
+          if (!key) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: key',
+              timestamp: new Date().toISOString(),
+              usage: 'GET /cache-timestamps?namespace=sentiment_analysis&key=AAPL_sentiment'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Get timestamp information
+          const timestampInfo = cacheManager.getTimestampInfo(namespace, key);
+
+          if (!timestampInfo) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              message: 'No cache entry found',
+              namespace,
+              key: `${namespace}:${key}`,
+              cached: false
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+
+          // Get L1 cache stats for additional context
+          const l1Stats = cacheManager.getL1Stats();
+          const l1DetailedInfo = cacheManager.getL1DetailedInfo();
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            namespace,
+            key: `${namespace}:${key}`,
+            cached: true,
+            timestampInfo: {
+              l1Timestamp: timestampInfo.l1Timestamp,
+              l2Timestamp: timestampInfo.l2Timestamp,
+              cacheSource: timestampInfo.cacheSource,
+              ageSeconds: timestampInfo.ageSeconds,
+              ttlSeconds: timestampInfo.ttlSeconds,
+              expiresAt: timestampInfo.expiresAt,
+              isStale: timestampInfo.isStale,
+              isWithinGracePeriod: timestampInfo.isWithinGracePeriod,
+              ageFormatted: formatAge(timestampInfo.ageSeconds),
+              timeRemaining: formatTimeRemaining(timestampInfo.expiresAt),
+              freshnessStatus: getFreshnessStatus(timestampInfo)
+            },
+            cacheContext: {
+              l1TotalEntries: l1Stats.currentSize,
+              l1HitRate: Math.round(l1Stats.hitRate * 100),
+              l1Evictions: l1Stats.evictions,
+              memoryUsage: l1DetailedInfo.currentMemoryMB.toFixed(2) + ' MB'
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error) {
+          logger.error('Cache timestamp check failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to retrieve cache timestamp information',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/cache-debug',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const url = new URL(request.url);
+          const namespace = url.searchParams.get('namespace') || 'sentiment_analysis';
+          const key = url.searchParams.get('key');
+
+          if (!key) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: key',
+              timestamp: new Date().toISOString(),
+              usage: 'GET /cache-debug?namespace=sentiment_analysis&key=AAPL_sentiment'
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Get comprehensive cache debug information
+          const timestampInfo = cacheManager.getTimestampInfo(namespace, key);
+          const cacheStats = cacheManager.getStats();
+          const l1Stats = cacheManager.getL1Stats();
+          const healthAssessment = await cacheManager.performHealthAssessment();
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            debugInfo: {
+              namespace,
+              key: `${namespace}:${key}`,
+              cacheStatus: timestampInfo ? 'FOUND' : 'NOT_FOUND',
+              timestampInfo: timestampInfo || null,
+              cacheStatistics: {
+                totalRequests: cacheStats.totalRequests,
+                l1Hits: cacheStats.l1Hits,
+                l2Hits: cacheStats.l2Hits,
+                misses: cacheStats.misses,
+                l1HitRate: Math.round(cacheStats.l1HitRate * 100),
+                l2HitRate: Math.round(cacheStats.l2HitRate * 100),
+                overallHitRate: Math.round(cacheStats.overallHitRate * 100),
+                currentL1Size: cacheStats.l1Size,
+                currentL2Size: cacheStats.l2Size
+              },
+              healthStatus: {
+                overallScore: healthAssessment.assessment.overallScore,
+                status: healthAssessment.assessment.status,
+                issues: healthAssessment.assessment.issues,
+                recommendations: healthAssessment.assessment.recommendations
+              }
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error) {
+          logger.error('Cache debug failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to retrieve cache debug information',
             timestamp: new Date().toISOString(),
             details: error instanceof Error ? error.message : 'Unknown error'
           }), {
