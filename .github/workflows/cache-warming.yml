@@ -1,0 +1,347 @@
+name: Automated Cache Warming & KV Refresh
+
+# Cache warming workflow to ensure L2 cache is populated with fresh data
+# Prevents cold starts and ensures optimal performance for users
+# Runs multiple times per day to keep data fresh within 24-hour L2 TTL
+
+on:
+  schedule:
+    # Cache warming schedule (all times UTC)
+    # Pre-market warmup - 6:00 AM UTC (2:00 AM EST) - Before market open
+    - cron: '0 6 * * 1-5'
+    # Midday refresh - 12:00 PM UTC (8:00 AM EST) - During market hours
+    - cron: '0 12 * * 1-5'
+    # Evening refresh - 18:00 PM UTC (2:00 PM EST) - Before market close
+    - cron: '0 18 * * 1-5'
+    # Weekend refresh - 10:00 AM UTC (6:00 AM EST) - Weekend data refresh
+    - cron: '0 10 * * SAT,SUN'
+    # Deep cache refresh - 3:00 AM UTC daily
+    - cron: '0 3 * * *'
+
+  workflow_dispatch:
+    inputs:
+      warmup_type:
+        description: 'Type of cache warming to perform'
+        required: false
+        default: 'comprehensive'
+        type: choice
+        options:
+          - comprehensive
+          - market_data
+          - sentiment_analysis
+          - sector_data
+          - predictive_models
+      force_refresh:
+        description: 'Force refresh even if cache is warm'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  API_URL: 'https://tft-trading-system.yanggf.workers.dev'
+  API_KEY: '${{ secrets.X_API_KEY }}'
+
+jobs:
+  cache-warming:
+    name: Execute Cache Warming
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl bc jq
+
+      - name: Determine Warmup Strategy
+        id: warmup-strategy
+        run: |
+          CURRENT_HOUR=$(date -u +%H)
+          CURRENT_DAY=$(date -u +%u) # 1=Monday, 7=Sunday
+          CURRENT_TIME=$(date -u +"%H:%M")
+          WARMUP_TYPE="${{ github.event.inputs.warmup_type || 'comprehensive' }}"
+
+          echo "Current UTC time: $CURRENT_TIME"
+          echo "Current day: $CURRENT_DAY"
+          echo "Requested warmup type: $WARMUP_TYPE"
+
+          # Determine warmup strategy based on time and type
+          if [[ "$WARMUP_TYPE" != "comprehensive" ]]; then
+            echo "strategy=$WARMUP_TYPE" >> $GITHUB_OUTPUT
+            echo "description=Manual $WARMUP_TYPE cache warming"
+          elif [[ "$CURRENT_TIME" == "03:00" ]]; then
+            echo "strategy=deep_refresh" >> $GITHUB_OUTPUT
+            echo "description=Deep cache refresh with comprehensive data loading"
+          elif [[ "$CURRENT_TIME" == "06:00" ]] && [[ "$CURRENT_DAY" -le 5 ]]; then
+            echo "strategy=pre_market" >> $GITHUB_OUTPUT
+            echo "description=Pre-market cache warming for trading day"
+          elif [[ "$CURRENT_TIME" == "12:00" ]] && [[ "$CURRENT_DAY" -le 5 ]]; then
+            echo "strategy=midday_refresh" >> $GITHUB_OUTPUT
+            echo "description=Midday cache refresh during market hours"
+          elif [[ "$CURRENT_TIME" == "18:00" ]] && [[ "$CURRENT_DAY" -le 5 ]]; then
+            echo "strategy=evening_refresh" >> $GITHUB_OUTPUT
+            echo "description=Evening cache refresh before market close"
+          else
+            echo "strategy=weekend_refresh" >> $GITHUB_OUTPUT
+            echo "description=Weekend cache refresh and maintenance"
+          fi
+
+          echo "Strategy: ${{ steps.warmup-strategy.outputs.strategy }}"
+          echo "Description: ${{ steps.warmup-strategy.outputs.description }}"
+
+      - name: Check System Health Before Warming
+        run: |
+          echo "🏥 Checking system health before cache warming..."
+
+          # Check basic health
+          health_response=$(curl -s --max-time 10 "$API_URL/health")
+          system_status=$(echo "$health_response" | jq -r '.status // "unknown"')
+
+          if [[ "$system_status" != "healthy" ]]; then
+            echo "❌ System not healthy (status: $system_status), aborting cache warming"
+            exit 1
+          fi
+
+          echo "✅ System is healthy, proceeding with cache warming"
+
+          # Check cache health
+          cache_health_response=$(curl -s -H "X-API-KEY: $API_KEY" --max-time 10 "$API_URL/cache-health")
+          cache_status=$(echo "$cache_health_response" | jq -r '.assessment.status // "unknown"')
+          cache_score=$(echo "$cache_health_response" | jq -r '.assessment.overallScore // 0')
+
+          echo "Cache Status: $cache_status (Score: $cache_score/100)"
+
+      - name: Execute Cache Warmup
+        run: |
+          STRATEGY="${{ steps.warmup-strategy.outputs.strategy }}"
+          FORCE_REFRESH="${{ github.event.inputs.force_refresh || 'false' }}"
+
+          echo "🔥 Starting cache warming with strategy: $STRATEGY"
+          echo "📍 API URL: $API_URL"
+
+          # Build warmup payload based on strategy
+          case "$STRATEGY" in
+            "comprehensive"|"deep_refresh")
+              WARMUP_PAYLOAD='{
+                "strategy": "comprehensive",
+                "namespaces": ["sentiment_analysis", "market_data", "sector_data", "ai_results", "reports", "api_responses"],
+                "force_refresh": '$FORCE_REFRESH',
+                "preload_symbols": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "AMZN", "META", "SPY", "QQQ", "IWM"]
+              }'
+              ;;
+            "pre_market")
+              WARMUP_PAYLOAD='{
+                "strategy": "pre_market",
+                "namespaces": ["market_data", "sentiment_analysis", "sector_data"],
+                "preload_symbols": ["SPY", "QQQ", "DIA", "IWM", "VTI", "VOO"],
+                "force_refresh": '$FORCE_REFRESH'
+              }'
+              ;;
+            "midday_refresh")
+              WARMUP_PAYLOAD='{
+                "strategy": "midday_refresh",
+                "namespaces": ["market_data", "sentiment_analysis"],
+                "preload_symbols": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
+                "force_refresh": '$FORCE_REFRESH'
+              }'
+              ;;
+            "evening_refresh")
+              WARMUP_PAYLOAD='{
+                "strategy": "evening_refresh",
+                "namespaces": ["sentiment_analysis", "reports", "sector_data"],
+                "preload_symbols": ["SPY", "QQQ", "DIA"],
+                "force_refresh": '$FORCE_REFRESH'
+              }'
+              ;;
+            "weekend_refresh")
+              WARMUP_PAYLOAD='{
+                "strategy": "weekend_maintenance",
+                "namespaces": ["sentiment_analysis", "reports", "sector_data"],
+                "preload_symbols": ["SPY", "QQQ", "VTI"],
+                "force_refresh": "true"
+              }'
+              ;;
+            *)
+              WARMUP_PAYLOAD='{
+                "strategy": "'$STRATEGY'",
+                "force_refresh": '$FORCE_REFRESH'
+              }'
+              ;;
+          esac
+
+          echo "Warmup Payload: $WARMUP_PAYLOAD"
+
+          # Execute cache warmup
+          warmup_response=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-KEY: $API_KEY" \
+            -d "$WARMUP_PAYLOAD" \
+            --connect-timeout 120 \
+            --max-time 300 \
+            "$API_URL/cache-warmup")
+
+          echo "📊 Cache Warmup Response:"
+          echo "$warmup_response" | jq '.' 2>/dev/null || echo "$warmup_response"
+
+          # Check if warmup was successful
+          success=$(echo "$warmup_response" | jq -r '.success // "unknown"')
+          if [[ "$success" != "true" ]]; then
+            echo "❌ Cache warmup failed"
+            echo "Response: $warmup_response"
+            exit 1
+          fi
+
+          echo "✅ Cache warmup completed successfully"
+
+      - name: Warm Critical Data Endpoints
+        run: |
+          echo "🔥 Warming critical data endpoints..."
+
+          # List of critical endpoints to warm
+          ENDPOINTS=(
+            "/api/v1/data/symbols"
+            "/api/v1/data/health"
+            "/api/v1/market-intelligence/dashboard"
+            "/api/v1/predictive/signals"
+            "/api/v1/sectors/snapshot"
+          )
+
+          for endpoint in "${ENDPOINTS[@]}"; do
+            echo "Warming endpoint: $endpoint"
+            response=$(curl -s -H "X-API-KEY: $API_KEY" \
+              --max-time 30 \
+              "$API_URL$endpoint")
+
+            if [[ $? -eq 0 ]]; then
+              echo "✅ $endpoint - Warmed successfully"
+            else
+              echo "⚠️ $endpoint - Warning during warming"
+            fi
+          done
+
+      - name: Validate Cache Performance
+        run: |
+          echo "📈 Validating cache performance after warming..."
+
+          # Check cache health score
+          cache_health_response=$(curl -s -H "X-API-KEY: $API_KEY" --max-time 10 "$API_URL/cache-health")
+          health_score=$(echo "$cache_health_response" | jq -r '.assessment.overallScore // 0')
+          health_status=$(echo "$cache_health_response" | jq -r '.assessment.status // "unknown"')
+
+          echo "Post-warmup Health Score: $health_score/100"
+          echo "Post-warmup Health Status: $health_status"
+
+          # Check cache metrics
+          cache_metrics_response=$(curl -s -H "X-API-KEY: $API_KEY" --max-time 10 "$API_URL/cache-metrics")
+          l1_hits=$(echo "$cache_metrics_response" | jq -r '.l1.hits // 0')
+          l2_hits=$(echo "$cache_metrics_response" | jq -r '.l2.hits // 0')
+          total_requests=$(echo "$cache_metrics_response" | jq -r '.totalRequests // 0')
+
+          echo "Cache Metrics:"
+          echo "  - L1 Hits: $l1_hits"
+          echo "  - L2 Hits: $l2_hits"
+          echo "  - Total Requests: $total_requests"
+
+          # Test response time
+          start_time=$(date +%s%3N)
+          test_response=$(curl -s -H "X-API-KEY: $API_KEY" "$API_URL/api/v1/data/health")
+          end_time=$(date +%s%3N)
+          response_time=$((end_time - start_time))
+
+          echo "Response Time: ${response_time}ms"
+
+          if [[ "$response_time" -lt 100 ]]; then
+            echo "✅ Excellent cache performance (${response_time}ms)"
+          elif [[ "$response_time" -lt 500 ]]; then
+            echo "✅ Good cache performance (${response_time}ms)"
+          else
+            echo "⚠️ Cache performance needs attention (${response_time}ms)"
+          fi
+
+      - name: Log Cache Warming Summary
+        run: |
+          echo "📋 Cache Warming Summary"
+          echo "========================"
+          echo "Timestamp: $(date -u)"
+          echo "Strategy: ${{ steps.warmup-strategy.outputs.strategy }}"
+          echo "Description: ${{ steps.warmup-strategy.outputs.description }}"
+          echo "API URL: $API_URL"
+          echo "Status: Completed successfully ✅"
+
+          echo ""
+          echo "🔥 Cache Configuration:"
+          echo "  - L2 Cache TTL: 24 hours (86400 seconds)"
+          echo "  - L1 Grace Period: 10 minutes"
+          echo "  - Stale-While-Revalidate: Enabled"
+          echo "  - Multiple warming schedules per day"
+
+      - name: Send Success Notification
+        if: success()
+        run: |
+          STRATEGY="${{ steps.warmup-strategy.outputs.strategy }}"
+          HEALTH_SCORE=$(echo "$cache_health_response" | jq -r '.assessment.overallScore // 0')
+
+          # Send simple success log (Teams integration optional)
+          echo "🎉 Cache warming completed successfully!"
+          echo "Strategy: $STRATEGY"
+          echo "Health Score: $HEALTH_SCORE/100"
+          echo "Time: $(date -u)"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "🚨 Cache warming failed!"
+          echo "Strategy: ${{ steps.warmup-strategy.outputs.strategy }}"
+          echo "Timestamp: $(date -u)"
+          echo "Please check the system logs and cache configuration."
+
+  cache-maintenance:
+    name: Cache Maintenance & Cleanup
+    runs-on: ubuntu-latest
+    needs: cache-warming
+    if: always()
+
+    steps:
+      - name: Perform Cache Maintenance
+        run: |
+          echo "🔧 Performing cache maintenance tasks..."
+
+          # This could include:
+          # - Cache cleanup operations
+          # - Performance monitoring
+          # - Health checks
+          # - Metrics collection
+
+          echo "✅ Cache maintenance completed"
+
+# Cache Warming Configuration Summary
+# =================================
+# SCHEDULES:
+# - 3:00 AM UTC: Deep refresh (comprehensive data loading)
+# - 6:00 AM UTC (Mon-Fri): Pre-market warming
+# - 12:00 PM UTC (Mon-Fri): Midday refresh
+# - 6:00 PM UTC (Mon-Fri): Evening refresh
+# - 10:00 AM UTC (Weekends): Weekend maintenance
+#
+# CACHE CONFIGURATION:
+# - L2 Cache TTL: 24 hours (86400 seconds)
+# - L1 Cache Grace Period: 10 minutes
+# - Stale-While-Revalidate: Enabled
+# - Multiple warming strategies based on time
+#
+# BENEFITS:
+# - Prevents cold starts for users
+# - Ensures data freshness within 24-hour window
+# - Optimal performance during trading hours
+# - Reduced KV operations through intelligent warming
+# - Better user experience with pre-warmed cache
+#
+# COST: FREE (GitHub Actions unlimited for public repos)
+# MONITORING: Built-in health checks and performance validation

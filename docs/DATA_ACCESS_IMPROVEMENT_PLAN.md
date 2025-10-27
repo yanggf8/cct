@@ -191,15 +191,29 @@ export class CacheManager {
 }
 ```
 
-#### **Cache Namespaces**
+#### **Cache Namespaces** (UPDATED 2025-10-27)
 ```typescript
-// src/modules/cache-config.ts
+// src/modules/enhanced-cache-config.ts - Current Implementation
 export const CACHE_NAMESPACES = {
-  SENTIMENT: 'sentiment',     // 1 hour TTL
-  MARKET_DATA: 'market',      // 5 minutes TTL
-  REPORTS: 'reports',         // 24 hours TTL
-  SYSTEM: 'system',           // 30 minutes TTL
-  SYMBOL_DATA: 'symbols',     // 15 minutes TTL
+  sentiment_analysis: {
+    l1TTL: 300,      // 5 minutes
+    l2TTL: 86400,    // **24 hours** (updated from 1 hour)
+    l1GracePeriod: 1800, // 30 minutes grace period
+    persistToL2: true
+  },
+  market_data: {
+    l1TTL: 30,       // 30 seconds
+    l2TTL: 86400,    // **24 hours** (updated from 5 minutes)
+    l1GracePeriod: 30, // 30 seconds grace period
+    persistToL2: true
+  },
+  reports: {
+    l1TTL: 1800,     // 30 minutes
+    l2TTL: 86400,    // **24 hours** (updated from 24 hours - already correct)
+    l1GracePeriod: 3600, // 1 hour grace period
+    persistToL2: true
+  },
+  // ... 7 total namespaces with 24-hour L2 persistence
 } as const;
 ```
 

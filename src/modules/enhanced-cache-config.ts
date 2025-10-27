@@ -12,6 +12,7 @@ export interface EnhancedCacheConfig {
   l1TTL: number; // Time to live in seconds for L1 cache
   l1MaxSize?: number; // Maximum number of entries in L1
   l1MemoryMB?: number; // Maximum memory usage in MB for L1
+  l1GracePeriod?: number; // Grace period for serving stale data (seconds)
 
   // Layer 2 (KV) configuration
   l2TTL: number; // Time to live in seconds for L2 cache
@@ -53,7 +54,8 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // Sentiment analysis results (AI-generated, expensive)
     sentiment_analysis: {
       l1TTL: 300,      // 5 minutes in dev (faster iteration)
-      l2TTL: 1800,     // 30 minutes persistent
+      l1GracePeriod: 900, // 15 minutes - AI computation is expensive
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 50,
       l1MemoryMB: 5,
@@ -65,6 +67,7 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // Real-time market data (fast changing)
     market_data: {
       l1TTL: 30,       // 30 seconds (real-time data)
+      l1GracePeriod: 30, // 30 seconds - minimal grace for real-time data
       l2TTL: 180,      // 3 minutes persistent
       persistToL2: true,
       l1MaxSize: 200,
@@ -77,7 +80,8 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // Sector analysis data (medium-term relevance)
     sector_data: {
       l1TTL: 120,      // 2 minutes
-      l2TTL: 900,      // 15 minutes persistent
+      l1GracePeriod: 180, // 3 minutes - sector data changes slowly
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 100,
       l1MemoryMB: 4,
@@ -89,7 +93,8 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // Generated reports (user-facing, stable)
     reports: {
       l1TTL: 600,      // 10 minutes
-      l2TTL: 3600,     // 1 hour persistent
+      l1GracePeriod: 1800, // 30 minutes - reports are historical, stable data
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 30,
       l1MemoryMB: 8,
@@ -101,7 +106,7 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // API responses (rate limit protection)
     api_responses: {
       l1TTL: 60,       // 1 minute
-      l2TTL: 300,      // 5 minutes persistent
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 150,
       l1MemoryMB: 2,
@@ -113,7 +118,7 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // News articles (external API, rate limited)
     news_articles: {
       l1TTL: 900,      // 15 minutes
-      l2TTL: 3600,     // 1 hour persistent
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 100,
       l1MemoryMB: 10,
@@ -139,7 +144,8 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // Production-optimized configs with longer TTLs
     sentiment_analysis: {
       l1TTL: 900,      // 15 minutes (production stability)
-      l2TTL: 3600,     // 1 hour persistent
+      l1GracePeriod: 1800, // 30 minutes - AI computation is expensive in production
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 100,
       l1MemoryMB: 10,
@@ -150,7 +156,8 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     market_data: {
       l1TTL: 60,       // 1 minute (still real-time but more stable)
-      l2TTL: 300,      // 5 minutes persistent
+      l1GracePeriod: 60, // 1 minute - minimal grace for real-time data
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 500,
       l1MemoryMB: 8,
@@ -161,7 +168,8 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     sector_data: {
       l1TTL: 300,      // 5 minutes
-      l2TTL: 1800,     // 30 minutes persistent
+      l1GracePeriod: 600, // 10 minutes - sector data changes slowly in production
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 200,
       l1MemoryMB: 6,
@@ -172,6 +180,7 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     reports: {
       l1TTL: 1800,     // 30 minutes
+      l1GracePeriod: 3600, // 1 hour - reports are historical, very stable
       l2TTL: 7200,     // 2 hours persistent
       persistToL2: true,
       l1MaxSize: 100,
@@ -183,7 +192,7 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     api_responses: {
       l1TTL: 180,      // 3 minutes
-      l2TTL: 900,      // 15 minutes persistent
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 300,
       l1MemoryMB: 5,
@@ -194,7 +203,7 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     news_articles: {
       l1TTL: 900,      // 15 minutes
-      l2TTL: 3600,     // 1 hour persistent
+      l2TTL: 86400,    // 24 hours persistent
       persistToL2: true,
       l1MaxSize: 200,
       l1MemoryMB: 20,

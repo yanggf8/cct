@@ -41,6 +41,8 @@ export interface EnhancedHashCacheConfig {
   maxSize: number; // Max number of entries (default: 1000)
   maxMemoryMB: number; // Max memory in MB (default: 10)
   defaultTTL: number; // Default TTL in seconds (default: 900 - 15 min)
+  staleGracePeriod: number; // Grace period in seconds to serve stale data
+  enableStaleWhileRevalidate: boolean; // Enable SWR pattern (default: false)
   cleanupInterval: number; // Cleanup interval in seconds (default: 60)
   enableStats: boolean; // Enable detailed statistics (default: true)
 }
@@ -59,12 +61,16 @@ export class EnhancedHashCache<T = any> {
   private stats: EnhancedCacheStats;
   private lastCleanup: number;
   private enabled: boolean;
+  private backgroundRefreshCallbacks: Map<string, () => Promise<T>>;
+  private refreshingKeys: Set<string>; // Prevent duplicate refreshes
 
   constructor(config?: Partial<EnhancedHashCacheConfig>) {
     this.config = {
       maxSize: config?.maxSize || 1000,
       maxMemoryMB: config?.maxMemoryMB || 10,
       defaultTTL: config?.defaultTTL || 900, // 15 minutes
+      staleGracePeriod: config?.staleGracePeriod || 300, // 5 minutes
+      enableStaleWhileRevalidate: config?.enableStaleWhileRevalidate || false,
       cleanupInterval: config?.cleanupInterval || 60, // 1 minute
       enableStats: config?.enableStats !== false,
     };
@@ -72,6 +78,8 @@ export class EnhancedHashCache<T = any> {
     this.cache = new Map();
     this.enabled = true;
     this.lastCleanup = Date.now();
+    this.backgroundRefreshCallbacks = new Map();
+    this.refreshingKeys = new Set();
 
     this.stats = {
       hits: 0,
@@ -86,6 +94,7 @@ export class EnhancedHashCache<T = any> {
       maxSize: this.config.maxSize,
       maxMemoryMB: this.config.maxMemoryMB,
       defaultTTL: this.config.defaultTTL,
+      staleGracePeriod: this.config.staleGracePeriod,
       cleanupInterval: this.config.cleanupInterval,
     });
   }
@@ -110,12 +119,29 @@ export class EnhancedHashCache<T = any> {
 
     // Check if expired
     const now = Date.now();
-    if (now > entry.expiresAt) {
-      this.cache.delete(key);
-      this.updateStats();
-      this.recordMiss();
-      logger.debug(`Cache entry expired: ${key}`);
-      return null;
+    if (now > entry.expiresAt) { // Expired
+      const gracePeriodEnd = entry.expiresAt + this.config.staleGracePeriod * 1000;
+
+      if (now < gracePeriodEnd) {
+        // Still within grace period, serve stale data
+        this.recordHit(); // Treat as a hit to reflect KV load reduction
+        entry.lastAccessed = now; // Update LRU
+
+        // Stale-While-Revalidate pattern: trigger background refresh if enabled
+        if (this.config.enableStaleWhileRevalidate) {
+          this.triggerBackgroundRefresh(key, entry);
+        }
+
+        logger.debug(`Serving stale cache entry from grace period: ${key}`);
+        return entry.data;
+      } else {
+        // Expired and outside grace period
+        this.cache.delete(key);
+        this.updateStats();
+        this.recordMiss();
+        logger.debug(`Cache entry expired and removed: ${key}`);
+        return null;
+      }
     }
 
     // Update access statistics
@@ -179,7 +205,9 @@ export class EnhancedHashCache<T = any> {
     }
 
     // Check if expired
-    if (Date.now() > entry.expiresAt) {
+    const now = Date.now();
+    const gracePeriodEnd = entry.expiresAt + this.config.staleGracePeriod * 1000;
+    if (now > gracePeriodEnd) {
       this.cache.delete(key);
       this.updateStats();
       return false;
@@ -211,7 +239,7 @@ export class EnhancedHashCache<T = any> {
     const now = Date.now();
     const validKeys: string[] = [];
 
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, entry] of Array.from(this.cache.entries())) {
       if (now <= entry.expiresAt) {
         validKeys.push(key);
       }
@@ -282,8 +310,9 @@ export class EnhancedHashCache<T = any> {
     const now = Date.now();
     let removed = 0;
 
-    for (const [key, entry] of this.cache.entries()) {
-      if (now > entry.expiresAt) {
+    // A cleanup removes items that are past their TTL + grace period
+    for (const [key, entry] of Array.from(this.cache.entries())) {
+      if (now > entry.expiresAt + this.config.staleGracePeriod * 1000) {
         this.cache.delete(key);
         removed++;
       }
@@ -338,7 +367,7 @@ export class EnhancedHashCache<T = any> {
     let oldestTime = Infinity;
 
     // Find least recently used entry
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, entry] of Array.from(this.cache.entries())) {
       if (entry.lastAccessed < oldestTime) {
         oldestTime = entry.lastAccessed;
         oldestKey = key;
@@ -379,7 +408,7 @@ export class EnhancedHashCache<T = any> {
 
     const now = Date.now();
 
-    for (const entry of this.cache.values()) {
+    for (const entry of Array.from(this.cache.values())) {
       totalSize += entry.size;
       if (entry.timestamp < oldestTimestamp) {
         oldestTimestamp = entry.timestamp;
@@ -439,6 +468,87 @@ export class EnhancedHashCache<T = any> {
       currentMemoryMB: 0,
       hitRate: 0,
     };
+  }
+
+  /**
+   * Register a background refresh callback for a key pattern
+   * This enables the Stale-While-Revalidate pattern
+   */
+  setBackgroundRefreshCallback(keyPattern: string, refreshFn: () => Promise<T>): void {
+    this.backgroundRefreshCallbacks.set(keyPattern, refreshFn);
+    logger.debug(`Registered background refresh callback for pattern: ${keyPattern}`);
+  }
+
+  /**
+   * Trigger background refresh for a stale cache entry
+   * Non-blocking - serves stale data immediately while refreshing in background
+   */
+  private async triggerBackgroundRefresh(key: string, entry: EnhancedCacheEntry<T>): Promise<void> {
+    // Prevent duplicate refreshes for the same key
+    if (this.refreshingKeys.has(key)) {
+      logger.debug(`Background refresh already in progress for key: ${key}`);
+      return;
+    }
+
+    // Find matching refresh callback
+    let refreshFn: (() => Promise<T>) | null = null;
+    for (const [pattern, callback] of Array.from(this.backgroundRefreshCallbacks.entries())) {
+      if (key.includes(pattern) || key.match(new RegExp(pattern))) {
+        refreshFn = callback;
+        break;
+      }
+    }
+
+    if (!refreshFn) {
+      // No refresh callback registered for this key
+      return;
+    }
+
+    // Mark as refreshing to prevent duplicates
+    this.refreshingKeys.add(key);
+
+    // Background refresh - non-blocking
+    refreshFn().then(async (freshData) => {
+      try {
+        // Update cache with fresh data, preserving original TTL
+        const originalTTL = Math.round((entry.expiresAt - entry.timestamp) / 1000);
+        await this.set(key, freshData, originalTTL);
+
+        logger.info(`Background refresh completed for key: ${key}`, {
+          age: Date.now() - entry.timestamp,
+          originalTTL
+        });
+      } catch (error) {
+        logger.error(`Background refresh failed for key: ${key}`, {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } finally {
+        // Remove from refreshing set
+        this.refreshingKeys.delete(key);
+      }
+    }).catch((error) => {
+      logger.error(`Background refresh error for key: ${key}`, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      this.refreshingKeys.delete(key);
+    });
+
+    logger.debug(`Triggered background refresh for key: ${key}`);
+  }
+
+  /**
+   * Enable or disable Stale-While-Revalidate pattern
+   */
+  setStaleWhileRevalidate(enabled: boolean): void {
+    this.config.enableStaleWhileRevalidate = enabled;
+    logger.info(`Stale-While-Revalidate ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Check if Stale-While-Revalidate is enabled
+   */
+  isStaleWhileRevalidateEnabled(): boolean {
+    return this.config.enableStaleWhileRevalidate;
   }
 }
 
