@@ -1,6 +1,0 @@
-2025-10-22 15:32:11 - Starting Enhanced Cache Integration Tests
-2025-10-22 15:32:11 - API URL: https://tft-trading-system.yanggf.workers.dev
-2025-10-22 15:32:11 - Testing Basic System Health...
-[0;31m❌ FAIL: Basic System Health - System status is unknown, expected healthy[0m
-2025-10-22 15:32:24 - FAIL: Basic System Health - System status is unknown, expected healthy
-2025-10-22 15:32:24 - Cleanup completed

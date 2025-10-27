@@ -59,7 +59,7 @@ EMAIL_ENABLED = "false"
 WORKER_VERSION = "2.0"
 TIMEZONE = "America/New_York"
 # API Key Configuration (set in Cloudflare Workers dashboard for security)
-# Recommended: API_KEY (for X-API-KEY header), TRADING_API_KEY, or APP_API_KEY
+# Recommended: X_API_KEY (for X-API-KEY header - single source of truth)
 # NEVER commit actual API keys to version control
 # Trading symbols configuration
 TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"

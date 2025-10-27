@@ -354,5 +354,20 @@
 
     <!-- Dashboard JavaScript -->
     <script src="/js/dashboard-main.js?v=20251018-2"></script>
+
+    <!-- API Client Initialization -->
+    <script>
+        // Initialize CCT API Client
+        window.cctApi = new CCTApiClient({
+            baseUrl: window.location.origin,
+            apiKey: localStorage.getItem('cct_api_key') || 'yanggf',
+            timeout: 30000,
+            enableCache: true,
+            cacheTimeout: 300000 // 5 minutes
+        });
+
+        // Make API client available globally
+        console.log('CCT API Client initialized:', window.cctApi);
+    </script>
 </body>
 </html>

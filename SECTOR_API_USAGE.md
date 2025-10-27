@@ -9,37 +9,37 @@
 ## 🚀 Quick Start
 
 ### **API Key Required**
-All endpoints require `X-API-KEY: yanggf` header
+All endpoints require `X-API-KEY` header with your configured API key
 
 ### **Available Endpoints**
 
 #### **1. Health Check** (Fast - 2s)
 ```bash
-curl -H "X-API-KEY: yanggf" \
+curl -H "X-API-KEY: $X_API_KEY" \
   "https://tft-trading-system.yanggf.workers.dev/api/sectors/health"
 ```
 
 #### **2. System Test** (Safe - 5s)
 ```bash
-curl -H "X-API-KEY: yanggf" \
+curl -H "X-API-KEY: $X_API_KEY" \
   "https://tft-trading-system.yanggf.workers.dev/api/sectors/test"
 ```
 
 #### **3. Sector Configuration** (Fast - 2s)
 ```bash
-curl -H "X-API-KEY: yanggf" \
+curl -H "X-API-KEY: $X_API_KEY" \
   "https://tft-trading-system.yanggf.workers.dev/api/sectors/config"
 ```
 
 #### **4. Real-Time Snapshot** (18s - fetches live data)
 ```bash
-curl -H "X-API-KEY: yanggf" \
+curl -H "X-API-KEY: $X_API_KEY" \
   "https://tft-trading-system.yanggf.workers.dev/api/sectors/snapshot"
 ```
 
 #### **5. Complete Analysis** (18s - fetches live data)
 ```bash
-curl -H "X-API-KEY: yanggf" \
+curl -H "X-API-KEY: $X_API_KEY" \
   "https://tft-trading-system.yanggf.workers.dev/api/sectors/analysis"
 ```
 
@@ -238,7 +238,7 @@ Failed: 0
 
 2. **HTTP 401/403 Errors**
    - Cause: Missing or incorrect API key
-   - Solution: Include `X-API-KEY: yanggf` header
+   - Solution: Include `X-API-KEY: $X_API_KEY` header
 
 3. **HTTP 404 Errors**
    - Cause: Invalid endpoint path
