@@ -1047,6 +1047,65 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = CCTApiClient;
 }
 
+// ========================================
+// CACHE MONITORING API METHODS
+// ========================================
+
+/**
+ * Get cache metrics
+ * @returns {Promise<Object>} Cache performance metrics
+ */
+CCTApiClient.prototype.getCacheMetrics = async function() {
+  return this.request('/cache/metrics');
+};
+
+/**
+ * Get cache timestamps
+ * @param {Object} options - Timestamp query options
+ * @returns {Promise<Object>} Cache timestamp information
+ */
+CCTApiClient.prototype.getCacheTimestamps = async function(options = {}) {
+  return this.request('/cache/timestamps', { params: options });
+};
+
+/**
+ * Get cache debug information
+ * @param {Object} options - Debug query options
+ * @returns {Promise<Object>} Detailed cache debug information
+ */
+CCTApiClient.prototype.getCacheDebug = async function(options = {}) {
+  return this.request('/cache/debug', { params: options });
+};
+
+/**
+ * Get deduplication statistics
+ * @param {Object} options - Deduplication query options
+ * @returns {Promise<Object>} Request deduplication statistics
+ */
+CCTApiClient.prototype.getDeduplicationStats = async function(options = {}) {
+  return this.request('/cache/deduplication', { params: options });
+};
+
+/**
+ * Get cache health status
+ * @returns {Promise<Object>} Cache health information
+ */
+CCTApiClient.prototype.getCacheHealth = async function() {
+  return this.request('/cache/health');
+};
+
+/**
+ * Trigger cache warmup
+ * @param {Object} options - Warmup options
+ * @returns {Promise<Object>} Warmup operation result
+ */
+CCTApiClient.prototype.warmupCache = async function(options = {}) {
+  return this.request('/cache/warmup', {
+    method: 'POST',
+    body: options
+  });
+};
+
 // Create global instance
 if (typeof window !== 'undefined') {
   window.CCTApiClient = CCTApiClient;

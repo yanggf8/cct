@@ -32,6 +32,7 @@ import {
   type CacheHealthAssessment,
   type PerformanceThresholds
 } from './enhanced-cache-metrics.js';
+import { requestDeduplicator } from './request-deduplication.js';
 
 const logger = createLogger('cache-manager');
 
@@ -193,7 +194,7 @@ export class CacheManager {
   }
 
   /**
-   * Get a value from cache (L1 first, then L2)
+   * Get a value from cache (L1 first, then L2) with request deduplication
    */
   async get<T>(
     namespace: string,
@@ -247,16 +248,29 @@ export class CacheManager {
         cacheMetrics.recordMiss('L2', namespace as MetricsCacheNamespace);
       }
 
-      // Cache miss - fetch data if function provided
+      // Cache miss - fetch data with deduplication if function provided
       this.stats.misses++;
       logger.debug(`Cache miss: ${fullKey}`);
 
       if (fetchFn) {
-        const data = await fetchFn();
-        if (data !== null) {
-          // Store in both L1 and L2
-          await this.set(namespace, key, data);
-        }
+        // Use request deduplication to prevent thundering herd
+        const deduplicationKey = `${namespace}:${key}:fetch`;
+        const data = await requestDeduplicator.execute(
+          deduplicationKey,
+          async () => {
+            const result = await fetchFn();
+            if (result !== null) {
+              // Store in both L1 and L2
+              await this.set(namespace, key, result);
+            }
+            return result;
+          },
+          {
+            timeoutMs: 30000, // 30 seconds
+            cacheMs: cacheNs.l1Config.ttl * 1000, // Cache for L1 TTL duration
+            forceRefresh: false
+          }
+        );
         return data;
       }
 
@@ -818,6 +832,27 @@ export class CacheManager {
    */
   getMetricsStats() {
     return cacheMetrics.getStats();
+  }
+
+  /**
+   * Get request deduplication statistics
+   */
+  getDeduplicationStats() {
+    return requestDeduplicator.getStats();
+  }
+
+  /**
+   * Get deduplication cache information
+   */
+  getDeduplicationCacheInfo() {
+    return requestDeduplicator.getCacheInfo();
+  }
+
+  /**
+   * Get pending requests information from deduplicator
+   */
+  getDeduplicationPendingRequests() {
+    return requestDeduplicator.getPendingRequestsInfo();
   }
 
   /**

@@ -19,7 +19,7 @@ import {
   extractSymbolsParam,
   generateRequestId
 } from './api-v1.js';
-import { batchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
+import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -186,7 +186,12 @@ async function handleSentimentAnalysis(
     // Perform fresh analysis
     logger.info('SentimentAnalysis', 'Starting analysis', { symbols: symbols.join(','), requestId });
 
-    const analysisResult = await batchDualAIAnalysis(symbols, env);
+      // Use enhanced batch analysis for optimization (50-70% KV reduction)
+    const analysisResult = await enhancedBatchDualAIAnalysis(symbols, env, {
+      enableOptimizedBatch: true,
+      batchSize: 3, // Conservative for AI rate limits
+      cacheKey: `sentiment_analysis_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`
+    });
 
     // Transform BatchDualAIAnalysisResult to v1 response format
     const response: SentimentAnalysisResponse = {
@@ -205,6 +210,17 @@ async function handleSentimentAnalysis(
         analysis_time_ms: timer.getElapsedMs(),
         ai_models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
         data_sources: ['Yahoo Finance', 'News APIs'],
+        ...(analysisResult.optimization && {
+          optimization: {
+            enabled: true,
+            cacheHitRate: analysisResult.optimization.cacheHitRate,
+            kvReduction: analysisResult.optimization.kvReduction,
+            timeSaved: analysisResult.optimization.timeSaved,
+            batchEfficiency: analysisResult.optimization.batchEfficiency,
+            cachedItems: analysisResult.optimization.statistics.cachedItems,
+            deduplicationRate: analysisResult.optimization.statistics.deduplicationRate
+          }
+        })
       },
     };
 

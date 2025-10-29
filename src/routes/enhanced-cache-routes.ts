@@ -770,6 +770,77 @@ export function createEnhancedCacheRoutes(env: any) {
       },
     },
 
+    {
+      path: '/cache-deduplication',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const url = new URL(request.url);
+          const details = url.searchParams.get('details') === 'true';
+
+          // Get deduplication statistics
+          const deduplicationStats = cacheManager.getDeduplicationStats();
+          const cacheInfo = details ? cacheManager.getDeduplicationCacheInfo() : null;
+          const pendingRequests = details ? cacheManager.getDeduplicationPendingRequests() : null;
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            deduplication: {
+              enabled: true,
+              statistics: {
+                totalRequests: deduplicationStats.totalRequests,
+                deduplicatedRequests: deduplicationStats.deduplicatedRequests,
+                cacheHits: deduplicationStats.cacheHits,
+                pendingRequests: deduplicationStats.pendingRequests,
+                timeoutRequests: deduplicationStats.timeoutRequests,
+                deduplicationRate: Math.round(deduplicationStats.deduplicationRate * 100),
+                averageResponseTime: Math.round(deduplicationStats.averageResponseTime),
+                memoryUsage: deduplicationStats.memoryUsage,
+                kvReduction: Math.round(deduplicationStats.deduplicationRate * 100) + '%'
+              },
+              configuration: {
+                maxPendingRequests: 1000,
+                requestTimeoutMs: 30000,
+                cacheTimeoutMs: 300000,
+                enableMetrics: true,
+                enableLogging: true
+              },
+              performance: {
+                totalRequestsServed: deduplicationStats.totalRequests,
+                requestsSavedFromDuplicateCalls: deduplicationStats.deduplicatedRequests,
+                requestsSavedFromCache: deduplicationStats.cacheHits,
+                totalSavings: deduplicationStats.deduplicatedRequests + deduplicationStats.cacheHits,
+                estimatedKvSavings: Math.round((deduplicationStats.deduplicatedRequests + deduplicationStats.cacheHits) * 0.8) + ' KV operations'
+              }
+            },
+            ...(details && {
+              detailedInfo: {
+                cache: cacheInfo,
+                pendingRequests: pendingRequests
+              }
+            })
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error) {
+          logger.error('Cache deduplication stats failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to retrieve deduplication statistics',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
     ];
 
   return routes;

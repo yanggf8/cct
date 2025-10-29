@@ -39,6 +39,9 @@ class DashboardCore {
             // Start auto-refresh
             this.startAutoRefresh();
 
+            // Initialize cache monitor
+            this.initCacheMonitor();
+
             // Hide loading screen
             this.hideLoadingScreen();
 
@@ -885,6 +888,31 @@ class DashboardCore {
     }
 
     /**
+     * Initialize cache monitor
+     */
+    initCacheMonitor() {
+        try {
+            if (typeof CacheMonitor !== 'undefined') {
+                this.cacheMonitor = new CacheMonitor({
+                    updateInterval: 30000, // 30 seconds
+                    enableAutoRefresh: true,
+                    showDetailedInfo: false
+                });
+
+                this.cacheMonitor.initialize().then(() => {
+                    console.log('✅ Cache monitor initialized');
+                }).catch(error => {
+                    console.warn('⚠️ Cache monitor initialization failed:', error);
+                });
+            } else {
+                console.warn('⚠️ CacheMonitor class not available');
+            }
+        } catch (error) {
+            console.warn('⚠️ Failed to initialize cache monitor:', error);
+        }
+    }
+
+    /**
      * Cleanup on page unload
      */
     cleanup() {
@@ -894,6 +922,10 @@ class DashboardCore {
 
         if (this.sseConnection) {
             this.sseConnection.close();
+        }
+
+        if (this.cacheMonitor) {
+            this.cacheMonitor.destroy();
         }
 
         console.log('🧹 Dashboard cleaned up');
