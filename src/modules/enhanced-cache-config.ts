@@ -5,6 +5,14 @@
  */
 
 /**
+ * DAC-inspired constants for L2 cache management
+ */
+export const TEN_YEARS_TTL = 315360000; // 10 years in seconds (effectively infinite)
+export const DEFAULT_REFRESH_THRESHOLD = 600; // 10 minutes in seconds
+export const BUSINESS_HOURS_START = 9; // 9 AM UTC
+export const BUSINESS_HOURS_END = 17; // 5 PM UTC
+
+/**
  * Enhanced cache configuration for each namespace
  */
 export interface EnhancedCacheConfig {
@@ -14,9 +22,14 @@ export interface EnhancedCacheConfig {
   l1MemoryMB?: number; // Maximum memory usage in MB for L1
   l1GracePeriod?: number; // Grace period for serving stale data (seconds)
 
-  // Layer 2 (KV) configuration
-  l2TTL: number; // Time to live in seconds for L2 cache
+  // Layer 2 (KV) configuration - DAC-inspired approach
+  l2TTL: number; // Time to live in seconds for L2 cache (use TEN_YEARS_TTL for infinite)
   persistToL2: boolean; // Whether to persist to L2 (KV) cache
+
+  // Background refresh configuration (DAC v3.0.41 approach)
+  enableBackgroundRefresh?: boolean; // Enable async background refresh
+  refreshThreshold?: number; // Age in seconds to trigger background refresh (default: 600 = 10 mins)
+  businessHoursOnly?: boolean; // Only refresh during business hours (default: true)
 
   // Performance settings
   enableStats: boolean; // Enable detailed statistics
@@ -55,8 +68,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     sentiment_analysis: {
       l1TTL: 300,      // 5 minutes in dev (faster iteration)
       l1GracePeriod: 900, // 15 minutes - AI computation is expensive
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: true,
       l1MaxSize: 50,
       l1MemoryMB: 5,
       enableStats: true,
@@ -68,8 +84,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     market_data: {
       l1TTL: 30,       // 30 seconds (real-time data)
       l1GracePeriod: 30, // 30 seconds - minimal grace for real-time data
-      l2TTL: 180,      // 3 minutes persistent
+      l2TTL: TEN_YEARS_TTL,      // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: 300, // 5 minutes - market data needs fresher updates
+      businessHoursOnly: true,
       l1MaxSize: 200,
       l1MemoryMB: 3,
       enableStats: true,
@@ -81,8 +100,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     sector_data: {
       l1TTL: 120,      // 2 minutes
       l1GracePeriod: 180, // 3 minutes - sector data changes slowly
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: true,
       l1MaxSize: 100,
       l1MemoryMB: 4,
       enableStats: true,
@@ -94,8 +116,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     reports: {
       l1TTL: 600,      // 10 minutes
       l1GracePeriod: 1800, // 30 minutes - reports are historical, stable data
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: false, // Reports are historical, no auto-refresh needed
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: false,
       l1MaxSize: 30,
       l1MemoryMB: 8,
       enableStats: true,
@@ -106,8 +131,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // API responses (rate limit protection)
     api_responses: {
       l1TTL: 60,       // 1 minute
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: false, // API calls can happen anytime
       l1MaxSize: 150,
       l1MemoryMB: 2,
       enableStats: true,
@@ -118,8 +146,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // News articles (external API, rate limited)
     news_articles: {
       l1TTL: 900,      // 15 minutes
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: false, // News can break anytime
       l1MaxSize: 100,
       l1MemoryMB: 10,
       enableStats: true,
@@ -130,8 +161,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     // AI model results (expensive computation)
     ai_results: {
       l1TTL: 1800,     // 30 minutes
-      l2TTL: 7200,     // 2 hours persistent
+      l2TTL: TEN_YEARS_TTL,     // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: true,
       l1MaxSize: 25,
       l1MemoryMB: 15,
       enableStats: true,
@@ -145,8 +179,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     sentiment_analysis: {
       l1TTL: 900,      // 15 minutes (production stability)
       l1GracePeriod: 1800, // 30 minutes - AI computation is expensive in production
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: true,
       l1MaxSize: 100,
       l1MemoryMB: 10,
       enableStats: true,
@@ -157,8 +194,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     market_data: {
       l1TTL: 60,       // 1 minute (still real-time but more stable)
       l1GracePeriod: 60, // 1 minute - minimal grace for real-time data
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: 300, // 5 minutes - market data needs fresher updates
+      businessHoursOnly: true,
       l1MaxSize: 500,
       l1MemoryMB: 8,
       enableStats: true,
@@ -169,8 +209,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     sector_data: {
       l1TTL: 300,      // 5 minutes
       l1GracePeriod: 600, // 10 minutes - sector data changes slowly in production
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: true,
       l1MaxSize: 200,
       l1MemoryMB: 6,
       enableStats: true,
@@ -181,8 +224,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
     reports: {
       l1TTL: 1800,     // 30 minutes
       l1GracePeriod: 3600, // 1 hour - reports are historical, very stable
-      l2TTL: 7200,     // 2 hours persistent
+      l2TTL: TEN_YEARS_TTL,     // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: false, // Reports are historical, no auto-refresh needed
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: false,
       l1MaxSize: 100,
       l1MemoryMB: 20,
       enableStats: true,
@@ -192,8 +238,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     api_responses: {
       l1TTL: 180,      // 3 minutes
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: false, // API calls can happen anytime
       l1MaxSize: 300,
       l1MemoryMB: 5,
       enableStats: true,
@@ -203,8 +252,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     news_articles: {
       l1TTL: 900,      // 15 minutes
-      l2TTL: 86400,    // 24 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: false, // News can break anytime
       l1MaxSize: 200,
       l1MemoryMB: 20,
       enableStats: true,
@@ -214,8 +266,11 @@ export const ENHANCED_CACHE_CONFIGS: EnvironmentCacheConfigs = {
 
     ai_results: {
       l1TTL: 3600,     // 1 hour
-      l2TTL: 14400,    // 4 hours persistent
+      l2TTL: TEN_YEARS_TTL,    // DAC-inspired: effectively infinite (never expires)
       persistToL2: true,
+      enableBackgroundRefresh: true,
+      refreshThreshold: DEFAULT_REFRESH_THRESHOLD,
+      businessHoursOnly: true,
       l1MaxSize: 50,
       l1MemoryMB: 25,
       enableStats: true,
