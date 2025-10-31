@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# MCode - Direct MiniMax access for Claude Code
+# Usage: ./mcode [claude code arguments]
+
+# Set MiniMax endpoint
+export ANTHROPIC_BASE_URL="https://api.minimax.io/anthropic"
+
+# Check if API key is set
+if [ -z "$MINIMAX_API_KEY" ]; then
+    echo "Error: MINIMAX_API_KEY environment variable not set"
+    echo "Please set it with: export MINIMAX_API_KEY=your_api_key"
+    exit 1
+fi
+
+export ANTHROPIC_AUTH_TOKEN="$MINIMAX_API_KEY"
+export API_TIMEOUT_MS="3000000"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export ANTHROPIC_MODEL="MiniMax-M2"
+export ANTHROPIC_SMALL_FAST_MODEL="MiniMax-M2"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="MiniMax-M2"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="MiniMax-M2"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="MiniMax-M2"
+
+# Launch Claude Code with MiniMax backend
+echo "🚀 Launching Claude Code with MiniMax-M2..."
+echo "📡 Endpoint: $ANTHROPIC_BASE_URL"
+
+claude "$@"
