@@ -24,6 +24,9 @@ export interface CloudflareEnvironment {
   // AI Binding
   AI: Ai;
 
+  // Durable Objects
+  CACHE_DO?: DurableObjectNamespace;
+
   // Facebook Integration
   FACEBOOK_PAGE_TOKEN?: string;
   FACEBOOK_RECIPIENT_ID?: string;
@@ -49,6 +52,9 @@ export interface CloudflareEnvironment {
 
   // Logging Configuration
   LOG_LEVEL?: string;
+
+  // Feature Flags
+  FEATURE_FLAG_DO_CACHE?: string; // "true" to enable Durable Objects cache
   STRUCTURED_LOGGING?: string;
 
   // AI Model Configuration

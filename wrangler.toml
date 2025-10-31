@@ -53,6 +53,12 @@ binding = "TRAINED_MODELS"
 bucket_name = "enhanced-trading-models"
 binding = "ENHANCED_MODELS"
 
+# Durable Objects for persistent cache (replaces KV L2 cache)
+[[durable_objects.bindings]]
+name = "CACHE_DO"
+class_name = "CacheDurableObject"
+script_name = "tft-trading-system"
+
 # Environment variables - Production-Ready Configuration
 [vars]
 EMAIL_ENABLED = "false"
@@ -80,6 +86,8 @@ KV_GRANULAR_TTL = "7776000" # 90 days
 MARKET_DATA_CACHE_TTL = "300" # 5 minutes
 YAHOO_FINANCE_RATE_LIMIT = "20" # 20 requests per minute
 RATE_LIMIT_WINDOW = "60000" # 1 minute in milliseconds
+# Durable Objects cache configuration
+FEATURE_FLAG_DO_CACHE = "false" # Set to "true" to enable DO cache (gradual rollout)
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:

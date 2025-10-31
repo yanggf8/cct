@@ -7,6 +7,7 @@
 import { createLogger } from '../modules/logging.js';
 import { createCacheManager } from '../modules/cache-manager.js';
 import { EnhancedCacheFactory } from '../modules/enhanced-cache-factory.js';
+import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
 
 const logger = createLogger('enhanced-cache-routes');
 
@@ -251,12 +252,19 @@ function generateRandomStockSymbols(count: number): string[] {
  * Create enhanced cache routes
  */
 export function createEnhancedCacheRoutes(env: any) {
-  // Use enhanced cache factory to create appropriate cache manager
-    const cacheManager = EnhancedCacheFactory.createCacheManager(env, {
+  // Use Durable Objects cache if enabled, fallback to enhanced cache factory
+  let cacheManager;
+  if (isDOCacheEnabled(env)) {
+    cacheManager = createCacheInstance(env, true);
+    logger.info('CACHE_ROUTES', 'Using Durable Objects cache');
+  } else {
+    cacheManager = EnhancedCacheFactory.createCacheManager(env, {
       enabled: true,
       enablePromotion: true,
       enableMetrics: true,
     });
+    logger.info('CACHE_ROUTES', 'Using Enhanced Cache Factory (fallback)');
+  }
 
   const routes = [
     {

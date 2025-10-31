@@ -22,9 +22,36 @@ import {
 import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
+import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('sentiment-routes');
+
+/**
+ * Cache helper function for unified interface
+ */
+async function getFromCache(key: string, cacheInstance: any, namespace: string = 'sentiment_analysis'): Promise<any | null> {
+  if (cacheInstance.get) {
+    // Durable Objects cache interface
+    return await cacheInstance.get(key, { ttl: 3600, namespace });
+  } else {
+    // DAL interface
+    const fullKey = `${namespace}:${key}`;
+    const result = await cacheInstance.read(fullKey);
+    return result.success ? result.data : null;
+  }
+}
+
+async function setCache(key: string, data: any, cacheInstance: any, namespace: string = 'sentiment_analysis', ttl: number = 3600): Promise<void> {
+  if (cacheInstance.set) {
+    // Durable Objects cache interface
+    await cacheInstance.set(key, data, { ttl, namespace });
+  } else {
+    // DAL interface
+    const fullKey = `${namespace}:${key}`;
+    await cacheInstance.write(fullKey, data, { expirationTtl: ttl });
+  }
+}
 
 /**
  * Handle all sentiment analysis routes
@@ -146,10 +173,18 @@ async function handleSentimentAnalysis(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createSimplifiedEnhancedDAL(env, {
+  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  let cacheInstance;
+  if (isDOCacheEnabled(env)) {
+    cacheInstance = createCacheInstance(env, true);
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+  } else {
+    cacheInstance = createSimplifiedEnhancedDAL(env, {
       enableCache: true,
       environment: env.ENVIRONMENT || 'production'
     });
+    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+  }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
 
@@ -165,7 +200,7 @@ async function handleSentimentAnalysis(
 
     // Check cache first
     const cacheKey = `sentiment_analysis_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.read(cacheKey);
+    const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
       logger.info('SentimentAnalysis', 'Cache hit', { symbols: symbols.join(','), requestId });
@@ -225,7 +260,7 @@ async function handleSentimentAnalysis(
     };
 
     // Cache the result for 1 hour
-    await dal.write(cacheKey, response, { expirationTtl: 3600 });
+    await setCache(cacheKey, response, cacheInstance);
 
     logger.info('SentimentAnalysis', 'Analysis complete', {
       symbols: symbols.join(','),
@@ -278,10 +313,18 @@ async function handleSymbolSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createSimplifiedEnhancedDAL(env, {
+  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  let cacheInstance;
+  if (isDOCacheEnabled(env)) {
+    cacheInstance = createCacheInstance(env, true);
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+  } else {
+    cacheInstance = createSimplifiedEnhancedDAL(env, {
       enableCache: true,
       environment: env.ENVIRONMENT || 'production'
     });
+    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+  }
 
   try {
     // Validate symbol
@@ -303,7 +346,7 @@ async function handleSymbolSentiment(
 
     // Check cache first
     const cacheKey = `symbol_sentiment_${symbol}_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.read(cacheKey);
+    const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
       logger.info('SymbolSentiment', 'Cache hit', { symbol, requestId });
@@ -378,7 +421,7 @@ async function handleSymbolSentiment(
     };
 
     // Cache the result for 1 hour
-    await dal.write(cacheKey, response, { expirationTtl: 3600 });
+    await setCache(cacheKey, response, cacheInstance);
 
     logger.info('SymbolSentiment', 'Analysis complete', {
       symbol,
@@ -435,15 +478,23 @@ async function handleMarketSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createSimplifiedEnhancedDAL(env, {
+  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  let cacheInstance;
+  if (isDOCacheEnabled(env)) {
+    cacheInstance = createCacheInstance(env, true);
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+  } else {
+    cacheInstance = createSimplifiedEnhancedDAL(env, {
       enableCache: true,
       environment: env.ENVIRONMENT || 'production'
     });
+    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+  }
 
   try {
     // Check cache first
     const cacheKey = `market_sentiment_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.read(cacheKey);
+    const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
       logger.info('MarketSentiment', 'Cache hit', { requestId });
@@ -500,7 +551,7 @@ async function handleMarketSentiment(
     };
 
     // Cache the result for 1 hour
-    await dal.write(cacheKey, response, { expirationTtl: 3600 });
+    await setCache(cacheKey, response, cacheInstance);
 
     logger.info('MarketSentiment', 'Analysis complete', {
       overallSentiment: response.overall_sentiment,
@@ -555,10 +606,18 @@ async function handleSectorSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createSimplifiedEnhancedDAL(env, {
+  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  let cacheInstance;
+  if (isDOCacheEnabled(env)) {
+    cacheInstance = createCacheInstance(env, true);
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+  } else {
+    cacheInstance = createSimplifiedEnhancedDAL(env, {
       enableCache: true,
       environment: env.ENVIRONMENT || 'production'
     });
+    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+  }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
 
@@ -585,7 +644,7 @@ async function handleSectorSentiment(
 
     // Check cache first
     const cacheKey = `sector_sentiment_${sectors.join(',')}_${new Date().toISOString().split('T')[0]}`;
-    const cached = await dal.read(cacheKey);
+    const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
       logger.info('SectorSentiment', 'Cache hit', { sectors: sectors.join(','), requestId });
@@ -708,7 +767,7 @@ async function handleSectorSentiment(
     };
 
     // Cache the result for 1 hour
-    await dal.write(cacheKey, response, { expirationTtl: 3600 });
+    await setCache(cacheKey, response, cacheInstance);
 
     logger.info('SectorSentiment', 'Analysis complete', {
       sectors: sectors.join(','),

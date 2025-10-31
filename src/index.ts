@@ -10,6 +10,7 @@ import { createEnhancedRequestHandler } from './modules/enhanced-request-handler
 import { handleScheduledEvent } from './modules/scheduler.js';
 import { createLogger } from './modules/logging.js';
 import type { CloudflareEnvironment } from './types.js';
+import { CacheDurableObject } from './modules/cache-durable-object.js';
 
 const logger = createLogger('worker-enhanced');
 
@@ -178,3 +179,6 @@ export async function getSystemStatus(env: CloudflareEnvironment): Promise<Syste
     };
   }
 }
+
+// Export Durable Objects for Cloudflare Workers
+export { CacheDurableObject };
