@@ -63,7 +63,11 @@ binding = "ENHANCED_MODELS"
 [[durable_objects.bindings]]
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
-script_name = "tft-trading-system"
+
+# Durable Objects migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CacheDurableObject"]
 
 # Environment variables - Production-Ready Configuration
 [vars]

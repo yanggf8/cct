@@ -31,12 +31,23 @@ const logger = createLogger('sentiment-routes');
  * Cache helper function - only for Durable Objects cache
  * External APIs use KV cache independently
  */
-async function getFromCache(key: string, cacheInstance: any, namespace: string = 'sentiment_analysis'): Promise<any | null> {
+interface CacheLookupResult<T> {
+  success: boolean;
+  data: T | null;
+}
+
+async function getFromCache<T = any>(key: string, cacheInstance: any, namespace: string = 'sentiment_analysis'): Promise<CacheLookupResult<T>> {
   if (!cacheInstance) {
-    return null; // Cache disabled
+    return { success: false, data: null }; // Cache disabled
   }
-  // Durable Objects cache interface only
-  return await cacheInstance.get(key, { ttl: 3600, namespace });
+
+  const cachedValue = await cacheInstance.get(key, { ttl: 3600, namespace });
+
+  if (cachedValue === null || cachedValue === undefined) {
+    return { success: false, data: null };
+  }
+
+  return { success: true, data: cachedValue as T };
 }
 
 async function setCache(key: string, data: any, cacheInstance: any, namespace: string = 'sentiment_analysis', ttl: number = 3600): Promise<void> {
@@ -214,11 +225,10 @@ async function handleSentimentAnalysis(
     // Perform fresh analysis
     logger.info('SentimentAnalysis', 'Starting analysis', { symbols: symbols.join(','), requestId });
 
-      // Use enhanced batch analysis for optimization (50-70% KV reduction)
-    const analysisResult = await enhancedBatchDualAIAnalysis(symbols, env, {
-      enableOptimizedBatch: true,
-      batchSize: 3, // Conservative for AI rate limits
-      cacheKey: `sentiment_analysis_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`
+      // Use standard batch analysis (enhanced batch temporarily disabled due to CacheManager dependency)
+    const analysisResult = await batchDualAIAnalysis(symbols, env, {
+      enableCache: true,
+      useOptimizedBatch: false // Disable enhanced batch to avoid CacheManager issues
     });
 
     // Transform BatchDualAIAnalysisResult to v1 response format

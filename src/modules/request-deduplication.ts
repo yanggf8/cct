@@ -87,9 +87,9 @@ export class RequestDeduplicator {
       memoryUsage: 0
     };
 
-    // Start cleanup interval
-    this.startCleanupInterval();
-    logger.info('Request deduplicator initialized', this.config);
+    // Cleanup interval disabled for Cloudflare Workers (setInterval not allowed in global scope)
+    // this.startCleanupInterval(); // Disabled - would cause runtime error
+    logger.info('Request deduplicator initialized (cleanup interval disabled)', this.config);
   }
 
   static getInstance(config?: Partial<DeduplicationConfig>): RequestDeduplicator {
