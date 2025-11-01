@@ -39,6 +39,12 @@ binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
+# KV namespace for Durable Objects cache persistence (shared across workers)
+[[kv_namespaces]]
+binding = "CACHE_DO_KV"
+id = "321593c6717448dfb24ea2bd48cde1fa"
+preview_id = "220ca67255ed4bfeada7eb6816ce6413"
+
 # AI binding for enterprise-grade analysis with real market data (GPT-OSS-120B + DistilBERT)
 [ai]
 binding = "AI"

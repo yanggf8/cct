@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { SectorCacheManager } from '../modules/sector-cache-manager.js';
+import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
 import { SectorDataFetcher } from '../modules/sector-data-fetcher.js';
 import { SectorIndicators } from '../modules/sector-indicators.js';
 import { ApiResponseFactory } from '../modules/api-v1-responses.js';
@@ -87,7 +87,8 @@ export interface SectorSnapshotResponse {
  * Initialize sector services
  */
 function initializeSectorServices(env: any) {
-  const cacheManager = new SectorCacheManager(env);
+  // Use DO cache if enabled, otherwise no cache
+  const cacheManager = isDOCacheEnabled(env) ? createCacheInstance(env, true) : null;
   const dataFetcher = new SectorDataFetcher(cacheManager);
   const indicators = new SectorIndicators(env);
   const circuitBreaker = CircuitBreakerFactory.getInstance('sector-api');
@@ -123,7 +124,10 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
       }
 
       // Try to get from cache first
-      const cachedSnapshot = await services.cacheManager.getSectorSnapshot();
+      let cachedSnapshot = null;
+      if (services.cacheManager) {
+        cachedSnapshot = await services.cacheManager.getSectorSnapshot();
+      }
       if (cachedSnapshot) {
         cacheHit = true;
         const responseTime = Date.now() - startTime;
@@ -149,8 +153,10 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
 
       const responseTime = Date.now() - startTime;
 
-      // Cache the fresh data
-      await services.cacheManager.setSectorSnapshot(freshData);
+      // Cache the fresh data (if cache is enabled)
+      if (services.cacheManager) {
+        await services.cacheManager.setSectorSnapshot(freshData);
+      }
 
       const body = ApiResponseFactory.success(
         freshData,
@@ -352,8 +358,8 @@ async function fetchFreshSectorData(services: {
     );
   }
 
-  // Get cache statistics
-  const cacheStats = services.cacheManager.getCacheStats();
+  // Get cache statistics (if cache is enabled)
+  const cacheStats = services.cacheManager ? services.cacheManager.getCacheStats() : { enabled: false };
 
   const snapshot: SectorSnapshotResponse = {
     timestamp: Date.now(),
@@ -408,7 +414,7 @@ async function getHistoricalData(symbol: string, days: number): Promise<any[]> {
 export async function getSectorHealth(request: any, env: any): Promise<Response> {
   try {
     const services = initializeSectorServices(env);
-    const cacheStats = services.cacheManager.getCacheStats();
+    const cacheStats = services.cacheManager ? services.cacheManager.getCacheStats() : { enabled: false };
     const circuitBreakerStatus = services.circuitBreaker.getMetrics();
 
     const health = {
@@ -433,7 +439,7 @@ export async function getSectorHealth(request: any, env: any): Promise<Response>
       }
     };
 
-    const isHealthy = health.services.cacheManager.l1HitRate > 0.1 &&
+    const isHealthy = (health.services.cacheManager.l1HitRate || 0) > 0.1 &&
                      circuitBreakerStatus.state !== 'OPEN';
 
     const body = ApiResponseFactory.success(

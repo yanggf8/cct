@@ -4,7 +4,7 @@
  */
 
 import { ApiResponseFactory, HttpStatus, generateRequestId } from '../modules/api-v1-responses.js';
-import { createCacheManager } from '../modules/cache-manager.ts';
+import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
 
 interface RealtimeConnection {
     id: string;
@@ -30,16 +30,13 @@ class RealtimeManager {
     }
 
     /**
-     * Initialize cache manager with environment
+     * Get cache instance (DO cache if enabled, otherwise null)
      */
-    private getCacheManager(env: any) {
-        if (!this.cacheManager) {
-            this.cacheManager = createCacheManager(env, {
-                l1MaxSize: 100,
-                enabled: true
-            });
+    private async getCacheManager(env: any) {
+        if (isDOCacheEnabled(env)) {
+            return createCacheInstance(env, true);
         }
-        return this.cacheManager;
+        return null; // No cache for realtime
     }
 
     /**

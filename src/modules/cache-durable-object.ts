@@ -1,9 +1,10 @@
-// Durable Object Cache - Persistent In-Memory Cache
-// Eliminates KV operations by storing cache in DO's persistent memory
-// Survives worker restarts, provides <1ms latency
+// Durable Object Cache - Persistent In-Memory Cache with KV Backup
+// Uses DO's persistent memory + KV namespace for maximum durability
+// Survives worker restarts, provides <1ms latency, shared across workers
 
 import { DurableObject } from 'cloudflare:workers';
 import { createLogger } from './logging.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('cache-durable-object');
 
@@ -31,19 +32,26 @@ export interface CacheStats {
 }
 
 /**
- * Durable Object for persistent cache storage
+ * Durable Object for persistent cache storage with KV backup
  *
  * Features:
  * - Persistent in-memory Map (survives worker restarts)
+ * - Dual persistence: DO storage + KV namespace (shared across workers)
  * - TTL-based expiration
  * - LRU eviction when at capacity
  * - Automatic cleanup via Alarms API
  * - <1ms read/write latency
  *
- * Benefits vs KV:
- * - Zero KV reads/writes (100% elimination)
- * - No 50ms L2 fallback latency
- * - Single cache layer (simpler architecture)
+ * Architecture:
+ * - Primary: DO persistent memory (fastest, <1ms)
+ * - Backup: KV namespace (shared across all workers)
+ * - Load order: KV first (shared), then DO storage (instance-specific)
+ *
+ * Benefits:
+ * - Cache survives DO restarts (KV backup)
+ * - Cache shared across workers (KV namespace)
+ * - Best performance (DO memory) + best durability (KV)
+ * - Single cache layer with dual persistence
  */
 export class CacheDurableObject extends DurableObject {
   private cache: Map<string, CacheEntry>;
@@ -51,8 +59,9 @@ export class CacheDurableObject extends DurableObject {
   private stats: CacheStats;
   private cleanupScheduled: boolean = false;
 
-  constructor(state: DurableObjectState, env: any) {
+  constructor(state: DurableObjectState, env: CloudflareEnvironment) {
     super(state, env);
+    this.env = env;
     this.cache = new Map();
     this.stats = {
       size: 0,
@@ -66,19 +75,39 @@ export class CacheDurableObject extends DurableObject {
     this.initializeFromStorage();
   }
 
+  private env: CloudflareEnvironment;
+
   /**
    * Initialize from persistent storage (cold start)
+   * Tries KV first (shared across workers), then falls back to DO storage
    */
   private async initializeFromStorage(): Promise<void> {
     try {
-      const stored = await this.storage.get<any>('cache');
-      if (stored) {
-        this.cache = new Map(stored.entries || []);
-        const storedStats = await this.storage.get<CacheStats>('stats');
-        if (storedStats) {
-          this.stats = storedStats;
+      // Try KV first (shared across workers)
+      if (this.env.CACHE_DO_KV) {
+        const kvStored = await this.env.CACHE_DO_KV.get('do_cache_entries');
+        if (kvStored) {
+          const data = JSON.parse(kvStored);
+          this.cache = new Map(data.entries || []);
+          const kvStatsStr = await this.env.CACHE_DO_KV.get('do_cache_stats');
+          if (kvStatsStr) {
+            this.stats = JSON.parse(kvStatsStr);
+          }
+          logger.info('CACHE_DO_INIT', `Loaded ${this.cache.size} entries from KV (shared)`);
         }
-        logger.info('CACHE_DO_INIT', `Loaded ${this.cache.size} entries from storage`);
+      }
+
+      // If KV empty, try DO storage
+      if (this.cache.size === 0) {
+        const stored = await this.storage.get<any>('cache');
+        if (stored) {
+          this.cache = new Map(stored.entries || []);
+          const storedStats = await this.storage.get<CacheStats>('stats');
+          if (storedStats) {
+            this.stats = storedStats;
+          }
+          logger.info('CACHE_DO_INIT', `Loaded ${this.cache.size} entries from DO storage`);
+        }
       }
 
       // Schedule cleanup alarm if not already scheduled
@@ -157,6 +186,7 @@ export class CacheDurableObject extends DurableObject {
 
   /**
    * Clear all cache entries
+   * Clears both DO storage and KV namespace
    */
   async clear(): Promise<void> {
     this.cache.clear();
@@ -168,7 +198,14 @@ export class CacheDurableObject extends DurableObject {
       hitRate: 0
     };
     await this.storage.deleteAll();
-    logger.info('CACHE_DO_CLEAR', 'Cache cleared completely');
+
+    // Also clear KV namespace
+    if (this.env.CACHE_DO_KV) {
+      await this.env.CACHE_DO_KV.delete('do_cache_entries');
+      await this.env.CACHE_DO_KV.delete('do_cache_stats');
+    }
+
+    logger.info('CACHE_DO_CLEAR', 'Cache cleared from DO storage + KV');
   }
 
   /**
@@ -251,13 +288,25 @@ export class CacheDurableObject extends DurableObject {
   }
 
   /**
-   * Persist cache to storage
+   * Persist cache to storage (DO storage + KV for redundancy)
+   * Writes to both DO's built-in storage and main KV namespace
+   * This ensures cache survives DO restarts AND is shared across workers
    */
   private async persistToStorage(): Promise<void> {
     try {
       const entries = Array.from(this.cache.entries());
-      await this.storage.put('cache', { entries });
+      const data = { entries };
+
+      // Persist to DO storage (for DO instance recovery)
+      await this.storage.put('cache', data);
       await this.updateStats();
+
+      // Also persist to KV namespace (for sharing across workers)
+      if (this.env.CACHE_DO_KV) {
+        await this.env.CACHE_DO_KV.put('do_cache_entries', JSON.stringify(data));
+        await this.env.CACHE_DO_KV.put('do_cache_stats', JSON.stringify(this.stats));
+        logger.debug('CACHE_DO_PERSIST', `Synced ${entries.length} entries to KV`);
+      }
     } catch (error) {
       logger.error('CACHE_DO_PERSIST_ERROR', 'Failed to persist cache', error);
     }

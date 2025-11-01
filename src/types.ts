@@ -16,6 +16,7 @@
 export interface CloudflareEnvironment {
   // KV Namespace
   TRADING_RESULTS: KVNamespace;
+  CACHE_DO_KV?: KVNamespace;  // KV namespace for DO cache persistence
 
   // R2 Buckets
   TRADING_MODELS?: R2Bucket;

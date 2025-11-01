@@ -195,6 +195,21 @@ async function getFMPNews(symbol: string, env: CloudflareEnvironment): Promise<N
     throw new Error('FMP API key not configured (free at financialmodelingprep.com)');
   }
 
+  // Create cache key with date for automatic cleanup
+  const cacheKey = `news_fmp_${symbol}_${new Date().toISOString().split('T')[0]}`;
+
+  // Check cache first
+  const { createSimplifiedEnhancedDAL } = await import('./simplified-enhanced-dal.js');
+  const dal = createSimplifiedEnhancedDAL(env, { enableCache: true });
+  const cached = await dal.read<NewsArticle[]>(cacheKey);
+
+  if (cached.success && cached.data) {
+    console.log(`[FMP Cache] HIT for ${symbol}`);
+    return cached.data;
+  }
+
+  console.log(`[FMP Cache] MISS for ${symbol}, fetching from API...`);
+
   const url = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${symbol}&limit=10&apikey=${API_KEY}`;
 
   const response = await fetch(url);
@@ -211,7 +226,7 @@ async function getFMPNews(symbol: string, env: CloudflareEnvironment): Promise<N
   }
 
   // FMP already includes sentiment analysis!
-  return data.map(item => ({
+  const newsArticles = data.map(item => ({
     title: item.title,
     summary: item.text?.substring(0, 500) || item.title,
     publishedAt: item.publishedDate,
@@ -222,6 +237,12 @@ async function getFMPNews(symbol: string, env: CloudflareEnvironment): Promise<N
     confidence: 0.7, // FMP has decent quality
     source_type: 'fmp_with_sentiment'
   }));
+
+  // Store in cache for 1 hour (3600 seconds)
+  await dal.write(cacheKey, newsArticles, { expirationTtl: 3600 });
+  console.log(`[FMP Cache] Stored ${newsArticles.length} articles for ${symbol}`);
+
+  return newsArticles;
 }
 
 /**
@@ -266,6 +287,22 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
     throw new Error('NewsAPI key not configured (free at newsapi.org)');
   }
 
+  // Create cache key with hour for more granular caching (prevents rate limits)
+  const hour = new Date().getHours();
+  const cacheKey = `news_api_${symbol}_${hour}`;
+
+  // Check cache first
+  const { createSimplifiedEnhancedDAL } = await import('./simplified-enhanced-dal.js');
+  const dal = createSimplifiedEnhancedDAL(env, { enableCache: true });
+  const cached = await dal.read<NewsArticle[]>(cacheKey);
+
+  if (cached.success && cached.data) {
+    console.log(`[NewsAPI Cache] HIT for ${symbol} (hour ${hour})`);
+    return cached.data;
+  }
+
+  console.log(`[NewsAPI Cache] MISS for ${symbol}, fetching from API...`);
+
   // Search for stock-specific news
   const url = `https://newsapi.org/v2/everything?q=${symbol}&sortBy=publishedAt&pageSize=10&apiKey=${API_KEY}`;
 
@@ -276,7 +313,7 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
     throw new Error(data.message);
   }
 
-  return data.articles?.map(article => ({
+  const newsArticles = data.articles?.map(article => ({
     title: article.title,
     summary: article.description || article.title,
     publishedAt: article.publishedAt,
@@ -287,6 +324,12 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
     confidence: 0.6, // Lower confidence without built-in sentiment
     source_type: 'newsapi'
   })) || [];
+
+  // Store in cache for 30 minutes (1800 seconds) - news is time-sensitive
+  await dal.write(cacheKey, newsArticles, { expirationTtl: 1800 });
+  console.log(`[NewsAPI Cache] Stored ${newsArticles.length} articles for ${symbol} (hour ${hour})`);
+
+  return newsArticles;
 }
 
 /**

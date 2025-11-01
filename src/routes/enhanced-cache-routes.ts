@@ -5,8 +5,6 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { createCacheManager } from '../modules/cache-manager.js';
-import { EnhancedCacheFactory } from '../modules/enhanced-cache-factory.js';
 import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
 
 const logger = createLogger('enhanced-cache-routes');
@@ -252,18 +250,16 @@ function generateRandomStockSymbols(count: number): string[] {
  * Create enhanced cache routes
  */
 export function createEnhancedCacheRoutes(env: any) {
-  // Use Durable Objects cache if enabled, fallback to enhanced cache factory
+  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // External APIs use KV cache independently
   let cacheManager;
   if (isDOCacheEnabled(env)) {
     cacheManager = createCacheInstance(env, true);
-    logger.info('CACHE_ROUTES', 'Using Durable Objects cache');
+    logger.info('CACHE_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
-    cacheManager = EnhancedCacheFactory.createCacheManager(env, {
-      enabled: true,
-      enablePromotion: true,
-      enableMetrics: true,
-    });
-    logger.info('CACHE_ROUTES', 'Using Enhanced Cache Factory (fallback)');
+    // Cache endpoints work without cache
+    cacheManager = null;
+    logger.info('CACHE_ROUTES', 'Cache disabled (L1 not available)');
   }
 
   const routes = [
@@ -272,6 +268,23 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'GET',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
+          // Return basic health if cache is disabled
+          if (!cacheManager) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              assessment: {
+                status: 'disabled',
+                overallScore: 0,
+                l1Metrics: { enabled: false },
+                l2Metrics: { enabled: false },
+                message: 'Cache is disabled (DO cache not enabled)'
+              }
+            }), {
+              headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }
+            });
+          }
+
           const healthAssessment = await cacheManager.performHealthAssessment();
 
           return new Response(JSON.stringify({
@@ -303,6 +316,23 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'GET',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
+          // Return basic config if cache is disabled
+          if (!cacheManager) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              environment: env.ENVIRONMENT || 'production',
+              config: {
+                enabled: false,
+                l1Cache: { enabled: false },
+                l2Cache: { enabled: false, namespace: 'TRADING_RESULTS' },
+                message: 'Cache is disabled (DO cache not enabled)'
+              }
+            }), {
+              headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' }
+            });
+          }
+
           const configSummary = cacheManager.getConfigurationSummary();
           const allConfigs = cacheManager.getAllEnhancedConfigs();
 
@@ -337,6 +367,35 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'GET',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
+          // Return zero metrics if cache is disabled
+          if (!cacheManager) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              cacheStats: {
+                totalRequests: 0,
+                l1Hits: 0,
+                l2Hits: 0,
+                misses: 0,
+                l1Size: 0,
+                l2Size: 0
+              },
+              l1Stats: {
+                hits: 0,
+                misses: 0,
+                currentSize: 0,
+                currentMemoryMB: 0,
+                hitRate: 0
+              },
+              message: 'Cache is disabled (DO cache not enabled)'
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+
           const stats = cacheManager.getStats();
           const l1Stats = cacheManager.getL1Stats();
           const l1DetailedInfo = cacheManager.getL1DetailedInfo();
@@ -393,6 +452,23 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'GET',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
+          // Return disabled status if cache is disabled
+          if (!cacheManager) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              enabled: false,
+              stats: { totalPromotions: 0, successfulPromotions: 0 },
+              accessPatterns: [],
+              message: 'Cache is disabled (DO cache not enabled)'
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+
           const promotionStats = cacheManager.getPromotionStats();
           const accessPatterns = cacheManager.getAccessPatterns();
 
@@ -427,6 +503,26 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'GET',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
+          // Return disabled status if cache is disabled
+          if (!cacheManager) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              system: {
+                status: 'disabled',
+                enabled: false,
+                l1Cache: { enabled: false },
+                l2Cache: { enabled: true, namespace: 'TRADING_RESULTS' },
+                message: 'Cache is disabled (DO cache not enabled)'
+              }
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+
           const systemStatus = await cacheManager.getSystemStatus();
 
           return new Response(JSON.stringify({

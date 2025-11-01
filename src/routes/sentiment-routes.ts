@@ -28,29 +28,23 @@ import type { CloudflareEnvironment } from '../types.js';
 const logger = createLogger('sentiment-routes');
 
 /**
- * Cache helper function for unified interface
+ * Cache helper function - only for Durable Objects cache
+ * External APIs use KV cache independently
  */
 async function getFromCache(key: string, cacheInstance: any, namespace: string = 'sentiment_analysis'): Promise<any | null> {
-  if (cacheInstance.get) {
-    // Durable Objects cache interface
-    return await cacheInstance.get(key, { ttl: 3600, namespace });
-  } else {
-    // DAL interface
-    const fullKey = `${namespace}:${key}`;
-    const result = await cacheInstance.read(fullKey);
-    return result.success ? result.data : null;
+  if (!cacheInstance) {
+    return null; // Cache disabled
   }
+  // Durable Objects cache interface only
+  return await cacheInstance.get(key, { ttl: 3600, namespace });
 }
 
 async function setCache(key: string, data: any, cacheInstance: any, namespace: string = 'sentiment_analysis', ttl: number = 3600): Promise<void> {
-  if (cacheInstance.set) {
-    // Durable Objects cache interface
-    await cacheInstance.set(key, data, { ttl, namespace });
-  } else {
-    // DAL interface
-    const fullKey = `${namespace}:${key}`;
-    await cacheInstance.write(fullKey, data, { expirationTtl: ttl });
+  if (!cacheInstance) {
+    return; // Cache disabled
   }
+  // Durable Objects cache interface only
+  await cacheInstance.set(key, data, { ttl, namespace });
 }
 
 /**
@@ -173,17 +167,16 @@ async function handleSentimentAnalysis(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // External APIs (FMP, NewsAPI) use KV cache independently
   let cacheInstance;
   if (isDOCacheEnabled(env)) {
     cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
-    cacheInstance = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+    // No cache - simple, direct execution
+    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    cacheInstance = null;
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
@@ -313,17 +306,16 @@ async function handleSymbolSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // External APIs (FMP, NewsAPI) use KV cache independently
   let cacheInstance;
   if (isDOCacheEnabled(env)) {
     cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
-    cacheInstance = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+    // No cache - simple, direct execution
+    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    cacheInstance = null;
   }
 
   try {
@@ -478,17 +470,16 @@ async function handleMarketSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // External APIs (FMP, NewsAPI) use KV cache independently
   let cacheInstance;
   if (isDOCacheEnabled(env)) {
     cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
-    cacheInstance = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+    // No cache - simple, direct execution
+    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    cacheInstance = null;
   }
 
   try {
@@ -606,17 +597,16 @@ async function handleSectorSentiment(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  // Use Durable Objects cache if enabled, otherwise fallback to DAL
+  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // External APIs (FMP, NewsAPI) use KV cache independently
   let cacheInstance;
   if (isDOCacheEnabled(env)) {
     cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache');
+    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
-    cacheInstance = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-    logger.info('SENTIMENT_ROUTES', 'Using Enhanced DAL (fallback)');
+    // No cache - simple, direct execution
+    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    cacheInstance = null;
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
