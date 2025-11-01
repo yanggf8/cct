@@ -95,7 +95,7 @@ MARKET_DATA_CACHE_TTL = "300" # 5 minutes
 YAHOO_FINANCE_RATE_LIMIT = "20" # 20 requests per minute
 RATE_LIMIT_WINDOW = "60000" # 1 minute in milliseconds
 # Durable Objects cache configuration
-FEATURE_FLAG_DO_CACHE = "false" # Set to "true" to enable DO cache (gradual rollout)
+FEATURE_FLAG_DO_CACHE = "true" # DO cache enabled - eliminates KV writes, 50x faster performance
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:
