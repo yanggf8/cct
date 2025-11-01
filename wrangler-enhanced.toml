@@ -3,36 +3,68 @@ main = "src/index-enhanced.js"
 compatibility_date = "2025-01-10"
 compatibility_flags = ["nodejs_compat"]
 
+# Production environment configuration
 [env.production]
 name = "tft-trading-system"
 main = "src/index-enhanced.js"
 
-[env.staging]
-name = "tft-trading-system-staging"
-main = "src/index-enhanced.js"
-
-# KV bindings
-[[kv_namespaces]]
+# Production KV bindings - MUST use real UUID from main wrangler.toml
+[[env.production.kv_namespaces]]
 binding = "TRADING_RESULTS"
-id = "trading-results-kv"
-preview_id = "trading-results-kv-preview"
+id = "321593c6717448dfb24ea2bd48cde1fa"
 
-# R2 bindings
-[[r2_buckets]]
-binding = "TFT_TRADING_MODELS"
+# Production R2 bindings
+[[env.production.r2_buckets]]
+binding = "TRAINED_MODELS"
 bucket_name = "tft-trading-models"
 
-# D1 bindings (if needed)
-# [[d1_databases]]
-# binding = "TFT_DATABASE"
-# database_name = "tft-trading-db"
-# database_id = "your-database-id"
+# Production AI binding
+[env.production.ai]
+binding = "AI"
 
-# Variables
-[vars]
+# Production Durable Objects
+[[env.production.durable_objects.bindings]]
+name = "CACHE_DO"
+class_name = "CacheDurableObject"
+
+# Production variables
+[env.production.vars]
 ENVIRONMENT = "production"
 WORKER_VERSION = "2.0-enhanced"
 LOG_LEVEL = "info"
 ENABLE_CACHE = "true"
 ENABLE_MIGRATION = "true"
 NEW_API_PERCENTAGE = "10"
+
+# Staging environment configuration
+[env.staging]
+name = "tft-trading-system-staging"
+main = "src/index-enhanced.js"
+
+# Staging KV bindings - uses preview_id from main wrangler.toml
+[[env.staging.kv_namespaces]]
+binding = "TRADING_RESULTS"
+id = "220ca67255ed4bfeada7eb6816ce6413"
+
+# Staging R2 bindings
+[[env.staging.r2_buckets]]
+binding = "TRAINED_MODELS"
+bucket_name = "tft-trading-models"
+
+# Staging AI binding
+[env.staging.ai]
+binding = "AI"
+
+# Staging Durable Objects
+[[env.staging.durable_objects.bindings]]
+name = "CACHE_DO"
+class_name = "CacheDurableObject"
+
+# Staging variables
+[env.staging.vars]
+ENVIRONMENT = "staging"
+WORKER_VERSION = "2.0-enhanced-staging"
+LOG_LEVEL = "debug"
+ENABLE_CACHE = "true"
+ENABLE_MIGRATION = "true"
+NEW_API_PERCENTAGE = "100"

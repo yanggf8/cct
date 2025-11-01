@@ -39,11 +39,9 @@ binding = "TRADING_RESULTS"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
-# KV namespace for Durable Objects cache persistence (shared across workers)
-[[kv_namespaces]]
-binding = "CACHE_DO_KV"
-id = "321593c6717448dfb24ea2bd48cde1fa"
-preview_id = "220ca67255ed4bfeada7eb6816ce6413"
+# NOTE: CACHE_DO_KV removed - was duplicate of TRADING_RESULTS
+# Durable Objects cache uses CACHE_DO binding for persistent memory
+# If separate KV needed for DO cache, create new namespace with unique ID
 
 # AI binding for enterprise-grade analysis with real market data (GPT-OSS-120B + DistilBERT)
 [ai]

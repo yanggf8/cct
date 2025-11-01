@@ -99,6 +99,16 @@ export async function handleDataRoutes(
       }
     }
 
+    // GET /api/v1/data/kv-self-test - Direct KV binding test (bypasses cache layers)
+    if (path === '/api/v1/data/kv-self-test' && method === 'GET') {
+      return await handleKVSelfTest(request, env, headers, requestId);
+    }
+
+    // GET /api/v1/data/bindings - Show available environment bindings
+    if (path === '/api/v1/data/bindings' && method === 'GET') {
+      return await handleShowBindings(request, env, headers, requestId);
+    }
+
     // Method not allowed for existing paths
     return new Response(
       JSON.stringify(
@@ -964,4 +974,329 @@ function getSymbolSector(symbol: string): string {
     'JNJ': 'Health Care',
   };
   return sectors[symbol] || 'Unknown';
+}
+
+/**
+ * Handle KV Self-Test endpoint
+ * GET /api/v1/data/kv-self-test
+ *
+ * Bypasses all cache layers and DAL abstraction to test direct KV binding
+ * This endpoint validates that KV namespace is correctly bound and operational
+ */
+async function handleKVSelfTest(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+  const testResults: any = {
+    binding_check: { success: false, message: '' },
+    write_test: { success: false, message: '', error: null },
+    read_test: { success: false, message: '', data: null, error: null },
+    list_test: { success: false, message: '', found: false, error: null },
+    delete_test: { success: false, message: '', error: null },
+    cleanup_verify: { success: false, message: '', error: null }
+  };
+
+  try {
+    // Step 1: Check if TRADING_RESULTS binding exists
+    if (!env.TRADING_RESULTS) {
+      testResults.binding_check = {
+        success: false,
+        message: 'CRITICAL: TRADING_RESULTS binding is undefined - KV namespace not bound to worker'
+      };
+
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            'KV binding not found',
+            'KV_BINDING_MISSING',
+            {
+              requestId,
+              testResults,
+              availableBindings: Object.keys(env).filter(key =>
+                !key.startsWith('__') && typeof env[key] === 'object'
+              )
+            }
+          )
+        ),
+        {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          headers,
+        }
+      );
+    }
+    testResults.binding_check = {
+      success: true,
+      message: 'TRADING_RESULTS binding exists'
+    };
+
+    // Step 2: Direct KV write test (bypass all abstractions)
+    const testKey = `kv-self-test:${requestId}:${Date.now()}`;
+    const testValue = JSON.stringify({
+      test: 'KV self-test',
+      timestamp: new Date().toISOString(),
+      requestId,
+      data: 'Direct KV write test - bypasses all cache layers and DAL'
+    });
+
+    try {
+      await env.TRADING_RESULTS.put(testKey, testValue, {
+        expirationTtl: 60 // 1 minute
+      });
+      testResults.write_test = {
+        success: true,
+        message: 'Direct KV put() succeeded',
+        key: testKey
+      };
+    } catch (error) {
+      testResults.write_test = {
+        success: false,
+        message: 'Direct KV put() failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+      // Continue to next tests even if write fails
+    }
+
+    // Step 3: Direct KV read test
+    try {
+      const readValue = await env.TRADING_RESULTS.get(testKey);
+      if (readValue === testValue) {
+        testResults.read_test = {
+          success: true,
+          message: 'Direct KV get() succeeded - data matches',
+          data: JSON.parse(readValue)
+        };
+      } else if (readValue === null) {
+        testResults.read_test = {
+          success: false,
+          message: 'Direct KV get() returned null - data not found (possible write failure or async delay)',
+          data: null
+        };
+      } else {
+        testResults.read_test = {
+          success: false,
+          message: 'Direct KV get() returned data but value mismatch',
+          expected: testValue,
+          actual: readValue
+        };
+      }
+    } catch (error) {
+      testResults.read_test = {
+        success: false,
+        message: 'Direct KV get() failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+
+    // Step 4: Direct KV list test
+    try {
+      const listResult = await env.TRADING_RESULTS.list({
+        prefix: `kv-self-test:${requestId}`,
+        limit: 10
+      });
+      const found = listResult.keys.some(k => k.name === testKey);
+      testResults.list_test = {
+        success: true,
+        message: found ? 'Direct KV list() found test key' : 'Direct KV list() succeeded but test key not found',
+        found,
+        totalKeys: listResult.keys.length,
+        keys: listResult.keys.map(k => k.name)
+      };
+    } catch (error) {
+      testResults.list_test = {
+        success: false,
+        message: 'Direct KV list() failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+
+    // Step 5: Direct KV delete test
+    try {
+      await env.TRADING_RESULTS.delete(testKey);
+      testResults.delete_test = {
+        success: true,
+        message: 'Direct KV delete() succeeded'
+      };
+    } catch (error) {
+      testResults.delete_test = {
+        success: false,
+        message: 'Direct KV delete() failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+
+    // Step 6: Verify cleanup
+    try {
+      const verifyValue = await env.TRADING_RESULTS.get(testKey);
+      testResults.cleanup_verify = {
+        success: verifyValue === null,
+        message: verifyValue === null ? 'Cleanup verified - key deleted' : 'WARNING: Key still exists after delete'
+      };
+    } catch (error) {
+      testResults.cleanup_verify = {
+        success: false,
+        message: 'Cleanup verification failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+
+    // Calculate overall success
+    const allTestsPassed = Object.values(testResults).every((test: any) => test.success);
+    const criticalTestsPassed = testResults.binding_check.success &&
+                                testResults.write_test.success &&
+                                testResults.read_test.success;
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.success(
+          {
+            overall_status: allTestsPassed ? 'ALL_TESTS_PASSED' :
+                          criticalTestsPassed ? 'PARTIAL_SUCCESS' : 'CRITICAL_FAILURE',
+            all_tests_passed: allTestsPassed,
+            critical_tests_passed: criticalTestsPassed,
+            test_details: testResults,
+            summary: {
+              binding_exists: testResults.binding_check.success,
+              can_write: testResults.write_test.success,
+              can_read: testResults.read_test.success,
+              can_list: testResults.list_test.success,
+              can_delete: testResults.delete_test.success,
+              cleanup_verified: testResults.cleanup_verify.success
+            },
+            recommendations: allTestsPassed ?
+              ['KV binding is fully operational'] :
+              !testResults.binding_check.success ?
+                ['CRITICAL: KV namespace not bound - check wrangler.toml configuration',
+                 'Verify TRADING_RESULTS binding exists and has correct namespace ID'] :
+              !testResults.write_test.success ?
+                ['CRITICAL: Cannot write to KV - check namespace permissions',
+                 'Verify namespace ID in wrangler.toml matches actual KV namespace'] :
+              !testResults.read_test.success ?
+                ['WARNING: Write succeeded but read failed - possible replication delay',
+                 'Try again in a few seconds, or check KV namespace status'] :
+                ['Some tests failed - review test_details for specifics']
+          },
+          'KV self-test completed'
+        )
+      ),
+      {
+        status: criticalTestsPassed ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+
+  } catch (error) {
+    logger.error('KV Self-Test Error', error, { requestId });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          'KV self-test failed with exception',
+          'KV_SELFTEST_ERROR',
+          {
+            requestId,
+            testResults,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+          }
+        )
+      ),
+      {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+  }
+}
+
+/**
+ * Handle Show Bindings endpoint
+ * GET /api/v1/data/bindings
+ *
+ * Shows all available environment bindings for debugging
+ */
+async function handleShowBindings(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  try {
+    const bindings: Record<string, any> = {};
+
+    // Collect all bindings
+    for (const key of Object.keys(env)) {
+      if (key.startsWith('__')) continue; // Skip internal properties
+
+      const value = env[key];
+      const type = typeof value;
+
+      if (type === 'object' && value !== null) {
+        // Check binding type
+        if ('get' in value && 'put' in value && 'delete' in value && 'list' in value) {
+          bindings[key] = { type: 'KVNamespace', methods: ['get', 'put', 'delete', 'list'] };
+        } else if ('get' in value && 'put' in value && 'head' in value) {
+          bindings[key] = { type: 'R2Bucket', methods: ['get', 'put', 'head', 'delete'] };
+        } else if ('run' in value) {
+          bindings[key] = { type: 'AI', methods: ['run'] };
+        } else if ('get' in value && 'idFromName' in value) {
+          bindings[key] = { type: 'DurableObjectNamespace', methods: ['get', 'idFromName'] };
+        } else {
+          bindings[key] = { type: 'Unknown', methods: Object.keys(value).filter(k => typeof value[k] === 'function') };
+        }
+      } else if (type === 'string') {
+        bindings[key] = { type: 'string', value: value.length > 50 ? `${value.substring(0, 50)}...` : value };
+      } else {
+        bindings[key] = { type, value };
+      }
+    }
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.success(
+          {
+            bindings,
+            binding_count: Object.keys(bindings).length,
+            kv_namespaces: Object.keys(bindings).filter(k => bindings[k].type === 'KVNamespace'),
+            r2_buckets: Object.keys(bindings).filter(k => bindings[k].type === 'R2Bucket'),
+            ai_bindings: Object.keys(bindings).filter(k => bindings[k].type === 'AI'),
+            durable_objects: Object.keys(bindings).filter(k => bindings[k].type === 'DurableObjectNamespace'),
+            env_vars: Object.keys(bindings).filter(k => bindings[k].type === 'string'),
+            critical_bindings_status: {
+              TRADING_RESULTS: !!env.TRADING_RESULTS,
+              AI: !!env.AI,
+              CACHE_DO: !!env.CACHE_DO
+            }
+          },
+          'Environment bindings retrieved'
+        )
+      ),
+      {
+        status: HttpStatus.OK,
+        headers,
+      }
+    );
+
+  } catch (error) {
+    logger.error('Show Bindings Error', error, { requestId });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          'Failed to retrieve bindings',
+          'BINDINGS_ERROR',
+          {
+            requestId,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        )
+      ),
+      {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+  }
 }
