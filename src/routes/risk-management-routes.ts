@@ -69,7 +69,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk assessment request failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -119,7 +119,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Market risk assessment failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -165,7 +165,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Concentration risk assessment failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -213,7 +213,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Liquidity risk assessment failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -269,7 +269,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Stress test failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -330,7 +330,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Compliance assessment failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -374,7 +374,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Regulatory report generation failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -424,7 +424,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk limits check failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -504,7 +504,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk analytics failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -538,7 +538,7 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk health check failed:', error);
       const body = ApiResponseFactory.error(
         error.message,

@@ -70,7 +70,7 @@ export class DualCacheDO<T = any> {
       }
 
       return value;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_GET_ERROR', `Failed to get ${key}`, error);
       return null;
     }
@@ -85,7 +85,7 @@ export class DualCacheDO<T = any> {
       await stub.set(this.buildKey(key, config), value, config.ttl);
 
       logger.debug('DUAL_CACHE_DO', `SET: ${key} (TTL: ${config.ttl}s)`);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_SET_ERROR', `Failed to set ${key}`, error);
     }
   }
@@ -137,7 +137,7 @@ export class DualCacheDO<T = any> {
       };
 
       return { data: value, metadata: cacheMetadata, isStale };
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_STALE_ERROR', `Failed to get with stale revalidate: ${key}`, error);
       return { data: null, metadata: null, isStale: false };
     }
@@ -152,7 +152,7 @@ export class DualCacheDO<T = any> {
       await stub.delete(this.buildKey(key, config));
 
       logger.debug('DUAL_CACHE_DO', `DELETE: ${key}`);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_DELETE_ERROR', `Failed to delete ${key}`, error);
     }
   }
@@ -166,7 +166,7 @@ export class DualCacheDO<T = any> {
       await stub.clear();
 
       logger.info('DUAL_CACHE_DO', 'Cache cleared completely');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_CLEAR_ERROR', 'Failed to clear cache', error);
     }
   }
@@ -178,7 +178,7 @@ export class DualCacheDO<T = any> {
     try {
       const stub = this.getStub();
       return await stub.getStats();
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_STATS_ERROR', 'Failed to get stats', error);
       return null;
     }
@@ -205,7 +205,7 @@ export class DualCacheDO<T = any> {
       }
 
       return metadata;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_METADATA_ERROR', 'Failed to get metadata', error);
       return {};
     }
@@ -226,7 +226,7 @@ export class DualCacheDO<T = any> {
       const stub = this.getStub();
       const stats = await stub.getStats();
       return stats !== null;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DUAL_CACHE_DO_HEALTH_ERROR', 'Health check failed', error);
       return false;
     }
@@ -242,11 +242,9 @@ export function createCacheInstance(env: any, useDO: boolean = true): any {
     logger.info('CACHE_FACTORY', 'Using Durable Objects cache');
     return new DualCacheDO(env.CACHE_DO);
   } else {
-    // Fallback to existing Enhanced HashCache system
-    logger.info('CACHE_FACTORY', 'Using Enhanced HashCache (fallback)');
-    // Import dynamically to avoid circular dependencies
-    const { EnhancedOptimizedCacheManager } = require('./enhanced-optimized-cache-manager.js');
-    return new EnhancedOptimizedCacheManager(env);
+    // Strict DO-only policy: no legacy cache fallback
+    logger.info('CACHE_FACTORY', 'No cache (DO disabled or unavailable)');
+    return null;
   }
 }
 
@@ -254,9 +252,5 @@ export function createCacheInstance(env: any, useDO: boolean = true): any {
  * Feature flag checker
  */
 export function isDOCacheEnabled(env: any): boolean {
-  // Check feature flag first, then environment variable
-  const flagEnabled = env.FEATURE_FLAG_DO_CACHE === 'true';
-  const doAvailable = !!env.CACHE_DO;
-
-  return flagEnabled && doAvailable;
+  return !!(env && env.CACHE_DO);
 }

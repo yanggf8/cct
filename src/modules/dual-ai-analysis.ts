@@ -264,7 +264,7 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
   try {
     const topArticles = newsData.slice(0, 8);
     const newsContext = topArticles
-      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
+      .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
       .join('\n\n');
 
     const prompt = `As a financial analyst specializing in ${symbol}, analyze these news articles and provide:
@@ -286,7 +286,7 @@ ${newsContext}`;
             temperature: 0.1,
             max_tokens: 600
           }),
-          new Promise((_, reject) =>
+          new Promise((_: any, reject: any) =>
             setTimeout(() => reject(new Error('AI model timeout')), 30000) // 30s timeout
           )
         ]);
@@ -355,7 +355,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
 
   try {
     const results = await Promise.all(
-      newsData.slice(0, 10).map(async (article, index) => {
+      newsData.slice(0, 10).map(async (article: any, index: any) => {
         try {
           const text = `${article.title}. ${article.summary || ''}`.substring(0, 500);
 
@@ -368,7 +368,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
                   '@cf/huggingface/distilbert-sst-2-int8',
                   { text: text }
                 ),
-                new Promise((_, reject) =>
+                new Promise((_: any, reject: any) =>
                   setTimeout(() => reject(new Error('DistilBERT model timeout')), 20000) // 20s timeout
                 )
               ]);
@@ -401,7 +401,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
     if (bullishCount > bearishCount * 1.5) direction = 'bullish';
     else if (bearishCount > bullishCount * 1.5) direction = 'bearish';
 
-    const avgConfidence = validResults.reduce((sum, r) => sum + r.confidence, 0) / validResults.length;
+    const avgConfidence = validResults.reduce((sum: any, r: any) => sum + r.confidence, 0) / validResults.length;
 
     return {
       model: 'distilbert-sst-2-int8',
@@ -587,7 +587,7 @@ export async function batchDualAIAnalysis(
   }
 
   for (const batch of batches) {
-    const batchPromises = batch.map(async (symbol) => {
+    const batchPromises = batch.map(async (symbol: any) => {
       try {
         logAIDebug(`Analyzing ${symbol} with dual AI...`);
 
@@ -630,7 +630,7 @@ export async function batchDualAIAnalysis(
     const batchResults = await Promise.allSettled(batchPromises);
 
     // Process results
-    batchResults.forEach((result) => {
+    batchResults.forEach((result: any) => {
       if (result.status === 'fulfilled' && result.value.success) {
         if (result.value.result) {
           results.push(result.value.result);

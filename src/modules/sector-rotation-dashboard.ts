@@ -550,7 +550,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
                 } else {
                     throw new Error(response.message || 'Invalid response from API');
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Error loading sector data:', error);
                 showError('Failed to load sector data. Please try again.');
                 updateConnectionStatus('Error', false);
@@ -558,7 +558,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         // Update dashboard with sector data
-        function updateDashboard(data) {
+        function updateDashboard(data: any) {
             // Update summary cards
             updateSummaryCards(data.summary);
 
@@ -570,7 +570,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         // Update summary cards
-        function updateSummaryCards(summary) {
+        function updateSummaryCards(summary: any) {
             if (summary) {
                 document.getElementById('bullish-sectors').textContent = summary.bullishSectors || 0;
                 document.getElementById('bearish-sectors').textContent = summary.bearishSectors || 0;
@@ -579,7 +579,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         // Update sector cards
-        function updateSectorCards(sectors) {
+        function updateSectorCards(sectors: any) {
             const grid = document.getElementById('sectors-grid');
 
             if (!sectors || sectors.length === 0) {
@@ -588,7 +588,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
             }
 
             // Sort sectors by performance
-            const sortedSectors = [...sectors].sort((a, b) => (b.changePercent || 0) - (a.changePercent || 0));
+            const sortedSectors = [...sectors].sort((a: any, b: any) => (b.changePercent || 0) - (a.changePercent || 0));
 
             const cardsHtml = sortedSectors.map(sector => {
                 const changePercent = sector.changePercent || 0;
@@ -688,7 +688,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         // Update sector chart
-        function updateSectorChart(sectors) {
+        function updateSectorChart(sectors: any) {
             if (!sectorChart || !sectors || sectors.length === 0) return;
 
             const labels = sectors.map(s => s.symbol);
@@ -726,13 +726,13 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
                         setTimeout(loadSectorData, 2000);
                     }
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Error running analysis:', error);
             }
         }
 
         // Update connection status
-        function updateConnectionStatus(status, isLoading) {
+        function updateConnectionStatus(status: any, isLoading: any) {
             const statusElement = document.getElementById('connection-status');
             const statusDot = document.querySelector('.status-dot');
 
@@ -762,7 +762,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         // Show error message
-        function showError(message) {
+        function showError(message: any) {
             const grid = document.getElementById('sectors-grid');
             grid.innerHTML = \`<div class="error">\${message}</div>\`;
         }
@@ -782,7 +782,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error serving sector rotation dashboard:', error);
     return new Response(JSON.stringify({
       success: false,

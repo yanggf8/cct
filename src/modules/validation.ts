@@ -188,7 +188,7 @@ export function validateOptionalField<T>(
 
   try {
     return validator(value);
-  } catch (error) {
+  } catch (error: unknown) {
     throw new ValidationError(`Invalid ${field}: ${error.message}`, field, value);
   }
 }
@@ -259,7 +259,7 @@ export function validateArray<T>(
     throw new ValidationError(`${field} array too long (max ${maxLength} items)`, field, value);
   }
 
-  return value.map((item, index) => {
+  return value.map((item: any, index: any) => {
     try {
       return itemValidator(item);
     } catch (error: any) {

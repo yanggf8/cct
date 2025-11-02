@@ -103,7 +103,7 @@ export interface CommissionConfig {
 }
 
 export interface SlippageConfig {
-  model: 'fixed_percent' | 'volume_based' | 'volatility_based' | 'realistic';
+  model: 'fixed_percent' | 'volume_based' | 'volatility_based' | 'realistic' | 'zero';
   parameters: {
     buySlippage?: number;
     sellSlippage?: number;
@@ -207,6 +207,7 @@ export interface TradeSignal {
   prediction?: ModelPrediction;
   technicalIndicators?: Record<string, number>;
   sentimentScore?: number;
+  reason?: string;
 }
 
 export interface ModelPrediction {
@@ -606,7 +607,7 @@ export interface BacktestMetadata {
   environment: string;
   processingTime: number;
   warnings: string[];
-  errors: string[];
+  errors: BacktestError[];
   assumptions: Assumption[];
   dataQuality: DataQualityMetrics;
   executionLog: ExecutionLogEntry[];

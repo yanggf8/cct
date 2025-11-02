@@ -226,8 +226,8 @@ export class FredApiClient {
       });
 
       return snapshot;
-    } catch (error) {
-      logger.error('Failed to generate macro economic snapshot:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to generate macro economic snapshot:', { error: error instanceof Error ? error.message : String(error) });
       throw new Error(`FRED API Error: ${error.message}`);
     }
   }
@@ -362,8 +362,8 @@ export class FredApiClient {
         if (i < requiredSeries.length - 1) {
           await this.delay(this.rateLimitDelay);
         }
-      } catch (error) {
-        logger.warn(`Failed to fetch series ${series}:`, error);
+      } catch (error: unknown) {
+        logger.warn(`Failed to fetch series ${series}:`, { error: error instanceof Error ? error.message : String(error) });
         // Continue with other series even if one fails
       }
     }
@@ -544,7 +544,7 @@ export class FredApiClient {
       }
 
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       if (retries < this.maxRetries) {
         logger.warn(`Request failed, retrying (${retries + 1}/${this.maxRetries})`, { url, error });
         await this.delay(this.rateLimitDelay * (retries + 1));
@@ -562,8 +562,8 @@ export class FredApiClient {
     try {
       const result = await this.dal.read<MacroEconomicSnapshot>(cacheKey);
       return result.success ? result.data : null;
-    } catch (error) {
-      logger.error('Cache read error:', error);
+    } catch (error: unknown) {
+      logger.error('Cache read error:', { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -577,8 +577,8 @@ export class FredApiClient {
       if (!result.success) {
         throw new Error(`Failed to cache snapshot: ${result.error}`);
       }
-    } catch (error) {
-      logger.error('Cache write error:', error);
+    } catch (error: unknown) {
+      logger.error('Cache write error:', { error: error instanceof Error ? error.message : String(error) });
       // Continue even if caching fails
     }
   }
@@ -635,7 +635,7 @@ export class FredApiClient {
           latestObservation: data.observations[0]?.date || null,
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'unhealthy',
         details: {

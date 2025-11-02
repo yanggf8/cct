@@ -300,7 +300,7 @@ export class EnhancedHashCache<T = any> {
       ttl: Math.max(0, Math.floor((entry.expiresAt - now) / 1000)),
       hits: entry.hits,
       size: entry.size,
-    })).sort((a, b) => b.age - a.age); // Sort by age (oldest first)
+    })).sort((a: any, b: any) => b.age - a.age); // Sort by age (oldest first)
 
     return {
       config: { ...this.config },
@@ -529,7 +529,7 @@ export class EnhancedHashCache<T = any> {
     this.refreshingKeys.add(key);
 
     // Background refresh - non-blocking
-    refreshFn().then(async (freshData) => {
+    refreshFn().then(async (freshData: any) => {
       try {
         // Update cache with fresh data, preserving original TTL
         const originalTTL = Math.round((entry.expiresAt - entry.timestamp) / 1000);
@@ -539,7 +539,7 @@ export class EnhancedHashCache<T = any> {
           age: Date.now() - entry.timestamp,
           originalTTL
         });
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error(`Background refresh failed for key: ${key}`, {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
@@ -547,7 +547,7 @@ export class EnhancedHashCache<T = any> {
         // Remove from refreshing set
         this.refreshingKeys.delete(key);
       }
-    }).catch((error) => {
+    }).catch((error: any) => {
       logger.error(`Background refresh error for key: ${key}`, {
         error: error instanceof Error ? error.message : 'Unknown error'
       });

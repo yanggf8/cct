@@ -197,8 +197,8 @@ export class MarketRegimeClassifier {
 
       return analysis;
 
-    } catch (error) {
-      logger.error('Failed to classify market regime:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to classify market regime:', { error: error instanceof Error ? error.message : String(error) });
       // Return default analysis
       return this.getDefaultRegimeAnalysis();
     }
@@ -522,7 +522,7 @@ export class MarketRegimeClassifier {
     }
 
     // Normalize probabilities to sum to 100
-    const total = Object.values(probabilities).reduce((sum, prob) => sum + prob, 0);
+    const total = Object.values(probabilities).reduce((sum: any, prob: any) => sum + prob, 0);
     if (total > 0) {
       for (const regime of regimes) {
         probabilities[regime] = (probabilities[regime] / total) * 100;
@@ -652,8 +652,8 @@ export class MarketRegimeClassifier {
    */
   private calculateConsensus(factorScores: EnhancedRegimeAnalysis['factorContributions']): number {
     const scores = Object.values(factorScores).map(factor => factor.score);
-    const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
+    const mean = scores.reduce((sum: any, score: any) => sum + score, 0) / scores.length;
+    const variance = scores.reduce((sum: any, score: any) => sum + Math.pow(score - mean, 2), 0) / scores.length;
     const standardDeviation = Math.sqrt(variance);
 
     // Convert standard deviation to consensus (lower deviation = higher consensus)
@@ -831,7 +831,7 @@ export class MarketRegimeClassifier {
     // Calculate probability of regime change
     const currentProb = probabilities[currentRegime];
     const secondBestProb = Object.values(probabilities)
-      .sort((a, b) => b - a)[1] || 0;
+      .sort((a: any, b: any) => b - a)[1] || 0;
 
     const transitionProbability = Math.max(0, secondBestProb - currentProb + 20);
 
@@ -980,13 +980,13 @@ export class MarketRegimeClassifier {
   // Helper methods
   private calculateFactorVariance(factorScores: EnhancedRegimeAnalysis['factorContributions']): number {
     const scores = Object.values(factorScores).map(factor => factor.score);
-    const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
+    const mean = scores.reduce((sum: any, score: any) => sum + score, 0) / scores.length;
+    const variance = scores.reduce((sum: any, score: any) => sum + Math.pow(score - mean, 2), 0) / scores.length;
     return variance;
   }
 
   private calculateDistanceFromNeutral(factorScores: EnhancedRegimeAnalysis['factorContributions']): number {
-    return Object.values(factorScores).reduce((sum, factor) => {
+    return Object.values(factorScores).reduce((sum: any, factor: any) => {
       return sum + Math.abs(factor.score - 50);
     }, 0);
   }
@@ -1128,7 +1128,7 @@ export class MarketRegimeClassifier {
       const historyLength = this.regimeHistory.length;
       const recentClassifications = this.regimeHistory.slice(-10);
       const averageConfidence = recentClassifications.length > 0
-        ? recentClassifications.reduce((sum, h) => sum + h.confidence, 0) / recentClassifications.length
+        ? recentClassifications.reduce((sum: any, h: any) => sum + h.confidence, 0) / recentClassifications.length
         : 0;
 
       return {
@@ -1149,7 +1149,7 @@ export class MarketRegimeClassifier {
             : null
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'unhealthy',
         details: { error: error.message }

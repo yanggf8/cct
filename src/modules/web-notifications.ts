@@ -180,7 +180,7 @@ export class WebNotificationManager {
           await this.storeNotificationForDelivery(subscriber, notification);
           result.sent++;
 
-        } catch (error) {
+        } catch (error: unknown) {
           result.failed++;
           result.errors.push(`Failed to send to ${subscriber.userId}: ${error}`);
           logger.error('Failed to send notification to subscriber', {
@@ -199,7 +199,7 @@ export class WebNotificationManager {
         failed: result.failed
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       result.success = false;
       result.errors.push(`System error: ${error.message}`);
       logger.error('Failed to send notification', {
@@ -315,7 +315,7 @@ export class WebNotificationManager {
         subscriptionId
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to register subscriber', { error: error.message });
       return {
         success: false,
@@ -346,7 +346,7 @@ export class WebNotificationManager {
       logger.info('Subscriber unregistered successfully', { subscriptionId });
       return true;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to unregister subscriber', {
         subscriptionId,
         error: error.message
@@ -367,7 +367,7 @@ export class WebNotificationManager {
       const result = await this.dal.read(historyKey);
       return result?.notifications?.slice(-limit) || [];
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to get notification history', {
         userId,
         error: error.message
@@ -453,7 +453,7 @@ export class WebNotificationManager {
       // return subscriptions.map(key => this.dal.read(key))
 
       return subscribers;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to get active subscribers', { error: error.message });
       return [];
     }
@@ -467,7 +467,7 @@ export class WebNotificationManager {
 
       const result = await this.dal.read(prefKey);
       return result || this.preferences;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to get user preferences', {
         userId,
         error: error.message
@@ -581,7 +581,7 @@ export class WebNotificationManager {
       };
 
       await this.dal.write(analyticsKey, updated, KeyHelpers.getKVOptions(KeyTypes.PERFORMANCE_METADATA));
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to store notification analytics', { error: error.message });
     }
   }

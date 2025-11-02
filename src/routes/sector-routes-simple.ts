@@ -71,7 +71,7 @@ export class SectorRoutes {
         timestamp: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -139,16 +139,16 @@ export class SectorRoutes {
       };
 
       // Market analysis
-      const avgPerformance = analyzedSectors.reduce((sum, s) => sum + s.changePercent, 0) / analyzedSectors.length;
+      const avgPerformance = analyzedSectors.reduce((sum: any, s: any) => sum + s.changePercent, 0) / analyzedSectors.length;
       const marketAnalysis = {
         trend: avgPerformance > 1 ? 'Bullish' : avgPerformance < -1 ? 'Bearish' : 'Neutral',
         confidence: Math.min(Math.abs(avgPerformance) / 2, 1),
         topSectors: analyzedSectors
-          .sort((a, b) => b.changePercent - a.changePercent)
+          .sort((a: any, b: any) => b.changePercent - a.changePercent)
           .slice(0, 3)
           .map(s => s.symbol),
         weakSectors: analyzedSectors
-          .sort((a, b) => a.changePercent - b.changePercent)
+          .sort((a: any, b: any) => a.changePercent - b.changePercent)
           .slice(0, 3)
           .map(s => s.symbol)
       };
@@ -164,7 +164,7 @@ export class SectorRoutes {
         timestamp: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -206,7 +206,7 @@ export class SectorRoutes {
         timestamp: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -235,7 +235,7 @@ export class SectorRoutes {
         timestamp: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Test failed',
@@ -330,7 +330,7 @@ export async function handleSectorRoute(request: Request, env: any, ctx: any): P
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Sector route error:', error);
     return new Response(JSON.stringify({
       success: false,

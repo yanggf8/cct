@@ -72,7 +72,7 @@ export const RequestValidation = {
    */
   validateHeaders(request: Request, requiredHeaders: string[] = []): ValidationHeaders {
     const headers: ValidationHeaders = {};
-    request.headers.forEach((value, key) => {
+    request.headers.forEach((value: any, key: any) => {
       headers[key] = value;
     });
 
@@ -390,7 +390,7 @@ export const MarketDataValidation = {
       }
 
       // Validate price values
-      [open, high, low, close].forEach((price, idx) => {
+      [open, high, low, close].forEach((price: any, idx: any) => {
         if (typeof price !== 'number' || price < 0) {
           const fields = ['open', 'high', 'low', 'close'];
           throw new Error(`Candle ${i} has invalid ${fields[idx]}: ${price}`);

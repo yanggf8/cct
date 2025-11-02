@@ -152,7 +152,7 @@ export async function handleBacktestingRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('BacktestingRoutes Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -260,7 +260,7 @@ async function handleRunBacktest(
       { status: HttpStatus.CREATED, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('RunBacktest Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId
@@ -373,7 +373,7 @@ async function handleBacktestStatus(
       }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('BacktestStatus Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -491,7 +491,7 @@ async function handleGetBacktestResults(
       }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('GetBacktestResults Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -594,7 +594,7 @@ async function handleGetPerformanceMetrics(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('GetPerformanceMetrics Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -708,7 +708,7 @@ async function handleCompareBacktests(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('CompareBacktests Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId
@@ -803,7 +803,7 @@ async function handleBacktestHistory(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('BacktestHistory Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId
@@ -897,7 +897,7 @@ async function handleGetValidationResults(
       { status: HttpStatus.ACCEPTED, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('GetValidationResults Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -992,7 +992,7 @@ async function handleWalkForwardOptimization(
       { status: HttpStatus.ACCEPTED, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('WalkForwardOptimization Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -1091,7 +1091,7 @@ async function handleMonteCarloSimulation(
       { status: HttpStatus.ACCEPTED, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('MonteCarloSimulation Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -1200,7 +1200,7 @@ async function executeBacktestInBackground(
       finalReturn: result.performanceMetrics?.totalReturn || result.performance?.totalReturn
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     // Update status to failed
     await storage.updateRunStatus(backtestId, 'failed', null, 'Failed', error);
 
@@ -1307,7 +1307,7 @@ async function runValidationInBackground(
 
     logger.info('Validation completed', { backtestId, overallScore: validation.overallScore });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Background validation failed', {
       backtestId,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -1342,7 +1342,7 @@ async function runWalkForwardInBackground(
 
     logger.info('Walk-forward optimization completed', { backtestId });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Background walk-forward optimization failed', {
       backtestId,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -1382,7 +1382,7 @@ async function runMonteCarloInBackground(
       meanReturn: monteCarloResult.summary.meanReturn
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Background Monte Carlo simulation failed', {
       backtestId,
       error: error instanceof Error ? error.message : 'Unknown error'

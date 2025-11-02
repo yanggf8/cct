@@ -114,7 +114,7 @@ export async function handleReportRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('ReportRoutes Error', error, { requestId, path, method });
 
     return new Response(
@@ -228,7 +228,7 @@ async function handleDailyReport(
       report: {
         market_overview: {
           sentiment: overallSentiment,
-          confidence: sentiments.reduce((sum, s) => sum + s.confidence, 0) / sentiments.length,
+          confidence: sentiments.reduce((sum: any, s: any) => sum + s.confidence, 0) / sentiments.length,
           key_factors: [
             `Market sentiment: ${overallSentiment}`,
             `Symbols analyzed: ${signals.length}`,
@@ -298,7 +298,7 @@ async function handleDailyReport(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('DailyReport Error', error, { requestId, date });
 
     return new Response(
@@ -408,8 +408,8 @@ async function handleWeeklyReport(
 
     // Calculate weekly metrics
     const weeklyReturns = dailyReports.map(report => Math.random() * 4 - 2); // Mock returns
-    const avgReturn = weeklyReturns.reduce((sum, ret) => sum + ret, 0) / weeklyReturns.length;
-    const volatility = Math.sqrt(weeklyReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / weeklyReturns.length);
+    const avgReturn = weeklyReturns.reduce((sum: any, ret: any) => sum + ret, 0) / weeklyReturns.length;
+    const volatility = Math.sqrt(weeklyReturns.reduce((sum: any, ret: any) => sum + Math.pow(ret - avgReturn, 2), 0) / weeklyReturns.length);
 
     const response: WeeklyReportResponse = {
       week,
@@ -481,7 +481,7 @@ async function handleWeeklyReport(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('WeeklyReport Error', error, { requestId, week });
 
     return new Response(
@@ -603,7 +603,7 @@ async function handlePreMarketReport(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('PreMarketReport Error', error, { requestId });
 
     return new Response(
@@ -647,7 +647,7 @@ async function handlePreMarketDataGeneration(
       if (body.symbols && Array.isArray(body.symbols)) {
         symbols = body.symbols;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Use default symbols if body parsing fails
     }
 
@@ -750,7 +750,7 @@ async function handleIntradayReport(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('IntradayReport Error', error, { requestId });
 
     return new Response(
@@ -828,7 +828,7 @@ async function handleEndOfDayReport(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('EndOfDayReport Error', error, { requestId });
 
     return new Response(

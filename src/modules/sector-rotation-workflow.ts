@@ -486,8 +486,8 @@ export class SectorRotationWorkflow {
       returns.push((prices[i] - prices[i-1]) / prices[i-1]);
     }
 
-    const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const avgReturn = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
     const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized volatility
 
     return {
@@ -562,10 +562,10 @@ export class SectorRotationWorkflow {
    */
   private async generateRotationSignals(startTime: number): Promise<SectorRotationResult> {
     // Determine overall market conditions
-    const avgPerformance = this.results.reduce((sum, etf) => sum + etf.performanceMetrics.daily, 0) / this.results.length;
+    const avgPerformance = this.results.reduce((sum: any, etf: any) => sum + etf.performanceMetrics.daily, 0) / this.results.length;
     const overallTrend = avgPerformance > 0.5 ? 'bull' : avgPerformance < -0.5 ? 'bear' : 'neutral';
 
-    const avgVolatility = this.results.reduce((sum, etf) => sum + etf.performanceMetrics.volatility, 0) / this.results.length;
+    const avgVolatility = this.results.reduce((sum: any, etf: any) => sum + etf.performanceMetrics.volatility, 0) / this.results.length;
     const volatility = avgVolatility > 25 ? 'high' : avgVolatility > 15 ? 'medium' : 'low';
 
     const riskOn = overallTrend === 'bull' && volatility !== 'high';
@@ -573,16 +573,16 @@ export class SectorRotationWorkflow {
     // Sort sectors by performance and rotation signals
     const inflowSectors = this.results
       .filter(etf => etf.rotationSignal.direction === 'inflow')
-      .sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)
+      .sort((a: any, b: any) => b.performanceMetrics.daily - a.performanceMetrics.daily)
       .map(etf => etf.symbol as ETFSymbol);
 
     const outflowSectors = this.results
       .filter(etf => etf.rotationSignal.direction === 'outflow')
-      .sort((a, b) => a.performanceMetrics.daily - b.performanceMetrics.daily)
+      .sort((a: any, b: any) => a.performanceMetrics.daily - b.performanceMetrics.daily)
       .map(etf => etf.symbol as ETFSymbol);
 
-    const leadingSector = inflowSectors[0] || this.results.sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)[0].symbol as ETFSymbol;
-    const laggingSector = outflowSectors[0] || this.results.sort((a, b) => a.performanceMetrics.daily - b.performanceMetrics.daily)[0].symbol as ETFSymbol;
+    const leadingSector = inflowSectors[0] || this.results.sort((a: any, b: any) => b.performanceMetrics.daily - a.performanceMetrics.daily)[0].symbol as ETFSymbol;
+    const laggingSector = outflowSectors[0] || this.results.sort((a: any, b: any) => a.performanceMetrics.daily - b.performanceMetrics.daily)[0].symbol as ETFSymbol;
 
     const emergingSectors = this.results
       .filter(etf => etf.rotationSignal.direction === 'inflow' && etf.rotationSignal.strength === 'strong')
@@ -690,7 +690,7 @@ export class SectorRotationWorkflow {
    */
   private calculateSMA(prices: number[], period: number): number {
     if (prices.length < period) return 0;
-    const sum = prices.slice(-period).reduce((a, b) => a + b, 0);
+    const sum = prices.slice(-period).reduce((a: any, b: any) => a + b, 0);
     return sum / period;
   }
 
@@ -708,8 +708,8 @@ export class SectorRotationWorkflow {
     const gains = changes.slice(-period).filter(change => change > 0);
     const losses = changes.slice(-period).filter(change => change < 0).map(loss => Math.abs(loss));
 
-    const avgGain = gains.length > 0 ? gains.reduce((a, b) => a + b, 0) / period : 0;
-    const avgLoss = losses.length > 0 ? losses.reduce((a, b) => a + b, 0) / period : 0;
+    const avgGain = gains.length > 0 ? gains.reduce((a: any, b: any) => a + b, 0) / period : 0;
+    const avgLoss = losses.length > 0 ? losses.reduce((a: any, b: any) => a + b, 0) / period : 0;
 
     if (avgLoss === 0) return 100;
 
@@ -736,7 +736,7 @@ export class SectorRotationWorkflow {
     if (prices.length < period) return prices[prices.length - 1];
 
     const multiplier = 2 / (period + 1);
-    let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    let ema = prices.slice(0, period).reduce((a: any, b: any) => a + b, 0) / period;
 
     for (let i = period; i < prices.length; i++) {
       ema = (prices[i] * multiplier) + (ema * (1 - multiplier));

@@ -205,7 +205,7 @@ export class EnhancedBatchOperations {
   ): Promise<void> {
     const batchItems = allItems.filter(item => batchKeys.includes(item.key));
 
-    const batchPromises = batchItems.map(async (item) => {
+    const batchPromises = batchItems.map(async (item: any) => {
       const itemStartTime = Date.now();
 
       try {
@@ -270,7 +270,7 @@ export class EnhancedBatchOperations {
           responseTime
         });
 
-      } catch (error) {
+      } catch (error: unknown) {
         const responseTime = Date.now() - itemStartTime;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
@@ -371,7 +371,7 @@ export class EnhancedBatchOperations {
     const failedItems = results.filter(r => !r.success).length;
 
     // Calculate average response time
-    const totalResponseTime = results.reduce((sum, r) => sum + r.responseTime, 0);
+    const totalResponseTime = results.reduce((sum: any, r: any) => sum + r.responseTime, 0);
     const averageResponseTime = results.length > 0 ? totalResponseTime / results.length : 0;
 
     // Calculate metrics

@@ -297,7 +297,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache health assessment failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -348,7 +348,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'public, max-age=300', // 5 minutes
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache config retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -433,7 +433,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache metrics retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -484,7 +484,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache promotion data retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -535,7 +535,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('System status retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -647,7 +647,7 @@ export function createEnhancedCacheRoutes(env: any) {
                 data_size: JSON.stringify(dataset.data).length,
                 ttl: dataset.ttl || 'default'
               });
-            } catch (error) {
+            } catch (error: unknown) {
               logger.error(`Failed to warm cache entry: ${dataset.namespace}:${dataset.key}`, { error });
               results.push({
                 namespace: dataset.namespace,
@@ -687,7 +687,7 @@ export function createEnhancedCacheRoutes(env: any) {
             l2CacheInfo: {
               ttl_hours: 24,
               total_entries: results.length,
-              estimated_size_kb: Math.round(results.reduce((sum, r) => sum + (r.data_size || 0), 0) / 1024)
+              estimated_size_kb: Math.round(results.reduce((sum: any, r: any) => sum + (r.data_size || 0), 0) / 1024)
             }
           }), {
             headers: {
@@ -695,7 +695,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Enhanced cache warmup failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -785,7 +785,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache timestamp check failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -859,7 +859,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache debug failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -930,7 +930,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache deduplication stats failed', { error });
           return new Response(JSON.stringify({
             success: false,

@@ -161,7 +161,7 @@ export class EnhancedDataAccessLayer {
         await this.cacheManager.delete(namespace, key);
         cacheInvalidated = true;
         logger.debug(`Cache invalidated for ${namespace}:${key}`);
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn('Failed to invalidate cache', { namespace, key, error });
       }
     }
@@ -494,7 +494,7 @@ export class EnhancedDataAccessLayer {
         for (const namespace of namespaces) {
           await this.cacheManager.delete(namespace, key);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn('Failed to delete from cache', { key, error });
       }
     }

@@ -175,7 +175,7 @@ export class AIPredictiveAnalytics {
         dataSourceSummary: marketData.dataAvailability,
         modelPerformance: {
           gptResponseTime: gptTime,
-          distilbertResponse: totalTime - gptTime,
+          distilbertResponseTime: totalTime - gptTime,
           totalProcessingTime: totalTime,
           accuracyEstimate: this.calculateAccuracyEstimate(synthesizedPrediction)
         }
@@ -197,15 +197,16 @@ export class AIPredictiveAnalytics {
 
       return prediction;
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       logger.error('Failed to generate market prediction', {
         predictionType,
         timeframe,
-        error: error.message,
+        error: message,
         processingTime: Date.now() - startTime
       });
 
-      throw new Error(`Predictive analysis failed: ${error.message}`);
+      throw new Error(`Predictive analysis failed: ${message}`);
     }
   }
 
@@ -234,7 +235,7 @@ export class AIPredictiveAnalytics {
         timestamp: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to gather complete market data', { error });
       return {
         marketDrivers: {},
@@ -260,7 +261,7 @@ export class AIPredictiveAnalytics {
       const { initializeMarketDrivers } = await import('../modules/market-drivers.js');
       const marketDrivers = initializeMarketDrivers(this.env);
       return await marketDrivers.getMarketDriversSnapshot();
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to fetch market drivers', { error });
       return null;
     }
@@ -275,7 +276,7 @@ export class AIPredictiveAnalytics {
       const today = new Date().toISOString().split('T')[0];
       const result = await this.dal.read(`sector_rotation_${today}`);
       return result.success ? result.data : null;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to fetch sector rotation data', { error });
       return null;
     }
@@ -290,7 +291,7 @@ export class AIPredictiveAnalytics {
       const today = new Date().toISOString().split('T')[0];
       const result = await this.dal.getAnalysis(today);
       return result.success ? result.data : null;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to fetch sentiment data', { error });
       return null;
     }
@@ -379,7 +380,7 @@ RESPONSE FORMAT (JSON):
         throw new Error('Failed to parse GPT response');
       }
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('GPT analysis failed', { error, processingTime: Date.now() - startTime });
 
       // Return fallback analysis
@@ -442,7 +443,7 @@ Based on this market data, classify the overall market sentiment as positive, ne
         throw new Error('Empty DistilBERT response');
       }
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('DistilBERT analysis failed', { error, processingTime: Date.now() - startTime });
 
       // Return fallback analysis
@@ -530,15 +531,38 @@ Based on this market data, classify the overall market sentiment as positive, ne
   /**
    * Determine final direction based on AI agreement
    */
-  private determineFinalDirection(gptDirection: string, distilbertSentiment: string, agreement: string): 'bullish' | 'bearish' | 'neutral' | 'volatile' {
+  private determineFinalDirection(
+    gptDirection: string,
+    distilbertSentiment: string,
+    agreement: string
+  ): 'bullish' | 'bearish' | 'neutral' | 'volatile' {
+    const normalizedGpt = this.normalizeDirection(gptDirection);
+    const normalizedDistilbert = this.normalizeDirection(distilbertSentiment);
+
     if (agreement === 'AGREE') {
-      return gptDirection as 'bullish' | 'bearish' | 'neutral' | 'volatile';
-    } else if (agreement === 'PARTIAL_AGREE') {
+      return normalizedGpt;
+    }
+
+    if (agreement === 'PARTIAL_AGREE') {
       // Choose the more conservative option
-      return gptDirection === 'neutral' || distilbertSentiment === 'neutral' ? 'neutral' : gptDirection;
-    } else {
-      // Strong disagreement - default to neutral with warning
-      return 'neutral';
+      return normalizedGpt === 'neutral' || normalizedDistilbert === 'neutral'
+        ? 'neutral'
+        : normalizedGpt;
+    }
+
+    // Strong disagreement - default to neutral with warning
+    return 'neutral';
+  }
+
+  private normalizeDirection(direction: string): 'bullish' | 'bearish' | 'neutral' | 'volatile' {
+    switch (direction) {
+      case 'bullish':
+      case 'bearish':
+      case 'neutral':
+      case 'volatile':
+        return direction;
+      default:
+        return 'neutral';
     }
   }
 
@@ -546,8 +570,11 @@ Based on this market data, classify the overall market sentiment as positive, ne
    * Calculate combined confidence score
    */
   private calculateCombinedConfidence(gptResult: any, distilbertResult: any, agreement: string): number {
-    const gptConfidence = Object.values(gptResult.confidenceBreakdown).reduce((a: number, b: number) => a + b, 0) / 4;
-    const distilbertConfidence = distilbertResult.confidence;
+    const breakdownValues = Object.values(gptResult?.confidenceBreakdown ?? {}) as Array<number>;
+    const gptConfidenceTotal = breakdownValues.reduce((sum, value) => sum + (typeof value === 'number' ? value : 0), 0);
+    const gptConfidenceCount = breakdownValues.length || 1;
+    const gptConfidence = gptConfidenceTotal / gptConfidenceCount;
+    const distilbertConfidence = typeof distilbertResult?.confidence === 'number' ? distilbertResult.confidence : 0;
 
     let baseConfidence = (gptConfidence + distilbertConfidence) / 2;
 
@@ -693,7 +720,7 @@ Based on this market data, classify the overall market sentiment as positive, ne
         predictionType: prediction.predictionType,
         confidence: prediction.confidence
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to cache prediction', { error });
     }
   }
@@ -717,10 +744,18 @@ Based on this market data, classify the overall market sentiment as positive, ne
         }
       }
 
-      return predictions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      const sortedPredictions = [...predictions].sort((a, b) => {
+        const aTime = new Date(a.timestamp).getTime();
+        const bTime = new Date(b.timestamp).getTime();
+        return bTime - aTime;
+      });
 
-    } catch (error) {
-      logger.error('Failed to get recent predictions', { error });
+      return sortedPredictions;
+
+    } catch (error: unknown) {
+      logger.error('Failed to get recent predictions', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       return [];
     }
   }
@@ -739,16 +774,17 @@ Based on this market data, classify the overall market sentiment as positive, ne
 
       const totalPredictions = predictions.length;
       const averageConfidence = totalPredictions > 0
-        ? predictions.reduce((sum, p) => sum + p.confidence, 0) / totalPredictions
+        ? predictions.reduce((sum, prediction) => sum + (prediction.confidence ?? 0), 0) / totalPredictions
         : 0;
 
-      const agreementDistribution = predictions.reduce((acc, p) => {
-        acc[p.aiAgreement] = (acc[p.aiAgreement] || 0) + 1;
+      const agreementDistribution = predictions.reduce<Record<string, number>>((acc, prediction) => {
+        const key = prediction.aiAgreement ?? 'UNKNOWN';
+        acc[key] = (acc[key] ?? 0) + 1;
         return acc;
-      }, {} as Record<string, number>);
+      }, {});
 
       const averageAccuracy = totalPredictions > 0
-        ? predictions.reduce((sum, p) => sum + p.modelPerformance.accuracyEstimate, 0) / totalPredictions
+        ? predictions.reduce((sum, prediction) => sum + (prediction.modelPerformance?.accuracyEstimate ?? 0), 0) / totalPredictions
         : 0;
 
       return {
@@ -758,8 +794,10 @@ Based on this market data, classify the overall market sentiment as positive, ne
         averageAccuracy: Math.round(averageAccuracy)
       };
 
-    } catch (error) {
-      logger.error('Failed to get prediction accuracy', { error });
+    } catch (error: unknown) {
+      logger.error('Failed to get prediction accuracy', {
+        error: error instanceof Error ? error.message : String(error)
+      });
       return {
         totalPredictions: 0,
         averageConfidence: 0,

@@ -292,7 +292,7 @@ export async function validateDependencies(
   const missing: string[] = [];
   const completed: string[] = [];
 
-  requiredJobs.forEach((jobType, index) => {
+  requiredJobs.forEach((jobType: any, index: any) => {
     const status = statuses[index];
     if (status && status.status === 'done') {
       completed.push(jobType);

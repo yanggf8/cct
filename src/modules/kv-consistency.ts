@@ -421,7 +421,7 @@ export function createExistenceCheck(expectedValue?: string): ConsistencyConditi
         return value === expectedValue;
       }
       return value !== null && value !== undefined;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.debug('Existence check failed', { key, error: (error as Error).message });
       return false;
     }
@@ -441,7 +441,7 @@ export function createJsonCheck<T = any>(
 
       const data = JSON.parse(value) as T;
       return validator(data);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.debug('JSON consistency check failed', { key, error: (error as Error).message });
       return false;
     }

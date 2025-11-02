@@ -79,7 +79,7 @@ export async function handleIntegrationTestRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('IntegrationTestRoutes Error', error, { requestId, path, method });
 
     return new Response(
@@ -122,7 +122,7 @@ async function handleRunFullTestSuite(
     try {
       const body = await request.json();
       config = body.config || {};
-    } catch (error) {
+    } catch (error: unknown) {
       // Use default config if no body provided
       config = {};
     }
@@ -151,7 +151,7 @@ async function handleRunFullTestSuite(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('RunFullTestSuite Error', error, { requestId });
 
     return new Response(
@@ -215,7 +215,7 @@ async function handleHealthCheck(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('HealthCheck Error', error, { requestId });
 
     return new Response(
@@ -287,7 +287,7 @@ async function handleTestStatus(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('TestStatus Error', error, { requestId });
 
     return new Response(

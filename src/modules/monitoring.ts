@@ -127,7 +127,7 @@ const systemMetrics = new SystemMetrics();
  */
 export const BusinessMetrics = {
   // Analysis metrics
-  analysisRequested: (type, symbols) => {
+  analysisRequested: (type: any, symbols: any) => {
     systemMetrics.incrementCounter('analysis.requested', 1, { type });
     systemMetrics.recordGauge('analysis.symbols_count', symbols, { type });
   },
@@ -138,7 +138,7 @@ export const BusinessMetrics = {
     systemMetrics.recordGauge('analysis.success_rate', 100, { type });
   },
 
-  analysisFailed: (type, error) => {
+  analysisFailed: (type: any, error: any) => {
     systemMetrics.incrementCounter('analysis.failed', 1, { type, error });
     systemMetrics.recordGauge('analysis.success_rate', 0, { type });
   },
@@ -161,7 +161,7 @@ export const BusinessMetrics = {
   },
 
   // Facebook metrics
-  facebookMessageSent: (type, success) => {
+  facebookMessageSent: (type: any, success: any) => {
     systemMetrics.incrementCounter('facebook.messages_sent', 1, { type, success: success.toString() });
   },
 
@@ -172,12 +172,12 @@ export const BusinessMetrics = {
   },
 
   // Daily summary metrics
-  dailySummaryGenerated: (date, predictions) => {
+  dailySummaryGenerated: (date: any, predictions: any) => {
     systemMetrics.incrementCounter('daily_summary.generated', 1, { date });
     systemMetrics.recordGauge('daily_summary.predictions', predictions, { date });
   },
 
-  dailySummaryViewed: (date) => {
+  dailySummaryViewed: (date: any) => {
     systemMetrics.incrementCounter('daily_summary.views', 1, { date });
   }
 };
@@ -189,7 +189,7 @@ export const BusinessKPI = {
   /**
    * Track prediction accuracy against targets
    */
-  trackPredictionAccuracy: (accuracy) => {
+  trackPredictionAccuracy: (accuracy: any) => {
     const target = CONFIG.BUSINESS_KPI.PREDICTION_ACCURACY_TARGET;
     const isOnTarget = accuracy >= target;
 
@@ -209,7 +209,7 @@ export const BusinessKPI = {
   /**
    * Track system performance against targets
    */
-  trackPerformanceKPI: (responseTime, operation) => {
+  trackPerformanceKPI: (responseTime: any, operation: any) => {
     const target = CONFIG.BUSINESS_KPI.RESPONSE_TIME_TARGET_MS;
     const performance = responseTime <= target ? 100 : (target / responseTime) * 100;
 
@@ -248,7 +248,7 @@ export const BusinessKPI = {
   /**
    * Track system uptime against target
    */
-  trackUptimeKPI: (uptimePercentage) => {
+  trackUptimeKPI: (uptimePercentage: any) => {
     const target = CONFIG.BUSINESS_KPI.UPTIME_TARGET;
     const performance = uptimePercentage >= target ? 100 : (uptimePercentage / target) * 100;
 
@@ -325,25 +325,25 @@ export const BusinessKPI = {
 /**
  * Helper functions for KPI calculations
  */
-function getLatestGauge(gauges, metricName) {
+function getLatestGauge(gauges: any, metricName: any) {
   const matching = Object.entries(gauges)
     .filter(([key]) => key.startsWith(metricName))
     .map(([, value]) => value)
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a: any, b: any) => b.timestamp - a.timestamp);
 
   return matching.length > 0 ? matching[0].value : null;
 }
 
-function getLatestTimer(timers, metricName) {
+function getLatestTimer(timers: any, metricName: any) {
   const matching = Object.entries(timers)
     .filter(([key]) => key.startsWith(metricName))
     .map(([, value]) => value)
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a: any, b: any) => b.timestamp - a.timestamp);
 
   return matching.length > 0 ? matching[0].duration : null;
 }
 
-function getLatestCounter(counters, metricName) {
+function getLatestCounter(counters: any, metricName: any) {
   const matching = Object.entries(counters)
     .filter(([key]) => key.startsWith(metricName))
     .reduce((sum, [, value]) => sum + value, 0);
@@ -351,7 +351,7 @@ function getLatestCounter(counters, metricName) {
   return matching;
 }
 
-function getKPIStatus(performanceMetric, gauges) {
+function getKPIStatus(performanceMetric: any, gauges: any) {
   const performance = getLatestGauge(gauges, performanceMetric);
   if (performance === null) return 'unknown';
   if (performance >= 95) return 'excellent';
@@ -360,7 +360,7 @@ function getKPIStatus(performanceMetric, gauges) {
   return 'poor';
 }
 
-function calculateOverallKPIHealth(metrics) {
+function calculateOverallKPIHealth(metrics: any) {
   const kpiMetrics = [
     getLatestGauge(metrics.gauges, 'kpi.prediction_accuracy_vs_target'),
     getLatestGauge(metrics.gauges, 'kpi.response_time_performance'),
@@ -371,7 +371,7 @@ function calculateOverallKPIHealth(metrics) {
 
   if (kpiMetrics.length === 0) return 'unknown';
 
-  const avgPerformance = kpiMetrics.reduce((sum, val) => sum + val, 0) / kpiMetrics.length;
+  const avgPerformance = kpiMetrics.reduce((sum: any, val: any) => sum + val, 0) / kpiMetrics.length;
 
   if (avgPerformance >= 95) return 'excellent';
   if (avgPerformance >= 85) return 'good';
@@ -386,12 +386,12 @@ export const PerformanceMonitor = {
   /**
    * Monitor HTTP request performance
    */
-  monitorRequest: (request, handler) => {
+  monitorRequest: (request: any, handler?: any) => {
     const url = new URL(request.url);
     const startTime = Date.now();
 
     return {
-      complete: (response) => {
+      complete: (response: any) => {
         const duration = Date.now() - startTime;
         BusinessMetrics.apiRequest(
           url.pathname,
@@ -457,7 +457,7 @@ export const HealthMonitor = {
       } else {
         throw new Error('One or more DAL operations failed');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       health.components.kv_storage = {
         status: 'unhealthy',
         error: error.message
@@ -487,7 +487,7 @@ export const HealthMonitor = {
           error: 'AI binding not available'
         };
       }
-    } catch (error) {
+    } catch (error: unknown) {
       health.components.ai_models = {
         status: 'unhealthy',
         error: error.message
@@ -541,7 +541,7 @@ export const AlertManager = {
   /**
    * Check for alerting conditions
    */
-  checkAlerts: (metrics) => {
+  checkAlerts: (metrics: any) => {
     // Example alert conditions
     const alerts = [];
 
@@ -583,7 +583,7 @@ export { systemMetrics as SystemMetrics };
 /**
  * Initialize monitoring
  */
-export function initMonitoring(env) {
+export function initMonitoring(env: any) {
   logger.info('Monitoring system initialized', {
     timestamp: new Date().toISOString()
   });

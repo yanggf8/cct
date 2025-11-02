@@ -783,7 +783,7 @@ export class PredictiveAnalyticsEngine {
         return (isFavored && positiveMomentum && positiveSentiment) ||
                (positiveMomentum && technicalStrength && etf.performanceMetrics.daily > 0.5);
       })
-      .sort((a, b) => {
+      .sort((a: any, b: any) => {
         const scoreA = this.calculateSectorScore(a, favoredSectors, avoidedSectors, true);
         const scoreB = this.calculateSectorScore(b, favoredSectors, avoidedSectors, true);
         return scoreB - scoreA;
@@ -837,7 +837,7 @@ export class PredictiveAnalyticsEngine {
 
         return isAvoided || (negativeMomentum && (bearishSentiment || technicalWeakness));
       })
-      .sort((a, b) => {
+      .sort((a: any, b: any) => {
         const scoreA = this.calculateSectorScore(a, favoredSectors, avoidedSectors, false);
         const scoreB = this.calculateSectorScore(b, favoredSectors, avoidedSectors, false);
         return scoreA - scoreB; // Lower is worse for underperformers

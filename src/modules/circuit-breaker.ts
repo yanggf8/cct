@@ -90,8 +90,8 @@ export class CircuitBreaker {
   private callResults: CallResult[] = [];
   private config: CircuitBreakerConfig;
 
-  constructor(config: CircuitBreakerConfig) {
-    this.config = {
+  constructor(config: Partial<CircuitBreakerConfig> = {}) {
+    const defaultConfig: CircuitBreakerConfig = {
       failureThreshold: 5,
       successThreshold: 3,
       openTimeout: 60000, // 1 minute
@@ -99,8 +99,10 @@ export class CircuitBreaker {
       halfOpenMaxCalls: 5,
       resetTimeout: 300000, // 5 minutes
       trackResults: true,
-      ...config
+      name: config.name
     };
+
+    this.config = { ...defaultConfig, ...config } as CircuitBreakerConfig;
   }
 
   /**
@@ -120,7 +122,7 @@ export class CircuitBreaker {
       this.onSuccess(duration);
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
 
       this.onFailure(error instanceof Error ? error : new Error(String(error)), duration);
@@ -277,7 +279,7 @@ export class CircuitBreaker {
   getMetrics(): CircuitMetrics {
     const recentResults = this.callResults.slice(-100);
     const averageCallDuration = recentResults.length > 0
-      ? recentResults.reduce((sum, r) => sum + (r.duration || 0), 0) / recentResults.length
+      ? recentResults.reduce((sum: number, r: CallResult) => sum + (r.duration || 0), 0) / recentResults.length
       : 0;
 
     return {
@@ -361,9 +363,9 @@ export class CircuitBreakerFactory {
   /**
    * Get or create circuit breaker with given name and config
    */
-  static getInstance(name: string, config?: CircuitBreakerConfig): CircuitBreaker {
+  static getInstance(name: string, config?: Partial<CircuitBreakerConfig>): CircuitBreaker {
     if (!this.instances.has(name)) {
-      const breaker = new CircuitBreaker({ ...config, name });
+      const breaker = new CircuitBreaker({ ...(config || {}), name });
       this.instances.set(name, breaker);
     }
     return this.instances.get(name)!;
@@ -389,7 +391,7 @@ export class CircuitBreakerFactory {
   static getHealthStatus(): Array<{ name: string; healthy: boolean; metrics: CircuitMetrics }> {
     const result: Array<{ name: string; healthy: boolean; metrics: CircuitMetrics }> = [];
 
-    this.instances.forEach((breaker, name) => {
+    this.instances.forEach((breaker: any, name: any) => {
       result.push({
         name,
         healthy: breaker.isHealthy(),
@@ -404,11 +406,12 @@ export class CircuitBreakerFactory {
 /**
  * Pre-configured circuit breakers for common use cases
  */
-export const CommonCircuitBreakers = {
+export const CommonCircuitBreakers = { /* ensure trackResults true */
   /**
    * Circuit breaker for Yahoo Finance API
    */
   yahooFinance: () => CircuitBreakerFactory.getInstance('yahoo-finance', {
+    trackResults: true,
     failureThreshold: 3,
     successThreshold: 2,
     openTimeout: 30000, // 30 seconds
@@ -421,6 +424,7 @@ export const CommonCircuitBreakers = {
    * Circuit breaker for general API calls
    */
   api: () => CircuitBreakerFactory.getInstance('api', {
+    trackResults: true,
     failureThreshold: 5,
     successThreshold: 3,
     openTimeout: 60000, // 1 minute
@@ -433,6 +437,7 @@ export const CommonCircuitBreakers = {
    * Circuit breaker for database operations
    */
   database: () => CircuitBreakerFactory.getInstance('database', {
+    trackResults: true,
     failureThreshold: 2,
     successThreshold: 5,
     openTimeout: 15000, // 15 seconds

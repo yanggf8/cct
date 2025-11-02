@@ -553,7 +553,7 @@ export async function handleStatusManagement(request: Request, env: CloudflareEn
       try {
         const result = await dal.read(keyValue);
         dataExists[keyName] = result.success && !!result.data;
-      } catch (error) {
+      } catch (error: unknown) {
         dataExists[keyName] = false;
       }
     }

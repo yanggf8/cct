@@ -8,25 +8,25 @@ import { createDAL } from './dal.js';
 import { ProcessingTimer } from './api-v1-responses';
 
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: any, key: string) {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env, key, data, ttl) {
+async function setKVStore(env: any, key: string, data: any, ttl?: number | null) {
   const dal = createDAL(env);
-  const result = await dal.write(key, data, { expirationTtl: ttl });
+  const expirationTtl: number | undefined = ttl === null ? undefined : ttl;
+  const result = await dal.write(key, data, { expirationTtl });
   return result.success;
 }
-
-async function listKVStore(env, prefix) {
+async function listKVStore(env: any, prefix: string) {
   const dal = createDAL(env);
   const result = await dal.listKeys(prefix);
   return result.keys;
 }
 
-async function deleteKVStore(env, key) {
+async function deleteKVStore(env: any, key: string) {
   const dal = createDAL(env);
   return await dal.deleteKey(key);
 }
@@ -56,15 +56,22 @@ export const BACKTESTING_TTL = {
  * Backtesting Results Storage Manager
  */
 export class BacktestingStorageManager {
-  constructor(env) {
+  private env: any;
+  private timer: ProcessingTimer;
+
+  constructor(env: any) {
     this.env = env;
     this.timer = new ProcessingTimer();
+  }
+
+  private async _store(key: string, data: any, ttl?: number | null): Promise<boolean> {
+    return await setKVStore(this.env, key, data, ttl);
   }
 
   /**
    * Store a new backtest run
    */
-  async storeBacktestRun(runId, backtestConfig, initialStatus = 'queued') {
+  async storeBacktestRun(runId: string, backtestConfig: any, initialStatus: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' = 'queued') {
     const runData = {
       runId,
       config: backtestConfig,
@@ -93,7 +100,7 @@ export class BacktestingStorageManager {
   /**
    * Update run status and progress
    */
-  async updateRunStatus(runId, status, progress = null, currentStep = null, error = null) {
+  async updateRunStatus(runId: string, status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled', progress: number | null = null, currentStep: string | null = null, error: unknown = null) {
     const key = `${BACKTESTING_NAMESPACES.RUNS}:${runId}`;
     const existingRun = await getKVStore(this.env, key);
 
@@ -117,9 +124,10 @@ export class BacktestingStorageManager {
     }
 
     if (error) {
+      const errObj = error instanceof Error ? error : new Error(String(error));
       updatedRun.error = {
-        message: error.message,
-        stack: error.stack,
+        message: errObj.message,
+        stack: errObj.stack,
         timestamp: new Date().toISOString()
       };
     }
@@ -137,7 +145,7 @@ export class BacktestingStorageManager {
   /**
    * Store complete backtest results
    */
-  async storeBacktestResults(runId, results) {
+  async storeBacktestResults(runId: string, results: any) {
     const resultsData = {
       runId,
       ...results,
@@ -172,7 +180,7 @@ export class BacktestingStorageManager {
   /**
    * Retrieve backtest run information
    */
-  async getBacktestRun(runId) {
+  async getBacktestRun(runId: string) {
     const key = `${BACKTESTING_NAMESPACES.RUNS}:${runId}`;
     return await getKVStore(this.env, key);
   }
@@ -180,7 +188,7 @@ export class BacktestingStorageManager {
   /**
    * Retrieve detailed backtest results
    */
-  async getBacktestResults(runId) {
+  async getBacktestResults(runId: string) {
     const resultsKey = `${BACKTESTING_NAMESPACES.RESULTS}:${runId}`;
     return await getKVStore(this.env, resultsKey);
   }
@@ -188,7 +196,7 @@ export class BacktestingStorageManager {
   /**
    * Retrieve performance metrics only
    */
-  async getPerformanceMetrics(runId) {
+  async getPerformanceMetrics(runId: string) {
     const metricsKey = `${BACKTESTING_NAMESPACES.METRICS}:${runId}`;
     return await getKVStore(this.env, metricsKey);
   }
@@ -196,7 +204,7 @@ export class BacktestingStorageManager {
   /**
    * Store validation results
    */
-  async storeValidationResults(runId, validationResults) {
+  async storeValidationResults(runId: string, validationResults: any) {
     const validationData = {
       runId,
       ...validationResults,
@@ -213,7 +221,7 @@ export class BacktestingStorageManager {
   /**
    * Retrieve validation results
    */
-  async getValidationResults(runId) {
+  async getValidationResults(runId: string) {
     const key = `${BACKTESTING_NAMESPACES.VALIDATION}:${runId}`;
     return await getKVStore(this.env, key);
   }
@@ -221,7 +229,7 @@ export class BacktestingStorageManager {
   /**
    * Store comparison results
    */
-  async storeComparisonResults(comparisonId, comparisonResults) {
+  async storeComparisonResults(comparisonId: string, comparisonResults: any) {
     const comparisonData = {
       comparisonId,
       ...comparisonResults,
@@ -238,7 +246,7 @@ export class BacktestingStorageManager {
   /**
    * Retrieve comparison results
    */
-  async getComparisonResults(comparisonId) {
+  async getComparisonResults(comparisonId: string) {
     const key = `${BACKTESTING_NAMESPACES.COMPARISONS}:${comparisonId}`;
     return await getKVStore(this.env, key);
   }
@@ -246,39 +254,39 @@ export class BacktestingStorageManager {
   /**
    * Get backtest history with filtering and pagination
    */
-  async getBacktestHistory(filters = {}, pagination = {}) {
+  async getBacktestHistory(filters: any = {}, pagination: any = {}) {
     const historyKey = `${BACKTESTING_NAMESPACES.HISTORY}:index`;
     let history = await getKVStore(this.env, historyKey) || [];
 
     // Apply filters
     if (filters.status) {
-      history = history.filter(item => item.status === filters.status);
+      history = history.filter((item: any) => item.status === filters.status);
     }
 
     if (filters.strategy) {
-      history = history.filter(item =>
+      history = history.filter((item: any) =>
         item.config?.strategy?.name === filters.strategy
       );
     }
 
     if (filters.symbol) {
-      history = history.filter(item =>
+      history = history.filter((item: any) =>
         item.config?.symbols?.includes(filters.symbol)
       );
     }
 
     if (filters.dateFrom) {
       const fromDate = new Date(filters.dateFrom);
-      history = history.filter(item => new Date(item.createdAt) >= fromDate);
+      history = history.filter((item: any) => new Date(item.createdAt) >= fromDate);
     }
 
     if (filters.dateTo) {
       const toDate = new Date(filters.dateTo);
-      history = history.filter(item => new Date(item.createdAt) <= toDate);
+      history = history.filter((item: any) => new Date(item.createdAt) <= toDate);
     }
 
     // Sort by creation date (newest first)
-    history.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    history.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     // Apply pagination
     const page = pagination.page || 1;
@@ -302,7 +310,7 @@ export class BacktestingStorageManager {
   /**
    * Delete backtest data (for cleanup)
    */
-  async deleteBacktestData(runId) {
+  async deleteBacktestData(runId: string) {
     const namespaces = [
       BACKTESTING_NAMESPACES.RUNS,
       BACKTESTING_NAMESPACES.RESULTS,
@@ -357,7 +365,7 @@ export class BacktestingStorageManager {
           else if (['queued', 'running'].includes(run.status)) stats.activeRuns++;
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn('Error counting runs:', error);
     }
 
@@ -366,7 +374,7 @@ export class BacktestingStorageManager {
       stats.totalResults = (await listKVStore(this.env, BACKTESTING_NAMESPACES.RESULTS + ':')).length;
       stats.totalValidations = (await listKVStore(this.env, BACKTESTING_NAMESPACES.VALIDATION + ':')).length;
       stats.totalComparisons = (await listKVStore(this.env, BACKTESTING_NAMESPACES.COMPARISONS + ':')).length;
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn('Error counting storage items:', error);
     }
 
@@ -398,7 +406,7 @@ export class BacktestingStorageManager {
    * Update history index
    * @private
    */
-  async _updateHistoryIndex(runId, eventType, data) {
+  async _updateHistoryIndex(runId: string, eventType: string, data: any) {
     const historyKey = `${BACKTESTING_NAMESPACES.HISTORY}:index`;
     let history = await getKVStore(this.env, historyKey) || [];
 
@@ -410,7 +418,7 @@ export class BacktestingStorageManager {
     };
 
     // Add or update entry
-    const existingIndex = history.findIndex(item => item.runId === runId);
+    const existingIndex = history.findIndex((item: any) => item.runId === runId);
     if (existingIndex >= 0) {
       history[existingIndex] = { ...history[existingIndex], ...historyEntry };
     } else {
@@ -429,7 +437,7 @@ export class BacktestingStorageManager {
    * Estimate backtest duration
    * @private
    */
-  _estimateDuration(config) {
+  _estimateDuration(config: any) {
     const baseDuration = 30; // 30 seconds base
     const symbolMultiplier = (config.symbols?.length || 1) * 10;
     const dateMultiplier = Math.log10(this._calculateDateRange(config) + 1) * 20;
@@ -441,12 +449,12 @@ export class BacktestingStorageManager {
    * Calculate date range
    * @private
    */
-  _calculateDateRange(config) {
+  _calculateDateRange(config: any) {
     if (!config.startDate || !config.endDate) return 365; // Default 1 year
 
     const start = new Date(config.startDate);
     const end = new Date(config.endDate);
-    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
     return Math.max(1, daysDiff);
   }
@@ -455,34 +463,34 @@ export class BacktestingStorageManager {
 /**
  * Factory function for creating storage manager instances
  */
-export function createBacktestingStorage(env) {
+export function createBacktestingStorage(env: any) {
   return new BacktestingStorageManager(env);
 }
 
 /**
  * Utility functions for backtesting storage
  */
-export async function getBacktestRunStatus(env, runId) {
+export async function getBacktestRunStatus(env: any, runId: string) {
   const storage = createBacktestingStorage(env);
   return await storage.getBacktestRun(runId);
 }
 
-export async function getStoredBacktestResults(env, runId) {
+export async function getStoredBacktestResults(env: any, runId: string) {
   const storage = createBacktestingStorage(env);
   return await storage.getBacktestResults(runId);
 }
 
-export async function getStoredPerformanceMetrics(env, runId) {
+export async function getStoredPerformanceMetrics(env: any, runId: string) {
   const storage = createBacktestingStorage(env);
   return await storage.getPerformanceMetrics(runId);
 }
 
-export async function listBacktestHistory(env, filters = {}, pagination = {}) {
+export async function listBacktestHistory(env: any, filters: any = {}, pagination: any = {}) {
   const storage = createBacktestingStorage(env);
   return await storage.getBacktestHistory(filters, pagination);
 }
 
-export async function cleanupOldBacktestData(env, retentionDays = 30) {
+export async function cleanupOldBacktestData(env: any, retentionDays: number = 30) {
   const storage = createBacktestingStorage(env);
   return await storage.cleanupOldData(retentionDays);
 }

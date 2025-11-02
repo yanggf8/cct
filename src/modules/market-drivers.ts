@@ -474,7 +474,7 @@ export class MarketDriversManager {
       });
 
       return snapshot;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating market drivers snapshot:', {
         error: error.message,
         stack: error.stack,
@@ -514,8 +514,8 @@ export class MarketDriversManager {
         enhancedMarketStructure,
         enhancedRegime,
       };
-    } catch (error) {
-      logger.error('Error generating enhanced market drivers snapshot:', error);
+    } catch (error: unknown) {
+      logger.error('Error generating enhanced market drivers snapshot:', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -559,8 +559,8 @@ export class MarketDriversManager {
       });
 
       return macro;
-    } catch (error) {
-      logger.error('Failed to fetch macroeconomic drivers:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch macroeconomic drivers:', { error: error instanceof Error ? error.message : String(error) });
       // Fall back to mock data if API fails
       return this.getMockMacroDrivers();
     }
@@ -601,8 +601,8 @@ export class MarketDriversManager {
       });
 
       return structure;
-    } catch (error) {
-      logger.error('Failed to fetch market structure indicators:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch market structure indicators:', { error: error instanceof Error ? error.message : String(error) });
       // Fall back to mock data
       return this.getMockMarketStructure();
     }
@@ -661,8 +661,8 @@ export class MarketDriversManager {
 
       return regime;
 
-    } catch (error) {
-      logger.error('Failed to classify market regime:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to classify market regime:', { error: error instanceof Error ? error.message : String(error) });
       // Fall back to mock regime classification
       return this.getMockMarketRegime();
     }
@@ -744,7 +744,7 @@ export class MarketDriversManager {
         throw new Error('Invalid date generated');
       }
       return dateString;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error creating snapshot date:', { error });
       // Fallback to a safe date format
       return new Date().toISOString().split('T')[0];
@@ -761,7 +761,7 @@ export class MarketDriversManager {
         return 999; // Very old if date is invalid
       }
       return (now - lastUpdate) / (1000 * 60 * 60); // Hours
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error calculating data age:', { error, lastUpdated });
       return 999; // Very old if error occurs
     }

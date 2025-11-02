@@ -651,7 +651,7 @@ function combineEnhancedPredictions(
   const finalConfidence = totalWeight > 0 ? totalConfidence / totalWeight : 0;
 
   // Determine direction by vote
-  const finalDirection: 'UP' | 'DOWN' | 'NEUTRAL' = Object.keys(directionalVotes).reduce((a, b) =>
+  const finalDirection: 'UP' | 'DOWN' | 'NEUTRAL' = Object.keys(directionalVotes).reduce((a: any, b: any) =>
     directionalVotes[a as keyof ConsensusVotes] > directionalVotes[b as keyof ConsensusVotes] ? a : b
   ) as 'UP' | 'DOWN' | 'NEUTRAL';
 

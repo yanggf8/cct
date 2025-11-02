@@ -69,7 +69,7 @@ export class EnhancedRequestHandler {
   /**
    * Handle HTTP request with enhanced features
    */
-  async handleRequest(request: Request, ctx: any): Promise<Response> {
+  async handleRequest(request: Request, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const startTime = Date.now();
 
@@ -89,23 +89,25 @@ export class EnhancedRequestHandler {
 
       // Route based on migration decision
       if (useNewAPI) {
-        return await this.handleNewAPIRequest(request, monitor, reason);
+        return await this.handleNewAPIRequest(request, monitor, ctx, reason);
       } else {
-        return await this.handleLegacyRequest(request, monitor, reason);
+        return await this.handleLegacyRequest(request, monitor, ctx, reason);
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
       logger.error('Enhanced request handler failed', {
         path: url.pathname,
-        error: error.message,
-        stack: error.stack,
+        error: message,
+        stack,
         responseTime: Date.now() - startTime
       });
 
       const errorResponse = new Response(JSON.stringify({
         success: false,
         error: 'Internal server error',
-        message: error.message,
+        message,
         timestamp: new Date().toISOString(),
         enhanced_system: true
       }, null, 2), {
@@ -127,6 +129,7 @@ export class EnhancedRequestHandler {
   private async handleNewAPIRequest(
     request: Request,
     monitor: any,
+    ctx: ExecutionContext,
     reason: string
   ): Promise<Response> {
     const url = new URL(request.url);
@@ -176,7 +179,7 @@ export class EnhancedRequestHandler {
         default:
           // For endpoints not yet implemented in new API,
           // fall back to original handlers with enhanced DAL injection
-          response = await this.handleFallbackRequest(request, reason);
+          response = await this.handleFallbackRequest(request, ctx, reason);
           break;
       }
 
@@ -201,10 +204,11 @@ export class EnhancedRequestHandler {
 
       return response;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       logger.error('New API request failed', {
         path: url.pathname,
-        error: error.message,
+        error: message,
         reason
       });
 
@@ -213,7 +217,7 @@ export class EnhancedRequestHandler {
         endpoint: url.pathname,
         responseTime: Date.now() - startTime,
         success: false,
-        error: error.message,
+        error: message,
         metadata: { reason }
       });
 
@@ -370,6 +374,7 @@ export class EnhancedRequestHandler {
   private async handleLegacyRequest(
     request: Request,
     monitor: any,
+    ctx: ExecutionContext,
     reason: string
   ): Promise<Response> {
     const url = new URL(request.url);
@@ -382,10 +387,10 @@ export class EnhancedRequestHandler {
     });
 
     // Import original handler dynamically
-    const { handleHttpRequest } = await import('./routes.ts');
+    const { handleHttpRequest } = await import('./routes.js');
 
     try {
-      const response = await handleHttpRequest(request, this.env, null);
+      const response = await handleHttpRequest(request, this.env, ctx);
 
       // Add migration headers
       response.headers.set('X-Enhanced-System', 'true');
@@ -408,13 +413,14 @@ export class EnhancedRequestHandler {
 
       return response;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       await this.migrationManager.recordMigrationEvent({
         type: 'migration_error',
         endpoint: url.pathname,
         responseTime: Date.now() - startTime,
         success: false,
-        error: error.message,
+        error: message,
         metadata: { reason }
       });
 
@@ -425,9 +431,9 @@ export class EnhancedRequestHandler {
   /**
    * Handle fallback requests for endpoints not yet in new API
    */
-  private async handleFallbackRequest(request: Request, reason: string): Promise<Response> {
+  private async handleFallbackRequest(request: Request, ctx: ExecutionContext, reason: string): Promise<Response> {
     // Import original handler and enhance it with DAL injection
-    const { handleHttpRequest } = await import('./routes.ts');
+    const { handleHttpRequest } = await import('./routes.js');
 
     // Temporarily inject enhanced DAL into environment for handlers
     const enhancedEnv = {
@@ -436,7 +442,7 @@ export class EnhancedRequestHandler {
       migrationManager: this.migrationManager
     };
 
-    return await handleHttpRequest(request, enhancedEnv, null);
+    return await handleHttpRequest(request, enhancedEnv, ctx);
   }
 
   /**
@@ -471,23 +477,25 @@ export class EnhancedRequestHandler {
         namespaces: cacheHealthStatus.namespaces,
         metricsHealth: cacheHealthStatus.metricsHealth,
         detailedMetrics: {
-          overallHitRate: cacheMetricsStats.overallHitRate,
-          l1HitRate: cacheMetricsStats.l1HitRate,
-          l2HitRate: cacheMetricsStats.l2HitRate,
-          totalRequests: cacheMetricsStats.totalRequests,
-          l1Hits: cacheMetricsStats.l1Hits,
-          l1Misses: cacheMetricsStats.l1Misses,
-          l2Hits: cacheMetricsStats.l2Hits,
-          l2Misses: cacheMetricsStats.l2Misses,
-          thresholdAlerts: cacheMetricsStats.thresholdAlerts
+          overallHitRate: cacheMetricsStats.overall.hitRate,
+          totalRequests: cacheMetricsStats.overall.totalRequests,
+          l1HitRate: cacheMetricsStats.layers.l1.hitRate,
+          l1Hits: cacheMetricsStats.layers.l1.hits,
+          l1Misses: cacheMetricsStats.layers.l1.misses,
+          l2HitRate: cacheMetricsStats.layers.l2.hitRate,
+          l2Hits: cacheMetricsStats.layers.l2.hits,
+          l2Misses: cacheMetricsStats.layers.l2.misses,
+          issues: cacheMetricsStats.health.issues,
+          namespaces: cacheMetricsStats.namespaces
         }
       };
-    } catch (error: any) {
-      logger.error('Failed to get cache metrics', { error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to get cache metrics', { error: message });
       cacheData = {
         enabled: false,
         status: 'error',
-        error: error.message
+        error: message
       };
     }
 
@@ -646,6 +654,20 @@ export class EnhancedRequestHandler {
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
+  }
+
+  /**
+   * Expose DAL performance stats for external diagnostics.
+   */
+  public getDalPerformanceStats(): any {
+    return this.dal.getPerformanceStats();
+  }
+
+  /**
+   * Expose migration statistics for external diagnostics.
+   */
+  public async getMigrationStatistics(): Promise<any> {
+    return await this.migrationManager.getMigrationStatistics();
   }
 }
 

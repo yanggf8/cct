@@ -136,7 +136,7 @@ export const BACKTEST_FIXTURES = {
  * Get mock backtest data for testing
  */
 export function getBacktestFixture(backtestId: string): any {
-  return BACKTEST_FIXTURES[backtestId] || null;
+  return (BACKTEST_FIXTURES as any)[backtestId] || null;
 }
 
 /**

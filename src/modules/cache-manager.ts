@@ -37,6 +37,7 @@ import {
   type PerformanceThresholds
 } from './enhanced-cache-metrics.js';
 import { requestDeduplicator } from './request-deduplication.js';
+import { getAllCacheConfigs, createEnhancedCacheConfigManager } from './enhanced-cache-config.js';
 
 const logger = createLogger('cache-manager');
 
@@ -74,7 +75,7 @@ export interface CacheStats {
 
 // Cache response with timestamp information
 export interface CacheResponse<T> {
-  data: T;
+  data: T | null;
   timestampInfo?: CacheTimestampInfo;
   source: 'l1' | 'l2' | 'fresh';
   hit: boolean;
@@ -280,7 +281,7 @@ export class CacheManager {
 
       return null;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Cache get error for ${fullKey}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         fullKey,
@@ -325,7 +326,7 @@ export class CacheManager {
 
       logger.debug(`Cache set: ${fullKey}`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Cache set error for ${fullKey}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         fullKey,
@@ -354,7 +355,7 @@ export class CacheManager {
 
       logger.debug(`Cache delete: ${fullKey}`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Cache delete error for ${fullKey}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         fullKey
@@ -400,7 +401,7 @@ export class CacheManager {
         logger.info('Cleared all cache');
       }
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Cache clear error:', {
         error: error instanceof Error ? error.message : 'Unknown error',
         namespace
@@ -466,12 +467,12 @@ export class CacheManager {
       { purpose: key, timestamp: 0 }
     );
 
-    const result = await this.dal.read(kvKey);
-    if (!result) return null;
+    const result = await this.dal.read<any>(kvKey);
+    if (!result.success || !result.data) return null;
 
     try {
-      // Parse the DAC-style simplified entry
-      const simplifiedEntry = JSON.parse(result);
+      // DAL returns parsed JSON object
+      const simplifiedEntry = result.data;
 
       if (!simplifiedEntry.data || !simplifiedEntry.cachedAt) {
         // Fallback for old format entries
@@ -502,7 +503,7 @@ export class CacheManager {
       logger.debug(`L2 cache hit: ${namespace}:${key} (age: ${ageSeconds}s, cached: ${simplifiedEntry.cachedAt})`);
       return simplifiedEntry.data;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`L2 cache parse error for ${key}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         key,
@@ -539,7 +540,7 @@ export class CacheManager {
       { purpose: key, timestamp: Date.now() }
     );
 
-    await this.dal.write(kvKey, JSON.stringify(simplifiedEntry));
+    await this.dal.write(kvKey, simplifiedEntry);
 
     logger.info(`L2 cache updated: ${namespace}:${key} (timestamp: ${now})`);
   }
@@ -612,14 +613,14 @@ export class CacheManager {
    * Get all enhanced configurations
    */
   getAllEnhancedConfigs(): Record<string, EnhancedCacheConfig> {
-    return getCacheConfig ? require('./enhanced-cache-config.js').getAllCacheConfigs() : {};
+    return getAllCacheConfigs();
   }
 
   /**
    * Get cache configuration summary
    */
   getConfigurationSummary() {
-    const configManager = require('./enhanced-cache-config.js').createEnhancedCacheConfigManager();
+    const configManager = createEnhancedCacheConfigManager();
     return configManager.getConfigSummary();
   }
 
@@ -636,7 +637,7 @@ export class CacheManager {
       const enhancedConfig = this.getEnhancedConfig(namespace);
       if (!enhancedConfig) {
         // Fallback to simple promotion
-        await this.setToL1(fullKey, data, enhancedConfig?.l1TTL || 900);
+        await this.setToL1(fullKey, data, 900);
         return;
       }
 
@@ -687,7 +688,7 @@ export class CacheManager {
         });
       }
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Intelligent promotion error, using fallback', {
         key: fullKey.substring(0, 50),
         namespace,
@@ -695,7 +696,7 @@ export class CacheManager {
       });
       // Fallback to simple promotion
       const enhancedConfig = this.getEnhancedConfig(namespace);
-      await this.setToL1(fullKey, data, enhancedConfig?.l1TTL || 900);
+      await this.setToL1(fullKey, data, enhancedConfig ? enhancedConfig.l1TTL : 900);
     }
   }
 
@@ -754,7 +755,7 @@ export class CacheManager {
         promotionStats,
         cacheConfigs
       );
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Health assessment failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -993,10 +994,10 @@ export class CacheManager {
       // Cleanup L2 cache (handled by KV TTL, but we can check)
       const allKeys = await this.dal.listKeys('cache:*');
       for (const kvKey of allKeys.keys) {
-        const result = await this.dal.read(kvKey);
-        if (result) {
+        const result = await this.dal.read<any>(kvKey);
+        if (result.success && result.data) {
           try {
-            const cacheEntry: CacheEntry<any> = JSON.parse(result);
+            const cacheEntry: CacheEntry<any> = result.data;
             if (now - cacheEntry.timestamp > (cacheEntry.ttl * 1000)) {
               await this.dal.deleteKey(kvKey);
               cleanedCount++;
@@ -1011,7 +1012,7 @@ export class CacheManager {
 
       logger.info(`Cache cleanup completed: ${cleanedCount} entries removed`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Cache cleanup error:', {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -1041,7 +1042,7 @@ export class CacheManager {
 
     try {
       // Try L1 cache first
-      const l1Result = this.l1Cache.getWithTimestampInfo<T>(fullKey);
+      const l1Result = await this.l1Cache.getWithTimestampInfo<T>(fullKey);
       if (l1Result.data !== null && l1Result.timestampInfo) {
         this.stats.l1Hits++;
         cacheMetrics.recordHit('L1', namespace as MetricsCacheNamespace);
@@ -1071,8 +1072,8 @@ export class CacheManager {
           const l1TimestampInfo = this.l1Cache.getTimestampInfo(fullKey);
 
           return {
-            data: l2Result,
-            timestampInfo: l1TimestampInfo,
+            data: l2Result.data,
+            timestampInfo: l1TimestampInfo || undefined,
             source: 'l2',
             hit: true
           };
@@ -1088,7 +1089,7 @@ export class CacheManager {
         hit: false
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Cache getWithTimestampInfo error for ${namespace}:${key}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         namespace,
@@ -1109,18 +1110,17 @@ export class CacheManager {
   private async getFromL2WithTimestamp<T>(
     key: string,
     namespace: string
-  ): Promise<T | null> {
+  ): Promise<{ data: T; timestampInfo: CacheTimestampInfo | null } | null> {
     const kvKey = this.keyFactory.generateKey(
         KeyTypes.TEMPORARY,
-        namespace,
-        key
+        { purpose: key, timestamp: 0 }
     );
 
-    const result = await this.dal.read(kvKey);
-    if (!result) return null;
+    const result = await this.dal.read<CacheEntry<T>>(kvKey);
+    if (!result.success || !result.data) return null;
 
     try {
-      const cacheEntry: CacheEntry<T> = JSON.parse(result);
+      const cacheEntry = result.data;
       const now = Date.now();
 
       // Check if expired
@@ -1129,9 +1129,9 @@ export class CacheManager {
         return null;
       }
 
-      return cacheEntry.data;
+      return { data: cacheEntry.data, timestampInfo: { cachedAt: cacheEntry.timestamp, ttlSeconds: cacheEntry.ttl } as any };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`L2 cache parse error for ${key}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         key,
@@ -1186,10 +1186,10 @@ export class CacheManager {
         { purpose: key, timestamp: 0 }
       );
 
-      const existing = await this.dal.read(kvKey);
-      if (existing) {
+      const existing = await this.dal.read<any>(kvKey);
+      if (existing.success && existing.data) {
         try {
-          const entry = JSON.parse(existing);
+          const entry = existing.data;
 
           // Update with a new "refreshAttempted" timestamp
           const updatedEntry = {
@@ -1205,7 +1205,7 @@ export class CacheManager {
           });
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Background refresh error for ${namespace}:${key}`, {
         error: error instanceof Error ? error.message : 'Unknown error'
       });

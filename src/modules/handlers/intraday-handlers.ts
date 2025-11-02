@@ -211,7 +211,7 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
         completed: validation.completed,
         completionRate: validation.completionRate
       });
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('❌ [INTRADAY] Dependency validation failed', {
         requestId,
@@ -255,7 +255,7 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
           requestId
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
         requestId,

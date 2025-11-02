@@ -110,7 +110,7 @@ export class MemoryStaticDataManager {
       this.set(key, fetchedData, ttl);
 
       return fetchedData;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Failed to fetch static data for key: ${key}`, error);
       throw error;
     }
@@ -326,7 +326,7 @@ export class MemoryStaticDataManager {
     const entries = Array.from(this.staticData.entries());
 
     // Sort by least recently used (LRU)
-    entries.sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+    entries.sort((a: any, b: any) => a[1].lastAccessed - b[1].lastAccessed);
 
     const targetSize = this.MAX_MEMORY_MB * 0.8; // Target 80% of max
     let currentSize = this.getCurrentMemoryUsage();
@@ -389,7 +389,7 @@ export class MemoryStaticDataManager {
     const hitRate = totalAccessCount > 0 ? (totalAccessCount / totalRequests) * 100 : 0;
 
     // Get most accessed items
-    accessCountByItem.sort((a, b) => parseInt(b.split(': ')[1]) - parseInt(a.split(': ')[1]));
+    accessCountByItem.sort((a: any, b: any) => parseInt(b.split(': ')[1]) - parseInt(a.split(': ')[1]));
     const mostAccessed = accessCountByItem.slice(0, 5);
 
     return {
@@ -501,7 +501,7 @@ export class MemoryStaticDAL {
             this.staticData.set(key, data);
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Batch KV read failed:', error);
       }
     }

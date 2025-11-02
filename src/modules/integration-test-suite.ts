@@ -168,7 +168,7 @@ export class IntegrationTestSuite {
           real_data: !health.details?.mock
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'FRED API Connectivity',
         status: 'failed',
@@ -197,7 +197,7 @@ export class IntegrationTestSuite {
           response_time: health.responseTime || 0
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Yahoo Finance API Connectivity',
         status: 'failed',
@@ -255,7 +255,7 @@ export class IntegrationTestSuite {
           both_models_working: gptWorking && distilWorking
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'AI Model Connectivity',
         status: 'failed',
@@ -308,7 +308,7 @@ export class IntegrationTestSuite {
           series_count: snapshot.metadata.seriesCount
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'FRED Data Quality',
         status: 'failed',
@@ -357,7 +357,7 @@ export class IntegrationTestSuite {
           data_quality_score: passedValidations / totalValidations
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Market Data Quality',
         status: 'failed',
@@ -407,7 +407,7 @@ export class IntegrationTestSuite {
           overall_confidence: result.overall_confidence || 0
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Sentiment Analysis Integration',
         status: 'failed',
@@ -466,7 +466,7 @@ export class IntegrationTestSuite {
           total_operations_time: writeTime + readTime + deleteTime
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Cache System',
         status: 'failed',
@@ -522,7 +522,7 @@ export class IntegrationTestSuite {
           read_operations: reads.length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Cache Consistency',
         status: 'failed',
@@ -557,13 +557,13 @@ export class IntegrationTestSuite {
           await apiTest.test();
           const responseTime = Date.now() - testStart;
           results.push({ name: apiTest.name, response_time: responseTime, status: 'success' });
-        } catch (error) {
+        } catch (error: unknown) {
           const responseTime = Date.now() - testStart;
           results.push({ name: apiTest.name, response_time: responseTime, status: 'error', error: error.message });
         }
       }
 
-      const averageResponseTime = results.reduce((sum, r) => sum + r.response_time, 0) / results.length;
+      const averageResponseTime = results.reduce((sum: any, r: any) => sum + r.response_time, 0) / results.length;
       const successRate = results.filter(r => r.status === 'success').length / results.length;
 
       const status = successRate >= 0.8 ? (averageResponseTime < 2000 ? 'passed' : 'warning') : 'failed';
@@ -586,7 +586,7 @@ export class IntegrationTestSuite {
           successful_tests: results.filter(r => r.status === 'success').length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'API Performance',
         status: 'failed',
@@ -605,7 +605,7 @@ export class IntegrationTestSuite {
     try {
       const cacheManager = new CacheManager(this.env);
       const testCount = 10;
-      const testData = Array.from({ length: testCount }, (_, i) => ({
+      const testData = Array.from({ length: testCount }, (_: any, i: any) => ({
         key: `perf_test_${i}_${Date.now()}`,
         data: { index: i, timestamp: Date.now() }
       }));
@@ -655,7 +655,7 @@ export class IntegrationTestSuite {
           operations_per_second: testCount / ((writeTime + readTime) / 1000)
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Cache Performance',
         status: 'failed',
@@ -712,10 +712,10 @@ export class IntegrationTestSuite {
         metrics: {
           success_rate: successRate,
           total_workflow_time: Date.now() - startTime,
-          avg_step_time: workflowSteps.reduce((sum, s) => sum + s.duration, 0) / workflowSteps.length
+          avg_step_time: workflowSteps.reduce((sum: any, s: any) => sum + s.duration, 0) / workflowSteps.length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Complete Workflow',
         status: 'failed',
@@ -761,7 +761,7 @@ export class IntegrationTestSuite {
         try {
           const result = await errorTest.test();
           results.push({ name: errorTest.name, status: 'handled', result });
-        } catch (error) {
+        } catch (error: unknown) {
           results.push({ name: errorTest.name, status: 'caught_error', error: error.message });
         }
       }
@@ -783,7 +783,7 @@ export class IntegrationTestSuite {
           total_tests: results.length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Error Handling',
         status: 'failed',

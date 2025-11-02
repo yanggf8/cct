@@ -240,7 +240,7 @@ export class OptimizedAIAnalyzer {
       // Use only GPT to reduce subrequest count
       const topArticles = newsData.slice(0, 3); // Limit to 3 articles
       const newsContext = topArticles
-        .map((item, i) => `${i+1}. ${item.title}\n${item.summary || ''}`)
+        .map((item: any, i: any) => `${i+1}. ${item.title}\n${item.summary || ''}`)
         .join('\n\n');
 
       const prompt = `As a financial analyst, provide a brief sentiment analysis for ${symbol} based on this news:
@@ -445,8 +445,8 @@ Short-term outlook: [1-2 sentences]`;
       }
 
       return { direction, confidence, reasoning: reasoning.trim() || 'AI analysis completed' };
-    } catch (error) {
-      logger.error('Failed to parse GPT response', error);
+    } catch (error: unknown) {
+      logger.error('Failed to parse GPT response', { error: error instanceof Error ? error.message : String(error) });
       return {
         direction: 'neutral',
         confidence: 0.5,

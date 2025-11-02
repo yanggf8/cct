@@ -109,8 +109,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Market Drivers snapshot:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Market Drivers snapshot:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -148,8 +148,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Market Drivers snapshot in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Market Drivers snapshot in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
       // Continue even if L2 cache fails - L1 cache is still available
     }
   }
@@ -181,8 +181,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Macro Drivers:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Macro Drivers:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -211,8 +211,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Macro Drivers in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Macro Drivers in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -239,8 +239,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Market Structure:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Market Structure:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -269,8 +269,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Market Structure in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Market Structure in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -297,8 +297,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Geopolitical Risk:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Geopolitical Risk:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -327,8 +327,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Geopolitical Risk in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Geopolitical Risk in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -381,8 +381,8 @@ export class MarketDriversCacheManager {
       }
 
       return true;
-    } catch (error) {
-      logger.error('Error validating Market Drivers data:', error);
+    } catch (error: unknown) {
+      logger.error('Error validating Market Drivers data:', { error: error instanceof Error ? error.message : String(error) });
       return false;
     }
   }
@@ -424,8 +424,8 @@ export class MarketDriversCacheManager {
       for (const key of keys) {
         try {
           await this.dal.deleteKey(key);
-        } catch (error) {
-          logger.error(`Failed to delete L2 cache key ${key}:`, error);
+        } catch (error: unknown) {
+          logger.error(`Failed to delete L2 cache key ${key}:`, { error: error instanceof Error ? error.message : String(error) });
         }
       }
     }

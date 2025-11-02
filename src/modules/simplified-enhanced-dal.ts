@@ -22,9 +22,9 @@ import type {
   DailyReport,
   KVWriteOptions,
   KVReadResult,
-  KVWriteResult,
-  TTL_CONFIG
+  KVWriteResult
 } from './dal.js';
+import { TTL_CONFIG } from './dal.js';
 
 const logger = createLogger('simplified-dal');
 
@@ -96,7 +96,7 @@ export class SimplifiedEnhancedDAL {
         enableMonitoring: true
       });
       logger.info('Enhanced Optimized Cache Manager initialized for SimplifiedEnhancedDAL');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to initialize optimized cache manager, falling back to basic cache:', error);
       this.optimizedCacheManager = null;
     }
@@ -178,7 +178,7 @@ export class SimplifiedEnhancedDAL {
 
     // If still too large, remove oldest entries
     if (this.cache.size > 500) {
-      const sorted = entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const sorted = entries.sort((a: any, b: any) => a[1].timestamp - b[1].timestamp);
       const toRemove = sorted.slice(0, this.cache.size - 500);
 
       for (const [key] of toRemove) {
@@ -250,7 +250,7 @@ export class SimplifiedEnhancedDAL {
               error: undefined
             };
           }
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Optimized cache manager read failed, falling back to standard cache:', error);
         }
       }
@@ -342,7 +342,7 @@ export class SimplifiedEnhancedDAL {
                 error: undefined
               };
             }
-          } catch (error) {
+          } catch (error: unknown) {
             logger.warn('Optimized cache manager write failed, falling back to standard KV:', error);
           }
         }

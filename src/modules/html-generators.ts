@@ -903,7 +903,7 @@ function calculateAgreementStats(analysis: Record<string, DualAISignal>): Agreem
     return (gptConf + dbConf) / 2;
   });
 
-  const avgConfidence = confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length;
+  const avgConfidence = confidences.reduce((sum: any, conf: any) => sum + conf, 0) / confidences.length;
   const highConfidenceSignals = confidences.filter(conf => conf >= 0.7).length;
 
   return {

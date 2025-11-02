@@ -277,7 +277,7 @@ export async function generateWeeklyReviewAnalysis(
       nextWeekOutlook: generateNextWeekOutlook(trends, patternAnalysis)
     };
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error generating weekly review analysis', { error: (error as Error).message });
     return getDefaultWeeklyReviewData();
   }
@@ -317,7 +317,7 @@ async function getWeeklyPerformanceData(
           marketBias: parsed.pre_market_analysis?.bias || 'neutral'
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn(`Failed to get data for ${date.toISOString().split('T')[0]}`, {
         error: (error as Error).message
       });
@@ -348,7 +348,7 @@ function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalys
   }
 
   // Calculate daily variations
-  weeklyData.dailyResults.forEach((day, index) => {
+  weeklyData.dailyResults.forEach((day: any, index: any) => {
     const dayName = getDayName(index);
     patterns.dailyVariations.push({
       day: dayName,
@@ -367,8 +367,8 @@ function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalys
 
   // Calculate consistency score
   const accuracies = weeklyData.dailyResults.map(d => d.accuracy);
-  const avgAccuracy = accuracies.reduce((a, b) => a + b, 0) / accuracies.length;
-  const variance = accuracies.reduce((sum, acc) => sum + Math.pow(acc - avgAccuracy, 2), 0) / accuracies.length;
+  const avgAccuracy = accuracies.reduce((a: any, b: any) => a + b, 0) / accuracies.length;
+  const variance = accuracies.reduce((sum: any, acc: any) => sum + Math.pow(acc - avgAccuracy, 2), 0) / accuracies.length;
   patterns.consistencyScore = Math.max(0, 100 - Math.sqrt(variance));
 
   // Determine overall performance
@@ -392,12 +392,12 @@ function calculateWeeklyAccuracy(weeklyData: WeeklyPerformanceData): AccuracyMet
   const signals = weeklyData.dailyResults.map(d => d.signals);
 
   return {
-    weeklyAverage: Math.round(accuracies.reduce((a, b) => a + b, 0) / accuracies.length),
+    weeklyAverage: Math.round(accuracies.reduce((a: any, b: any) => a + b, 0) / accuracies.length),
     bestDay: Math.max(...accuracies),
     worstDay: Math.min(...accuracies),
     consistency: Math.round(100 - (Math.max(...accuracies) - Math.min(...accuracies))),
-    totalSignals: signals.reduce((a, b) => a + b, 0),
-    avgDailySignals: Math.round(signals.reduce((a, b) => a + b, 0) / signals.length),
+    totalSignals: signals.reduce((a: any, b: any) => a + b, 0),
+    avgDailySignals: Math.round(signals.reduce((a: any, b: any) => a + b, 0) / signals.length),
     trend: calculateAccuracyTrend(accuracies)
   };
 }
@@ -613,8 +613,8 @@ function calculateAccuracyTrend(accuracies: number[]): TrendDirection {
   const firstHalf = accuracies.slice(0, Math.floor(accuracies.length / 2));
   const secondHalf = accuracies.slice(Math.floor(accuracies.length / 2));
 
-  const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
-  const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+  const firstAvg = firstHalf.reduce((a: any, b: any) => a + b, 0) / firstHalf.length;
+  const secondAvg = secondHalf.reduce((a: any, b: any) => a + b, 0) / secondHalf.length;
 
   if (secondAvg > firstAvg + 5) return 'improving';
   if (secondAvg < firstAvg - 5) return 'declining';
@@ -647,7 +647,7 @@ function determineWeeklyMomentum(dailyResults: DailyResult[]): WeeklyMomentum {
   if (dailyResults.length < 2) return 'neutral';
 
   const recentDays = dailyResults.slice(-2);
-  const avgAccuracy = recentDays.reduce((sum, day) => sum + day.accuracy, 0) / recentDays.length;
+  const avgAccuracy = recentDays.reduce((sum: any, day: any) => sum + day.accuracy, 0) / recentDays.length;
 
   if (avgAccuracy > 70) return 'bullish';
   if (avgAccuracy < 55) return 'bearish';

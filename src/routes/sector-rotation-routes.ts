@@ -88,7 +88,7 @@ export async function handleSectorRotationRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SectorRotationRoutes Error', error, { requestId, path, method });
 
     return new Response(
@@ -431,7 +431,7 @@ async function handleETFAnalysis(
         isEmerging: cachedResults.rotationSignals.emergingSectors.includes(symbol as any),
         isDeclining: cachedResults.rotationSignals.decliningSectors.includes(symbol as any),
         rank: cachedResults.etfAnalyses
-          .sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)
+          .sort((a: any, b: any) => b.performanceMetrics.daily - a.performanceMetrics.daily)
           .findIndex(etf => etf.symbol === symbol) + 1
       },
       lastUpdated: cachedResults.timestamp

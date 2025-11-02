@@ -5,21 +5,24 @@
  */
 
 import { createDAL } from './dal.js';
+import type { KVWriteResult } from './dal.js';
 
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: any, key: string) {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env, key, data, ttl) {
+async function setKVStore(env: any, key: string, data: any, ttl?: number | null) {
   const dal = createDAL(env);
-  const result = await dal.write(key, data, { expirationTtl: ttl });
+  const expirationTtl: number | undefined = ttl === null ? undefined : ttl;
+  const result = await dal.write(key, data, { expirationTtl });
   return result.success;
 }
+  
 
-async function deleteKVStore(env, key) {
+async function deleteKVStore(env: any, key: string) {
   const dal = createDAL(env);
   return await dal.deleteKey(key);
 }
@@ -30,6 +33,7 @@ import { BACKTESTING_NAMESPACES, BACKTESTING_TTL } from './backtesting-storage';
  * Cache configuration for different backtesting data types
  */
 export const BACKTEST_CACHE_CONFIG = {
+
   MARKET_DATA: {
     ttl: 3600, // 1 hour - market data changes frequently
     maxSize: 100, // Max number of cached datasets
@@ -60,13 +64,40 @@ export const BACKTEST_CACHE_CONFIG = {
     maxSize: 1000,
     keyPrefix: 'config_hash'
   }
-};
+} as const;
+
+export type BacktestCacheType = keyof typeof BACKTEST_CACHE_CONFIG;
+
+interface CacheStats {
+  hits: number;
+  misses: number;
+  sets: number;
+  deletes: number;
+  evictions: number;
+}
+
+interface DateRange { start: string; end: string; }
+
+type AnyParams = Record<string, any>;
+
+interface CacheEntry<T = any> {
+  data: T;
+  cachedAt: string;
+  type: BacktestCacheType;
+  identifier: string;
+  params: AnyParams;
+  ttl: number | null;
+  version: string;
+}
 
 /**
  * Backtesting Cache Manager
  */
 export class BacktestingCacheManager {
-  constructor(env) {
+  private env: any;
+  private cacheStats: CacheStats;
+
+  constructor(env: any) {
     this.env = env;
     this.cacheStats = {
       hits: 0,
@@ -80,7 +111,7 @@ export class BacktestingCacheManager {
   /**
    * Generate cache key for backtesting data
    */
-  generateCacheKey(type, identifier, params = {}) {
+  generateCacheKey(type: BacktestCacheType, identifier: string, params: AnyParams = {}) {
     const config = BACKTEST_CACHE_CONFIG[type];
     if (!config) {
       throw new Error(`Unknown cache type: ${type}`);
@@ -94,13 +125,13 @@ export class BacktestingCacheManager {
   /**
    * Get cached data
    */
-  async get(type, identifier, params = {}) {
+  async get<T = any>(type: BacktestCacheType, identifier: string, params: AnyParams = {}): Promise<T | null> {
     const key = this.generateCacheKey(type, identifier, params);
     const cached = await getKVStore(this.env, key);
 
     if (cached) {
       this.cacheStats.hits++;
-      return cached.data;
+      return (cached as CacheEntry<T>).data;
     }
 
     this.cacheStats.misses++;
@@ -110,12 +141,12 @@ export class BacktestingCacheManager {
   /**
    * Set cached data
    */
-  async set(type, identifier, data, params = {}, customTTL = null) {
+  async set<T = any>(type: BacktestCacheType, identifier: string, data: T, params: AnyParams = {}, customTTL: number | null = null) {
     const key = this.generateCacheKey(type, identifier, params);
     const config = BACKTEST_CACHE_CONFIG[type];
     const ttl = customTTL || config.ttl;
 
-    const cacheEntry = {
+    const cacheEntry: CacheEntry<T> = {
       data,
       cachedAt: new Date().toISOString(),
       type,
@@ -137,7 +168,7 @@ export class BacktestingCacheManager {
   /**
    * Delete cached data
    */
-  async delete(type, identifier, params = {}) {
+  async delete(type: BacktestCacheType, identifier: string, params: AnyParams = {}) {
     const key = this.generateCacheKey(type, identifier, params);
     await deleteKVStore(this.env, key);
     this.cacheStats.deletes++;
@@ -146,7 +177,7 @@ export class BacktestingCacheManager {
   /**
    * Clear all cache for a specific type
    */
-  async clearType(type) {
+  async clearType(type: BacktestCacheType) {
     const config = BACKTEST_CACHE_CONFIG[type];
     if (!config) return;
 
@@ -158,7 +189,7 @@ export class BacktestingCacheManager {
   /**
    * Get or set pattern (cache-aside)
    */
-  async getOrSet(type, identifier, factory, params = {}, customTTL = null) {
+  async getOrSet<T = any>(type: BacktestCacheType, identifier: string, factory: (params: AnyParams) => Promise<T>, params: AnyParams = {}, customTTL: number | null = null): Promise<T> {
     // Try to get from cache first
     let cached = await this.get(type, identifier, params);
     if (cached !== null) {
@@ -175,7 +206,7 @@ export class BacktestingCacheManager {
   /**
    * Cache market data for backtesting
    */
-  async cacheMarketData(symbols, startDate, endDate, marketData) {
+  async cacheMarketData(symbols: string[], startDate: string, endDate: string, marketData: any[]) {
     const identifier = `${symbols.join(',')}_${startDate}_${endDate}`;
     const params = {
       symbolCount: symbols.length,
@@ -189,7 +220,7 @@ export class BacktestingCacheManager {
   /**
    * Get cached market data
    */
-  async getCachedMarketData(symbols, startDate, endDate) {
+  async getCachedMarketData(symbols: string[], startDate: string, endDate: string) {
     const identifier = `${symbols.join(',')}_${startDate}_${endDate}`;
     return await this.get('MARKET_DATA', identifier);
   }
@@ -197,49 +228,49 @@ export class BacktestingCacheManager {
   /**
    * Cache calculation results
    */
-  async cacheCalculationResult(configHash, calculationType, results) {
+  async cacheCalculationResult(configHash: string, calculationType: string, results: any) {
     return await this.set('CALCULATION_RESULTS', configHash, results, { calculationType });
   }
 
   /**
    * Get cached calculation results
    */
-  async getCachedCalculationResult(configHash, calculationType) {
+  async getCachedCalculationResult(configHash: string, calculationType: string) {
     return await this.get('CALCULATION_RESULTS', configHash, { calculationType });
   }
 
   /**
    * Cache performance metrics
    */
-  async cachePerformanceMetrics(runId, metrics) {
+  async cachePerformanceMetrics(runId: string, metrics: any) {
     return await this.set('PERFORMANCE_METRICS', runId, metrics);
   }
 
   /**
    * Get cached performance metrics
    */
-  async getCachedPerformanceMetrics(runId) {
+  async getCachedPerformanceMetrics(runId: string) {
     return await this.get('PERFORMANCE_METRICS', runId);
   }
 
   /**
    * Cache validation results
    */
-  async cacheValidationResults(validationId, results) {
+  async cacheValidationResults(validationId: string, results: any) {
     return await this.set('VALIDATION_RESULTS', validationId, results);
   }
 
   /**
    * Get cached validation results
    */
-  async getCachedValidationResults(validationId) {
+  async getCachedValidationResults(validationId: string) {
     return await this.get('VALIDATION_RESULTS', validationId);
   }
 
   /**
    * Cache intermediate computation results
    */
-  async cacheIntermediateResult(computationId, step, results) {
+  async cacheIntermediateResult(computationId: string, step: string, results: any) {
     const identifier = `${computationId}_${step}`;
     return await this.set('INTERMEDIATE_RESULTS', identifier, results);
   }
@@ -247,7 +278,7 @@ export class BacktestingCacheManager {
   /**
    * Get cached intermediate results
    */
-  async getCachedIntermediateResult(computationId, step) {
+  async getCachedIntermediateResult(computationId: string, step: string) {
     const identifier = `${computationId}_${step}`;
     return await this.get('INTERMEDIATE_RESULTS', identifier);
   }
@@ -255,7 +286,7 @@ export class BacktestingCacheManager {
   /**
    * Generate and cache configuration hash
    */
-  async getConfigHash(config) {
+  async getConfigHash(config: AnyParams) {
     const configString = JSON.stringify(config, Object.keys(config).sort());
     const hash = this._hashString(configString);
 
@@ -268,7 +299,7 @@ export class BacktestingCacheManager {
   /**
    * Check if configuration has been used before
    */
-  async hasConfigurationBeenUsed(config) {
+  async hasConfigurationBeenUsed(config: AnyParams) {
     const hash = await this.getConfigHash(config);
     return await this.get('CONFIG_HASHES', hash) !== null;
   }
@@ -304,16 +335,16 @@ export class BacktestingCacheManager {
   /**
    * Warm up cache with common data
    */
-  async warmupCache(symbols, dateRanges) {
+  async warmupCache(symbols: string[][], dateRanges: DateRange[]) {
     console.log('Warming up backtesting cache...');
     const warmupPromises = [];
 
     // Pre-cache common market data combinations
-    for (const symbols of symbols) {
+    for (const symbolsList of symbols) {
       for (const dateRange of dateRanges) {
-        const identifier = `${symbols.join(',')}_${dateRange.start}_${dateRange.end}`;
+        const identifier = `${symbolsList.join(',')}_${dateRange.start}_${dateRange.end}`;
         warmupPromises.push(
-          this._getAndCacheMarketData(symbols, dateRange.start, dateRange.end)
+          this._getAndCacheMarketData(symbolsList, dateRange.start, dateRange.end)
         );
       }
     }
@@ -325,7 +356,7 @@ export class BacktestingCacheManager {
   /**
    * Invalidate cache for specific symbols or date ranges
    */
-  async invalidateCache(symbols = [], dateRanges = []) {
+  async invalidateCache(symbols: string[][] = [], dateRanges: DateRange[] = []) {
     console.log('Invalidating backtesting cache...');
     let invalidatedCount = 0;
 
@@ -345,7 +376,7 @@ export class BacktestingCacheManager {
    * Get cache size information
    */
   async getCacheSize() {
-    const sizes = {};
+    const sizes: Record<string, any> = {};
 
     for (const [type, config] of Object.entries(BACKTEST_CACHE_CONFIG)) {
       try {
@@ -356,8 +387,8 @@ export class BacktestingCacheManager {
           currentSize: 'unknown', // Would need listKVStore support
           ttl: config.ttl
         };
-      } catch (error) {
-        sizes[type] = { error: error.message };
+      } catch (error: unknown) {
+        sizes[type] = { error: error instanceof Error ? error.message : 'Unknown error' };
       }
     }
 
@@ -368,7 +399,7 @@ export class BacktestingCacheManager {
    * Hash parameters for cache key generation
    * @private
    */
-  _hashParams(params) {
+  _hashParams(params: AnyParams) {
     const paramString = JSON.stringify(params, Object.keys(params).sort());
     return this._hashString(paramString);
   }
@@ -377,7 +408,7 @@ export class BacktestingCacheManager {
    * Simple string hash function
    * @private
    */
-  _hashString(str) {
+  _hashString(str: string) {
     let hash = 0;
     if (str.length === 0) return hash.toString();
 
@@ -394,17 +425,18 @@ export class BacktestingCacheManager {
    * Calculate days between two dates
    * @private
    */
-  _calculateDaysBetween(startDate, endDate) {
+  _calculateDaysBetween(startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    const diffMs = end.getTime() - start.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   }
 
   /**
    * Get and cache market data (helper method)
    * @private
    */
-  async _getAndCacheMarketData(symbols, startDate, endDate) {
+  async _getAndCacheMarketData(symbols: string[], startDate: string, endDate: string) {
     // This would integrate with the actual market data fetching logic
     // For now, it's a placeholder that shows the caching pattern
     console.log(`Fetching and caching market data for ${symbols.join(',')} from ${startDate} to ${endDate}`);
@@ -422,7 +454,7 @@ export class BacktestingCacheManager {
    * Evict old cache entries if needed
    * @private
    */
-  async _evictIfNeeded(type) {
+  async _evictIfNeeded(type: BacktestCacheType) {
     const config = BACKTEST_CACHE_CONFIG[type];
 
     // In a real implementation, this would:
@@ -440,29 +472,29 @@ export class BacktestingCacheManager {
 /**
  * Factory function for creating cache manager instances
  */
-export function createBacktestingCache(env) {
+export function createBacktestingCache(env: any) {
   return new BacktestingCacheManager(env);
 }
 
 /**
  * Utility functions for backtesting cache
  */
-export async function getCachedBacktestResults(env, runId) {
+export async function getCachedBacktestResults(env: any, runId: string) {
   const cache = createBacktestingCache(env);
   return await cache.getCachedPerformanceMetrics(runId);
 }
 
-export async function setCachedBacktestResults(env, runId, results) {
+export async function setCachedBacktestResults(env: any, runId: string, results: any) {
   const cache = createBacktestingCache(env);
   return await cache.cachePerformanceMetrics(runId, results);
 }
 
-export async function getCachedMarketData(env, symbols, startDate, endDate) {
+export async function getCachedMarketData(env: any, symbols: string[], startDate: string, endDate: string) {
   const cache = createBacktestingCache(env);
   return await cache.getCachedMarketData(symbols, startDate, endDate);
 }
 
-export async function setCachedMarketData(env, symbols, startDate, endDate, marketData) {
+export async function setCachedMarketData(env: any, symbols: string[], startDate: string, endDate: string, marketData: any[]) {
   const cache = createBacktestingCache(env);
   return await cache.cacheMarketData(symbols, startDate, endDate, marketData);
 }

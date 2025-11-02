@@ -46,13 +46,13 @@ class Semaphore {
   constructor(private max: number) {}
 
   async execute<T>(fn: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve: any, reject: any) => {
       const run = async () => {
         this.running++;
         try {
           const result = await fn();
           resolve(result);
-        } catch (error) {
+        } catch (error: unknown) {
           reject(error);
         } finally {
           this.running--;
@@ -94,7 +94,7 @@ class CircuitBreaker {
       const result = await fn();
       this.onSuccess();
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       this.onFailure();
       throw error;
     }
@@ -273,7 +273,7 @@ export class SimpleSectorFetcher {
       const sectors: SectorData[] = [];
       let spyData: SectorData | null = null;
 
-      results.forEach((result, index) => {
+      results.forEach((result: any, index: any) => {
         const symbol = SECTOR_CONFIG.SYMBOLS[index];
 
         if (result.status === 'fulfilled') {
@@ -310,7 +310,7 @@ export class SimpleSectorFetcher {
       const snapshot: SectorSnapshot = {
         timestamp: new Date().toISOString(),
         date: new Date().toISOString().split('T')[0],
-        sectors: sectors.sort((a, b) => b.changePercent - a.changePercent),
+        sectors: sectors.sort((a: any, b: any) => b.changePercent - a.changePercent),
         spy: spyData,
         metadata: {
           fetchedAt: new Date().toISOString(),
@@ -323,7 +323,7 @@ export class SimpleSectorFetcher {
       this.log('INFO', `Sector snapshot completed in ${snapshot.metadata.fetchTimeMs}ms, ${snapshot.metadata.apiCalls} API calls`);
       return snapshot;
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.log('ERROR', 'Failed to fetch sector snapshot:', error);
       throw error;
     }
@@ -366,7 +366,7 @@ export class SimpleSectorFetcher {
           data: this.getCircuitBreakerStatus()
         };
       }
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         message: `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`,

@@ -167,7 +167,7 @@ export class EnhancedCachePromotionManager {
 
       return true;
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.updatePromotionStats(decision.strategy, Date.now() - startTime, false);
       logger.error('Promotion failed', {
         key: context.key.substring(0, 50),
@@ -484,7 +484,7 @@ export class EnhancedCachePromotionManager {
       lastAccess: history.lastAccess,
       firstAccess: history.firstAccess,
       age: now - history.firstAccess,
-    })).sort((a, b) => b.count - a.count); // Sort by access count
+    })).sort((a: any, b: any) => b.count - a.count); // Sort by access count
   }
 
   /**

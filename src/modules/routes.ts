@@ -132,7 +132,7 @@ class CCTApiClient {
             const response = await fetch('/api/v1/sectors/snapshot');
             const data = await response.json();
             return data;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to fetch sector snapshot:', error);
             throw error;
         }
@@ -142,7 +142,7 @@ class CCTApiClient {
         try {
             const response = await fetch(this.baseUrl + endpoint);
             return await response.json();
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('API request failed:', error);
             throw error;
         }
@@ -215,7 +215,7 @@ class WebNotificationSystem {
             }, 5000);
 
             return true;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to send notification:', error);
             return false;
         }

@@ -48,8 +48,8 @@ export async function basicEnhancedDALExample(env: CloudflareEnvironment) {
     console.log(`   L2 hits: ${stats.cache.l2Hits}`);
     console.log(`   Cache misses: ${stats.cache.misses}`);
 
-  } catch (error) {
-    logger.error('Basic example failed:', error);
+  } catch (error: unknown) {
+    logger.error('Basic example failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -99,8 +99,8 @@ export async function sectorDataCachingExample(env: CloudflareEnvironment) {
       console.log(`🔄 ${symbol}: Retrieved in ${fetchTime}ms (Cache: ${sectorResult.cacheHit ? 'HIT' : 'MISS'})`);
     }
 
-  } catch (error) {
-    logger.error('Sector data example failed:', error);
+  } catch (error: unknown) {
+    logger.error('Sector data example failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -147,8 +147,8 @@ export async function marketDriversCachingExample(env: CloudflareEnvironment) {
       }
     }
 
-  } catch (error) {
-    logger.error('Market drivers example failed:', error);
+  } catch (error: unknown) {
+    logger.error('Market drivers example failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -203,8 +203,8 @@ export async function apiResponseCachingExample(env: CloudflareEnvironment) {
       }
     }
 
-  } catch (error) {
-    logger.error('API response caching example failed:', error);
+  } catch (error: unknown) {
+    logger.error('API response caching example failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -261,8 +261,8 @@ export async function cacheManagementExample(env: CloudflareEnvironment) {
     enhancedDAL.setCacheEnabled(true);
     console.log('✅ Cache re-enabled');
 
-  } catch (error) {
-    logger.error('Cache management example failed:', error);
+  } catch (error: unknown) {
+    logger.error('Cache management example failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -310,7 +310,7 @@ export async function advancedCacheManagerExample(env: CloudflareEnvironment) {
     await cacheManager.set('user_sessions', userId, sessionData);
 
     // Retrieve session data
-    const retrievedSession = await cacheManager.get('user_sessions', userId);
+    const retrievedSession = await cacheManager.get('user_sessions', userId) as typeof sessionData | null;
 
     if (retrievedSession) {
       console.log(`✅ User session retrieved for ${userId}`);
@@ -369,8 +369,8 @@ export async function advancedCacheManagerExample(env: CloudflareEnvironment) {
     console.log(`   Enabled: ${healthStatus.enabled}`);
     console.log(`   L1 utilization: ${healthStatus.l1Size}/${healthStatus.l1MaxSize}`);
 
-  } catch (error) {
-    logger.error('Advanced cache manager example failed:', error);
+  } catch (error: unknown) {
+    logger.error('Advanced cache manager example failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -425,8 +425,8 @@ export async function cachePerformanceTest(env: CloudflareEnvironment) {
     }
 
     // Performance analysis
-    const avgPopulateTime = populateTimes.reduce((a, b) => a + b, 0) / populateTimes.length;
-    const avgCacheHitTime = cacheHitTimes.reduce((a, b) => a + b, 0) / cacheHitTimes.length;
+    const avgPopulateTime = populateTimes.reduce((a: any, b: any) => a + b, 0) / populateTimes.length;
+    const avgCacheHitTime = cacheHitTimes.reduce((a: any, b: any) => a + b, 0) / cacheHitTimes.length;
     const speedup = avgPopulateTime / avgCacheHitTime;
 
     console.log(`\n📊 Performance Results:`);
@@ -441,8 +441,8 @@ export async function cachePerformanceTest(env: CloudflareEnvironment) {
     console.log(`   L1 hits: ${finalStats.cache.l1Hits}`);
     console.log(`   L2 hits: ${finalStats.cache.l2Hits}`);
 
-  } catch (error) {
-    logger.error('Performance test failed:', error);
+  } catch (error: unknown) {
+    logger.error('Performance test failed:', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -467,7 +467,7 @@ export async function runAllCacheExamples(env: CloudflareEnvironment) {
       console.log(`\n${'='.repeat(50)}`);
       await example.fn(env);
       console.log(`✅ ${example.name} completed successfully`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`❌ ${example.name} failed:`, error);
     }
   }

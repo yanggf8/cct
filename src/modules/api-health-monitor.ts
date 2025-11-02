@@ -116,7 +116,7 @@ export class APIHealthMonitor {
     if (this.options.enableAutoChecks) {
       this.monitoringInterval = setInterval(() => {
         this.performAllHealthChecks();
-      }, this.options.checkIntervalMinutes * 60 * 1000);
+      }, (this.options.checkIntervalMinutes ?? 5) * 60 * 1000);
     }
   }
 
@@ -163,7 +163,7 @@ export class APIHealthMonitor {
     const apiHealthChecks: Record<string, APIHealthCheck> = {};
 
     // Process results
-    results.forEach((result, index) => {
+    results.forEach((result: any, index: any) => {
       if (result.status === 'fulfilled') {
         apiHealthChecks[result.value.name] = result.value.check;
       } else {
@@ -232,7 +232,7 @@ export class APIHealthMonitor {
           }
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const responseTime = Date.now() - startTime;
 
       return {
@@ -242,7 +242,7 @@ export class APIHealthMonitor {
           status: 'unhealthy',
           lastCheck: new Date().toISOString(),
           responseTime,
-          errorMessage: error.message,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
           metrics: {
             successRate: 0,
             averageResponseTime: responseTime,
@@ -280,7 +280,7 @@ export class APIHealthMonitor {
           }
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const responseTime = Date.now() - startTime;
 
       return {
@@ -290,7 +290,7 @@ export class APIHealthMonitor {
           status: 'unhealthy',
           lastCheck: new Date().toISOString(),
           responseTime,
-          errorMessage: error.message,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
           metrics: {
             successRate: 0,
             averageResponseTime: responseTime,
@@ -312,19 +312,20 @@ export class APIHealthMonitor {
       // Test cache operations
       const cacheManager = new CacheManager(this.env);
       const testKey = `health_check_${Date.now()}`;
-      const testValue = { test: true, timestamp: Date.now() };
+      const testValue: { test: boolean; timestamp: number } = { test: true, timestamp: Date.now() };
 
       // Write test
-      await cacheManager.set(testKey, testValue, { ttl: 60 });
+      const namespace = 'api_responses';
+      await cacheManager.set<typeof testValue>(namespace, testKey, testValue, { l1: 60, l2: 60 });
 
       // Read test
-      const retrieved = await cacheManager.get(testKey);
+      const retrieved = await cacheManager.get<typeof testValue>(namespace, testKey);
 
       // Cleanup
-      await cacheManager.delete(testKey);
+      await cacheManager.delete(namespace, testKey);
 
       const responseTime = Date.now() - startTime;
-      const isHealthy = retrieved && retrieved.test === true;
+      const isHealthy = !!retrieved && retrieved.test === true;
 
       return {
         name: 'cache',
@@ -347,7 +348,7 @@ export class APIHealthMonitor {
           }
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const responseTime = Date.now() - startTime;
 
       return {
@@ -357,7 +358,7 @@ export class APIHealthMonitor {
           status: 'unhealthy',
           lastCheck: new Date().toISOString(),
           responseTime,
-          errorMessage: error.message,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
           metrics: {
             successRate: 0,
             averageResponseTime: responseTime,
@@ -399,14 +400,14 @@ export class APIHealthMonitor {
           responseTime,
           details: metrics,
           metrics: {
-            successRate: metrics.successRate || 0,
+            successRate: metrics.totalCalls > 0 ? (metrics.successCount / metrics.totalCalls) * 100 : 100,
             averageResponseTime: responseTime,
-            requestCount: metrics.requestCount || 0,
+            requestCount: metrics.totalCalls,
             errorCount: metrics.failureCount || 0
           }
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const responseTime = Date.now() - startTime;
 
       return {
@@ -416,7 +417,7 @@ export class APIHealthMonitor {
           status: 'unhealthy',
           lastCheck: new Date().toISOString(),
           responseTime,
-          errorMessage: error.message,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
           metrics: {
             successRate: 0,
             averageResponseTime: responseTime,
@@ -451,7 +452,7 @@ export class APIHealthMonitor {
       .filter(c => c.responseTime !== undefined)
       .map(c => c.responseTime!);
     const averageResponseTime = responseTimes.length > 0
-      ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
+      ? responseTimes.reduce((sum: number, time: number) => sum + time, 0) / responseTimes.length
       : 0;
 
     // Generate recommendations
@@ -528,7 +529,7 @@ export class APIHealthMonitor {
       }
 
       // Check for high error rates
-      if (check.metrics?.successRate && check.metrics.successRate < 95) {
+      if (typeof check.metrics?.successRate === 'number' && check.metrics.successRate < 95) {
         alerts.push(`📊 Low success rate for ${api}: ${check.metrics.successRate}%`);
       }
     });
@@ -567,7 +568,7 @@ export class APIHealthMonitor {
     }
 
     const apiChecks: Record<string, APIHealthCheck> = {};
-    this.healthChecks.forEach((check, name) => {
+    this.healthChecks.forEach((check: any, name: any) => {
       apiChecks[name] = check;
     });
 

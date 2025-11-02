@@ -334,7 +334,7 @@ export async function sendFacebookMessengerAlert(
       console.error('❌ Facebook Messenger alert failed:', error);
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Facebook Messenger error:', error);
   }
 }
@@ -399,7 +399,7 @@ export async function sendFacebookSignalCard(
       body: JSON.stringify(cardTemplate)
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Facebook card send error:', error);
   }
 }
@@ -454,7 +454,7 @@ export async function sendLINEAlert(
       console.error('❌ LINE alert failed:', error);
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ LINE error:', error);
   }
 }
@@ -721,7 +721,7 @@ export async function sendLINESticker(userId: string, token: string): Promise<vo
         ]
       } as LineMessagePushRequest)
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ LINE sticker error:', error);
   }
 }
@@ -774,7 +774,7 @@ export async function sendCriticalMessengerAlert(
           messaging_type: 'UPDATE'
         } as FacebookMessageRequest)
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Critical Facebook alert failed:', error);
     }
   }
@@ -803,7 +803,7 @@ export async function sendCriticalMessengerAlert(
           ]
         } as LineMessagePushRequest)
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Critical LINE alert failed:', error);
     }
   }

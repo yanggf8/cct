@@ -108,7 +108,7 @@ export async function handleAdvancedAnalyticsRoutes(request, env, path, headers)
       }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Advanced analytics route error', { error: error.message, path, requestId });
 
     return new Response(
@@ -169,11 +169,11 @@ async function handleModelComparison(request, env, headers, requestId) {
           }, {});
           return acc;
         }, {}),
-        agreement_rates: models.reduce((acc, model) => {
+        agreement_rates: models.reduce((acc: any, model: any) => {
           acc[model] = 0.40 + Math.random() * 0.50;
           return acc;
         }, {}),
-        complementary_analysis: models.reduce((acc, model) => {
+        complementary_analysis: models.reduce((acc: any, model: any) => {
           acc[model] = {
             strengths: generateModelStrengths(model),
             weaknesses: generateModelWeaknesses(model),
@@ -187,14 +187,14 @@ async function handleModelComparison(request, env, headers, requestId) {
         combined_signal: Math.random() > 0.5 ? 'BULLISH' : 'BEARISH',
         confidence: 0.75 + Math.random() * 0.20,
         agreement_level: 0.60 + Math.random() * 0.35,
-        model_weights: models.reduce((acc, model) => {
+        model_weights: models.reduce((acc: any, model: any) => {
           acc[model] = 0.2 + Math.random() * 0.6;
           return acc;
         }, {}),
         ensemble_accuracy: 0.70 + Math.random() * 0.25
       },
 
-      confidence_intervals: symbols.reduce((acc, symbol) => {
+      confidence_intervals: symbols.reduce((acc: any, symbol: any) => {
         acc[symbol] = {
           prediction: Math.random() > 0.5 ? 'UP' : 'DOWN',
           confidence_interval: {
@@ -226,7 +226,7 @@ async function handleModelComparison(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Model comparison error', { error: error.message, requestId });
 
     return new Response(
@@ -269,7 +269,7 @@ async function handleConfidenceIntervals(request, env, headers, requestId) {
       prediction_type: predictionType,
       time_range: timeRange,
 
-      intervals: symbolsArray.reduce((acc, symbol) => {
+      intervals: symbolsArray.reduce((acc: any, symbol: any) => {
         const basePrediction = Math.random() * 0.4 - 0.2; // -20% to +20%
         const confidenceWidth = (1 - parseFloat(confidenceLevel)) * 0.3; // Wider intervals for lower confidence
 
@@ -332,7 +332,7 @@ async function handleConfidenceIntervals(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Confidence intervals error', { error: error.message, requestId });
 
     return new Response(
@@ -385,11 +385,11 @@ async function handleEnsemblePrediction(request, env, headers, requestId) {
         // Calculate ensemble prediction
         const bullishWeight = modelPredictions
           .filter(p => p.prediction === 'BULLISH')
-          .reduce((sum, p) => sum + p.weight * p.confidence, 0);
+          .reduce((sum: any, p: any) => sum + p.weight * p.confidence, 0);
 
         const bearishWeight = modelPredictions
           .filter(p => p.prediction === 'BEARISH')
-          .reduce((sum, p) => sum + p.weight * p.confidence, 0);
+          .reduce((sum: any, p: any) => sum + p.weight * p.confidence, 0);
 
         const totalWeight = bullishWeight + bearishWeight;
         const bullishProbability = totalWeight > 0 ? bullishWeight / totalWeight : 0.5;
@@ -408,7 +408,7 @@ async function handleEnsemblePrediction(request, env, headers, requestId) {
             uncertainty_score: calculateUncertaintyScore(modelPredictions)
           },
 
-          ensemble_weights: modelPredictions.reduce((acc, p) => {
+          ensemble_weights: modelPredictions.reduce((acc: any, p: any) => {
             acc[p.model_name] = p.weight;
             return acc;
           }, {}),
@@ -446,7 +446,7 @@ async function handleEnsemblePrediction(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Ensemble prediction error', { error: error.message, requestId });
 
     return new Response(
@@ -568,7 +568,7 @@ async function handlePredictionAccuracy(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Prediction accuracy error', { error: error.message, requestId });
 
     return new Response(
@@ -637,7 +637,7 @@ async function handleRiskAssessment(request, env, headers, requestId) {
         }
       },
 
-      individual_risks: symbols.reduce((acc, symbol) => {
+      individual_risks: symbols.reduce((acc: any, symbol: any) => {
         acc[symbol] = {
           symbol: symbol,
           risk_score: 30 + Math.random() * 50,
@@ -706,7 +706,7 @@ async function handleRiskAssessment(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Risk assessment error', { error: error.message, requestId });
 
     return new Response(
@@ -871,7 +871,7 @@ async function handleModelPerformance(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Model performance error', { error: error.message, requestId });
 
     return new Response(
@@ -938,7 +938,7 @@ async function handleBacktest(request, env, headers, requestId) {
         average_trade_duration: Math.floor(3 + Math.random() * 12) // days
       },
 
-      monthly_returns: Array.from({ length: 12 }, (_, i) => ({
+      monthly_returns: Array.from({ length: 12 }, (_: any, i: any) => ({
         month: i + 1,
         return: -0.05 + Math.random() * 0.15,
         volatility: 0.1 + Math.random() * 0.2
@@ -982,7 +982,7 @@ async function handleBacktest(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Backtest error', { error: error.message, requestId });
 
     return new Response(
@@ -1198,7 +1198,7 @@ async function handleAdvancedAnalyticsHealth(request, env, headers, requestId) {
       { headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Advanced analytics health check error', { error: error.message, requestId });
 
     return new Response(
@@ -1218,7 +1218,7 @@ async function handleAdvancedAnalyticsHealth(request, env, headers, requestId) {
 }
 
 // Utility functions
-function generateModelStrengths(modelName) {
+function generateModelStrengths(modelName: any) {
   const strengths = {
     'dual-ai': ['Contextual understanding', 'News sentiment analysis', 'Multi-factor consideration'],
     'technical': ['Pattern recognition', 'Momentum analysis', 'Risk management'],
@@ -1227,7 +1227,7 @@ function generateModelStrengths(modelName) {
   return strengths[modelName] || ['General analysis'];
 }
 
-function generateModelWeaknesses(modelName) {
+function generateModelWeaknesses(modelName: any) {
   const weaknesses = {
     'dual-ai': ['Dependent on news quality', 'May miss technical patterns'],
     'technical': ['Ignores fundamental factors', 'Lagging indicators'],
@@ -1236,7 +1236,7 @@ function generateModelWeaknesses(modelName) {
   return weaknesses[modelName] || ['General limitations'];
 }
 
-function generateBestConditions(modelName) {
+function generateBestConditions(modelName: any) {
   const conditions = {
     'dual-ai': 'High news volume, clear market narrative',
     'technical': 'Strong trends, defined support/resistance',
@@ -1245,7 +1245,7 @@ function generateBestConditions(modelName) {
   return conditions[modelName] || 'Normal market conditions';
 }
 
-function generateModelReasoning(modelName) {
+function generateModelReasoning(modelName: any) {
   const reasoning = {
     'dual-ai': 'Based on analysis of recent news sentiment and AI model consensus',
     'technical': 'Derived from technical indicators and price action patterns',
@@ -1254,7 +1254,7 @@ function generateModelReasoning(modelName) {
   return reasoning[modelName] || 'Model-based prediction';
 }
 
-function calculateAgreementScore(predictions) {
+function calculateAgreementScore(predictions: any) {
   if (predictions.length === 0) return 0;
 
   const bullishCount = predictions.filter(p => p.prediction === 'BULLISH').length;
@@ -1262,10 +1262,10 @@ function calculateAgreementScore(predictions) {
   return maxCount / predictions.length;
 }
 
-function calculateUncertaintyScore(predictions) {
+function calculateUncertaintyScore(predictions: any) {
   if (predictions.length === 0) return 1;
 
-  const avgConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0) / predictions.length;
+  const avgConfidence = predictions.reduce((sum: any, p: any) => sum + p.confidence, 0) / predictions.length;
   return 1 - avgConfidence;
 }
 
@@ -1274,7 +1274,7 @@ function calculateUncertaintyScore(predictions) {
 /**
  * Check KV storage health and performance
  */
-async function checkKVHealth(env) {
+async function checkKVHealth(env: any) {
   const startTime = Date.now();
   let kvStatus = 'healthy';
   let responseTime = 0;
@@ -1304,7 +1304,7 @@ async function checkKVHealth(env) {
 
     // Cleanup
     await env.TRADING_RESULTS.delete(testKey);
-  } catch (error) {
+  } catch (error: unknown) {
     kvStatus = 'unhealthy';
     responseTime = Date.now() - startTime;
   }
@@ -1323,7 +1323,7 @@ async function checkKVHealth(env) {
 /**
  * Check model health and availability
  */
-async function checkModelHealth(env) {
+async function checkModelHealth(env: any) {
   const dualAiStatus = Math.random() > 0.05 ? 'healthy' : 'degraded';
   const technicalStatus = Math.random() > 0.03 ? 'healthy' : 'degraded';
   const ensembleStatus = Math.random() > 0.02 ? 'healthy' : 'degraded';
@@ -1340,7 +1340,7 @@ async function checkModelHealth(env) {
 /**
  * Check system health and component status
  */
-async function checkSystemHealth(env) {
+async function checkSystemHealth(env: any) {
   const confidenceStatus = Math.random() > 0.04 ? 'healthy' : 'degraded';
   const ensembleStatus = Math.random() > 0.03 ? 'healthy' : 'degraded';
   const riskStatus = Math.random() > 0.02 ? 'healthy' : 'degraded';
@@ -1450,7 +1450,7 @@ function generateHealthAlerts(overallStatus, kvHealth, modelHealth, systemHealth
 /**
  * Calculate overall health score (0-100)
  */
-function calculateHealthScore(healthData) {
+function calculateHealthScore(healthData: any) {
   let score = 100;
 
   // Deduct points for degraded/unhealthy components

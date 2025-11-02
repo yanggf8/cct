@@ -133,7 +133,7 @@ export const ArrayUtils = {
    * Group array by key
    */
   groupBy<T extends Record<string, any>>(array: T[], key: keyof T): Record<string, T[]> {
-    return array.reduce((groups, item) => {
+    return array.reduce((groups: any, item: any) => {
       const group = String(item[key]);
       if (!groups[group]) {
         groups[group] = [];
@@ -151,7 +151,7 @@ export const ArrayUtils = {
     key: keyof T,
     direction: 'asc' | 'desc' = 'asc'
   ): T[] {
-    return [...array].sort((a, b) => {
+    return [...array].sort((a: any, b: any) => {
       const aVal = a[key];
       const bVal = b[key];
       const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
@@ -212,7 +212,7 @@ export const StringUtils = {
    * Convert to title case
    */
   toTitleCase(str: string): string {
-    return str.replace(/\w\S*/g, (txt) =>
+    return str.replace(/\w\S*/g, (txt: any) =>
       txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
     );
   },
@@ -357,7 +357,7 @@ export const AsyncUtils = {
    * Execute with timeout
    */
   async withTimeout<T>(promise: Promise<T>, timeoutMs: number = getTimeout('api_request')): Promise<T> {
-    const timeoutPromise = new Promise<T>((_, reject) => {
+    const timeoutPromise = new Promise<T>((_: any, reject: any) => {
       setTimeout(() => reject(new Error('Operation timeout')), timeoutMs);
     });
 

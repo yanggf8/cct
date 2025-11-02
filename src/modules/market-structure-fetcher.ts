@@ -172,8 +172,8 @@ export class MarketStructureFetcher {
       });
 
       return enhancedMarketStructure;
-    } catch (error) {
-      logger.error('Failed to fetch market structure indicators:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch market structure indicators:', { error: error instanceof Error ? error.message : String(error) });
 
       // Fall back to mock data
       logger.warn('Using mock data for market structure indicators');
@@ -195,8 +195,8 @@ export class MarketStructureFetcher {
         if (marketData) {
           results[symbol] = marketData;
         }
-      } catch (error) {
-        logger.warn(`Failed to fetch data for ${symbol}:`, error);
+      } catch (error: unknown) {
+        logger.warn(`Failed to fetch data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
         // Continue with other symbols
       }
     }
@@ -592,7 +592,7 @@ export class MarketStructureFetcher {
           supportedSymbols: Object.keys(MARKET_STRUCTURE_CONFIG).length,
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'unhealthy',
         details: {

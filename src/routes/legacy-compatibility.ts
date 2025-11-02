@@ -185,7 +185,7 @@ async function transformLegacyRequest(
           };
           body = JSON.stringify(newBody);
           headers.set('Content-Type', 'application/json');
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Failed to transform /analyze request body', { error });
         }
       }
@@ -219,7 +219,7 @@ async function transformLegacyRequest(
           };
           body = JSON.stringify(newBody);
           headers.set('Content-Type', 'application/json');
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Failed to transform /test-facebook request body', { error });
         }
       }

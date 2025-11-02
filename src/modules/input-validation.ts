@@ -654,7 +654,7 @@ export function validateInput(input: any, type: string, options?: any): Validati
           error: `Unknown validation type: ${type}`
         };
     }
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Validation error', { type, input, error: error.message });
     return {
       isValid: false,

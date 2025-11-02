@@ -166,8 +166,8 @@ export class MacroEconomicFetcher {
       });
 
       return enhancedMacroDrivers;
-    } catch (error) {
-      logger.error('Failed to fetch macro economic drivers:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch macro economic drivers:', { error: error instanceof Error ? error.message : String(error) });
 
       // Fall back to mock data if real API fails
       if (!this.useMockData) {
@@ -533,7 +533,7 @@ export class MacroEconomicFetcher {
           circuitBreakerStatus: this.circuitBreaker.getMetrics(),
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'unhealthy',
         details: {

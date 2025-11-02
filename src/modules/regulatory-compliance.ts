@@ -7,7 +7,7 @@
 import { createDAL } from './dal.js';
 
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: any, key: any) {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
@@ -279,7 +279,7 @@ export class RegulatoryComplianceEngine {
       await this.persistComplianceAssessment(assessment);
 
       return assessment;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Compliance assessment failed:', error);
       throw new Error(`Compliance assessment failed: ${error.message}`);
     }
@@ -335,7 +335,7 @@ export class RegulatoryComplianceEngine {
       }
 
       return frameworkResult;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Framework assessment failed for ${framework}:`, error);
       return {
         framework,
@@ -396,7 +396,7 @@ export class RegulatoryComplianceEngine {
       }
 
       return assessment;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Requirement assessment failed for ${requirement}:`, error);
       return {
         requirement,
@@ -591,7 +591,7 @@ export class RegulatoryComplianceEngine {
       await this.persistRegulatoryReport(report);
 
       return report;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Regulatory report generation failed:', error);
       throw new Error(`Report generation failed: ${error.message}`);
     }
@@ -620,7 +620,7 @@ export class RegulatoryComplianceEngine {
       await this.persistCompliancePolicy(policy);
 
       return policy;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Compliance policy creation failed:', error);
       throw new Error(`Policy creation failed: ${error.message}`);
     }
@@ -644,7 +644,7 @@ export class RegulatoryComplianceEngine {
       await this.persistTrainingRecord(records);
 
       return records;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Training record update failed:', error);
       throw new Error(`Training update failed: ${error.message}`);
     }
@@ -798,7 +798,7 @@ export class RegulatoryComplianceEngine {
       }
     });
 
-    return upcoming.sort((a, b) => a.date - b.date).slice(0, 10); // Next 10 deadlines
+    return upcoming.sort((a: any, b: any) => a.date - b.date).slice(0, 10); // Next 10 deadlines
   }
 
   // Simplified assessment methods - would implement actual logic in production
@@ -909,7 +909,7 @@ export class RegulatoryComplianceEngine {
 /**
  * Factory function for creating compliance engine instances
  */
-export function createRegulatoryComplianceEngine(env) {
+export function createRegulatoryComplianceEngine(env: any) {
   return new RegulatoryComplianceEngine(env);
 }
 
@@ -926,7 +926,7 @@ export async function generateReport(env, portfolioData, reportType, framework, 
   return await engine.generateRegulatoryReport(portfolioData, reportType, framework, period);
 }
 
-export async function createPolicy(env, policyData) {
+export async function createPolicy(env: any, policyData: any) {
   const engine = createRegulatoryComplianceEngine(env);
   return await engine.createCompliancePolicy(policyData);
 }

@@ -196,14 +196,14 @@ class RealTimePriceTracker {
    */
   async getBatchPrices(symbols: string[]): Promise<PriceCache> {
     const prices: PriceCache = {};
-    const promises = symbols.map(async (symbol) => {
+    const promises = symbols.map(async (symbol: any) => {
       const price = await this.getCurrentPrice(symbol);
       return { symbol, price };
     });
 
     const results = await Promise.allSettled(promises);
 
-    results.forEach((result, index) => {
+    results.forEach((result: any, index: any) => {
       if (result.status === 'fulfilled' && result.value) {
         if (result.value.price) {
           prices[result.value.symbol] = result.value.price;
@@ -421,7 +421,7 @@ class RealTimeSignalTracker {
       .filter(acc => acc !== undefined && acc !== null) as number[];
 
     if (validPerformances.length > 0) {
-      summary.averageAccuracy = validPerformances.reduce((sum, acc) => sum + acc, 0) / validPerformances.length;
+      summary.averageAccuracy = validPerformances.reduce((sum: any, acc: any) => sum + acc, 0) / validPerformances.length;
     }
 
     // Group signals by status
@@ -445,7 +445,7 @@ class RealTimeSignalTracker {
       .filter(sp => sp.accuracy > 0);
 
     // Sort by accuracy
-    signalPerformances.sort((a, b) => b.accuracy - a.accuracy);
+    signalPerformances.sort((a: any, b: any) => b.accuracy - a.accuracy);
 
     summary.topPerformers = signalPerformances.slice(0, 3);
     summary.underperformers = signalPerformances.slice(-3).reverse();

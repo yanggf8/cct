@@ -8,7 +8,7 @@ import { getFactTableData, getFactTableDataWithRange } from './data.js';
 /**
  * Serve the Weekly Analysis HTML page
  */
-export async function handleWeeklyAnalysisPage(request, env) {
+export async function handleWeeklyAnalysisPage(request: any, env: any) {
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -292,7 +292,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
 
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Error loading data:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
@@ -300,7 +300,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
             }
         }
 
-        function updateOverviewStats(data) {
+        function updateOverviewStats(data: any) {
             const stats = data.overview || {};
             document.getElementById('overall-accuracy').textContent =
                 stats.overallAccuracy ? \`\${stats.overallAccuracy.toFixed(2)}%\` : '-';
@@ -312,7 +312,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
             document.getElementById('best-model').textContent = stats.primaryModel || stats.bestModel || 'GPT-OSS-120B';
         }
 
-        function createAccuracyChart(dailyData) {
+        function createAccuracyChart(dailyData: any) {
             const ctx = document.getElementById('accuracyChart').getContext('2d');
             if (accuracyChart) accuracyChart.destroy();
 
@@ -355,7 +355,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
             });
         }
 
-        function updatePredictionsTable(predictions) {
+        function updatePredictionsTable(predictions: any) {
             const tbody = document.getElementById('predictions-table-body');
             tbody.innerHTML = '';
 
@@ -366,7 +366,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
                     (prediction.direction_correct ? '✓' : '✗') : '-';
 
                 // Get sentiment direction arrow for dual AI analysis
-                const getDirectionArrow = (direction) => {
+                const getDirectionArrow = (direction: any) => {
                     switch(direction?.toUpperCase()) {
                         case 'BULLISH': return '↗️';
                         case 'BEARISH': return '↘️';
@@ -401,7 +401,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
             });
         }
 
-        function updateSymbolBreakdown(symbolData) {
+        function updateSymbolBreakdown(symbolData: any) {
             const container = document.getElementById('symbol-breakdown');
             container.innerHTML = '';
 
@@ -460,7 +460,7 @@ export async function handleWeeklyAnalysisPage(request, env) {
 /**
  * Provide weekly data API for the analysis page
  */
-export async function handleWeeklyDataAPI(request, env) {
+export async function handleWeeklyDataAPI(request: any, env: any) {
   try {
     // Get URL parameters for date filtering
     const url = new URL(request.url);
@@ -487,7 +487,7 @@ export async function handleWeeklyDataAPI(request, env) {
       headers: { 'Content-Type': 'application/json' }
     });
     
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Weekly data API error:', error);
     return new Response(JSON.stringify({
       error: error.message,
@@ -512,7 +512,7 @@ export async function handleWeeklyDataAPI(request, env) {
 /**
  * Process fact table data into weekly analysis format
  */
-async function processWeeklyAnalysisData(factTableData, env) {
+async function processWeeklyAnalysisData(factTableData: any, env: any) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
@@ -637,7 +637,7 @@ async function processWeeklyAnalysisData(factTableData, env) {
       dailyStats[date].priceAccuracy / dailyStats[date].priceCount : 0,
     directionAccuracy: dailyStats[date].directionCount > 0 ? 
       dailyStats[date].directionAccuracy / dailyStats[date].directionCount : 0
-  })).sort((a, b) => new Date(a.date) - new Date(b.date));
+  })).sort((a: any, b: any) => new Date(a.date) - new Date(b.date));
   
   // Find best performing model (sentiment-first approach)
   let bestModel = 'GPT-OSS-120B';

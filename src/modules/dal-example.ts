@@ -241,7 +241,7 @@ export async function advancedDALExample(env: CloudflareEnvironment): Promise<{
       try {
         await env.TRADING_RESULTS.delete(oldKey);
         cleanupCount++;
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(`Failed to cleanup key ${oldKey}:`, error);
       }
     }
@@ -361,9 +361,9 @@ export async function errorHandlingExample(env: CloudflareEnvironment): Promise<
     console.log('=== Large Data Handling Example ===');
     try {
       const largeData = {
-        symbols: Array.from({ length: 1000 }, (_, i) => ({
+        symbols: Array.from({ length: 1000 }, (_: any, i: any) => ({
           symbol: `SYM${i.toString().padStart(4, '0')}`,
-          data: Array.from({ length: 100 }, (_, j) => ({
+          data: Array.from({ length: 100 }, (_: any, j: any) => ({
             timestamp: Date.now() - j * 1000,
             value: Math.random() * 100
           }))

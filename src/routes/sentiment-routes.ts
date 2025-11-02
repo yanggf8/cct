@@ -128,7 +128,7 @@ export async function handleSentimentRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SentimentRoutes Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -272,7 +272,7 @@ async function handleSentimentAnalysis(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SentimentAnalysis Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId
@@ -432,7 +432,7 @@ async function handleSymbolSentiment(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SymbolSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId,
@@ -533,7 +533,7 @@ async function handleMarketSentiment(
       return sentiment === 'bullish' ? score : sentiment === 'bearish' ? -score : 0;
     });
 
-    const overallSentiment = sentimentScores.reduce((sum, score) => sum + score, 0) / sentimentScores.length;
+    const overallSentiment = sentimentScores.reduce((sum: any, score: any) => sum + score, 0) / sentimentScores.length;
 
     const response: MarketSentimentData = {
       overall_sentiment: Math.max(-1, Math.min(1, overallSentiment)),
@@ -561,7 +561,7 @@ async function handleMarketSentiment(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('MarketSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId
@@ -722,7 +722,7 @@ async function handleSectorSentiment(
             agreement_type: 'NO_DATA'
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn(`Failed to analyze sector ${sector}:`, {
           error: error instanceof Error ? error.message : 'Unknown error',
           sector
@@ -776,7 +776,7 @@ async function handleSectorSentiment(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SectorSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId
@@ -816,7 +816,7 @@ function calculateOverallSentiment(results: any[]): number {
     return 0;
   });
 
-  return sentiments.reduce((sum, sentiment) => sum + sentiment, 0) / sentiments.length;
+  return sentiments.reduce((sum: any, sentiment: any) => sum + sentiment, 0) / sentiments.length;
 }
 
 function getSentimentLabel(sentiment: number): string {
@@ -837,7 +837,7 @@ function calculateOverallConfidence(results: any[]): number {
     return (gptConf + dbConf) / 2;
   });
 
-  return confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length;
+  return confidences.reduce((sum: any, conf: any) => sum + conf, 0) / confidences.length;
 }
 
 function transformBatchResultsToSignals(results: any[]): any[] {

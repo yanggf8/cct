@@ -147,7 +147,7 @@ class PerformanceModule {
     }
 
     const accurateSignals = signals.filter(s => s.status === 'correct');
-    const totalConfidence = signals.reduce((sum, s) => sum + (s.confidence || 0), 0);
+    const totalConfidence = signals.reduce((sum: any, s: any) => sum + (s.confidence || 0), 0);
     const uniqueSymbols = new Set(signals.map(s => s.symbol)).size;
 
     return [

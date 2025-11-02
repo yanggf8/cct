@@ -111,7 +111,7 @@ export function createHandler<T = Response>(
       }
 
       // Execute handler with timeout
-      const timeoutPromise = new Promise<never>((_, reject) =>
+      const timeoutPromise = new Promise<never>((_: any, reject: any) =>
         setTimeout(() => reject(new Error(`Handler timeout after ${timeout}ms`)), timeout)
       );
 

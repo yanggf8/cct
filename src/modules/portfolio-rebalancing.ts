@@ -8,7 +8,7 @@ import { createDAL } from './dal.js';
 import { createCorrelationAnalysisEngine } from './correlation-analysis.js';
 
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: any, key: any) {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
@@ -156,7 +156,7 @@ export class PortfolioRebalancingEngine {
       await this.persistRebalancingAnalysis(analysis);
 
       return analysis;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing analysis failed:', error);
       throw new Error(`Rebalancing analysis failed: ${error.message}`);
     }
@@ -210,7 +210,7 @@ export class PortfolioRebalancingEngine {
       await this.updateStrategyMetrics(analysis.strategyId, execution);
 
       return execution;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing execution failed:', error);
       throw new Error(`Rebalancing execution failed: ${error.message}`);
     }
@@ -250,7 +250,7 @@ export class PortfolioRebalancingEngine {
       await this.persistMonitoring(monitoring);
 
       return monitoring;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio monitoring failed:', error);
       throw new Error(`Portfolio monitoring failed: ${error.message}`);
     }
@@ -299,7 +299,7 @@ export class PortfolioRebalancingEngine {
       await this.persistTaxHarvesting(harvesting);
 
       return harvesting;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Tax-loss harvesting failed:', error);
       throw new Error(`Tax-loss harvesting failed: ${error.message}`);
     }
@@ -346,7 +346,7 @@ export class PortfolioRebalancingEngine {
       await this.persistDynamicAllocation(allocation);
 
       return allocation;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Dynamic allocation creation failed:', error);
       throw new Error(`Dynamic allocation failed: ${error.message}`);
     }
@@ -379,7 +379,7 @@ export class PortfolioRebalancingEngine {
       await this.persistStressTest(stressTest);
 
       return stressTest;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing stress test failed:', error);
       throw new Error(`Stress test failed: ${error.message}`);
     }
@@ -404,7 +404,7 @@ export class PortfolioRebalancingEngine {
     }
 
     // Validate weights sum to 1
-    const weightSum = Object.values(strategy.targetWeights).reduce((sum, weight) => sum + weight, 0);
+    const weightSum = Object.values(strategy.targetWeights).reduce((sum: any, weight: any) => sum + weight, 0);
     if (Math.abs(weightSum - 1.0) > 0.01) {
       throw new Error('Target weights must sum to 1.0');
     }
@@ -459,7 +459,7 @@ export class PortfolioRebalancingEngine {
       }
     }
 
-    return trades.sort((a, b) => b.priority - a.priority);
+    return trades.sort((a: any, b: any) => b.priority - a.priority);
   }
 
   calculateTradePriority(deviation, strategy) {
@@ -475,7 +475,7 @@ export class PortfolioRebalancingEngine {
   }
 
   async calculateTradingCosts(trades) {
-    const totalCost = trades.reduce((sum, trade) => sum + trade.estimatedCost, 0);
+    const totalCost = trades.reduce((sum: any, trade: any) => sum + trade.estimatedCost, 0);
     const marketImpactCost = this.calculateMarketImpactCost(trades);
     const bidAskSpreadCost = this.calculateBidAskSpreadCost(trades);
 
@@ -489,7 +489,7 @@ export class PortfolioRebalancingEngine {
 
   calculateMarketImpactCost(trades) {
     // Simplified market impact calculation
-    return trades.reduce((sum, trade) => {
+    return trades.reduce((sum: any, trade: any) => {
       const impactRate = Math.min(trade.currentValue / 1000000, 0.01); // Max 1% impact
       return sum + (trade.currentValue * impactRate);
     }, 0);
@@ -497,7 +497,7 @@ export class PortfolioRebalancingEngine {
 
   calculateBidAskSpreadCost(trades) {
     // Simplified bid-ask spread calculation
-    return trades.reduce((sum, trade) => {
+    return trades.reduce((sum: any, trade: any) => {
       const spreadRate = 0.0005; // 0.05% average spread
       return sum + (trade.currentValue * spreadRate);
     }, 0);
@@ -541,7 +541,7 @@ export class PortfolioRebalancingEngine {
 
   prioritizeTrades(trades, executionConfig) {
     // Sort by priority, then by trade size
-    return trades.sort((a, b) => {
+    return trades.sort((a: any, b: any) => {
       if (a.priority !== b.priority) {
         return b.priority - a.priority;
       }
@@ -565,7 +565,7 @@ export class PortfolioRebalancingEngine {
 
   async calculatePortfolioValue(portfolioId, trades) {
     // Mock calculation
-    return 1000000 + trades.reduce((sum, trade) => {
+    return 1000000 + trades.reduce((sum: any, trade: any) => {
       return sum + (trade.direction === 'buy' ? -trade.actualCost : trade.actualCost);
     }, 0);
   }
@@ -609,8 +609,8 @@ export class PortfolioRebalancingEngine {
       metrics.maxDrift = Math.max(metrics.maxDrift, driftPercent);
     }
 
-    metrics.averageDrift = drifts.reduce((sum, d) => sum + d, 0) / drifts.length;
-    metrics.trackingError = Math.sqrt(drifts.reduce((sum, d) => sum + d * d, 0) / drifts.length);
+    metrics.averageDrift = drifts.reduce((sum: any, d: any) => sum + d, 0) / drifts.length;
+    metrics.trackingError = Math.sqrt(drifts.reduce((sum: any, d: any) => sum + d * d, 0) / drifts.length);
 
     return metrics;
   }
@@ -694,7 +694,7 @@ export class PortfolioRebalancingEngine {
   }
 
   async calculateTaxBenefits(executedTrades) {
-    const totalLoss = executedTrades.reduce((sum, trade) => sum + trade.realizedLoss, 0);
+    const totalLoss = executedTrades.reduce((sum: any, trade: any) => sum + trade.realizedLoss, 0);
     return {
       totalRealizedLoss: totalLoss,
       estimatedTaxSavings: totalLoss * 0.35,
@@ -769,13 +769,13 @@ export class PortfolioRebalancingEngine {
     }
 
     return {
-      worstCase: results[Object.keys(results).reduce((worst, key) =>
+      worstCase: results[Object.keys(results).reduce((worst: any, key: any) =>
         results[key].performance < results[worst].performance ? key : worst
       )],
-      bestCase: results[Object.keys(results).reduce((best, key) =>
+      bestCase: results[Object.keys(results).reduce((best: any, key: any) =>
         results[key].performance > results[best].performance ? key : best
       )],
-      averagePerformance: Object.values(results).reduce((sum, r) => sum + r.performance, 0) / Object.keys(results).length,
+      averagePerformance: Object.values(results).reduce((sum: any, r: any) => sum + r.performance, 0) / Object.keys(results).length,
       scenarioResults: results
     };
   }
@@ -790,7 +790,7 @@ export class PortfolioRebalancingEngine {
     }
 
     // Normalize weights
-    const totalWeight = Object.values(stressedWeights).reduce((sum, w) => sum + w, 0);
+    const totalWeight = Object.values(stressedWeights).reduce((sum: any, w: any) => sum + w, 0);
     for (const asset of Object.keys(stressedWeights)) {
       stressedWeights[asset] /= totalWeight;
     }
@@ -813,7 +813,7 @@ export class PortfolioRebalancingEngine {
     const recommendations = [];
 
     // Find best performing strategy
-    const bestStrategy = Object.keys(results).reduce((best, key) =>
+    const bestStrategy = Object.keys(results).reduce((best: any, key: any) =>
       results[key].averagePerformance > results[best].averagePerformance ? key : best
     );
 
@@ -882,14 +882,14 @@ export class PortfolioRebalancingEngine {
 /**
  * Factory function for creating rebalancing engine instances
  */
-export function createPortfolioRebalancingEngine(env) {
+export function createPortfolioRebalancingEngine(env: any) {
   return new PortfolioRebalancingEngine(env);
 }
 
 /**
  * Utility functions for portfolio rebalancing
  */
-export async function createRebalancingStrategy(env, config) {
+export async function createRebalancingStrategy(env: any, config: any) {
   const engine = createPortfolioRebalancingEngine(env);
   return await engine.createRebalancingStrategy(config);
 }

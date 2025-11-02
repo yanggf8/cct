@@ -278,8 +278,8 @@ export class WalkForwardOptimizer {
       const values = windows.map(w => w.parameters[paramName]).filter(v => v !== undefined);
 
       if (values.length > 1) {
-        const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-        const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+        const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+        const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
         const stdDev = Math.sqrt(variance);
         const coefficientOfVariation = mean > 0 ? stdDev / mean : 0;
 
@@ -288,8 +288,8 @@ export class WalkForwardOptimizer {
         if (values.length > 2) {
           const firstHalf = values.slice(0, Math.floor(values.length / 2));
           const secondHalf = values.slice(Math.floor(values.length / 2));
-          const firstMean = firstHalf.reduce((sum, v) => sum + v, 0) / firstHalf.length;
-          const secondMean = secondHalf.reduce((sum, v) => sum + v, 0) / secondHalf.length;
+          const firstMean = firstHalf.reduce((sum: any, v: any) => sum + v, 0) / firstHalf.length;
+          const secondMean = secondHalf.reduce((sum: any, v: any) => sum + v, 0) / secondHalf.length;
 
           if (secondMean > firstMean * 1.1) trend = 'increasing';
           else if (secondMean < firstMean * 0.9) trend = 'decreasing';
@@ -311,8 +311,8 @@ export class WalkForwardOptimizer {
   private calculateStabilityScore(values: number[]): number {
     if (values.length === 0) return 0;
 
-    const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+    const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
     const coefficientOfVariation = Math.sqrt(variance) / Math.abs(mean);
 
     return Math.max(0, 1 - coefficientOfVariation);
@@ -324,24 +324,24 @@ export class WalkForwardOptimizer {
     }
 
     return {
-      totalReturn: performances.reduce((sum, p) => sum + p.totalReturn, 0) / performances.length,
-      annualizedReturn: performances.reduce((sum, p) => sum + p.annualizedReturn, 0) / performances.length,
-      volatility: performances.reduce((sum, p) => sum + p.volatility, 0) / performances.length,
-      sharpeRatio: performances.reduce((sum, p) => sum + p.sharpeRatio, 0) / performances.length,
-      sortinoRatio: performances.reduce((sum, p) => sum + p.sortinoRatio, 0) / performances.length,
-      maxDrawdown: performances.reduce((sum, p) => sum + p.maxDrawdown, 0) / performances.length,
-      calmarRatio: performances.reduce((sum, p) => sum + p.calmarRatio, 0) / performances.length,
-      winRate: performances.reduce((sum, p) => sum + p.winRate, 0) / performances.length,
-      profitFactor: performances.reduce((sum, p) => sum + p.profitFactor, 0) / performances.length,
-      avgWin: performances.reduce((sum, p) => sum + p.avgWin, 0) / performances.length,
-      avgLoss: performances.reduce((sum, p) => sum + p.avgLoss, 0) / performances.length,
-      bestTrade: performances.reduce((sum, p) => sum + p.bestTrade, 0) / performances.length,
-      worstTrade: performances.reduce((sum, p) => sum + p.worstTrade, 0) / performances.length,
-      totalTrades: Math.round(performances.reduce((sum, p) => sum + p.totalTrades, 0) / performances.length),
-      winningTrades: Math.round(performances.reduce((sum, p) => sum + p.winningTrades, 0) / performances.length),
-      losingTrades: Math.round(performances.reduce((sum, p) => sum + p.losingTrades, 0) / performances.length),
-      avgTradeDuration: performances.reduce((sum, p) => sum + p.avgTradeDuration, 0) / performances.length,
-      sharpeRatioAdjusted: performances.reduce((sum, p) => sum + p.sharpeRatioAdjusted, 0) / performances.length
+      totalReturn: performances.reduce((sum: any, p: any) => sum + p.totalReturn, 0) / performances.length,
+      annualizedReturn: performances.reduce((sum: any, p: any) => sum + p.annualizedReturn, 0) / performances.length,
+      volatility: performances.reduce((sum: any, p: any) => sum + p.volatility, 0) / performances.length,
+      sharpeRatio: performances.reduce((sum: any, p: any) => sum + p.sharpeRatio, 0) / performances.length,
+      sortinoRatio: performances.reduce((sum: any, p: any) => sum + p.sortinoRatio, 0) / performances.length,
+      maxDrawdown: performances.reduce((sum: any, p: any) => sum + p.maxDrawdown, 0) / performances.length,
+      calmarRatio: performances.reduce((sum: any, p: any) => sum + p.calmarRatio, 0) / performances.length,
+      winRate: performances.reduce((sum: any, p: any) => sum + p.winRate, 0) / performances.length,
+      profitFactor: performances.reduce((sum: any, p: any) => sum + p.profitFactor, 0) / performances.length,
+      avgWin: performances.reduce((sum: any, p: any) => sum + p.avgWin, 0) / performances.length,
+      avgLoss: performances.reduce((sum: any, p: any) => sum + p.avgLoss, 0) / performances.length,
+      bestTrade: performances.reduce((sum: any, p: any) => sum + p.bestTrade, 0) / performances.length,
+      worstTrade: performances.reduce((sum: any, p: any) => sum + p.worstTrade, 0) / performances.length,
+      totalTrades: Math.round(performances.reduce((sum: any, p: any) => sum + p.totalTrades, 0) / performances.length),
+      winningTrades: Math.round(performances.reduce((sum: any, p: any) => sum + p.winningTrades, 0) / performances.length),
+      losingTrades: Math.round(performances.reduce((sum: any, p: any) => sum + p.losingTrades, 0) / performances.length),
+      avgTradeDuration: performances.reduce((sum: any, p: any) => sum + p.avgTradeDuration, 0) / performances.length,
+      sharpeRatioAdjusted: performances.reduce((sum: any, p: any) => sum + p.sharpeRatioAdjusted, 0) / performances.length
     };
   }
 
@@ -477,8 +477,8 @@ export class MonteCarloSimulator {
    */
   private runParametricSimulation(simulationId: number): MonteCarloSimulation {
     const originalReturns = this.extractReturns();
-    const mean = originalReturns.reduce((sum, r) => sum + r, 0) / originalReturns.length;
-    const stdDev = Math.sqrt(originalReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / originalReturns.length);
+    const mean = originalReturns.reduce((sum: any, r: any) => sum + r, 0) / originalReturns.length;
+    const stdDev = Math.sqrt(originalReturns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / originalReturns.length);
 
     // Add some randomness to parameters
     const noiseFactor = 0.1;
@@ -611,7 +611,7 @@ export class MonteCarloSimulator {
     let peak = equity;
 
     // Sort trades by date
-    const sortedTrades = [...trades].sort((a, b) =>
+    const sortedTrades = [...trades].sort((a: any, b: any) =>
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
 
@@ -667,16 +667,16 @@ export class MonteCarloSimulator {
       return this.getDefaultPerformanceMetrics();
     }
 
-    const totalReturn = returns.reduce((sum, r) => sum + r, 0);
-    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+    const totalReturn = returns.reduce((sum: any, r: any) => sum + r, 0);
+    const mean = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / returns.length;
     const volatility = Math.sqrt(variance) * Math.sqrt(252);
     const annualizedReturn = totalReturn * (252 / returns.length);
     const sharpeRatio = volatility > 0 ? annualizedReturn / volatility : 0;
 
     const downsideReturns = returns.filter(r => r < 0);
     const downsideVariance = downsideReturns.length > 0 ?
-      downsideReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / downsideReturns.length : 0;
+      downsideReturns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / downsideReturns.length : 0;
     const sortinoRatio = downsideVariance > 0 ? annualizedReturn / (Math.sqrt(downsideVariance) * Math.sqrt(252)) : 0;
 
     // Calculate drawdown
@@ -731,14 +731,14 @@ export class MonteCarloSimulator {
    * Calculate simulation summary
    */
   private calculateSimulationSummary(simulations: MonteCarloSimulation[]): any {
-    const finalReturns = simulations.map(s => s.finalReturn).sort((a, b) => a - b);
+    const finalReturns = simulations.map(s => s.finalReturn).sort((a: any, b: any) => a - b);
     const maxDrawdowns = simulations.map(s => s.maxDrawdown);
     const sharpeRatios = simulations.map(s => s.sharpeRatio);
 
     return {
-      meanReturn: finalReturns.reduce((sum, r) => sum + r, 0) / finalReturns.length,
+      meanReturn: finalReturns.reduce((sum: any, r: any) => sum + r, 0) / finalReturns.length,
       medianReturn: finalReturns[Math.floor(finalReturns.length / 2)],
-      stdDevReturn: Math.sqrt(finalReturns.reduce((sum, r) => sum + Math.pow(r - finalReturns.reduce((s, r) => s + r, 0) / finalReturns.length, 2), 0) / finalReturns.length),
+      stdDevReturn: Math.sqrt(finalReturns.reduce((sum: any, r: any) => sum + Math.pow(r - finalReturns.reduce((s: any, r: any) => s + r, 0) / finalReturns.length, 2), 0) / finalReturns.length),
       percentiles: {
         1: finalReturns[Math.floor(0.01 * finalReturns.length)],
         5: finalReturns[Math.floor(0.05 * finalReturns.length)],
@@ -753,8 +753,8 @@ export class MonteCarloSimulator {
       successProbability: finalReturns.filter(r => r > 0).length / finalReturns.length,
       riskOfRuin: finalReturns.filter(r => r < -0.5).length / finalReturns.length,
       probabilityOfLoss: finalReturns.filter(r => r < 0).length / finalReturns.length,
-      averageSharpe: sharpeRatios.reduce((sum, s) => sum + s, 0) / sharpeRatios.length,
-      averageMaxDrawdown: maxDrawdowns.reduce((sum, d) => sum + d, 0) / maxDrawdowns.length,
+      averageSharpe: sharpeRatios.reduce((sum: any, s: any) => sum + s, 0) / sharpeRatios.length,
+      averageMaxDrawdown: maxDrawdowns.reduce((sum: any, d: any) => sum + d, 0) / maxDrawdowns.length,
       worstCaseScenario: finalReturns[0],
       bestCaseScenario: finalReturns[finalReturns.length - 1]
     };
@@ -768,12 +768,12 @@ export class MonteCarloSimulator {
     const intervals: any[] = [];
 
     for (const metric of metrics) {
-      const values = simulations.map(s => s[metric as keyof MonteCarloSimulation] as number).sort((a, b) => a - b);
+      const values = simulations.map(s => s[metric as keyof MonteCarloSimulation] as number).sort((a: any, b: any) => a - b);
       const lower95 = values[Math.floor(0.025 * values.length)];
       const upper95 = values[Math.floor(0.975 * values.length)];
       const lower99 = values[Math.floor(0.005 * values.length)];
       const upper99 = values[Math.floor(0.995 * values.length)];
-      const estimate = values.reduce((sum, v) => sum + v, 0) / values.length;
+      const estimate = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
 
       intervals.push({
         metric,
@@ -792,20 +792,20 @@ export class MonteCarloSimulator {
    * Calculate tail risk metrics
    */
   private calculateTailRisk(simulations: MonteCarloSimulation[]): any {
-    const finalReturns = simulations.map(s => s.finalReturn).sort((a, b) => a - b);
+    const finalReturns = simulations.map(s => s.finalReturn).sort((a: any, b: any) => a - b);
     const maxDrawdowns = simulations.map(s => s.maxDrawdown);
 
     // Expected Shortfall (ES) at 95% confidence level
     const var95 = finalReturns[Math.floor(0.05 * finalReturns.length)];
     const tailReturns = finalReturns.filter(r => r <= var95);
-    const expectedShortfall = tailReturns.reduce((sum, r) => sum + r, 0) / tailReturns.length;
+    const expectedShortfall = tailReturns.reduce((sum: any, r: any) => sum + r, 0) / tailReturns.length;
 
     // Conditional VaR
     const conditionalVar = var95;
 
     // Recovery time analysis
     const recoveryTimes = this.calculateRecoveryTimes(simulations);
-    const averageRecoveryTime = recoveryTimes.reduce((sum, time) => sum + time, 0) / recoveryTimes.length;
+    const averageRecoveryTime = recoveryTimes.reduce((sum: any, time: any) => sum + time, 0) / recoveryTimes.length;
 
     return {
       expectedShortfall,
@@ -867,13 +867,13 @@ export class MonteCarloSimulator {
   private calculateSkewness(values: number[]): number {
     if (values.length === 0) return 0;
 
-    const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+    const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
     const stdDev = Math.sqrt(variance);
 
     if (stdDev === 0) return 0;
 
-    const skewness = values.reduce((sum, v) => sum + Math.pow((v - mean) / stdDev, 3), 0) / values.length;
+    const skewness = values.reduce((sum: any, v: any) => sum + Math.pow((v - mean) / stdDev, 3), 0) / values.length;
     return skewness;
   }
 
@@ -883,13 +883,13 @@ export class MonteCarloSimulator {
   private calculateKurtosis(values: number[]): number {
     if (values.length === 0) return 0;
 
-    const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+    const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
     const stdDev = Math.sqrt(variance);
 
     if (stdDev === 0) return 0;
 
-    const kurtosis = values.reduce((sum, v) => sum + Math.pow((v - mean) / stdDev, 4), 0) / values.length;
+    const kurtosis = values.reduce((sum: any, v: any) => sum + Math.pow((v - mean) / stdDev, 4), 0) / values.length;
     return kurtosis - 3; // Excess kurtosis
   }
 

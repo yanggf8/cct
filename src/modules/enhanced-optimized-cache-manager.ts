@@ -227,7 +227,7 @@ export class EnhancedOptimizedCacheManager {
         optimizations
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         data: null,
@@ -305,7 +305,7 @@ export class EnhancedOptimizedCacheManager {
 
       return success;
 
-    } catch (error) {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -362,7 +362,7 @@ export class EnhancedOptimizedCacheManager {
         optimizations
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         data: null,
@@ -403,7 +403,7 @@ export class EnhancedOptimizedCacheManager {
         optimizations: ['Predictive Pre-fetching Triggered']
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         data: [],

@@ -1,117 +1,59 @@
-# Wrangler configuration for Production-Ready Enterprise Trading System
-
 name = "tft-trading-system"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-01-10"
+compatibility_flags = ["nodejs_compat"]
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 
-# Allow nodejs_compat for TensorFlow.js compatibility
-compatibility_flags = ["nodejs_compat"]
+[env.production]
+name = "tft-trading-system"
+main = "src/index.ts"
 
-# Build configuration - TensorFlow.js handled automatically by modern Wrangler
+[env.staging]
+name = "tft-trading-system-staging"
+main = "src/index.ts"
 
-# Production cron schedule - MIGRATED TO GITHUB ACTIONS
-# All Cloudflare cron triggers disabled - migrated to GitHub Actions for unlimited schedules ($0/month)
-#
-# MIGRATION STATUS: ✅ COMPLETED - See .github/workflows/trading-system.yml
-#
-# Original Cloudflare cron schedules (now in GitHub Actions):
-# - "30 12 * * 1-5"  → 8:30 AM EST/EDT - Pre-Market Briefing (high-confidence signals ≥70%)
-# - "0 16 * * 1-5"    → 12:00 PM EST/EDT - Intraday Performance Check (real-time tracking)
-# - "5 20 * * 1-5"    → 4:05 PM EST/EDT - End-of-Day Summary (market close analysis)
-# - "0 14 * * SUN"    → 10:00 AM EST/EDT Sunday - Weekly Review (comprehensive analysis)
-#
-# GitHub Actions Benefits:
-# - Unlimited cron schedules (vs 3-cron limit in Workers free tier)
-# - No Durable Objects required (saves $0.20/month)
-# - Better observability and debugging
-# - Centralized scheduling with workflow management
-# - 100% FREE with unlimited execution time
-#
-# [triggers]
-# crons = [
-#   DISABLED - MIGRATED TO GITHUB ACTIONS
-# ]
+[[env.staging.durable_objects.bindings]]
+name = "CACHE_DO"
+class_name = "CacheDurableObject"
 
-# KV namespace for storing analysis results
+# KV bindings
 [[kv_namespaces]]
 binding = "TRADING_RESULTS"
-id = "321593c6717448dfb24ea2bd48cde1fa"
-preview_id = "220ca67255ed4bfeada7eb6816ce6413"
+id = "trading-results-kv"
+preview_id = "trading-results-kv-preview"
 
-# KV namespace for Durable Objects cache persistence (shared across workers)
 [[kv_namespaces]]
 binding = "CACHE_DO_KV"
-id = "321593c6717448dfb24ea2bd48cde1fa"
-preview_id = "220ca67255ed4bfeada7eb6816ce6413"
+id = "cache-do-kv"
+preview_id = "cache-do-kv-preview"
 
-# AI binding for enterprise-grade analysis with real market data (GPT-OSS-120B + DistilBERT)
+# R2 bindings
+[[r2_buckets]]
+binding = "TFT_TRADING_MODELS"
+bucket_name = "tft-trading-models"
+
+# AI bindings
 [ai]
 binding = "AI"
 
-# R2 bucket for trained model files
-[[r2_buckets]]
-bucket_name = "tft-trading-models"
-binding = "TRAINED_MODELS"
-
-# R2 bucket for enhanced model files
-[[r2_buckets]]
-bucket_name = "enhanced-trading-models"
-binding = "ENHANCED_MODELS"
-
-# Durable Objects for persistent cache (replaces KV L2 cache)
+# Durable Objects for cache
 [[durable_objects.bindings]]
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
-script_name = "tft-trading-system"
 
-# Environment variables - Production-Ready Configuration
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CacheDurableObject"]
+
+# Scheduled events
+[[triggers.crons]]
+cron = "0 9 * * 1-5"  # 9 AM weekdays
+
+# Variables
 [vars]
-EMAIL_ENABLED = "false"
-WORKER_VERSION = "2.0"
-TIMEZONE = "America/New_York"
-# API Key Configuration (set in Cloudflare Workers dashboard for security)
-# Recommended: X_API_KEY (for X-API-KEY header - single source of truth)
-# NEVER commit actual API keys to version control
-# Trading symbols configuration
-TRADING_SYMBOLS = "AAPL,MSFT,GOOGL,TSLA,NVDA"
-# Logging configuration (error, warn, info, debug)
+ENVIRONMENT = "production"
+WORKER_VERSION = "2.0-enhanced"
 LOG_LEVEL = "info"
-# AI model configuration
-GPT_MAX_TOKENS = "2000"
-GPT_TEMPERATURE = "0.1"
-# Analysis configuration
-MIN_NEWS_ARTICLES = "5"
-MAX_NEWS_ARTICLES = "20"
-CONFIDENCE_THRESHOLD = "0.6"
-SIGNAL_CONFIDENCE_THRESHOLD = "0.7"
-# KV storage TTL (in seconds)
-KV_ANALYSIS_TTL = "604800"  # 7 days
-KV_GRANULAR_TTL = "7776000" # 90 days
-# Market data configuration
-MARKET_DATA_CACHE_TTL = "300" # 5 minutes
-YAHOO_FINANCE_RATE_LIMIT = "20" # 20 requests per minute
-RATE_LIMIT_WINDOW = "60000" # 1 minute in milliseconds
-# Durable Objects cache configuration
-FEATURE_FLAG_DO_CACHE = "false" # Set to "true" to enable DO cache (gradual rollout)
-
-# Secrets to be set via: wrangler secret put SECRET_NAME
-# Core secrets:
-# - WORKER_API_KEY: API key for protecting sensitive endpoints (REQUIRED)
-# - FACEBOOK_PAGE_TOKEN: Facebook Messenger bot token
-# - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
-#
-# Free News API keys:
-# - FMP_API_KEY: Financial Modeling Prep free API key (financialmodelingprep.com)
-# - NEWSAPI_KEY: NewsAPI.org free development key (newsapi.org)
-#
-# Optional secrets:
-# - SLACK_WEBHOOK_URL: Slack webhook for alerts
-# - ALERT_EMAIL: Email address for trading alerts
-# - LINE_CHANNEL_TOKEN: LINE messaging API token
-# - LINE_USER_ID: Your LINE user ID
-#
-# Example deployment commands:
-# wrangler secret put WORKER_API_KEY
-# wrangler secret put FMP_API_KEY
-# wrangler secret put NEWSAPI_KEY
+ENABLE_CACHE = "true"
+ENABLE_MIGRATION = "true"
+NEW_API_PERCENTAGE = "10"

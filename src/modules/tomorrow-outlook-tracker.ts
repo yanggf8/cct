@@ -417,13 +417,13 @@ export class TomorrowOutlookTracker {
       }
 
       // Sort by date
-      history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      history.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       logger.info('Retrieved outlook accuracy history', {
         daysRequested: days,
         recordsFound: history.length,
         averageAccuracy: history.length > 0
-          ? history.reduce((sum, h) => sum + h.accuracyScore, 0) / history.length
+          ? history.reduce((sum: any, h: any) => sum + h.accuracyScore, 0) / history.length
           : 0
       });
 
@@ -465,14 +465,14 @@ export class TomorrowOutlookTracker {
       }
 
       const totalOutlooks = history.length;
-      const averageAccuracy = history.reduce((sum, h) => sum + h.accuracyScore, 0) / totalOutlooks;
+      const averageAccuracy = history.reduce((sum: any, h: any) => sum + h.accuracyScore, 0) / totalOutlooks;
       const biasCorrectCount = history.filter(h => h.biasCorrect).length;
       const biasAccuracy = (biasCorrectCount / totalOutlooks) * 100;
 
-      const bestPrediction = history.reduce((best, current) =>
+      const bestPrediction = history.reduce((best: any, current: any) =>
         current.accuracyScore > best.accuracyScore ? current : best
       );
-      const worstPrediction = history.reduce((worst, current) =>
+      const worstPrediction = history.reduce((worst: any, current: any) =>
         current.accuracyScore < worst.accuracyScore ? current : worst
       );
 
@@ -551,10 +551,10 @@ export class TomorrowOutlookTracker {
       const weeklyAverages = Array.from(weeklyData.entries())
         .map(([week, data]) => ({
           week,
-          accuracy: data.accuracies.reduce((sum, acc) => sum + acc, 0) / data.accuracies.length,
-          biasAccuracy: (data.biasCorrect.reduce((sum, count) => sum + count, 0) / data.accuracies.length) * 100
+          accuracy: data.accuracies.reduce((sum: any, acc: any) => sum + acc, 0) / data.accuracies.length,
+          biasAccuracy: (data.biasCorrect.reduce((sum: any, count: any) => sum + count, 0) / data.accuracies.length) * 100
         }))
-        .sort((a, b) => a.week.localeCompare(b.week));
+        .sort((a: any, b: any) => a.week.localeCompare(b.week));
 
       // Calculate trends
       const accuracyTrend = this.calculateTrend(weeklyAverages.map(w => w.accuracy));
@@ -589,8 +589,8 @@ export class TomorrowOutlookTracker {
 
     if (older.length === 0) return 'stable';
 
-    const recentAvg = recent.reduce((sum, val) => sum + val, 0) / recent.length;
-    const olderAvg = older.reduce((sum, val) => sum + val, 0) / older.length;
+    const recentAvg = recent.reduce((sum: any, val: any) => sum + val, 0) / recent.length;
+    const olderAvg = older.reduce((sum: any, val: any) => sum + val, 0) / older.length;
 
     const change = recentAvg - olderAvg;
     const threshold = Math.abs(olderAvg) * 0.1; // 10% change threshold

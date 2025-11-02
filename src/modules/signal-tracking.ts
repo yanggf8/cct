@@ -128,7 +128,7 @@ class SignalTrackingManager {
       if (result.success && result.data) {
         return result.data.signals || [];
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to retrieve signals', { date: dateStr, error: error.message });
     }
 
@@ -168,7 +168,7 @@ class SignalTrackingManager {
       });
 
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to save signals to KV', { date: dateStr, error: error.message });
       return false;
     }
@@ -259,9 +259,9 @@ class SignalTrackingManager {
 
     return {
       totalSignals,
-      averageAccuracy: signals.reduce((sum, s) => sum + (s.accuracyScore || 0), 0) / totalSignals,
+      averageAccuracy: signals.reduce((sum: any, s: any) => sum + (s.accuracyScore || 0), 0) / totalSignals,
       highConfidenceAccuracy: highConfidenceSignals.length > 0
-        ? highConfidenceSignals.reduce((sum, s) => sum + (s.accuracyScore || 0), 0) / highConfidenceSignals.length
+        ? highConfidenceSignals.reduce((sum: any, s: any) => sum + (s.accuracyScore || 0), 0) / highConfidenceSignals.length
         : 0,
       divergenceRate: divergentSignals.length / totalSignals
     };
@@ -271,7 +271,7 @@ class SignalTrackingManager {
 /**
  * Helper functions
  */
-function calculateDivergenceLevel(signal, performanceData) {
+function calculateDivergenceLevel(signal: any, performanceData: any) {
   if (!signal.currentPrice || !performanceData.expectedPrice) {
     return 'unknown';
   }
@@ -283,7 +283,7 @@ function calculateDivergenceLevel(signal, performanceData) {
   return 'low';
 }
 
-function determineSignalStatus(signal, performanceData) {
+function determineSignalStatus(signal: any, performanceData: any) {
   if (signal.divergenceLevel === 'high') {
     return SIGNAL_STATUS.DIVERGENT;
   }
@@ -295,7 +295,7 @@ function determineSignalStatus(signal, performanceData) {
   return SIGNAL_STATUS.TRACKING;
 }
 
-function calculateAccuracyScore(signal, marketCloseData) {
+function calculateAccuracyScore(signal: any, marketCloseData: any) {
   if (!signal.prediction || !marketCloseData.actualMovement) {
     return 0;
   }

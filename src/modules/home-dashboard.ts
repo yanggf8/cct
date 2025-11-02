@@ -917,7 +917,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         }
 
         // Toggle sidebar sections
-        function toggleSection(sectionId) {
+        function toggleSection(sectionId: any) {
             const items = document.getElementById(sectionId + '-items');
             if (items.style.display === 'none') {
                 items.style.display = 'block';
@@ -950,7 +950,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     document.querySelector('.health-indicator').style.background = '#ffc107';
                     document.querySelector('.health-indicator').title = 'System Issues';
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 document.querySelector('.health-indicator').style.background = '#ff4757';
                 document.querySelector('.health-indicator').title = 'System Error';
             }
@@ -969,7 +969,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                 } else {
                     document.getElementById('ai-status').textContent = 'Error';
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 document.getElementById('ai-status').textContent = 'Offline';
             }
         }
@@ -1069,7 +1069,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     // Log the API failure gracefully
                     console.warn('Sector API unavailable - response:', response);
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Error fetching sector data:', error);
                 // No fallback - just log the error
             } finally {
@@ -1232,7 +1232,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
                         // Close modal when clicking outside
                         setTimeout(() => {
-                            document.addEventListener('click', function closeModal(e) {
+                            document.addEventListener('click', function closeModal(e: any) {
                                 if (!modal.contains(e.target) && e.target !== container) {
                                     modal.remove();
                                     document.removeEventListener('click', closeModal);
@@ -1261,7 +1261,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                         badge.style.display = total > 0 ? 'block' : 'none';
                     }
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Failed to update notification status:', error);
             }
         }
@@ -1282,7 +1282,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error serving home dashboard:', error);
     return new Response(JSON.stringify({
       success: false,

@@ -90,7 +90,7 @@ export class PreMarketDataBridge {
               confidence: sentimentData.confidence
             });
           }
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('PreMarketDataBridge', `Failed to get sentiment for ${symbol}`, error);
         }
       }
@@ -114,7 +114,7 @@ export class PreMarketDataBridge {
 
       return analysisData;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('PreMarketDataBridge', 'Failed to generate pre-market analysis', error);
       throw error;
     }
@@ -139,7 +139,7 @@ export class PreMarketDataBridge {
       logger.debug('PreMarketDataBridge', `No cached data for ${symbol}, returning null`);
       return null;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('PreMarketDataBridge', `Error getting sentiment data for ${symbol}`, error);
       return null;
     }
@@ -178,7 +178,7 @@ export class PreMarketDataBridge {
     try {
       await this.dal.delete(analysisKey, 'ANALYSIS');
       logger.info('PreMarketDataBridge', 'Cleared existing pre-market analysis');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('PreMarketDataBridge', 'Failed to clear existing analysis', error);
     }
 
@@ -196,7 +196,7 @@ export class PreMarketDataBridge {
       const analysisData = await this.dal.get(analysisKey, 'ANALYSIS');
 
       return !!(analysisData && analysisData.trading_signals);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('PreMarketDataBridge', 'Error checking pre-market analysis', error);
       return false;
     }
@@ -210,7 +210,7 @@ export class PreMarketDataBridge {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
       return await this.dal.get(analysisKey, 'ANALYSIS');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('PreMarketDataBridge', 'Error getting current analysis', error);
       return null;
     }

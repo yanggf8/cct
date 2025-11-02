@@ -14,7 +14,7 @@ import { createDAL } from './dal.js';
  * @param {boolean} skipExisting - Skip dates that already have summaries (default: true)
  * @returns {Object} Backfill results
  */
-export async function backfillDailySummaries(env, days = 30, skipExisting = true) {
+export async function backfillDailySummaries(env: any, days = 30, skipExisting = true) {
   console.log(`🔄 [BACKFILL] Starting backfill for last ${days} days`);
 
   const dal = createDAL(env);
@@ -73,12 +73,13 @@ export async function backfillDailySummaries(env, days = 30, skipExisting = true
       processed++;
       console.log(`✅ [BACKFILL] Successfully processed ${dateStr}: ${summary.summary.total_predictions} predictions`);
 
-    } catch (error) {
-      console.error(`❌ [BACKFILL] Failed to process ${dateStr}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ [BACKFILL] Failed to process ${dateStr}:`, errorMessage);
       results.push({
         date: dateStr,
         status: 'failed',
-        error: error.message,
+        error: errorMessage,
         is_trading_day: isTradingDay(dateStr)
       });
       failed++;
@@ -106,7 +107,7 @@ export async function backfillDailySummaries(env, days = 30, skipExisting = true
  * @param {number} tradingDays - Number of trading days to backfill
  * @returns {Object} Backfill results
  */
-export async function backfillTradingDaysOnly(env, tradingDays = 20) {
+export async function backfillTradingDaysOnly(env: any, tradingDays = 20) {
   console.log(`📈 [BACKFILL] Starting backfill for last ${tradingDays} trading days`);
 
   const dal = createDAL(env);
@@ -162,12 +163,13 @@ export async function backfillTradingDaysOnly(env, tradingDays = 20) {
       processed++;
       console.log(`✅ [BACKFILL] Successfully processed trading day ${dateStr}`);
 
-    } catch (error) {
-      console.error(`❌ [BACKFILL] Failed to process trading day ${dateStr}:`, error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ [BACKFILL] Failed to process trading day ${dateStr}:`, errorMessage);
       results.push({
         date: dateStr,
         status: 'failed',
-        error: error.message
+        error: errorMessage
       });
       failed++;
     }
@@ -192,7 +194,7 @@ export async function backfillTradingDaysOnly(env, tradingDays = 20) {
  * @param {number} days - Number of recent days to verify
  * @returns {Object} Verification results
  */
-export async function verifyBackfill(env, days = 10) {
+export async function verifyBackfill(env: any, days = 10) {
   console.log(`🔍 [BACKFILL-VERIFY] Verifying last ${days} days`);
 
   const dal = createDAL(env);
@@ -225,11 +227,12 @@ export async function verifyBackfill(env, days = 10) {
         });
         missing++;
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       verification.push({
         date: dateStr,
         status: 'error',
-        error: error.message
+        error: errorMessage
       });
       missing++;
     }

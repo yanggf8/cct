@@ -281,7 +281,7 @@ class MarketCloseAnalysisEngine {
       const marketDataResults = await Promise.allSettled(marketDataPromises);
 
       // Process market data
-      marketDataResults.forEach((result, index) => {
+      marketDataResults.forEach((result: any, index: any) => {
         if (result.status === 'fulfilled' && result.value) {
           const symbol = uniqueSymbols[index];
           marketCloseData.closingPrices[symbol] = result.value;
@@ -290,8 +290,8 @@ class MarketCloseAnalysisEngine {
 
       // Determine overall market status
       const priceChanges = Object.values(marketCloseData.closingPrices).map(p => p.changePercent);
-      const avgChange = priceChanges.reduce((sum, change) => sum + change, 0) / priceChanges.length;
-      const volatility = Math.sqrt(priceChanges.reduce((sum, change) => sum + Math.pow(change - avgChange, 2), 0) / priceChanges.length);
+      const avgChange = priceChanges.reduce((sum: any, change: any) => sum + change, 0) / priceChanges.length;
+      const volatility = Math.sqrt(priceChanges.reduce((sum: any, change: any) => sum + Math.pow(change - avgChange, 2), 0) / priceChanges.length);
 
       // Set market status
       if (Math.abs(avgChange) > 1) {

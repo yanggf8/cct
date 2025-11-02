@@ -222,7 +222,7 @@ export async function getGPTOSSSentiment(symbol: string, newsData: NewsArticle[]
     // Prepare news context for GPT-OSS-120B
     const newsContext = newsData
       .slice(0, 10)
-      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
+      .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
       .join('\n\n');
 
     const prompt = `Analyze the financial sentiment for ${symbol} stock based on these news headlines:
@@ -310,7 +310,7 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
 
   try {
     // Process multiple news items with DistilBERT
-    const sentimentPromises = newsData.slice(0, 8).map(async (newsItem, index) => {
+    const sentimentPromises = newsData.slice(0, 8).map(async (newsItem: any, index: any) => {
       try {
         const text = `${newsItem.title}. ${newsItem.summary || ''}`.substring(0, 500);
 

@@ -18,9 +18,9 @@ import {
 import { createDAL } from '../modules/dal.js';
 import { createLogger } from '../modules/logging.js';
 import { KVKeyFactory, KeyTypes } from '../modules/kv-key-factory.js';
-import { createCacheManager } from '../modules/cache-manager.js';
 import { MemoryStaticDAL } from '../modules/memory-static-data.js';
 import type { CloudflareEnvironment } from '../types.js';
+import { isDOCacheEnabled, createCacheInstance } from '../modules/dual-cache-do.js';
 
 const logger = createLogger('data-routes');
 
@@ -113,7 +113,7 @@ export async function handleDataRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('DataRoutes Error', error, { requestId, path, method });
 
     return new Response(
@@ -185,7 +185,7 @@ async function handleAvailableSymbols(
     try {
       staticSymbolNames = memoryStaticDAL.get('symbol_names') || {};
       staticSectorMappings = memoryStaticDAL.get('sector_mappings') || {};
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to get static data, using helper functions', { error, requestId });
     }
 
@@ -237,7 +237,7 @@ async function handleAvailableSymbols(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('AvailableSymbols Error', error, { requestId });
 
     return new Response(
@@ -344,7 +344,7 @@ async function handleSymbolHistory(
           requestId
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to fetch real historical data, using simulation', {
         symbol,
         error: error.message,
@@ -396,7 +396,7 @@ async function handleSymbolHistory(
         period_high: historicalData.length > 0 ? Math.max(...historicalData.map(d => d.high)) : 0,
         period_low: historicalData.length > 0 ? Math.min(...historicalData.map(d => d.low)) : 0,
         average_volume: historicalData.length > 0 ?
-          Math.floor(historicalData.reduce((sum, d) => sum + d.volume, 0) / historicalData.length) : 0,
+          Math.floor(historicalData.reduce((sum: any, d: any) => sum + d.volume, 0) / historicalData.length) : 0,
       },
       metadata: {
         data_source: hasRealData ? 'yahoo_finance' : 'simulation',
@@ -427,7 +427,7 @@ async function handleSymbolHistory(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SymbolHistory Error', error, { requestId, symbol });
 
     return new Response(
@@ -503,7 +503,7 @@ async function handleModelHealth(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('ModelHealth Error', error, { requestId });
 
     return new Response(
@@ -569,7 +569,7 @@ async function handleCronHealth(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('CronHealth Error', error, { requestId });
 
     return new Response(
@@ -700,7 +700,7 @@ async function handleSystemHealth(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SystemHealth Error', error, { requestId });
 
     return new Response(
@@ -761,7 +761,7 @@ async function checkYahooFinanceHealth(env: CloudflareEnvironment): Promise<{ st
       status: health.status === 'healthy' ? 'healthy' : 'unhealthy',
       details: health
     };
-  } catch (error) {
+  } catch (error: unknown) {
     return { status: 'unhealthy', details: { error: error.message } };
   }
 }
@@ -794,7 +794,7 @@ async function checkNewsAPIHealth(env: CloudflareEnvironment): Promise<{ status:
         headlines_processed: retrievedData?.headlines.length || 0
       }
     };
-  } catch (error) {
+  } catch (error: unknown) {
     return { status: 'unhealthy', details: { error: error.message } };
   }
 }
@@ -814,94 +814,37 @@ async function checkKVStorageHealth(env: CloudflareEnvironment): Promise<{ statu
   }
 }
 
-async function checkCacheHealth(env: CloudflareEnvironment): Promise<{
-  status: string;
-  hitRate?: number;
-  metrics?: any;
-  health?: any;
-  cached?: boolean;
-  performance?: any;
-}> {
+async function checkCacheHealth(env: CloudflareEnvironment): Promise<{ status: string; hitRate?: number; metrics?: any; details?: any }> {
   try {
-    // Import enhanced health cache
-    const { cachedHealthCheck } = await import('../modules/enhanced-health-cache.js');
+    // Strict DO-only: use Durable Objects cache if enabled, else report disabled
+    if (!isDOCacheEnabled(env)) {
+      return { status: 'disabled' };
+    }
 
-    // Use enhanced health cache to reduce KV operations by 75%
-    const healthResult = await cachedHealthCheck(
-      'cache_system_health',
-      async () => {
-        // Create CacheManager instance to get real metrics
-        // Use enhanced cache factory for better KV efficiency
-        const { EnhancedCacheFactoryImpl } = await import('../modules/enhanced-cache-factory.js');
-        const cacheFactory = EnhancedCacheFactoryImpl.getInstance();
-        const cacheManager = cacheFactory.createCacheManager(env);
+    const cache = createCacheInstance(env, true);
+    if (!cache) {
+      return { status: 'disabled' };
+    }
 
-        // Test cache operations
-        const testKey = 'cache_health_test';
-        const testData = { timestamp: Date.now() };
+    const testKey = 'cache_health_test';
+    const config = { ttl: 60, namespace: 'api_responses' };
+    const testData = { timestamp: Date.now() };
 
-        await cacheManager.set('api_responses', testKey, testData);
-        const retrieved = await cacheManager.get('api_responses', testKey);
-        await cacheManager.delete('api_responses', testKey);
+    // DO-only test: set → get → delete
+    await cache.set(testKey, testData, config);
+    const retrieved = await cache.get(testKey, config);
+    await cache.delete(testKey, config);
 
-        // Get real cache statistics
-        const stats = cacheManager.getStats();
-        const healthStatus = cacheManager.getHealthStatus();
-        const metricsStats = cacheManager.getMetricsStats();
-
-        // Get deduplication stats for performance monitoring
-        const deduplicationStats = cacheManager.getDeduplicationStats();
-
-        return {
-          status: retrieved ? 'healthy' : 'unhealthy',
-          hitRate: stats.overallHitRate,
-          metrics: {
-            l1HitRate: stats.l1HitRate,
-            l2HitRate: stats.l2HitRate,
-            overallHitRate: stats.overallHitRate,
-            l1Size: stats.l1Size,
-            totalRequests: stats.totalRequests,
-            l1Hits: stats.l1Hits,
-            l2Hits: stats.l2Hits,
-            misses: stats.misses,
-            evictions: stats.evictions
-          },
-          health: {
-            status: healthStatus.status,
-            enabled: healthStatus.enabled,
-            namespaces: healthStatus.namespaces,
-            metricsHealth: healthStatus.metricsHealth
-          },
-          performance: {
-            deduplicationRate: Math.round(deduplicationStats.deduplicationRate * 100),
-            kvReduction: Math.round(deduplicationStats.deduplicationRate * 100) + '%',
-            memoryUsage: deduplicationStats.memoryUsage + ' MB',
-            averageResponseTime: Math.round(deduplicationStats.averageResponseTime) + 'ms'
-          }
-        };
-      },
-      {
-        // Custom TTL based on health status
-        customTTL: 300, // 5 minutes for cache health checks
-        forceRefresh: false
-      }
-    );
+    const stats = await cache.getStats();
 
     return {
-      ...healthResult.data,
-      cached: healthResult.cached,
-      performance: healthResult.data.performance || {
-        checkDuration: healthResult.lastCheckDuration,
-        nextCheckTime: healthResult.nextCheckTime,
-        cacheAge: healthResult.age,
-        cacheTTL: healthResult.ttl
-      }
+      status: retrieved ? 'healthy' : 'unhealthy',
+      hitRate: stats ? stats.hitRate : 0,
+      metrics: stats || null,
+      details: { source: 'durable_objects' }
     };
-  } catch (error) {
-    logger.error('CacheHealth', 'Cache health check failed', {
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    return { status: 'unhealthy', cached: false };
+  } catch (error: unknown) {
+    return { status: 'unhealthy', details: { error: (error as any)?.message || 'unknown' } };
   }
 }
 

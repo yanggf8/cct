@@ -52,7 +52,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(correlationResult);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Correlation analysis failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -125,7 +125,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(result);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio optimization failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -174,7 +174,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(frontierResult);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Efficient frontier calculation failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -234,7 +234,7 @@ export class PortfolioRoutesHandler {
       }
 
       // Validate weights sum to 1
-      const weightSum = weights.reduce((sum, w) => sum + w, 0);
+      const weightSum = weights.reduce((sum: any, w: any) => sum + w, 0);
       if (Math.abs(weightSum - 1.0) > 0.01) {
         const body = ApiResponseFactory.error(
           'Portfolio weights must sum to 1.0',
@@ -271,7 +271,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(result);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk metrics calculation failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -322,7 +322,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(stressTest);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Stress testing failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -379,7 +379,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(attribution);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Performance attribution failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -409,7 +409,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(strategy);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing strategy creation failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -458,7 +458,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(analysis);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing analysis failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -508,7 +508,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(execution);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing execution failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -553,7 +553,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(monitoring);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio monitoring failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -586,7 +586,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(harvesting);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Tax-loss harvesting failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -624,7 +624,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(allocation);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Dynamic allocation failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -662,7 +662,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(stressTest);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing stress testing failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -736,7 +736,7 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(analytics);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio analytics failed:', error);
       const body = ApiResponseFactory.error(
         error.message,
@@ -868,7 +868,7 @@ export async function handlePortfolioRequest(request, env, ctx) {
           headers: { 'Content-Type': 'application/json' }
         });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Portfolio request error:', error);
     return new Response(JSON.stringify({
       success: false,

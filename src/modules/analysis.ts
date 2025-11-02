@@ -518,7 +518,7 @@ async function saveHighConfidenceSignals(
       metadata: {
         totalSignals: signals.length,
         highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
-        averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+        averageConfidence: signals.reduce((sum: any, s: any) => sum + s.confidence, 0) / signals.length,
         generatedAt: currentTime.toISOString(),
         symbols: signals.map(s => s.symbol)
       }

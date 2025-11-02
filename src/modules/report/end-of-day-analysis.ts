@@ -215,8 +215,8 @@ function analyzeHighConfidenceSignals(
   });
 
   // Sort top performers
-  topWinners.sort((a, b) => parseFloat(b.performance) - parseFloat(a.performance));
-  topLosers.sort((a, b) => parseFloat(a.performance) - parseFloat(b.performance));
+  topWinners.sort((a: any, b: any) => parseFloat(b.performance) - parseFloat(a.performance));
+  topLosers.sort((a: any, b: any) => parseFloat(a.performance) - parseFloat(b.performance));
 
   // Calculate overall accuracy
   const overallAccuracy = totalSignals > 0 ?

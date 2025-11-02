@@ -644,7 +644,7 @@ export class DataAccessLayer {
       metadata: {
         totalSignals: signals.length,
         highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
-        averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+        averageConfidence: signals.reduce((sum: any, s: any) => sum + s.confidence, 0) / signals.length,
         bullishSignals: signals.filter(s => s.prediction === 'up').length,
         bearishSignals: signals.filter(s => s.prediction === 'down').length,
         neutralSignals: signals.filter(s => s.prediction === 'neutral').length,

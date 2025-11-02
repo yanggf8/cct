@@ -417,10 +417,10 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
     TRADING: {
       ...CONFIG.TRADING,
       SYMBOLS: env.TRADING_SYMBOLS ? env.TRADING_SYMBOLS.split(',') : CONFIG.TRADING.SYMBOLS,
-      MIN_NEWS_ARTICLES: parseInt(env.MIN_NEWS_ARTICLES) || CONFIG.TRADING.MIN_NEWS_ARTICLES,
-      MAX_NEWS_ARTICLES: parseInt(env.MAX_NEWS_ARTICLES) || CONFIG.TRADING.MAX_NEWS_ARTICLES,
-      CONFIDENCE_THRESHOLD: parseFloat(env.CONFIDENCE_THRESHOLD) || CONFIG.TRADING.CONFIDENCE_THRESHOLD,
-      SIGNAL_CONFIDENCE_THRESHOLD: parseFloat(env.SIGNAL_CONFIDENCE_THRESHOLD) || CONFIG.TRADING.SIGNAL_CONFIDENCE_THRESHOLD
+      MIN_NEWS_ARTICLES: parseInt(env.MIN_NEWS_ARTICLES || '') || CONFIG.TRADING.MIN_NEWS_ARTICLES,
+      MAX_NEWS_ARTICLES: parseInt(env.MAX_NEWS_ARTICLES || '') || CONFIG.TRADING.MAX_NEWS_ARTICLES,
+      CONFIDENCE_THRESHOLD: parseFloat(env.CONFIDENCE_THRESHOLD || '') || CONFIG.TRADING.CONFIDENCE_THRESHOLD,
+      SIGNAL_CONFIDENCE_THRESHOLD: parseFloat(env.SIGNAL_CONFIDENCE_THRESHOLD || '') || CONFIG.TRADING.SIGNAL_CONFIDENCE_THRESHOLD
     },
     LOGGING: {
       ...CONFIG.LOGGING,
@@ -430,8 +430,8 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
       ...CONFIG.AI_MODELS,
       GPT_OSS_120B: {
         ...CONFIG.AI_MODELS.GPT_OSS_120B,
-        max_tokens: parseInt(env.GPT_MAX_TOKENS) || CONFIG.AI_MODELS.GPT_OSS_120B.max_tokens!,
-        temperature: parseFloat(env.GPT_TEMPERATURE) || CONFIG.AI_MODELS.GPT_OSS_120B.temperature!
+        max_tokens: parseInt(env.GPT_MAX_TOKENS || '') || CONFIG.AI_MODELS.GPT_OSS_120B.max_tokens!,
+        temperature: parseFloat(env.GPT_TEMPERATURE || '') || CONFIG.AI_MODELS.GPT_OSS_120B.temperature!
       }
     },
     KV_STORAGE: {
@@ -442,12 +442,12 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
     MARKET_DATA: {
       ...CONFIG.MARKET_DATA,
       FRED_API_KEY: env.FRED_API_KEY || env.FRED_API_KEYS?.split(',')[0]?.trim() || (mode === 'development' ? 'demo-key' : undefined),
-      FRED_RATE_LIMIT_DELAY_MS: parseInt(env.FRED_RATE_LIMIT_DELAY_MS) || CONFIG.MARKET_DATA.FRED_RATE_LIMIT_DELAY_MS,
-      FRED_MAX_RETRIES: parseInt(env.FRED_MAX_RETRIES) || CONFIG.MARKET_DATA.FRED_MAX_RETRIES,
+      FRED_RATE_LIMIT_DELAY_MS: parseInt(env.FRED_RATE_LIMIT_DELAY_MS || '') || CONFIG.MARKET_DATA.FRED_RATE_LIMIT_DELAY_MS,
+      FRED_MAX_RETRIES: parseInt(env.FRED_MAX_RETRIES || '') || CONFIG.MARKET_DATA.FRED_MAX_RETRIES,
       FRED_CACHE_ENABLED: env.FRED_CACHE_ENABLED !== 'false',
-      YAHOO_FINANCE_RATE_LIMIT: parseInt(env.YAHOO_FINANCE_RATE_LIMIT) || CONFIG.MARKET_DATA.YAHOO_FINANCE_RATE_LIMIT,
+      YAHOO_FINANCE_RATE_LIMIT: parseInt(env.YAHOO_FINANCE_RATE_LIMIT || '') || CONFIG.MARKET_DATA.YAHOO_FINANCE_RATE_LIMIT,
       VIX_SYMBOL: env.VIX_SYMBOL || CONFIG.MARKET_DATA.VIX_SYMBOL,
-      MARKET_DATA_SYMBOLS: env.MARKET_DATA_SYMBOLS ? env.MARKET_DATA_SYMBOLS.split(',').map(s => s.trim()) : CONFIG.MARKET_DATA.MARKET_DATA_SYMBOLS,
+      MARKET_DATA_SYMBOLS: env.MARKET_DATA_SYMBOLS ? env.MARKET_DATA_SYMBOLS.split(',').map((s: string) => s.trim()) : CONFIG.MARKET_DATA.MARKET_DATA_SYMBOLS,
       REFRESH_INTERVALS: {
         MARKET_HOURS: parseInt(env.MARKET_REFRESH_MARKET_HOURS) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.MARKET_HOURS,
         AFTER_HOURS: parseInt(env.MARKET_REFRESH_AFTER_HOURS) || CONFIG.MARKET_DATA.REFRESH_INTERVALS.AFTER_HOURS,
@@ -499,7 +499,7 @@ export function isRealAPIAvailable(env: CloudflareEnvironment): boolean {
 
   // In production mode, require real API keys
   if (mode === 'production') {
-    return hasRealFREDKey;
+    return hasRealFREDKey || false;
   }
 
   // In development mode, allow demo key but log warning

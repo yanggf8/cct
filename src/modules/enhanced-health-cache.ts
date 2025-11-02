@@ -204,7 +204,7 @@ export class EnhancedHealthCache {
         nextCheckTime: new Date(Date.now() + ttl).toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
       this.updateAverageCheckTime(duration);
       this.stats.failedChecks++;
@@ -275,7 +275,7 @@ export class EnhancedHealthCache {
           this.cacheResult(key, result, ttl, duration);
 
           return { key, result, duration, success: true, error: null };
-        } catch (error) {
+        } catch (error: unknown) {
           const duration = Date.now() - startTime;
           const errorData = { error: error instanceof Error ? error.message : 'Unknown error' };
 

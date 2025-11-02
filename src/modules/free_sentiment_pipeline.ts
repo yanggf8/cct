@@ -566,7 +566,7 @@ function calculateAggregatedSentiment(newsData: NewsArticle[]): { label: string;
 
   const avgScore = totalWeight > 0 ? totalScore / totalWeight : 0;
   const dominantSentiment = Object.keys(sentimentCounts)
-    .reduce((a, b) => sentimentCounts[a] > sentimentCounts[b] ? a : b);
+    .reduce((a: any, b: any) => sentimentCounts[a] > sentimentCounts[b] ? a : b);
 
   const confidence = Math.min(0.9, Math.abs(avgScore) + (newsData.length * 0.1));
 

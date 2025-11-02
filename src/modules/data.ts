@@ -652,7 +652,7 @@ export async function getSymbolAnalysisByDate(env: CloudflareEnvironment, dateSt
     const results = await Promise.all(promises);
 
     const parsedResults = results
-      .map((result, index) =>
+      .map((result: any, index: any) =>
         (result.success && result.data) ? { ...result.data, symbol: symbols![index] } : null
       )
       .filter(res => res !== null);

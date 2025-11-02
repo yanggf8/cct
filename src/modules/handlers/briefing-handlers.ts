@@ -783,7 +783,7 @@ function generateActionItems(actionItems: any[]): string {
     return '<li class="action-item"><h4>📋 Monitor Market</h4><p>Watch for pre-market movements and news that could impact today\'s trading session.</p></li>';
   }
 
-  return actionItems.map((item, index) => `
+  return actionItems.map((item: any, index: any) => `
     <li class="action-item">
       <h4>${item.title || `Action ${index + 1}`}</h4>
       <p>${item.description || 'Monitor market conditions and adjust strategy accordingly.'}</p>

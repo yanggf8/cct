@@ -147,7 +147,7 @@ class IntradayPerformanceAnalyzer {
     }
 
     const accurateSignals = signals.filter(signal => signal.status === 'correct');
-    const totalConfidence = signals.reduce((sum, signal) => sum + (signal.confidence || 0), 0);
+    const totalConfidence = signals.reduce((sum: any, signal: any) => sum + (signal.confidence || 0), 0);
     const performingSymbols = signals
       .filter(signal => signal.performance && signal.performance > 0)
       .map(signal => ({

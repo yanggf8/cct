@@ -96,7 +96,7 @@ interface NormalizedFeatures {
 // Simple Moving Average
 export function sma(prices: number[], length: number): number | null {
   if (prices.length < length) return null;
-  const sum = prices.slice(-length).reduce((a, b) => a + b, 0);
+  const sum = prices.slice(-length).reduce((a: any, b: any) => a + b, 0);
   return sum / length;
 }
 
@@ -166,7 +166,7 @@ export function bollingerBands(prices: number[], length: number = 20, std: numbe
   const middle = sma(recentPrices, length);
 
   // Calculate standard deviation
-  const variance = recentPrices.reduce((sum, price) => {
+  const variance = recentPrices.reduce((sum: any, price: any) => {
     return sum + Math.pow(price - middle, 2);
   }, 0) / length;
 
@@ -201,7 +201,7 @@ export function atr(ohlcData: OHLCData[], length: number = 14): number | null {
 
   // Return average of last 'length' true ranges
   const recentTR = trueRanges.slice(-length);
-  return recentTR.reduce((a, b) => a + b, 0) / length;
+  return recentTR.reduce((a: any, b: any) => a + b, 0) / length;
 }
 
 // MACD (Moving Average Convergence Divergence)
