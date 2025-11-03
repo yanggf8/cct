@@ -257,7 +257,7 @@ export class PreMarketDataBridge {
       const analysisKey = `analysis_${today}`;
       const analysisData = await this.dal.get(analysisKey, 'ANALYSIS');
 
-      return !!(analysisData && analysisData.trading_signals);
+      return !!(analysisData && (analysisData as any).trading_signals);
     } catch (error: unknown) {
       logger.warn('PreMarketDataBridge: Error checking pre-market analysis', error);
       return false;

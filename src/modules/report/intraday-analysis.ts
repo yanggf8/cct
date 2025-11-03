@@ -158,8 +158,8 @@ function comparePerformanceVsPredictions(
     const tradingSignals = signal.trading_signals || signal;
     const sentimentLayer = signal.sentiment_layers?.[0];
 
-    const predictedDirection = tradingSignals?.primary_direction === 'BULLISH' ? 'up' : 'down';
-    const confidence = (sentimentLayer?.confidence || tradingSignals?.overall_confidence || 0) * 100;
+    const predictedDirection = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' : 'down';
+    const confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
 
     // Skip low-confidence signals
     if (confidence < 70) return;

@@ -4,7 +4,7 @@
  */
 
 import { createRouter, Router } from './router/index.js';
-import { createRequestLogger, initLogging } from './logging.js';
+import { createLogger } from './logging.js';
 import { PerformanceMonitor, BusinessMetrics } from './monitoring';
 
 // Import route registration functions
@@ -43,14 +43,13 @@ export async function handleHttpRequest(
   ctx: ExecutionContext
 ): Promise<Response> {
   // Initialize logging
-  initLogging(env);
-  const logger = createRequestLogger(request);
+  const logger = createLogger('request-handler');
 
   // Start performance monitoring
   const perfMonitor = new PerformanceMonitor();
 
   try {
-    const url = new URL(request.url);
+    const url = new URL((request as any).url);
     logger.info('Incoming request', {
       method: request.method,
       pathname: url.pathname
@@ -64,10 +63,10 @@ export async function handleHttpRequest(
 
     // Record metrics
     const duration = perfMonitor.end();
-    BusinessMetrics.recordHttpRequest(url.pathname, response.status, duration);
+    BusinessMetrics.apiRequest(url.pathname, request.method, (response as any).status, duration);
 
     logger.info('Request completed', {
-      status: response.status,
+      status: (response as any).status,
       duration: `${duration.toFixed(2)}ms`
     });
 
@@ -76,7 +75,7 @@ export async function handleHttpRequest(
   } catch (error: any) {
     logger.error('Unhandled error in request handler', {
       error: (error instanceof Error ? error.message : String(error)),
-      stack: error.stack
+      stack: (error instanceof Error ? error.stack : undefined)
     });
 
     return new Response(

@@ -50,7 +50,7 @@ export async function getMarketData(symbol: string): Promise<MarketData | null> 
   try {
     // Ensure rate limiter reflects current config each call
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
 
     logger.debug(`Fetching market data for ${symbol}`);
 
@@ -75,12 +75,12 @@ export async function getMarketData(symbol: string): Promise<MarketData | null> 
 
     const data = await response.json();
 
-    if (!data.chart?.result?.[0]) {
+    if (!(data as any).chart?.result?.[0]) {
       logger.warn(`No data returned from Yahoo Finance for ${symbol}`, { symbol });
       return null;
     }
 
-    const result = data.chart.result[0];
+    const result = (data as any).chart.result[0];
     const meta = result.meta || {};
     const quotes = result.indicators?.quote?.[0] || [];
     const latestQuote = quotes[0] || {};
@@ -178,7 +178,7 @@ export async function getMarketStructureIndicators(): Promise<{
   try {
     // Configure rate limiter dynamically from config
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
 
     const batchData = await getBatchMarketData(symbols);
 
@@ -277,7 +277,7 @@ export function getMarketStatus(marketData?: MarketData): string {
 export async function getHistoricalData(symbol: string, startDate: string, endDate: string): Promise<any[]> {
   try {
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
 
     const period1 = Math.floor(new Date(startDate).getTime() / 1000);
     const period2 = Math.floor(new Date(endDate).getTime() / 1000);
@@ -301,7 +301,7 @@ export async function getHistoricalData(symbol: string, startDate: string, endDa
     }
 
     const data = await response.json();
-    const result = data.chart?.result?.[0];
+    const result = (data as any).chart?.result?.[0];
     if (!result) return [];
 
     const timestamps: number[] = result.timestamp || [];

@@ -277,7 +277,7 @@ export class PredictivePreFetchManager {
             preFetched: false,
             wasInCache: false,
             predictionAccuracy: 0,
-            error: result.reason || 'Fetch failed'
+            error: (result as any).reason || 'Fetch failed'
           });
         }
       }

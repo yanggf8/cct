@@ -81,7 +81,7 @@ export class VectorizedSectorProcessor {
     await this.batchOperations.scheduleBatchWrite(
       sectors.map((symbol: any, index: any) => ({
         key: `${this.OPERATION_TEMPLATES.AI_ANALYSIS}_result_${symbol}`,
-        data: batchResult.data ? batchResult.data[index] : null
+        data: (batchResult as any).data ? (batchResult as any).data[index] : null
       })),
       'ai_results',
       priority
@@ -97,7 +97,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(sectors.map((symbol: any, index: any) => [symbol, batchResult.data?.[index]]))
+      data: new Map(sectors.map((symbol: any, index: any) => [symbol, (batchResult as any).data?.[index]]))
     };
   }
 
@@ -133,7 +133,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(sectors.map((symbol: any, index: any) => [symbol, batchResult.data?.[index]]))
+      data: new Map(sectors.map((symbol: any, index: any) => [symbol, (batchResult as any).data?.[index]]))
     };
   }
 
@@ -285,7 +285,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(allSymbols.map((symbol: any, index: any) => [symbol, batchResult.data?.[index]]))
+      data: new Map(allSymbols.map((symbol: any, index: any) => [symbol, (batchResult as any).data?.[index]]))
     };
   }
 

@@ -208,7 +208,7 @@ export class SimpleSectorFetcher {
       }
 
       const data = await response.json();
-      const chart = data.chart?.result?.[0];
+      const chart = (data as any).chart?.result?.[0];
 
       if (!chart || !chart.timestamp || !chart.indicators) {
         throw new Error(`Invalid data format for ${symbol}`);

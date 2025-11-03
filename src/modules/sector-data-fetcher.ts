@@ -241,7 +241,7 @@ export class SectorDataFetcher {
       }
 
       const data = await response.json();
-      const chart = data.chart;
+      const chart = (data as any).chart;
 
       if (!chart || !chart.result || chart.result.length === 0) {
         throw new Error('No data returned from Yahoo Finance');

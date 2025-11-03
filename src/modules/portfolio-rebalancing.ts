@@ -522,7 +522,7 @@ export class PortfolioRebalancingEngine {
     switch (strategy.type) {
       case REBALANCING_STRATEGIES.THRESHOLD_BASED:
         return Object.values(deviations).some(dev =>
-          dev.deviationPercent > (strategy.thresholds.deviation || 0.05)
+          (dev as any).deviationPercent > ((strategy as any).thresholds.deviation || 0.05)
         );
 
       case REBALANCING_STRATEGIES.TIME_BASED:
@@ -728,7 +728,7 @@ export class PortfolioRebalancingEngine {
         severity: 'warning',
         message: `Maximum drift of ${(driftMetrics.maxDrift * 100).toFixed(2)}% exceeds threshold`,
         assets: Object.entries(driftMetrics.driftVector)
-          .filter(([_, data]) => data.driftPercent > threshold)
+          .filter(([_, data]) => (data as any).driftPercent > threshold)
           .map(([asset, _]) => asset)
       });
     }
@@ -842,7 +842,7 @@ export class PortfolioRebalancingEngine {
 
   shouldControlDrift(deviations: any, strategy: PortfolioStrategy): boolean {
     const maxAllowedDrift = strategy.thresholds.maxDrift || 0.10;
-    return Object.values(deviations).some(dev => dev.absoluteDeviation > maxAllowedDrift);
+    return Object.values(deviations).some(dev => (dev as any).absoluteDeviation > maxAllowedDrift);
   }
 
   getDefaultScenarios(): any[] {

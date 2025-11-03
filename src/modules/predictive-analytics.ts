@@ -1834,8 +1834,8 @@ export class PredictiveAnalyticsEngine {
     }
 
     // Seasonal catalysts
-    if (patterns.seasonal_tendencies?.length > 0) {
-      const seasonalPattern = patterns.seasonal_tendencies[0];
+    if ((patterns as any).seasonal_tendencies?.length > 0) {
+      const seasonalPattern = (patterns as any).seasonal_tendencies[0];
       catalysts.push({
         catalyst: `Seasonal factor: ${seasonalPattern.pattern}`,
         impact_level: seasonalPattern.historical_accuracy > 0.75 ? 'medium' : 'low',
@@ -2466,8 +2466,8 @@ export class PredictiveAnalyticsEngine {
       catalysts.push(`Sector leadership from ${signals.sector_predictions.top_performers[0].name}`);
     }
 
-    if (patterns.seasonal_tendencies?.length > 0) {
-      catalysts.push(`Seasonal factors: ${patterns.seasonal_tendencies[0].pattern}`);
+    if ((patterns as any).seasonal_tendencies?.length > 0) {
+      catalysts.push(`Seasonal factors: ${(patterns as any).seasonal_tendencies[0].pattern}`);
     }
 
     return catalysts;

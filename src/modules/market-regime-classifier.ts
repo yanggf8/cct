@@ -1116,7 +1116,12 @@ export class MarketRegimeClassifier {
   /**
    * Get regime classification history
    */
-  getRegimeHistory(): EnhancedRegimeAnalysis['regimeHistory'] {
+  getRegimeHistory(): Array<{
+    regime: MarketRegimeType;
+    timestamp: number;
+    confidence: number;
+    drivers: any;
+  }> {
     return [...this.regimeHistory];
   }
 

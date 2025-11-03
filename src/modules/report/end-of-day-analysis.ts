@@ -170,8 +170,8 @@ function analyzeHighConfidenceSignals(
     const tradingSignals = signal.trading_signals || signal;
     const sentimentLayer = signal.sentiment_layers?.[0];
 
-    const predictedDirection = tradingSignals?.primary_direction === 'BULLISH' ? 'up' : 'down';
-    const confidence = (sentimentLayer?.confidence || tradingSignals?.overall_confidence || 0) * 100;
+    const predictedDirection = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' : 'down';
+    const confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
 
     // Only analyze high-confidence signals
     if (confidence < (CONFIDENCE_THRESHOLD * 100)) return;
@@ -325,7 +325,7 @@ async function getMarketClosePerformance(
       }
 
       const data = await response.json();
-      const result = data.chart.result[0];
+      const result = (data as any).chart.result[0];
 
       if (!result || !result.indicators || !result.timestamp) {
         throw new Error(`Invalid response format for ${symbol}`);

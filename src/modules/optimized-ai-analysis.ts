@@ -10,11 +10,9 @@
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment_utils.js';
-import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
+import { logInfo, logError, logAIDebug } from './logging.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
-
-const logger = initLogging({});
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
@@ -96,7 +94,7 @@ export class OptimizedAIAnalyzer {
       if (!forceRefresh) {
         const cached = await this.dal.read(cacheKey);
         if (cached.success && cached.data) {
-          logger.debug('Analysis cache hit', { symbol });
+          logAIDebug('Analysis cache hit', { symbol });
           return {
             ...cached.data,
             metadata: {
@@ -108,7 +106,7 @@ export class OptimizedAIAnalyzer {
         }
       }
 
-      logger.info('Starting optimized analysis', { symbol });
+      logInfo('Starting optimized analysis', { symbol });
 
       // Get market data first
       const marketData = await this.getMarketData(symbol);
@@ -265,7 +263,7 @@ Short-term outlook: [1-2 sentences]`;
         symbol,
         timestamp: new Date().toISOString(),
         analysis_type: 'full_ai',
-        sentiment: analysis.sentiment,
+        sentiment: (analysis as any).sentiment,
         technical_indicators: this.calculateBasicTechnicals(marketData),
         market_data: {
           current_price: marketData.current_price,

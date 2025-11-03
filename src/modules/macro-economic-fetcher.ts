@@ -178,7 +178,7 @@ export class MacroEconomicFetcher {
         return this.enhanceMacroDrivers(basicMacroDrivers);
       }
 
-      throw new Error(`Macro Economic Fetcher Error: ${error.message}`);
+      throw new Error(`Macro Economic Fetcher Error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

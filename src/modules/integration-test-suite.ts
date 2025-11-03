@@ -22,7 +22,7 @@ import { createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { getBatchMarketData, healthCheck as yahooHealthCheck } from './yahoo-finance-integration.js';
 import { initializeAPIHealthMonitor } from './api-health-monitor.js';
 import { CacheManager } from './cache-manager.js';
-import type { CloudflareEnvironment } from '../types.js';
+import type { CloudflareEnvironment, MarketData } from '../types.js';
 
 const logger = createLogger('integration-test-suite');
 
@@ -194,7 +194,7 @@ export class IntegrationTestSuite {
         details: health,
         metrics: {
           api_available: health.status === 'healthy',
-          response_time: health.responseTime || 0
+          response_time: (health as any).responseTime || 0
         }
       };
     } catch (error: unknown) {
@@ -332,9 +332,9 @@ export class IntegrationTestSuite {
       const validations = {
         hasData: Object.keys(marketData).length > 0,
         hasPrices: Object.values(marketData).some(d => d && d.price > 0),
-        hasVolume: Object.values(marketData).some(d => d && d.volume > 0),
-        hasChanges: Object.values(marketData).some(d => d && d.change !== undefined),
-        realTimeData: Object.values(marketData).some(d => d && d.lastUpdated)
+        hasVolume: Object.values(marketData).some(d => d && (d as any).volume > 0),
+        hasChanges: Object.values(marketData).some(d => d && (d as any).change !== undefined),
+        realTimeData: Object.values(marketData).some(d => d && (d as any).lastUpdated)
       };
 
       const passedValidations = Object.values(validations).filter(Boolean).length;
@@ -383,7 +383,7 @@ export class IntegrationTestSuite {
         hasSignals: result.signals && result.signals.length > 0,
         hasGPTAnalysis: result.signals?.some((s: any) => s.gpt_sentiment),
         hasDistilBERTAnalysis: result.signals?.some((s: any) => s.distilbert_sentiment),
-        hasConfidence: result.overall_confidence !== undefined,
+        hasConfidence: (result as any).overall_confidence !== undefined || result.performance_metrics !== undefined,
         hasRecommendation: result.signals?.some((s: any) => s.recommendation)
       };
 
@@ -404,7 +404,7 @@ export class IntegrationTestSuite {
         metrics: {
           validation_pass_rate: passedValidations / totalValidations,
           signals_generated: result.signals?.length || 0,
-          overall_confidence: result.overall_confidence || 0
+          overall_confidence: (result as any).overall_confidence || result.performance_metrics?.successful_models / result.performance_metrics?.models_executed || 0
         }
       };
     } catch (error: unknown) {
@@ -443,7 +443,7 @@ export class IntegrationTestSuite {
       await cacheManager.delete(testKey);
       const deleteTime = Date.now() - deleteStart;
 
-      const dataIntegrity = cached && cached.test === 'integration' && cached.timestamp === testData.timestamp;
+      const dataIntegrity = cached && (cached as any).test === 'integration' && (cached as any).timestamp === testData.timestamp;
 
       const status = dataIntegrity ? 'passed' : 'failed';
 

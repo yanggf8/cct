@@ -185,7 +185,7 @@ export class WebNotificationManager {
           result.errors.push(`Failed to send to ${subscriber.userId}: ${error}`);
           logger.error('Failed to send notification to subscriber', {
             subscriberId: subscriber.userId,
-            error: error.message
+            error: error instanceof Error ? error.message : String(error)
           });
         }
       }
@@ -204,7 +204,7 @@ export class WebNotificationManager {
       result.errors.push(`System error: ${(error instanceof Error ? error.message : String(error))}`);
       logger.error('Failed to send notification', {
         notificationId: notification.id,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
 
@@ -320,7 +320,7 @@ export class WebNotificationManager {
       return {
         success: false,
         subscriptionId: '',
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }

@@ -894,7 +894,7 @@ async function handleGetValidationResults(
           processingTime: timer.finish()
         })
       ),
-      { status: HttpStatus.ACCEPTED, headers }
+      { status: 202 as any, headers }
     );
 
   } catch (error: unknown) {
@@ -989,7 +989,7 @@ async function handleWalkForwardOptimization(
           processingTime: timer.finish()
         })
       ),
-      { status: HttpStatus.ACCEPTED, headers }
+      { status: 202 as any, headers }
     );
 
   } catch (error: unknown) {
@@ -1037,7 +1037,7 @@ async function handleMonteCarloSimulation(
 
   try {
     const requestBody = await request.json();
-    const numSimulations = requestBody.numSimulations || 1000;
+    const numSimulations = (requestBody as any).numSimulations || 1000;
 
     // Get backtest results
     const resultCached = await dal.read(`backtest_result_${backtestId}`);
@@ -1088,7 +1088,7 @@ async function handleMonteCarloSimulation(
           processingTime: timer.finish()
         })
       ),
-      { status: HttpStatus.ACCEPTED, headers }
+      { status: 202 as any, headers }
     );
 
   } catch (error: unknown) {
@@ -1193,11 +1193,11 @@ async function executeBacktestInBackground(
     await storage.storeBacktestResults(backtestId, result);
 
     // Cache performance metrics for faster retrieval
-    await cache.cachePerformanceMetrics(backtestId, result.performanceMetrics);
+    await cache.cachePerformanceMetrics(backtestId, (result as any).performanceMetrics);
 
     logger.info('Backtest completed', {
       backtestId,
-      finalReturn: result.performanceMetrics?.totalReturn || result.performance?.totalReturn
+      finalReturn: (result as any).performanceMetrics?.totalReturn || (result as any).performance?.totalReturn
     });
 
   } catch (error: unknown) {
@@ -1405,7 +1405,7 @@ async function handleModelValidation(
   try {
     const requestBody = await request.json();
     const {
-      backtestId,
+      backtestId: backtestId = '',
       validationConfig = {
         crossValidation: {
           method: 'time_series_split',

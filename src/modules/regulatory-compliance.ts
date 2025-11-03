@@ -403,16 +403,16 @@ export class RegulatoryComplianceEngine {
           frameworkResult.violations.push({
             framework,
             requirement,
-            rule: config.rules.join(', '),
-            description: requirementResult.description,
-            severity: requirementResult.status.label,
-            dueDate: requirementResult.dueDate,
-            recommendation: requirementResult.recommendation
+            rule: (config as any).rules.join(', '),
+            description: (requirementResult as any).description,
+            severity: (requirementResult as any).status.label,
+            dueDate: (requirementResult as any).dueDate,
+            recommendation: (requirementResult as any).recommendation
           });
         }
 
-        frameworkResult.recommendations.push(...(requirementResult.recommendations || []));
-        frameworkResult.score -= (requirementResult.deduction || 0);
+        frameworkResult.recommendations.push(...((requirementResult as any).recommendations || []));
+        frameworkResult.score -= ((requirementResult as any).deduction || 0);
       }
 
       return frameworkResult;
@@ -421,8 +421,8 @@ export class RegulatoryComplianceEngine {
       return {
         framework,
         status: COMPLIANCE_STATUS.NON_COMPLIANT,
-        error: error.message,
-        violations: [{ framework, error: error.message, severity: 'HIGH' }],
+        error: error instanceof Error ? error.message : String(error),
+        violations: [{ framework, error: error instanceof Error ? error.message : String(error), severity: 'HIGH' }],
         recommendations: []
       };
     }
@@ -482,7 +482,7 @@ export class RegulatoryComplianceEngine {
       return {
         requirement,
         status: COMPLIANCE_STATUS.NON_COMPLIANT,
-        description: `Assessment failed: ${error.message}`,
+        description: `Assessment failed: ${error instanceof Error ? error.message : String(error)}`,
         deduction: 25,
         recommendations: []
       };
@@ -534,10 +534,10 @@ export class RegulatoryComplianceEngine {
 
     if (!suitibilityCheck.suitable) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = suitabilityCheck.reason || 'Portfolio not suitable for client profile';
+      assessment.description = (suitabilityCheck as any).reason || 'Portfolio not suitable for client profile';
       assessment.deduction = 25;
       assessment.recommendation = 'Reassess client risk tolerance and adjust portfolio';
-      assessment.evidence = [suitabilityCheck.evidence];
+      assessment.evidence = [(suitabilityCheck as any).evidence];
     } else {
       assessment.description = 'Portfolio suitable for client profile';
       assessment.evidence = ['Client profile current', 'Risk assessment completed'];
@@ -552,10 +552,10 @@ export class RegulatoryComplianceEngine {
 
     if (!marginCheck.compliant) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = `Margin requirements not met: ${marginCheck.violation}`;
+      assessment.description = `Margin requirements not met: ${(marginCheck as any).violation}`;
       assessment.deduction = 20;
       assessment.recommendation = 'Reduce margin usage or add additional collateral';
-      assessment.evidence = [marginCheck.evidence];
+      assessment.evidence = [(marginCheck as any).evidence];
     } else {
       assessment.description = 'Margin requirements within FINRA limits';
       assessment.evidence = ['Initial margin met', 'Maintenance margin satisfied'];
@@ -573,7 +573,7 @@ export class RegulatoryComplianceEngine {
       assessment.description = 'Best execution processes need improvement';
       assessment.deduction = 10;
       assessment.recommendation = 'Review execution venues and update best execution policy';
-      assessment.evidence = [bestExecutionCheck.evidence];
+      assessment.evidence = [(bestExecutionCheck as any).evidence];
     } else {
       assessment.description = 'Best execution policy followed';
       assessment.evidence = ['Execution venues reviewed', 'Best execution policy current'];
@@ -588,10 +588,10 @@ export class RegulatoryComplianceEngine {
 
     if (!dataProtectionCheck.compliant) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = `GDPR compliance issues: ${dataProtectionCheck.issue}`;
+      assessment.description = `GDPR compliance issues: ${(dataProtectionCheck as any).issue}`;
       assessment.deduction = 25;
       assessment.recommendation = 'Update privacy policies and implement GDPR controls';
-      assessment.evidence = [dataProtectionCheck.evidence];
+      assessment.evidence = [(dataProtectionCheck as any).evidence];
     } else {
       assessment.description = 'Data protection requirements satisfied';
       assessment.evidence = ['Privacy notice current', 'Data processing agreements in place'];
@@ -606,10 +606,10 @@ export class RegulatoryComplianceEngine {
 
     if (!amlCheck.compliant) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = `AML compliance issues: ${amlCheck.issue}`;
+      assessment.description = `AML compliance issues: ${(amlCheck as any).issue}`;
       assessment.deduction = 30;
       assessment.recommendation = 'Complete customer due diligence and update AML program';
-      assessment.evidence = [amlCheck.evidence];
+      assessment.evidence = [(amlCheck as any).evidence];
     } else {
       assessment.description = 'AML program compliant';
       assessment.evidence = ['CIP completed', 'Annual AML training current'];
@@ -874,7 +874,7 @@ export class RegulatoryComplianceEngine {
     const upcoming = [];
 
     Object.entries(this.complianceCalendar).forEach(([key, deadline]) => {
-      if (frameworks.includes(deadline.framework) && deadline.date > now) {
+      if (frameworks.includes((deadline as any).framework) && (deadline as any).date > now) {
         upcoming.push(deadline);
       }
     });

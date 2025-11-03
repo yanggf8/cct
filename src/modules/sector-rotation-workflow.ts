@@ -325,7 +325,7 @@ export class SectorRotationWorkflow {
     }
 
     const data = await response.json();
-    const result = data.chart.result[0];
+    const result = (data as any).chart.result[0];
 
     if (!result || !result.indicators) {
       throw new Error('Invalid ETF data response');

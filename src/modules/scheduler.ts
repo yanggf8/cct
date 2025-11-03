@@ -165,9 +165,9 @@ export async function handleScheduledEvent(
 
         if (sectorResult) {
           console.log(`✅ [CRON-SECTORS] ${cronExecutionId} Sector rotation data refreshed successfully`, {
-            sectors_analyzed: sectorResult.sectors?.length || 0,
-            top_performer: sectorResult.summary?.topPerformer,
-            worst_performer: sectorResult.summary?.worstPerformer
+            sectors_analyzed: (sectorResult as any).sectors?.length || 0,
+            top_performer: (sectorResult as any).summary?.topPerformer,
+            worst_performer: (sectorResult as any).summary?.worstPerformer
           });
         } else {
           console.log(`⚠️ [CRON-SECTORS] ${cronExecutionId} Sector rotation analysis returned null`);

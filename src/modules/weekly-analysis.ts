@@ -476,7 +476,7 @@ export async function handleWeeklyDataAPI(request: any, env: any) {
     const weeklyData = await processWeeklyAnalysisData(factTableData, env);
     
     // Add metadata about the request
-    weeklyData.metadata = {
+    (weeklyData as any).metadata = {
       week_selected: weekParam,
       date_range_days: rangeParam,
       data_points: factTableData.length,
@@ -643,8 +643,8 @@ async function processWeeklyAnalysisData(factTableData: any, env: any) {
   let bestModel = 'GPT-OSS-120B';
   let bestAccuracy = 0;
   Object.entries(modelStats).forEach(([model, stats]) => {
-    if (stats.count > 0) {
-      const avgAccuracy = stats.accuracy / stats.count;
+    if ((stats as any).count > 0) {
+      const avgAccuracy = (stats as any).accuracy / (stats as any).count;
       if (avgAccuracy > bestAccuracy) {
         bestAccuracy = avgAccuracy;
         bestModel = model;

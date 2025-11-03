@@ -115,7 +115,7 @@ export async function handleAdvancedAnalyticsRoutes(request: Request, env: any, 
       JSON.stringify(
         ApiResponseFactory.error('Internal server error', 'INTERNAL_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -233,7 +233,7 @@ async function handleModelComparison(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to compare models', 'MODEL_COMPARISON_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -339,7 +339,7 @@ async function handleConfidenceIntervals(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to calculate confidence intervals', 'CONFIDENCE_INTERVAL_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -453,7 +453,7 @@ async function handleEnsemblePrediction(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to generate ensemble prediction', 'ENSEMBLE_PREDICTION_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -575,7 +575,7 @@ async function handlePredictionAccuracy(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to retrieve prediction accuracy', 'ACCURACY_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -713,7 +713,7 @@ async function handleRiskAssessment(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to complete risk assessment', 'RISK_ASSESSMENT_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -878,7 +878,7 @@ async function handleModelPerformance(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to retrieve model performance', 'PERFORMANCE_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -989,7 +989,7 @@ async function handleBacktest(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to complete backtest', 'BACKTEST_ERROR', {
           requestId,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         })
       ),
       {
@@ -1205,7 +1205,7 @@ async function handleAdvancedAnalyticsHealth(request, env, headers, requestId) {
       JSON.stringify(
         ApiResponseFactory.error('Failed to complete health check', 'HEALTH_CHECK_ERROR', {
           requestId,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           timestamp: new Date().toISOString()
         })
       ),
@@ -1455,15 +1455,15 @@ function calculateHealthScore(healthData: any) {
 
   // Deduct points for degraded/unhealthy components
   Object.values(healthData.model_performance).forEach(model => {
-    if (model.status === 'degraded') score -= 10;
-    if (model.status === 'unhealthy') score -= 25;
-    if (model.error_rate_24h > 0.05) score -= 5;
-    if (model.avg_response_time_ms > 500) score -= 5;
+    if ((model as any).status === 'degraded') score -= 10;
+    if ((model as any).status === 'unhealthy') score -= 25;
+    if ((model as any).error_rate_24h > 0.05) score -= 5;
+    if ((model as any).avg_response_time_ms > 500) score -= 5;
   });
 
   Object.values(healthData.predictive_analytics).forEach(component => {
-    if (component.status === 'degraded') score -= 8;
-    if (component.status === 'unhealthy') score -= 20;
+    if ((component as any).status === 'degraded') score -= 8;
+    if ((component as any).status === 'unhealthy') score -= 20;
   });
 
   if (healthData.sector_rotation_engine.status !== 'healthy') score -= 15;

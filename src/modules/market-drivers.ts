@@ -477,7 +477,7 @@ export class MarketDriversManager {
     } catch (error: unknown) {
       logger.error('Error generating market drivers snapshot:', {
         error: (error instanceof Error ? error.message : String(error)),
-        stack: error.stack,
+        stack: error instanceof Error ? error.stack : undefined,
         timestamp
       });
       throw error;

@@ -13,7 +13,7 @@ export async function servePredictiveAnalyticsDashboard(
   request: Request,
   env: CloudflareEnvironment
 ): Promise<Response> {
-  const requestLogger = createRequestLogger('dashboard');
+  const { logError } = initLogging({ context: 'dashboard' });
   const startTime = Date.now();
 
   try {
@@ -1137,9 +1137,9 @@ export async function servePredictiveAnalyticsDashboard(
     });
 
   } catch (error: any) {
-    requestLogger.error('Error serving predictive analytics dashboard', {
+    logError('Error serving predictive analytics dashboard', {
       error: (error instanceof Error ? error.message : String(error)),
-      stack: error.stack,
+      stack: (error instanceof Error ? error.stack : undefined),
       duration: Date.now() - startTime
     });
 

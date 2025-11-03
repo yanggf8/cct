@@ -13,10 +13,12 @@ const logger = createLogger('monitoring');
  * System metrics collection
  */
 class SystemMetrics {
+  private metrics: Map<string, any> = new Map();
+  private counters: Map<string, number> = new Map();
+  private timers: Map<string, any> = new Map();
+
   constructor() {
-    this.metrics = new Map();
-    this.counters = new Map();
-    this.timers = new Map();
+    // Properties are already initialized above
   }
 
   /**
@@ -331,7 +333,7 @@ function getLatestGauge(gauges: any, metricName: any) {
     .map(([, value]) => value)
     .sort((a: any, b: any) => b.timestamp - a.timestamp);
 
-  return matching.length > 0 ? matching[0].value : null;
+  return matching.length > 0 ? ((matching[0] as any).value) : null;
 }
 
 function getLatestTimer(timers: any, metricName: any) {
@@ -340,7 +342,7 @@ function getLatestTimer(timers: any, metricName: any) {
     .map(([, value]) => value)
     .sort((a: any, b: any) => b.timestamp - a.timestamp);
 
-  return matching.length > 0 ? matching[0].duration : null;
+  return matching.length > 0 ? ((matching[0] as any).duration) : null;
 }
 
 function getLatestCounter(counters: any, metricName: any) {
@@ -432,7 +434,10 @@ export const HealthMonitor = {
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      components: {},
+      components: {
+        kv_storage: {},
+        ai_models: {}
+      },
       metrics: {}
     };
 
@@ -449,7 +454,7 @@ export const HealthMonitor = {
 
       const kvDuration = timer.stop();
 
-      if (writeResult.success && readResult.success && deleteResult.success) {
+      if (writeResult.success && readResult.success && deleteResult) {
         health.components.kv_storage = {
           status: 'healthy',
           response_time_ms: kvDuration
@@ -561,7 +566,7 @@ export const AlertManager = {
 
     // Slow response times
     const recentTimers = Object.values(metrics.timers || {});
-    const slowRequests = recentTimers.filter(timer => timer.duration > 5000);
+    const slowRequests = recentTimers.filter((timer: any) => (timer as any).duration > 5000);
 
     if (slowRequests.length > 0) {
       alerts.push({

@@ -36,8 +36,31 @@ const SIGNAL_STATUS = {
  * Enhanced Signal Structure
  */
 class EnhancedSignal {
+  id: string;
+  symbol: string;
+  prediction: string;
+  confidence: number;
+  timestamp: number;
+  status: string;
+  period: string;
+  morningPrediction: string;
+  intradayPerformance: any;
+  endOfDayPerformance: any;
+  weeklyPerformance: any;
+  openPrice: any;
+  currentPrice: any;
+  closePrice: any;
+  priceTargets: any;
+  accuracyScore: any;
+  divergenceLevel: any;
+  consistencyRating: any;
+  sentimentLayers: any[];
+  marketConditions: any;
+  reasoning: string;
+  tags: any[];
+
   constructor(symbol, prediction, confidence, timestamp) {
-    this.id = crypto.randomUUID();
+    this.id = (globalThis as any).crypto.randomUUID();
     this.symbol = symbol;
     this.prediction = prediction; // 'up' | 'down' | 'neutral'
     this.confidence = confidence;
@@ -64,7 +87,7 @@ class EnhancedSignal {
     // Performance metrics
     this.accuracyScore = null;
     this.divergenceLevel = null;
-    self.consistencyRating = null;
+    this.consistencyRating = null;
 
     // Analysis metadata
     this.sentimentLayers = [];
@@ -78,6 +101,10 @@ class EnhancedSignal {
  * Signal Tracking Manager
  */
 class SignalTrackingManager {
+  activeSignals: Map<any, any>;
+  archivedSignals: Map<any, any>;
+  performanceHistory: Map<any, any>;
+
   constructor() {
     this.activeSignals = new Map();
     this.archivedSignals = new Map();
@@ -234,7 +261,7 @@ class SignalTrackingManager {
    * Get signals by status
    */
   getSignalsByStatus(status) {
-    return Array.from(this.activeSignals.values()).filter(signal => signal.status === status);
+    return Array.from(this.activeSignals.values()).filter((signal: any) => (signal as any).status === status);
   }
 
   /**
@@ -253,9 +280,9 @@ class SignalTrackingManager {
     }
 
     const totalSignals = signals.length;
-    const highConfidenceSignals = signals.filter(s => s.confidence >= HIGH_CONFIDENCE_THRESHOLD);
-    const accurateSignals = signals.filter(s => s.accuracyScore >= 0.7);
-    const divergentSignals = signals.filter(s => s.divergenceLevel === 'high');
+    const highConfidenceSignals = signals.filter((s: any) => (s as any).confidence >= HIGH_CONFIDENCE_THRESHOLD);
+    const accurateSignals = signals.filter((s: any) => (s as any).accuracyScore >= 0.7);
+    const divergentSignals = signals.filter((s: any) => (s as any).divergenceLevel === 'high');
 
     return {
       totalSignals,

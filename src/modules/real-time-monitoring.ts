@@ -288,10 +288,10 @@ export class RealTimeMonitoringSystem {
       const cacheStats = this.cacheManager.getCacheStats();
 
       // Calculate metrics
-      const avgResponseTime = cbMetrics.averageResponseTime || 0;
-      const successRate = cbMetrics.successRate || 0;
+      const avgResponseTime = (cbMetrics as any).averageResponseTime || 0;
+      const successRate = (cbMetrics as any).successRate || 0;
       const errorRate = (1 - successRate) * 100;
-      const requestsPerMinute = cbMetrics.requestCount || 0;
+      const requestsPerMinute = (cbMetrics as any).requestCount || 0;
 
       return {
         avgResponseTime,
