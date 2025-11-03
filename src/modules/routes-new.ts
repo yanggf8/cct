@@ -75,7 +75,7 @@ export async function handleHttpRequest(
 
   } catch (error: any) {
     logger.error('Unhandled error in request handler', {
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

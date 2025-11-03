@@ -460,7 +460,7 @@ export const HealthMonitor = {
     } catch (error: unknown) {
       health.components.kv_storage = {
         status: 'unhealthy',
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
       health.status = 'degraded';
     }
@@ -490,7 +490,7 @@ export const HealthMonitor = {
     } catch (error: unknown) {
       health.components.ai_models = {
         status: 'unhealthy',
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
       health.status = 'degraded';
     }

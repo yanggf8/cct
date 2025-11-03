@@ -125,7 +125,7 @@ async function handleTechnicalSingle(
 
     return new Response(JSON.stringify(ApiResponseFactory.success(signal, { source:'fresh', ttl: 1800, requestId, processingTime: timer.finish() })), { status: HttpStatus.OK, headers });
   } catch (error:any) {
-    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical analysis','ANALYSIS_ERROR',{ requestId, symbol, error: error.message, processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
+    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical analysis','ANALYSIS_ERROR',{ requestId, symbol, error: (error instanceof Error ? error.message : String(error)), processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
   }
 }
 
@@ -149,6 +149,6 @@ async function handleTechnicalBatch(
 
     return new Response(JSON.stringify(ApiResponseFactory.success(result, { source:'fresh', ttl: 1800, requestId, processingTime: timer.finish(), metadata: { symbols: symbols.length } })), { status: HttpStatus.OK, headers });
   } catch (error:any) {
-    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical batch analysis','ANALYSIS_ERROR',{ requestId, error: error.message, processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
+    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical batch analysis','ANALYSIS_ERROR',{ requestId, error: (error instanceof Error ? error.message : String(error)), processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
   }
 }

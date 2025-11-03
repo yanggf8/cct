@@ -335,7 +335,7 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
           sentiment: 'neutral',
           confidence: 0,
           score: 0,
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         };
       }
     });
@@ -634,7 +634,7 @@ export async function validateSentimentEnhancement(env: CloudflareEnvironment): 
     logError('Sentiment enhancement validation failed:', error);
     return {
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       ai_available: !!env.AI
     };
   }

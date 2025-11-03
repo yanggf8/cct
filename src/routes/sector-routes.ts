@@ -603,7 +603,7 @@ export async function getSectorIndicatorsSymbol(request: any, env: any, symbolPa
     return new Response(JSON.stringify(body), { status: 404 });
   } catch (error:any) {
     loggerLocal.error('Error in getSectorIndicatorsSymbol:', error);
-    const body = ApiResponseFactory.error('Sector indicators retrieval failed','SECTOR_INDICATORS_ERROR', { error: error.message });
+    const body = ApiResponseFactory.error('Sector indicators retrieval failed','SECTOR_INDICATORS_ERROR', { error: (error instanceof Error ? error.message : String(error)) });
     return new Response(JSON.stringify(body), { status: 500 });
   }
 }

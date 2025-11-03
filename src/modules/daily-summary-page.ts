@@ -726,7 +726,7 @@ export async function handleDailySummaryPage(
                 console.error('Error loading daily data:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error-message').textContent = error.message;
+                document.getElementById('error-message').textContent = (error instanceof Error ? error.message : String(error));
             }
         }
 

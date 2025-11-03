@@ -62,7 +62,7 @@ class IntradayDataModule {
       logger.error('❌ Failed to retrieve intraday data', {
         requestId,
         date,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       throw error;
@@ -126,7 +126,7 @@ class PerformanceModule {
     } catch (error: any) {
       logger.error('❌ Performance analysis failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return null;
@@ -213,7 +213,7 @@ class HTMLModule {
     } catch (error: any) {
       logger.error('❌ HTML generation failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return generateErrorDisplay(error.message, requestId);
@@ -561,7 +561,7 @@ export const handleIntradayCheckDecomposed = createReportHandler(
     } catch (error: any) {
       logger.error('❌ [INTRADAY-DECOMPOSED] Intraday check failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         duration: Date.now() - startTime
       });

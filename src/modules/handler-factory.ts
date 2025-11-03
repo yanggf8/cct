@@ -296,7 +296,7 @@ export function createAPIHandler(
         }
         ctx.validatedBody = body;
       } catch (error: any) {
-        throw new Error(`Request validation failed: ${error.message}`);
+        throw new Error(`Request validation failed: ${(error instanceof Error ? error.message : String(error))}`);
       }
     }
 

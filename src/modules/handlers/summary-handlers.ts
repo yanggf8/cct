@@ -292,7 +292,7 @@ export async function handleDailySummaryAPI(
     logger.error('Daily summary API failed', {
       requestId,
       dateParam,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     } as LogContext);
 
@@ -337,7 +337,7 @@ export async function handleDailySummaryPageRequest(
   } catch (error: any) {
     logger.error('Daily summary page failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     } as LogContext);
 
@@ -436,7 +436,7 @@ export async function handleBackfillDailySummaries(
     logger.error('Backfill daily summaries failed', {
       requestId,
       daysParam,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     } as LogContext);
 
@@ -537,7 +537,7 @@ export async function handleVerifyBackfill(
         verificationResult.details.push({
           date: dateStr,
           status: 'error',
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         });
       }
     }
@@ -577,7 +577,7 @@ export async function handleVerifyBackfill(
     logger.error('Verify backfill failed', {
       requestId,
       daysParam,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     } as LogContext);
 

@@ -355,7 +355,7 @@ export class EnhancedRequestHandler {
       const body = ApiResponseFactory.error(
         'Failed to retrieve results',
         'INTERNAL_ERROR',
-        { error_message: error.message }
+        { error_message: (error instanceof Error ? error.message : String(error)) }
       );
 
       return new Response(JSON.stringify(body, null, 2), {

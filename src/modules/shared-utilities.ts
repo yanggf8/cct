@@ -420,7 +420,7 @@ export const ErrorUtils = {
       return await fn();
     } catch (error: any) {
       logger.error('Async operation failed', {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         context
       });
@@ -548,7 +548,7 @@ export const ErrorUtils = {
         attempt++;
 
         if (attempt > maxRetries || !retryableErrors.some(type =>
-          error.message.toUpperCase().includes(type) ||
+          (error instanceof Error ? error.message : String(error)).toUpperCase().includes(type) ||
           (error.name && error.name.toUpperCase().includes(type))
         )) {
           throw error;

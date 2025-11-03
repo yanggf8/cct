@@ -64,7 +64,7 @@ async function routeToNewEndpoint(
   } catch (error: any) {
     logger.error('Failed to route to new endpoint', {
       newPath,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -399,7 +399,7 @@ export async function handleLegacyEndpoint(
     logger.error('Failed to forward legacy request', {
       oldPath,
       newPath,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

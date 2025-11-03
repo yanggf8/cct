@@ -217,7 +217,7 @@ export async function runEnhancedFeatureAnalysis(
         sentimentData = await getStockSentiment(symbol, env);
         console.log(`✅ Sentiment analysis complete for ${symbol}:`, sentimentData.sentiment_score);
       } catch (error: any) {
-        console.error(`❌ Sentiment analysis failed for ${symbol}:`, error.message);
+        console.error(`❌ Sentiment analysis failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
         sentimentData = {
           sentiment_score: 0,
           confidence: 0.1,
@@ -234,7 +234,7 @@ export async function runEnhancedFeatureAnalysis(
         neuralAnalysis = analysis.trading_signals[symbol];
         console.log(`✅ Neural analysis complete for ${symbol}`);
       } catch (error: any) {
-        console.error(`❌ Neural analysis failed for ${symbol}:`, error.message);
+        console.error(`❌ Neural analysis failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
         neuralAnalysis = null;
       }
 
@@ -245,7 +245,7 @@ export async function runEnhancedFeatureAnalysis(
         extendedData = await fetchExtendedMarketData(symbol, env);
         console.log(`✅ Market data fetched for ${symbol}:`, extendedData ? `${extendedData.length} points` : 'null');
       } catch (error: any) {
-        console.error(`❌ Market data failed for ${symbol}:`, error.message);
+        console.error(`❌ Market data failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
         extendedData = null;
       }
 
@@ -272,7 +272,7 @@ export async function runEnhancedFeatureAnalysis(
       }
 
     } catch (error: any) {
-      console.error(`❌ Error in sequential analysis for ${symbol}:`, error.message);
+      console.error(`❌ Error in sequential analysis for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
 
       // Fallback to basic neural network analysis only
       try {
@@ -393,7 +393,7 @@ async function fetchExtendedMarketData(
     return ohlcData;
 
   } catch (error: any) {
-    console.error(`❌ Error fetching extended data for ${symbol}:`, error.message);
+    console.error(`❌ Error fetching extended data for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
     return null;
   }
 }
@@ -424,7 +424,7 @@ async function getStockSentiment(symbol: string, env: CloudflareEnvironment): Pr
       return analyzeTextSentiment(newsData);
     }
   } catch (error: any) {
-    console.error(`❌ Error getting sentiment for ${symbol}:`, error.message);
+    console.error(`❌ Error getting sentiment for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
     return {
       sentiment_score: 0,
       confidence: 0.1,

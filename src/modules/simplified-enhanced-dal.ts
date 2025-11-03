@@ -299,7 +299,7 @@ export class SimplifiedEnhancedDAL {
         return {
           success: false,
           cached: false,
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         };
       }
     });
@@ -366,7 +366,7 @@ export class SimplifiedEnhancedDAL {
         return {
           success: false,
           cached: false,
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         };
       }
     });
@@ -394,7 +394,7 @@ export class SimplifiedEnhancedDAL {
       return { success: true };
 
     } catch (error: any) {
-      logger.error('Delete operation failed', { key, error: error.message });
+      logger.error('Delete operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
       return { success: false, error: error.message };
     }
   }
@@ -415,7 +415,7 @@ export class SimplifiedEnhancedDAL {
       };
 
     } catch (error: any) {
-      logger.error('List operation failed', { prefix, error: error.message });
+      logger.error('List operation failed', { prefix, error: (error instanceof Error ? error.message : String(error)) });
       return { keys: [] };
     }
   }

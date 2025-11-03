@@ -1545,7 +1545,7 @@ async function handleModelValidation(
   } catch (error: any) {
     logger.error('Model validation error', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1739,7 +1739,7 @@ async function handleMonteCarloSimulationDirect(
   } catch (error: any) {
     logger.error('Monte Carlo simulation error', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(

@@ -227,7 +227,7 @@ export class SectorRotationWorkflow {
 
     } catch (error: any) {
       logger.error('Sector rotation workflow failed', {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         progress: this.progress
       });
@@ -280,7 +280,7 @@ export class SectorRotationWorkflow {
     } catch (error: any) {
       logger.error('ETF analysis failed', {
         symbol,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
 
       // Return neutral analysis on failure
@@ -401,7 +401,7 @@ export class SectorRotationWorkflow {
       };
 
     } catch (error: any) {
-      logger.warn('Optimized AI analysis failed for ETF', { symbol, error: error.message });
+      logger.warn('Optimized AI analysis failed for ETF', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
       return {
         overall: 'neutral',

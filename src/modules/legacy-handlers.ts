@@ -51,7 +51,7 @@ export async function handleFridayMondayPredictionsReport(
     console.error('❌ Friday/Monday predictions error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -82,7 +82,7 @@ export async function handleFridayMarketCloseReport(
     console.error('❌ Friday market close report error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -118,7 +118,7 @@ export async function handleHighConfidenceTest(
     console.error('❌ High confidence test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -175,7 +175,7 @@ export async function handleKVCleanup(
     console.error('❌ KV cleanup error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -212,7 +212,7 @@ export async function handleDebugWeekendMessage(
     console.error('❌ Debug weekend message error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -251,7 +251,7 @@ export async function handleSentimentDebugTest(
     console.error('❌ Sentiment debug test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -297,7 +297,7 @@ export async function handleModelScopeTest(
     console.error('❌ Model scope test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -333,7 +333,7 @@ export async function handleTestLlama(
     console.error('❌ Llama test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -379,7 +379,7 @@ export async function handleR2Upload(
     console.error('❌ R2 upload error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -416,7 +416,7 @@ export async function handleFacebookTest(
     console.error('❌ Facebook test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,

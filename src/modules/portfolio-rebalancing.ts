@@ -158,7 +158,7 @@ export class PortfolioRebalancingEngine {
       return analysis;
     } catch (error: unknown) {
       console.error('Rebalancing analysis failed:', error);
-      throw new Error(`Rebalancing analysis failed: ${error.message}`);
+      throw new Error(`Rebalancing analysis failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -212,7 +212,7 @@ export class PortfolioRebalancingEngine {
       return execution;
     } catch (error: unknown) {
       console.error('Rebalancing execution failed:', error);
-      throw new Error(`Rebalancing execution failed: ${error.message}`);
+      throw new Error(`Rebalancing execution failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -252,7 +252,7 @@ export class PortfolioRebalancingEngine {
       return monitoring;
     } catch (error: unknown) {
       console.error('Portfolio monitoring failed:', error);
-      throw new Error(`Portfolio monitoring failed: ${error.message}`);
+      throw new Error(`Portfolio monitoring failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -301,7 +301,7 @@ export class PortfolioRebalancingEngine {
       return harvesting;
     } catch (error: unknown) {
       console.error('Tax-loss harvesting failed:', error);
-      throw new Error(`Tax-loss harvesting failed: ${error.message}`);
+      throw new Error(`Tax-loss harvesting failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -348,7 +348,7 @@ export class PortfolioRebalancingEngine {
       return allocation;
     } catch (error: unknown) {
       console.error('Dynamic allocation creation failed:', error);
-      throw new Error(`Dynamic allocation failed: ${error.message}`);
+      throw new Error(`Dynamic allocation failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -381,7 +381,7 @@ export class PortfolioRebalancingEngine {
       return stressTest;
     } catch (error: unknown) {
       console.error('Rebalancing stress test failed:', error);
-      throw new Error(`Stress test failed: ${error.message}`);
+      throw new Error(`Stress test failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 

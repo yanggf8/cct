@@ -185,7 +185,7 @@ class RealTimePriceTracker {
     } catch (error: any) {
       logger.error('Failed to get current price', {
         symbol,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return null;
     }
@@ -259,7 +259,7 @@ class RealTimeSignalTracker {
     } catch (error: any) {
       logger.error('Failed to load active signals', {
         date: date.toISOString().split('T')[0],
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
   }
@@ -392,7 +392,7 @@ class RealTimeSignalTracker {
     } catch (error: any) {
       logger.error('Failed to update signal performance', {
         signalId,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
   }

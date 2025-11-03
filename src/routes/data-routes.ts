@@ -157,7 +157,7 @@ async function handleAvailableSymbols(
     // const cached = await dal.read<SymbolsResponse>(cacheKey);
 
     // if (cached) {
-    //   logger.info('AvailableSymbols', 'Cache hit', { requestId });
+    //   logger.info('AvailableSymbols: Cache hit', { requestId });
 
     //   return new Response(
     //     JSON.stringify(
@@ -220,7 +220,7 @@ async function handleAvailableSymbols(
     // Cache for 1 hour (temporarily disabled)
     // await dal.write(cacheKey, response);
 
-    logger.info('AvailableSymbols', 'Data retrieved', {
+    logger.info('AvailableSymbols: Data retrieved', {
       symbolsCount: symbolsData.length,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -302,7 +302,7 @@ async function handleSymbolHistory(
     const cached = await dal.get<any>('CACHE', cacheKey);
 
     if (cached) {
-      logger.info('SymbolHistory', 'Cache hit', { symbol, days, requestId });
+      logger.info('SymbolHistory: Cache hit', { symbol, days, requestId });
 
       return new Response(
         JSON.stringify(
@@ -338,7 +338,7 @@ async function handleSymbolHistory(
           adjusted_close: d.adjClose || d.close,
         }));
 
-        logger.info('SymbolHistory', 'Real historical data fetched', {
+        logger.info('SymbolHistory: Real historical data fetched', {
           symbol,
           dataPoints: historicalData.length,
           requestId
@@ -347,7 +347,7 @@ async function handleSymbolHistory(
     } catch (error: unknown) {
       logger.warn('Failed to fetch real historical data, using simulation', {
         symbol,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         requestId
       });
     }
@@ -408,7 +408,7 @@ async function handleSymbolHistory(
     // Cache for 30 minutes
     await dal.put('CACHE', cacheKey, response, { expirationTtl: 1800 });
 
-    logger.info('SymbolHistory', 'Data generated', {
+    logger.info('SymbolHistory: Data generated', {
       symbol,
       days,
       dataPoints: historicalData.length,
@@ -484,7 +484,7 @@ async function handleModelHealth(
       overall_status: (gptHealthy.status === 'healthy' && distilbertHealthy.status === 'healthy') ? 'healthy' : 'degraded'
     };
 
-    logger.info('ModelHealth', 'Health check completed', {
+    logger.info('ModelHealth: Health check completed', {
       overallStatus: response.overall_status,
       gptStatus: gptHealthy.status,
       distilbertStatus: distilbertHealthy.status,
@@ -553,7 +553,7 @@ async function handleCronHealth(
       last_execution: new Date().toISOString()
     };
 
-    logger.info('CronHealth', 'Health check completed', {
+    logger.info('CronHealth: Health check completed', {
       processingTime: timer.getElapsedMs(),
       requestId
     });
@@ -683,7 +683,7 @@ async function handleSystemHealth(
       }),
     };
 
-    logger.info('SystemHealth', 'Health check completed', {
+    logger.info('SystemHealth: Health check completed', {
       overallStatus: response.status,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -762,7 +762,7 @@ async function checkYahooFinanceHealth(env: CloudflareEnvironment): Promise<{ st
       details: health
     };
   } catch (error: unknown) {
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error instanceof Error ? error.message : String(error)) } };
   }
 }
 
@@ -795,7 +795,7 @@ async function checkNewsAPIHealth(env: CloudflareEnvironment): Promise<{ status:
       }
     };
   } catch (error: unknown) {
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error instanceof Error ? error.message : String(error)) } };
   }
 }
 

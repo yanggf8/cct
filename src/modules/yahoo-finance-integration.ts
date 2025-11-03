@@ -225,7 +225,7 @@ export async function healthCheck(): Promise<{
     return {
       status: 'unhealthy',
       details: {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         apiEndpoint: YAHOO_FINANCE_API_URL
       }
     };

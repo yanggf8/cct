@@ -141,7 +141,7 @@ export async function generateEndOfDayAnalysis(
     return endOfDayResults;
 
   } catch (error: any) {
-    logger.error('Error generating end-of-day analysis', { error: error.message });
+    logger.error('Error generating end-of-day analysis', { error: (error instanceof Error ? error.message : String(error)) });
     return getDefaultEndOfDayData();
   }
 }
@@ -362,7 +362,7 @@ async function getMarketClosePerformance(
       logger.info(`Market data for ${symbol}: $${closePrice.toFixed(2)} (${dayChange > 0 ? '+' : ''}${dayChange.toFixed(2)}%)`);
 
     } catch (error: any) {
-      logger.warn(`Failed to get market data for ${symbol}: ${error.message}`);
+      logger.warn(`Failed to get market data for ${symbol}: ${(error instanceof Error ? error.message : String(error))}`);
 
       // Use fallback data with clear indication it's not real
       performance[symbol] = {

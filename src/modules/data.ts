@@ -478,7 +478,7 @@ export async function batchStoreAnalysisResults(env: CloudflareEnvironment, anal
     logError('Batch KV storage failed:', error);
     return {
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       total_operations: 0,
       successful_operations: 0,
       failed_operations: 0
@@ -627,7 +627,7 @@ export async function getCronHealthStatus(env: CloudflareEnvironment): Promise<C
     return {
       healthy: false,
       message: 'Error reading cron health data',
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     };
   }
 }
@@ -775,7 +775,7 @@ async function getRealActualPrice(symbol: string, targetDate: string): Promise<n
     }
 
   } catch (error: any) {
-    logError(`Error fetching actual price for ${symbol}:`, error.message);
+    logError(`Error fetching actual price for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
     return null;
   }
 }
@@ -803,7 +803,7 @@ async function validateDirectionAccuracy(signal: any, targetDate: string): Promi
     return directionCorrect;
 
   } catch (error: any) {
-    logError(`Error validating direction accuracy:`, error.message);
+    logError(`Error validating direction accuracy:`, (error instanceof Error ? error.message : String(error)));
     const accuracyThreshold = 0.75;
     return signal.confidence >= accuracyThreshold;
   }

@@ -128,7 +128,7 @@ export class OptimizedAIAnalyzer {
       return aiResult;
 
     } catch (error: any) {
-      logger.error('Analysis failed', { symbol, error: error.message });
+      logger.error('Analysis failed', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
       // Return technical fallback
       return this.createTechnicalFallback(symbol, error.message, Date.now() - startTime);
@@ -173,7 +173,7 @@ export class OptimizedAIAnalyzer {
         }
 
       } catch (error: any) {
-        logger.error('Batch analysis failed for symbol', { symbol, error: error.message });
+        logger.error('Batch analysis failed for symbol', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
         // Add technical fallback
         const fallback = this.createTechnicalFallback(symbol, error.message, 0);
@@ -218,7 +218,7 @@ export class OptimizedAIAnalyzer {
     } catch (error: any) {
       logger.warn('AI analysis hit rate limit, falling back to technical', {
         symbol,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
 
       // Return technical analysis with rate limit flag
@@ -282,9 +282,9 @@ Short-term outlook: [1-2 sentences]`;
       };
 
     } catch (error: any) {
-      if (error.message.includes('Too many subrequests') ||
-          error.message.includes('rate limit') ||
-          error.message.includes('429')) {
+      if ((error instanceof Error ? error.message : String(error)).includes('Too many subrequests') ||
+          (error instanceof Error ? error.message : String(error)).includes('rate limit') ||
+          (error instanceof Error ? error.message : String(error)).includes('429')) {
         throw error; // Re-throw rate limit errors
       }
 

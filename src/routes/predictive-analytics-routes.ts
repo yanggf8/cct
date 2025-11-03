@@ -226,7 +226,7 @@ async function handlePredictiveSignals(
   } catch (error: any) {
     logger.error('Failed to generate predictive signals', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -318,7 +318,7 @@ async function handlePatternAnalysis(
   } catch (error: any) {
     logger.error('Failed to analyze patterns', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -418,7 +418,7 @@ async function handlePredictiveInsights(
   } catch (error: any) {
     logger.error('Failed to generate predictive insights', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -500,7 +500,7 @@ async function handleMarketForecast(
   } catch (error: any) {
     logger.error('Failed to generate market forecast', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -604,7 +604,7 @@ async function handlePredictiveAnalyticsHealth(
   } catch (error: any) {
     logger.error('Predictive analytics health check failed', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -828,7 +828,7 @@ async function handlePredictiveGenerate(
   } catch (error: any) {
     logger.error('Failed to generate prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -928,7 +928,7 @@ async function handleMarketForecastPOST(
   } catch (error: any) {
     logger.error('Failed to generate market forecast with parameters', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1040,7 +1040,7 @@ async function handleEnsemblePrediction(
   } catch (error: any) {
     logger.error('Failed to generate ensemble prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1172,7 +1172,7 @@ async function handleSymbolPrediction(
   } catch (error: any) {
     logger.error('Failed to generate symbol-specific prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1288,7 +1288,7 @@ async function handleAccuracyAnalysis(
   } catch (error: any) {
     logger.error('Failed to analyze prediction accuracy', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1410,7 +1410,7 @@ async function handleRegimePrediction(
   } catch (error: any) {
     logger.error('Failed to predict market regime', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1552,7 +1552,7 @@ async function handleVolatilityForecast(
   } catch (error: any) {
     logger.error('Failed to generate volatility forecast', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1714,7 +1714,7 @@ async function handleSentimentEnhancedPrediction(
   } catch (error: any) {
     logger.error('Failed to generate sentiment-enhanced prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(

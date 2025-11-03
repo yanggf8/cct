@@ -1138,7 +1138,7 @@ export async function servePredictiveAnalyticsDashboard(
 
   } catch (error: any) {
     requestLogger.error('Error serving predictive analytics dashboard', {
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
       duration: Date.now() - startTime
     });

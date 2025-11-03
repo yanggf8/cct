@@ -243,7 +243,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to save morning predictions', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return false;
     }
@@ -265,7 +265,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to retrieve morning predictions', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
 
@@ -335,7 +335,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to update signal performance', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return null;
     }
@@ -376,7 +376,7 @@ class CronSignalTracker {
           }
         }
       } catch (error: any) {
-        logger.warn('Failed to get current price', { symbol, error: error.message });
+        logger.warn('Failed to get current price', { symbol, error: (error instanceof Error ? error.message : String(error)) });
       }
     }
 
@@ -509,7 +509,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to generate end-of-day summary', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return this.getDefaultSummary();
     }
@@ -566,7 +566,7 @@ class CronSignalTracker {
       }
 
     } catch (error: any) {
-      logger.error('Failed to generate tomorrow outlook', { error: error.message });
+      logger.error('Failed to generate tomorrow outlook', { error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return outlook;

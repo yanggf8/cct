@@ -336,7 +336,7 @@ export async function fetchHealthData(env: CloudflareEnvironment): Promise<Healt
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       uptime: 0,
       lastUpdate: new Date().toISOString()
     };
@@ -373,7 +373,7 @@ export async function fetchModelHealthData(env: CloudflareEnvironment): Promise<
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       models: {},
       lastAnalysis: null,
       analysisCount: 0
@@ -418,7 +418,7 @@ export async function fetchLatestAnalysis(env: CloudflareEnvironment): Promise<L
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       signals: [],
       confidence: 0
     };
@@ -1367,7 +1367,7 @@ export async function handleProfessionalDashboard(
   } catch (error: any) {
     logger.error('Dashboard generation failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

@@ -70,7 +70,7 @@ import {
   handleNotificationHistory,
   handleTestNotification,
   handleNotificationStatus
-} from './handlers/web-notification-handlers.ts';
+} from './handlers/web-notification-handlers.js';
 
 // Import new v1 API router
 import { handleApiV1Request, handleApiV1CORS } from '../routes/api-v1.js';
@@ -637,7 +637,7 @@ export async function handleHttpRequest(
     const errorResponse = new Response(JSON.stringify({
       success: false,
       error: 'Internal server error',
-      message: error.message,
+      message: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,

@@ -190,7 +190,7 @@ export async function handleGetResults(request: Request, env: CloudflareEnvironm
     console.error('❌ Get results error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -252,7 +252,7 @@ export async function handleEnhancedFeatureAnalysis(request: Request, env: Cloud
 
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString(),
       fallback_available: true,
       message: 'Enhanced Feature Analysis failed. Use /analyze for basic neural network analysis.'
@@ -296,7 +296,7 @@ export async function handleIndependentTechnicalAnalysis(request: Request, env: 
 
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString(),
       message: 'Independent Technical Analysis failed. This endpoint only uses technical indicators.'
     }, null, 2), {
@@ -457,7 +457,7 @@ export async function handleFacebookTest(request: Request, env: CloudflareEnviro
   } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -484,7 +484,7 @@ export async function handleWeeklyReport(request: Request, env: CloudflareEnviro
   } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -524,7 +524,7 @@ export async function handleFridayMarketCloseReport(request: Request, env: Cloud
   } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -563,7 +563,7 @@ export async function handleFactTable(request: Request, env: CloudflareEnvironme
   } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }, null, 2), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -623,7 +623,7 @@ export async function handleKVGet(request: Request, env: CloudflareEnvironment):
 
   } catch (error: any) {
     return new Response(JSON.stringify({
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
@@ -668,7 +668,7 @@ export async function handleKVDebug(request: Request, env: CloudflareEnvironment
   } catch (error: any) {
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
@@ -720,7 +720,7 @@ export async function handleKVWriteTest(request: Request, env: CloudflareEnviron
     const result: KVTestResult = {
       success: false,
       operation: 'write_only',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
@@ -802,7 +802,7 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
     const response: KVTestResult = {
       success: false,
       operation: 'read_only',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
@@ -837,7 +837,7 @@ export async function handleSentimentTest(request: Request, env: CloudflareEnvir
     console.error('❌ Sentiment test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       phase: 'Phase 1 - Free Integration',
       timestamp: new Date().toISOString()
     }, null, 2), {
@@ -915,7 +915,7 @@ export async function handleTestLlama(request: Request, env: CloudflareEnvironme
     console.error('❌ Llama test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack?.substring(0, 300)
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' },
@@ -1083,7 +1083,7 @@ export async function handleModelScopeTest(request: Request, env: CloudflareEnvi
     console.error('❌ ModelScope parameter test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' },
@@ -1199,7 +1199,7 @@ export async function handleSentimentDebugTest(request: Request, env: Cloudflare
     console.error('❌ GPT debug test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       error_stack: error.stack,
       api_format_fix: 'instructions + input format',
       timestamp: new Date().toISOString()
@@ -1311,7 +1311,7 @@ export async function handleModelHealth(request: Request, env: CloudflareEnviron
     console.error('❌ Model health check error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -1484,7 +1484,7 @@ export async function handleR2Upload(request: Request, env: CloudflareEnvironmen
     console.error('❌ R2 upload API error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -1697,7 +1697,7 @@ export async function handleCronHealth(request: Request, env: CloudflareEnvironm
     console.error('❌ Cron health monitoring error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -1789,7 +1789,7 @@ export async function handlePerSymbolAnalysis(request: Request, env: CloudflareE
 
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -1844,7 +1844,7 @@ export async function handleDailySummaryAPI(request: Request, env: CloudflareEnv
 
     // Determine appropriate status code based on error type
     let statusCode = 500;
-    if (error.message.includes('Invalid date') || error.message.includes('Future dates')) {
+    if ((error instanceof Error ? error.message : String(error)).includes('Invalid date') || (error instanceof Error ? error.message : String(error)).includes('Future dates')) {
       statusCode = 400;
     }
 
@@ -1914,7 +1914,7 @@ export async function handleBackfillDailySummaries(request: Request, env: Cloudf
       success: false,
       parameters: undefined,
       timestamp: new Date().toISOString(),
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     };
 
     return new Response(JSON.stringify(response, null, 2), {
@@ -1963,7 +1963,7 @@ export async function handleVerifyBackfill(request: Request, env: CloudflareEnvi
       success: false,
       parameters: undefined,
       timestamp: new Date().toISOString(),
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     };
 
     return new Response(JSON.stringify(response, null, 2), {

@@ -109,7 +109,7 @@ export async function handleAdvancedAnalyticsRoutes(request, env, path, headers)
     );
 
   } catch (error: unknown) {
-    logger.error('Advanced analytics route error', { error: error.message, path, requestId });
+    logger.error('Advanced analytics route error', { error: (error instanceof Error ? error.message : String(error)), path, requestId });
 
     return new Response(
       JSON.stringify(
@@ -227,7 +227,7 @@ async function handleModelComparison(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Model comparison error', { error: error.message, requestId });
+    logger.error('Model comparison error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -333,7 +333,7 @@ async function handleConfidenceIntervals(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Confidence intervals error', { error: error.message, requestId });
+    logger.error('Confidence intervals error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -447,7 +447,7 @@ async function handleEnsemblePrediction(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Ensemble prediction error', { error: error.message, requestId });
+    logger.error('Ensemble prediction error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -569,7 +569,7 @@ async function handlePredictionAccuracy(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Prediction accuracy error', { error: error.message, requestId });
+    logger.error('Prediction accuracy error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -707,7 +707,7 @@ async function handleRiskAssessment(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Risk assessment error', { error: error.message, requestId });
+    logger.error('Risk assessment error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -872,7 +872,7 @@ async function handleModelPerformance(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Model performance error', { error: error.message, requestId });
+    logger.error('Model performance error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -983,7 +983,7 @@ async function handleBacktest(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Backtest error', { error: error.message, requestId });
+    logger.error('Backtest error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(
@@ -1199,7 +1199,7 @@ async function handleAdvancedAnalyticsHealth(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Advanced analytics health check error', { error: error.message, requestId });
+    logger.error('Advanced analytics health check error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
       JSON.stringify(

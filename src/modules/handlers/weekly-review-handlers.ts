@@ -53,7 +53,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   } catch (error: any) {
     logger.error('❌ [WEEKLY-REVIEW] Failed to retrieve weekly data', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
   }

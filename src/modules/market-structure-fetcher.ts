@@ -596,7 +596,7 @@ export class MarketStructureFetcher {
       return {
         status: 'unhealthy',
         details: {
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
         }
       };
     }

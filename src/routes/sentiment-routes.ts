@@ -196,7 +196,7 @@ async function handleSentimentAnalysis(
     const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
-      logger.info('SentimentAnalysis', 'Cache hit', { symbols: symbols.join(','), requestId });
+      logger.info('SentimentAnalysis: Cache hit', { symbols: symbols.join(','), requestId });
 
       return new Response(
         JSON.stringify(
@@ -212,7 +212,7 @@ async function handleSentimentAnalysis(
     }
 
     // Perform fresh analysis
-    logger.info('SentimentAnalysis', 'Starting analysis', { symbols: symbols.join(','), requestId });
+    logger.info('SentimentAnalysis: Starting analysis', { symbols: symbols.join(','), requestId });
 
       // Use enhanced batch analysis for optimization (50-70% KV reduction)
     const analysisResult = await enhancedBatchDualAIAnalysis(symbols, env, {
@@ -255,7 +255,7 @@ async function handleSentimentAnalysis(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('SentimentAnalysis', 'Analysis complete', {
+    logger.info('SentimentAnalysis: Analysis complete', {
       symbols: symbols.join(','),
       processingTime: timer.getElapsedMs(),
       requestId
@@ -341,7 +341,7 @@ async function handleSymbolSentiment(
     const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
-      logger.info('SymbolSentiment', 'Cache hit', { symbol, requestId });
+      logger.info('SymbolSentiment: Cache hit', { symbol, requestId });
 
       return new Response(
         JSON.stringify(
@@ -357,7 +357,7 @@ async function handleSymbolSentiment(
     }
 
     // Perform fresh analysis for single symbol
-    logger.info('SymbolSentiment', 'Starting analysis', { symbol, requestId });
+    logger.info('SymbolSentiment: Starting analysis', { symbol, requestId });
 
     const analysisResult = await batchDualAIAnalysis([symbol], env);
 
@@ -415,7 +415,7 @@ async function handleSymbolSentiment(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('SymbolSentiment', 'Analysis complete', {
+    logger.info('SymbolSentiment: Analysis complete', {
       symbol,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -488,7 +488,7 @@ async function handleMarketSentiment(
     const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
-      logger.info('MarketSentiment', 'Cache hit', { requestId });
+      logger.info('MarketSentiment: Cache hit', { requestId });
 
       return new Response(
         JSON.stringify(
@@ -544,7 +544,7 @@ async function handleMarketSentiment(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('MarketSentiment', 'Analysis complete', {
+    logger.info('MarketSentiment: Analysis complete', {
       overallSentiment: response.overall_sentiment,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -637,7 +637,7 @@ async function handleSectorSentiment(
     const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached.success && cached.data) {
-      logger.info('SectorSentiment', 'Cache hit', { sectors: sectors.join(','), requestId });
+      logger.info('SectorSentiment: Cache hit', { sectors: sectors.join(','), requestId });
 
       return new Response(
         JSON.stringify(
@@ -759,7 +759,7 @@ async function handleSectorSentiment(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('SectorSentiment', 'Analysis complete', {
+    logger.info('SectorSentiment: Analysis complete', {
       sectors: sectors.join(','),
       processingTime: timer.getElapsedMs(),
       requestId

@@ -215,7 +215,7 @@ async function handleUnifiedDashboard(
   } catch (error: any) {
     logger.error('Failed to generate unified dashboard', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -312,7 +312,7 @@ async function handleMarketSynopsis(
   } catch (error: any) {
     logger.error('Failed to generate market synopsis', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -392,7 +392,7 @@ async function handleTopPicks(
   } catch (error: any) {
     logger.error('Failed to generate top picks', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -482,7 +482,7 @@ async function handleRiskReport(
   } catch (error: any) {
     logger.error('Failed to generate risk report', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -576,7 +576,7 @@ async function handleComprehensiveAnalysis(
   } catch (error: any) {
     logger.error('Failed to execute comprehensive analysis', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

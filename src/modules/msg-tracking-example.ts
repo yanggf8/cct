@@ -82,7 +82,7 @@ export async function exampleFacebookMessageWithTracking(
       trackingId,
       'failed',
       undefined,
-      error.message
+      (error instanceof Error ? error.message : String(error))
     );
 
     throw error;

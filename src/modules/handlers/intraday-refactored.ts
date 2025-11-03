@@ -61,7 +61,7 @@ class IntradayDataRetriever {
       logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
         requestId,
         date,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       throw error;
@@ -125,7 +125,7 @@ class IntradayPerformanceAnalyzer {
     } catch (error: any) {
       logger.error('❌ [INTRADAY] Performance analysis failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       throw error;
@@ -199,7 +199,7 @@ class IntradayHTMLGenerator {
     } catch (error: any) {
       logger.error('❌ [INTRADAY] HTML generation failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return generateErrorDisplay(error.message, requestId);
@@ -351,7 +351,7 @@ class DependencyValidator {
     } catch (error: any) {
       logger.error('❌ [INTRADAY] Dependency validation failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return {
@@ -386,7 +386,7 @@ class DependencyValidator {
     } catch (error: any) {
       logger.error('❌ [INTRADAY] KV consistency check failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return false;
@@ -510,7 +510,7 @@ export const handleIntradayCheckRefactored = createReportHandler(
     } catch (error: any) {
       logger.error('❌ [INTRADAY-REFACTORED] Intraday check failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         duration: Date.now() - startTime
       });

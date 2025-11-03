@@ -55,7 +55,7 @@ export default {
 
     } catch (error: any) {
       logger.error('Scheduled event failed', {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         scheduledTime: controller.scheduledTime,
         cron: controller.cron
@@ -112,7 +112,7 @@ export default {
       logger.error('Request failed', {
         method: request.method,
         url: request.url,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         responseTime: Date.now() - startTime
       });
@@ -169,7 +169,7 @@ export async function getSystemStatus(env: CloudflareEnvironment): Promise<Syste
     return {
       status: 'error',
       version: '2.0-enhanced',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     };
   }

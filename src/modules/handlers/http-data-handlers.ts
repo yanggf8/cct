@@ -66,7 +66,7 @@ export async function handleGetResults(
   } catch (error: any) {
     logger.error('Error retrieving results', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -113,7 +113,7 @@ export async function handleFactTable(
   } catch (error: any) {
     logger.error('Error retrieving fact table', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -159,7 +159,7 @@ export async function handleCronHealth(
   } catch (error: any) {
     logger.error('Error retrieving cron health', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -234,7 +234,7 @@ export async function handleKVDebug(
   } catch (error: any) {
     logger.error('Error in KV debug operations', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -313,7 +313,7 @@ export async function handleKVWriteTest(
   } catch (error: any) {
     logger.error('Error in KV write test', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -384,7 +384,7 @@ export async function handleKVReadTest(
   } catch (error: any) {
     logger.error('Error in KV read test', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -469,7 +469,7 @@ export async function handleKVGet(
   } catch (error: any) {
     logger.error('Error in KV get', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -554,7 +554,7 @@ export async function handleKVAnalysisWriteTest(
   } catch (error: any) {
     logger.error('Error in KV analysis write test', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -637,7 +637,7 @@ export async function handleKVAnalysisReadTest(
   } catch (error: any) {
     logger.error('Error in KV analysis read test', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

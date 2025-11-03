@@ -198,7 +198,7 @@ export async function batchRateLimitedRequests(
         const response = await rateLimitedFetch(url, options);
         return { url, status: response.status, statusText: response.statusText, headers: response.headers };
       } catch (error: any) {
-        logger.warn(`Request failed in batch: ${url}`, { error: error.message });
+        logger.warn(`Request failed in batch: ${url}`, { error: (error instanceof Error ? error.message : String(error)) });
         return { error: error.message, url };
       }
     });

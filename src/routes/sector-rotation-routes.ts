@@ -151,7 +151,7 @@ async function handleSectorRotationAnalysis(
   } catch (error: any) {
     logger.error('Sector rotation analysis failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -249,7 +249,7 @@ async function handleSectorRotationResults(
   } catch (error: any) {
     logger.error('Failed to retrieve sector rotation results', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -323,7 +323,7 @@ async function handleSectorInformation(
   } catch (error: any) {
     logger.error('Failed to retrieve sector information', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -461,7 +461,7 @@ async function handleETFAnalysis(
     logger.error('Failed to retrieve ETF analysis', {
       requestId,
       symbol,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(

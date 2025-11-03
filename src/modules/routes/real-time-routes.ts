@@ -25,7 +25,7 @@ export function registerRealTimeRoutes(router: Router): void {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: any) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+      return new Response(JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -44,7 +44,7 @@ export function registerRealTimeRoutes(router: Router): void {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: any) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+      return new Response(JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -61,7 +61,7 @@ export function registerRealTimeRoutes(router: Router): void {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: any) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+      return new Response(JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

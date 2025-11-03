@@ -236,7 +236,7 @@ export async function handleModelHealth(
   } catch (error: any) {
     logger.error('Model health check failed completely', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -308,7 +308,7 @@ export async function handleDebugEnvironment(
   } catch (error: any) {
     logger.error('Debug environment failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

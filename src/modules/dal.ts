@@ -230,7 +230,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('JSON parsing failed', {
         context,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         dataPreview: jsonString.substring(0, 100),
       });
       throw new Error(`JSON parse error in ${context}: ${error.message}`);
@@ -508,7 +508,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to list keys', {
         prefix,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return { keys: [] };
@@ -533,7 +533,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to delete key', {
         key,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return false;
@@ -572,7 +572,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to read from KV', {
         key,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return {
@@ -613,7 +613,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to write to KV', {
         key,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return {

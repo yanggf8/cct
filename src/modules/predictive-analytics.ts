@@ -360,7 +360,7 @@ export class PredictiveAnalyticsEngine {
 
     } catch (error: any) {
       logger.error('Failed to generate predictive signals', {
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       throw error;
     }
@@ -405,7 +405,7 @@ export class PredictiveAnalyticsEngine {
 
     } catch (error: any) {
       logger.error('Failed to analyze patterns', {
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       throw error;
     }
@@ -445,7 +445,7 @@ export class PredictiveAnalyticsEngine {
 
     } catch (error: any) {
       logger.error('Failed to generate predictive insights', {
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       throw error;
     }

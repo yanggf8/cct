@@ -53,7 +53,7 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   } catch (error: any) {
     logger.error('❌ [END-OF-DAY] Failed to retrieve end-of-day data', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
   }

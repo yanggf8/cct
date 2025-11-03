@@ -129,7 +129,7 @@ class SignalTrackingManager {
         return result.data.signals || [];
       }
     } catch (error: unknown) {
-      logger.error('Failed to retrieve signals', { date: dateStr, error: error.message });
+      logger.error('Failed to retrieve signals', { date: dateStr, error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return [];
@@ -169,7 +169,7 @@ class SignalTrackingManager {
 
       return true;
     } catch (error: unknown) {
-      logger.error('Failed to save signals to KV', { date: dateStr, error: error.message });
+      logger.error('Failed to save signals to KV', { date: dateStr, error: (error instanceof Error ? error.message : String(error)) });
       return false;
     }
   }

@@ -64,7 +64,7 @@ export class PreMarketDataBridge {
    * This bridges the gap between the modern API and legacy reporting system
    */
   async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']): Promise<AnalysisData> {
-    logger.info('PreMarketDataBridge', 'Generating pre-market analysis', { symbols });
+    logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols });
 
     try {
       const trading_signals: Record<string, TradingSignal> = {};
@@ -106,7 +106,7 @@ export class PreMarketDataBridge {
       const analysisKey = `analysis_${today}`;
       await this.dal.put(analysisKey, analysisData, { namespace: 'ANALYSIS', expirationTtl: 86400 }); // 24 hours
 
-      logger.info('PreMarketDataBridge', 'Pre-market analysis generated and stored', {
+      logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,
         analysis_key: analysisKey,
         high_confidence_signals: Object.values(trading_signals).filter(s => s.sentiment_layers[0].confidence > 0.7).length
@@ -115,7 +115,7 @@ export class PreMarketDataBridge {
       return analysisData;
 
     } catch (error: unknown) {
-      logger.error('PreMarketDataBridge', 'Failed to generate pre-market analysis', error);
+      logger.error('PreMarketDataBridge: Failed to generate pre-market analysis', error);
       throw error;
     }
   }
@@ -179,7 +179,7 @@ export class PreMarketDataBridge {
       await this.dal.delete(analysisKey, 'ANALYSIS');
       logger.info('PreMarketDataBridge', 'Cleared existing pre-market analysis');
     } catch (error: unknown) {
-      logger.warn('PreMarketDataBridge', 'Failed to clear existing analysis', error);
+      logger.warn('PreMarketDataBridge: Failed to clear existing analysis', error);
     }
 
     // Generate fresh data
@@ -197,7 +197,7 @@ export class PreMarketDataBridge {
 
       return !!(analysisData && analysisData.trading_signals);
     } catch (error: unknown) {
-      logger.warn('PreMarketDataBridge', 'Error checking pre-market analysis', error);
+      logger.warn('PreMarketDataBridge: Error checking pre-market analysis', error);
       return false;
     }
   }
@@ -211,7 +211,7 @@ export class PreMarketDataBridge {
       const analysisKey = `analysis_${today}`;
       return await this.dal.get(analysisKey, 'ANALYSIS');
     } catch (error: unknown) {
-      logger.warn('PreMarketDataBridge', 'Error getting current analysis', error);
+      logger.warn('PreMarketDataBridge: Error getting current analysis', error);
       return null;
     }
   }

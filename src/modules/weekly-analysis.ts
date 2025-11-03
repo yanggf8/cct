@@ -296,7 +296,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                 console.error('Error loading data:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error-message').textContent = error.message;
+                document.getElementById('error-message').textContent = (error instanceof Error ? error.message : String(error));
             }
         }
 
@@ -490,7 +490,7 @@ export async function handleWeeklyDataAPI(request: any, env: any) {
   } catch (error: unknown) {
     console.error('❌ Weekly data API error:', error);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString(),
       overview: {
         overallAccuracy: 0,

@@ -236,7 +236,7 @@ async function retryAIcall<T>(
       if (attempt === maxRetries - 1) throw error;
 
       // Don't retry on certain errors
-      if (error.message.includes('invalid') || error.message.includes('authentication')) {
+      if ((error instanceof Error ? error.message : String(error)).includes('invalid') || (error instanceof Error ? error.message : String(error)).includes('authentication')) {
         throw error;
       }
 
@@ -384,7 +384,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
           };
         } catch (error: any) {
           // Handle timeout specifically
-          if (error.message === 'DistilBERT model timeout') {
+          if ((error instanceof Error ? error.message : String(error)) === 'DistilBERT model timeout') {
             return { index, sentiment: 'neutral', confidence: 0, error: 'TIMEOUT' };
           }
           return { index, sentiment: 'neutral', confidence: 0, error: error.message };

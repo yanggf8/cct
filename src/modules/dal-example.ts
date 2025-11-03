@@ -98,7 +98,7 @@ export async function exampleHandler(request: Request, env: CloudflareEnvironmen
   } catch (error: any) {
     const errorResponse: ExampleResponse = {
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     };
 
     return new Response(JSON.stringify(errorResponse), {
@@ -404,7 +404,7 @@ export async function errorHandlingExample(env: CloudflareEnvironment): Promise<
       success: false,
       errors: [{
         type: 'global_error',
-        message: error.message,
+        message: (error instanceof Error ? error.message : String(error)),
         recovered: false
       }]
     };

@@ -125,7 +125,7 @@ export async function generateIntradayPerformance(
     return performanceResults;
 
   } catch (error: any) {
-    logger.error('Error generating intraday performance', { error: error.message });
+    logger.error('Error generating intraday performance', { error: (error instanceof Error ? error.message : String(error)) });
     return getDefaultIntradayData();
   }
 }

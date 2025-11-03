@@ -186,7 +186,7 @@ export class MessageTracker {
     } catch (error: any) {
       logger.error('Failed to create message tracking', {
         tracking_id: trackingId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return {
@@ -263,7 +263,7 @@ export class MessageTracker {
 
       } catch (error: any) {
         if (attempt === maxRetries - 1) {
-          logger.error('Update failed after retries', { tracking_id: trackingId, error: error.message });
+          logger.error('Update failed after retries', { tracking_id: trackingId, error: (error instanceof Error ? error.message : String(error)) });
           return false;
         }
         logger.warn('Retrying update due to error', { tracking_id: trackingId, attempt, error: error.message });
@@ -291,7 +291,7 @@ export class MessageTracker {
     } catch (error: any) {
       logger.error('Error getting tracking record', {
         tracking_id: trackingId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
       return null;
     }
@@ -322,7 +322,7 @@ export class MessageTracker {
     } catch (error: any) {
       logger.error('Error listing messages by platform', {
         platform,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
       return [];
     }
@@ -397,7 +397,7 @@ export class MessageTracker {
       return stats;
 
     } catch (error: any) {
-      logger.error('Error getting message stats', { error: error.message });
+      logger.error('Error getting message stats', { error: (error instanceof Error ? error.message : String(error)) });
       return {
         total: 0,
         by_status: { pending: 0, sent: 0, delivered: 0, failed: 0, retrying: 0 },
@@ -442,7 +442,7 @@ export class MessageTracker {
       return deletedCount;
 
     } catch (error: any) {
-      logger.error('Error during cleanup', { error: error.message });
+      logger.error('Error during cleanup', { error: (error instanceof Error ? error.message : String(error)) });
       return 0;
     }
   }

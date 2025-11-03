@@ -3,18 +3,18 @@
  * Handles core trading analysis functionality with comprehensive type safety
  */
 
-import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from '../analysis.ts';
-import { runEnhancedAnalysis, validateSentimentEnhancement, type EnhancedAnalysisResults, type ValidationResult } from '../enhanced_analysis.ts';
-import { runEnhancedFeatureAnalysis } from '../enhanced_feature_analysis.ts';
-import { runIndependentTechnicalAnalysis } from '../independent_technical_analysis.ts';
-import { analyzeSingleSymbol, type PerSymbolAnalysisResult } from '../per_symbol_analysis.ts';
-import { createLogger } from '../logging.ts';
-import { createHandler, createAPIHandler, type EnhancedContext } from '../handler-factory.ts';
-import { createAnalysisResponse, type AnalysisResponseOptions } from '../response-factory.ts';
-import { BusinessMetrics } from '../monitoring.ts';
-import { getJobStatus, validateDependencies } from '../kv-utils.ts';
-import { createDAL, type DALInstance } from '../dal.ts';
-import type { CloudflareEnvironment } from '../../types.ts';
+import { runBasicAnalysis, runWeeklyMarketCloseAnalysis } from '../analysis.js';
+import { runEnhancedAnalysis, validateSentimentEnhancement, type EnhancedAnalysisResults, type ValidationResult } from '../enhanced_analysis.js';
+import { runEnhancedFeatureAnalysis } from '../enhanced_feature_analysis.js';
+import { runIndependentTechnicalAnalysis } from '../independent_technical_analysis.js';
+import { analyzeSingleSymbol, type PerSymbolAnalysisResult } from '../per_symbol_analysis.js';
+import { createLogger } from '../logging.js';
+import { createHandler, createAPIHandler, type EnhancedContext } from '../handler-factory.js';
+import { createAnalysisResponse, type AnalysisResponseOptions } from '../response-factory.js';
+import { BusinessMetrics } from '../monitoring.js';
+import { getJobStatus, validateDependencies } from '../kv-utils.js';
+import { createDAL, type DALInstance } from '../dal.js';
+import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('analysis-handlers');
 
@@ -242,7 +242,7 @@ export async function handleEnhancedFeatureAnalysis(request: Request, env: Cloud
   } catch (error: any) {
     logger.error('Enhanced feature analysis failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -285,7 +285,7 @@ export async function handleIndependentTechnicalAnalysis(request: Request, env: 
   } catch (error: any) {
     logger.error('Independent technical analysis failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -347,7 +347,7 @@ export async function handlePerSymbolAnalysis(request: Request, env: CloudflareE
     logger.error('Per-symbol analysis failed', {
       requestId,
       symbol: symbol || undefined,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -389,7 +389,7 @@ export async function handleSentimentTest(request: Request, env: CloudflareEnvir
   } catch (error: any) {
     logger.error('Sentiment validation test failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -495,7 +495,7 @@ export async function handleGenerateMorningPredictions(request: Request, env: Cl
     logger.error('❌ Morning predictions generation failed', {
       requestId,
       date: dateStr,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -534,7 +534,7 @@ export async function handleStatusManagement(request: Request, env: CloudflareEn
         const status = await getJobStatus(jobType, dateStr, env);
         statuses[jobType] = status;
       } catch (error: any) {
-        statuses[jobType] = { status: 'missing', error: error.message };
+        statuses[jobType] = { status: 'missing', error: (error instanceof Error ? error.message : String(error)) };
       }
     }
 
@@ -578,7 +578,7 @@ export async function handleStatusManagement(request: Request, env: CloudflareEn
     });
 
   } catch (error: any) {
-    logger.error('❌ [STATUS] Status management failed', { requestId, error: error.message });
+    logger.error('❌ [STATUS] Status management failed', { requestId, error: (error instanceof Error ? error.message : String(error)) });
 
     const errorResponse: StatusManagementResponse = {
       success: false,
@@ -660,7 +660,7 @@ export async function handleKVVerificationTest(request: Request, env: Cloudflare
     } catch (error: any) {
       results.test_operations.put_with_verification = {
         success: false,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         duration: Date.now() - putStartTime
       };
       logger.error('KV PUT test failed', { error: error.message });
@@ -688,7 +688,7 @@ export async function handleKVVerificationTest(request: Request, env: Cloudflare
     } catch (error: any) {
       results.test_operations.get_with_retry = {
         success: false,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         duration: Date.now() - getStartTime
       };
       logger.error('KV GET test failed', { error: error.message });
@@ -720,7 +720,7 @@ export async function handleKVVerificationTest(request: Request, env: Cloudflare
     } catch (error: any) {
       results.test_operations.job_status_system = {
         success: false,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         duration: Date.now() - statusStartTime
       };
       logger.error('KV job status test failed', { error: error.message });
@@ -747,7 +747,7 @@ export async function handleKVVerificationTest(request: Request, env: Cloudflare
     } catch (error: any) {
       results.test_operations.dependency_validation = {
         success: false,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         duration: Date.now() - dependencyStartTime
       };
       logger.error('KV dependency validation test failed', { error: error.message });
@@ -767,7 +767,7 @@ export async function handleKVVerificationTest(request: Request, env: Cloudflare
     } catch (error: any) {
       results.test_operations.cleanup = {
         success: false,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         key: testKey
       };
       logger.error('KV cleanup test failed', { error: error.message });
@@ -811,7 +811,7 @@ export async function handleKVVerificationTest(request: Request, env: Cloudflare
   } catch (error: any) {
     logger.error('❌ [KV VERIFICATION] Comprehensive KV test failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

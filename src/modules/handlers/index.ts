@@ -73,7 +73,7 @@ export {
   handleNotificationHistory,
   handleTestNotification,
   handleNotificationStatus
-} from './web-notification-handlers.ts';
+} from './web-notification-handlers.js';
 
 // Daily summary and backfill handlers
 export {

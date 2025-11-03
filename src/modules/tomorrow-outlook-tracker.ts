@@ -149,7 +149,7 @@ export class TomorrowOutlookTracker {
     } catch (error: any) {
       logger.error('Failed to store tomorrow outlook', {
         targetDate: tomorrowString,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return false;
     }
@@ -177,7 +177,7 @@ export class TomorrowOutlookTracker {
     } catch (error: any) {
       logger.error('Failed to retrieve today\'s outlook', {
         targetDate: currentDateString,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
 
@@ -239,7 +239,7 @@ export class TomorrowOutlookTracker {
     } catch (error: any) {
       logger.error('Failed to evaluate today\'s outlook', {
         targetDate: currentDateString,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return null;
     }
@@ -288,7 +288,7 @@ export class TomorrowOutlookTracker {
       evaluation.details.performanceFactors = this.getPerformanceFactors(predictedOutlook, actualMarketData);
 
     } catch (error: any) {
-      logger.error('Failed to evaluate outlook accuracy', { error: error.message });
+      logger.error('Failed to evaluate outlook accuracy', { error: (error instanceof Error ? error.message : String(error)) });
       evaluation.score = 0;
     }
 
@@ -430,7 +430,7 @@ export class TomorrowOutlookTracker {
       return history;
 
     } catch (error: any) {
-      logger.error('Failed to get outlook accuracy history', { error: error.message });
+      logger.error('Failed to get outlook accuracy history', { error: (error instanceof Error ? error.message : String(error)) });
       return [];
     }
   }
@@ -495,7 +495,7 @@ export class TomorrowOutlookTracker {
       };
 
     } catch (error: any) {
-      logger.error('Failed to get outlook accuracy stats', { error: error.message });
+      logger.error('Failed to get outlook accuracy stats', { error: (error instanceof Error ? error.message : String(error)) });
       return {
         totalOutlooks: 0,
         averageAccuracy: 0,
@@ -568,7 +568,7 @@ export class TomorrowOutlookTracker {
       };
 
     } catch (error: any) {
-      logger.error('Failed to get outlook performance trends', { error: error.message });
+      logger.error('Failed to get outlook performance trends', { error: (error instanceof Error ? error.message : String(error)) });
       return {
         accuracyTrend: 'stable',
         biasAccuracyTrend: 'stable',
@@ -622,7 +622,7 @@ export class TomorrowOutlookTracker {
       logger.info('Cleanup expired outlooks', { cutoffDate: cutoffDate.toISOString() });
       return 0;
     } catch (error: any) {
-      logger.error('Failed to cleanup expired outlooks', { error: error.message });
+      logger.error('Failed to cleanup expired outlooks', { error: (error instanceof Error ? error.message : String(error)) });
       return 0;
     }
   }

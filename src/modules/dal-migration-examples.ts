@@ -336,7 +336,7 @@ export async function runCompleteMigrationExample(env: CloudflareEnvironment) {
     logger.info('✅ Complete DAL Migration Example finished successfully');
 
   } catch (error: any) {
-    logger.error('❌ Migration example failed', { error: error.message, stack: error.stack });
+    logger.error('❌ Migration example failed', { error: (error instanceof Error ? error.message : String(error)), stack: error.stack });
   }
 }
 

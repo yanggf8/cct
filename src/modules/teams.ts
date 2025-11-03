@@ -118,7 +118,7 @@ export async function sendTeamsMessage(message: TeamsMessage, env: CloudflareEnv
       return { success: false, error: errorText };
     }
   } catch (error: any) {
-    console.error(`❌ [TEAMS-DEBUG] ${executionId} Teams send error:`, error.message);
+    console.error(`❌ [TEAMS-DEBUG] ${executionId} Teams send error:`, (error instanceof Error ? error.message : String(error)));
     return { success: false, error: error.message };
   }
 }

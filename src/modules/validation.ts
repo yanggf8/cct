@@ -189,7 +189,7 @@ export function validateOptionalField<T>(
   try {
     return validator(value);
   } catch (error: unknown) {
-    throw new ValidationError(`Invalid ${field}: ${error.message}`, field, value);
+    throw new ValidationError(`Invalid ${field}: ${(error instanceof Error ? error.message : String(error))}`, field, value);
   }
 }
 
@@ -263,7 +263,7 @@ export function validateArray<T>(
     try {
       return itemValidator(item);
     } catch (error: any) {
-      throw new ValidationError(`Invalid item at index ${index} in ${field}: ${error.message}`, `${field}[${index}]`, item);
+      throw new ValidationError(`Invalid item at index ${index} in ${field}: ${(error instanceof Error ? error.message : String(error))}`, `${field}[${index}]`, item);
     }
   });
 }

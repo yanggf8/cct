@@ -201,7 +201,7 @@ export class WebNotificationManager {
 
     } catch (error: unknown) {
       result.success = false;
-      result.errors.push(`System error: ${error.message}`);
+      result.errors.push(`System error: ${(error instanceof Error ? error.message : String(error))}`);
       logger.error('Failed to send notification', {
         notificationId: notification.id,
         error: error.message
@@ -316,7 +316,7 @@ export class WebNotificationManager {
       };
 
     } catch (error: unknown) {
-      logger.error('Failed to register subscriber', { error: error.message });
+      logger.error('Failed to register subscriber', { error: (error instanceof Error ? error.message : String(error)) });
       return {
         success: false,
         subscriptionId: '',
@@ -349,7 +349,7 @@ export class WebNotificationManager {
     } catch (error: unknown) {
       logger.error('Failed to unregister subscriber', {
         subscriptionId,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return false;
     }
@@ -370,7 +370,7 @@ export class WebNotificationManager {
     } catch (error: unknown) {
       logger.error('Failed to get notification history', {
         userId,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return [];
     }
@@ -454,7 +454,7 @@ export class WebNotificationManager {
 
       return subscribers;
     } catch (error: unknown) {
-      logger.error('Failed to get active subscribers', { error: error.message });
+      logger.error('Failed to get active subscribers', { error: (error instanceof Error ? error.message : String(error)) });
       return [];
     }
   }
@@ -470,7 +470,7 @@ export class WebNotificationManager {
     } catch (error: unknown) {
       logger.error('Failed to get user preferences', {
         userId,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return this.preferences;
     }
@@ -582,7 +582,7 @@ export class WebNotificationManager {
 
       await this.dal.write(analyticsKey, updated, KeyHelpers.getKVOptions(KeyTypes.PERFORMANCE_METADATA));
     } catch (error: unknown) {
-      logger.error('Failed to store notification analytics', { error: error.message });
+      logger.error('Failed to store notification analytics', { error: (error instanceof Error ? error.message : String(error)) });
     }
   }
 }

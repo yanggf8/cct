@@ -143,7 +143,7 @@ export async function waitForConsistency(
       logger.debug('Consistency check failed', {
         key,
         attempt,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
 
@@ -266,7 +266,7 @@ export async function verifyDependencyConsistency(
       } catch (error: any) {
         logger.debug('Dependency consistency check failed', {
           date,
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         });
         return false;
       }
@@ -363,7 +363,7 @@ export async function executeAtomicLikeOperation(
   } catch (error: any) {
     logger.error('Atomic-like operation failed', {
       operationId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       duration: Date.now() - startTime
     });
 

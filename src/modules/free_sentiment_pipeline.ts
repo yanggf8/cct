@@ -159,7 +159,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
       newsData.push(...fmpNews);
     }
   } catch (error: any) {
-    console.log(`FMP news failed for ${symbol}:`, error.message);
+    console.log(`FMP news failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   try {
@@ -169,7 +169,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
       newsData.push(...newsApiData);
     }
   } catch (error: any) {
-    console.log(`NewsAPI failed for ${symbol}:`, error.message);
+    console.log(`NewsAPI failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   try {
@@ -179,7 +179,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
       newsData.push(...yahooNews);
     }
   } catch (error: any) {
-    console.log(`Yahoo news failed for ${symbol}:`, error.message);
+    console.log(`Yahoo news failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   return newsData;

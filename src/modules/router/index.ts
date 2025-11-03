@@ -107,7 +107,7 @@ export class Router {
       logger.error('Route handler error', {
         pathname,
         method,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
 

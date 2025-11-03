@@ -223,7 +223,7 @@ export class PredictivePreFetchManager {
         preFetched: false,
         wasInCache: false,
         predictionAccuracy: 0,
-        error: error.message || 'Unknown error'
+        error: (error instanceof Error ? error.message : String(error)) || 'Unknown error'
       };
     }
   }
@@ -302,7 +302,7 @@ export class PredictivePreFetchManager {
         preFetched: false,
         wasInCache: false,
         predictionAccuracy: 0,
-        error: error.message || 'Batch fetch failed'
+        error: (error instanceof Error ? error.message : String(error)) || 'Batch fetch failed'
       }));
     }
   }

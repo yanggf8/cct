@@ -281,7 +281,7 @@ export class RegulatoryComplianceEngine {
       return assessment;
     } catch (error: unknown) {
       console.error('Compliance assessment failed:', error);
-      throw new Error(`Compliance assessment failed: ${error.message}`);
+      throw new Error(`Compliance assessment failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -593,7 +593,7 @@ export class RegulatoryComplianceEngine {
       return report;
     } catch (error: unknown) {
       console.error('Regulatory report generation failed:', error);
-      throw new Error(`Report generation failed: ${error.message}`);
+      throw new Error(`Report generation failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -622,7 +622,7 @@ export class RegulatoryComplianceEngine {
       return policy;
     } catch (error: unknown) {
       console.error('Compliance policy creation failed:', error);
-      throw new Error(`Policy creation failed: ${error.message}`);
+      throw new Error(`Policy creation failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -646,7 +646,7 @@ export class RegulatoryComplianceEngine {
       return records;
     } catch (error: unknown) {
       console.error('Training record update failed:', error);
-      throw new Error(`Training update failed: ${error.message}`);
+      throw new Error(`Training update failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 

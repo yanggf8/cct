@@ -167,7 +167,7 @@ async function handleMarketDriversSnapshot(
       const cachedResult = await dal.read<MarketDriversSnapshot>(cacheKey);
 
       if (cachedResult.success && cachedResult.data) {
-        logger.info('MarketDriversSnapshot', 'Cache hit', { requestId, date });
+        logger.info('MarketDriversSnapshot: Cache hit', { requestId, date });
 
         return new Response(
           JSON.stringify(
@@ -195,7 +195,7 @@ async function handleMarketDriversSnapshot(
       await dal.write(cacheKey, snapshot, { expirationTtl: 600 });
     }
 
-    logger.info('MarketDriversSnapshot', 'Data retrieved', {
+    logger.info('MarketDriversSnapshot: Data retrieved', {
       date: snapshot.date,
       regime: snapshot.regime.currentRegime,
       confidence: snapshot.regime.confidence,
@@ -255,7 +255,7 @@ async function handleEnhancedMarketDriversSnapshot(
     // Fetch enhanced market drivers snapshot
     const enhancedSnapshot = await marketDrivers.getEnhancedMarketDriversSnapshot();
 
-    logger.info('EnhancedMarketDriversSnapshot', 'Data retrieved', {
+    logger.info('EnhancedMarketDriversSnapshot: Data retrieved', {
       date: enhancedSnapshot.basic.date,
       regime: enhancedSnapshot.basic.regime.currentRegime,
       confidence: enhancedSnapshot.basic.regime.confidence,
@@ -332,7 +332,7 @@ async function handleMacroDrivers(
       },
     };
 
-    logger.info('MacroDrivers', 'Data retrieved', {
+    logger.info('MacroDrivers: Data retrieved', {
       fedFundsRate: snapshot.macro.fedFundsRate,
       unemploymentRate: snapshot.macro.unemploymentRate,
       inflationRate: snapshot.macro.inflationRate,
@@ -415,7 +415,7 @@ async function handleMarketStructure(
       },
     };
 
-    logger.info('MarketStructure', 'Data retrieved', {
+    logger.info('MarketStructure: Data retrieved', {
       vix: snapshot.marketStructure.vix,
       usDollarIndex: snapshot.marketStructure.usDollarIndex,
       spy: snapshot.marketStructure.spy,
@@ -503,7 +503,7 @@ async function handleMarketRegime(
       },
     };
 
-    logger.info('MarketRegime', 'Data retrieved', {
+    logger.info('MarketRegime: Data retrieved', {
       regime: snapshot.regime.currentRegime,
       confidence: snapshot.regime.confidence,
       riskLevel: snapshot.regime.riskLevel,
@@ -643,7 +643,7 @@ async function handleGeopoliticalRisk(
       },
     };
 
-    logger.info('GeopoliticalRisk', 'Data retrieved', {
+    logger.info('GeopoliticalRisk: Data retrieved', {
       overallRiskScore: snapshot.geopolitical.overallRiskScore,
       riskTrend: snapshot.geopolitical.riskTrend,
       highImpactEvents: snapshot.geopolitical.highImpactEvents,
@@ -799,7 +799,7 @@ async function handleMarketDriversHistory(
       },
     };
 
-    logger.info('MarketDriversHistory', 'Data generated', {
+    logger.info('MarketDriversHistory: Data generated', {
       days,
       dataPoints: historicalData.length,
       processingTime: timer.getElapsedMs(),
@@ -897,7 +897,7 @@ async function handleMarketDriversHealth(
       },
     };
 
-    logger.info('MarketDriversHealth', 'Health check completed', {
+    logger.info('MarketDriversHealth: Health check completed', {
       overallStatus,
       processingTime: timer.getElapsedMs(),
       requestId

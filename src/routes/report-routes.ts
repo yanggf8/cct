@@ -176,7 +176,7 @@ async function handleDailyReport(
     const cached = await dal.get<DailyReportResponse>('REPORTS', cacheKey);
 
     if (cached) {
-      logger.info('DailyReport', 'Cache hit', { date, requestId });
+      logger.info('DailyReport: Cache hit', { date, requestId });
 
       return new Response(
         JSON.stringify(
@@ -280,7 +280,7 @@ async function handleDailyReport(
     // Cache the result for 24 hours
     await dal.put('REPORTS', cacheKey, response, { expirationTtl: 86400 });
 
-    logger.info('DailyReport', 'Report generated', {
+    logger.info('DailyReport: Report generated', {
       date,
       symbolsCount: signals.length,
       processingTime: timer.getElapsedMs(),
@@ -364,7 +364,7 @@ async function handleWeeklyReport(
     const cached = await dal.get<WeeklyReportResponse>('REPORTS', cacheKey);
 
     if (cached) {
-      logger.info('WeeklyReport', 'Cache hit', { week, requestId });
+      logger.info('WeeklyReport: Cache hit', { week, requestId });
 
       return new Response(
         JSON.stringify(
@@ -463,7 +463,7 @@ async function handleWeeklyReport(
     // Cache the result for 7 days
     await dal.put('REPORTS', cacheKey, response, { expirationTtl: 604800 });
 
-    logger.info('WeeklyReport', 'Report generated', {
+    logger.info('WeeklyReport: Report generated', {
       week,
       dailyReportsCount: dailyReports.length,
       processingTime: timer.getElapsedMs(),
@@ -526,7 +526,7 @@ async function handlePreMarketReport(
     const cached = await dal.get<any>('REPORTS', cacheKey);
 
     if (cached) {
-      logger.info('PreMarketReport', 'Cache hit', { requestId });
+      logger.info('PreMarketReport: Cache hit', { requestId });
 
       return new Response(
         JSON.stringify(
@@ -545,7 +545,7 @@ async function handlePreMarketReport(
     const hasAnalysis = await dataBridge.hasPreMarketAnalysis();
 
     if (!hasAnalysis) {
-      logger.info('PreMarketReport', 'No pre-market analysis found, generating via data bridge', { requestId });
+      logger.info('PreMarketReport: No pre-market analysis found, generating via data bridge', { requestId });
 
       // Generate pre-market analysis data
       const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
@@ -584,7 +584,7 @@ async function handlePreMarketReport(
     // Cache for 1 hour
     await dal.put('REPORTS', cacheKey, response, { expirationTtl: 3600 });
 
-    logger.info('PreMarketReport', 'Report generated via data bridge', {
+    logger.info('PreMarketReport: Report generated via data bridge', {
       signalsCount: response.high_confidence_signals.length,
       processingTime: timer.getElapsedMs(),
       symbols_analyzed: response.symbols_analyzed,
@@ -651,7 +651,7 @@ async function handlePreMarketDataGeneration(
       // Use default symbols if body parsing fails
     }
 
-    logger.info('PreMarketDataGeneration', 'Starting data generation', { symbols, requestId });
+    logger.info('PreMarketDataGeneration: Starting data generation', { symbols, requestId });
 
     // Force refresh pre-market analysis
     const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols);
@@ -670,7 +670,7 @@ async function handlePreMarketDataGeneration(
       timestamp: new Date().toISOString()
     };
 
-    logger.info('PreMarketDataGeneration', 'Data generation completed', {
+    logger.info('PreMarketDataGeneration: Data generation completed', {
       symbols_count: Object.keys(analysisData.trading_signals).length,
       high_confidence_count: response.data.high_confidence_signals,
       processing_time: timer.getElapsedMs(),
@@ -733,7 +733,7 @@ async function handleIntradayReport(
       },
     };
 
-    logger.info('IntradayReport', 'Report generated', {
+    logger.info('IntradayReport: Report generated', {
       marketStatus: response.market_status,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -811,7 +811,7 @@ async function handleEndOfDayReport(
       },
     };
 
-    logger.info('EndOfDayReport', 'Report generated', {
+    logger.info('EndOfDayReport: Report generated', {
       symbolsCount: response.daily_summary.symbols_analyzed,
       processingTime: timer.getElapsedMs(),
       requestId
