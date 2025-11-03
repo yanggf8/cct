@@ -227,8 +227,8 @@ export class FredApiClient {
 
       return snapshot;
     } catch (error: unknown) {
-      logger.error('Failed to generate macro economic snapshot:', { error: error instanceof Error ? error.message : String(error) });
-      throw new Error(`FRED API Error: ${error.message}`);
+      logger.error('Failed to generate macro economic snapshot:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
+      throw new Error(`FRED API Error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -363,7 +363,7 @@ export class FredApiClient {
           await this.delay(this.rateLimitDelay);
         }
       } catch (error: unknown) {
-        logger.warn(`Failed to fetch series ${series}:`, { error: error instanceof Error ? error.message : String(error) });
+        logger.warn(`Failed to fetch series ${series}:`, { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
         // Continue with other series even if one fails
       }
     }
@@ -563,7 +563,7 @@ export class FredApiClient {
       const result = await this.dal.read<MacroEconomicSnapshot>(cacheKey);
       return result.success ? result.data : null;
     } catch (error: unknown) {
-      logger.error('Cache read error:', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('Cache read error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       return null;
     }
   }
@@ -578,7 +578,7 @@ export class FredApiClient {
         throw new Error(`Failed to cache snapshot: ${result.error}`);
       }
     } catch (error: unknown) {
-      logger.error('Cache write error:', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('Cache write error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       // Continue even if caching fails
     }
   }
@@ -639,7 +639,7 @@ export class FredApiClient {
       return {
         status: 'unhealthy',
         details: {
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           apiKeyConfigured: !!this.apiKey,
           lastTest: new Date().toISOString(),
         }

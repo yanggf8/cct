@@ -8,6 +8,15 @@ import { CacheManager } from './cache-manager.js';
 import { EnhancedOptimizedCacheManager } from './enhanced-optimized-cache-manager.js';
 import { OptimizedCacheConfig } from './optimized-cache-config.js';
 
+export interface OptimizedCacheSettings {
+  enableKeyAliasing: boolean;
+  enableBatchOperations: boolean;
+  enableMemoryStaticData: boolean;
+  enablePredictivePrefetching: boolean;
+  enableVectorizedProcessing: boolean;
+  enableMonitoring: boolean;
+}
+
 export interface CacheManagerFactory {
   createCacheManager(env: any, options?: any): CacheManager | EnhancedOptimizedCacheManager;
   createOptimizedCacheManager(env: any, config?: Partial<OptimizedCacheSettings>): EnhancedOptimizedCacheManager;
@@ -110,8 +119,21 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
     };
   } {
     const config = this.optimizationConfig.getSettings();
-    const features = this.optimizationConfig.getOptimizationFeatures();
-    const projection = this.optimizationConfig.getKVReductionProjection();
+    const featuresObj = this.optimizationConfig.getOptimizationFeatures();
+    const projectionObj = this.optimizationConfig.getKVReductionProjection();
+
+    // Convert features object to array
+    const features = Array.isArray(featuresObj) ? featuresObj : 
+      (typeof featuresObj === 'object' && featuresObj !== null) ? 
+        Object.values(featuresObj).filter(v => typeof v === 'string') as string[] : [];
+
+    // Ensure projection has correct structure
+    const projection = {
+      currentKV: projectionObj?.currentDailyKV || projectionObj?.currentKV || 0,
+      optimizedKV: projectionObj?.optimizedDailyKV || projectionObj?.optimizedKV || 0,
+      reduction: projectionObj?.percentageReduction || projectionObj?.reduction || 0,
+      percentage: projectionObj?.percentage || `${projectionObj?.percentageReduction || 0}%`
+    };
 
     return {
       enabled: this.isOptimizationEnabled(),

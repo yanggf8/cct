@@ -77,7 +77,9 @@ export async function exampleHandler(request: Request, env: CloudflareEnvironmen
 
     // Example 4: List keys
     const keys = await dal.listKeys('analysis_2025-09');
-    console.log('Found keys:', keys.keys.length);
+    if (keys.success) {
+      console.log('Found keys:', keys.keys.length);
+    }
 
     // Example 5: Generic read/write
     const customData = { custom: 'data' };
@@ -210,13 +212,13 @@ export async function advancedDALExample(env: CloudflareEnvironment): Promise<{
     const listStart = Date.now();
 
     const listResult = await dal.listKeys('analysis_');
-    const filteredKeys = listResult.keys.filter(key =>
+    const filteredKeys = listResult.success ? listResult.keys.filter(key =>
       key.includes('2025') && !key.includes('manual')
-    );
+    ) : [];
 
     operations.push({
       operation: 'pattern_based_listing',
-      success: listResult.success,
+      success: listResult.success || false,
       duration: Date.now() - listStart
     });
 

@@ -248,7 +248,7 @@ export class DataValidator {
       warnings.push(...timestampValidation.warnings);
 
     } catch (error: unknown) {
-      errors.push(`Date parsing error: ${error.message}`);
+      errors.push(`Date parsing error: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return {

@@ -173,7 +173,7 @@ export class IntegrationTestSuite {
         test_name: 'FRED API Connectivity',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -202,7 +202,7 @@ export class IntegrationTestSuite {
         test_name: 'Yahoo Finance API Connectivity',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -260,7 +260,7 @@ export class IntegrationTestSuite {
         test_name: 'AI Model Connectivity',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -313,7 +313,7 @@ export class IntegrationTestSuite {
         test_name: 'FRED Data Quality',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -362,7 +362,7 @@ export class IntegrationTestSuite {
         test_name: 'Market Data Quality',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -412,7 +412,7 @@ export class IntegrationTestSuite {
         test_name: 'Sentiment Analysis Integration',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -471,7 +471,7 @@ export class IntegrationTestSuite {
         test_name: 'Cache System',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -527,7 +527,7 @@ export class IntegrationTestSuite {
         test_name: 'Cache Consistency',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -559,7 +559,7 @@ export class IntegrationTestSuite {
           results.push({ name: apiTest.name, response_time: responseTime, status: 'success' });
         } catch (error: unknown) {
           const responseTime = Date.now() - testStart;
-          results.push({ name: apiTest.name, response_time: responseTime, status: 'error', error: error.message });
+          results.push({ name: apiTest.name, response_time: responseTime, status: 'error', error: error instanceof Error ? error.message : String(error) });
         }
       }
 
@@ -591,7 +591,7 @@ export class IntegrationTestSuite {
         test_name: 'API Performance',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -660,7 +660,7 @@ export class IntegrationTestSuite {
         test_name: 'Cache Performance',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -720,7 +720,7 @@ export class IntegrationTestSuite {
         test_name: 'Complete Workflow',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -762,7 +762,7 @@ export class IntegrationTestSuite {
           const result = await errorTest.test();
           results.push({ name: errorTest.name, status: 'handled', result });
         } catch (error: unknown) {
-          results.push({ name: errorTest.name, status: 'caught_error', error: error.message });
+          results.push({ name: errorTest.name, status: 'caught_error', error: error instanceof Error ? error.message : String(error) });
         }
       }
 
@@ -788,7 +788,7 @@ export class IntegrationTestSuite {
         test_name: 'Error Handling',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }

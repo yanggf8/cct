@@ -126,7 +126,14 @@ export class EnhancedBatchOperations {
       const cachedResult = this.getBatchCache<T>(options.cacheKey);
       if (cachedResult) {
         logger.debug('Batch cache hit', { cacheKey: options.cacheKey, itemCount: items.length });
-        return this.createBatchResult(items, cachedResult.items, startTime, true);
+        const cachedItems = cachedResult.items.map(item => ({
+          key: item.key,
+          success: true,
+          data: item.data,
+          cached: true,
+          responseTime: 0
+        }));
+        return this.createBatchResult(items, cachedItems, startTime, true);
       }
     }
 
@@ -175,7 +182,9 @@ export class EnhancedBatchOperations {
 
     // Cache the batch result if enabled
     if (enableCache && options?.cacheKey && allResults.some(r => r.success)) {
-      const successfulResults = allResults.filter(r => r.success && r.data !== undefined);
+      const successfulResults = allResults
+        .filter(r => r.success && r.data !== undefined)
+        .map(r => ({ key: r.key, data: r.data as T, timestamp: Date.now() }));
       if (successfulResults.length > 0) {
         this.setBatchCache(options.cacheKey, successfulResults, options?.customTTL || this.config.cacheTTL);
       }
@@ -310,7 +319,7 @@ export class EnhancedBatchOperations {
   /**
    * Cache batch result
    */
-  private setBatchCache<T>(cacheKey: string, items: Array<{ key: string; data: T }>, ttlSeconds: number): void {
+  private setBatchCache<T>(cacheKey: string, items: Array<{ key: string; data: T; timestamp: number }>, ttlSeconds: number): void {
     const now = Date.now();
     const expiresAt = now + ttlSeconds * 1000;
 

@@ -668,7 +668,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, signalsData);
+      this.cache.set(key, {
+        data: signalsData,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;
@@ -739,7 +743,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, trackingRecord);
+      this.cache.set(key, {
+        data: trackingRecord,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;
@@ -790,7 +798,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, marketData);
+      this.cache.set(key, {
+        data: marketData,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;
@@ -855,7 +867,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, enhancedReportData);
+      this.cache.set(key, {
+        data: enhancedReportData,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;

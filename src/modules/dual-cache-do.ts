@@ -61,17 +61,18 @@ export class DualCacheDO<T = any> {
   async get(key: string, config: DualCacheConfig): Promise<T | null> {
     try {
       const stub = this.getStub();
-      const value = await stub.get(this.buildKey(key, config));
+      const value = await (stub as any).get(this.buildKey(key, config));
 
       if (value !== null) {
-        logger.info('DUAL_CACHE_DO', `HIT: ${key}`);
+        logger.info(`DUAL_CACHE_DO HIT: ${key}`);
       } else {
-        logger.info('DUAL_CACHE_DO', `MISS: ${key}`);
+        logger.info(`DUAL_CACHE_DO MISS: ${key}`);
       }
 
       return value;
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_GET_ERROR', `Failed to get ${key}`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_GET_ERROR: Failed to get ${key}`, { error: errorMsg });
       return null;
     }
   }
@@ -82,11 +83,12 @@ export class DualCacheDO<T = any> {
   async set(key: string, value: T, config: DualCacheConfig): Promise<void> {
     try {
       const stub = this.getStub();
-      await stub.set(this.buildKey(key, config), value, config.ttl);
+      await (stub as any).set(this.buildKey(key, config), value, config.ttl);
 
-      logger.debug('DUAL_CACHE_DO', `SET: ${key} (TTL: ${config.ttl}s)`);
+      logger.debug(`DUAL_CACHE_DO SET: ${key} (TTL: ${config.ttl}s)`);
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_SET_ERROR', `Failed to set ${key}`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_SET_ERROR: Failed to set ${key}`, { error: errorMsg });
     }
   }
 
@@ -100,7 +102,7 @@ export class DualCacheDO<T = any> {
   ): Promise<{ data: T | null; metadata: CacheMetadata | null; isStale: boolean }> {
     try {
       const stub = this.getStub();
-      const metadata = await stub.getCacheMetadata();
+      const metadata = await (stub as any).getCacheMetadata();
       const fullKey = this.buildKey(key, config);
       const entryMeta = metadata[fullKey];
 
@@ -119,15 +121,16 @@ export class DualCacheDO<T = any> {
 
       // Background refresh if stale and revalidate function provided
       if (isStale && revalidateFn) {
-        logger.info('DUAL_CACHE_DO_BACKGROUND_REFRESH', `Refreshing stale key: ${key}`);
+        logger.info(`DUAL_CACHE_DO_BACKGROUND_REFRESH: Refreshing stale key: ${key}`);
 
         // Don't await - fire and forget
         revalidateFn().then(newValue => {
           if (newValue !== null) {
             this.set(key, newValue, config);
           }
-        }).catch(error => {
-          logger.error('DUAL_CACHE_DO_REFRESH_ERROR', `Background refresh failed for ${key}`, error);
+        }).catch((error: unknown) => {
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          logger.error(`DUAL_CACHE_DO_REFRESH_ERROR: Background refresh failed for ${key}`, { error: errorMsg });
         });
       }
 
@@ -138,7 +141,8 @@ export class DualCacheDO<T = any> {
 
       return { data: value, metadata: cacheMetadata, isStale };
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_STALE_ERROR', `Failed to get with stale revalidate: ${key}`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_STALE_ERROR: Failed to get with stale revalidate: ${key}`, { error: errorMsg });
       return { data: null, metadata: null, isStale: false };
     }
   }
@@ -149,11 +153,12 @@ export class DualCacheDO<T = any> {
   async delete(key: string, config: DualCacheConfig): Promise<void> {
     try {
       const stub = this.getStub();
-      await stub.delete(this.buildKey(key, config));
+      await (stub as any).delete(this.buildKey(key, config));
 
-      logger.debug('DUAL_CACHE_DO', `DELETE: ${key}`);
+      logger.debug(`DUAL_CACHE_DO DELETE: ${key}`);
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_DELETE_ERROR', `Failed to delete ${key}`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_DELETE_ERROR: Failed to delete ${key}`, { error: errorMsg });
     }
   }
 
@@ -163,11 +168,12 @@ export class DualCacheDO<T = any> {
   async clear(): Promise<void> {
     try {
       const stub = this.getStub();
-      await stub.clear();
+      await (stub as any).clear();
 
-      logger.info('DUAL_CACHE_DO', 'Cache cleared completely');
+      logger.info(`DUAL_CACHE_DO: Cache cleared completely`);
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_CLEAR_ERROR', 'Failed to clear cache', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_CLEAR_ERROR: Failed to clear cache`, { error: errorMsg });
     }
   }
 
@@ -177,9 +183,10 @@ export class DualCacheDO<T = any> {
   async getStats(): Promise<any> {
     try {
       const stub = this.getStub();
-      return await stub.getStats();
+      return await (stub as any).getStats();
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_STATS_ERROR', 'Failed to get stats', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_STATS_ERROR: Failed to get stats`, { error: errorMsg });
       return null;
     }
   }
@@ -190,7 +197,7 @@ export class DualCacheDO<T = any> {
   async getMetadata(config?: DualCacheConfig): Promise<{ [key: string]: any }> {
     try {
       const stub = this.getStub();
-      const metadata = await stub.getCacheMetadata();
+      const metadata = await (stub as any).getCacheMetadata();
 
       // Filter by namespace if specified
       if (config?.namespace) {
@@ -206,7 +213,8 @@ export class DualCacheDO<T = any> {
 
       return metadata;
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_METADATA_ERROR', 'Failed to get metadata', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_METADATA_ERROR: Failed to get metadata`, { error: errorMsg });
       return {};
     }
   }
@@ -224,10 +232,11 @@ export class DualCacheDO<T = any> {
   async healthCheck(): Promise<boolean> {
     try {
       const stub = this.getStub();
-      const stats = await stub.getStats();
+      const stats = await (stub as any).getStats();
       return stats !== null;
     } catch (error: unknown) {
-      logger.error('DUAL_CACHE_DO_HEALTH_ERROR', 'Health check failed', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_HEALTH_ERROR: Health check failed`, { error: errorMsg });
       return false;
     }
   }
@@ -239,11 +248,11 @@ export class DualCacheDO<T = any> {
  */
 export function createCacheInstance(env: any, useDO: boolean = true): any {
   if (useDO && env.CACHE_DO) {
-    logger.info('CACHE_FACTORY', 'Using Durable Objects cache');
+    logger.info(`CACHE_FACTORY: Using Durable Objects cache`);
     return new DualCacheDO(env.CACHE_DO);
   } else {
     // Strict DO-only policy: no legacy cache fallback
-    logger.info('CACHE_FACTORY', 'No cache (DO disabled or unavailable)');
+    logger.info(`CACHE_FACTORY: No cache (DO disabled or unavailable)`);
     return null;
   }
 }

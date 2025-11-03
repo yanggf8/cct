@@ -120,7 +120,7 @@ export async function createFredApiClientWithHealthCheck(
 
     return { client, health };
   } catch (error: unknown) {
-    logger.error('FRED API client health check failed:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('FRED API client health check failed:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
 
     // If health check fails for real client, fall back to mock
     if (!(client instanceof MockFredApiClient)) {
@@ -130,7 +130,7 @@ export async function createFredApiClientWithHealthCheck(
         client: mockClient,
         health: {
           status: 'unhealthy',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           fallback: 'mock-client'
         }
       };
@@ -140,7 +140,7 @@ export async function createFredApiClientWithHealthCheck(
       client,
       health: {
         status: 'unhealthy',
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       }
     };
   }
@@ -179,7 +179,7 @@ export async function testFREDApiKey(apiKey: string): Promise<boolean> {
     const health = await client.healthCheck();
     return health.status === 'healthy';
   } catch (error: unknown) {
-    logger.error('FRED API key test failed:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('FRED API key test failed:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
     return false;
   }
 }
@@ -241,7 +241,7 @@ export class FredClientManager {
       } catch (error: unknown) {
         results[name] = {
           status: 'unhealthy',
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         };
       }
     }

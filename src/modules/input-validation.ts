@@ -655,7 +655,7 @@ export function validateInput(input: any, type: string, options?: any): Validati
         };
     }
   } catch (error: unknown) {
-    logger.error('Validation error', { type, input, error: error.message });
+    logger.error('Validation error', { type, input, error: error instanceof Error ? error.message : String(error) });
     return {
       isValid: false,
       error: 'Validation failed due to internal error'
