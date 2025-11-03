@@ -25,7 +25,6 @@ import { createBacktestingCache } from '../modules/backtesting-cache.js';
 import { createLogger } from '../modules/logging.js';
 import { getBacktestFixture, hasBacktestFixture } from '../modules/backtesting-test-fixtures.js';
 import type {
-  CloudflareEnvironment,
   BacktestConfig,
   RunBacktestRequest,
   RunBacktestResponse,
@@ -36,6 +35,7 @@ import type {
   BacktestHistoryResponse,
   BacktestSummary
 } from '../types/backtesting.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('backtesting-routes');
 

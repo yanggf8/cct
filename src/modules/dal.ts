@@ -189,11 +189,13 @@ export class DataAccessLayer {
    */
   private cleanupCache(): void {
     const now = Date.now();
+    const keysToDelete: string[] = [];
     for (const [key, entry] of this.cache.entries()) {
       if (now - entry.timestamp > this.cacheTTL) {
-        this.cache.delete(key);
+        keysToDelete.push(key);
       }
     }
+    keysToDelete.forEach(key => this.cache.delete(key));
   }
 
   /**
@@ -205,14 +207,14 @@ export class DataAccessLayer {
       let oldestTime = Date.now();
       let lowestAccess = Infinity;
 
-      for (const [key, entry] of this.cache.entries()) {
+      this.cache.forEach((entry, key) => {
         if (entry.accessCount < lowestAccess ||
             (entry.accessCount === lowestAccess && entry.timestamp < oldestTime)) {
           oldestKey = key;
           oldestTime = entry.timestamp;
           lowestAccess = entry.accessCount;
         }
-      }
+      });
 
       if (oldestKey) {
         this.cache.delete(oldestKey);

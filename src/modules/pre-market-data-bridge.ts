@@ -6,6 +6,7 @@
 
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { createLogger } from './logging.js';
+import { batchDualAIAnalysis } from './dual-ai-analysis.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('pre-market-data-bridge');
@@ -75,7 +76,7 @@ export class PreMarketDataBridge {
         try {
           const sentimentData = await this.getSymbolSentimentData(symbol);
 
-          if (sentimentData && sentimentData.confidence > 0.5) {
+          if (sentimentData && sentimentData.confidence > 0.3) {
             trading_signals[symbol] = {
               symbol,
               sentiment_layers: [{
@@ -121,7 +122,7 @@ export class PreMarketDataBridge {
   }
 
   /**
-   * Get symbol sentiment data from cache or API
+   * Get symbol sentiment data from cache or by triggering analysis
    */
   private async getSymbolSentimentData(symbol: string): Promise<ModernSentimentData | null> {
     try {
@@ -134,10 +135,71 @@ export class PreMarketDataBridge {
         return cached.data;
       }
 
-      // If not in cache, we need to trigger analysis
-      // This would typically be called by the sentiment API itself
-      logger.debug('PreMarketDataBridge', `No cached data for ${symbol}, returning null`);
-      return null;
+      // If not in cache, trigger real-time sentiment analysis
+      logger.info('PreMarketDataBridge', `No cached data for ${symbol}, triggering real-time analysis`);
+
+      try {
+        const batchResult = await batchDualAIAnalysis([symbol], this.dal.env, {
+          timeout: 15000, // 15 seconds for individual analysis
+          cacheResults: true, // Cache the results for future use
+          skipCache: false // Use existing cache if available
+        });
+
+        if (batchResult && batchResult.results && batchResult.results.length > 0) {
+          const firstResult = batchResult.results[0];
+          logger.info('PreMarketDataBridge', `Batch analysis result for ${symbol}`, {
+            hasError: !!firstResult.error,
+            hasGPT: !!firstResult.models?.gpt,
+            hasDistilBERT: !!firstResult.models?.distilbert,
+            gptDirection: firstResult.models?.gpt?.direction,
+            distilbertDirection: firstResult.models?.distilbert?.direction,
+            signalAction: firstResult.signal?.action
+          });
+
+          if (firstResult && !firstResult.error && (firstResult.models?.gpt || firstResult.models?.distilbert)) {
+            // Use GPT if available, otherwise fall back to DistilBERT
+            const model = firstResult.models.gpt || firstResult.models.distilbert;
+
+            const sentimentData: ModernSentimentData = {
+              symbol,
+              sentiment: this.normalizeSentiment(model.direction),
+              confidence: model.confidence,
+              signal: firstResult.signal?.action || 'HOLD',
+              reasoning: model.reasoning || 'Sentiment analysis completed',
+              articles_analyzed: model.articles_analyzed || 0,
+              market_sentiment: model.direction,
+              sector_sentiment: model.direction
+            };
+
+            logger.info('PreMarketDataBridge', `Generated sentiment data for ${symbol}`, {
+              sentiment: sentimentData.sentiment,
+              confidence: sentimentData.confidence,
+              articles_analyzed: sentimentData.articles_analyzed,
+              model_used: model.model,
+              signal_action: sentimentData.signal
+            });
+
+            return sentimentData;
+          } else {
+            logger.warn('PreMarketDataBridge', `No valid model data found for ${symbol}`, {
+              hasError: !!firstResult?.error,
+              error: firstResult?.error,
+              hasGPT: !!firstResult?.models?.gpt,
+              hasDistilBERT: !!firstResult?.models?.distilbert
+            });
+          }
+        }
+
+        logger.warn('PreMarketDataBridge', `Failed to generate sentiment data for ${symbol}`, {
+          resultsCount: batchResult?.results?.length || 0,
+          statistics: batchResult?.statistics
+        });
+        return null;
+
+      } catch (analysisError: unknown) {
+        logger.error('PreMarketDataBridge', `Error triggering sentiment analysis for ${symbol}`, analysisError);
+        return null;
+      }
 
     } catch (error: unknown) {
       logger.warn('PreMarketDataBridge', `Error getting sentiment data for ${symbol}`, error);

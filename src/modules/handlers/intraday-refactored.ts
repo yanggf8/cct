@@ -20,7 +20,7 @@ import {
   generateSignalItem,
   generateCompletePage
 } from '../html-generators.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../../types';
 
 const logger = createLogger('intraday-refactored');
 
@@ -51,8 +51,8 @@ class IntradayDataRetriever {
       logger.debug('✅ [INTRADAY] Intraday data retrieved', {
         requestId,
         date,
-        hasSignals: !!(data.signals && data.signals.length > 0),
-        signalsCount: data.signals ? data.signals.length : 0
+        hasSignals: !!((data as any).signals && (data as any).signals.length > 0),
+        signalsCount: (data as any).signals ? (data as any).signals.length : 0
       });
 
       return data;

@@ -23,7 +23,7 @@ const logger = createLogger('advanced-analytics-routes');
  * @param {Object} headers - Response headers
  * @returns {Promise<Response>} HTTP response
  */
-export async function handleAdvancedAnalyticsRoutes(request, env, path, headers) {
+export async function handleAdvancedAnalyticsRoutes(request: Request, env: any, path: string, headers: Record<string, string>): Promise<Response> {
   const url = new URL(request.url);
   const method = request.method;
   const requestId = generateRequestId();

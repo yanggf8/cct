@@ -91,8 +91,7 @@ export {
 
 // Decomposed handler examples (replaces 932-line monolithic file)
 export {
-  handleIntradayCheckDecomposed,
-  handleIntradayCheckConsistent
+  handleIntradayCheckDecomposed
 } from './intraday-decomposed.js';
 
 // Professional dashboard handlers

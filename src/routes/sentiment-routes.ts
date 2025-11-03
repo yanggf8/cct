@@ -195,7 +195,7 @@ async function handleSentimentAnalysis(
     const cacheKey = `sentiment_analysis_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
+    if (cached && cached.success && cached.data) {
       logger.info('SentimentAnalysis: Cache hit', { symbols: symbols.join(','), requestId });
 
       return new Response(
@@ -340,7 +340,7 @@ async function handleSymbolSentiment(
     const cacheKey = `symbol_sentiment_${symbol}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
+    if (cached && cached.success && cached.data) {
       logger.info('SymbolSentiment: Cache hit', { symbol, requestId });
 
       return new Response(
@@ -487,7 +487,7 @@ async function handleMarketSentiment(
     const cacheKey = `market_sentiment_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
+    if (cached && cached.success && cached.data) {
       logger.info('MarketSentiment: Cache hit', { requestId });
 
       return new Response(
@@ -636,7 +636,7 @@ async function handleSectorSentiment(
     const cacheKey = `sector_sentiment_${sectors.join(',')}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
+    if (cached && cached.success && cached.data) {
       logger.info('SectorSentiment: Cache hit', { sectors: sectors.join(','), requestId });
 
       return new Response(

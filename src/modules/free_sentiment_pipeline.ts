@@ -215,8 +215,8 @@ async function getFMPNews(symbol: string, env: CloudflareEnvironment): Promise<N
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.error || data.message) {
-    throw new Error(data.error || data.message);
+  if ((data as any).error || (data as any).message) {
+    throw new Error((data as any).error || (data as any).message);
   }
 
   // Check if data is an array
@@ -309,11 +309,11 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.status === 'error') {
-    throw new Error(data.message);
+  if ((data as any).status === 'error') {
+    throw new Error((data as any).message);
   }
 
-  const newsArticles = data.articles?.map((article: any) => ({
+  const newsArticles = (data as any).articles?.map((article: any) => ({
     title: article.title,
     summary: article.description || article.title,
     publishedAt: article.publishedAt,
@@ -346,7 +346,7 @@ async function getYahooNews(symbol: string, env: CloudflareEnvironment): Promise
       }
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const news = data.news || [];
 
     return news.map((item: any) => ({
@@ -427,7 +427,12 @@ async function getFreeLLMSentiment(newsData: NewsArticle[], symbol: string, env:
     console.log('No Gemini API key, using rule-based sentiment');
     return newsData.map(item => ({
       ...item,
-      llm_sentiment: item.sentiment // Use rule-based as fallback
+      llm_sentiment: {
+        label: item.sentiment.label,
+        score: item.sentiment.score,
+        reasoning: 'Rule-based sentiment analysis fallback',
+        price_impact: 'unknown'
+      }
     }));
   }
 
@@ -465,8 +470,8 @@ Respond with JSON only:
       })
     });
 
-    const result = await response.json();
-    const content = result.candidates[0].content.parts[0].text;
+    const result = await response.json() as any;
+    const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     // Parse JSON response
     const sentimentData = JSON.parse(content.replace(/```json|```/g, ''));
@@ -487,7 +492,12 @@ Respond with JSON only:
     console.log('Gemini LLM sentiment failed, using rule-based:', error);
     return newsData.map(item => ({
       ...item,
-      llm_sentiment: item.sentiment
+      llm_sentiment: {
+        label: item.sentiment.label,
+        score: item.sentiment.score,
+        reasoning: 'Rule-based sentiment analysis fallback (error case)',
+        price_impact: 'unknown'
+      }
     }));
   }
 }

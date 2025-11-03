@@ -7,7 +7,8 @@ import { createLogger } from './logging.js';
 import { tomorrowOutlookTracker, type MarketBias, type ConfidenceLevel, type VolatilityLevel } from './tomorrow-outlook-tracker.js';
 import { runEnhancedAnalysis, type EnhancedAnalysisResults } from './enhanced_analysis.js';
 import { createDAL } from './dal.js';
-import type { CloudflareEnvironment, DALResult } from '../types.js';
+import type { CloudflareEnvironment } from '../types.js';
+import type { KVReadResult } from './dal.js';
 
 const logger = createLogger('report-data-retrieval');
 
@@ -207,11 +208,11 @@ export class ReportDataRetrieval {
 
       // Get today's analysis
       const analysisKey = `analysis_${dateStr}`;
-      const analysisResult: DALResult = await dal.read(analysisKey);
+      const analysisResult: KVReadResult = await dal.read(analysisKey);
 
       // Get morning predictions (if available)
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
 
       // Evaluate yesterday's outlook accuracy
       let outlookEvaluation: OutlookEvaluation | null = null;
@@ -290,7 +291,7 @@ export class ReportDataRetrieval {
 
       // Get morning predictions with performance updates
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
 
       let predictions: PredictionsData | null = null;
       let performanceSummary: IntradayPerformanceSummary | null = null;
@@ -357,11 +358,11 @@ export class ReportDataRetrieval {
 
       // Get morning predictions with final performance
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
 
       // Get end-of-day summary if available
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryResult: DALResult = await dal.read(summaryKey);
+      const summaryResult: KVReadResult = await dal.read(summaryKey);
 
       let finalSummary: EndOfDaySummary | null = null;
       let tomorrowOutlook: TomorrowOutlook | null = null;
@@ -587,7 +588,7 @@ export class ReportDataRetrieval {
 
       // Try to get end-of-day summary first
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryResult: DALResult = await dal.read(summaryKey);
+      const summaryResult: KVReadResult = await dal.read(summaryKey);
 
       if (summaryResult.success && summaryResult.data) {
         const parsed = summaryResult.data;
@@ -600,7 +601,7 @@ export class ReportDataRetrieval {
 
       // Fall back to morning predictions
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
 
       if (predictionsResult.success && predictionsResult.data) {
         const parsed = predictionsResult.data;
@@ -932,7 +933,7 @@ export class ReportDataRetrieval {
     try {
       const dal = createDAL(env);
       const predictionsKey = `morning_predictions_${yesterdayStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
       if (predictionsResult.success && predictionsResult.data) {
         return predictionsResult.data;
       }

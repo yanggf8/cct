@@ -51,7 +51,6 @@ interface FredSeriesResponse {
   frequency: string;
   frequency_short: string;
   last_updated: string;
-  observation_end: string;
   sort_order: string;
   count: number;
   observations: FredObservation[];
@@ -263,15 +262,15 @@ export class FredApiClient {
         throw new Error(`FRED API request failed: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
 
       if (data.error_code) {
         // If key-related error, try rotation
         const msg = `${data.error_message || ''}`.toLowerCase();
-        if ((msg.includes('api key') || msg.includes('invalid key')) && (this as any).rotateApiKey() && retries < this.maxRetries) {
+        if ((msg.includes('api key') || msg.includes('invalid key')) && (this as any).rotateApiKey() && ((retries as number) || 0) < this.maxRetries) {
           logger.warn('FRED API key error detected, rotating key and retrying');
           await this.delay(this.rateLimitDelay);
-          return this.makeRequest(url, retries + 1);
+          return this.makeRequest(url.toString(), ((retries as number) || 0) + 1);
         }
         throw new Error(`FRED API Error ${data.error_code}: ${data.error_message}`);
       }
@@ -560,7 +559,7 @@ export class FredApiClient {
    */
   private async getCachedSnapshot(cacheKey: string): Promise<MacroEconomicSnapshot | null> {
     try {
-      const result = await this.dal.read<MacroEconomicSnapshot>(cacheKey);
+      const result = await this.dal.read(cacheKey) as { success: boolean; data: MacroEconomicSnapshot | null };
       return result.success ? result.data : null;
     } catch (error: unknown) {
       logger.error('Cache read error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });

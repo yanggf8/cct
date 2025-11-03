@@ -8,7 +8,7 @@ import { getFactTableData, getCronHealthStatus } from '../data.js';
 import { createLogger } from '../logging.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from '../kv-key-factory.js';
 import { createDAL } from '../dal.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../../types';
 
 const logger = createLogger('http-data-handlers');
 
@@ -145,7 +145,7 @@ export async function handleCronHealth(
 
     logger.info('Cron health data retrieved', {
       requestId,
-      jobsCount: Object.keys(healthData.jobs || {}).length
+      jobsCount: Object.keys((healthData as any).jobs || {}).length
     });
 
     return new Response(JSON.stringify({
@@ -213,18 +213,18 @@ export async function handleKVDebug(
       operations: {
         write: writeResult.success,
         read: readResult.success,
-        delete: deleteResult.success
+        delete: deleteResult
       },
       test_key: testKey,
       test_value: testValue,
-      write_timestamp: writeResult.timestamp,
-      read_timestamp: readResult.timestamp,
-      delete_timestamp: deleteResult.timestamp
+      write_timestamp: new Date().toISOString(),
+      read_timestamp: new Date().toISOString(),
+      delete_timestamp: new Date().toISOString()
     };
 
     logger.info('KV debug operations completed', {
       requestId,
-      allOperationsSuccessful: writeResult.success && readResult.success && deleteResult.success
+      allOperationsSuccessful: writeResult.success && readResult.success && deleteResult
     });
 
     return new Response(JSON.stringify(debugInfo, null, 2), {
@@ -293,7 +293,7 @@ export async function handleKVWriteTest(
       requestId,
       testKey,
       writeSuccess: writeResult.success,
-      writeTimestamp: writeResult.timestamp
+      writeTimestamp: new Date().toISOString()
     });
 
     return new Response(JSON.stringify({
@@ -303,7 +303,7 @@ export async function handleKVWriteTest(
       testKey,
       writeResult: {
         success: writeResult.success,
-        timestamp: writeResult.timestamp
+        timestamp: new Date().toISOString()
       },
       testData
     }, null, 2), {
@@ -375,7 +375,7 @@ export async function handleKVReadTest(
         success: readResult.success,
         hasData: !!readResult.data,
         data: readResult.data,
-        timestamp: readResult.timestamp
+        timestamp: new Date().toISOString()
       }
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -444,7 +444,7 @@ export async function handleKVGet(
         requestId,
         key,
         data: getResult.data,
-        timestamp: getResult.timestamp
+        timestamp: new Date().toISOString()
       }, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -520,21 +520,21 @@ export async function handleKVAnalysisWriteTest(
     };
 
     // Generate proper analysis key
-    const analysisKey = KVKeyFactory.generateKey(KeyTypes.ANALYSIS_RESULT, {
+    const analysisKey = KVKeyFactory.generateKey(KeyTypes.ANALYSIS, {
       date: testAnalysisData.date,
       type: 'test'
     });
 
     // Write analysis data
     const writeResult = await dal.write(analysisKey, testAnalysisData, {
-      expirationTtl: KeyHelpers.getExpirationTtl(KeyTypes.ANALYSIS_RESULT)
+      expirationTtl: 3600 // 1 hour TTL for test data
     });
 
     logger.info('KV analysis write test completed', {
       requestId,
       analysisKey,
       writeSuccess: writeResult.success,
-      writeTimestamp: writeResult.timestamp
+      writeTimestamp: new Date().toISOString()
     });
 
     return new Response(JSON.stringify({
@@ -544,7 +544,7 @@ export async function handleKVAnalysisWriteTest(
       analysisKey,
       writeResult: {
         success: writeResult.success,
-        timestamp: writeResult.timestamp
+        timestamp: new Date().toISOString()
       },
       testData: testAnalysisData
     }, null, 2), {
@@ -587,7 +587,7 @@ export async function handleKVAnalysisReadTest(
     const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
 
     // Generate proper analysis key
-    const analysisKey = KVKeyFactory.generateKey(KeyTypes.ANALYSIS_RESULT, {
+    const analysisKey = KVKeyFactory.generateKey(KeyTypes.ANALYSIS, {
       date,
       type: 'test'
     });
@@ -609,7 +609,7 @@ export async function handleKVAnalysisReadTest(
         analysisKey,
         date,
         data: readResult.data,
-        timestamp: readResult.timestamp
+        timestamp: new Date().toISOString()
       }, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });

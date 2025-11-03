@@ -8,7 +8,7 @@ import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { createDAL } from '../dal.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../../types';
 
 const logger = createLogger('health-handlers');
 
@@ -198,7 +198,7 @@ export async function handleModelHealth(
       // Test delete
       const deleteResult = await dal.deleteKey(testKey);
 
-      if (writeResult.success && readResult.success && deleteResult.success) {
+      if (writeResult.success && readResult.success && deleteResult) {
         healthResults.models.kv_storage = {
           status: 'healthy',
           read_write: 'operational',

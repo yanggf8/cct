@@ -19,13 +19,13 @@ class_name = "CacheDurableObject"
 # KV bindings
 [[kv_namespaces]]
 binding = "TRADING_RESULTS"
-id = "trading-results-kv"
-preview_id = "trading-results-kv-preview"
+id = "321593c6717448dfb24ea2bd48cde1fa"
+preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
 [[kv_namespaces]]
 binding = "CACHE_DO_KV"
-id = "cache-do-kv"
-preview_id = "cache-do-kv-preview"
+id = "4acc96129aba4c4ca3ad5939c2b8792d"
+preview_id = "a8c0d3ff9f1f4f0ba9aaa20950675cb4"
 
 # R2 bindings
 [[r2_buckets]]
@@ -45,9 +45,9 @@ class_name = "CacheDurableObject"
 tag = "v1"
 new_sqlite_classes = ["CacheDurableObject"]
 
-# Scheduled events
-[[triggers.crons]]
-cron = "0 9 * * 1-5"  # 9 AM weekdays
+# Scheduled events (temporarily disabled)
+# [[triggers.crons]]
+# cron = "0 9 * * 1-5"  # 9 AM weekdays
 
 # Variables
 [vars]

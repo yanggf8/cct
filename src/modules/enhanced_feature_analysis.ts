@@ -421,7 +421,9 @@ async function getStockSentiment(symbol: string, env: CloudflareEnvironment): Pr
     if (env.MODELSCOPE_API_KEY && newsData.length > 0) {
       return await getModelScopeAISentiment(symbol, newsData, env);
     } else {
-      return analyzeTextSentiment(newsData);
+      // Fallback to rule-based sentiment from news text
+      const newsText = newsData.slice(0, 3).map(article => `${article.title}: ${article.summary}`).join(' ');
+      return analyzeTextSentiment(newsText);
     }
   } catch (error: any) {
     console.error(`❌ Error getting sentiment for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
@@ -444,7 +446,8 @@ async function getModelScopeAISentiment(
 ): Promise<SentimentData> {
   // This would implement ModelScope AI sentiment analysis
   // For now, fallback to basic sentiment
-  return analyzeTextSentiment(newsData);
+  const newsText = newsData.slice(0, 3).map(article => `${article.title}: ${article.summary}`).join(' ');
+  return analyzeTextSentiment(newsText);
 }
 
 /**
@@ -460,7 +463,10 @@ async function createEnhancedPrediction(
     symbol: symbol,
     timestamp: new Date().toISOString(),
     current_price: neuralSignal?.current_price || 0,
-    analysis_type: 'enhanced_feature_prediction',
+    model: 'enhanced_feature_prediction',
+    predicted_price: 0, // Will be calculated
+    direction: 'NEUTRAL', // Will be calculated
+    confidence: 0, // Will be calculated
 
     // Component predictions
     components: {

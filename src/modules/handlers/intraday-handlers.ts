@@ -11,10 +11,10 @@ import {
   getWithRetry,
   updateJobStatus,
   validateDependencies,
-  getJobStatus,
-  type CloudflareEnvironment,
-  type EnhancedContext
+  getJobStatus
 } from '../kv-utils.js';
+import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
+import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
 
 const logger: Logger = createLogger('intraday-handlers');
@@ -197,12 +197,12 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
         // Return a helpful error response
         const html: string = generateIntradayWaitingHTML(validation, today);
         return new Response(html, {
-          headers: {
+          headers: new Headers({
             'Content-Type': 'text/html',
             'Cache-Control': 'no-cache',
             'X-Request-ID': requestId,
             'X-Processing-Time': `${Date.now() - startTime}ms`
-          } as ResponseHeaders
+          })
         });
       }
 
@@ -247,7 +247,7 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
       if (intradayData) {
         logger.info('✅ [INTRADAY] Intraday data retrieved successfully', {
           requestId,
-          signalCount: intradayData.signals?.length || 0,
+          signalCount: (intradayData as any).signals?.length || 0,
           hasData: true
         });
       } else {
@@ -286,7 +286,7 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
       requestId,
       totalTimeMs: totalTime,
       generationTimeMs: generationTime,
-      signalCount: intradayData?.signals?.length || 0,
+      signalCount: (intradayData as any)?.signals?.length || 0,
       htmlLength: html.length
     });
 
@@ -295,16 +295,16 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
       requestId,
       endTime: new Date().toISOString(),
       processingTimeMs: totalTime,
-      signalCount: intradayData?.signals?.length || 0
+      signalCount: (intradayData as any)?.signals?.length || 0
     } as JobStatusMetadata);
 
     return new Response(html, {
-      headers: {
+      headers: new Headers({
         'Content-Type': 'text/html',
         'Cache-Control': 'public, max-age=180', // 3 minute cache for intraday
         'X-Request-ID': requestId,
         'X-Processing-Time': `${totalTime}ms`
-      } as ResponseHeaders
+      })
     });
   }
 );

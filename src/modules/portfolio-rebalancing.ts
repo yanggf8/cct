@@ -7,14 +7,111 @@
 import { createDAL } from './dal.js';
 import { createCorrelationAnalysisEngine } from './correlation-analysis.js';
 
+// Type definitions
+interface PortfolioStrategy {
+  id: string;
+  name: string;
+  type: string;
+  portfolioId: string;
+  targetWeights: Record<string, number>;
+  thresholds: Record<string, number>;
+  frequency: string;
+  constraints: Record<string, any>;
+  executionConfig: Record<string, any>;
+  monitoringConfig: Record<string, any>;
+  taxConfig: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  version: string;
+  lastRebalanceDate?: Date;
+}
+
+interface RebalancingAnalysis {
+  portfolioId: string;
+  strategyId: string;
+  currentWeights: Record<string, number>;
+  targetWeights: Record<string, number>;
+  analysisDate: string;
+  rebalancingRequired: boolean;
+  deviations: Record<string, {
+    currentWeight: number;
+    targetWeight: number;
+    deviation: number;
+    deviationPercent: number;
+    absoluteDeviation: number;
+  }>;
+  recommendedTrades: any[];
+  estimatedCosts: any;
+  taxImplications: any;
+  executionPlan: any;
+  analysisId?: string;
+}
+
+interface Execution {
+  id: string;
+  analysisId: string;
+  portfolioId: string;
+  strategyId: string;
+  trades: any[];
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  totalCost: number;
+  totalTax: number;
+  netPortfolioValue: number;
+  executionResults: Record<string, any>;
+}
+
+interface Monitoring {
+  portfolioId: string;
+  strategyId: string;
+  monitoringDate: string;
+  currentWeights: Record<string, number>;
+  driftMetrics: any;
+  alerts: any[];
+  recommendations: any[];
+}
+
+interface TaxHarvesting {
+  portfolioId: string;
+  harvestingDate: string;
+  taxYear: number;
+  positions: any[];
+  opportunities: any[];
+  executedTrades: any[];
+  taxBenefits: any;
+  washSaleRisks: any[];
+}
+
+interface DynamicAllocation {
+  portfolioId: string;
+  allocationDate: string;
+  marketConditions: any;
+  riskTolerance: any;
+  dynamicWeights: Record<string, number>;
+  allocationSignals: any;
+  riskAdjustments: any;
+  executionPlan: any;
+}
+
+interface StressTest {
+  portfolioId: string;
+  testDate: string;
+  strategies: any[];
+  scenarios: any[];
+  results: Record<string, any>;
+  recommendations: any;
+}
+
 // Simple KV functions using DAL
-async function getKVStore(env: any, key: any) {
+async function getKVStore(env: any, key: string): Promise<any> {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env, key, data, ttl) {
+async function setKVStore(env: any, key: string, data: any, ttl: number): Promise<boolean> {
   const dal = createDAL(env);
   const result = await dal.write(key, data, { expirationTtl: ttl });
   return result.success;
@@ -57,7 +154,13 @@ export const REBALANCING_STRATEGIES = {
  * Portfolio Rebalancing Engine
  */
 export class PortfolioRebalancingEngine {
-  constructor(env) {
+  private env: any;
+  private correlationEngine: any;
+  private transactionCosts: Record<string, number>;
+  private minTradeSize: number;
+  private maxDeviation: number;
+
+  constructor(env: any) {
     this.env = env;
     this.correlationEngine = createCorrelationAnalysisEngine(env);
     this.transactionCosts = {
@@ -73,8 +176,8 @@ export class PortfolioRebalancingEngine {
   /**
    * Create rebalancing strategy
    */
-  async createRebalancingStrategy(config) {
-    const strategy = {
+  async createRebalancingStrategy(config: any): Promise<PortfolioStrategy> {
+    const strategy: PortfolioStrategy = {
       id: this.generateStrategyId(),
       name: config.name,
       type: config.type || REBALANCING_STRATEGIES.THRESHOLD_BASED,
@@ -104,7 +207,7 @@ export class PortfolioRebalancingEngine {
   /**
    * Analyze portfolio for rebalancing needs
    */
-  async analyzeRebalancingNeeds(portfolioId, currentWeights, targetWeights, strategy) {
+  async analyzeRebalancingNeeds(portfolioId: string, currentWeights: Record<string, number>, targetWeights: Record<string, number>, strategy: PortfolioStrategy): Promise<RebalancingAnalysis> {
     try {
       const analysis = {
         portfolioId,
@@ -165,7 +268,7 @@ export class PortfolioRebalancingEngine {
   /**
    * Execute rebalancing trades
    */
-  async executeRebalancing(analysis, executionConfig = {}) {
+  async executeRebalancing(analysis: RebalancingAnalysis, executionConfig: any = {}): Promise<Execution> {
     try {
       const execution = {
         id: this.generateExecutionId(),
@@ -219,7 +322,7 @@ export class PortfolioRebalancingEngine {
   /**
    * Monitor portfolio drift
    */
-  async monitorPortfolioDrift(portfolioId, targetWeights, strategy) {
+  async monitorPortfolioDrift(portfolioId: string, targetWeights: Record<string, number>, strategy: PortfolioStrategy): Promise<Monitoring> {
     try {
       const monitoring = {
         portfolioId,
@@ -259,7 +362,7 @@ export class PortfolioRebalancingEngine {
   /**
    * Perform tax-loss harvesting
    */
-  async performTaxLossHarvesting(portfolioId, taxConfig = {}) {
+  async performTaxLossHarvesting(portfolioId: string, taxConfig: any = {}): Promise<TaxHarvesting> {
     try {
       const harvesting = {
         portfolioId,
@@ -308,7 +411,7 @@ export class PortfolioRebalancingEngine {
   /**
    * Create dynamic asset allocation
    */
-  async createDynamicAllocation(portfolioId, marketConditions, riskTolerance) {
+  async createDynamicAllocation(portfolioId: string, marketConditions: any, riskTolerance: any): Promise<DynamicAllocation> {
     try {
       const allocation = {
         portfolioId,
@@ -355,7 +458,7 @@ export class PortfolioRebalancingEngine {
   /**
    * Perform portfolio stress test for rebalancing
    */
-  async performRebalancingStressTest(portfolioId, strategies, scenarios = []) {
+  async performRebalancingStressTest(portfolioId: string, strategies: PortfolioStrategy[], scenarios: any[] = []): Promise<StressTest> {
     try {
       const stressTest = {
         portfolioId,
@@ -387,15 +490,15 @@ export class PortfolioRebalancingEngine {
 
   // Private helper methods
 
-  generateStrategyId() {
+  generateStrategyId(): string {
     return `strategy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  generateExecutionId() {
+  generateExecutionId(): string {
     return `execution_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  validateStrategy(strategy) {
+  validateStrategy(strategy: PortfolioStrategy): void {
     // Validate required fields
     if (!strategy.name) throw new Error('Strategy name is required');
     if (!strategy.portfolioId) throw new Error('Portfolio ID is required');
@@ -415,7 +518,7 @@ export class PortfolioRebalancingEngine {
     }
   }
 
-  isRebalancingRequired(deviations, strategy) {
+  isRebalancingRequired(deviations: any, strategy: PortfolioStrategy): boolean {
     switch (strategy.type) {
       case REBALANCING_STRATEGIES.THRESHOLD_BASED:
         return Object.values(deviations).some(dev =>
@@ -436,7 +539,7 @@ export class PortfolioRebalancingEngine {
     }
   }
 
-  async generateTrades(analysis, strategy) {
+  async generateTrades(analysis: RebalancingAnalysis, strategy: PortfolioStrategy): Promise<any[]> {
     const trades = [];
 
     for (const [asset, deviation] of Object.entries(analysis.deviations)) {
@@ -462,7 +565,7 @@ export class PortfolioRebalancingEngine {
     return trades.sort((a: any, b: any) => b.priority - a.priority);
   }
 
-  calculateTradePriority(deviation, strategy) {
+  calculateTradePriority(deviation: any, strategy: PortfolioStrategy): number {
     // Higher priority for larger deviations
     let priority = deviation.deviationPercent * 100;
 
@@ -474,7 +577,7 @@ export class PortfolioRebalancingEngine {
     return priority;
   }
 
-  async calculateTradingCosts(trades) {
+  async calculateTradingCosts(trades: any[]): Promise<any> {
     const totalCost = trades.reduce((sum: any, trade: any) => sum + trade.estimatedCost, 0);
     const marketImpactCost = this.calculateMarketImpactCost(trades);
     const bidAskSpreadCost = this.calculateBidAskSpreadCost(trades);
@@ -487,7 +590,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  calculateMarketImpactCost(trades) {
+  calculateMarketImpactCost(trades: any[]): number {
     // Simplified market impact calculation
     return trades.reduce((sum: any, trade: any) => {
       const impactRate = Math.min(trade.currentValue / 1000000, 0.01); // Max 1% impact
@@ -495,7 +598,7 @@ export class PortfolioRebalancingEngine {
     }, 0);
   }
 
-  calculateBidAskSpreadCost(trades) {
+  calculateBidAskSpreadCost(trades: any[]): number {
     // Simplified bid-ask spread calculation
     return trades.reduce((sum: any, trade: any) => {
       const spreadRate = 0.0005; // 0.05% average spread
@@ -503,7 +606,7 @@ export class PortfolioRebalancingEngine {
     }, 0);
   }
 
-  async analyzeTaxImplications(trades, strategy) {
+  async analyzeTaxImplications(trades: any[], strategy: PortfolioStrategy): Promise<any> {
     const shortTermGains = 0;
     const longTermGains = 0;
     const taxSavings = 0;
@@ -518,7 +621,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  async createExecutionPlan(analysis, strategy) {
+  async createExecutionPlan(analysis: RebalancingAnalysis, strategy: PortfolioStrategy): Promise<any> {
     return {
       executionMethod: strategy.executionConfig.method || 'gradual',
       executionTimeframe: strategy.executionConfig.timeframe || '1_week',
@@ -528,7 +631,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  calculateBatchSizes(trades) {
+  calculateBatchSizes(trades: any[]): any[][] {
     const batches = [];
     const batchSize = 5; // Max trades per batch
 
@@ -539,7 +642,7 @@ export class PortfolioRebalancingEngine {
     return batches;
   }
 
-  prioritizeTrades(trades, executionConfig) {
+  prioritizeTrades(trades: any[], executionConfig: any): any[] {
     // Sort by priority, then by trade size
     return trades.sort((a: any, b: any) => {
       if (a.priority !== b.priority) {
@@ -549,7 +652,7 @@ export class PortfolioRebalancingEngine {
     });
   }
 
-  async executeTrade(trade, executionConfig) {
+  async executeTrade(trade: any, executionConfig: any): Promise<any> {
     // Mock trade execution
     return {
       id: `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -563,14 +666,14 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  async calculatePortfolioValue(portfolioId, trades) {
+  async calculatePortfolioValue(portfolioId: string, trades: any[]): Promise<number> {
     // Mock calculation
     return 1000000 + trades.reduce((sum: any, trade: any) => {
       return sum + (trade.direction === 'buy' ? -trade.actualCost : trade.actualCost);
     }, 0);
   }
 
-  async getCurrentPortfolioWeights(portfolioId) {
+  async getCurrentPortfolioWeights(portfolioId: string): Promise<Record<string, number>> {
     // Mock current weights
     return {
       'AAPL': 0.25,
@@ -582,7 +685,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  calculateDriftMetrics(currentWeights, targetWeights) {
+  calculateDriftMetrics(currentWeights: Record<string, number>, targetWeights: Record<string, number>): any {
     const metrics = {
       maxDrift: 0,
       averageDrift: 0,
@@ -615,7 +718,7 @@ export class PortfolioRebalancingEngine {
     return metrics;
   }
 
-  generateDriftAlerts(driftMetrics, strategy) {
+  generateDriftAlerts(driftMetrics: any, strategy: PortfolioStrategy): any[] {
     const alerts = [];
     const threshold = strategy.thresholds.deviation || 0.05;
 
@@ -641,7 +744,7 @@ export class PortfolioRebalancingEngine {
     return alerts;
   }
 
-  generateRecommendations(monitoring, strategy) {
+  generateRecommendations(monitoring: Monitoring, strategy: PortfolioStrategy): any[] {
     const recommendations = [];
 
     if (monitoring.driftMetrics.maxDrift > (strategy.thresholds.deviation || 0.05)) {
@@ -662,7 +765,7 @@ export class PortfolioRebalancingEngine {
     return recommendations;
   }
 
-  async getPortfolioPositions(portfolioId) {
+  async getPortfolioPositions(portfolioId: string): Promise<any[]> {
     // Mock positions data
     return [
       { symbol: 'AAPL', shares: 100, costBasis: 150, currentPrice: 175, unrealizedGain: 2500 },
@@ -671,7 +774,7 @@ export class PortfolioRebalancingEngine {
     ];
   }
 
-  identifyHarvestingOpportunities(positions, taxConfig) {
+  identifyHarvestingOpportunities(positions: any[], taxConfig: any): any[] {
     return positions
       .filter(position => position.unrealizedGain < 0)
       .map(position => ({
@@ -682,7 +785,7 @@ export class PortfolioRebalancingEngine {
       }));
   }
 
-  async executeHarvestTrade(opportunity, taxConfig) {
+  async executeHarvestTrade(opportunity: any, taxConfig: any): Promise<any> {
     return {
       symbol: opportunity.symbol,
       action: 'sell',
@@ -693,7 +796,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  async calculateTaxBenefits(executedTrades) {
+  async calculateTaxBenefits(executedTrades: any[]): Promise<any> {
     const totalLoss = executedTrades.reduce((sum: any, trade: any) => sum + trade.realizedLoss, 0);
     return {
       totalRealizedLoss: totalLoss,
@@ -702,7 +805,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  identifyWashSaleRisks(executedTrades) {
+  identifyWashSaleRisks(executedTrades: any[]): any[] {
     return executedTrades.map(trade => ({
       symbol: trade.symbol,
       washSaleRisk: 'medium', // Mock assessment
@@ -710,7 +813,7 @@ export class PortfolioRebalancingEngine {
     }));
   }
 
-  shouldTimeBasedRebalance(strategy) {
+  shouldTimeBasedRebalance(strategy: PortfolioStrategy): boolean {
     const lastRebalance = strategy.lastRebalanceDate || new Date(0);
     const frequency = strategy.frequency || 'monthly';
     const now = new Date();
@@ -729,7 +832,7 @@ export class PortfolioRebalancingEngine {
     }
   }
 
-  shouldVolatilityRebalance(deviations, strategy) {
+  shouldVolatilityRebalance(deviations: any, strategy: PortfolioStrategy): boolean {
     // Simplified volatility-based rebalancing logic
     const targetVolatility = strategy.constraints.targetVolatility || 0.15;
     const currentVolatility = 0.18; // Mock current volatility
@@ -737,12 +840,12 @@ export class PortfolioRebalancingEngine {
     return Math.abs(currentVolatility - targetVolatility) > 0.02; // 2% deviation
   }
 
-  shouldControlDrift(deviations, strategy) {
+  shouldControlDrift(deviations: any, strategy: PortfolioStrategy): boolean {
     const maxAllowedDrift = strategy.thresholds.maxDrift || 0.10;
     return Object.values(deviations).some(dev => dev.absoluteDeviation > maxAllowedDrift);
   }
 
-  getDefaultScenarios() {
+  getDefaultScenarios(): any[] {
     return [
       { name: 'Market Crash', shock: -0.20, probability: 0.05 },
       { name: 'Recession', shock: -0.10, probability: 0.15 },
@@ -752,7 +855,7 @@ export class PortfolioRebalancingEngine {
     ];
   }
 
-  async testStrategyUnderStress(portfolioId, strategy, scenarios) {
+  async testStrategyUnderStress(portfolioId: string, strategy: PortfolioStrategy, scenarios: any[]): Promise<any> {
     const results = {};
 
     for (const scenario of scenarios) {
@@ -780,7 +883,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  applyStressScenario(weights, scenario) {
+  applyStressScenario(weights: Record<string, number>, scenario: any): Record<string, number> {
     // Apply stress to portfolio weights
     const stressedWeights = { ...weights };
 
@@ -798,7 +901,7 @@ export class PortfolioRebalancingEngine {
     return stressedWeights;
   }
 
-  async calculateStressedMetrics(weights, scenario) {
+  async calculateStressedMetrics(weights: Record<string, number>, scenario: any): Promise<any> {
     // Mock stressed metrics calculation
     return {
       expectedReturn: 0.08 * (1 + scenario.shock),
@@ -809,7 +912,7 @@ export class PortfolioRebalancingEngine {
     };
   }
 
-  generateStressTestRecommendations(results) {
+  generateStressTestRecommendations(results: Record<string, any>): any[] {
     const recommendations = [];
 
     // Find best performing strategy
@@ -838,44 +941,114 @@ export class PortfolioRebalancingEngine {
 
   // Persistence methods
 
-  async persistStrategy(strategy) {
+  async persistStrategy(strategy: PortfolioStrategy): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.STRATEGIES}:${strategy.id}`;
     await setKVStore(this.env, key, strategy, REBALANCING_TTL.STRATEGY_CACHE);
   }
 
-  async persistRebalancingAnalysis(analysis) {
+  async persistRebalancingAnalysis(analysis: RebalancingAnalysis): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.SCHEDULES}:${analysis.portfolioId}_${Date.now()}`;
     await setKVStore(this.env, key, analysis, REBALANCING_TTL.SCHEDULE_CACHE);
   }
 
-  async persistExecution(execution) {
+  async persistExecution(execution: Execution): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.EXECUTION}:${execution.id}`;
     await setKVStore(this.env, key, execution, REBALANCING_TTL.EXECUTION_CACHE);
   }
 
-  async persistMonitoring(monitoring) {
+  async persistMonitoring(monitoring: Monitoring): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.MONITORING}:${monitoring.portfolioId}_${Date.now()}`;
     await setKVStore(this.env, key, monitoring, REBALANCING_TTL.MONITORING_CACHE);
   }
 
-  async persistTaxHarvesting(harvesting) {
+  async persistTaxHarvesting(harvesting: TaxHarvesting): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.HISTORY}:${harvesting.portfolioId}_${harvesting.harvestingDate}`;
     await setKVStore(this.env, key, harvesting, REBALANCING_TTL.HISTORY_CACHE);
   }
 
-  async persistDynamicAllocation(allocation) {
+  async persistDynamicAllocation(allocation: DynamicAllocation): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.STRATEGIES}:${allocation.portfolioId}_dynamic_${Date.now()}`;
     await setKVStore(this.env, key, allocation, REBALANCING_TTL.STRATEGY_CACHE);
   }
 
-  async persistStressTest(stressTest) {
+  async persistStressTest(stressTest: StressTest): Promise<void> {
     const key = `${REBALANCING_NAMESPACES.ALERTS}:${stressTest.portfolioId}_stress_${Date.now()}`;
     await setKVStore(this.env, key, stressTest, REBALANCING_TTL.ALERT_CACHE);
   }
 
-  async updateStrategyMetrics(strategyId, execution) {
+  async updateStrategyMetrics(strategyId: string, execution: Execution): Promise<void> {
     // Update strategy performance metrics
     // This would involve updating the strategy record with execution results
+  }
+
+  // Additional missing methods for dynamic allocation
+  async analyzeMarketConditions(marketConditions: any): Promise<any> {
+    // Mock market condition analysis
+    return {
+      trend: 'bullish',
+      volatility: 0.15,
+      correlation: 0.6,
+      sentiment: 0.7,
+      macroFactors: {
+        interestRate: 0.025,
+        inflation: 0.03,
+        gdpGrowth: 0.02
+      }
+    };
+  }
+
+  generateAllocationSignals(marketAnalysis: any, riskTolerance: any): any {
+    return {
+      equitySignal: marketAnalysis.trend === 'bullish' ? 0.6 : 0.4,
+      bondSignal: marketAnalysis.trend === 'bearish' ? 0.6 : 0.4,
+      commoditySignal: marketAnalysis.volatility > 0.2 ? 0.3 : 0.1,
+      cashSignal: marketAnalysis.volatility > 0.3 ? 0.2 : 0.05
+    };
+  }
+
+  calculateDynamicWeights(allocationSignals: any, riskTolerance: any): Record<string, number> {
+    const riskAdjustment = riskTolerance === 'conservative' ? 0.3 : riskTolerance === 'aggressive' ? -0.3 : 0;
+
+    return {
+      equity: allocationSignals.equitySignal + riskAdjustment,
+      bonds: allocationSignals.bondSignal - riskAdjustment,
+      commodities: allocationSignals.commoditySignal,
+      cash: allocationSignals.cashSignal
+    };
+  }
+
+  applyRiskAdjustments(dynamicWeights: Record<string, number>, marketAnalysis: any): Record<string, number> {
+    const adjustedWeights = { ...dynamicWeights };
+
+    // Adjust for high volatility
+    if (marketAnalysis.volatility > 0.25) {
+      adjustedWeights.cash += 0.1;
+      adjustedWeights.equity -= 0.1;
+    }
+
+    // Normalize weights
+    const total = Object.values(adjustedWeights).reduce((sum, weight) => sum + weight, 0);
+    for (const asset of Object.keys(adjustedWeights)) {
+      adjustedWeights[asset] /= total;
+    }
+
+    return adjustedWeights;
+  }
+
+  async createAllocationExecutionPlan(allocation: DynamicAllocation): Promise<any> {
+    return {
+      method: 'gradual',
+      timeframe: '2_weeks',
+      batchSizes: [[0.25, 0.25, 0.25, 0.25]],
+      timingConstraints: {
+        marketHoursOnly: true,
+        avoidEarningsSeason: false
+      },
+      liquidityConstraints: {
+        maxDailyTrade: 100000,
+        minLiquidityScore: 0.7
+      }
+    };
   }
 }
 
@@ -894,12 +1067,12 @@ export async function createRebalancingStrategy(env: any, config: any) {
   return await engine.createRebalancingStrategy(config);
 }
 
-export async function analyzeRebalancingNeeds(env, portfolioId, currentWeights, targetWeights, strategy) {
+export async function analyzeRebalancingNeeds(env: any, portfolioId: string, currentWeights: Record<string, number>, targetWeights: Record<string, number>, strategy: PortfolioStrategy): Promise<RebalancingAnalysis> {
   const engine = createPortfolioRebalancingEngine(env);
   return await engine.analyzeRebalancingNeeds(portfolioId, currentWeights, targetWeights, strategy);
 }
 
-export async function executeRebalancing(env, analysis, executionConfig) {
+export async function executeRebalancing(env: any, analysis: RebalancingAnalysis, executionConfig: any): Promise<Execution> {
   const engine = createPortfolioRebalancingEngine(env);
   return await engine.executeRebalancing(analysis, executionConfig);
 }

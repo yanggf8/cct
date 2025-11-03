@@ -297,7 +297,7 @@ ${newsContext}`;
 
     return {
       model: 'gpt-oss-120b',
-      direction: mapSentimentToDirection(analysisData.sentiment),
+      direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
       confidence: analysisData.confidence,
       reasoning: analysisData.reasoning || 'No detailed reasoning provided',
       raw_response: response.response,
@@ -405,7 +405,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
 
     return {
       model: 'distilbert-sst-2-int8',
-      direction: mapSentimentToDirection(direction),
+      direction: mapSentimentToDirection(direction) as Direction,
       confidence: avgConfidence,
       reasoning: `Sentiment classification based on ${validResults.length} articles`,
       articles_analyzed: validResults.length,

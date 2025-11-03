@@ -75,7 +75,7 @@ class SystemMetrics {
   /**
    * Create a timer instance
    */
-  timer(name, tags = {}) {
+  timer(name: string, tags: Record<string, any> = {}) {
     const startTime = Date.now();
     return {
       stop: () => {
@@ -110,7 +110,7 @@ class SystemMetrics {
   /**
    * Create a unique key for metric storage
    */
-  createMetricKey(name, tags) {
+  createMetricKey(name: string, tags: Record<string, any>) {
     const tagString = Object.entries(tags)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}:${v}`)
@@ -132,7 +132,7 @@ export const BusinessMetrics = {
     systemMetrics.recordGauge('analysis.symbols_count', symbols, { type });
   },
 
-  analysisCompleted: (type, symbols, duration) => {
+  analysisCompleted: (type: string, symbols: number, duration: number) => {
     systemMetrics.incrementCounter('analysis.completed', 1, { type });
     systemMetrics.recordTimer('analysis.duration', duration, { type });
     systemMetrics.recordGauge('analysis.success_rate', 100, { type });
@@ -144,18 +144,18 @@ export const BusinessMetrics = {
   },
 
   // Prediction metrics
-  predictionMade: (symbol, confidence, direction) => {
+  predictionMade: (symbol: string, confidence: number, direction: string) => {
     systemMetrics.incrementCounter('predictions.made', 1, { symbol, direction });
     systemMetrics.recordGauge('predictions.confidence', confidence * 100, { symbol });
   },
 
-  predictionValidated: (symbol, correct, confidence) => {
+  predictionValidated: (symbol: string, correct: boolean, confidence: number) => {
     systemMetrics.incrementCounter('predictions.validated', 1, { symbol, correct: correct.toString() });
     systemMetrics.recordGauge('predictions.accuracy', correct ? 100 : 0, { symbol });
   },
 
   // API metrics
-  apiRequest: (endpoint, method, status, duration) => {
+  apiRequest: (endpoint: string, method: string, status: number, duration: number) => {
     systemMetrics.incrementCounter('api.requests', 1, { endpoint, method, status: status.toString() });
     systemMetrics.recordTimer('api.response_time', duration, { endpoint });
   },

@@ -23,7 +23,7 @@ import {
   generateSignalItem,
   generateCompletePage
 } from '../html-generators.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../../types';
 
 const logger = createLogger('intraday-decomposed');
 
@@ -44,7 +44,7 @@ class IntradayDataModule {
     logger.debug('📥 Retrieving intraday data', { requestId, date });
 
     try {
-      const data = await getIntradayCheckData(date, env, { requestId });
+      const data = await getIntradayCheckData(env, new Date(date));
 
       if (!data) {
         logger.warn('⚠️ No intraday data found', { requestId, date });
@@ -53,7 +53,7 @@ class IntradayDataModule {
 
       logger.debug('✅ Intraday data retrieved', {
         requestId,
-        signalCount: data.signals?.length || 0
+        signalCount: (data as any).signals?.length || 0
       });
 
       return data;
@@ -194,19 +194,21 @@ class HTMLModule {
     const { requestId } = context;
 
     try {
-      const metrics = PerformanceModule.generateMetrics(data.signals);
+      const metrics = PerformanceModule.generateMetrics((data as any).signals);
 
-      const htmlContent = generateCompletePage({
-        title: '🔍 Intraday Performance Check',
-        subtitle: 'Modular architecture demonstration',
-        requestId,
-        sections: [
-          HTMLModule.generateMetricsSection(metrics),
-          HTMLModule.generateSignalsSection(data.signals),
-          HTMLModule.generatePerformanceSection(performance),
-          HTMLModule.generateArchitectureSection()
-        ]
-      });
+      // Build HTML content from sections
+      const content = [
+        HTMLModule.generateMetricsSection(metrics),
+        HTMLModule.generateSignalsSection((data as any).signals),
+        HTMLModule.generatePerformanceSection(performance),
+        HTMLModule.generateArchitectureSection()
+      ].join('\n');
+
+      const htmlContent = generateCompletePage(
+        '🔍 Intraday Performance Check',
+        'Modular architecture demonstration',
+        content
+      );
 
       return htmlContent;
 
@@ -457,9 +459,7 @@ class ErrorModule {
     });
 
     const waitingHTML = generateWaitingDisplay(
-      message,
-      completionRate,
-      'Analysis is in progress. This typically takes 2-3 minutes to complete.'
+      `${message} ${completionRate}\n\nAnalysis is in progress. This typically takes 2-3 minutes to complete.`
     );
 
     return new Response(waitingHTML, {
@@ -474,9 +474,11 @@ class ErrorModule {
 /**
  * Main decomposed intraday handler
  */
-export const handleIntradayCheckDecomposed = createReportHandler(
-  'intraday-check-decomposed',
-  async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
+export const handleIntradayCheckDecomposed = async (
+  request: Request,
+  env: CloudflareEnvironment,
+  ctx: ExecutionContext
+): Promise<Response> => {
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
     const today = new Date();
@@ -497,7 +499,7 @@ export const handleIntradayCheckDecomposed = createReportHandler(
       if (!envValidation.isValid) {
         logger.warn('⚠️ Environment validation failed', {
           requestId,
-          issues: envValidation.issues
+          issues: envValidation.errors
         });
 
         return ErrorModule.generateErrorResponse(
@@ -568,5 +570,4 @@ export const handleIntradayCheckDecomposed = createReportHandler(
 
       return ErrorModule.generateErrorResponse(error, context);
     }
-  }
-);
+  };

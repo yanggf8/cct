@@ -7,7 +7,7 @@ import { getDailySummary, generateDailySummary } from '../daily-summary.js';
 import { backfillDailySummaries } from '../backfill.js';
 import { handleDailySummaryPage } from '../daily-summary-page.js';
 import { createLogger, logBusinessMetric } from '../logging.js';
-import type { CloudflareEnvironment } from '../../types/index.js';
+import type { CloudflareEnvironment } from '../../types';
 
 // Type Definitions
 
@@ -268,8 +268,8 @@ export async function handleDailySummaryAPI(
     logger.info('Daily summary API completed', {
       requestId,
       targetDate,
-      totalPredictions: dailySummary?.data?.summary?.total_predictions || 0,
-      accuracy: dailySummary?.data?.summary?.overall_accuracy || 0
+      totalPredictions: dailySummary?.summary?.total_predictions || 0,
+      accuracy: dailySummary?.summary?.overall_accuracy || 0
     } as LogContext);
 
     logBusinessMetric('daily_summary_api_request', 1, {
@@ -515,15 +515,15 @@ export async function handleVerifyBackfill(
 
       try {
         const summary = await getDailySummary(dateStr, env);
-        if (summary && summary.success) {
+        if (summary) {
           verificationResult.found++;
           verificationResult.details.push({
             date: dateStr,
             status: 'found',
-            predictions: summary.data?.summary?.total_predictions || 0,
-            accuracy: summary.data?.summary?.overall_accuracy || 0,
-            generated_at: summary.data?.generated_at,
-            is_trading_day: summary.data?.is_trading_day
+            predictions: summary.summary?.total_predictions || 0,
+            accuracy: summary.summary?.overall_accuracy || 0,
+            generated_at: summary.generated_at,
+            is_trading_day: summary.is_trading_day
           });
         } else {
           verificationResult.missing++;

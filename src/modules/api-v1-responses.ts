@@ -171,6 +171,34 @@ export const HttpStatus = {
 // Type for HTTP status codes
 export type HttpStatusType = typeof HttpStatus[keyof typeof HttpStatus];
 
+// Response type definitions
+export interface SymbolsResponse {
+  symbols: string[];
+  metadata: {
+    total_count: number;
+    last_updated: string;
+    data_source: string;
+  };
+}
+
+export interface SystemHealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  services: {
+    ai_models: {
+      gpt_oss_120b: any;
+      distilbert: any;
+    };
+    data_sources: {
+      yahoo_finance: any;
+      news_api: any;
+    };
+    cache_system?: any;
+    kv_storage?: any;
+    processing_pipeline?: any;
+  };
+}
+
 // Compatibility placeholders for JS route imports
 export const SentimentAnalysisResponse = {};
 export const SymbolSentimentResponse = {};

@@ -87,8 +87,8 @@ export class RequestDeduplicator {
       memoryUsage: 0
     };
 
-    // Start cleanup interval
-    this.startCleanupInterval();
+    // Note: Cleanup interval removed for Cloudflare Workers compatibility
+    // Call cleanup() manually when needed
     logger.info('Request deduplicator initialized', this.config);
   }
 
@@ -346,11 +346,12 @@ export class RequestDeduplicator {
 
   /**
    * Start cleanup interval for expired cache entries and old requests
+   * DISABLED: Not compatible with Cloudflare Workers global scope restrictions
    */
   private startCleanupInterval(): void {
-    setInterval(() => {
-      this.cleanup();
-    }, 60000); // Cleanup every minute
+    // setInterval is not allowed in global scope in Cloudflare Workers
+    // Manual cleanup should be called when needed
+    console.log('Auto cleanup disabled for Cloudflare Workers compatibility');
   }
 
   /**

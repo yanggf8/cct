@@ -40,9 +40,13 @@ export interface CacheMetadata {
  */
 export class DualCacheDO<T = any> {
   private doNamespace: DurableObjectNamespace;
+  public l1Cache: any; // Compatibility property for enhanced-cache-routes
 
   constructor(doNamespace: DurableObjectNamespace) {
     this.doNamespace = doNamespace;
+    this.l1Cache = {
+      isStaleWhileRevalidateEnabled: () => true
+    };
   }
 
   /**
@@ -239,6 +243,271 @@ export class DualCacheDO<T = any> {
       logger.error(`DUAL_CACHE_DO_HEALTH_ERROR: Health check failed`, { error: errorMsg });
       return false;
     }
+  }
+
+  /**
+   * Perform comprehensive health assessment (compatibility with enhanced-cache-routes)
+   */
+  async performHealthAssessment(): Promise<any> {
+    try {
+      const isHealthy = await this.healthCheck();
+      const stats = await this.getStats();
+      const metadata = await this.getMetadata();
+
+      // Calculate health score based on various factors
+      let overallScore = 100;
+      const issues = [];
+      const recommendations = [];
+
+      if (!isHealthy) {
+        overallScore -= 50;
+        issues.push('Durable Object cache is not responding');
+        recommendations.push('Check DO deployment and configuration');
+      }
+
+      if (!stats || stats.totalEntries === 0) {
+        overallScore -= 25;
+        issues.push('Cache is empty - no entries found');
+        recommendations.push('Run cache warmup to populate cache');
+      }
+
+      if (stats && stats.memoryUsage > 100) { // > 100MB
+        overallScore -= 15;
+        issues.push(`High memory usage: ${stats.memoryUsage}MB`);
+        recommendations.push('Consider cache cleanup or increased memory limits');
+      }
+
+      if (overallScore < 70) {
+        recommendations.push('Review cache configuration and usage patterns');
+      }
+
+      return {
+        status: overallScore >= 80 ? 'healthy' : overallScore >= 60 ? 'degraded' : 'critical',
+        overallScore: Math.max(0, overallScore),
+        l1Metrics: {
+          enabled: true,
+          isHealthy,
+          totalEntries: stats?.totalEntries || 0,
+          memoryUsage: stats?.memoryUsage || 0,
+          hitRate: stats?.hitRate || 0
+        },
+        l2Metrics: {
+          enabled: false, // DO cache doesn't use L2 KV
+          message: 'L2 KV cache disabled (DO-only architecture)'
+        },
+        issues,
+        recommendations,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`DUAL_CACHE_DO_HEALTH_ASSESSMENT_ERROR: Health assessment failed`, { error: errorMsg });
+
+      return {
+        status: 'critical',
+        overallScore: 0,
+        l1Metrics: { enabled: false, error: errorMsg },
+        l2Metrics: { enabled: false },
+        issues: [`Health assessment failed: ${errorMsg}`],
+        recommendations: ['Check cache configuration and DO deployment'],
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Get configuration summary (compatibility method)
+   */
+  getConfigurationSummary(): any {
+    return {
+      environment: 'production',
+      enabled: true,
+      architecture: 'Durable Objects (DO-only)',
+      cacheType: 'persistent-in-memory',
+      features: {
+        staleWhileRevalidate: true,
+        persistentStorage: true,
+        zeroKVOperations: true
+      }
+    };
+  }
+
+  /**
+   * Get all enhanced configurations (compatibility method)
+   */
+  getAllEnhancedConfigs(): any {
+    return {
+      namespaces: [
+        'sentiment_analysis',
+        'market_data',
+        'ai_results',
+        'reports',
+        'sector_data',
+        'user_data',
+        'temp_data'
+      ],
+      defaults: {
+        ttl: 3600, // 1 hour
+        staleWhileRevalidate: 600, // 10 minutes
+        maxMemoryMB: 128
+      }
+    };
+  }
+
+  /**
+   * Get L1 statistics (compatibility method)
+   */
+  getL1Stats(): any {
+    // This would need to be implemented by calling the DO
+    // For now, return basic stats
+    return {
+      currentSize: 0, // Would be populated by DO
+      hitRate: 0,
+      evictions: 0,
+      oldestEntry: 0,
+      newestEntry: 0,
+      memoryUsage: 0
+    };
+  }
+
+  /**
+   * Get detailed L1 information (compatibility method)
+   */
+  getL1DetailedInfo(): any {
+    return {
+      currentMemoryMB: 0,
+      averageAge: 0,
+      entries: [],
+      hitRate: 0,
+      evictionRate: 0
+    };
+  }
+
+  /**
+   * Get promotion statistics (compatibility method)
+   */
+  getPromotionStats(): any {
+    return {
+      totalPromotions: 0,
+      successfulPromotions: 0,
+      failedPromotions: 0,
+      promotionRate: 0,
+      averagePromotionTime: 0
+    };
+  }
+
+  /**
+   * Get performance trends (compatibility method)
+   */
+  getPerformanceTrends(): any {
+    return {
+      hitRateTrend: [],
+      responseTimeTrend: [],
+      memoryUsageTrend: [],
+      evictionRateTrend: []
+    };
+  }
+
+  /**
+   * Get access patterns (compatibility method)
+   */
+  getAccessPatterns(): any {
+    return [];
+  }
+
+  /**
+   * Check if promotion is enabled (compatibility method)
+   */
+  isPromotionEnabled(): boolean {
+    return false; // No promotion in DO-only architecture
+  }
+
+  /**
+   * Get system status (compatibility method)
+   */
+  async getSystemStatus(): Promise<any> {
+    const isHealthy = await this.healthCheck();
+    const stats = await this.getStats();
+
+    return {
+      status: isHealthy ? 'operational' : 'error',
+      enabled: true,
+      architecture: 'Durable Objects',
+      l1Cache: {
+        enabled: true,
+        type: 'persistent-in-memory',
+        status: isHealthy ? 'healthy' : 'error'
+      },
+      l2Cache: {
+        enabled: false,
+        type: 'kv',
+        status: 'disabled'
+      },
+      uptime: Date.now(),
+      lastActivity: new Date().toISOString(),
+      stats: stats || {}
+    };
+  }
+
+  /**
+   * Get timestamp info (compatibility method)
+   */
+  getTimestampInfo(namespace: string, key: string): any {
+    // This would need to be implemented by calling the DO
+    // For now, return null to indicate no cached entry
+    return null;
+  }
+
+  /**
+   * Get deduplication statistics (compatibility method)
+   */
+  getDeduplicationStats(): any {
+    return {
+      totalRequests: 0,
+      deduplicatedRequests: 0,
+      cacheHits: 0,
+      pendingRequests: 0,
+      timeoutRequests: 0,
+      deduplicationRate: 0,
+      averageResponseTime: 0,
+      memoryUsage: 0
+    };
+  }
+
+  /**
+   * Get deduplication cache info (compatibility method)
+   */
+  getDeduplicationCacheInfo(): any {
+    return {};
+  }
+
+  /**
+   * Get deduplication pending requests (compatibility method)
+   */
+  getDeduplicationPendingRequests(): any {
+    return [];
+  }
+
+  /**
+   * Set value with namespace support (compatibility method)
+   */
+  async setWithNamespace(namespace: string, key: string, value: any, ttl?: number): Promise<void> {
+    const config: DualCacheConfig = {
+      ttl: ttl || 3600,
+      namespace
+    };
+    return this.set(key, value, config);
+  }
+
+  /**
+   * Get value with namespace support (compatibility method)
+   */
+  async getWithNamespace(namespace: string, key: string): Promise<any> {
+    const config: DualCacheConfig = {
+      ttl: 3600,
+      namespace
+    };
+    return this.get(key, config);
   }
 }
 

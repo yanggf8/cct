@@ -181,10 +181,10 @@ export class EnhancedOptimizedCacheManager {
         const batchResult = await this.batchOperations.scheduleBatchRead([key], undefined, options?.priority || 'medium');
 
         // Extract specific result for this key
-        const batchData = batchResult.data as any;
+        const batchData = (batchResult as any).data || {};
         for (const [batchResultKey, data] of Object.entries(batchData || {})) {
           if (batchResultKey === key && data) {
-            aliasedResult = { success: true, data };
+            aliasedResult = { success: true, data: data as T };
             optimizations.push('Batch Operations Hit');
             cacheHits++;
             actualKVCount = 1; // Single batch read
@@ -530,8 +530,7 @@ export class EnhancedOptimizedCacheManager {
       timestamp: Date.now(),
       operation,
       kvOpsSaved,
-      optimizations,
-      duration
+      optimizations
     });
 
     // Keep only recent logs

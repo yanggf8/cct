@@ -3,10 +3,13 @@
  * Send trading alerts via Facebook Messenger and LINE messaging platforms
  */
 
+// Re-export CloudflareEnvironment from types.ts to avoid conflicts
+import type { CloudflareEnvironment as BaseCloudflareEnvironment } from '../types';
+
 /**
- * Interface for Cloudflare environment variables
+ * Extended interface for Cloudflare environment variables with messenger-specific fields
  */
-export interface CloudflareEnvironment {
+export interface CloudflareEnvironment extends BaseCloudflareEnvironment {
   FACEBOOK_PAGE_TOKEN?: string;
   FACEBOOK_RECIPIENT_ID?: string;
   LINE_CHANNEL_TOKEN?: string;
@@ -809,29 +812,4 @@ export async function sendCriticalMessengerAlert(
   }
 }
 
-// Export all types for external use
-export type {
-  CloudflareEnvironment,
-  AlertLevel,
-  TradingSignal,
-  PerformanceMetrics,
-  AnalysisResults,
-  TradingAlert,
-  FacebookGraphResponse,
-  FacebookGraphError,
-  LineMessageResponse,
-  LineMessageError,
-  FacebookRecipient,
-  FacebookMessage,
-  FacebookGenericElement,
-  FacebookButton,
-  FacebookMessageRequest,
-  LineMessageAction,
-  LineFlexContent,
-  LineBubbleContainer,
-  LineCarouselContainer,
-  LineFlexMessage,
-  LineStickerMessage,
-  LineMessagePushRequest,
-  CompanyDomainMap
-};
+// Types are already exported individually above

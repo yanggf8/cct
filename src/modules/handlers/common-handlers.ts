@@ -639,25 +639,4 @@ export default {
   validateRequestEnvironment
 };
 
-// ============================================================================
-// Type Exports
-// ============================================================================
-
-export type {
-  ReportHandlerOptions,
-  ReportGeneratorContext,
-  ReportGeneratorFunction,
-  HTMLGeneratorFunction,
-  WaitingDisplayData,
-  ErrorDisplayData,
-  APIHandlerOptions,
-  APIFunction,
-  APIResponse,
-  DataRetrievalHandlerOptions,
-  DataRetrieverFunction,
-  StandardMetricsData,
-  MetricDisplay,
-  NavigationTab,
-  DashboardLayoutOptions,
-  RequestEnvironmentValidation
-};
+// Types are already exported inline - no need for redundant export block

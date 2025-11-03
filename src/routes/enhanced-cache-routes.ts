@@ -635,10 +635,10 @@ export function createEnhancedCacheRoutes(env: any) {
           for (const dataset of warmup_datasets) {
             try {
               // Set in cache with appropriate TTL based on namespace
-              await cacheManager.set(dataset.namespace, dataset.key, dataset.data);
+              await cacheManager.setWithNamespace(dataset.namespace, dataset.key, dataset.data, dataset.ttl);
 
               // Verify the data was cached
-              const retrieved = await cacheManager.get(dataset.namespace, dataset.key);
+              const retrieved = await cacheManager.getWithNamespace(dataset.namespace, dataset.key);
 
               results.push({
                 namespace: dataset.namespace,

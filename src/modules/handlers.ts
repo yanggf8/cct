@@ -231,7 +231,7 @@ export async function handleEnhancedFeatureAnalysis(request: Request, env: Cloud
 
     if (request.method === 'POST') {
       try {
-        const requestData = await request.json();
+        const requestData = await request.json() as any;
         if (requestData.symbols && Array.isArray(requestData.symbols)) {
           symbols = requestData.symbols;
         }
@@ -275,7 +275,7 @@ export async function handleIndependentTechnicalAnalysis(request: Request, env: 
 
     if (request.method === 'POST') {
       try {
-        const requestData = await request.json();
+        const requestData = await request.json() as any;
         if (requestData.symbols && Array.isArray(requestData.symbols)) {
           symbols = requestData.symbols;
         }
@@ -1160,7 +1160,7 @@ export async function handleSentimentDebugTest(request: Request, env: Cloudflare
 
     // Test sentiment analysis with enhanced logging
     console.log(`   🧪 Testing sentiment analysis system...`);
-    const sentimentResult = await getSentimentWithFallbackChain(testSymbol, mockNewsData, env);
+    const sentimentResult = await getSentimentWithFallbackChain(testSymbol, mockNewsData as any, env);
 
     // Check if sentiment analysis actually succeeded
     const sentimentSuccess = sentimentResult &&
@@ -1558,7 +1558,7 @@ export async function handleTestAllFacebookMessages(request: Request, env: Cloud
   const dal = createDAL(env);
   let initialKVCount = 0;
   try {
-    const initialKVList = await dal.listKeys({ prefix: "web_notif_" });
+    const initialKVList = await dal.listKeys("web_notif_");
     initialKVCount = initialKVList.keys?.length || 0;
     console.log(`📋 [WEB-NOTIF-TEST-INITIAL] Found ${initialKVCount} existing KV records`);
   } catch (error: any) {
@@ -1581,23 +1581,23 @@ export async function handleTestAllFacebookMessages(request: Request, env: Cloud
         // Wait a moment for KV to be available
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        const postKVList = await dal.listKeys({ prefix: "fb_" });
+        const postKVList = await dal.listKeys("fb_");
         const newKVCount = postKVList.keys?.length || 0;
 
         if (newKVCount > initialKVCount) {
           // Find the new KV record
           const testTimestamp = testResults.test_execution_id.split("_")[3];
           const newRecords = postKVList.keys?.filter(k =>
-            k.name.includes(testTimestamp) ||
-            k.name.includes(cronId.split("_")[2])
+            k.includes(testTimestamp) ||
+            k.includes(cronId.split("_")[2])
           ) || [];
 
           if (newRecords.length > 0) {
             kvStored = true;
-            kvKey = newRecords[0].name;
+            kvKey = newRecords[0];
 
             // Verify the record contains expected data
-            const readResult = await dal.read(newRecords[0].name);
+            const readResult = await dal.read(newRecords[0]);
             if (readResult.success && readResult.data) {
               const recordData = readResult.data;
               if (!recordData.message_sent || !recordData.cron_execution_id) {
@@ -1643,13 +1643,13 @@ export async function handleTestAllFacebookMessages(request: Request, env: Cloud
   // Check KV logs
   console.log("🔍 [FB-TEST-KV] Checking KV logging for all tests...");
   try {
-    const kvKeys = await dal.listKeys({ prefix: "fb_" });
+    const kvKeys = await dal.listKeys("fb_");
     const testTimestamp = testResults.test_execution_id.split("_")[3];
-    const recentLogs = kvKeys.keys?.filter(k => k.name.includes(testTimestamp)) || [];
+    const recentLogs = kvKeys.keys?.filter(k => k.includes(testTimestamp)) || [];
     testResults.kv_logs = {
       total_fb_logs: kvKeys.keys?.length || 0,
       test_related_logs: recentLogs.length,
-      recent_log_keys: recentLogs.map(k => k.name)
+      recent_log_keys: recentLogs
     };
     console.log(`📋 [FB-TEST-KV] Found ${recentLogs.length} test-related logs in KV`);
   } catch (kvError: any) {

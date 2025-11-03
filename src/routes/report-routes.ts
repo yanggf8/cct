@@ -9,8 +9,7 @@ import {
   DailyReportResponse,
   WeeklyReportResponse,
   ProcessingTimer,
-  HttpStatus,
-  extractDateParam
+  HttpStatus
 } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
@@ -22,6 +21,13 @@ import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('report-routes');
+
+/**
+ * Extract date parameter from URL
+ */
+function extractDateParam(url: URL, paramName: string): string | null {
+  return url.searchParams.get(paramName);
+}
 
 /**
  * Handle all report routes
