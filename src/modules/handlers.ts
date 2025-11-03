@@ -138,7 +138,7 @@ export async function handleManualAnalysis(request: Request, env: CloudflareEnvi
     try {
       // Fallback to basic analysis if enhanced fails
       const basicAnalysis = await runBasicAnalysis(env, { triggerMode: 'manual_analysis_fallback' });
-      basicAnalysis.fallback_reason = error.message;
+      (basicAnalysis as any).fallback_reason = error.message;
 
       return new Response(JSON.stringify(basicAnalysis, null, 2), {
         headers: { 'Content-Type': 'application/json' }
@@ -1182,7 +1182,7 @@ export async function handleSentimentDebugTest(request: Request, env: Cloudflare
         symbol: testSymbol,
         news_articles_processed: mockNewsData.length,
         sentiment_result: sentimentResult,
-        model_used: sentimentResult?.models_used || ['error'],
+        model_used: (sentimentResult as any)?.models_used || ['error'],
         cost_estimate: sentimentResult?.cost_estimate || { total_cost: 0 }
       },
       debug_info: {
@@ -1243,7 +1243,7 @@ export async function handleModelHealth(request: Request, env: CloudflareEnviron
     // List all objects in bucket
     try {
       const listResponse = await env.ENHANCED_MODELS.list();
-      healthResult.bucket_contents = listResponse.objects?.map(obj => ({
+      healthResult.bucket_contents = listResponse.objects?.map((obj: any) => ({
         key: obj.key,
         size: obj.size,
         modified: obj.uploaded
@@ -1458,7 +1458,7 @@ export async function handleR2Upload(request: Request, env: CloudflareEnvironmen
     // Verify uploads by checking bucket contents
     try {
       const listResponse = await env.ENHANCED_MODELS.list();
-      const currentFiles = listResponse.objects?.map(obj => obj.key) || [];
+      const currentFiles = listResponse.objects?.map((obj: any) => obj.key) || [];
       console.log(`📋 Current R2 bucket contents after upload: ${currentFiles.join(', ')}`);
     } catch (listError: any) {
       console.error('❌ Failed to list bucket after upload:', listError);

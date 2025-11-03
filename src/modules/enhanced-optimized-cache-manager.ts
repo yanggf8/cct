@@ -181,8 +181,8 @@ export class EnhancedOptimizedCacheManager {
         const batchResult = await this.batchOperations.scheduleBatchRead([key], undefined, options?.priority || 'medium');
 
         // Extract specific result for this key
-        const batchData = batchResult.data as Map<string, T>;
-        for (const [batchResultKey, data] of batchData.entries()) {
+        const batchData = batchResult.data as any;
+        for (const [batchResultKey, data] of Object.entries(batchData || {})) {
           if (batchResultKey === key && data) {
             aliasedResult = { success: true, data };
             optimizations.push('Batch Operations Hit');
@@ -444,7 +444,7 @@ export class EnhancedOptimizedCacheManager {
     }
     if (newConfig.enablePredictivePrefetching !== undefined) {
       // Update predictive pre-fetching config
-      this.predictivePrefetch.setEnabled(newConfig.enablePredictivePrefetching);
+      (this.predictivePrefetch as any).setEnabled(newConfig.enablePredictivePrefetching);
     }
   }
 

@@ -22,7 +22,7 @@ class SystemMetrics {
   /**
    * Increment a counter metric
    */
-  incrementCounter(name, value = 1, tags = {}) {
+  incrementCounter(name: any, value: any = 1, tags: any = {}) {
     const key = this.createMetricKey(name, tags);
     const current = this.counters.get(key) || 0;
     this.counters.set(key, current + value);
@@ -37,7 +37,7 @@ class SystemMetrics {
   /**
    * Record a gauge metric (current value)
    */
-  recordGauge(name, value, tags = {}) {
+  recordGauge(name: any, value: any, tags: any = {}) {
     const key = this.createMetricKey(name, tags);
     this.metrics.set(key, {
       name,
@@ -56,7 +56,7 @@ class SystemMetrics {
   /**
    * Record a timer metric (duration)
    */
-  recordTimer(name, duration, tags = {}) {
+  recordTimer(name: any, duration: any, tags: any = {}) {
     const key = this.createMetricKey(name, tags);
     this.timers.set(key, {
       name,

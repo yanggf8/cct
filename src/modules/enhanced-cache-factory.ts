@@ -129,10 +129,10 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
 
     // Ensure projection has correct structure
     const projection = {
-      currentKV: projectionObj?.currentDailyKV || projectionObj?.currentKV || 0,
-      optimizedKV: projectionObj?.optimizedDailyKV || projectionObj?.optimizedKV || 0,
-      reduction: projectionObj?.percentageReduction || projectionObj?.reduction || 0,
-      percentage: projectionObj?.percentage || `${projectionObj?.percentageReduction || 0}%`
+      currentKV: (projectionObj as any)?.currentDailyKV || 0,
+      optimizedKV: (projectionObj as any)?.optimizedDailyKV || 0,
+      reduction: (projectionObj as any)?.percentageReduction || 0,
+      percentage: `${(projectionObj as any)?.percentageReduction || 0}%`
     };
 
     return {

@@ -349,7 +349,7 @@ export function createBatchHandler<T = any>(
 ): HandlerFunction {
   const {
     maxBatchSize = 100,
-    timeout = CONFIG.TIMEOUTS.BATCH_OPERATION,
+    timeout = (CONFIG as any).TIMEOUTS?.BATCH_OPERATION || 30000,
     enableMetrics = true
   } = options;
 
@@ -414,7 +414,7 @@ export function createCachedHandler<T = any>(
 ): HandlerFunction<T | Response> {
   const {
     cacheKey = (req: Request) => req.url,
-    cacheTTL = CONFIG.CACHE.DEFAULT_TTL,
+    cacheTTL = (CONFIG as any).CACHE?.DEFAULT_TTL || 300,
     enableMetrics = true
   } = options;
 

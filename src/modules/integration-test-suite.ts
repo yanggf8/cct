@@ -381,10 +381,10 @@ export class IntegrationTestSuite {
 
       const validations = {
         hasSignals: result.signals && result.signals.length > 0,
-        hasGPTAnalysis: result.signals?.some(s => s.gpt_sentiment),
-        hasDistilBERTAnalysis: result.signals?.some(s => s.distilbert_sentiment),
+        hasGPTAnalysis: result.signals?.some((s: any) => s.gpt_sentiment),
+        hasDistilBERTAnalysis: result.signals?.some((s: any) => s.distilbert_sentiment),
         hasConfidence: result.overall_confidence !== undefined,
-        hasRecommendation: result.signals?.some(s => s.recommendation)
+        hasRecommendation: result.signals?.some((s: any) => s.recommendation)
       };
 
       const passedValidations = Object.values(validations).filter(Boolean).length;

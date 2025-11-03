@@ -77,7 +77,7 @@ export async function exampleHandler(request: Request, env: CloudflareEnvironmen
 
     // Example 4: List keys
     const keys = await dal.listKeys('analysis_2025-09');
-    if (keys.success) {
+    if (keys.keys && keys.keys.length > 0) {
       console.log('Found keys:', keys.keys.length);
     }
 
@@ -212,13 +212,13 @@ export async function advancedDALExample(env: CloudflareEnvironment): Promise<{
     const listStart = Date.now();
 
     const listResult = await dal.listKeys('analysis_');
-    const filteredKeys = listResult.success ? listResult.keys.filter(key =>
+    const filteredKeys = listResult.keys ? listResult.keys.filter(key =>
       key.includes('2025') && !key.includes('manual')
     ) : [];
 
     operations.push({
       operation: 'pattern_based_listing',
-      success: listResult.success || false,
+      success: (listResult.keys && listResult.keys.length > 0) || false,
       duration: Date.now() - listStart
     });
 

@@ -231,7 +231,7 @@ export async function runEnhancedFeatureAnalysis(
       let neuralAnalysis: NeuralSignal | null;
       try {
         const analysis = await runEnhancedAnalysis(env, { symbols: [symbol] });
-        neuralAnalysis = analysis.trading_signals[symbol];
+        neuralAnalysis = (analysis as any).trading_signals?.[symbol];
         console.log(`✅ Neural analysis complete for ${symbol}`);
       } catch (error: any) {
         console.error(`❌ Neural analysis failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
@@ -277,14 +277,14 @@ export async function runEnhancedFeatureAnalysis(
       // Fallback to basic neural network analysis only
       try {
         const fallbackAnalysis = await runEnhancedAnalysis(env, { symbols: [symbol] });
-        results.trading_signals[symbol] = {
-          ...fallbackAnalysis.trading_signals[symbol],
+        (results as any).trading_signals[symbol] = {
+          ...(fallbackAnalysis as any).trading_signals?.[symbol],
           feature_status: 'fallback_to_neural_only',
           components: {
-            neural_networks: fallbackAnalysis.trading_signals[symbol] ? {
-              predicted_price: fallbackAnalysis.trading_signals[symbol].predicted_price,
-              direction: fallbackAnalysis.trading_signals[symbol].direction,
-              confidence: fallbackAnalysis.trading_signals[symbol].confidence,
+            neural_networks: (fallbackAnalysis as any).trading_signals?.[symbol] ? {
+              predicted_price: (fallbackAnalysis as any).trading_signals?.[symbol]?.predicted_price,
+              direction: (fallbackAnalysis as any).trading_signals?.[symbol]?.direction,
+              confidence: (fallbackAnalysis as any).trading_signals?.[symbol]?.confidence,
               weight: FEATURE_WEIGHTS.dual_ai_models
             } : null,
             technical_features: null,

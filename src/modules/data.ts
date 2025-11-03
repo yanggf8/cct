@@ -743,8 +743,8 @@ async function getRealActualPrice(symbol: string, targetDate: string): Promise<n
       throw new Error(`Yahoo Finance API returned ${response.status}`);
     }
 
-    const data = await response.json();
-    const result = data.chart.result[0];
+    const data = await response.json() as any;
+    const result = data?.chart?.result?.[0];
 
     if (!result || !result.indicators) {
       throw new Error('Invalid response format from Yahoo Finance');

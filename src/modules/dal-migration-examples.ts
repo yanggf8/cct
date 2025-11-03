@@ -357,7 +357,7 @@ export function checkMigrationCompatibility(): {
   const enhancedMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(enhancedDAL))
     .filter(name => typeof (enhancedDAL as any)[name] === 'function' && name !== 'constructor');
 
-  const compatibility = originalMethods.filter(method => enhancedDAL.includes(method));
+  const compatibility = originalMethods.filter(method => Object.keys(enhancedDAL).includes(method));
 
   return {
     originalDALMethods: originalMethods,

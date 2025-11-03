@@ -313,7 +313,7 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
     throw new Error(data.message);
   }
 
-  const newsArticles = data.articles?.map(article => ({
+  const newsArticles = data.articles?.map((article: any) => ({
     title: article.title,
     summary: article.description || article.title,
     publishedAt: article.publishedAt,
@@ -349,7 +349,7 @@ async function getYahooNews(symbol: string, env: CloudflareEnvironment): Promise
     const data = await response.json();
     const news = data.news || [];
 
-    return news.map(item => ({
+    return news.map((item: any) => ({
       title: item.title,
       summary: item.summary || item.title,
       publishedAt: new Date(item.providerPublishTime * 1000).toISOString(),
