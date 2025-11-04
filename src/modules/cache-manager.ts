@@ -1042,7 +1042,7 @@ export class CacheManager {
 
     try {
       // Try L1 cache first
-      const l1Result = await this.l1Cache.getWithTimestampInfo<T>(fullKey);
+      const l1Result = await this.l1Cache.getWithTimestampInfo(fullKey);
       if (l1Result.data !== null && l1Result.timestampInfo) {
         this.stats.l1Hits++;
         cacheMetrics.recordHit('L1', namespace as MetricsCacheNamespace);

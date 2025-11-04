@@ -8,7 +8,7 @@
  */
 
 import { createDAL, DataAccessLayer, type KVReadResult, type KVWriteResult, type AnalysisData, type TradingSignal, type HighConfidenceSignalsData, type SignalTrackingRecord, type MarketPriceData, type DailyReport } from './dal.js';
-import { CacheManager, createCacheManager, type CacheStats } from './cache-manager.js';
+import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
 import { getCacheNamespace, getCacheConfigForEnvironment } from './cache-config.js';
 import { createLogger } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -45,11 +45,11 @@ export interface EnhancedKVWriteResult extends KVWriteResult {
 }
 
 /**
- * Enhanced Data Access Layer with integrated multi-level caching
+ * Enhanced Data Access Layer with integrated DO caching
  */
 export class EnhancedDataAccessLayer {
   private dal: DataAccessLayer;
-  private cacheManager: CacheManager;
+  private cacheManager: DualCacheDO | null;
   private config: EnhancedDALConfig;
   private enabled: boolean;
 
@@ -60,18 +60,21 @@ export class EnhancedDataAccessLayer {
     this.dal = createDAL(env);
     this.config = config;
 
-    const cacheConfig = getCacheConfigForEnvironment(config.environment);
-    this.cacheManager = createCacheManager(env, {
-      l1MaxSize: config.cacheOptions?.l1MaxSize || cacheConfig.defaultL1MaxSize,
-      enabled: config.enableCache && cacheConfig.enabled
-    });
-
-    this.enabled = config.enableCache && cacheConfig.enabled;
+    // Use DO cache if enabled, otherwise no cache
+    if (config.enableCache && isDOCacheEnabled(env)) {
+      this.cacheManager = createCacheInstance(env, true);
+      this.enabled = true;
+      logger.info(`ENHANCED_DAL: Using Durable Objects cache`);
+    } else {
+      this.cacheManager = null;
+      this.enabled = false;
+      logger.info(`ENHANCED_DAL: Cache disabled (FEATURE_FLAG_DO_CACHE=${env?.FEATURE_FLAG_DO_CACHE})`);
+    }
 
     logger.info('Enhanced DAL initialized', {
       cacheEnabled: this.enabled,
       environment: config.environment,
-      cacheNamespaces: this.cacheManager.getHealthStatus().namespaces
+      cacheNamespaces: this.cacheManager ? this.cacheManager.getAllEnhancedConfigs().namespaces : []
     });
   }
 
@@ -104,41 +107,52 @@ export class EnhancedDataAccessLayer {
     }
 
     const { result, time } = await this.measureTime(async () => {
-      const cacheResult = await this.cacheManager.get<T>(
-        namespace,
-        key,
-        async () => {
-          const kvResult = await fetchFn();
-          return kvResult.success ? kvResult.data : null;
-        }
-      );
+      // Try DO cache first
+      const cacheResult = await this.cacheManager!.get(key, {
+        ttl: 3600, // Default 1 hour TTL
+        namespace
+      });
 
       if (cacheResult !== null) {
         return {
           success: true,
           data: cacheResult,
           key,
-          source: 'kv' as const
+          source: 'cache' as const
         };
       }
 
+      // Cache miss - fetch from KV
+      const kvResult = await fetchFn();
+      if (!kvResult.success || kvResult.data === null || kvResult.data === undefined) {
+        return {
+          success: false,
+          key,
+          source: 'error' as const,
+          error: 'Data not found in cache or KV'
+        };
+      }
+
+      // Store in DO cache
+      await this.cacheManager!.set(key, kvResult.data, {
+        ttl: 3600,
+        namespace
+      });
+
       return {
-        success: false,
+        success: true,
+        data: kvResult.data,
         key,
-        source: 'error' as const,
-        error: 'Data not found in cache or KV'
+        source: 'kv' as const
       };
     });
 
-    const cacheStats = this.cacheManager.getStats();
-    const isCacheHit = result.success && cacheStats.totalRequests > 0 &&
-                      (cacheStats.l1Hits + cacheStats.l2Hits) > 0;
+    const isCacheHit = result.success && result.source === 'cache';
 
     return {
       ...result,
       cacheHit: isCacheHit,
-      cacheSource: isCacheHit ?
-        (cacheStats.l1Hits > cacheStats.l2Hits ? 'l1' : 'l2') : 'none',
+      cacheSource: isCacheHit ? 'l1' : 'none',
       responseTime: time
     };
   }
@@ -156,9 +170,12 @@ export class EnhancedDataAccessLayer {
 
     // Invalidate cache entry on successful write
     let cacheInvalidated = false;
-    if (result.success && this.enabled) {
+    if (result.success && this.enabled && this.cacheManager) {
       try {
-        await this.cacheManager.delete(namespace, key);
+        await this.cacheManager.delete(key, {
+          ttl: 1, // Immediate deletion
+          namespace
+        });
         cacheInvalidated = true;
         logger.debug(`Cache invalidated for ${namespace}:${key}`);
       } catch (error: unknown) {
@@ -492,7 +509,7 @@ export class EnhancedDataAccessLayer {
         // Try to delete from common namespaces
         const namespaces = ['analysis_results', 'market_data', 'sector_data', 'market_drivers', 'api_responses'];
         for (const namespace of namespaces) {
-          await this.cacheManager.delete(namespace, key);
+          await this.cacheManager.delete(key, { ttl: 1, namespace });
         }
       } catch (error: unknown) {
         logger.warn('Failed to delete from cache', { key, error });
@@ -507,7 +524,8 @@ export class EnhancedDataAccessLayer {
    */
   async clearCache(namespace?: string): Promise<void> {
     if (this.enabled) {
-      await this.cacheManager.clear(namespace);
+      // DualCacheDO.clear() clears all; namespace ignored for compatibility
+      await this.cacheManager.clear();
       logger.info(`Cache cleared${namespace ? ` for namespace: ${namespace}` : ' completely'}`);
     }
   }
@@ -515,15 +533,16 @@ export class EnhancedDataAccessLayer {
   /**
    * Get cache statistics
    */
-  getCacheStats(): CacheStats {
-    return this.cacheManager.getStats();
+  getCacheStats(): any {
+    // DualCacheDO.getStats() returns a Promise; return as-is for compatibility
+    return this.cacheManager ? this.cacheManager.getStats() : {};
   }
 
   /**
    * Get cache health status
    */
   getCacheHealthStatus(): any {
-    return this.cacheManager.getHealthStatus();
+    return this.cacheManager ? this.cacheManager.getConfigurationSummary() : {};
   }
 
   /**
@@ -531,7 +550,7 @@ export class EnhancedDataAccessLayer {
    */
   getPerformanceStats(): {
     dal: any;
-    cache: CacheStats;
+    cache: any;
     cacheHealth: any;
     enabled: boolean;
   } {
@@ -548,7 +567,7 @@ export class EnhancedDataAccessLayer {
    */
   async cleanup(): Promise<void> {
     if (this.enabled) {
-      await this.cacheManager.cleanup();
+      await this.cacheManager.clear();
       logger.info('Cache cleanup completed');
     }
   }
@@ -558,7 +577,6 @@ export class EnhancedDataAccessLayer {
    */
   setCacheEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    this.cacheManager.setEnabled(enabled);
     logger.info(`Cache ${enabled ? 'enabled' : 'disabled'}`);
   }
 
@@ -566,8 +584,8 @@ export class EnhancedDataAccessLayer {
    * Reset cache statistics
    */
   resetCacheStats(): void {
-    this.cacheManager.resetStats();
-    logger.info('Cache statistics reset');
+    // No-op for DualCacheDO; stats reset not supported
+    logger.info('Cache statistics reset (no-op)');
   }
 }
 

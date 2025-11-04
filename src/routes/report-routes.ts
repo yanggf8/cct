@@ -121,7 +121,7 @@ export async function handleReportRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('ReportRoutes Error', error, { requestId, path, method });
+    logger.error('ReportRoutes Error', { error, requestId, path, method });
 
     return new Response(
       JSON.stringify(
@@ -284,7 +284,7 @@ async function handleDailyReport(
     };
 
     // Cache the result for 24 hours
-    await dal.put('REPORTS', cacheKey, response, { expirationTtl: 86400 });
+    await dal.write(cacheKey, response, { expirationTtl: 86400 });
 
     logger.info('DailyReport: Report generated', {
       date,
@@ -305,7 +305,7 @@ async function handleDailyReport(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('DailyReport Error', error, { requestId, date });
+    logger.error('DailyReport Error', { error, requestId, date });
 
     return new Response(
       JSON.stringify(
@@ -467,7 +467,7 @@ async function handleWeeklyReport(
     };
 
     // Cache the result for 7 days
-    await dal.put('REPORTS', cacheKey, response, { expirationTtl: 604800 });
+    await dal.write(cacheKey, response, { expirationTtl: 604800 });
 
     logger.info('WeeklyReport: Report generated', {
       week,
@@ -488,7 +488,7 @@ async function handleWeeklyReport(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('WeeklyReport Error', error, { requestId, week });
+    logger.error('WeeklyReport Error', { error, requestId, week });
 
     return new Response(
       JSON.stringify(
@@ -588,7 +588,7 @@ async function handlePreMarketReport(
     };
 
     // Cache for 1 hour
-    await dal.put('REPORTS', cacheKey, response, { expirationTtl: 3600 });
+    await dal.write(cacheKey, response, { expirationTtl: 3600 });
 
     logger.info('PreMarketReport: Report generated via data bridge', {
       signalsCount: response.high_confidence_signals.length,
@@ -610,7 +610,7 @@ async function handlePreMarketReport(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('PreMarketReport Error', error, { requestId });
+    logger.error('PreMarketReport Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -694,7 +694,7 @@ async function handlePreMarketDataGeneration(
     );
 
   } catch (error: any) {
-    logger.error('PreMarketDataGeneration Error', error, { requestId });
+    logger.error('PreMarketDataGeneration Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -757,7 +757,7 @@ async function handleIntradayReport(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('IntradayReport Error', error, { requestId });
+    logger.error('IntradayReport Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -835,7 +835,7 @@ async function handleEndOfDayReport(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('EndOfDayReport Error', error, { requestId });
+    logger.error('EndOfDayReport Error', { error, requestId });
 
     return new Response(
       JSON.stringify(

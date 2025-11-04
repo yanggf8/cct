@@ -516,12 +516,12 @@ export class DualCacheDO<T = any> {
  * Used by routes to get the appropriate cache implementation
  */
 export function createCacheInstance(env: any, useDO: boolean = true): any {
-  if (useDO && env.CACHE_DO) {
-    logger.info(`CACHE_FACTORY: Using Durable Objects cache`);
+  if (useDO && isDOCacheEnabled(env)) {
+    logger.info(`CACHE_FACTORY: Using Durable Objects cache (FEATURE_FLAG_DO_CACHE=${env?.FEATURE_FLAG_DO_CACHE})`);
     return new DualCacheDO(env.CACHE_DO);
   } else {
     // Strict DO-only policy: no legacy cache fallback
-    logger.info(`CACHE_FACTORY: No cache (DO disabled or unavailable)`);
+    logger.info(`CACHE_FACTORY: No cache (DO disabled or feature flag off, FEATURE_FLAG_DO_CACHE=${env?.FEATURE_FLAG_DO_CACHE})`);
     return null;
   }
 }
@@ -530,5 +530,8 @@ export function createCacheInstance(env: any, useDO: boolean = true): any {
  * Feature flag checker
  */
 export function isDOCacheEnabled(env: any): boolean {
-  return !!(env && env.CACHE_DO);
+  // Check both DO availability and feature flag
+  const hasDO = !!(env && env.CACHE_DO);
+  const featureFlagEnabled = env?.FEATURE_FLAG_DO_CACHE === 'true';
+  return hasDO && featureFlagEnabled;
 }

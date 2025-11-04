@@ -4,7 +4,7 @@
  */
 import { performDualAIComparison, batchDualAIAnalysis, type DualAIComparisonResult, type BatchDualAIAnalysisResult } from './dual-ai-analysis.js';
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
-// Removed: import { mapSentimentToDirection } from './sentiment_utils.js';
+import { mapSentimentToDirection } from './sentiment-utils.js';
 import { storeSymbolAnalysis, batchStoreAnalysisResults, trackCronHealth } from './data.js';
 import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';

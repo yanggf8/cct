@@ -245,7 +245,7 @@ async function handleRunBacktest(
       status: 'queued',
       estimatedDuration: estimateBacktestDuration(requestBody.config),
       queuePosition: getQueuePosition(),
-      startedAt: backtestStatusData.startedAt,
+      startedAt: new Date().toISOString(),
       estimatedCompletion: new Date(Date.now() + estimateBacktestDuration(requestBody.config) * 1000).toISOString()
     };
 
@@ -1138,7 +1138,7 @@ function estimateBacktestDuration(config: BacktestConfig): number {
 
 function getQueuePosition(): number {
   // Simplified queue position
-  return backtestStatus.size + 1;
+  return 1;
 }
 
 function validateBacktestConfig(config: BacktestConfig): string[] {

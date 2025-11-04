@@ -12,6 +12,10 @@ import { ApiResponseFactory } from '../modules/api-v1-responses.js';
  * Risk Management Routes Handler
  */
 export class RiskManagementRoutesHandler {
+  private env: any;
+  private riskEngine: any;
+  private complianceEngine: any;
+
   constructor(env) {
     this.env = env;
     this.riskEngine = createAdvancedRiskManagementEngine(env);

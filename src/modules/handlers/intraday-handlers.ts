@@ -1181,16 +1181,4 @@ function getDefaultIntradayData(): IntradayPerformanceData {
 // ============================================================================
 // Export Types for External Use
 // ============================================================================
-
-export type {
-  IntradaySignal,
-  DivergenceData,
-  ModelHealthStatus,
-  PerformanceTracking,
-  RecalibrationAlert,
-  IntradayPerformanceData,
-  DependencyValidation,
-  JobStatusMetadata,
-  HTMLGenerationContext,
-  ResponseHeaders
-};
+// Note: Types are already exported via 'export interface' declarations above

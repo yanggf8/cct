@@ -4,7 +4,7 @@
  */
 
 import { createRequestLogger } from './logging.js';
-import type { CloudflareEnvironment } from '../../types.js';
+import type { CloudflareEnvironment } from '../types';
 
 /**
  * Serve the Predictive Analytics Dashboard HTML page

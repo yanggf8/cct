@@ -488,13 +488,4 @@ export default {
   CONSISTENCY_CONFIG
 };
 
-// Export types for external use
-export type {
-  RetryStrategy,
-  ConsistencyConfig,
-  ConsistencyOptions,
-  AtomicOperationOptions,
-  AtomicOperationResult,
-  DependencyConsistencyResult,
-  ConsistencyCondition
-};
+// Note: Types are already exported via 'export interface' and 'export type' declarations above

@@ -171,39 +171,30 @@ export const HttpStatus = {
 // Type for HTTP status codes
 export type HttpStatusType = typeof HttpStatus[keyof typeof HttpStatus];
 
-// Response type definitions
-export interface SymbolsResponse {
-  symbols: string[];
-  metadata: {
-    total_count: number;
-    last_updated: string;
-    data_source: string;
-  };
+// Type definitions for API responses
+export interface MarketSentimentDataInterface {
+  overall_sentiment: number;
+  sentiment_label: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  confidence: number;
 }
 
-export interface SystemHealthResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  timestamp: string;
-  services: {
-    ai_models: {
-      gpt_oss_120b: any;
-      distilbert: any;
-    };
-    data_sources: {
-      yahoo_finance: any;
-      news_api: any;
-    };
-    cache_system?: any;
-    kv_storage?: any;
-    processing_pipeline?: any;
-  };
+export interface SectorSentimentDataInterface {
+  sector: string;
+  overall_sentiment: number;
+  sentiment_label: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  confidence: number;
+  symbol_count: number;
 }
 
-// Compatibility placeholders for JS route imports
+// Export types for use in routes
+export type MarketSentimentData = MarketSentimentDataInterface;
+export type SectorSentimentData = SectorSentimentDataInterface;
+
+// Compatibility placeholders for JS route imports (with different names to avoid conflicts)
 export const SentimentAnalysisResponse = {};
 export const SymbolSentimentResponse = {};
-export const MarketSentimentData = {};
-export const SectorSentimentData = {};
+export const MarketSentimentDataValue = {};
+export const SectorSentimentDataValue = {};
 export const DailyReportResponse = {};
 export const WeeklyReportResponse = {};
 

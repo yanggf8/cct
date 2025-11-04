@@ -265,13 +265,6 @@ export class FredApiClient {
       const data = await response.json() as any;
 
       if (data.error_code) {
-        // If key-related error, try rotation
-        const msg = `${data.error_message || ''}`.toLowerCase();
-        if ((msg.includes('api key') || msg.includes('invalid key')) && (this as any).rotateApiKey() && ((retries as number) || 0) < this.maxRetries) {
-          logger.warn('FRED API key error detected, rotating key and retrying');
-          await this.delay(this.rateLimitDelay);
-          return this.makeRequest(url.toString(), ((retries as number) || 0) + 1);
-        }
         throw new Error(`FRED API Error ${data.error_code}: ${data.error_message}`);
       }
 

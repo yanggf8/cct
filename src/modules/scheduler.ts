@@ -193,22 +193,8 @@ export async function handleScheduledEvent(
         cronExecutionId
       });
 
-      // Send Facebook messages for daily cron jobs
-      console.log(`📱 [CRON-FB] ${cronExecutionId} Attempting Facebook message for trigger: ${triggerMode}`);
-      if (triggerMode === 'morning_prediction_alerts') {
-        console.log(`📱 [CRON-FB-MORNING] ${cronExecutionId} Sending morning predictions via Facebook`);
-        await sendMorningPredictionsWithTracking(analysisResult, env, cronExecutionId);
-        console.log(`✅ [CRON-FB-MORNING] ${cronExecutionId} Morning Facebook message completed`);
-      } else if (triggerMode === 'midday_validation_prediction') {
-        console.log(`📱 [CRON-FB-MIDDAY] ${cronExecutionId} Sending midday validation via Facebook`);
-        await sendMiddayValidationWithTracking(analysisResult, env, cronExecutionId);
-        console.log(`✅ [CRON-FB-MIDDAY] ${cronExecutionId} Midday Facebook message completed`);
-      } else if (triggerMode === 'next_day_market_prediction') {
-        console.log(`📱 [CRON-FB-DAILY] ${cronExecutionId} Sending daily validation via Facebook`);
-        await sendDailyValidationWithTracking(analysisResult, env, cronExecutionId);
-        console.log(`✅ [CRON-FB-DAILY] ${cronExecutionId} Daily Facebook message completed`);
-      }
-      console.log(`📱 [CRON-FB-COMPLETE] ${cronExecutionId} All Facebook messaging completed for ${triggerMode}`);
+      // Facebook messaging has been migrated to Chrome web notifications
+      console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
     }
 
     // Store results in KV using DAL

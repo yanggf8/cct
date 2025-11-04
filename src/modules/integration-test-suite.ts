@@ -377,7 +377,7 @@ export class IntegrationTestSuite {
       const { performDualAIComparison } = await import('./dual-ai-analysis.js');
       const testSymbols = ['AAPL'];
 
-      const result = await performDualAIComparison(testSymbols, this.env);
+      const result = await performDualAIComparison('AAPL', [], this.env);
 
       const validations = {
         hasSignals: result.signals && result.signals.length > 0,
@@ -430,17 +430,17 @@ export class IntegrationTestSuite {
 
       // Test cache write
       const writeStart = Date.now();
-      await cacheManager.set(testKey, testData, { ttl: 60 });
+      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 });
       const writeTime = Date.now() - writeStart;
 
       // Test cache read
       const readStart = Date.now();
-      const cached = await cacheManager.get(testKey);
+      const cached = await cacheManager.get('TEST', testKey);
       const readTime = Date.now() - readStart;
 
       // Test cache delete
       const deleteStart = Date.now();
-      await cacheManager.delete(testKey);
+      await cacheManager.delete('TEST', testKey);
       const deleteTime = Date.now() - deleteStart;
 
       const dataIntegrity = cached && (cached as any).test === 'integration' && (cached as any).timestamp === testData.timestamp;
@@ -488,12 +488,12 @@ export class IntegrationTestSuite {
       const testData = { counter: 1, timestamp: Date.now() };
 
       // Write initial data
-      await cacheManager.set(testKey, testData, { ttl: 60 });
+      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 });
 
       // Read multiple times to check consistency
       const reads = [];
       for (let i = 0; i < 5; i++) {
-        const cached = await cacheManager.get(testKey);
+        const cached = await cacheManager.get('TEST', testKey);
         reads.push(cached);
       }
 
@@ -504,7 +504,7 @@ export class IntegrationTestSuite {
       );
 
       // Cleanup
-      await cacheManager.delete(testKey);
+      await cacheManager.delete('TEST', testKey);
 
       const status = consistent ? 'passed' : 'failed';
 
@@ -613,7 +613,7 @@ export class IntegrationTestSuite {
       // Test batch writes
       const writeStart = Date.now();
       for (const item of testData) {
-        await cacheManager.set(item.key, item.data, { ttl: 60 });
+        await cacheManager.set('TEST', item.key, item.data, { l1: 60, l2: 60 });
       }
       const writeTime = Date.now() - writeStart;
 
@@ -621,14 +621,14 @@ export class IntegrationTestSuite {
       const readStart = Date.now();
       const reads = [];
       for (const item of testData) {
-        const cached = await cacheManager.get(item.key);
+        const cached = await cacheManager.get('TEST', item.key);
         reads.push(cached);
       }
       const readTime = Date.now() - readStart;
 
       // Cleanup
       for (const item of testData) {
-        await cacheManager.delete(item.key);
+        await cacheManager.delete('TEST', item.key);
       }
 
       const avgWriteTime = writeTime / testCount;
@@ -688,7 +688,7 @@ export class IntegrationTestSuite {
       // Step 3: Perform sentiment analysis
       const sentimentStart = Date.now();
       const { performDualAIComparison } = await import('./dual-ai-analysis.js');
-      const sentimentResult = await performDualAIComparison(['AAPL'], this.env);
+      const sentimentResult = await performDualAIComparison('AAPL', [], this.env);
       workflowSteps.push({ step: 'Sentiment Analysis', duration: Date.now() - sentimentStart, success: !!sentimentResult });
 
       // Step 4: Cache results
@@ -746,10 +746,10 @@ export class IntegrationTestSuite {
           test: async () => {
             const cacheManager = new CacheManager(this.env);
             const testKey = 'collision_test';
-            await cacheManager.set(testKey, { data: 1 }, { ttl: 60 });
-            await cacheManager.set(testKey, { data: 2 }, { ttl: 60 }); // Should overwrite
-            const result = await cacheManager.get(testKey);
-            await cacheManager.delete(testKey);
+            await cacheManager.set('TEST', testKey, { data: 1 }, { l1: 60, l2: 60 });
+            await cacheManager.set('TEST', testKey, { data: 2 }, { l1: 60, l2: 60 }); // Should overwrite
+            const result = await cacheManager.get('TEST', testKey);
+            await cacheManager.delete('TEST', testKey);
             return result;
           }
         }

@@ -23,7 +23,7 @@ import {
   generateSignalItem,
   generateCompletePage
 } from '../html-generators.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('intraday-decomposed');
 

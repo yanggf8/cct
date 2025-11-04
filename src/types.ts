@@ -8,17 +8,24 @@ declare global {
     list(options?: any): Promise<any>;
   }
 
+  interface DurableObjectStub {
+    fetch(request: Request): Promise<Response>;
+  }
+
   interface DurableObjectNamespace {
     get(id: any): any;
     idFromName(name: string): any;
   }
 
+  interface DurableObjectState {
+    storage: DurableObjectStorage;
+  }
   
   interface R2Bucket {
     get(key: string): Promise<any>;
     put(key: string, value: any): Promise<any>;
   }
-
+  
   interface Ai {
     run(model: string, input: any): Promise<any>;
   }

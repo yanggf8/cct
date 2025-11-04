@@ -210,8 +210,8 @@ function convertDualAIToLegacyFormat(
       total_articles: newsData.length,
       sources: newsData.map(item => item.source),
       time_range: {
-        earliest: newsData.length > 0 ? Math.min(...newsData.map(item => new Date(item.published_at).getTime())) : new Date().getTime(),
-        latest: newsData.length > 0 ? Math.max(...newsData.map(item => new Date(item.published_at).getTime())) : new Date().getTime()
+        earliest: newsData.length > 0 ? Math.min(...newsData.map(item => new Date((item as any).publishedAt ?? (item as any).published_at).getTime())) : new Date().getTime(),
+        latest: newsData.length > 0 ? Math.max(...newsData.map(item => new Date((item as any).publishedAt ?? (item as any).published_at).getTime())) : new Date().getTime()
       }
     },
 
@@ -368,7 +368,7 @@ function calculateArticleRelevance(article: NewsArticle, symbol: string): number
 
 function calculateArticleWeight(article: NewsArticle): number {
   // Weight based on recency and source reliability
-  const ageInHours = (Date.now() - new Date(article.published_at).getTime()) / (1000 * 60 * 60);
+  const ageInHours = (Date.now() - new Date((article as any).publishedAt ?? (article as any).published_at).getTime()) / (1000 * 60 * 60);
   const recencyWeight = Math.max(0.1, 1.0 - (ageInHours / 168)); // Decay over a week
 
   const sourceWeights: Record<string, number> = {

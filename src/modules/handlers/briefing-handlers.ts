@@ -10,7 +10,7 @@ import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
 import { getPreMarketBriefingData } from '../report-data-retrieval.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
 import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('briefing-handlers');
 

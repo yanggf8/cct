@@ -8,7 +8,7 @@ import { getMigrationManager, migrationMiddleware } from '../routes/migration-ma
 import { legacyCompatibilityMiddleware } from '../routes/legacy-compatibility.js';
 import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
-import { createCacheManager } from './cache-manager.js';
+import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-request-handler');
@@ -452,15 +452,66 @@ export class EnhancedRequestHandler {
     const dalStats = this.dal.getPerformanceStats();
     const migrationConfig = this.migrationManager.getConfig();
 
-    // Create CacheManager instance to get comprehensive cache metrics
+    // Create DO cache instance to get comprehensive cache metrics
     let cacheData = null;
     try {
-      const cacheManager = createCacheManager(this.env);
+      const cacheManager = isDOCacheEnabled(this.env) ? createCacheInstance(this.env, true) : null;
 
-      // Get comprehensive cache statistics
-      const cacheStats = cacheManager.getStats();
-      const cacheHealthStatus = cacheManager.getHealthStatus();
-      const cacheMetricsStats = cacheManager.getMetricsStats();
+      // Get comprehensive cache statistics from DO cache
+      let cacheStats: any = {
+        enabled: false,
+        hitRate: 0,
+        size: 0,
+        hits: 0,
+        misses: 0,
+        overallHitRate: 0,
+        l1HitRate: 0,
+        l2HitRate: 0,
+        l1Size: 0,
+        totalRequests: 0,
+        l1Hits: 0,
+        l2Hits: 0,
+        evictions: 0
+      };
+      let cacheHealthStatus: any = { enabled: false, status: 'disabled', namespaces: [], metricsHealth: {} };
+
+      if (cacheManager) {
+        try {
+          const metadata = await cacheManager.getMetadata({ namespace: 'global' });
+          const stats = await cacheManager.getStats();
+
+          cacheStats = {
+            enabled: true,
+            hitRate: stats.hitRate || 0,
+            size: stats.size || 0,
+            hits: stats.hits || 0,
+            misses: stats.misses || 0,
+            overallHitRate: stats.hitRate || 0,
+            l1HitRate: stats.hitRate || 0,
+            l2HitRate: 0, // DO cache doesn't have L2
+            l1Size: stats.size || 0
+          };
+
+          cacheHealthStatus = {
+            enabled: true,
+            status: 'healthy',
+            namespaces: Object.keys(metadata || {}),
+            metricsHealth: {}
+          };
+        } catch (error) {
+          logger.warn('Failed to get DO cache stats', { error });
+        }
+      }
+
+      const cacheMetricsStats = {
+        overall: { hitRate: cacheStats.overallHitRate || 0, totalRequests: cacheStats.totalRequests || 0 },
+        layers: {
+          l1: { hitRate: cacheStats.l1HitRate || 0, hits: cacheStats.l1Hits || 0, misses: cacheStats.misses || 0 },
+          l2: { hitRate: cacheStats.l2HitRate || 0, hits: cacheStats.l2Hits || 0, misses: 0 }
+        },
+        health: { issues: [] as string[] },
+        namespaces: cacheHealthStatus.namespaces || []
+      };
 
       cacheData = {
         enabled: cacheHealthStatus.enabled,

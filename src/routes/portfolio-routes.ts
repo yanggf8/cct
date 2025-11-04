@@ -12,6 +12,10 @@ import { ApiResponseFactory } from '../modules/api-v1-responses.js';
  * Portfolio Routes Handler
  */
 export class PortfolioRoutesHandler {
+  private env: any;
+  private correlationEngine: any;
+  private rebalancingEngine: any;
+
   constructor(env) {
     this.env = env;
     this.correlationEngine = createCorrelationAnalysisEngine(env);

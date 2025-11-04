@@ -9,10 +9,10 @@
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
-import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment_utils.js';
+import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils';
 import { logInfo, logError, logAIDebug } from './logging.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import type { CloudflareEnvironment } from '../types.js';
+import type { CloudflareEnvironment } from '../types';
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
@@ -117,7 +117,7 @@ export class OptimizedAIAnalyzer {
       // Cache the result
       await this.dal.write(cacheKey, aiResult, { expirationTtl: RATE_LIMIT_CONFIG.CACHE_TTL_SECONDS });
 
-      logger.info('Analysis completed', {
+      logInfo('Analysis completed', {
         symbol,
         type: aiResult.analysis_type,
         processing_time: Date.now() - startTime
@@ -126,7 +126,7 @@ export class OptimizedAIAnalyzer {
       return aiResult;
 
     } catch (error: any) {
-      logger.error('Analysis failed', { symbol, error: (error instanceof Error ? error.message : String(error)) });
+      logError('Analysis failed', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
       // Return technical fallback
       return this.createTechnicalFallback(symbol, error.message, Date.now() - startTime);
@@ -138,7 +138,7 @@ export class OptimizedAIAnalyzer {
    */
   async analyzeBatch(symbols: string[]): Promise<BatchOptimizedResult> {
     const startTime = Date.now();
-    logger.info('Starting batch optimized analysis', { symbolCount: symbols.length });
+    logInfo('Starting batch optimized analysis', { symbolCount: symbols.length });
 
     const results: OptimizedAnalysisResult[] = [];
     const summary = {
@@ -171,7 +171,7 @@ export class OptimizedAIAnalyzer {
         }
 
       } catch (error: any) {
-        logger.error('Batch analysis failed for symbol', { symbol, error: (error instanceof Error ? error.message : String(error)) });
+        logError('Batch analysis failed for symbol', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
         // Add technical fallback
         const fallback = this.createTechnicalFallback(symbol, error.message, 0);
@@ -183,7 +183,7 @@ export class OptimizedAIAnalyzer {
     const totalTime = Date.now() - startTime;
     summary.average_processing_time = totalTime / symbols.length;
 
-    logger.info('Batch analysis completed', {
+    logInfo('Batch analysis completed', {
       total_time: totalTime,
       successful: summary.successful_analyses,
       cache_hits: summary.cache_hits,
@@ -214,7 +214,7 @@ export class OptimizedAIAnalyzer {
       }
 
     } catch (error: any) {
-      logger.warn('AI analysis hit rate limit, falling back to technical', {
+      logError('AI analysis hit rate limit, falling back to technical', {
         symbol,
         error: (error instanceof Error ? error.message : String(error))
       });
@@ -286,7 +286,7 @@ Short-term outlook: [1-2 sentences]`;
         throw error; // Re-throw rate limit errors
       }
 
-      logger.error('AI analysis failed', { symbol, error: error.message });
+      logError('AI analysis failed', { symbol, error: error.message });
       return this.createTechnicalAnalysis(symbol, marketData);
     }
   }
@@ -363,7 +363,7 @@ Short-term outlook: [1-2 sentences]`;
         processing_time_ms: 50,
         cache_hit: false,
         model_used: 'technical_analysis',
-        rate_limit_hit
+        rate_limit_hit: !!rateLimitHit
       }
     };
   }
@@ -444,7 +444,7 @@ Short-term outlook: [1-2 sentences]`;
 
       return { direction, confidence, reasoning: reasoning.trim() || 'AI analysis completed' };
     } catch (error: unknown) {
-      logger.error('Failed to parse GPT response', { error: error instanceof Error ? error.message : String(error) });
+      logError('Failed to parse GPT response', { error: error instanceof Error ? error.message : String(error) });
       return {
         direction: 'neutral',
         confidence: 0.5,

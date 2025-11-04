@@ -86,13 +86,13 @@ export class PreMarketDataBridge {
               }]
             };
 
-            logger.debug('PreMarketDataBridge', `Generated signal for ${symbol}`, {
+            logger.debug(`Generated signal for ${symbol}`, {
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence
             });
           }
         } catch (error: unknown) {
-          logger.warn('PreMarketDataBridge', `Failed to get sentiment for ${symbol}`, error);
+          logger.warn(`Failed to get sentiment for ${symbol}`, { error, symbol });
         }
       }
 
@@ -131,12 +131,12 @@ export class PreMarketDataBridge {
       const cached = await this.dal.get(cacheKey, 'sentiment_analysis');
 
       if (cached && cached.data) {
-        logger.debug('PreMarketDataBridge', `Cache hit for ${symbol}`);
+        logger.debug(`Cache hit for ${symbol}`, { symbol });
         return cached.data;
       }
 
       // If not in cache, trigger real-time sentiment analysis
-      logger.info('PreMarketDataBridge', `No cached data for ${symbol}, triggering real-time analysis`);
+      logger.info(`No cached data for ${symbol}, triggering real-time analysis`, { symbol });
 
       try {
         const batchResult = await batchDualAIAnalysis([symbol], this.dal.env, {
@@ -147,7 +147,8 @@ export class PreMarketDataBridge {
 
         if (batchResult && batchResult.results && batchResult.results.length > 0) {
           const firstResult = batchResult.results[0];
-          logger.info('PreMarketDataBridge', `Batch analysis result for ${symbol}`, {
+          logger.info(`Batch analysis result for ${symbol}`, {
+            symbol,
             hasError: !!firstResult.error,
             hasGPT: !!firstResult.models?.gpt,
             hasDistilBERT: !!firstResult.models?.distilbert,
@@ -171,7 +172,8 @@ export class PreMarketDataBridge {
               sector_sentiment: model.direction
             };
 
-            logger.info('PreMarketDataBridge', `Generated sentiment data for ${symbol}`, {
+            logger.info(`Generated sentiment data for ${symbol}`, {
+              symbol,
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence,
               articles_analyzed: sentimentData.articles_analyzed,
@@ -181,7 +183,8 @@ export class PreMarketDataBridge {
 
             return sentimentData;
           } else {
-            logger.warn('PreMarketDataBridge', `No valid model data found for ${symbol}`, {
+            logger.warn(`No valid model data found for ${symbol}`, {
+              symbol,
               hasError: !!firstResult?.error,
               error: firstResult?.error,
               hasGPT: !!firstResult?.models?.gpt,
@@ -190,19 +193,20 @@ export class PreMarketDataBridge {
           }
         }
 
-        logger.warn('PreMarketDataBridge', `Failed to generate sentiment data for ${symbol}`, {
+        logger.warn(`Failed to generate sentiment data for ${symbol}`, {
+          symbol,
           resultsCount: batchResult?.results?.length || 0,
           statistics: batchResult?.statistics
         });
         return null;
 
       } catch (analysisError: unknown) {
-        logger.error('PreMarketDataBridge', `Error triggering sentiment analysis for ${symbol}`, analysisError);
+        logger.error(`Error triggering sentiment analysis for ${symbol}`, { symbol, error: analysisError });
         return null;
       }
 
     } catch (error: unknown) {
-      logger.warn('PreMarketDataBridge', `Error getting sentiment data for ${symbol}`, error);
+      logger.warn(`Error getting sentiment data for ${symbol}`, { symbol, error });
       return null;
     }
   }
@@ -231,7 +235,7 @@ export class PreMarketDataBridge {
    * Force refresh of pre-market analysis data
    */
   async refreshPreMarketAnalysis(symbols?: string[]): Promise<AnalysisData> {
-    logger.info('PreMarketDataBridge', 'Force refreshing pre-market analysis');
+    logger.info('Force refreshing pre-market analysis', { symbols });
 
     // Clear existing cache
     const today = new Date().toISOString().split('T')[0];
@@ -239,9 +243,9 @@ export class PreMarketDataBridge {
 
     try {
       await this.dal.delete(analysisKey, 'ANALYSIS');
-      logger.info('PreMarketDataBridge', 'Cleared existing pre-market analysis');
+      logger.info('Cleared existing pre-market analysis', { analysisKey });
     } catch (error: unknown) {
-      logger.warn('PreMarketDataBridge: Failed to clear existing analysis', error);
+      logger.warn('Failed to clear existing analysis', { analysisKey, error });
     }
 
     // Generate fresh data

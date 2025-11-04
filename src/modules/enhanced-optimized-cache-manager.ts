@@ -63,6 +63,7 @@ export class EnhancedOptimizedCacheManager {
     operation: string;
     kvOpsSaved: number;
     optimizations: string[];
+    duration?: number;
   }> = [];
 
   private constructor(baseDAL: any, config: Partial<OptimizationConfig> = {}) {
@@ -181,14 +182,16 @@ export class EnhancedOptimizedCacheManager {
         const batchResult = await this.batchOperations.scheduleBatchRead([key], undefined, options?.priority || 'medium');
 
         // Extract specific result for this key
-        const batchData = (batchResult as any).data || {};
-        for (const [batchResultKey, data] of Object.entries(batchData || {})) {
-          if (batchResultKey === key && data) {
-            aliasedResult = { success: true, data: data as T };
-            optimizations.push('Batch Operations Hit');
-            cacheHits++;
-            actualKVCount = 1; // Single batch read
-            break;
+        const batchData = batchResult as Map<string, any>;
+        if (batchData && typeof (batchData as any).entries === 'function') {
+          for (const [batchResultKey, data] of batchData.entries()) {
+            if (batchResultKey === key && data) {
+              aliasedResult = { success: true, data: data as T };
+              optimizations.push('Batch Operations Hit');
+              cacheHits++;
+              actualKVCount = 1; // Single batch read
+              break;
+            }
           }
         }
       }

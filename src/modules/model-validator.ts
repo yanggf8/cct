@@ -19,6 +19,7 @@ import {
   MonteCarloSimulation,
   MonteCarloSummary,
   BootstrapResult,
+  BootstrapSample,
   FoldResult,
   StatisticalTest,
   PerformanceMetrics,

@@ -8,7 +8,7 @@ import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { createDAL } from '../dal.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('health-handlers');
 

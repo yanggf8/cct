@@ -259,7 +259,7 @@ async function transformLegacyResponse(
   oldPath: string,
   newPath: string
 ): Promise<Response> {
-  let responseData = await response.json();
+  let responseData: any = await response.json();
 
   // Transform response based on original endpoint expectations
   switch (oldPath) {

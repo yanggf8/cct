@@ -7,7 +7,7 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateEndOfDayAnalysis } from '../report/end-of-day-analysis.js';
 import { getEndOfDaySummaryData } from '../report-data-retrieval.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('end-of-day-handlers');
 

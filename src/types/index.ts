@@ -29,4 +29,4 @@ export interface ChannelResult {
 
 export type AlertTypeType = string;
 
-// Cloudflare Workers types - these are declared in ../types.ts
+// Note: Cloudflare Workers types are declared in ../types.ts to avoid duplicates

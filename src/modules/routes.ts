@@ -330,7 +330,7 @@ export async function handleHttpRequest(
 
   // Handle health endpoints before authentication validation (public access)
   if (url.pathname === '/health') {
-    return handleHealthCheck(request, env);
+    return handleHealthCheck(request, env, ctx);
   }
   if (url.pathname === '/model-health') {
     return handleModelHealth(request, env);

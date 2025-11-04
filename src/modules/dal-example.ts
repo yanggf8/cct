@@ -65,14 +65,14 @@ export async function exampleHandler(request: Request, env: CloudflareEnvironmen
       timestamp: new Date().toISOString()
     };
 
-    const writeResult = await dal.storeAnalysis(today, analysisData);
+    const writeResult = await dal.storeAnalysis(today, analysisData as any);
     if (writeResult.success) {
       console.log('Analysis stored:', writeResult.key);
     }
 
     // Example 3: Store manual analysis (on-demand)
     const timestamp = Date.now();
-    const manualResult = await dal.storeManualAnalysis(timestamp, analysisData);
+    const manualResult = await dal.storeManualAnalysis(timestamp, analysisData as any);
     console.log('Manual analysis stored:', manualResult.key);
 
     // Example 4: List keys

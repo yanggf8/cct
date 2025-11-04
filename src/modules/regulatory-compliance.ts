@@ -532,7 +532,7 @@ export class RegulatoryComplianceEngine {
   async assessSuitabilityRequirement(portfolioData, clientData, assessment) {
     const suitabilityCheck = await this.performSuitabilityCheck(portfolioData, clientData);
 
-    if (!suitibilityCheck.suitable) {
+    if (!suitabilityCheck.suitable) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
       assessment.description = (suitabilityCheck as any).reason || 'Portfolio not suitable for client profile';
       assessment.deduction = 25;

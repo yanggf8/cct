@@ -635,19 +635,4 @@ export {
   tomorrowOutlookTracker
 };
 
-// Export types for external use
-export type {
-  MarketBias,
-  ConfidenceLevel,
-  VolatilityLevel,
-  EvaluationStatus,
-  OutlookData,
-  ActualMarketData,
-  OutlookRecord,
-  EvaluationDetails,
-  OutlookEvaluation,
-  OutlookAccuracyHistory,
-  BestPrediction,
-  WorstPrediction,
-  OutlookAccuracyStats
-};
+// Note: Types are already exported via 'export type' declarations above

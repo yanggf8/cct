@@ -419,7 +419,7 @@ async function getStockSentiment(symbol: string, env: CloudflareEnvironment): Pr
     const newsData = await getFreeStockNews(symbol, env);
 
     if (env.MODELSCOPE_API_KEY && newsData.length > 0) {
-      return await getModelScopeAISentiment(symbol, newsData, env);
+      return await getModelScopeAISentiment(symbol, newsData, env) as any;
     } else {
       // Fallback to rule-based sentiment from news text
       const newsText = newsData.slice(0, 3).map(article => `${article.title}: ${article.summary}`).join(' ');
@@ -488,7 +488,7 @@ async function createEnhancedPrediction(
 
   // Technical feature analysis
   if (technicalFeatures && neuralSignal) {
-    const technicalPrediction = analyzeTechnicalFeatures(technicalFeatures, neuralSignal.current_price);
+    const technicalPrediction = analyzeTechnicalFeatures(technicalFeatures as any, neuralSignal.current_price);
     enhancedSignal.components.technical_features = {
       ...technicalPrediction,
       weight: FEATURE_WEIGHTS.technical_features,

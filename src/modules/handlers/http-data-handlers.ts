@@ -8,7 +8,7 @@ import { getFactTableData, getCronHealthStatus } from '../data.js';
 import { createLogger } from '../logging.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from '../kv-key-factory.js';
 import { createDAL } from '../dal.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('http-data-handlers');
 

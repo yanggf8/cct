@@ -603,8 +603,8 @@ export class EnhancedHashCache<T = any> {
   /**
    * Get data with timestamp information
    */
-  async getWithTimestampInfo<T>(key: string): Promise<{ data: T | null, timestampInfo: CacheTimestampInfo | null }> {
-    const data = await this.get(key) as T;
+  async getWithTimestampInfo(key: string): Promise<{ data: T | null, timestampInfo: CacheTimestampInfo | null }> {
+    const data = await this.get(key);
     const timestampInfo = this.getTimestampInfo(key);
 
     return { data, timestampInfo };

@@ -120,7 +120,7 @@ export async function handleMarketDriversRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('MarketDriversRoutes Error', error, { requestId, path, method });
+    logger.error('MarketDriversRoutes Error', { error, requestId, path, method });
 
     return new Response(
       JSON.stringify(
@@ -215,7 +215,7 @@ async function handleMarketDriversSnapshot(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('MarketDriversSnapshot Error', error, { requestId });
+    logger.error('MarketDriversSnapshot Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -276,7 +276,7 @@ async function handleEnhancedMarketDriversSnapshot(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('EnhancedMarketDriversSnapshot Error', error, { requestId });
+    logger.error('EnhancedMarketDriversSnapshot Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -353,7 +353,7 @@ async function handleMacroDrivers(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('MacroDrivers Error', error, { requestId });
+    logger.error('MacroDrivers Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -436,7 +436,7 @@ async function handleMarketStructure(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('MarketStructure Error', error, { requestId });
+    logger.error('MarketStructure Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -524,7 +524,7 @@ async function handleMarketRegime(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('MarketRegime Error', error, { requestId });
+    logger.error('MarketRegime Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -585,7 +585,7 @@ async function handleMarketRegimeDetails(
      { status: HttpStatus.OK, headers }
    );
  } catch (error:any) {
-   logger.error('MarketRegimeDetails Error', error, { requestId });
+   logger.error('MarketRegimeDetails Error', { error, requestId });
    return new Response(
      JSON.stringify(
        ApiResponseFactory.error('Failed to retrieve enhanced regime analysis','DATA_ERROR',{ requestId, error: error.message, processingTime: timer.finish() })
@@ -664,7 +664,7 @@ async function handleGeopoliticalRisk(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('GeopoliticalRisk Error', error, { requestId });
+    logger.error('GeopoliticalRisk Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -818,7 +818,7 @@ async function handleMarketDriversHistory(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('MarketDriversHistory Error', error, { requestId });
+    logger.error('MarketDriversHistory Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -915,7 +915,7 @@ async function handleMarketDriversHealth(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('MarketDriversHealth Error', error, { requestId });
+    logger.error('MarketDriversHealth Error', { error, requestId });
 
     return new Response(
       JSON.stringify(

@@ -20,7 +20,7 @@ import {
   generateSignalItem,
   generateCompletePage
 } from '../html-generators.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('intraday-refactored');
 
@@ -426,8 +426,7 @@ export const handleIntradayCheckRefactored = createReportHandler(
 
         const waitingHTML = generateWaitingDisplay(
           'Intraday Analysis in Progress',
-          dependencyValidation.completionRate,
-          'Market analysis is currently being prepared. This typically takes 2-3 minutes to complete.'
+          dependencyValidation
         );
 
         return new Response(waitingHTML, {

@@ -7,7 +7,7 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
-import type { CloudflareEnvironment } from '../../../types';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('weekly-review-handlers');
 

@@ -506,7 +506,8 @@ async function handleMarketSentiment(
     // Get recent analysis data to compute market sentiment
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
-    const analysisResult = await dal.read(analysisKey);
+    const sentimentDal = createSimplifiedEnhancedDAL(env);
+    const analysisResult = await sentimentDal.read(analysisKey);
     const analysisData = analysisResult.success ? analysisResult.data : null;
 
     if (!analysisData || !analysisData.trading_signals) {

@@ -6,7 +6,7 @@
 
 import { requestDeduplicator } from './request-deduplication.js';
 import { createLogger } from './logging.js';
-import { createCacheManager } from './cache-manager.js';
+import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-batch-operations');
@@ -71,13 +71,13 @@ interface BatchCacheEntry<T> {
 }
 
 /**
- * Enhanced batch operations manager
+ * Enhanced batch operations manager with DO cache
  */
 export class EnhancedBatchOperations {
   private static instance: EnhancedBatchOperations;
   private config: BatchOperationConfig;
   private cache: Map<string, BatchCacheEntry<any>> = new Map();
-  private cacheManager: any;
+  private cacheManager: DualCacheDO | null;
 
   private constructor(config: Partial<BatchOperationConfig> = {}) {
     this.config = {
@@ -218,18 +218,24 @@ export class EnhancedBatchOperations {
       const itemStartTime = Date.now();
 
       try {
-        let data: T;
+        let data: T | undefined;
         let cached = false;
         let deduplicated = false;
 
-        // Use cache manager if available
-        if (enableCache && !this.cacheManager) {
-          this.cacheManager = createCacheManager(env, { enabled: true });
+        // Use DO cache manager if available
+        if (enableCache && !this.cacheManager && isDOCacheEnabled(env)) {
+          this.cacheManager = createCacheInstance(env, true);
+          logger.info('BATCH_OPERATIONS: Using Durable Objects cache');
+        } else if (enableCache && !isDOCacheEnabled(env)) {
+          logger.info('BATCH_OPERATIONS: Cache disabled (FEATURE_FLAG_DO_CACHE off)');
         }
 
         // Check individual cache first
         if (enableCache && this.cacheManager) {
-          const cachedData = await this.cacheManager.get('batch_operations', item.key);
+          const cachedData = await this.cacheManager.get(item.key, {
+            ttl: this.config.cacheTTL,
+            namespace: 'batch_operations'
+          });
           if (cachedData) {
             data = cachedData;
             cached = true;
@@ -265,8 +271,16 @@ export class EnhancedBatchOperations {
 
           // Cache the result
           if (enableCache && this.cacheManager && data) {
-            await this.cacheManager.set('batch_operations', item.key, data);
+            await this.cacheManager.set(item.key, data, {
+              ttl: this.config.cacheTTL,
+              namespace: 'batch_operations'
+            });
           }
+        }
+
+        // Ensure we have data
+        if (data === undefined) {
+          throw new Error(`No data returned for item: ${item.key}`);
         }
 
         const responseTime = Date.now() - itemStartTime;

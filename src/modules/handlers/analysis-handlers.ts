@@ -413,7 +413,7 @@ export async function handleGenerateMorningPredictions(request: Request, env: Cl
     logger.info('🌅 Morning predictions generation requested', { requestId, date: dateStr });
 
     // Check if analysis data exists for today
-    const dal: DALInstance = createDAL(env);
+    const dal = createDAL(env);
     const analysisKey = `analysis_${dateStr}`;
     const analysisResult = await dal.read(analysisKey);
 
@@ -540,7 +540,7 @@ export async function handleStatusManagement(request: Request, env: CloudflareEn
       eod_summary: `eod_summary_${dateStr}`
     };
 
-    const dal: DALInstance = createDAL(env);
+    const dal = createDAL(env);
     const dataExists: Record<string, boolean> = {};
 
     for (const [keyName, keyValue] of Object.entries(dataKeys)) {

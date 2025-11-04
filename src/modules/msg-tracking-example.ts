@@ -4,7 +4,7 @@
  */
 
 import { createMessageTracker } from './msg-tracking.js';
-import type { CloudflareEnvironment } from '../../types.js';
+import type { CloudflareEnvironment } from '../types';
 
 /**
  * Example: Sending a Facebook message with tracking
