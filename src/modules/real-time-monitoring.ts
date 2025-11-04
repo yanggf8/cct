@@ -19,7 +19,7 @@
 import { createLogger } from './logging.js';
 import { initializeAPIHealthMonitor, type SystemHealthReport } from './api-health-monitor.js';
 import { initializeIntegrationTestSuite, type TestSuite } from './integration-test-suite.js';
-import { CacheManager } from './cache-manager.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -137,7 +137,7 @@ export class RealTimeMonitoringSystem {
       enableEndToEndTests: false // Skip expensive tests in monitoring
     });
 
-    this.cacheManager = new CacheManager(env);
+    this.cacheManager = new DOCacheAdapter(env);
     this.startTime = Date.now();
   }
 

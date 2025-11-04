@@ -5,7 +5,7 @@
  * Enhanced with data validation and integrated circuit breaker
  */
 
-import { SectorCacheManager, SectorData } from './sector-cache-manager.js';
+import { DOSectorCacheAdapter } from './do-cache-adapter.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
 import { DataValidator, validateOHLCVBar } from './data-validation.js';
@@ -108,7 +108,7 @@ class Semaphore {
  * Sector Data Fetcher with semaphore concurrency control
  */
 export class SectorDataFetcher {
-  private cache: SectorCacheManager | null;
+  private cache: DOSectorCacheAdapter | null;
   private semaphore: Semaphore;
   private circuitBreaker: CircuitBreaker;
   private fetchStats = {
@@ -119,7 +119,7 @@ export class SectorDataFetcher {
     averageResponseTime: 0
   };
 
-  constructor(cache: SectorCacheManager | null) {
+  constructor(cache: DOSectorCacheAdapter | null) {
     this.cache = cache;
     this.semaphore = new Semaphore(CONCURRENCY_CONFIG.MAX_CONCURRENT_REQUESTS);
     this.circuitBreaker = {

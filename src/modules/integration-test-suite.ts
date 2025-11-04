@@ -21,7 +21,7 @@ import { createLogger } from './logging.js';
 import { createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { getBatchMarketData, healthCheck as yahooHealthCheck } from './yahoo-finance-integration.js';
 import { initializeAPIHealthMonitor } from './api-health-monitor.js';
-import { CacheManager } from './cache-manager.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
 import type { CloudflareEnvironment, MarketData } from '../types.js';
 
 const logger = createLogger('integration-test-suite');
@@ -424,7 +424,7 @@ export class IntegrationTestSuite {
     const startTime = Date.now();
 
     try {
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testKey = `integration_test_${Date.now()}`;
       const testData = { timestamp: Date.now(), test: 'integration' };
 
@@ -483,7 +483,7 @@ export class IntegrationTestSuite {
     const startTime = Date.now();
 
     try {
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testKey = `consistency_test_${Date.now()}`;
       const testData = { counter: 1, timestamp: Date.now() };
 
@@ -603,7 +603,7 @@ export class IntegrationTestSuite {
     const startTime = Date.now();
 
     try {
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testCount = 10;
       const testData = Array.from({ length: testCount }, (_: any, i: any) => ({
         key: `perf_test_${i}_${Date.now()}`,
@@ -693,7 +693,7 @@ export class IntegrationTestSuite {
 
       // Step 4: Cache results
       const cacheStart = Date.now();
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       await cacheManager.set('workflow_test', { marketData, fredData, sentimentResult }, { ttl: 60 });
       workflowSteps.push({ step: 'Cache Results', duration: Date.now() - cacheStart, success: true });
 
@@ -744,7 +744,7 @@ export class IntegrationTestSuite {
         {
           name: 'Cache Key Collision',
           test: async () => {
-            const cacheManager = new CacheManager(this.env);
+            const cacheManager = new DOCacheAdapter(this.env);
             const testKey = 'collision_test';
             await cacheManager.set('TEST', testKey, { data: 1 }, { l1: 60, l2: 60 });
             await cacheManager.set('TEST', testKey, { data: 2 }, { l1: 60, l2: 60 }); // Should overwrite

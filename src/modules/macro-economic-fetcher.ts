@@ -21,7 +21,7 @@ import { initializeFredApiClient, MockFredApiClient, type MacroEconomicSnapshot 
 import { createFredApiClient, createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { MacroDrivers } from './market-drivers.js';
-import { MarketDriversCacheManager } from './market-drivers-cache-manager.js';
+import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('macro-economic-fetcher');
@@ -32,7 +32,7 @@ const logger = createLogger('macro-economic-fetcher');
 export interface MacroEconomicFetcherOptions {
   fredApiKey?: string;
   useMockData?: boolean;
-  cacheManager?: MarketDriversCacheManager;
+  cacheManager?: DOMarketDriversCacheAdapter;
   enableCaching?: boolean;
   environment?: CloudflareEnvironment;
   forceMockClient?: boolean;
@@ -78,7 +78,7 @@ export interface EnhancedMacroDrivers extends MacroDrivers {
  */
 export class MacroEconomicFetcher {
   private fredApiClient;
-  private cacheManager?: MarketDriversCacheManager;
+  private cacheManager?: DOMarketDriversCacheAdapter;
   private circuitBreaker;
   private enableCaching: boolean;
   private useMockData: boolean;

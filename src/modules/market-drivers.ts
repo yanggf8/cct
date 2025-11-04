@@ -17,7 +17,7 @@ import { createDAL } from './dal.js';
 import { initializeMacroEconomicFetcher, type EnhancedMacroDrivers } from './macro-economic-fetcher.js';
 import { initializeMarketStructureFetcher, type EnhancedMarketStructure } from './market-structure-fetcher.js';
 import { initializeMarketRegimeClassifier, type EnhancedRegimeAnalysis } from './market-regime-classifier.js';
-import { MarketDriversCacheManager } from './market-drivers-cache-manager.js';
+import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 
 const logger = createLogger('market-drivers');
 
@@ -358,7 +358,7 @@ export const REGIME_CLASSIFICATION_RULES: RegimeRule[] = [
  */
 export class MarketDriversManager {
   private dal;
-  private cacheManager: MarketDriversCacheManager;
+  private cacheManager: DOMarketDriversCacheAdapter;
   private macroEconomicFetcher;
   private marketStructureFetcher;
   private regimeClassifier;
@@ -366,7 +366,7 @@ export class MarketDriversManager {
 
   constructor(env: any) {
     this.dal = createDAL(env);
-    this.cacheManager = new MarketDriversCacheManager(env);
+    this.cacheManager = new DOMarketDriversCacheAdapter(env);
     this.fredApiKey = env.FRED_API_KEY;
 
     // Initialize macro economic fetcher

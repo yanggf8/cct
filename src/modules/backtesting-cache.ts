@@ -473,7 +473,7 @@ export class BacktestingCacheManager {
  * Factory function for creating cache manager instances
  */
 export function createBacktestingCache(env: any) {
-  return new BacktestingCacheManager(env);
+  return new DOBacktestingCacheAdapter(env);
 }
 
 /**

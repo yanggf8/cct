@@ -5,7 +5,7 @@
  */
 
 import { createEnhancedDAL, type EnhancedDataAccessLayer } from './enhanced-dal.js';
-import { createCacheManager, type CacheManager } from './cache-manager.js';
+import { createDOCacheAdapter, type DOCacheAdapter } from './do-cache-adapter.js';
 import { getCacheNamespace, CACHE_STRATEGIES } from './cache-config.js';
 import { createLogger } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -272,7 +272,7 @@ export async function cacheManagementExample(env: CloudflareEnvironment) {
 export async function advancedCacheManagerExample(env: CloudflareEnvironment) {
   logger.info('=== Advanced Cache Manager Example ===');
 
-  const cacheManager = createCacheManager(env, {
+  const cacheManager = createDOCacheAdapter(env, {
     l1MaxSize: 200,
     enabled: true
   });

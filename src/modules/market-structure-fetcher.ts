@@ -21,7 +21,7 @@
 import { createLogger } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { MarketStructure } from './market-drivers.js';
-import { MarketDriversCacheManager } from './market-drivers-cache-manager.js';
+import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 import { getMarketData } from './yahoo-finance-integration.js';
 
 const logger = createLogger('market-structure-fetcher');
@@ -30,7 +30,7 @@ const logger = createLogger('market-structure-fetcher');
  * Market Structure Fetcher Options
  */
 export interface MarketStructureFetcherOptions {
-  cacheManager?: MarketDriversCacheManager;
+  cacheManager?: DOMarketDriversCacheAdapter;
   enableCaching?: boolean;
   vixHistoryDays?: number;         // Days for VIX percentile calculation
   spyHistoryDays?: number;         // Days for trend analysis
@@ -114,7 +114,7 @@ export interface EnhancedMarketStructure extends MarketStructure {
  * Market Structure Data Fetcher Implementation
  */
 export class MarketStructureFetcher {
-  private cacheManager?: MarketDriversCacheManager;
+  private cacheManager?: DOMarketDriversCacheAdapter;
   private circuitBreaker;
   private enableCaching: boolean;
   private vixHistoryDays: number;

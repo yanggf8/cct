@@ -20,7 +20,7 @@ import { createLogger } from './logging.js';
 import { createFredApiClientWithHealthCheck, type FredClientFactoryOptions } from './fred-api-factory.js';
 import { getAPIConfiguration } from './config.js';
 import { getMarketStructureIndicators, healthCheck as yahooHealthCheck } from './yahoo-finance-integration.js';
-import { CacheManager } from './cache-manager.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
 import { CircuitBreakerFactory, CircuitState } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -310,7 +310,7 @@ export class APIHealthMonitor {
 
     try {
       // Test cache operations
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testKey = `health_check_${Date.now()}`;
       const testValue: { test: boolean; timestamp: number } = { test: true, timestamp: Date.now() };
 

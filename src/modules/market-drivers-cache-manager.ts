@@ -503,8 +503,8 @@ export class MarketDriversCacheManager {
 /**
  * Initialize Market Drivers Cache Manager
  */
-export function initializeMarketDriversCacheManager(env: any): MarketDriversCacheManager {
-  return new MarketDriversCacheManager(env);
+export function initializeMarketDriversCacheManager(env: any): DOMarketDriversCacheAdapter {
+  return new DOMarketDriversCacheAdapter(env);
 }
 
 export default MarketDriversCacheManager;

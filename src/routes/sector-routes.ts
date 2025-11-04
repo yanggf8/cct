@@ -9,7 +9,7 @@
 
 import { createLogger } from '../modules/logging.js';
 import { isDOCacheEnabled } from '../modules/dual-cache-do.js';
-import { SectorCacheManager } from '../modules/sector-cache-manager.js';
+import { DOSectorCacheAdapter } from '../modules/do-cache-adapter.js';
 import { SectorDataFetcher } from '../modules/sector-data-fetcher.js';
 import { SectorIndicators } from '../modules/sector-indicators.js';
 import { ApiResponseFactory } from '../modules/api-v1-responses.js';
@@ -88,7 +88,7 @@ export interface SectorSnapshotResponse {
  * Initialize sector services
  */
 function initializeSectorServices(env: any) {
-  const cacheManager = isDOCacheEnabled(env) ? new SectorCacheManager(env) : null;
+  const cacheManager = isDOCacheEnabled(env) ? new DOSectorCacheAdapter(env) : null;
   const dataFetcher = new SectorDataFetcher(cacheManager);
   const indicators = new SectorIndicators(env);
   const circuitBreaker = CircuitBreakerFactory.getInstance('sector-api');
@@ -200,7 +200,7 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
  * Fetch fresh sector data from APIs and calculate indicators
  */
 async function fetchFreshSectorData(services: {
-  cacheManager: SectorCacheManager | null;
+  cacheManager: DOSectorCacheAdapter | null;
   dataFetcher: SectorDataFetcher;
   indicators: SectorIndicators;
 }): Promise<SectorSnapshotResponse> {

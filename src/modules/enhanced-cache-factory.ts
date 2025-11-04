@@ -4,7 +4,7 @@
  * Enables seamless switching between legacy and optimized systems
  */
 
-import { CacheManager } from './cache-manager.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
 import { EnhancedOptimizedCacheManager } from './enhanced-optimized-cache-manager.js';
 import { OptimizedCacheConfig } from './optimized-cache-config.js';
 
@@ -18,7 +18,7 @@ export interface OptimizedCacheSettings {
 }
 
 export interface CacheManagerFactory {
-  createCacheManager(env: any, options?: any): CacheManager | EnhancedOptimizedCacheManager;
+  createDOCacheAdapter(env: any, options?: any): DOCacheAdapter | EnhancedOptimizedCacheManager;
   createOptimizedCacheManager(env: any, config?: Partial<OptimizedCacheSettings>): EnhancedOptimizedCacheManager;
   isOptimizationEnabled(): boolean;
 }
@@ -44,7 +44,7 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
   /**
    * Create cache manager based on environment and configuration
    */
-  createCacheManager(env: any, options?: any): CacheManager | EnhancedOptimizedCacheManager {
+  createDOCacheAdapter(env: any, options?: any): DOCacheAdapter | EnhancedOptimizedCacheManager {
     const config = this.optimizationConfig.getSettings();
 
     // Check if optimizations are explicitly enabled or if we're in development
@@ -68,7 +68,7 @@ export class EnhancedCacheFactoryImpl implements CacheManagerFactory {
     }
 
     console.log('📊 Creating Standard Cache Manager (legacy compatibility)');
-    return new CacheManager(env, options);
+    return new DOCacheAdapter(env, options);
   }
 
   /**

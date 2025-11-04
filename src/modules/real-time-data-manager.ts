@@ -20,7 +20,7 @@
  */
 
 import { createLogger } from './logging.js';
-import { CacheManager } from './cache-manager.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
 import { CACHE_TTL, getCacheNamespace } from './cache-config.js';
 import { initializeMarketDrivers } from './market-drivers.js';
 import { initializeMarketStructureFetcher } from './market-structure-fetcher.js';
@@ -51,12 +51,12 @@ export interface FreshnessRecord {
 
 export class RealTimeDataManager {
   private env: CloudflareEnvironment;
-  private cache: CacheManager;
+  private cache: DOCacheAdapter;
   private dal;
 
   constructor(env: CloudflareEnvironment) {
     this.env = env;
-    this.cache = new CacheManager(env);
+    this.cache = new DOCacheAdapter(env);
     this.dal = createSimplifiedEnhancedDAL(env);
   }
 
