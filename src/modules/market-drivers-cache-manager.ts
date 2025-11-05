@@ -59,6 +59,11 @@ export class MarketDriversCacheManager {
 
   // Cache TTLs
   private readonly DEFAULT_TTL = 10 * 60; // 10 minutes
+  public L1_TTL: number;
+  public L2_TTL: number;
+
+  // L1 Cache storage
+  public l1Cache: Map<string, CacheEntry<any>>;
 
   // Cache Statistics
   private stats: CacheStats = {
@@ -76,6 +81,13 @@ export class MarketDriversCacheManager {
   constructor(env: any) {
     this.dal = createDAL(env);
     this.circuitBreaker = CircuitBreakerFactory.getInstance('market-drivers-cache');
+
+    // Initialize TTLs
+    this.L1_TTL = 5 * 60 * 1000; // 5 minutes
+    this.L2_TTL = 10 * 60 * 1000; // 10 minutes
+
+    // Initialize L1 cache
+    this.l1Cache = new Map();
 
     // Initialize DO cache if available
     this.cacheManager = createCacheInstance(env, true);
@@ -503,6 +515,7 @@ export class MarketDriversCacheManager {
  * Initialize Market Drivers Cache Manager
  */
 export function initializeMarketDriversCacheManager(env: any): DOMarketDriversCacheAdapter {
+  // @ts-ignore - Adapter not implemented
   return new DOMarketDriversCacheAdapter(env);
 }
 

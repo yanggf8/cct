@@ -89,7 +89,7 @@ export async function handleModelHealth(
     if (env.AI) {
       try {
         // Test GPT-OSS model with minimal input
-        const gptTest = await env.AI.run('@cf/gpt-oss-120b', {
+        const gptTest = await (env.AI as any).run('@cf/gpt-oss-120b', {
           messages: [{ role: 'user', content: 'Test' }],
           max_tokens: 5
         });
@@ -97,7 +97,7 @@ export async function handleModelHealth(
         healthResults.models.gpt_oss_120b = {
           status: 'healthy',
           model: '@cf/gpt-oss-120b',
-          test_response: gptTest?.response || 'Success',
+          test_response: (gptTest as any)?.response || 'Success',
           latency_ms: 'measured'
         };
 

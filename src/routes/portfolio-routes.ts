@@ -269,7 +269,7 @@ export class PortfolioRoutesHandler {
       // Include stress test if requested
       if (includeStressTest) {
         const stressTest = await this.correlationEngine.performStressTest(weights, covarianceResult.covarianceMatrix, scenarios);
-        result.stressTest = stressTest;
+        (result as any).stressTest = stressTest;
       }
 
       const body = ApiResponseFactory.success(result);
@@ -703,15 +703,15 @@ export class PortfolioRoutesHandler {
       };
 
       // Correlation analysis
-      analytics.correlation = await this.correlationEngine.calculateCorrelationMatrix(symbols, lookbackPeriod);
+      (analytics as any).correlation = await this.correlationEngine.calculateCorrelationMatrix(symbols, lookbackPeriod);
 
       // Efficient frontier
-      analytics.efficientFrontier = await this.correlationEngine.calculateEfficientFrontier(symbols, 50);
+      (analytics as any).efficientFrontier = await this.correlationEngine.calculateEfficientFrontier(symbols, 50);
 
       if (includeOptimization) {
         // Multiple optimization scenarios
         const objectives = ['MAX_SHARPE', 'MIN_VOLATILITY', 'EQUAL_WEIGHT', 'RISK_PARITY'];
-        analytics.optimizations = {};
+        (analytics as any).optimizations = {};
 
         for (const objective of objectives) {
           const covarianceResult = await this.correlationEngine.calculateCovarianceMatrix(symbols, lookbackPeriod);
@@ -730,7 +730,7 @@ export class PortfolioRoutesHandler {
             expectedReturns
           );
 
-          analytics.optimizations[objective] = {
+          (analytics as any).optimizations[objective] = {
             optimization,
             riskMetrics
           };

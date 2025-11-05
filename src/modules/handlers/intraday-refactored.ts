@@ -41,7 +41,7 @@ class IntradayDataRetriever {
     logger.debug('📥 [INTRADAY] Retrieving intraday data', { requestId, date });
 
     try {
-      const data = await getIntradayCheckData(date, env, { requestId });
+      const data = await getIntradayCheckData(env, new Date(date));
 
       if (!data) {
         logger.warn('⚠️ [INTRADAY] No intraday data found', { requestId, date });
@@ -113,7 +113,7 @@ class IntradayPerformanceAnalyzer {
     logger.debug('📊 [INTRADAY] Analyzing performance', { requestId });
 
     try {
-      const performanceData = await generateIntradayPerformance(data, env, { requestId });
+      const performanceData = await generateIntradayPerformance(data, null, env);
 
       logger.debug('✅ [INTRADAY] Performance analysis completed', {
         requestId,
@@ -183,16 +183,18 @@ class IntradayHTMLGenerator {
     try {
       const metrics = IntradayPerformanceAnalyzer.generateMetrics(data.signals);
 
-      const htmlContent = generateCompletePage({
-        title: '🔍 Intraday Performance Check',
-        subtitle: 'Real-time signal performance analysis',
-        requestId,
-        sections: [
-          IntradayHTMLGenerator.generateMetricsSection(metrics),
-          IntradayHTMLGenerator.generateSignalsSection(data.signals),
-          IntradayHTMLGenerator.generatePerformanceSection(performance)
-        ]
-      });
+      const sectionsContent = [
+        IntradayHTMLGenerator.generateMetricsSection(metrics),
+        IntradayHTMLGenerator.generateSignalsSection(data.signals),
+        IntradayHTMLGenerator.generatePerformanceSection(performance)
+      ].join('\n');
+
+      const htmlContent = generateCompletePage(
+        '🔍 Intraday Performance Check',
+        'Real-time signal performance analysis',
+        sectionsContent,
+        'Operational'
+      );
 
       return htmlContent;
 
@@ -374,7 +376,7 @@ class DependencyValidator {
     logger.debug('🔍 [INTRADAY] Verifying KV consistency', { requestId });
 
     try {
-      const isConsistent = await verifyDependencyConsistency(env);
+      const isConsistent = await verifyDependencyConsistency(dateStr, ['analysis', 'morning_predictions'], env);
 
       logger.debug('✅ [INTRADAY] KV consistency verified', {
         requestId,
@@ -397,13 +399,14 @@ class DependencyValidator {
 /**
  * Main intraday refactored handler
  */
-export const handleIntradayCheckRefactored = createReportHandler(
-  'intraday-check-refactored',
-  async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
-    const requestId = crypto.randomUUID();
-    const startTime = Date.now();
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
+export const handleIntradayCheckRefactored = async (
+  request: Request,
+  env: CloudflareEnvironment
+): Promise<Response> => {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
 
     const context = { requestId, date: dateStr };
 
@@ -524,5 +527,4 @@ export const handleIntradayCheckRefactored = createReportHandler(
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
-  }
-);
+};

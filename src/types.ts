@@ -680,3 +680,129 @@ export interface SectorRotationResult {
     rateLimitAvoided: boolean;
   };
 }
+
+// ============================================================================
+// Report and Analysis Helper Types
+// ============================================================================
+
+/**
+ * Signal structure used in reports
+ */
+export interface ReportSignal {
+  sentiment_layers?: SentimentLayer[];
+  recommendation?: string;
+  [key: string]: any;
+}
+
+/**
+ * Request body for endpoints that accept symbols array
+ */
+export interface SymbolsRequestBody {
+  symbols?: string[];
+  [key: string]: any;
+}
+
+/**
+ * Primary sentiment result from sentiment layers
+ */
+export interface PrimarySentimentResult {
+  sentiment: string;
+  confidence: number;
+  reasoning: string;
+}
+
+/**
+ * Safely extract primary sentiment from sentiment layers
+ * @param layers - Optional array of sentiment layers
+ * @returns Primary sentiment with defaults if layers are missing or empty
+ */
+export function getPrimarySentiment(layers?: SentimentLayer[]): PrimarySentimentResult {
+  if (!layers || layers.length === 0) {
+    return {
+      sentiment: 'NEUTRAL',
+      confidence: 0,
+      reasoning: 'No sentiment data available'
+    };
+  }
+
+  // Find layer with highest confidence
+  const primaryLayer = layers.reduce((prev, current) =>
+    (current.confidence > prev.confidence) ? current : prev
+  );
+
+  return {
+    sentiment: primaryLayer.sentiment,
+    confidence: primaryLayer.confidence,
+    reasoning: primaryLayer.reasoning || 'Automated sentiment analysis'
+  };
+}
+
+// ============================================================================
+// Utility Types and Functions
+// ============================================================================
+
+/**
+ * DeepPartial - makes all properties of a type recursively partial
+ */
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+/**
+ * NonEmptyArray - ensures an array has at least one element
+ */
+export type NonEmptyArray<T> = [T, ...T[]];
+
+/**
+ * SafeGet - safely get nested object property with default value
+ */
+export function safeGet<T>(obj: any, path: string, defaultValue: T): T {
+  try {
+    const keys = path.split('.');
+    let result = obj;
+    for (const key of keys) {
+      if (result === null || result === undefined) {
+        return defaultValue;
+      }
+      result = result[key];
+    }
+    return result !== undefined && result !== null ? result : defaultValue;
+  } catch (error) {
+    return defaultValue;
+  }
+}
+
+/**
+ * AssertNonEmpty - runtime check that array is not empty
+ */
+export function assertNonEmpty<T>(array: T[], message = 'Array must not be empty'): NonEmptyArray<T> {
+  if (array.length === 0) {
+    throw new Error(message);
+  }
+  // @ts-ignore - Type assertion for non-empty array
+  return array as NonEmptyArray<T>;
+}
+
+/**
+ * Apply defaults to partial options object
+ */
+export function applyDefaults<T>(partial: Partial<T>, defaults: T): T {
+  return { ...defaults, ...partial };
+}
+
+/**
+ * Normalize input to array - handles single item, array, or undefined
+ */
+export function asArray<T>(input: T | T[] | undefined | null): T[] {
+  if (input === undefined || input === null) {
+    return [];
+  }
+  return Array.isArray(input) ? input : [input];
+}
+
+/**
+ * Type guard for non-empty arrays
+ */
+export function isNonEmpty<T>(arr?: T[]): arr is NonEmptyArray<T> {
+  return Array.isArray(arr) && arr.length > 0;
+}

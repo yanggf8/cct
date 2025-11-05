@@ -520,7 +520,7 @@ export class MacroEconomicFetcher {
     try {
       const fredHealth = await this.fredApiClient.healthCheck();
       const hasCacheManager = !!this.cacheManager;
-      const cacheStats = this.cacheManager?.getCacheStats();
+      const cacheStats = (this.cacheManager as any)?.getCacheStats();
 
       return {
         status: fredHealth.status === 'healthy' ? 'healthy' : 'unhealthy',

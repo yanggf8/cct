@@ -1036,7 +1036,7 @@ async function handleMonteCarloSimulation(
   });
 
   try {
-    const requestBody = await request.json();
+    const requestBody = (await request.json()) as any;
     const numSimulations = (requestBody as any).numSimulations || 1000;
 
     // Get backtest results
@@ -1403,7 +1403,7 @@ async function handleModelValidation(
   const timer = new ProcessingTimer();
 
   try {
-    const requestBody = await request.json();
+    const requestBody = (await request.json()) as any;
     const {
       backtestId: backtestId = '',
       validationConfig = {
@@ -1581,7 +1581,7 @@ async function handleMonteCarloSimulationDirect(
   const timer = new ProcessingTimer();
 
   try {
-    const requestBody = await request.json();
+    const requestBody = (await request.json()) as any;
     const {
       backtestId,
       scenarios = {

@@ -89,7 +89,7 @@ export async function handleSectorRotationRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('SectorRotationRoutes Error', error, { requestId, path, method });
+    logger.error('SectorRotationRoutes Error', { error: (error as any).message,  requestId, path, method });
 
     return new Response(
       JSON.stringify(

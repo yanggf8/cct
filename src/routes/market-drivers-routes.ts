@@ -983,7 +983,7 @@ async function testMacroHealth(env: CloudflareEnvironment): Promise<{ status: st
     };
   } catch (error: unknown) {
     logger.warn('FRED API health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }
 
@@ -999,7 +999,7 @@ async function testMarketStructureHealth(env: CloudflareEnvironment): Promise<{ 
     };
   } catch (error: unknown) {
     logger.warn('Yahoo Finance health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }
 
@@ -1050,7 +1050,7 @@ async function testRegimeHealth(env: CloudflareEnvironment): Promise<{ status: s
     };
   } catch (error: unknown) {
     logger.warn('Regime classification health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }
 
@@ -1080,6 +1080,6 @@ async function testCacheHealth(env: CloudflareEnvironment): Promise<{ status: st
     };
   } catch (error: unknown) {
     logger.warn('Cache health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }

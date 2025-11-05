@@ -430,7 +430,7 @@ export class IntegrationTestSuite {
 
       // Test cache write
       const writeStart = Date.now();
-      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 });
+      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 } as any);
       const writeTime = Date.now() - writeStart;
 
       // Test cache read
@@ -488,7 +488,7 @@ export class IntegrationTestSuite {
       const testData = { counter: 1, timestamp: Date.now() };
 
       // Write initial data
-      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 });
+      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 } as any);
 
       // Read multiple times to check consistency
       const reads = [];
@@ -613,7 +613,7 @@ export class IntegrationTestSuite {
       // Test batch writes
       const writeStart = Date.now();
       for (const item of testData) {
-        await cacheManager.set('TEST', item.key, item.data, { l1: 60, l2: 60 });
+        await cacheManager.set('TEST', item.key, item.data, { l1: 60, l2: 60 } as any);
       }
       const writeTime = Date.now() - writeStart;
 
@@ -694,7 +694,7 @@ export class IntegrationTestSuite {
       // Step 4: Cache results
       const cacheStart = Date.now();
       const cacheManager = new DOCacheAdapter(this.env);
-      await cacheManager.set('workflow_test', { marketData, fredData, sentimentResult }, { ttl: 60 });
+      await cacheManager.set('workflow_test', 'workflow_test', { marketData, fredData, sentimentResult }, { ttl: 60 } as any);
       workflowSteps.push({ step: 'Cache Results', duration: Date.now() - cacheStart, success: true });
 
       const successRate = workflowSteps.filter(s => s.success).length / workflowSteps.length;
@@ -746,8 +746,8 @@ export class IntegrationTestSuite {
           test: async () => {
             const cacheManager = new DOCacheAdapter(this.env);
             const testKey = 'collision_test';
-            await cacheManager.set('TEST', testKey, { data: 1 }, { l1: 60, l2: 60 });
-            await cacheManager.set('TEST', testKey, { data: 2 }, { l1: 60, l2: 60 }); // Should overwrite
+            await cacheManager.set('TEST', testKey, { data: 1 }, { l1: 60, l2: 60 } as any);
+            await cacheManager.set('TEST', testKey, { data: 2 }, { l1: 60, l2: 60 } as any); // Should overwrite
             const result = await cacheManager.get('TEST', testKey);
             await cacheManager.delete('TEST', testKey);
             return result;

@@ -211,10 +211,10 @@ class MarketCloseAnalysisEngine {
       };
 
       // Get market close data
-      const marketCloseData = await this.getMarketCloseData(env, todaySignals.data.signals);
+      const marketCloseData = await this.getMarketCloseData(env, todaySignals.data.signals as any);
 
       // Generate tomorrow outlook
-      const tomorrowOutlook = await this.generateTomorrowOutlook(env, todaySignals.data.signals, signalSummary);
+      const tomorrowOutlook = await this.generateTomorrowOutlook(env, todaySignals.data.signals as any, signalSummary);
 
       // Calculate performance metrics
       const performanceMetrics = this.calculatePerformanceMetrics(signalSummary);

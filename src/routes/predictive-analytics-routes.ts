@@ -139,7 +139,7 @@ export async function handlePredictiveAnalyticsRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('PredictiveAnalyticsRoutes Error', error, { requestId, path, method });
+    logger.error('PredictiveAnalyticsRoutes Error', { error: (error as any).message,  requestId, path, method });
 
     return new Response(
       JSON.stringify(

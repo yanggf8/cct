@@ -396,8 +396,8 @@ export class EnhancedRequestHandler {
 
       // Add migration headers
       (response as any).headers.set('X-Enhanced-System', 'true');
-      (response as any).headersset('X-API-Version', 'legacy');
-      (response as any).headersset('X-Migration-Reason', reason);
+      (response as any).headers.set('X-API-Version', 'legacy');
+      (response as any).headers.set('X-Migration-Reason', reason);
 
       monitor.complete(response);
 
@@ -479,7 +479,7 @@ export class EnhancedRequestHandler {
 
       if (cacheManager) {
         try {
-          const metadata = await cacheManager.getMetadata({ namespace: 'global' });
+          const metadata = await cacheManager.getMetadata({ namespace: 'global' } as any);
           const stats = await cacheManager.getStats();
 
           cacheStats = {

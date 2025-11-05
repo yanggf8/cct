@@ -115,10 +115,10 @@ export class APIHealthMonitor {
     this.performAllHealthChecks();
 
     // Set up recurring checks
-    if ((this as any).optionsenableAutoChecks) {
+    if ((this as any).options.enableAutoChecks) {
       this.monitoringInterval = setInterval(() => {
         this.performAllHealthChecks();
-      }, ((this as any).optionscheckIntervalMinutes ?? 5) * 60 * 1000);
+      }, ((this as any).options.checkIntervalMinutes ?? 5) * 60 * 1000);
     }
   }
 
@@ -318,7 +318,7 @@ export class APIHealthMonitor {
 
       // Write test
       const namespace = 'api_responses';
-      await cacheManager.set<typeof testValue>(namespace, testKey, testValue, { l1: 60, l2: 60 });
+      await cacheManager.set<typeof testValue>(namespace, testKey, testValue, { l1: 60, l2: 60 } as any);
 
       // Read test
       const retrieved = await cacheManager.get<typeof testValue>(namespace, testKey);

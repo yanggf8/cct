@@ -114,7 +114,7 @@ export async function handleDataRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('DataRoutes Error', error, { requestId, path, method });
+    logger.error('DataRoutes Error', { error: (error as any).message, requestId, path, method } as any);
 
     return new Response(
       JSON.stringify(
@@ -183,8 +183,8 @@ async function handleAvailableSymbols(
     let staticSectorMappings = {};
 
     try {
-      staticSymbolNames = memoryStaticDAL.get('symbol_names') || {};
-      staticSectorMappings = memoryStaticDAL.get('sector_mappings') || {};
+      staticSymbolNames = (memoryStaticDAL as any).get('symbol_names') || {};
+      staticSectorMappings = (memoryStaticDAL as any).get('sector_mappings') || {};
     } catch (error: unknown) {
       logger.warn('Failed to get static data, using helper functions', { error, requestId });
     }
@@ -238,7 +238,7 @@ async function handleAvailableSymbols(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('AvailableSymbols Error', error, { requestId });
+    logger.error('AvailableSymbols Error', { error: (error as any).message, requestId } as any);
 
     return new Response(
       JSON.stringify(
@@ -299,7 +299,7 @@ async function handleSymbolHistory(
 
     // Check cache first
     const cacheKey = `symbol_history_${symbol}_${days}days`;
-    const cached = await dal.get<any>('CACHE', cacheKey);
+    const cached = await (dal as any).get<any>('CACHE', cacheKey);
 
     if (cached) {
       logger.info('SymbolHistory: Cache hit', { symbol, days, requestId });
@@ -406,7 +406,7 @@ async function handleSymbolHistory(
     };
 
     // Cache for 30 minutes
-    await dal.put('CACHE', cacheKey, response, { expirationTtl: 1800 });
+    await (dal as any).put('CACHE', cacheKey, response, { expirationTtl: 1800 });
 
     logger.info('SymbolHistory: Data generated', {
       symbol,
@@ -428,7 +428,7 @@ async function handleSymbolHistory(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('SymbolHistory Error', error, { requestId, symbol });
+    logger.error('SymbolHistory Error', { error: (error as any).message, requestId, symbol } as any);
 
     return new Response(
       JSON.stringify(
@@ -504,7 +504,7 @@ async function handleModelHealth(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('ModelHealth Error', error, { requestId });
+    logger.error('ModelHealth Error', { error: (error as any).message, requestId } as any);
 
     return new Response(
       JSON.stringify(
@@ -570,7 +570,7 @@ async function handleCronHealth(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('CronHealth Error', error, { requestId });
+    logger.error('CronHealth Error', { error: (error as any).message, requestId } as any);
 
     return new Response(
       JSON.stringify(
@@ -655,8 +655,8 @@ async function handleSystemHealth(
       },
       // Enhanced cache metrics
       cache: cacheHealthy.metrics ? {
-        enabled: cacheHealthy.health?.enabled || true,
-        status: cacheHealthy.health?.status || cacheHealthy.status,
+        enabled: (cacheHealthy as any).health?.enabled || true,
+        status: (cacheHealthy as any).health?.status || cacheHealthy.status,
         hitRate: cacheHealthy.hitRate || 0,
         l1HitRate: cacheHealthy.metrics.l1HitRate || 0,
         l2HitRate: cacheHealthy.metrics.l2HitRate || 0,
@@ -666,8 +666,8 @@ async function handleSystemHealth(
         l2Hits: cacheHealthy.metrics.l2Hits || 0,
         misses: cacheHealthy.metrics.misses || 0,
         evictions: cacheHealthy.metrics.evictions || 0,
-        namespaces: cacheHealthy.health?.namespaces || 0,
-        metricsHealth: cacheHealthy.health?.metricsHealth || { status: 'unknown', issues: [] }
+        namespaces: (cacheHealthy as any).health?.namespaces || 0,
+        metricsHealth: (cacheHealthy as any).health?.metricsHealth || { status: 'unknown', issues: [] }
       } : {
         enabled: false,
         status: cacheHealthy.status,
@@ -701,7 +701,7 @@ async function handleSystemHealth(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('SystemHealth Error', error, { requestId });
+    logger.error('SystemHealth Error', { error: (error as any).message, requestId } as any);
 
     return new Response(
       JSON.stringify(

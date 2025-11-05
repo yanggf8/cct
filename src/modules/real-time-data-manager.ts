@@ -136,7 +136,7 @@ export class RealTimeDataManager {
         try {
           const data = await getMarketData(symbol);
           if (data) {
-            await this.cache.set(namespace.name, `price:${symbol}`, data, ttl);
+            await this.cache.set(namespace.name, `price:${symbol}`, data, ttl as any);
           }
         } catch (e: any) {
           errors.push(`${symbol}:${e.message}`);
@@ -159,11 +159,11 @@ export class RealTimeDataManager {
   // Refresh FRED macro snapshot via client with its own caching
   private async refreshFred(ttl: { l1: number; l2: number; }): Promise<FreshnessRecord> {
     try {
-      const fred = new FredApiClient(this.env, { cacheEnabled: true });
+      const fred = new FredApiClient(this.env, {} as any);
       const snapshot = await fred.getMacroEconomicSnapshot();
       // Store to cache manager for quick access
       const ns = getCacheNamespace('macro_data');
-      await this.cache.set(ns.name, 'macro:snapshot', snapshot, { l1: ttl.l1, l2: CACHE_TTL.EXTENDED });
+      await this.cache.set(ns.name, 'macro:snapshot', snapshot, { l1: ttl.l1, l2: CACHE_TTL.EXTENDED } as any);
       const record: FreshnessRecord = { source: 'fred', status: 'healthy', updated_at: new Date().toISOString(), details: { series: snapshot.metadata?.series_count, cacheHit: snapshot.metadata?.cacheHit } };
       await this.recordFreshness(record);
       return record;
@@ -179,10 +179,10 @@ export class RealTimeDataManager {
     try {
       // Use a broad market symbol list for sentiment relevance if not incremental
       const symbols = opts.incremental ? ['SPY', 'QQQ'] : ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'AMZN'];
-      const news = await Promise.allSettled(symbols.map(s => getFreeStockNews(s)));
-      const signals = await Promise.allSettled(symbols.map(s => getFreeSentimentSignal(s)));
+      const news = await Promise.allSettled(symbols.map(s => getFreeStockNews(s, this.env)));
+      const signals = await Promise.allSettled(symbols.map(s => getFreeSentimentSignal(s, this.env)));
       const ns = getCacheNamespace('market_data');
-      await this.cache.set(ns.name, 'sentiment:latest', { news, signals, incremental: !!opts.incremental, timestamp: new Date().toISOString() }, { l1: CACHE_TTL.SHORT, l2: CACHE_TTL.MEDIUM });
+      await this.cache.set(ns.name, 'sentiment:latest', { news, signals, incremental: !!opts.incremental, timestamp: new Date().toISOString() }, { l1: CACHE_TTL.SHORT, l2: CACHE_TTL.MEDIUM } as any);
       const record: FreshnessRecord = { source: 'sentiment', status: 'healthy', updated_at: new Date().toISOString(), details: { symbols, incremental: !!opts.incremental } };
       await this.recordFreshness(record);
       return record;
@@ -197,9 +197,9 @@ export class RealTimeDataManager {
   private async refreshMarketStructure(ttl: { l1: number; l2: number; }): Promise<FreshnessRecord> {
     try {
       const fetcher = initializeMarketStructureFetcher({});
-      const ms = await fetcher.getMarketStructure();
+      const ms = await fetcher.fetchMarketStructure();
       const ns = getCacheNamespace('market_data');
-      await this.cache.set(ns.name, 'market_structure:current', ms, ttl);
+      await this.cache.set(ns.name, 'market_structure:current', ms, ttl as any);
       const record: FreshnessRecord = { source: 'market_structure', status: 'healthy', updated_at: new Date().toISOString(), details: { health: await fetcher.healthCheck() } };
       await this.recordFreshness(record);
       return record;
@@ -216,7 +216,7 @@ export class RealTimeDataManager {
       const drivers = initializeMarketDrivers(this.env);
       const snapshot = await drivers.getMarketDriversSnapshot();
       const ns = getCacheNamespace('market_data');
-      await this.cache.set(ns.name, 'market_drivers:snapshot', snapshot, { l1: CACHE_TTL.MEDIUM, l2: CACHE_TTL.EXTENDED });
+      await this.cache.set(ns.name, 'market_drivers:snapshot', snapshot, { l1: CACHE_TTL.MEDIUM, l2: CACHE_TTL.EXTENDED } as any);
       const record: FreshnessRecord = { source: 'market_drivers', status: 'healthy', updated_at: new Date().toISOString(), details: { timestamp: snapshot.timestamp, marketHealth: snapshot.marketHealth } };
       await this.recordFreshness(record);
       return record;
@@ -233,7 +233,7 @@ export class RealTimeDataManager {
       // Prediction generation is lightweight wrapper via predictive analytics routes/module
       // For now we mark predictions freshness and allow consumers to compute lazily on request.
       const ns = getCacheNamespace('analysis_data');
-      await this.cache.set(ns.name, 'predictions:marker', { reason, marketOpen: open, timestamp: new Date().toISOString() }, { l1: CACHE_TTL.SHORT, l2: open ? CACHE_TTL.MEDIUM : CACHE_TTL.LONG });
+      await this.cache.set(ns.name, 'predictions:marker', { reason, marketOpen: open, timestamp: new Date().toISOString() }, { l1: CACHE_TTL.SHORT, l2: open ? CACHE_TTL.MEDIUM : CACHE_TTL.LONG } as any);
       const record: FreshnessRecord = { source: 'predictions', status: 'healthy', updated_at: new Date().toISOString(), details: { reason, marketOpen: open } };
       await this.recordFreshness(record);
       return record;
@@ -269,7 +269,7 @@ export class RealTimeDataManager {
     const sources: FreshnessRecord['source'][] = ['yahoo', 'fred', 'sentiment', 'market_structure', 'market_drivers', 'predictions'];
     const records: FreshnessRecord[] = [];
     for (const s of sources) {
-      const rec = await this.dal.read<FreshnessRecord>(`freshness:${s}`);
+      const rec = await (this.dal.read as any)(`freshness:${s}`);
       if (rec) records.push(rec);
     }
     return { updated: records };

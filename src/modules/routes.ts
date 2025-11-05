@@ -330,7 +330,7 @@ export async function handleHttpRequest(
 
   // Handle health endpoints before authentication validation (public access)
   if (url.pathname === '/health') {
-    return handleHealthCheck(request, env, ctx);
+    return handleHealthCheck(request, env, ctx as any);
   }
   if (url.pathname === '/model-health') {
     return handleModelHealth(request, env);
@@ -405,7 +405,7 @@ export async function handleHttpRequest(
     let response: Response | undefined;
     switch (url.pathname) {
       case '/':
-        response = await handleHomeDashboardPage(request, env);
+        response = await handleHomeDashboardPage(request, env as any);
         break;
       case '/analyze':
         response = await handleManualAnalysis(request, env);
@@ -453,7 +453,7 @@ export async function handleHttpRequest(
         response = await handleWeeklyDataAPI(request, env);
         break;
       case '/sector-rotation':
-        response = await handleSectorRotationDashboardPage(request, env);
+        response = await handleSectorRotationDashboardPage(request, env as any);
         break;
       case '/predictive-analytics':
         response = await servePredictiveAnalyticsDashboard(request, env);

@@ -80,7 +80,7 @@ export async function handleIntegrationTestRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('IntegrationTestRoutes Error', error, { requestId, path, method });
+    logger.error('IntegrationTestRoutes Error', { error: (error as any).message, requestId, path, method } as any);
 
     return new Response(
       JSON.stringify(
@@ -121,7 +121,7 @@ async function handleRunFullTestSuite(
     let config = {};
     try {
       const body = await request.json();
-      config = body.config || {};
+      config = (body as any).config || {};
     } catch (error: unknown) {
       // Use default config if no body provided
       config = {};
@@ -152,7 +152,7 @@ async function handleRunFullTestSuite(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('RunFullTestSuite Error', error, { requestId });
+    logger.error('RunFullTestSuite Error', { error: (error as any).message, requestId } as any);
 
     return new Response(
       JSON.stringify(

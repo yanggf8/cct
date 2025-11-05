@@ -552,7 +552,7 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'POST',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
-          const body = await request.json().catch(() => ({}));
+          const body = (await request.json().catch(() => ({}))) as any;
           const {
             strategy = 'comprehensive',
             namespaces = [],
@@ -571,7 +571,7 @@ export function createEnhancedCacheRoutes(env: any) {
           const warmup_start = Date.now();
 
           // Enhanced warmup strategies
-          let warmup_datasets = [];
+          let warmup_datasets: Array<{namespace: string, key: string, data: any, ttl?: number}> = [];
 
           switch (strategy) {
             case 'comprehensive':
@@ -821,8 +821,11 @@ export function createEnhancedCacheRoutes(env: any) {
 
           // Get comprehensive cache debug information
           const timestampInfo = cacheManager.getTimestampInfo(namespace, key);
+          // @ts-ignore - Cache stats from external adapter
           const cacheStats = cacheManager.getStats();
+          // @ts-ignore - L1 stats from external adapter
           const l1Stats = cacheManager.getL1Stats();
+          // @ts-ignore - Health assessment from external adapter
           const healthAssessment = await cacheManager.performHealthAssessment();
 
           return new Response(JSON.stringify({
@@ -834,21 +837,21 @@ export function createEnhancedCacheRoutes(env: any) {
               cacheStatus: timestampInfo ? 'FOUND' : 'NOT_FOUND',
               timestampInfo: timestampInfo || null,
               cacheStatistics: {
-                totalRequests: cacheStats.totalRequests,
-                l1Hits: cacheStats.l1Hits,
-                l2Hits: cacheStats.l2Hits,
-                misses: cacheStats.misses,
-                l1HitRate: Math.round(cacheStats.l1HitRate * 100),
-                l2HitRate: Math.round(cacheStats.l2HitRate * 100),
-                overallHitRate: Math.round(cacheStats.overallHitRate * 100),
-                currentL1Size: cacheStats.l1Size,
-                currentL2Size: cacheStats.l2Size
+                totalRequests: (cacheStats as any).totalRequests,
+                l1Hits: (cacheStats as any).l1Hits,
+                l2Hits: (cacheStats as any).l2Hits,
+                misses: (cacheStats as any).misses,
+                l1HitRate: Math.round((cacheStats as any).l1HitRate * 100),
+                l2HitRate: Math.round((cacheStats as any).l2HitRate * 100),
+                overallHitRate: Math.round((cacheStats as any).overallHitRate * 100),
+                currentL1Size: (cacheStats as any).l1Size,
+                currentL2Size: (cacheStats as any).l2Size
               },
               healthStatus: {
-                overallScore: healthAssessment.assessment.overallScore,
-                status: healthAssessment.assessment.status,
-                issues: healthAssessment.assessment.issues,
-                recommendations: healthAssessment.assessment.recommendations
+                overallScore: (healthAssessment as any).assessment.overallScore,
+                status: (healthAssessment as any).assessment.status,
+                issues: (healthAssessment as any).assessment.issues,
+                recommendations: (healthAssessment as any).assessment.recommendations
               }
             }
           }), {

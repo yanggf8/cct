@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch",
     "test": "echo 'Run specific test suites'",
     "test:performance": "npx playwright test tests/performance.spec.js --reporter=list",
     "test:workflows": "npx playwright test tests/user-workflows.spec.js --reporter=list",
@@ -14,7 +16,8 @@
     "test:report": "npx playwright show-report",
     "test:performance-all": "./test-playwright-performance.sh",
     "test:integration": "./test-enhanced-cache-integration.sh",
-    "test:cache": "./validate-enhanced-cache.sh"
+    "test:cache": "./validate-enhanced-cache.sh",
+    "prepare": "husky install"
   },
   "keywords": [
     "sentiment-analysis",
@@ -40,6 +43,7 @@
     "@cloudflare/workers-types": "^4.20250927.0",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.6.0",
+    "husky": "^9.1.7",
     "typescript": "^5.9.2",
     "wrangler": "^4.37.1"
   }

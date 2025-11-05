@@ -128,7 +128,7 @@ export class PreMarketDataBridge {
     try {
       // Try to get from cache first
       const cacheKey = `sentiment_symbol_${symbol}_${new Date().toISOString().split('T')[0]}`;
-      const cached = await this.dal.get(cacheKey, 'sentiment_analysis');
+      const cached = await this.dal.get(cacheKey, 1 as any);
 
       if (cached && cached.data) {
         logger.debug(`Cache hit for ${symbol}`, { symbol });
@@ -259,7 +259,7 @@ export class PreMarketDataBridge {
     try {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
-      const analysisData = await this.dal.get(analysisKey, 'ANALYSIS');
+      const analysisData = await this.dal.get(analysisKey, 1 as any);
 
       return !!(analysisData && (analysisData as any).trading_signals);
     } catch (error: unknown) {
@@ -275,7 +275,7 @@ export class PreMarketDataBridge {
     try {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
-      return await this.dal.get(analysisKey, 'ANALYSIS');
+      return await this.dal.get(analysisKey, 1 as any);
     } catch (error: unknown) {
       logger.warn('PreMarketDataBridge: Error getting current analysis', error);
       return null;

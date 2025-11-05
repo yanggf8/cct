@@ -140,7 +140,7 @@ export async function handleManualAnalysis(request: Request, env: CloudflareEnvi
     try {
       // Fallback to basic analysis if enhanced fails
       const basicAnalysis = await runBasicAnalysis(env, { triggerMode: 'manual_analysis_fallback' });
-      basicAnalysis.fallback_reason = error.message;
+      (basicAnalysis as any).fallback_reason = error.message;
 
       return new Response(JSON.stringify(basicAnalysis), {
         headers: { 'Content-Type': 'application/json' }

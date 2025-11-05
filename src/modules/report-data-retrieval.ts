@@ -396,7 +396,7 @@ export class ReportDataRetrieval {
 
         // Store tomorrow outlook for next day evaluation
         if (tomorrowOutlook) {
-          await tomorrowOutlookTracker.storeTomorrowOutlook(env, date, tomorrowOutlook);
+          await tomorrowOutlookTracker.storeTomorrowOutlook(env, date, tomorrowOutlook as any);
         }
       }
 

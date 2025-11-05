@@ -109,7 +109,7 @@ export async function handleAdvancedAnalyticsRoutes(request: Request, env: any, 
     );
 
   } catch (error: unknown) {
-    logger.error('Advanced analytics route error', { error: (error instanceof Error ? error.message : String(error)), path, requestId });
+    logger.error('Advanced analytics route error', { error: (error instanceof Error ? error.message : String(error)), path, requestId } as any);
 
     return new Response(
       JSON.stringify(
@@ -216,7 +216,8 @@ async function handleModelComparison(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(comparisonData, 'Model comparison completed', {
+        ApiResponseFactory.success(comparisonData, {
+    message: 'Model comparison completed', 
           processingTime,
           symbolsCount: symbols.length,
           modelsCount: models.length,
@@ -322,7 +323,8 @@ async function handleConfidenceIntervals(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(confidenceData, 'Confidence intervals calculated', {
+        ApiResponseFactory.success(confidenceData, {
+          message: 'Confidence intervals calculated',
           processingTime,
           symbolsCount: symbolsArray.length,
           confidenceLevel,
@@ -435,7 +437,8 @@ async function handleEnsemblePrediction(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(ensembleData, 'Ensemble prediction generated', {
+        ApiResponseFactory.success(ensembleData, {
+    message: 'Ensemble prediction generated', 
           processingTime,
           symbolsCount: symbols.length,
           modelsCount: models.length,
@@ -559,7 +562,8 @@ async function handlePredictionAccuracy(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(accuracyData, 'Prediction accuracy metrics retrieved', {
+        ApiResponseFactory.success(accuracyData, {
+    message: 'Prediction accuracy metrics retrieved', 
           processingTime,
           timeRange,
           requestId
@@ -696,7 +700,8 @@ async function handleRiskAssessment(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(riskData, 'Risk assessment completed', {
+        ApiResponseFactory.success(riskData, {
+    message: 'Risk assessment completed', 
           processingTime,
           symbolsCount: symbols.length,
           overallRiskScore: riskData.overall_risk_score,
@@ -861,7 +866,8 @@ async function handleModelPerformance(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(performanceData, 'Model performance metrics retrieved', {
+        ApiResponseFactory.success(performanceData, {
+    message: 'Model performance metrics retrieved', 
           processingTime,
           model,
           timeRange,
@@ -971,7 +977,8 @@ async function handleBacktest(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(backtestData, 'Backtesting analysis completed', {
+        ApiResponseFactory.success(backtestData, {
+    message: 'Backtesting analysis completed', 
           processingTime,
           strategy,
           symbolsCount: symbols.length,
@@ -1188,7 +1195,8 @@ async function handleAdvancedAnalyticsHealth(request, env, headers, requestId) {
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(healthData, 'Advanced analytics comprehensive health check completed', {
+        ApiResponseFactory.success(healthData, {
+    message: 'Advanced analytics comprehensive health check completed', 
           processingTime,
           requestId,
           component_count: 25,
@@ -1199,7 +1207,7 @@ async function handleAdvancedAnalyticsHealth(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
-    logger.error('Advanced analytics health check error', { error: (error instanceof Error ? error.message : String(error)), requestId });
+    logger.error('Advanced analytics health check error', { error: (error instanceof Error ? error.message : String(error)), requestId } as any);
 
     return new Response(
       JSON.stringify(

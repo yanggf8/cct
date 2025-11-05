@@ -6,13 +6,12 @@
 
 import {
   ApiResponseFactory,
-  SentimentAnalysisResponse,
-  SymbolSentimentResponse,
   MarketSentimentData,
   SectorSentimentData,
   ProcessingTimer,
   HttpStatus
 } from '../modules/api-v1-responses.js';
+import type { SentimentAnalysisResponse, SymbolSentimentResponse } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
   parseQueryParams,
@@ -171,10 +170,10 @@ async function handleSentimentAnalysis(
   // External APIs (FMP, NewsAPI) use KV cache independently
   const cacheInstance = createCacheInstance(env, true);
   if (cacheInstance) {
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
@@ -308,10 +307,10 @@ async function handleSymbolSentiment(
   // External APIs (FMP, NewsAPI) use KV cache independently
   const cacheInstance = createCacheInstance(env, true);
   if (cacheInstance) {
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
 
   try {
@@ -470,10 +469,10 @@ async function handleMarketSentiment(
   // External APIs (FMP, NewsAPI) use KV cache independently
   const cacheInstance = createCacheInstance(env, true);
   if (cacheInstance) {
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
 
   try {
@@ -523,8 +522,8 @@ async function handleMarketSentiment(
     // Compute market-wide sentiment from all symbols
     const signals = Object.values(analysisData.trading_signals);
     const sentimentScores = signals.map(signal => {
-      const score = signal.sentiment_layers?.[0]?.confidence || 0;
-      const sentiment = signal.sentiment_layers?.[0]?.sentiment || 'neutral';
+      const score = (signal as any).sentiment_layers?.[0]?.confidence || 0;
+      const sentiment = (signal as any).sentiment_layers?.[0]?.sentiment || 'neutral';
       return sentiment === 'bullish' ? score : sentiment === 'bearish' ? -score : 0;
     });
 
@@ -596,10 +595,10 @@ async function handleSectorSentiment(
   // External APIs (FMP, NewsAPI) use KV cache independently
   const cacheInstance = createCacheInstance(env, true);
   if (cacheInstance) {
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
@@ -694,7 +693,7 @@ async function handleSectorSentiment(
             confidence: Math.abs(transformedSignal.overall_confidence || 0.5),
             ai_context: transformedSignal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
             news_count: transformedSignal.news_count || 0,
-            price_change: priceData?.changePercent || 0,
+            price_change: (priceData as any)?.changePercent || 0,
             real_data: true,
             models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
             agreement_type: transformedSignal.agreement_type || 'DISAGREE'

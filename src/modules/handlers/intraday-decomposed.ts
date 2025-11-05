@@ -114,7 +114,7 @@ class PerformanceModule {
     logger.debug('📊 Analyzing performance', { requestId });
 
     try {
-      const performance = await generateIntradayPerformance(data, env, { requestId });
+      const performance = await generateIntradayPerformance(data, null, env);
 
       logger.debug('✅ Performance analysis completed', {
         requestId,
@@ -494,7 +494,7 @@ export const handleIntradayCheckDecomposed = async (
 
     try {
       // Validate request environment
-      const envValidation = validateRequestEnvironment(env, { requestId });
+      const envValidation = validateRequestEnvironment(request, env);
 
       if (!envValidation.isValid) {
         logger.warn('⚠️ Environment validation failed', {

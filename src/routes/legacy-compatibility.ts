@@ -179,7 +179,7 @@ async function transformLegacyRequest(
         try {
           const legacyBody = await request.json();
           const newBody = {
-            symbols: legacyBody.symbols || ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
+            symbols: (legacyBody as any).symbols || ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
             analysis_type: 'comprehensive',
             include_news: true
           };

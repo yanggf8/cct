@@ -118,7 +118,7 @@ export class VectorizedSectorProcessor {
     // Optimized storage
     await this.batchOperations.scheduleWrite(
       `${this.OPERATION_TEMPLATES.MARKET_DATA}_batch_${sectors.join(',')}`,
-      batchResult.data,
+      (batchResult as any).data,
       'market_data',
       priority
     );
@@ -158,7 +158,7 @@ export class VectorizedSectorProcessor {
     await this.batchOperations.scheduleBatchWrite(
       uniqueSymbols.map(symbol => ({
         key: `${this.OPERATION_TEMPLATES.HISTORICAL}_${symbol}_${days}`,
-        data: batchResult.data ? this.findDataForSymbol(batchResult.data, symbol) : null
+        data: (batchResult as any).data ? this.findDataForSymbol((batchResult as any).data, symbol) : null
       })),
       'historical_data',
       priority
@@ -174,7 +174,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(sectors.map(symbol => [symbol, this.findDataForSymbol(batchResult.data, symbol)]))
+      data: new Map(sectors.map(symbol => [symbol, this.findDataForSymbol((batchResult as any).data, symbol)]))
     };
   }
 
@@ -195,9 +195,9 @@ export class VectorizedSectorProcessor {
     // Combine with SPY data and store as batch
     const combinedData = {
       timestamp: Date.now(),
-      sectors: batchResult.data,
+      sectors: (batchResult as any).data,
       spyBenchmark: spyData,
-      rotationAnalysis: this.calculateRotationMetrics(batchResult.data, spyData)
+      rotationAnalysis: this.calculateRotationMetrics((batchResult as any).data, spyData)
     };
 
     await this.batchOperations.scheduleWrite(
@@ -273,7 +273,7 @@ export class VectorizedSectorProcessor {
     const batchResult = await this.batchOperations.scheduleBatchRead(cacheKeys, 'sector_data', 'high');
 
     // Batch write all results
-    await this.batchOperations.scheduleWrite(batchKey, batchResult.data, 'sector_results', 'high');
+    await this.batchOperations.scheduleWrite(batchKey, (batchResult as any).data, 'sector_results', 'high');
 
     const optimizedKVCount = 2; // 1 batch read + 1 write
     const reduction = originalKVCount - optimizedKVCount;

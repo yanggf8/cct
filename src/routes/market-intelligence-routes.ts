@@ -94,7 +94,7 @@ export async function handleMarketIntelligenceRoutes(
       }
     );
   } catch (error: unknown) {
-    logger.error('MarketIntelligenceRoutes Error', error, { requestId, path, method });
+    logger.error('MarketIntelligenceRoutes Error', { error: (error as any).message,  requestId, path, method });
 
     return new Response(
       JSON.stringify(

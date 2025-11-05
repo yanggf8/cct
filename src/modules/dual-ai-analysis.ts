@@ -295,14 +295,14 @@ ${newsContext}`;
       });
     });
 
-    const analysisData = parseNaturalLanguageResponse(response.response);
+    const analysisData = parseNaturalLanguageResponse((response as any).response);
 
     return {
       model: 'gpt-oss-120b',
       direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
       confidence: analysisData.confidence,
       reasoning: analysisData.reasoning || 'No detailed reasoning provided',
-      raw_response: response.response,
+      raw_response: (response as any).response,
       articles_analyzed: topArticles.length,
       analysis_type: 'contextual_analysis'
     };

@@ -6,11 +6,10 @@
 
 import {
   ApiResponseFactory,
-  DailyReportResponse,
-  WeeklyReportResponse,
   ProcessingTimer,
   HttpStatus
 } from '../modules/api-v1-responses.js';
+import type { DailyReportResponse, WeeklyReportResponse } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
   generateRequestId
@@ -18,7 +17,7 @@ import {
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
 import { createLogger } from '../modules/logging.js';
-import type { CloudflareEnvironment } from '../types.js';
+import type { CloudflareEnvironment, ReportSignal, getPrimarySentiment } from '../types.js';
 
 const logger = createLogger('report-routes');
 
@@ -201,7 +200,7 @@ async function handleDailyReport(
     const analysisKey = `analysis_${date}`;
     const analysisData = await dal.get(analysisKey, 'ANALYSIS');
 
-    if (!analysisData || !analysisData.trading_signals) {
+    if (!analysisData || !(analysisData as any).trading_signals) {
       return new Response(
         JSON.stringify(
           ApiResponseFactory.error(
@@ -218,11 +217,10 @@ async function handleDailyReport(
     }
 
     // Transform analysis data to daily report format
-    const signals = Object.values(analysisData.trading_signals);
+    const signals = Object.values((analysisData as any).trading_signals) as ReportSignal[];
     const sentiments = signals.map(signal => {
-      const sentiment = signal.sentiment_layers?.[0]?.sentiment || 'neutral';
-      const confidence = signal.sentiment_layers?.[0]?.confidence || 0.5;
-      return { sentiment, confidence };
+      const primary = getPrimarySentiment(signal.sentiment_layers);
+      return { sentiment: primary.sentiment.toLowerCase(), confidence: primary.confidence };
     });
 
     const bullishCount = sentiments.filter(s => s.sentiment === 'bullish').length;
@@ -241,13 +239,16 @@ async function handleDailyReport(
             `High confidence signals: ${sentiments.filter(s => s.confidence > 0.7).length}`,
           ],
         },
-        symbol_analysis: signals.map(signal => ({
-          symbol: signal.symbol,
-          sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-          signal: signal.recommendation || 'HOLD',
-          confidence: signal.sentiment_layers?.[0]?.confidence || 0.5,
-          reasoning: signal.sentiment_layers?.[0]?.reasoning || 'No reasoning available',
-        })),
+        symbol_analysis: signals.map(signal => {
+          const primary = getPrimarySentiment(signal.sentiment_layers);
+          return {
+            symbol: (signal as any).symbol || 'UNKNOWN',
+            sentiment: primary.sentiment.toLowerCase(),
+            signal: signal.recommendation || 'HOLD',
+            confidence: primary.confidence,
+            reasoning: primary.reasoning,
+          };
+        }),
         sector_performance: [
           // Mock sector performance - TODO: Implement actual sector analysis
         // FUTURE ENHANCEMENT: Real sector analysis implementation
@@ -268,13 +269,16 @@ async function handleDailyReport(
           { sector: 'Energy', performance: Math.random() * 10 - 5, sentiment: 'bullish' },
         ],
         recommendations: signals
-          .filter(signal => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7)
+          .filter(signal => getPrimarySentiment(signal.sentiment_layers).confidence > 0.7)
           .slice(0, 5)
-          .map(signal => ({
-            symbol: signal.symbol,
-            action: signal.recommendation || 'HOLD',
-            reason: `High confidence (${(signal.sentiment_layers?.[0]?.confidence || 0).toFixed(2)}) ${signal.sentiment_layers?.[0]?.sentiment} sentiment`,
-          })),
+          .map(signal => {
+            const primary = getPrimarySentiment(signal.sentiment_layers);
+            return {
+              symbol: (signal as any).symbol || 'UNKNOWN',
+              action: signal.recommendation || 'HOLD',
+              reason: `High confidence (${primary.confidence.toFixed(2)}) ${primary.sentiment} sentiment`,
+            };
+          }),
       },
       metadata: {
         generation_time: new Date().toISOString(),

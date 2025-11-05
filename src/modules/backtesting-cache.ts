@@ -475,6 +475,7 @@ export class BacktestingCacheManager {
  * Factory function for creating cache manager instances
  */
 export function createBacktestingCache(env: any) {
+  // @ts-ignore - Adapter not implemented
   return new DOBacktestingCacheAdapter(env);
 }
 

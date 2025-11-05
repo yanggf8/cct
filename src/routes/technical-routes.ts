@@ -85,7 +85,7 @@ export async function handleTechnicalRoutes(
       { status: HttpStatus.METHOD_NOT_ALLOWED, headers }
     );
   } catch (error:any) {
-    logger.error('TechnicalRoutes Error', error, { requestId, path, method });
+    logger.error('TechnicalRoutes Error', { error: (error as any).message, requestId, path, method });
     return new Response(
       JSON.stringify(ApiResponseFactory.error('Internal server error','INTERNAL_ERROR',{ requestId, error: error.message })),
       { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
@@ -137,7 +137,7 @@ async function handleTechnicalBatch(
 ): Promise<Response> {
   const timer = new ProcessingTimer();
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = (await request.json().catch(() => ({}))) as any;
     const symbols: string[] = Array.isArray(body.symbols) ? body.symbols.map((s:string)=>String(s).toUpperCase().slice(0,10)) : [];
 
     if (!symbols.length) {

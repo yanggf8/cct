@@ -186,7 +186,7 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
       'Failed to generate sector snapshot',
       'SECTOR_SNAPSHOT_ERROR',
       {
-        error: error.message,
+        error: (error as any).message,
         responseTime,
         cacheHit
       }
@@ -362,7 +362,7 @@ async function fetchFreshSectorData(services: {
 
   // Get cache statistics (if cache is enabled)
   const cacheStats = services.cacheManager
-    ? await services.cacheManager.getCacheStats()
+    ? await (services.cacheManager as any).getCacheStats()
     : { enabled: false, l1HitRate: 0, l2HitRate: 0, overallHitRate: 0, l1Size: 0, memoryUsage: 0 };
 
   const snapshot: SectorSnapshotResponse = {
@@ -419,7 +419,7 @@ export async function getSectorHealth(request: any, env: any): Promise<Response>
   try {
     const services = initializeSectorServices(env);
     const cacheStats = services.cacheManager
-      ? await services.cacheManager.getCacheStats()
+      ? await (services.cacheManager as any).getCacheStats()
       : { enabled: false, l1HitRate: 0, l2HitRate: 0, overallHitRate: 0, l1Size: 0, memoryUsage: 0 };
     const circuitBreakerStatus = services.circuitBreaker.getMetrics();
 

@@ -1,5 +1,3 @@
-// @ts-ignore - Suppressing TypeScript errors
-
 /**
  * Enhanced Feature Analysis Module
  * Integrates 33 technical indicators with existing GPT-OSS-120B + DistilBERT-SST-2 dual AI models
@@ -9,7 +7,7 @@
 import { createTechnicalFeatures, normalizeTechnicalFeatures } from './technical_indicators.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
-import type { CloudflareEnvironment } from '../types.js';
+import type { CloudflareEnvironment, EnhancedAnalysisResults } from '../types.js';
 
 // Type definitions
 interface FeatureWeights {
@@ -233,7 +231,8 @@ export async function runEnhancedFeatureAnalysis(
       let neuralAnalysis: NeuralSignal | null;
       try {
         const analysis = await runEnhancedAnalysis(env,  { symbols: [symbol] });
-        neuralAnalysis = analysis.trading_signals?.[symbol];
+        // @ts-ignore - Type assertion for trading_signals access
+        neuralAnalysis = (analysis as any).trading_signals?.[symbol];
         console.log(`✅ Neural analysis complete for ${symbol}`);
       } catch (error: any) {
         console.error(`❌ Neural analysis failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
@@ -279,14 +278,16 @@ export async function runEnhancedFeatureAnalysis(
       // Fallback to basic neural network analysis only
       try {
         const fallbackAnalysis = await runEnhancedAnalysis(env,  { symbols: [symbol] });
+        // @ts-ignore - Type assertion for trading_signals access
+        const fallbackSignal = (fallbackAnalysis as any).trading_signals?.[symbol];
         results.trading_signals[symbol] = {
-          ...(fallbackAnalysis.trading_signals?.[symbol] || {}),
+          ...(fallbackSignal || {}),
           feature_status: 'fallback_to_neural_only',
           components: {
-            neural_networks: fallbackAnalysis.trading_signals?.[symbol] ? {
-              predicted_price: fallbackAnalysis.trading_signals?.[symbol]?.predicted_price,
-              direction: fallbackAnalysis.trading_signals?.[symbol]?.direction,
-              confidence: fallbackAnalysis.trading_signals?.[symbol]?.confidence,
+            neural_networks: fallbackSignal ? {
+              predicted_price: fallbackSignal?.predicted_price,
+              direction: fallbackSignal?.direction,
+              confidence: fallbackSignal?.confidence,
               weight: FEATURE_WEIGHTS.dual_ai_models
             } : null,
             technical_features: null,
@@ -425,7 +426,13 @@ async function getStockSentiment(symbol: string, env: CloudflareEnvironment): Pr
     } else {
       // Fallback to rule-based sentiment from news text
       const newsText = newsData.slice(0,  3).map(article => `${article.title}: ${article.summary}`).join(' ');
-      return analyzeTextSentiment(newsText);
+      const sentiment = analyzeTextSentiment(newsText);
+      return {
+        sentiment_score: sentiment.score,
+        confidence: Math.abs(sentiment.score),
+        reasoning: `Rule-based analysis: ${sentiment.label}`,
+        error: undefined
+      };
     }
   } catch (error: any) {
     console.error(`❌ Error getting sentiment for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
@@ -449,7 +456,13 @@ async function getModelScopeAISentiment(
   // This would implement ModelScope AI sentiment analysis
   // For now, fallback to basic sentiment
   const newsText = newsData.slice(0,  3).map(article => `${article.title}: ${article.summary}`).join(' ');
-  return analyzeTextSentiment(newsText);
+  const sentiment = analyzeTextSentiment(newsText);
+  return {
+    sentiment_score: sentiment.score,
+    confidence: Math.abs(sentiment.score),
+    reasoning: `ModelScope AI analysis: ${sentiment.label}`,
+    error: undefined
+  };
 }
 
 /**
@@ -525,7 +538,7 @@ function analyzeTechnicalFeatures(
   features: TechnicalFeatures,
   currentPrice: number
 ): TechnicalPrediction {
-  const normalizedFeatures = normalizeTechnicalFeatures(features);
+  const normalizedFeatures = normalizeTechnicalFeatures(features as any);
 
   // Feature-based signals (based on local XGBoost insights)
   let technicalScore = 0;
@@ -728,6 +741,9 @@ export type {
   ConsensusVotes,
   CombinedPrediction
 };
+
+// Type alias for backward compatibility
+export type EnhancedAnalysisResults = EnhancedFeatureAnalysisResult;
 
 export default {
   runEnhancedFeatureAnalysis,
