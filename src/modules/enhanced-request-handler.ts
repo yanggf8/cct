@@ -8,7 +8,7 @@ import { getMigrationManager, migrationMiddleware } from '../routes/migration-ma
 import { legacyCompatibilityMiddleware } from '../routes/legacy-compatibility.js';
 import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
-import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-request-handler');
@@ -455,7 +455,7 @@ export class EnhancedRequestHandler {
     // Create DO cache instance to get comprehensive cache metrics
     let cacheData = null;
     try {
-      const cacheManager = isDOCacheEnabled(this.env) ? createCacheInstance(this.env, true) : null;
+      const cacheManager = createCacheInstance(this.env, true);
 
       // Get comprehensive cache statistics from DO cache
       let cacheStats: any = {

@@ -8,7 +8,7 @@
  */
 
 import { createDAL, DataAccessLayer, type KVReadResult, type KVWriteResult, type AnalysisData, type TradingSignal, type HighConfidenceSignalsData, type SignalTrackingRecord, type MarketPriceData, type DailyReport } from './dal.js';
-import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import { getCacheNamespace, getCacheConfigForEnvironment } from './cache-config.js';
 import { createLogger } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -60,15 +60,19 @@ export class EnhancedDataAccessLayer {
     this.dal = createDAL(env);
     this.config = config;
 
-    // Use DO cache if enabled, otherwise no cache
-    if (config.enableCache && isDOCacheEnabled(env)) {
+    // Use DO cache if available, otherwise no cache
+    if (config.enableCache) {
       this.cacheManager = createCacheInstance(env, true);
-      this.enabled = true;
-      logger.info(`ENHANCED_DAL: Using Durable Objects cache`);
+      this.enabled = this.cacheManager !== null;
+      if (this.enabled) {
+        logger.info(`ENHANCED_DAL: Using Durable Objects cache`);
+      } else {
+        logger.info(`ENHANCED_DAL: Cache disabled (DO binding not available)`);
+      }
     } else {
       this.cacheManager = null;
       this.enabled = false;
-      logger.info(`ENHANCED_DAL: Cache disabled (FEATURE_FLAG_DO_CACHE=${env?.FEATURE_FLAG_DO_CACHE})`);
+      logger.info(`ENHANCED_DAL: Cache disabled by configuration`);
     }
 
     logger.info('Enhanced DAL initialized', {

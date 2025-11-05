@@ -1,253 +1,700 @@
-# CacheManager - What Is It & What Is It Used For?
+# Cache System - Durable Objects Architecture
 
-## 🎯 What is CacheManager?
+**Last Updated**: 2025-01-XX  
+**Status**: ✅ Production Ready  
+**Architecture**: Single-layer Durable Objects cache
 
-`CacheManager` is a **dual-layer caching system** designed to speed up API responses by storing frequently requested data.
+---
 
-**Location**: `src/modules/cache-manager.ts`
+## 📋 Overview
+
+The cache system uses **Cloudflare Durable Objects** for persistent, in-memory caching. This provides:
+
+- ✅ **Automatic activation** - Works when DO binding is configured
+- ✅ **Zero configuration** - No feature flags or secrets needed
+- ✅ **Persistent storage** - SQLite-backed in-memory cache
+- ✅ **Global consistency** - Single source of truth per cache instance
+- ✅ **Sub-100ms performance** - Fast response times for cached data
 
 ---
 
 ## 🏗️ Architecture
 
-### Two-Tier Caching System
+### **Cache Flow**
 
 ```
-┌─────────────────────────────────────────────┐
-│  L1 Cache (In-Memory)                       │
-│  • Type: Map in worker memory               │
-│  • Speed: <1ms                              │
-│  • Size: 1000 entries max                   │
-│  • TTL: 15 minutes                          │
-│  • Grace Period: 10 minutes                 │
-│  • Purpose: Instant responses               │
-└─────────────────────────────────────────────┘
-                    ↓ Promotion
-┌─────────────────────────────────────────────┐
-│  L2 Cache (KV Namespace)                    │
-│  • Type: Cloudflare KV storage              │
-│  • Speed: 10-50ms                           │
-│  • Size: Unlimited                          │
-│  • TTL: 10 years (effectively infinite)     │
-│  • Purpose: Persistent cache                │
-└─────────────────────────────────────────────┘
+Request Arrives
+    ↓
+createCacheInstance(env) called
+    ↓
+Check: env.CACHE_DO binding exists?
+    ↓
+YES → DualCacheDO instance returned
+    ↓
+Durable Object Cache (Persistent in-memory + SQLite)
+    ↓ (cache hit)
+Return cached data (sub-100ms)
+    ↓ (cache miss)
+External API (FMP/NewsAPI/Alpha Vantage)
+    ↓
+Cache result + return
+    ↓
+NO → null returned
+    ↓
+Direct API call (no caching)
 ```
+
+### **Key Components**
+
+1. **DualCacheDO Class** (`src/modules/dual-cache-do.ts`)
+   - Durable Object implementation
+   - In-memory storage with SQLite persistence
+   - Handles get/set/delete/batch operations
+
+2. **createCacheInstance()** Factory function
+   - Returns `DualCacheDO | null`
+   - Checks for DO binding availability
+   - Single source of truth for cache creation
+
+3. **DO Binding** (`wrangler.toml`)
+   - Name: `CACHE_DO`
+   - Class: `CacheDurableObject`
+   - Required for cache to work
 
 ---
 
-## 📋 What Does It Cache?
+## 🚀 Usage
 
-### Cache Namespaces
-
-CacheManager organizes cached data by **namespace**:
-
-1. **`sentiment_analysis`** - Sentiment analysis results
-   - Keys: `symbol_sentiment_AAPL_2025-11-01`
-   - Stores: AI analysis results, recommendations, confidence scores
-
-2. **`market_data`** - Stock market data
-   - Keys: `market_data_AAPL_quote`
-   - Stores: Stock prices, volume, market cap
-
-3. **`reports`** - Generated reports
-   - Keys: `reports_daily_2025-11-01`
-   - Stores: Daily/weekly market reports
-
-4. **`ai_results`** - AI processing results
-   - Keys: `ai_results_GPT_analysis_AAPL`
-   - Stores: GPT/DistilBERT analysis outputs
-
-### Example Cache Keys
-
-```
-sentiment_analysis:symbol_sentiment_AAPL_2025-11-01
-sentiment_analysis:symbol_sentiment_MSFT_2025-11-01
-market_data:AAPL_quote
-reports:daily_2025-11-01
-```
-
----
-
-## ⚡ How It Works
-
-### Cache Flow
-
-```
-1. Request comes in
-   ↓
-2. Check L1 cache (in-memory)
-   ├─ Hit? → Return instantly (<1ms)
-   └─ Miss? → Continue
-   ↓
-3. Check L2 cache (KV)
-   ├─ Hit? → Return data (10-50ms)
-   │        + Promote to L1
-   └─ Miss? → Continue
-   ↓
-4. Fetch fresh data (expensive operation)
-   ↓
-5. Store in L1 + L2
-   ↓
-6. Return to user
-```
-
-### Key Operations
-
-**get(key, namespace)**
-```typescript
-// Retrieve cached data
-const result = await cacheManager.get('symbol_sentiment_AAPL', 'sentiment_analysis');
-// Returns: { data: {...}, source: 'l1' | 'l2' | 'fresh', hit: true | false }
-```
-
-**set(key, data, namespace, ttl)**
-```typescript
-// Store data in cache
-await cacheManager.set('AAPL_sentiment', analysisResult, 'sentiment_analysis', 3600);
-// Stores in both L1 and L2
-```
-
----
-
-## 🎯 What Is CacheManager Used For?
-
-### 1. **Speed Up API Responses**
-- **Without cache**: 5-30 seconds (fetch data, run AI analysis)
-- **With cache**: <15ms (return cached result)
-
-### 2. **Reduce External API Calls**
-- FMP API: 100 requests/day → 5-20 requests/day (80% reduction)
-- NewsAPI: 100 requests/day → 10-40 requests/day (60% reduction)
-- Yahoo Finance: Rate limit protection
-
-### 3. **Reduce AI Processing**
-- GPT analysis: 30 seconds per symbol → 0 seconds (if cached)
-- DistilBERT: 20 seconds per symbol → 0 seconds (if cached)
-
-### 4. **Improve User Experience**
-- Instant page loads
-- No waiting for data processing
-- Smooth dashboard experience
-
----
-
-## 📊 Cache Manager Statistics
-
-### What Gets Tracked
+### **Basic Cache Operations**
 
 ```typescript
-interface CacheStats {
-  totalRequests: number;    // Total cache accesses
-  l1Hits: number;           // L1 cache hits
-  l2Hits: number;           // L2 cache hits
-  misses: number;           // Cache misses
-  l1HitRate: number;        // L1 hit percentage
-  l2HitRate: number;        // L2 hit percentage
-  l1Size: number;           // L1 entries count
-  l2Size: number;           // L2 entries count
-  evictions: number;        // Items evicted
-  errors: number;           // Cache errors
+import { createCacheInstance } from './modules/dual-cache-do.js';
+
+// Initialize cache (returns DualCacheDO | null)
+const cache = createCacheInstance(env, true);
+
+if (cache) {
+  // Cache is available - use it
+  
+  // Get cached data
+  const cachedData = await cache.get('my-key');
+  
+  if (cachedData) {
+    console.log('Cache hit!');
+    return cachedData;
+  }
+  
+  // Cache miss - fetch from API
+  const freshData = await fetchFromAPI();
+  
+  // Store in cache (TTL in seconds)
+  await cache.set('my-key', freshData, 3600); // 1 hour
+  
+  return freshData;
+} else {
+  // No cache available - fetch directly
+  console.log('Cache disabled, fetching directly');
+  return await fetchFromAPI();
 }
 ```
 
-### Health Assessment
+### **Batch Operations**
 
-CacheManager also provides health checks:
-- **Score**: 0-100 rating
-- **Status**: healthy | warning | critical
-- **Insights**: Performance analysis
-- **Recommendations**: Optimization suggestions
-
----
-
-## 🔧 Where Is CacheManager Used?
-
-### 1. **Sentiment Analysis Routes**
 ```typescript
-// routes/sentiment-routes.ts
-const cacheKey = `symbol_sentiment_${symbol}_${date}`;
-const cached = await cacheManager.get(cacheKey, 'sentiment_analysis');
-if (cached.hit) {
-  return cached.data; // Fast response
-}
-// ... fetch fresh data
-await cacheManager.set(cacheKey, result, 'sentiment_analysis', 3600);
-```
-
-### 2. **Market Data Routes**
-```typescript
-// Fetch stock quote
-const cached = await cacheManager.get(`${symbol}_quote`, 'market_data');
-if (cached.hit) {
-  return cached.data; // Instant price data
+// Get multiple keys at once
+const cache = createCacheInstance(env);
+if (cache) {
+  const results = await cache.mget(['key1', 'key2', 'key3']);
+  // Returns: [value1, value2, value3] or null for missing keys
+  
+  // Set multiple keys at once
+  await cache.mset([
+    { key: 'key1', value: data1, ttl: 3600 },
+    { key: 'key2', value: data2, ttl: 1800 },
+    { key: 'key3', value: data3, ttl: 7200 }
+  ]);
 }
 ```
 
-### 3. **Cache Management Endpoints**
+### **Cache Health Check**
+
 ```typescript
-// api/v1/cache/health  - Health assessment
-// api/v1/cache/metrics - Statistics
-// api/v1/cache/config  - Configuration
-// api/v1/cache/warmup  - Pre-populate cache
+const cache = createCacheInstance(env);
+if (cache) {
+  const health = await cache.health();
+  console.log('Cache status:', health.status);
+  console.log('Hit rate:', health.hitRate);
+}
+```
+
+### **Cache Metrics**
+
+```typescript
+const cache = createCacheInstance(env);
+if (cache) {
+  const metrics = await cache.getMetrics();
+  console.log('Total hits:', metrics.hits);
+  console.log('Total misses:', metrics.misses);
+  console.log('Hit rate:', metrics.hitRate);
+}
 ```
 
 ---
 
-## 🚨 Why CacheManager Showed 0
+## ⚙️ Configuration
 
-### The Problem
+### **1. Add DO Binding to wrangler.toml**
 
-**CacheManager was NEVER USED** by the routes!
+```toml
+# Durable Objects binding for cache
+[[durable_objects.bindings]]
+name = "CACHE_DO"
+class_name = "CacheDurableObject"
 
-**What happened**:
-1. ✅ Routes used `createSimplifiedEnhancedDAL()` instead
-2. ✅ DAL wrote to KV (news_fmp_AAPL_* keys)
-3. ❌ CacheManager.read from empty cache (symbol_sentiment_AAPL_* keys)
-4. ❌ Metrics read from CacheManager stats = 0
-
-**Result**: CacheManager did nothing, showed 0 entries
-
-### The Fix
-
-Changed routes to use CacheManager:
-```typescript
-// Before
-cacheInstance = createSimplifiedEnhancedDAL(env, {...});
-
-// After
-const cacheFactory = EnhancedCacheFactory.getInstance();
-cacheInstance = cacheFactory.createCacheManager(env, { enableOptimized: true });
+# Migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CacheDurableObject"]
 ```
 
-**Impact**: Routes and CacheManager now work together
+### **2. Deploy**
+
+```bash
+wrangler deploy
+```
+
+**That's it!** Cache activates automatically when the binding exists.
+
+### **3. Verify Cache is Working**
+
+```bash
+# Check cache health endpoint
+curl https://your-worker.workers.dev/api/v1/cache/health
+
+# Expected response:
+{
+  "status": "healthy",
+  "enabled": true,
+  "hitRate": 0.85,
+  "metrics": { ... }
+}
+```
 
 ---
 
-## 🎯 Bottom Line
+## 🎯 Common Patterns
 
-### What is CacheManager?
-A **dual-layer caching system** that stores computed results to speed up API responses.
+### **Pattern 1: Try Cache First**
 
-### What is it used for?
-1. **Cache sentiment analysis results** - Avoid re-running AI
-2. **Cache market data** - Avoid rate limits
-3. **Cache reports** - Fast report generation
-4. **Track cache performance** - Monitor hit rates, sizes, health
+```typescript
+async function getData(env: any, symbol: string) {
+  const cache = createCacheInstance(env);
+  const cacheKey = `stock:${symbol}`;
+  
+  // Try cache first
+  if (cache) {
+    const cached = await cache.get(cacheKey);
+    if (cached) return cached;
+  }
+  
+  // Fetch from API
+  const data = await fetchStockData(symbol);
+  
+  // Cache for 1 hour
+  if (cache) {
+    await cache.set(cacheKey, data, 3600);
+  }
+  
+  return data;
+}
+```
 
-### Why was it showing 0?
-Routes weren't using it - they used a different cache system (DAL)
+### **Pattern 2: Cache with Error Handling**
 
-### What's the fix?
-Make routes use CacheManager (our fix does this)
+```typescript
+async function getCachedOrFetch(env: any, key: string, fetcher: () => Promise<any>) {
+  const cache = createCacheInstance(env);
+  
+  try {
+    if (cache) {
+      const cached = await cache.get(key);
+      if (cached) return cached;
+    }
+    
+    const data = await fetcher();
+    
+    if (cache && data) {
+      await cache.set(key, data, 3600).catch(err => 
+        console.error('Cache set failed:', err)
+      );
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getCachedOrFetch:', error);
+    throw error;
+  }
+}
+```
+
+### **Pattern 3: Conditional Caching**
+
+```typescript
+async function getMarketData(env: any, options: { useCache: boolean }) {
+  const cache = options.useCache ? createCacheInstance(env) : null;
+  
+  if (cache) {
+    const cached = await cache.get('market-data');
+    if (cached) return cached;
+  }
+  
+  const data = await fetchMarketData();
+  
+  if (cache) {
+    await cache.set('market-data', data, 600); // 10 minutes
+  }
+  
+  return data;
+}
+```
 
 ---
 
-## 📁 Key Files
+## 📊 Cache Key Naming Conventions
 
-- `src/modules/cache-manager.ts` - Main implementation
-- `src/routes/enhanced-cache-routes.ts` - Cache management endpoints
-- `src/routes/sentiment-routes.ts` - Routes that use cache (FIXED)
+### **Standard Patterns**
+
+```typescript
+// Stock data
+const key = `stock:${symbol}`;
+// Example: "stock:AAPL"
+
+// News articles
+const key = `news:${symbol}:${date}`;
+// Example: "news:AAPL:2025-01-15"
+
+// Analysis results
+const key = `analysis:${symbol}:${type}:${date}`;
+// Example: "analysis:AAPL:technical:2025-01-15"
+
+// Sector data
+const key = `sector:${sectorName}:${metric}`;
+// Example: "sector:technology:performance"
+
+// Market indicators
+const key = `market:${indicator}:${timeframe}`;
+// Example: "market:vix:daily"
+```
+
+### **Best Practices**
+
+- ✅ Use colons (`:`) as separators
+- ✅ Include entity type as prefix
+- ✅ Use lowercase for consistency
+- ✅ Include date/time when data is time-sensitive
+- ✅ Keep keys under 100 characters
+- ❌ Don't use spaces or special characters
+- ❌ Don't include PII or sensitive data in keys
 
 ---
 
-**Summary**: CacheManager is the system's **performance accelerator** - it stores expensive operations to make future requests instant. It was just not being used! ✅
+## ⏱️ TTL Guidelines
+
+### **Recommended TTLs by Data Type**
+
+| Data Type | TTL | Reason |
+|-----------|-----|--------|
+| **Real-time prices** | 60s | Changes frequently |
+| **Intraday analysis** | 5-10 min | Updates during trading hours |
+| **Daily stock data** | 1 hour | Stable during trading day |
+| **News articles** | 6-12 hours | Content doesn't change |
+| **End-of-day analysis** | 24 hours | Valid until next trading day |
+| **Historical data** | 7 days | Rarely changes |
+| **Sector performance** | 15 min | Moderate update frequency |
+| **Market indicators** | 5 min | Relatively stable |
+
+### **TTL Constants**
+
+```typescript
+// Define in your code
+export const CACHE_TTL = {
+  REALTIME: 60,           // 1 minute
+  SHORT: 300,             // 5 minutes
+  MEDIUM: 900,            // 15 minutes
+  LONG: 3600,             // 1 hour
+  DAILY: 86400,           // 24 hours
+  WEEKLY: 604800          // 7 days
+} as const;
+
+// Usage
+await cache.set(key, data, CACHE_TTL.MEDIUM);
+```
+
+---
+
+## 🔍 Debugging
+
+### **Check if Cache is Available**
+
+```typescript
+const cache = createCacheInstance(env);
+console.log('Cache available:', cache !== null);
+```
+
+### **Log Cache Operations**
+
+```typescript
+const cache = createCacheInstance(env);
+if (cache) {
+  console.log('Checking cache for key:', key);
+  const result = await cache.get(key);
+  console.log('Cache result:', result ? 'HIT' : 'MISS');
+}
+```
+
+### **View Cache Metrics**
+
+```bash
+# Hit cache metrics endpoint
+curl https://your-worker.workers.dev/api/v1/cache/metrics
+
+# Response includes:
+# - Total hits
+# - Total misses
+# - Hit rate percentage
+# - Keys count
+# - Memory usage
+```
+
+### **Common Issues**
+
+#### **Cache Always Returns Null**
+
+**Problem:** `createCacheInstance(env)` returns `null`
+
+**Solutions:**
+1. Check `wrangler.toml` has DO binding:
+   ```toml
+   [[durable_objects.bindings]]
+   name = "CACHE_DO"
+   class_name = "CacheDurableObject"
+   ```
+
+2. Verify deployment included DO:
+   ```bash
+   wrangler deploy
+   ```
+
+3. Check logs for errors:
+   ```bash
+   wrangler tail
+   ```
+
+#### **Cache Not Persisting**
+
+**Problem:** Data disappears after worker restart
+
+**Cause:** Durable Objects store data persistently, but very short TTLs may expire quickly.
+
+**Solution:** Increase TTL or check if TTL is being set correctly.
+
+#### **Slow Cache Performance**
+
+**Problem:** Cache operations taking too long
+
+**Solutions:**
+1. Check DO location (may be far from user)
+2. Reduce data size being cached
+3. Use batch operations for multiple keys
+4. Check metrics for high miss rate
+
+---
+
+## 📈 Performance Optimization
+
+### **1. Use Batch Operations**
+
+```typescript
+// ❌ BAD: Multiple individual calls
+for (const key of keys) {
+  results.push(await cache.get(key));
+}
+
+// ✅ GOOD: Single batch call
+const results = await cache.mget(keys);
+```
+
+### **2. Cache Expensive Operations**
+
+```typescript
+// Cache complex analysis results
+const analysisKey = `analysis:${symbol}:${date}`;
+const cached = await cache?.get(analysisKey);
+
+if (!cached) {
+  const result = await performExpensiveAnalysis(symbol);
+  await cache?.set(analysisKey, result, CACHE_TTL.DAILY);
+  return result;
+}
+
+return cached;
+```
+
+### **3. Use Appropriate TTLs**
+
+```typescript
+// Don't cache real-time data for too long
+await cache.set('price:AAPL', price, 60); // 1 minute
+
+// Cache stable data longer
+await cache.set('history:AAPL', history, 86400); // 24 hours
+```
+
+### **4. Implement Cache Warming**
+
+```typescript
+// Pre-populate cache with common queries
+async function warmCache(env: any) {
+  const cache = createCacheInstance(env);
+  if (!cache) return;
+  
+  const symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN'];
+  
+  for (const symbol of symbols) {
+    const data = await fetchStockData(symbol);
+    await cache.set(`stock:${symbol}`, data, 3600);
+  }
+}
+```
+
+---
+
+## 🔐 Security Considerations
+
+### **1. Don't Cache Sensitive Data**
+
+```typescript
+// ❌ BAD: Caching user-specific data
+await cache.set(`user:${userId}:portfolio`, portfolioData, 3600);
+
+// ✅ GOOD: Cache public market data only
+await cache.set(`market:indices`, indicesData, 300);
+```
+
+### **2. Validate Cached Data**
+
+```typescript
+const cached = await cache?.get(key);
+
+if (cached) {
+  // Validate structure and content
+  if (isValidData(cached)) {
+    return cached;
+  } else {
+    // Invalid cached data - remove it
+    await cache.delete(key);
+  }
+}
+```
+
+### **3. Use Cache Namespacing**
+
+```typescript
+// Separate cache keys by environment
+const env = process.env.ENVIRONMENT || 'dev';
+const key = `${env}:stock:${symbol}`;
+```
+
+---
+
+## 📚 API Reference
+
+### **createCacheInstance(env, useDO?)**
+
+Creates a cache instance if DO binding is available.
+
+**Parameters:**
+- `env: any` - Environment object containing bindings
+- `useDO?: boolean` - Whether to use DO cache (default: `true`)
+
+**Returns:** `DualCacheDO | null`
+
+**Example:**
+```typescript
+const cache = createCacheInstance(env, true);
+```
+
+---
+
+### **cache.get(key)**
+
+Retrieves a value from the cache.
+
+**Parameters:**
+- `key: string` - Cache key
+
+**Returns:** `Promise<any | null>`
+
+**Example:**
+```typescript
+const data = await cache.get('stock:AAPL');
+```
+
+---
+
+### **cache.set(key, value, ttl?)**
+
+Stores a value in the cache.
+
+**Parameters:**
+- `key: string` - Cache key
+- `value: any` - Value to cache (must be JSON-serializable)
+- `ttl?: number` - Time to live in seconds (default: 3600)
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```typescript
+await cache.set('stock:AAPL', stockData, 3600);
+```
+
+---
+
+### **cache.delete(key)**
+
+Removes a value from the cache.
+
+**Parameters:**
+- `key: string` - Cache key
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```typescript
+await cache.delete('stock:AAPL');
+```
+
+---
+
+### **cache.mget(keys)**
+
+Retrieves multiple values at once.
+
+**Parameters:**
+- `keys: string[]` - Array of cache keys
+
+**Returns:** `Promise<any[]>` - Array of values (null for missing keys)
+
+**Example:**
+```typescript
+const values = await cache.mget(['stock:AAPL', 'stock:GOOGL']);
+```
+
+---
+
+### **cache.mset(items)**
+
+Stores multiple values at once.
+
+**Parameters:**
+- `items: Array<{ key: string, value: any, ttl?: number }>` - Array of items to cache
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```typescript
+await cache.mset([
+  { key: 'stock:AAPL', value: appleData, ttl: 3600 },
+  { key: 'stock:GOOGL', value: googleData, ttl: 3600 }
+]);
+```
+
+---
+
+### **cache.health()**
+
+Returns cache health status.
+
+**Returns:** `Promise<{ status: string, hitRate?: number, metrics?: any }>`
+
+**Example:**
+```typescript
+const health = await cache.health();
+console.log(health.status); // "healthy" | "degraded" | "unavailable"
+```
+
+---
+
+### **cache.getMetrics()**
+
+Returns detailed cache metrics.
+
+**Returns:** `Promise<{ hits: number, misses: number, hitRate: number, ... }>`
+
+**Example:**
+```typescript
+const metrics = await cache.getMetrics();
+console.log(`Hit rate: ${metrics.hitRate}%`);
+```
+
+---
+
+## 🎯 Migration from Legacy Cache
+
+If you have old code using the legacy `CacheManager`:
+
+### **Before (Legacy)**
+```typescript
+import { CacheManager } from './modules/cache-manager.js';
+
+const cacheManager = new CacheManager(env.CACHE_KV);
+const data = await cacheManager.get('key');
+await cacheManager.set('key', data, 3600);
+```
+
+### **After (Durable Objects)**
+```typescript
+import { createCacheInstance } from './modules/dual-cache-do.js';
+
+const cache = createCacheInstance(env);
+if (cache) {
+  const data = await cache.get('key');
+  await cache.set('key', data, 3600);
+}
+```
+
+**Key Differences:**
+- ✅ Use factory function instead of constructor
+- ✅ Check if cache exists before using
+- ✅ No KV namespace needed
+- ✅ No feature flags or secrets required
+
+---
+
+## 📖 Additional Resources
+
+- **Deployment Guide**: [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
+- **Simplification Summary**: [CACHE_SIMPLIFICATION_SUMMARY.md](CACHE_SIMPLIFICATION_SUMMARY.md)
+- **System Features**: [docs/SYSTEM_FEATURES.md](docs/SYSTEM_FEATURES.md)
+
+---
+
+## ✅ Summary
+
+**The cache system is:**
+- ✅ **Simple** - One function, one binding, zero configuration
+- ✅ **Fast** - Sub-100ms response times for cached data
+- ✅ **Reliable** - Persistent storage with automatic activation
+- ✅ **Scalable** - Durable Objects handle global distribution
+- ✅ **Type-safe** - Full TypeScript support
+
+**To use it:**
+1. Add DO binding to `wrangler.toml`
+2. Call `createCacheInstance(env)`
+3. Use `cache.get()` / `cache.set()` / etc.
+4. That's it! ✨
+
+---
+
+*Last updated: 2025-01-XX*  
+*Cache Architecture: Durable Objects (Single-layer)*

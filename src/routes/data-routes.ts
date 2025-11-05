@@ -20,7 +20,7 @@ import { createLogger } from '../modules/logging.js';
 import { KVKeyFactory, KeyTypes } from '../modules/kv-key-factory.js';
 import { MemoryStaticDAL } from '../modules/memory-static-data.js';
 import type { CloudflareEnvironment } from '../types.js';
-import { isDOCacheEnabled, createCacheInstance } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/dual-cache-do.js';
 
 const logger = createLogger('data-routes');
 
@@ -816,11 +816,7 @@ async function checkKVStorageHealth(env: CloudflareEnvironment): Promise<{ statu
 
 async function checkCacheHealth(env: CloudflareEnvironment): Promise<{ status: string; hitRate?: number; metrics?: any; details?: any }> {
   try {
-    // Strict DO-only: use Durable Objects cache if enabled, else report disabled
-    if (!isDOCacheEnabled(env)) {
-      return { status: 'disabled' };
-    }
-
+    // Strict DO-only: use Durable Objects cache if available
     const cache = createCacheInstance(env, true);
     if (!cache) {
       return { status: 'disabled' };

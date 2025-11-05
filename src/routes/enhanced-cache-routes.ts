@@ -5,7 +5,7 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/dual-cache-do.js';
 
 const logger = createLogger('enhanced-cache-routes');
 
@@ -250,15 +250,13 @@ function generateRandomStockSymbols(count: number): string[] {
  * Create enhanced cache routes
  */
 export function createEnhancedCacheRoutes(env: any) {
-  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // Use Durable Objects cache if available
   // External APIs use KV cache independently
-  let cacheManager;
-  if (isDOCacheEnabled(env)) {
-    cacheManager = createCacheInstance(env, true);
+  const cacheManager = createCacheInstance(env, true);
+  if (cacheManager) {
     logger.info('CACHE_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
     // Cache endpoints work without cache
-    cacheManager = null;
     logger.info('CACHE_ROUTES', 'Cache disabled (L1 not available)');
   }
 

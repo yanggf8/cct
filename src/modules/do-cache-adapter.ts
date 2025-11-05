@@ -4,7 +4,7 @@
  * Provides backward compatibility while eliminating KV operations
  */
 
-import { DualCacheDO, type DualCacheConfig, isDOCacheEnabled } from './dual-cache-do.js';
+import { DualCacheDO, type DualCacheConfig } from './dual-cache-do.js';
 import { createLogger } from './logging.js';
 import type { CacheNamespace, CacheLevelConfig } from './cache-manager.js';
 
@@ -30,13 +30,13 @@ export class DOCacheAdapter {
   private enabled: boolean = false;
 
   constructor(env: any, options?: { enabled?: boolean }) {
-    this.enabled = options?.enabled !== false && isDOCacheEnabled(env);
-    
-    if (this.enabled && env?.CACHE_DO) {
+    if (options?.enabled !== false && env?.CACHE_DO) {
       this.doCache = new DualCacheDO(env.CACHE_DO);
+      this.enabled = true;
       logger.info('DO_CACHE_ADAPTER: Initialized with Durable Objects cache');
     } else {
-      logger.info('DO_CACHE_ADAPTER: Disabled (feature flag off or DO unavailable)');
+      this.enabled = false;
+      logger.info('DO_CACHE_ADAPTER: Cache disabled (DO binding not available)');
     }
   }
 
@@ -166,7 +166,7 @@ export class DOCacheAdapter {
         status: 'disabled',
         overallScore: 0,
         issues: ['DO cache not available'],
-        recommendations: ['Enable FEATURE_FLAG_DO_CACHE and configure CACHE_DO'],
+        recommendations: ['Configure CACHE_DO binding in wrangler.toml'],
         timestamp: new Date().toISOString()
       };
     }

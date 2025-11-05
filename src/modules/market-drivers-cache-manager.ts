@@ -19,7 +19,7 @@ import { createLogger } from './logging.js';
 import { createDAL } from './dal.js';
 import { KeyHelpers } from './kv-key-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
-import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import type { MarketDriversSnapshot, MacroDrivers, MarketStructure, GeopoliticalRisk, MarketRegime } from './market-drivers.js';
 
 const logger = createLogger('market-drivers-cache-manager');
@@ -78,12 +78,11 @@ export class MarketDriversCacheManager {
     this.circuitBreaker = CircuitBreakerFactory.getInstance('market-drivers-cache');
 
     // Initialize DO cache if available
-    if (isDOCacheEnabled(env)) {
-      this.cacheManager = createCacheInstance(env, true);
+    this.cacheManager = createCacheInstance(env, true);
+    if (this.cacheManager) {
       logger.info('MARKET_DRIVERS_CACHE: Using Durable Objects cache');
     } else {
-      this.cacheManager = null;
-      logger.info('MARKET_DRIVERS_CACHE: Cache disabled (FEATURE_FLAG_DO_CACHE off)');
+      logger.info('MARKET_DRIVERS_CACHE: Cache disabled (DO binding not available)');
     }
   }
 

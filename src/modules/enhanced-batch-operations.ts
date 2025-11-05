@@ -6,7 +6,7 @@
 
 import { requestDeduplicator } from './request-deduplication.js';
 import { createLogger } from './logging.js';
-import { createCacheInstance, isDOCacheEnabled, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-batch-operations');
@@ -223,11 +223,13 @@ export class EnhancedBatchOperations {
         let deduplicated = false;
 
         // Use DO cache manager if available
-        if (enableCache && !this.cacheManager && isDOCacheEnabled(env)) {
+        if (enableCache && !this.cacheManager) {
           this.cacheManager = createCacheInstance(env, true);
-          logger.info('BATCH_OPERATIONS: Using Durable Objects cache');
-        } else if (enableCache && !isDOCacheEnabled(env)) {
-          logger.info('BATCH_OPERATIONS: Cache disabled (FEATURE_FLAG_DO_CACHE off)');
+          if (this.cacheManager) {
+            logger.info('BATCH_OPERATIONS: Using Durable Objects cache');
+          } else {
+            logger.info('BATCH_OPERATIONS: Cache disabled (DO binding not available)');
+          }
         }
 
         // Check individual cache first

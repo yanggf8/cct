@@ -22,7 +22,7 @@ import {
 import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('sentiment-routes');
@@ -169,14 +169,12 @@ async function handleSentimentAnalysis(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
     logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
     logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
@@ -308,14 +306,12 @@ async function handleSymbolSentiment(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
     logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
     logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
   }
 
   try {
@@ -472,14 +468,12 @@ async function handleMarketSentiment(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
     logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
     logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
   }
 
   try {
@@ -600,14 +594,12 @@ async function handleSectorSentiment(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
     logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
     logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);

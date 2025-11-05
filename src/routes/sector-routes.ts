@@ -8,7 +8,6 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { isDOCacheEnabled } from '../modules/dual-cache-do.js';
 import { DOSectorCacheAdapter } from '../modules/do-cache-adapter.js';
 import { SectorDataFetcher } from '../modules/sector-data-fetcher.js';
 import { SectorIndicators } from '../modules/sector-indicators.js';
@@ -88,7 +87,7 @@ export interface SectorSnapshotResponse {
  * Initialize sector services
  */
 function initializeSectorServices(env: any) {
-  const cacheManager = isDOCacheEnabled(env) ? new DOSectorCacheAdapter(env) : null;
+  const cacheManager = env?.CACHE_DO ? new DOSectorCacheAdapter(env) : null;
   const dataFetcher = new SectorDataFetcher(cacheManager);
   const indicators = new SectorIndicators(env);
   const circuitBreaker = CircuitBreakerFactory.getInstance('sector-api');
