@@ -391,7 +391,7 @@ export class MarketDriversManager {
       enableCaching: true,
       historicalLookbackDays: 30,
       minConfidenceThreshold: 60,
-    });
+    } as any);
   }
 
   /**

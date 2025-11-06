@@ -820,13 +820,13 @@ export class PortfolioRebalancingEngine {
 
     switch (frequency) {
       case 'daily':
-        return (now as number - lastRebalance as number) >= 24 * 60 * 60 * 1000;
+        return (now.getTime() - lastRebalance.getTime()) >= 24 * 60 * 60 * 1000;
       case 'weekly':
-        return (now as number - lastRebalance as number) >= 7 * 24 * 60 * 60 * 1000;
+        return (now.getTime() - lastRebalance.getTime()) >= 7 * 24 * 60 * 60 * 1000;
       case 'monthly':
-        return (now as number - lastRebalance as number) >= 30 * 24 * 60 * 60 * 1000;
+        return (now.getTime() - lastRebalance.getTime()) >= 30 * 24 * 60 * 60 * 1000;
       case 'quarterly':
-        return (now as number - lastRebalance as number) >= 90 * 24 * 60 * 60 * 1000;
+        return (now.getTime() - lastRebalance.getTime()) >= 90 * 24 * 60 * 60 * 1000;
       default:
         return false;
     }

@@ -139,7 +139,7 @@ export class PreMarketDataBridge {
       logger.info(`No cached data for ${symbol}, triggering real-time analysis`, { symbol });
 
       try {
-        const batchResult = await batchDualAIAnalysis([symbol], this.dal.env, {
+        const batchResult = await batchDualAIAnalysis([symbol], (this.dal as any).env, {
           timeout: 15000, // 15 seconds for individual analysis
           cacheResults: true, // Cache the results for future use
           skipCache: false // Use existing cache if available
@@ -242,7 +242,7 @@ export class PreMarketDataBridge {
     const analysisKey = `analysis_${today}`;
 
     try {
-      await this.dal.delete(analysisKey, 'ANALYSIS');
+      await (this.dal as any).delete(analysisKey);
       logger.info('Cleared existing pre-market analysis', { analysisKey });
     } catch (error: unknown) {
       logger.warn('Failed to clear existing analysis', { analysisKey, error });
@@ -259,7 +259,7 @@ export class PreMarketDataBridge {
     try {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
-      const analysisData = await this.dal.get(analysisKey, 1 as any);
+      const analysisData = await (this.dal as any).get(analysisKey);
 
       return !!(analysisData && (analysisData as any).trading_signals);
     } catch (error: unknown) {
