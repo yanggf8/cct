@@ -17,7 +17,8 @@ import {
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
 import { createLogger } from '../modules/logging.js';
-import type { CloudflareEnvironment, ReportSignal, getPrimarySentiment } from '../types.js';
+import type { CloudflareEnvironment, ReportSignal } from '../types.js';
+import { getPrimarySentiment } from '../modules/utils/sentiment-utils.js';
 
 const logger = createLogger('report-routes');
 
@@ -178,7 +179,7 @@ async function handleDailyReport(
 
     // Check cache first
     const cacheKey = `daily_report_${date}`;
-    const cached = await dal.get<DailyReportResponse>('REPORTS', cacheKey);
+    const cached = await (dal as any).get<('REPORTS', cacheKey);
 
     if (cached) {
       logger.info('DailyReport: Cache hit', { date, requestId });
@@ -198,7 +199,7 @@ async function handleDailyReport(
 
     // Get analysis data for the date
     const analysisKey = `analysis_${date}`;
-    const analysisData = await dal.get(analysisKey, 'ANALYSIS');
+    const analysisData = await (dal as any).get(analysisKey, 'ANALYSIS');
 
     if (!analysisData || !(analysisData as any).trading_signals) {
       return new Response(
@@ -371,7 +372,7 @@ async function handleWeeklyReport(
 
     // Check cache first
     const cacheKey = `weekly_report_${week}`;
-    const cached = await dal.get<WeeklyReportResponse>('REPORTS', cacheKey);
+    const cached = await (dal as any).get<('REPORTS', cacheKey);
 
     if (cached) {
       logger.info('WeeklyReport: Cache hit', { week, requestId });
@@ -394,7 +395,7 @@ async function handleWeeklyReport(
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
       const dailyKey = `daily_report_${dateStr}`;
-      const dailyData = await dal.get('REPORTS', dailyKey);
+      const dailyData = await (dal as any).get('REPORTS', dailyKey);
       if (dailyData) {
         dailyReports.push({ date: dateStr, data: dailyData });
       }
@@ -422,9 +423,8 @@ async function handleWeeklyReport(
     const volatility = Math.sqrt(weeklyReturns.reduce((sum: any, ret: any) => sum + Math.pow(ret - avgReturn, 2), 0) / weeklyReturns.length);
 
     const response: WeeklyReportResponse = {
-      week,
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
+      week_start: week,
+      week_end: endDate.toISOString().split('T')[0],
       report: {
         weekly_summary: {
           overall_sentiment: avgReturn > 0 ? 'bullish' : avgReturn < 0 ? 'bearish' : 'neutral',
@@ -533,7 +533,7 @@ async function handlePreMarketReport(
     const cacheKey = `pre_market_report_${today}`;
 
     // Check cache first
-    const cached = await dal.get<any>('REPORTS', cacheKey);
+    const cached = await (dal as any).get<any>('REPORTS', cacheKey);
 
     if (cached) {
       logger.info('PreMarketReport: Cache hit', { requestId });
@@ -653,7 +653,7 @@ async function handlePreMarketDataGeneration(
     let symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default symbols
 
     try {
-      const body = await request.json();
+      const body = await request.json() as any;
       if (body.symbols && Array.isArray(body.symbols)) {
         symbols = body.symbols;
       }
@@ -798,7 +798,7 @@ async function handleEndOfDayReport(
   try {
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
-    const analysisData = await dal.get(analysisKey, 'ANALYSIS');
+    const analysisData = await (dal as any).get(analysisKey, 'ANALYSIS');
 
     const response = {
       type: 'end_of_day_summary',

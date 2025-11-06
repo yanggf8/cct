@@ -85,8 +85,7 @@ export {
 
 // Refactored handler examples
 export {
-  handleIntradayCheckRefactored,
-  handleIntradayCheckEnhanced
+  handleIntradayCheckRefactored
 } from './intraday-refactored.js';
 
 // Decomposed handler examples (replaces 932-line monolithic file)

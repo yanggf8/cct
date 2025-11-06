@@ -14,7 +14,7 @@ const logger = createLogger('end-of-day-handlers');
 /**
  * Generate End-of-Day Summary Page
  */
-export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment) => {
+export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
 

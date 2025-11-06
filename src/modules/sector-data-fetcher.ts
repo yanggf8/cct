@@ -9,6 +9,7 @@ import { DOSectorCacheAdapter } from './do-cache-adapter.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
 import { DataValidator, validateOHLCVBar } from './data-validation.js';
+import type { SectorData } from './sector-cache-manager.js';
 
 const logger = createLogger('sector-data-fetcher');
 

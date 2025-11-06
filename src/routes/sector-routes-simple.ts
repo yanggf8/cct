@@ -54,7 +54,7 @@ export class SectorRoutes {
 
   constructor() {
     this.fetcher = new SimpleSectorFetcher();
-    this.indicators = new SectorIndicators();
+    this.indicators = new SectorIndicators({});
   }
 
   /**

@@ -345,7 +345,7 @@ export class SectorIndicators {
         timestamp: Date.now(),
         overallSignal: 'neutral',
         confidence: 0
-      };
+      } as SectorIndicators;
 
       // Calculate OBV
       const obvData = await this.calculateOBV(symbol, sectorData);

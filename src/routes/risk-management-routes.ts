@@ -65,7 +65,7 @@ export class RiskManagementRoutesHandler {
         summary: {
           totalCategories: Object.keys(assessment.categoryBreakdown).length,
           highRiskCategories: Object.values(assessment.categoryBreakdown)
-            .filter(cat => cat.level.value >= 3).length,
+            .filter((cat: any) => (cat as any).level?.value >= 3).length,
           totalAlerts: assessment.alerts.length,
           totalRecommendations: assessment.recommendations.length
         }
@@ -490,7 +490,7 @@ export class RiskManagementRoutesHandler {
       // Include stress test if requested
       if (includeStressTest) {
         const stressTest = await this.riskEngine.performAdvancedStressTest(portfolioData, []);
-        analytics.stressTest = {
+        (analytics as any).stressTest = {
           worstCaseLoss: stressTest.aggregateResults.worstCaseLoss,
           averageLoss: stressTest.aggregateResults.averageLoss,
           scenarios: Object.keys(stressTest.scenarios).length

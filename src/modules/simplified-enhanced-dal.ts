@@ -231,7 +231,7 @@ export class SimplifiedEnhancedDAL {
       // Try optimized cache manager first (with predictive pre-fetching)
       if (this.optimizedCacheManager && this.config.enableCache) {
         try {
-          const optimizedResult = await this.optimizedCacheManager.read<T>(key, {
+          const optimizedResult = await (this.optimizedCacheManager.read as any)(key, {
             useAliasing: true,
             useMemoryStatic: true,
             usePredictive: true,
@@ -245,8 +245,8 @@ export class SimplifiedEnhancedDAL {
               success: true,
               data: optimizedResult.data,
               cached: true,
-              cacheSource: optimizedResult.optimizations.includes('Memory-Only Static Data Hit') ? 'kv' :
-                         optimizedResult.optimizations.includes('Predictive Pre-fetch Hit') ? 'l1' : 'l2',
+              cacheSource: (optimizedResult.optimizations.includes('Memory-Only Static Data Hit') ? 'kv' :
+                         optimizedResult.optimizations.includes('Predictive Pre-fetch Hit') ? 'l1' : 'l2') as 'kv' | 'l1' | 'l2',
               error: undefined
             };
           }
@@ -308,7 +308,7 @@ export class SimplifiedEnhancedDAL {
       ...result,
       responseTime: time,
       timestamp: new Date().toISOString()
-    };
+    } as CacheAwareResult<T>;
   }
 
   /**
@@ -326,7 +326,7 @@ export class SimplifiedEnhancedDAL {
         // Try optimized cache manager first for write operations
         if (this.optimizedCacheManager && this.config.enableCache) {
           try {
-            const optimizedResult = await this.optimizedCacheManager.write<T>(key, data, {
+            const optimizedResult = await (this.optimizedCacheManager.write as any)(key, data, {
               useAliasing: true,
               useBatching: true,
               priority: 'medium'

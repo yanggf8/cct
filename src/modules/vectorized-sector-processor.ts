@@ -250,7 +250,7 @@ export class VectorizedSectorProcessor {
     const kvOperationsReduced = originalKVCount - optimizedKVCount;
 
     return {
-      totalRequests,
+      totalRequests: totalOperations,
       successfulRequests: totalSuccessfulRequests,
       failedRequests: totalFailedRequests,
       kvOperationsReduced,

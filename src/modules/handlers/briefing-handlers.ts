@@ -17,7 +17,7 @@ const logger = createLogger('briefing-handlers');
 /**
  * Generate Pre-Market Briefing Page
  */
-export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request: Request, env: CloudflareEnvironment) => {
+export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
   const today = new Date();

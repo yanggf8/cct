@@ -117,7 +117,7 @@ async function handleTechnicalSingle(
     const result = await runIndependentTechnicalAnalysis([symbol], env);
     const signal = result.technical_signals?.[symbol];
 
-    if (!signal || signal.status === 'failed') {
+    if (!signal || (signal as any).status === 'failed') {
       return new Response(JSON.stringify(ApiResponseFactory.error('No technical analysis available','NO_DATA',{ requestId, symbol })), { status: HttpStatus.NOT_FOUND, headers });
     }
 

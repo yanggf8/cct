@@ -57,7 +57,7 @@ async function routeToNewEndpoint(
     };
 
     // Route to API v1 handler
-    const response = await handleApiV1Request(internalRequest, env, url.pathname, headers);
+    const response = await handleApiV1Request(internalRequest, env, url.pathname);
 
     return response;
 

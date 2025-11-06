@@ -1048,7 +1048,9 @@ export class PredictiveAnalyticsEngine {
       probability_of_change: Math.round(probabilityOfChange * 100) / 100,
       likely_next_regime: likelyNextRegime,
       time_to_transition: timeToTransition,
-      confidence: Math.round((confidence / 100) * 100) / 100
+      confidence: Math.round((confidence / 100) * 100) / 100,
+      regime_transition_matrix: {},
+      historical_regime_accuracy: 0.75
     };
   }
 

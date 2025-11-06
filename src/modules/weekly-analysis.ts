@@ -637,7 +637,7 @@ async function processWeeklyAnalysisData(factTableData: any, env: any) {
       dailyStats[date].priceAccuracy / dailyStats[date].priceCount : 0,
     directionAccuracy: dailyStats[date].directionCount > 0 ? 
       dailyStats[date].directionAccuracy / dailyStats[date].directionCount : 0
-  })).sort((a: any, b: any) => new Date(a.date) - new Date(b.date));
+  })).sort((a: any, b: any) => (new Date(a.date).getTime() as any) - (new Date(b.date).getTime() as any));
   
   // Find best performing model (sentiment-first approach)
   let bestModel = 'GPT-OSS-120B';

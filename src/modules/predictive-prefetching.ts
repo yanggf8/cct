@@ -140,7 +140,7 @@ export class PredictivePreFetchManager {
     }
 
     // Try regular cache
-    const cacheResult = await this.baseDAL.read<T>(key);
+    const cacheResult = await (this.baseDAL.read as any)(key);
     if (cacheResult.success && cacheResult.data) {
       return {
         success: true,

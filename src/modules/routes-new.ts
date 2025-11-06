@@ -46,7 +46,8 @@ export async function handleHttpRequest(
   const logger = createLogger('request-handler');
 
   // Start performance monitoring
-  const perfMonitor = new PerformanceMonitor();
+  const perfMonitor = PerformanceMonitor;
+  const startTime = Date.now();
 
   try {
     const url = new URL((request as any).url);
@@ -62,7 +63,7 @@ export async function handleHttpRequest(
     const response = await router.handle(request, env, ctx);
 
     // Record metrics
-    const duration = perfMonitor.end();
+    const duration = Date.now() - startTime;
     BusinessMetrics.apiRequest(url.pathname, request.method, (response as any).status, duration);
 
     logger.info('Request completed', {

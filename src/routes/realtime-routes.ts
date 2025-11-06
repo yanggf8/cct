@@ -680,7 +680,7 @@ export async function handleRealtimeRoutes(request: Request, env: any, path: str
     } catch (error: unknown) {
         console.error('Real-time routes error:', error);
         const body = ApiResponseFactory.error('Internal server error', 'INTERNAL_ERROR', {
-            message: error?.message
+            message: (error as any)?.message || 'Unknown error'
         });
         return new Response(JSON.stringify(body), {
             status: HttpStatus.INTERNAL_SERVER_ERROR,

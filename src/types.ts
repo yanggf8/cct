@@ -8,10 +8,39 @@ declare global {
     delete(key: string): Promise<void>;
     list(options?: any): Promise<any>;
   }
+
+  // Durable Object type definitions
+  interface DurableObjectNamespace {
+    new (name: string): DurableObjectConstructor;
+    idFromName(name: string): DurableObjectId;
+    idFromString(id: string): DurableObjectId;
+  }
+
+  interface DurableObjectState {
+    readonly storage: DurableObjectStorage;
+    readonly blockConcurrencyWhile?: (callback: () => Promise<any>) => Promise<any>;
+  }
+
+  interface DurableObjectStorage {
+    get<T = unknown>(key: string): Promise<T | null>;
+    put<T = unknown>(key: string, value: T): Promise<void>;
+    delete(key: string): Promise<boolean>;
+    list(): Promise<Record<string, any>>;
+  }
+
+  interface DurableObjectConstructor {
+    new (state: DurableObjectState, env: any): DurableObject;
+  }
+
+  interface DurableObject {
+    fetch(request: Request): Promise<Response>;
+  }
+
+  interface DurableObjectId {
+    toString(): string;
+  }
 }
 
-// Export DurableObject types from cloudflare:workers
-export type { DurableObjectNamespace, DurableObjectState, DurableObjectStorage } from 'cloudflare:workers';
 
 /**
  * Core TypeScript Type Definitions for Dual AI Sentiment Analysis System

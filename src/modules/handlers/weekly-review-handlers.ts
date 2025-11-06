@@ -14,7 +14,7 @@ const logger = createLogger('weekly-review-handlers');
 /**
  * Generate Weekly Review Page
  */
-export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment) => {
+export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
 

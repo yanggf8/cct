@@ -3,7 +3,7 @@
  * Serves the enterprise-grade predictive analytics dashboard with AI capabilities
  */
 
-import { createRequestLogger } from './logging.js';
+import { createRequestLogger, createLogger } from './logging.js';
 import type { CloudflareEnvironment } from '../types';
 
 /**
@@ -13,7 +13,8 @@ export async function servePredictiveAnalyticsDashboard(
   request: Request,
   env: CloudflareEnvironment
 ): Promise<Response> {
-  const { logError } = initLogging({ context: 'dashboard' });
+  const requestLogger = createRequestLogger('dashboard');
+  const logger = createLogger('dashboard');
   const startTime = Date.now();
 
   try {
@@ -1137,7 +1138,7 @@ export async function servePredictiveAnalyticsDashboard(
     });
 
   } catch (error: any) {
-    logError('Error serving predictive analytics dashboard', {
+    logger.error('Error serving predictive analytics dashboard', {
       error: (error instanceof Error ? error.message : String(error)),
       stack: (error instanceof Error ? error.stack : undefined),
       duration: Date.now() - startTime

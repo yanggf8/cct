@@ -202,7 +202,7 @@ async function handlePredictiveSignals(
       outlook: signals.short_term_outlook.direction,
       confidence: signals.short_term_outlook.confidence,
       confidence_interval: signals.short_term_outlook.confidence_interval,
-      risk_adjusted_return: signals.short_term_outlook.risk_adjusted_return,
+      risk_adjusted_return: (signals.short_term_outlook as any).risk_adjusted_return,
       sectors_predicted: signals.sector_predictions.top_performers.length,
       processingTime: timer.getElapsedMs()
     });
@@ -655,7 +655,7 @@ function generateMarketForecast(
   };
 
   if (includeRisk) {
-    baseForecast.risk_analysis = {
+    baseForecast(risk_analysis as any) = {
       risk_level: signals.risk_indicators.tail_risk_probability > 0.4 ? 'elevated' : 'moderate',
       key_risks: insights.overall_outlook.risk_factors,
       volatility_outlook: signals.risk_indicators.volatility_outlook,
@@ -689,7 +689,7 @@ async function testPredictiveSignalsHealth(env: CloudflareEnvironment): Promise<
         regime_forecast: !!signals.regime_forecast,
         enhanced_features: {
           confidence_intervals: !!signals.short_term_outlook?.confidence_interval,
-          risk_adjusted_returns: !!signals.short_term_outlook?.risk_adjusted_return,
+          risk_adjusted_returns: !!(signals.short_term_outlook as any)?.risk_adjusted_return,
           backtesting_reference: !!signals.short_term_outlook?.backtesting_reference,
           stress_testing: !!signals.risk_indicators?.stress_test_results,
           var_metrics: !!signals.risk_indicators?.var_metrics
@@ -773,7 +773,7 @@ async function handlePredictiveGenerate(
         direction: signals.short_term_outlook.direction,
         confidence: Math.min(signals.short_term_outlook.confidence, confidence / 100),
         timeframe: timeframe,
-        expected_return: signals.short_term_outlook.risk_adjusted_return || 0,
+        expected_return: (signals.short_term_outlook as any)(risk_adjusted_return as any) || 0,
         key_factors: signals.short_term_outlook.key_factors || []
       },
       technical_indicators: indicators.includes('technical') ? {

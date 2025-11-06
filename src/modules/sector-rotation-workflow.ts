@@ -19,6 +19,7 @@
  */
 
 import { createLogger } from './logging.js';
+import type { MarketDataResponse } from './validation-utilities.js';
 import { createSimplifiedEnhancedDAL, type CacheAwareResult } from './simplified-enhanced-dal.js';
 import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache } from './market-data-cache.js';
@@ -302,18 +303,18 @@ export class SectorRotationWorkflow {
     }
 
     // Fetch fresh data
-    const data = await withCache(symbol, () => this.fetchETFData(symbol));
+    const response = await withCache(symbol, () => this.fetchETFData(symbol));
 
     // Cache for 4 hours
-    await this.dal.write(cacheKey, data, { expirationTtl: 14400 });
+    await this.dal.write(cacheKey, response.data, { expirationTtl: 14400 });
 
-    return data;
+    return response.data;
   }
 
   /**
    * Fetch ETF data from Yahoo Finance
    */
-  private async fetchETFData(symbol: string): Promise<ETFMarketData> {
+  private async fetchETFData(symbol: string): Promise<any> {
     const url = `${CONFIG.MARKET_DATA.YAHOO_FINANCE_BASE_URL}/v8/finance/chart/${symbol}?period1=${Math.floor(Date.now() / 1000) - 60*60*24*90}&period2=${Math.floor(Date.now() / 1000)}&interval=1d`;
 
     const response = await rateLimitedFetch(url, {
@@ -355,20 +356,24 @@ export class SectorRotationWorkflow {
     const priceChangePercent = (priceChange / previousPrice) * 100;
 
     return {
+      success: true,
       symbol,
-      name: SPDR_ETFs[symbol as ETFSymbol]?.name || symbol,
-      currentPrice,
-      priceChange,
-      priceChangePercent,
-      volume: quote.volume[quote.volume.length - 1] || 0,
-      avgVolume: 0, // Would need additional API call
-      marketCap: 0, // Would need additional API call
-      week52High: Math.max(...ohlcv.map(candle => candle[1])),
-      week52Low: Math.min(...ohlcv.map(candle => candle[2])),
-      dividend: 0, // Would need additional API call
-      dividendYield: 0,
-      lastUpdated: new Date().toISOString(),
-      ohlcv
+      data: {
+        symbol,
+        name: SPDR_ETFs[symbol as ETFSymbol]?.name || symbol,
+        currentPrice,
+        priceChange,
+        priceChangePercent,
+        volume: quote.volume[quote.volume.length - 1] || 0,
+        avgVolume: 0, // Would need additional API call
+        marketCap: 0, // Would need additional API call
+        week52High: Math.max(...ohlcv.map(candle => candle[1])),
+        week52Low: Math.min(...ohlcv.map(candle => candle[2])),
+        dividend: 0, // Would need additional API call
+        dividendYield: 0,
+        lastUpdated: new Date().toISOString(),
+        ohlcv
+      }
     };
   }
 

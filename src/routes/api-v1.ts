@@ -23,11 +23,7 @@ import { getSectorIndicatorsSymbol } from './sector-routes.js';
 import { handleRiskManagementRequest } from './risk-management-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
-interface RequestHeaders {
-  'X-Request-ID': string;
-  'X-API-Version': string;
-  'Content-Type': string;
-}
+type RequestHeaders = Record<string, string>;
 
 interface APIEndpoint {
   [key: string]: string | APIEndpoint;

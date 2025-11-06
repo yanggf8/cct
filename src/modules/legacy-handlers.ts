@@ -139,16 +139,17 @@ export async function handleKVCleanup(
     const pattern = url.searchParams.get('pattern') || 'test_*';
     const dryRun = url.searchParams.get('dryRun') !== 'false';
 
-    const kvUtils = new KVUtils(env);
-    const keys = await kvUtils.listKeys(pattern);
+    const dal = createDAL(env);
+    const keysResult = await dal.listKeys(pattern);
+    const keys = keysResult.keys;
 
     let deletedCount = 0;
     const deletedKeys: string[] = [];
 
     if (!dryRun) {
       for (const key of keys) {
-        const result = await kvUtils.delete(key);
-        if (result.success) {
+        const success = await dal.deleteKey(key);
+        if (success) {
           deletedCount++;
           deletedKeys.push(key);
         }

@@ -41,7 +41,7 @@ export async function handleMarketDriversRoutes(
     const { getMarketDataConfig } = await import('../modules/config.js');
     const { configureYahooRateLimiter } = await import('../modules/rate-limiter.js');
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 60, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
   } catch {}
   if (!auth.valid) {
     return new Response(

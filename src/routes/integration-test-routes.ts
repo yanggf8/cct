@@ -216,7 +216,7 @@ async function handleHealthCheck(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('HealthCheck Error', error, { requestId });
+    logger.error('HealthCheck Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -288,7 +288,7 @@ async function handleTestStatus(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
-    logger.error('TestStatus Error', error, { requestId });
+    logger.error('TestStatus Error', { error, requestId });
 
     return new Response(
       JSON.stringify(

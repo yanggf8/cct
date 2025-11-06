@@ -69,7 +69,7 @@ export class Router {
   /**
    * Handle incoming request
    */
-  async handle(request: Request, env: CloudflareEnvironment, ctx: ExecutionContext = {}): Promise<Response> {
+  async handle(request: Request, env: CloudflareEnvironment, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method;

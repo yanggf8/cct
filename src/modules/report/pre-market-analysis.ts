@@ -286,11 +286,11 @@ function getDefaultPreMarketData(): PreMarketResult {
     bearishCount: 2,
     totalSymbols: 5,
     highConfidenceUps: [
-      { symbol: 'AAPL', expectedMove: '1.5', confidence: 75, driver: 'Technical breakout pattern' },
-      { symbol: 'MSFT', expectedMove: '1.2', confidence: 73, driver: 'Cloud momentum strength' }
+      { symbol: 'AAPL', expectedMove: '1.5', confidence: 75, driver: 'Technical breakout pattern', sentiment: 'BULLISH', direction: 'UP' },
+      { symbol: 'MSFT', expectedMove: '1.2', confidence: 73, driver: 'Cloud momentum strength', sentiment: 'BULLISH', direction: 'UP' }
     ],
     highConfidenceDowns: [
-      { symbol: 'TSLA', expectedMove: '2.1', confidence: 76, driver: 'Production headwinds' }
+      { symbol: 'TSLA', expectedMove: '2.1', confidence: 76, driver: 'Production headwinds', sentiment: 'BEARISH', direction: 'DOWN' }
     ],
     strongestSectors: ['Technology', 'Consumer Discretionary'],
     weakestSectors: ['Healthcare', 'Energy'],

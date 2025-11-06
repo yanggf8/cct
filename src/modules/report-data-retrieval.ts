@@ -208,22 +208,23 @@ export class ReportDataRetrieval {
 
       // Get today's analysis
       const analysisKey = `analysis_${dateStr}`;
-      const analysisResult: KVReadResult = await dal.read(analysisKey);
+      const analysisResult: KVReadResult<any> = await dal.read(analysisKey);
 
       // Get morning predictions (if available)
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       // Evaluate yesterday's outlook accuracy
       let outlookEvaluation: OutlookEvaluation | null = null;
-      const yesterdayOutlook: YesterdayOutlook | null = await tomorrowOutlookTracker.getTodaysOutlook(env, date);
+      const yesterdayOutlook: YesterdayOutlook | null = await tomorrowOutlookTracker.getTodaysOutlook(env, date) as any;
 
       if (yesterdayOutlook && yesterdayOutlook.evaluationStatus === 'pending') {
         // We need actual market data to evaluate - for now, we'll use yesterday's predictions
         const yesterdayPredictions = await this.getYesterdaysPredictions(env, date);
         if (yesterdayPredictions) {
           const actualMarketData: ActualMarketData = this.generateActualMarketData(yesterdayPredictions);
-          outlookEvaluation = await tomorrowOutlookTracker.evaluateTodaysOutlook(env, date, actualMarketData);
+          const evaluation = await tomorrowOutlookTracker.evaluateTodaysOutlook(env, date, actualMarketData) as unknown as OutlookEvaluation;
+          outlookEvaluation = evaluation;
         }
       }
 
@@ -291,7 +292,7 @@ export class ReportDataRetrieval {
 
       // Get morning predictions with performance updates
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       let predictions: PredictionsData | null = null;
       let performanceSummary: IntradayPerformanceSummary | null = null;
@@ -358,11 +359,11 @@ export class ReportDataRetrieval {
 
       // Get morning predictions with final performance
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       // Get end-of-day summary if available
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryResult: KVReadResult = await dal.read(summaryKey);
+      const summaryResult: KVReadResult<any> = await dal.read(summaryKey);
 
       let finalSummary: EndOfDaySummary | null = null;
       let tomorrowOutlook: TomorrowOutlook | null = null;
@@ -588,7 +589,7 @@ export class ReportDataRetrieval {
 
       // Try to get end-of-day summary first
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryResult: KVReadResult = await dal.read(summaryKey);
+      const summaryResult: KVReadResult<any> = await dal.read(summaryKey);
 
       if (summaryResult.success && summaryResult.data) {
         const parsed = summaryResult.data;
@@ -601,7 +602,7 @@ export class ReportDataRetrieval {
 
       // Fall back to morning predictions
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       if (predictionsResult.success && predictionsResult.data) {
         const parsed = predictionsResult.data;
@@ -828,7 +829,9 @@ export class ReportDataRetrieval {
       analysisTimestamp: aiAnalysis.analysis_time,
       symbolsAnalyzed: symbols.length,
       highConfidenceSignals,
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      keyFocus: 'AI-driven market analysis',
+      recommendations: []
     };
   }
 
@@ -933,7 +936,7 @@ export class ReportDataRetrieval {
     try {
       const dal = createDAL(env);
       const predictionsKey = `morning_predictions_${yesterdayStr}`;
-      const predictionsResult: KVReadResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
       if (predictionsResult.success && predictionsResult.data) {
         return predictionsResult.data;
       }

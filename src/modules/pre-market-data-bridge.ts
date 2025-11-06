@@ -275,7 +275,7 @@ export class PreMarketDataBridge {
     try {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
-      return await this.dal.get(analysisKey, 1 as any);
+      return await (this.dal as any).get(analysisKey, 1 as any) as any;
     } catch (error: unknown) {
       logger.warn('PreMarketDataBridge: Error getting current analysis', error);
       return null;

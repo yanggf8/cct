@@ -408,7 +408,7 @@ export async function handleHttpRequest(
         response = await handleHomeDashboardPage(request, env as any);
         break;
       case '/analyze':
-        response = await handleManualAnalysis(request, env);
+        response = await handleManualAnalysis(request, env, ctx as any);
         break;
       case '/generate-morning-predictions':
         response = await handleGenerateMorningPredictions(request, env);
@@ -426,7 +426,7 @@ export async function handleHttpRequest(
         response = await handleFactTable(request, env);
         break;
       case '/professional-dashboard':
-        response = await handleProfessionalDashboard(request, env);
+        response = await handleProfessionalDashboard(request, env, ctx as any);
         break;
       case '/kv-debug':
         response = await handleKVDebug(request, env);
@@ -465,22 +465,22 @@ export async function handleHttpRequest(
         response = await handleDailySummaryPageRequest(request, env);
         break;
       case '/pre-market-briefing':
-        response = await handlePreMarketBriefing(request, env);
+        response = await handlePreMarketBriefing(request, env, ctx as any);
         break;
       case '/intraday-check':
-        response = await handleIntradayCheck(request, env);
+        response = await handleIntradayCheck(request, env, ctx as any);
         break;
       case '/intraday-check-decomposed':
-        response = await handleIntradayCheckDecomposed(request, env);
+        response = await handleIntradayCheckDecomposed(request, env, ctx as any);
         break;
       case '/intraday-check-refactored':
         response = await handleIntradayCheckRefactored(request, env);
         break;
       case '/end-of-day-summary':
-        response = await handleEndOfDaySummary(request, env);
+        response = await handleEndOfDaySummary(request, env, ctx as any);
         break;
       case '/weekly-review':
-        response = await handleWeeklyReview(request, env);
+        response = await handleWeeklyReview(request, env, ctx as any);
         break;
       case '/test-sentiment':
         response = await handleSentimentTest(request, env);

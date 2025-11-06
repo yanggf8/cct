@@ -626,17 +626,18 @@ export const KVUtils = {
   /**
    * Get KV options with centralized TTL configuration (legacy - use KeyHelpers.getKVOptions for new code)
    */
-  getOptions(keyType: string, customOptions: KVOptions = {}): KVOptions {
+  getOptions(keyType: string, customOptions: KVOptions = {}, env?: CloudflareEnvironment): KVOptions {
+    const defaultTtl = (env ? (getEnvConfig(env) as any).KV_STORAGE.ANALYSIS_TTL : 86400);
     const ttlMap: Record<string, number> = {
-      'analysis': (getEnvConfig({}) as any).KV_STORAGE.ANALYSIS_TTL,
-      'granular': (getEnvConfig({}) as any).KV_STORAGE.GRANULAR_TTL,
-      'daily_summary': (getEnvConfig({}) as any).KV_STORAGE.DAILY_SUMMARY_TTL,
-      'status': (getEnvConfig({}) as any).KV_STORAGE.STATUS_TTL,
-      'report_cache': (getEnvConfig({}) as any).KV_STORAGE.REPORT_CACHE_TTL,
-      'metadata': (getEnvConfig({}) as any).KV_STORAGE.METADATA_TTL
+      'analysis': defaultTtl,
+      'granular': (env ? (getEnvConfig(env) as any).KV_STORAGE.GRANULAR_TTL : 86400),
+      'daily_summary': (env ? (getEnvConfig(env) as any).KV_STORAGE.DAILY_SUMMARY_TTL : 86400),
+      'status': (env ? (getEnvConfig(env) as any).KV_STORAGE.STATUS_TTL : 3600),
+      'report_cache': (env ? (getEnvConfig(env) as any).KV_STORAGE.REPORT_CACHE_TTL : 86400),
+      'metadata': (env ? (getEnvConfig(env) as any).KV_STORAGE.METADATA_TTL : 3600)
     };
 
-    const ttl = ttlMap[keyType.toLowerCase()] || (getEnvConfig({}) as any).KV_STORAGE.ANALYSIS_TTL;
+    const ttl = ttlMap[keyType.toLowerCase()] || defaultTtl;
 
     return {
       expirationTtl: ttl,
