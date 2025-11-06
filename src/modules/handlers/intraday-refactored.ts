@@ -214,27 +214,24 @@ class IntradayHTMLGenerator {
   static generateMetricsSection(metrics: any): string {
     const metricsGrid = generateMetricsGrid([
       {
-        title: 'Total Signals',
+        label: 'Total Signals',
         value: metrics.totalSignals.toString(),
-        icon: '📊',
         color: '#4facfe'
       },
       {
-        title: 'Accuracy Rate',
+        label: 'Accuracy Rate',
         value: `${Math.round(metrics.accuracyRate * 100)}%`,
         icon: '🎯',
         color: metrics.accuracyRate >= 0.7 ? '#48dbfb' : '#ff6b6b'
       },
       {
-        title: 'Avg Confidence',
+        label: 'Avg Confidence',
         value: `${Math.round(metrics.avgConfidence * 100)}%`,
-        icon: '💪',
         color: '#feca57'
       },
       {
-        title: 'Performing Symbols',
+        label: 'Performing Symbols',
         value: metrics.performingSymbols.length.toString(),
-        icon: '📈',
         color: '#00f2fe'
       }
     ]);
@@ -267,10 +264,10 @@ class IntradayHTMLGenerator {
         symbol: signal.symbol,
         direction: signal.direction,
         confidence: signal.confidence,
-        status: signal.status,
+        status: (signal as any).status,
         performance: signal.performance,
         timestamp: signal.timestamp
-      })
+      } as any)
     ).join('');
 
     return `

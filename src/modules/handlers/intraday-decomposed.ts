@@ -256,10 +256,10 @@ class HTMLModule {
         symbol: signal.symbol,
         direction: signal.direction,
         confidence: signal.confidence,
-        status: signal.status,
+        status: (signal as any).status,
         timestamp: signal.timestamp,
         performance: signal.performance
-      })
+      } as any)
     ).join('');
 
     return `
