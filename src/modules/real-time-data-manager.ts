@@ -159,12 +159,12 @@ export class RealTimeDataManager {
   // Refresh FRED macro snapshot via client with its own caching
   private async refreshFred(ttl: { l1: number; l2: number; }): Promise<FreshnessRecord> {
     try {
-      const fred = new FredApiClient(this.env, {} as any);
+      const fred = new FredApiClient({ apiKey: this.env.FRED_API_KEY } as any);
       const snapshot = await fred.getMacroEconomicSnapshot();
       // Store to cache manager for quick access
       const ns = getCacheNamespace('macro_data');
       await this.cache.set(ns.name, 'macro:snapshot', snapshot, { l1: ttl.l1, l2: CACHE_TTL.EXTENDED } as any);
-      const record: FreshnessRecord = { source: 'fred', status: 'healthy', updated_at: new Date().toISOString(), details: { series: snapshot.metadata?.series_count, cacheHit: snapshot.metadata?.cacheHit } };
+      const record: FreshnessRecord = { source: 'fred', status: 'healthy', updated_at: new Date().toISOString(), details: { series: snapshot.metadata?.seriesCount, cacheHit: snapshot.metadata?.cacheHit } };
       await this.recordFreshness(record);
       return record;
     } catch (e: any) {
