@@ -190,8 +190,8 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
     try {
       const basicAnalysis = await runBasicAnalysis(env, {
         triggerMode: 'manual_analysis_fallback',
-        requestId: ctx.requestId
-      });
+        requestId: (ctx as any).requestId
+      } as any);
 
       (basicAnalysis as any).fallback_reason = error.message;
 

@@ -241,7 +241,7 @@ export const handleIntradayCheck: HandlerFunction = createHandler(
     let intradayData: IntradayPerformanceData | null = null;
 
     try {
-      intradayData = await getIntradayCheckData(env, today) as IntradayPerformanceData | null;
+      intradayData = await getIntradayCheckData(env, today) as unknown as IntradayPerformanceData | null;
 
       if (intradayData) {
         logger.info('✅ [INTRADAY] Intraday data retrieved successfully', {

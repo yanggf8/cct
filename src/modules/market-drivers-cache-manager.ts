@@ -514,9 +514,9 @@ export class MarketDriversCacheManager {
 /**
  * Initialize Market Drivers Cache Manager
  */
-export function initializeMarketDriversCacheManager(env: any): DOMarketDriversCacheAdapter {
+export function initializeMarketDriversCacheManager(env: any): any {
   // @ts-ignore - Adapter not implemented
-  return new DOMarketDriversCacheAdapter(env);
+  return new (globalThis as any).DOMarketDriversCacheAdapter(env);
 }
 
 export default MarketDriversCacheManager;
