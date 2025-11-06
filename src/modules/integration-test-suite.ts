@@ -380,11 +380,11 @@ export class IntegrationTestSuite {
       const result = await performDualAIComparison('AAPL', [], this.env);
 
       const validations = {
-        hasSignals: result.signals && result.signals.length > 0,
-        hasGPTAnalysis: result.signals?.some((s: any) => s.gpt_sentiment),
-        hasDistilBERTAnalysis: result.signals?.some((s: any) => s.distilbert_sentiment),
+        hasSignal: !!result.signal,
+        hasGPTAnalysis: !!(result as any).models?.gpt,
+        hasDistilBERTAnalysis: !!(result as any).models?.distilbert,
         hasConfidence: (result as any).overall_confidence !== undefined || result.performance_metrics !== undefined,
-        hasRecommendation: result.signals?.some((s: any) => s.recommendation)
+        hasRecommendation: !!(result as any).comparison?.recommendation
       };
 
       const passedValidations = Object.values(validations).filter(Boolean).length;

@@ -7,7 +7,7 @@
 import { createTechnicalFeatures, normalizeTechnicalFeatures } from './technical_indicators.js';
 import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
-import type { CloudflareEnvironment, EnhancedAnalysisResults } from '../types.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
 interface FeatureWeights {

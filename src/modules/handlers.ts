@@ -386,7 +386,12 @@ export async function handleFacebookTest(request: Request, env: CloudflareEnviro
 
         // Verify KV storage by reading it back
         const readResult = await dal.read(testKvKey);
-        let kvStatus = {
+        let kvStatus: {
+          success: boolean;
+          key: string;
+          message: string;
+          data?: any;
+        } = {
           success: false,
           key: testKvKey,
           message: 'KV verification failed'

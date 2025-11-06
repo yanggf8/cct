@@ -54,7 +54,7 @@ export class DOCacheAdapter {
       staleWhileRevalidate: 600
     };
 
-    return (this as any).doCacheget<T>(key, config);
+    return (this as any).doCache.get(key, config) as T;
   }
 
   /**

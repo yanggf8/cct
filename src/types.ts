@@ -185,6 +185,68 @@ export interface AnalysisResult {
 }
 
 // ============================================================================
+// Enhanced Feature Analysis Types
+// ============================================================================
+
+/**
+ * Market data structure
+ */
+export interface MarketData {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+}
+
+/**
+ * Enhanced signal from enhanced feature analysis
+ */
+export interface EnhancedSignal {
+  signal: Signal;
+  confidence: number;
+  feature_contribution: { [key: string]: number };
+  sentiment?: Sentiment;
+  reasoning?: string;
+}
+
+/**
+ * System performance metrics
+ */
+export interface SystemPerformance {
+  accuracy: number;
+  avg_confidence: number;
+  feature_coverage: number;
+}
+
+/**
+ * Methodology information
+ */
+export interface Methodology {
+  neural_networks: string;
+  technical_features: string;
+  sentiment_analysis: string;
+}
+
+/**
+ * Enhanced feature analysis result
+ */
+export interface EnhancedFeatureAnalysisResult {
+  timestamp: string;
+  analysis_type: string;
+  feature_count: number;
+  symbols_analyzed: string[];
+  trading_signals: { [symbol: string]: EnhancedSignal | any };
+  system_performance: SystemPerformance;
+  methodology: Methodology;
+}
+
+/**
+ * Alias for backward compatibility
+ */
+// Note: This is defined in enhanced_feature_analysis.ts to avoid circular imports
+
+// ============================================================================
 // Signal Tracking Types
 // ============================================================================
 

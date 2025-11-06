@@ -461,7 +461,7 @@ export class MarketDriversCacheManager {
   }
 
   private async getFromL2<T>(key: string): Promise<T | null> {
-    const result = await this.dal.read<T>(key);
+    const result = await (this.dal as any).read(key) as any;
     return result.success ? result.data : null;
   }
 

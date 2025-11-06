@@ -291,7 +291,7 @@ export function createAPIHandler(
         // Simple validation - can be enhanced with proper schema validation
         if (validationSchema.required) {
           for (const field of validationSchema.required) {
-            if (!(field in body)) {
+            if (!(field in (body as any))) {
               throw new Error(`Missing required field: ${field}`);
             }
           }

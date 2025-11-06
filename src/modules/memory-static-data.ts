@@ -449,7 +449,7 @@ export class MemoryStaticDAL {
     }
 
     // Fallback to KV for non-static or missing static data
-    return await this.baseDAL.read<T>(key);
+    return await (this.baseDAL as any).read(key) as T;
   }
 
   /**
@@ -492,7 +492,7 @@ export class MemoryStaticDAL {
     // Get remaining data from KV
     if (kvKeys.length > 0) {
       try {
-        const kvResults = await this.baseDAL.batchRead<T>(kvKeys);
+        const kvResults = await (this.baseDAL as any).batchRead(kvKeys) as any;
         for (const [key, data] of kvResults.entries()) {
           results.set(key, data);
 
