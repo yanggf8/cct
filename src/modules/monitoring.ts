@@ -346,9 +346,9 @@ function getLatestTimer(timers: any, metricName: any) {
 }
 
 function getLatestCounter(counters: any, metricName: any) {
-  const matching = Object.entries(counters)
+  const matching = Object.entries(counters as Record<string, number>)
     .filter(([key]) => key.startsWith(metricName))
-    .reduce((sum, [, value]) => sum + value, 0);
+    .reduce((sum, [, value]) => sum + (value as number), 0);
 
   return matching;
 }
@@ -502,8 +502,8 @@ export const HealthMonitor = {
 
     // Add metrics summary
     health.metrics = {
-      counters: Object.fromEntries(systemMetrics.counters),
-      recent_timers: Array.from(systemMetrics.timers.values())
+      counters: Object.fromEntries((systemMetrics as any).counters),
+      recent_timers: Array.from((systemMetrics as any).timers.values())
         .slice(-10)
         .map(({ name, duration, timestamp }) => ({ name, duration, timestamp }))
     };
@@ -554,7 +554,7 @@ export const AlertManager = {
     const errorRate = metrics.counters['api.requests[status:500]'] || 0;
     const totalRequests = Object.entries(metrics.counters)
       .filter(([key]) => key.startsWith('api.requests'))
-      .reduce((sum, [, value]) => sum + value, 0);
+      .reduce((sum, [, value]) => sum + (value as number), 0);
 
     if (totalRequests > 10 && errorRate / totalRequests > 0.1) {
       alerts.push({

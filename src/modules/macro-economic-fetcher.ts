@@ -135,7 +135,7 @@ export class MacroEconomicFetcher {
 
       // Check cache first
       if (this.enableCaching && this.cacheManager) {
-        const cached = await this.cacheManager.getMarketDrivers(dateStr);
+        const cached = await this.cacheManager.getMarketDrivers();
         if (cached) {
           logger.info('Macro drivers retrieved from cache', { date: dateStr });
           return this.enhanceMacroDrivers(cached);
@@ -155,7 +155,7 @@ export class MacroEconomicFetcher {
 
       // Store in cache
       if (this.enableCaching && this.cacheManager) {
-        await this.cacheManager.setMarketDrivers(enhancedMacroDrivers, dateStr);
+        await this.cacheManager.setMarketDrivers(enhancedMacroDrivers);
       }
 
       logger.info('Macro economic drivers fetched successfully', {

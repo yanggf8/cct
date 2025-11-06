@@ -449,7 +449,8 @@ export class MemoryStaticDAL {
     }
 
     // Fallback to KV for non-static or missing static data
-    return await (this.baseDAL as any).read(key) as T;
+    const result = await (this.baseDAL as any).read(key) as any;
+    return result.success ? result.data : null;
   }
 
   /**

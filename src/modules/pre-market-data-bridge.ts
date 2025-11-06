@@ -105,7 +105,7 @@ export class PreMarketDataBridge {
 
       // Store in the expected format for pre-market reports
       const analysisKey = `analysis_${today}`;
-      await this.dal.put(analysisKey, analysisData, { namespace: 'ANALYSIS', expirationTtl: 86400 }); // 24 hours
+      await (this.dal as any).put(analysisKey, analysisData, { expirationTtl: 86400 }); // 24 hours
 
       logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,
@@ -128,7 +128,7 @@ export class PreMarketDataBridge {
     try {
       // Try to get from cache first
       const cacheKey = `sentiment_symbol_${symbol}_${new Date().toISOString().split('T')[0]}`;
-      const cached = await this.dal.get(cacheKey, 1 as any);
+      const cached = await (this.dal as any).get(cacheKey);
 
       if (cached && cached.data) {
         logger.debug(`Cache hit for ${symbol}`, { symbol });

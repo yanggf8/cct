@@ -295,8 +295,8 @@ export class EnhancedRequestHandler {
     // Validate API key for sensitive endpoint
     const apiKey = (request as any).headers.get('X-API-KEY');
     // Use X_API_KEY environment variable consistently
-    const configuredApiKeys = (this as any).envAPI_KEYS ? (this as any).envAPI_KEYS.split(',') : [];
-    const validKeys = [(this as any).envX_API_KEY, ...configuredApiKeys];
+    const configuredApiKeys = this.env.API_KEYS ? this.env.API_KEYS.split(',') : [];
+    const validKeys = [this.env.X_API_KEY, ...configuredApiKeys];
 
     if (!apiKey || !validKeys.includes(apiKey)) {
       const body = ApiResponseFactory.error(

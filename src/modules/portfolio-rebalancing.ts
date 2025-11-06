@@ -820,13 +820,13 @@ export class PortfolioRebalancingEngine {
 
     switch (frequency) {
       case 'daily':
-        return (now - lastRebalance) >= 24 * 60 * 60 * 1000;
+        return (now as number - lastRebalance as number) >= 24 * 60 * 60 * 1000;
       case 'weekly':
-        return (now - lastRebalance) >= 7 * 24 * 60 * 60 * 1000;
+        return (now as number - lastRebalance as number) >= 7 * 24 * 60 * 60 * 1000;
       case 'monthly':
-        return (now - lastRebalance) >= 30 * 24 * 60 * 60 * 1000;
+        return (now as number - lastRebalance as number) >= 30 * 24 * 60 * 60 * 1000;
       case 'quarterly':
-        return (now - lastRebalance) >= 90 * 24 * 60 * 60 * 1000;
+        return (now as number - lastRebalance as number) >= 90 * 24 * 60 * 60 * 1000;
       default:
         return false;
     }
@@ -878,7 +878,7 @@ export class PortfolioRebalancingEngine {
       bestCase: results[Object.keys(results).reduce((best: any, key: any) =>
         results[key].performance > results[best].performance ? key : best
       )],
-      averagePerformance: Object.values(results).reduce((sum: any, r: any) => sum + r.performance, 0) / Object.keys(results).length,
+      averagePerformance: Object.values(results).reduce((sum: any, r: any) => sum + (r.performance as number), 0) as number / Object.keys(results).length,
       scenarioResults: results
     };
   }
