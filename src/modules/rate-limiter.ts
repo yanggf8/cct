@@ -91,10 +91,10 @@ const fallbackApiRateLimiter = new RateLimiter(10, 60000); // 10 requests per mi
 
 export function configureYahooRateLimiter(maxRequests: number, windowMs: number): void {
   if (typeof maxRequests === 'number' && maxRequests > 0) {
-    yahooFinanceRateLimiter.maxRequests = maxRequests;
+    (yahooFinanceRateLimiter as any).maxRequests = maxRequests;
   }
   if (typeof windowMs === 'number' && windowMs > 0) {
-    yahooFinanceRateLimiter.windowMs = windowMs;
+    (yahooFinanceRateLimiter as any).windowMs = windowMs;
   }
 }
 
@@ -167,8 +167,8 @@ export function getYahooFinanceRateStatus(): RateLimiterStatus {
  * Reset rate limiter (for testing)
  */
 export function resetRateLimiter(): void {
-  yahooFinanceRateLimiter.requests = [];
-  fallbackApiRateLimiter.requests = [];
+  (yahooFinanceRateLimiter as any).requests = [];
+  (fallbackApiRateLimiter as any).requests = [];
 }
 
 /**
