@@ -620,8 +620,8 @@ export async function handleNotificationStatus(
         weeklyReview: notifications.weekly_review || { sent: 0, failed: 0 }
       },
       total: {
-        sent: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.sent || 0), 0),
-        failed: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.failed || 0), 0)
+        sent: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.sent || 0), 0) as number,
+        failed: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.failed || 0), 0) as number
       }
     };
 

@@ -280,7 +280,7 @@ export async function handleDailySummaryAPI(
 
     const successResponse: DailySummaryApiResponse = {
       success: true,
-      data: dailySummary,
+      data: dailySummary as any,
       request_id: requestId,
       timestamp: new Date().toISOString()
     };
