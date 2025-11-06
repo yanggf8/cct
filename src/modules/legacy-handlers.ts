@@ -70,9 +70,7 @@ export async function handleFridayMarketCloseReport(
   try {
     console.log('📊 Friday market close report requested');
 
-    const analysis = await runWeeklyMarketCloseAnalysis(env, {
-      triggerMode: 'friday_market_close'
-    });
+    const analysis = await runWeeklyMarketCloseAnalysis(env, new Date());
 
     return new Response(JSON.stringify(analysis, null, 2), {
       headers: { 'Content-Type': 'application/json' }

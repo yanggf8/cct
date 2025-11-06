@@ -37,7 +37,7 @@ class IntradayDataModule {
   static async retrieve(
     env: CloudflareEnvironment,
     date: string,
-    context: { requestId: string } = {}
+    context: { requestId: string } = { requestId: 'default' }
   ): Promise<any> {
     const { requestId } = context;
 

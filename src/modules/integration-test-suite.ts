@@ -403,7 +403,7 @@ export class IntegrationTestSuite {
         },
         metrics: {
           validation_pass_rate: passedValidations / totalValidations,
-          signals_generated: result.signals?.length || 0,
+          signals_generated: result.signal ? 1 : 0,
           overall_confidence: (result as any).overall_confidence || result.performance_metrics?.successful_models / result.performance_metrics?.models_executed || 0
         }
       };

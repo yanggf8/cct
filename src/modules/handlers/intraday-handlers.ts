@@ -4,7 +4,7 @@
  */
 
 import { createLogger, type Logger } from '../logging.js';
-import { createHandler, type HandlerFunction } from '../handler-factory.js';
+import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
 import {
@@ -13,7 +13,6 @@ import {
   validateDependencies,
   getJobStatus
 } from '../kv-utils.js';
-import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
 

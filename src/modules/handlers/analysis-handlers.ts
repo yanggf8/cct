@@ -176,7 +176,7 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       analysis.execution_metrics?.total_time_ms || 0
     );
 
-    const options: typeof AnalysisResponseOptions = {
+    const options: AnalysisResponseOptions = {
       requestId: ctx.requestId,
       symbolsAnalyzed: analysis.symbols_analyzed?.length || 0,
       processingTime: analysis.execution_metrics?.total_time_ms,
@@ -200,11 +200,11 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
         (basicAnalysis as any).execution_metrics?.total_time_ms || 0
       );
 
-      const options: typeof AnalysisResponseOptions = {
+      const options: AnalysisResponseOptions = {
         requestId: ctx.requestId,
         symbolsAnalyzed: (basicAnalysis as any).symbols_analyzed?.length || 0,
         processingTime: (basicAnalysis as any).execution_metrics?.total_time_ms,
-        fallbackReason: error.message
+        confidence: 0.5
       };
 
       return createAnalysisResponse(basicAnalysis, options);

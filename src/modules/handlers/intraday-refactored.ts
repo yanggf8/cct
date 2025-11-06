@@ -34,7 +34,7 @@ class IntradayDataRetriever {
   static async retrieveData(
     env: CloudflareEnvironment,
     date: string,
-    context: { requestId: string } = {}
+    context: { requestId: string } = { requestId: 'default' }
   ): Promise<any> {
     const { requestId } = context;
 
@@ -216,6 +216,7 @@ class IntradayHTMLGenerator {
       {
         label: 'Total Signals',
         value: metrics.totalSignals.toString(),
+        icon: '📊',
         color: '#4facfe'
       },
       {
@@ -373,14 +374,15 @@ class DependencyValidator {
     logger.debug('🔍 [INTRADAY] Verifying KV consistency', { requestId });
 
     try {
-      const isConsistent = await verifyDependencyConsistency(dateStr, ['analysis', 'morning_predictions'], env);
+      const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const consistencyResult = await verifyDependencyConsistency(dateStr, ['analysis', 'morning_predictions'], env);
 
       logger.debug('✅ [INTRADAY] KV consistency verified', {
         requestId,
-        isConsistent
+        isConsistent: consistencyResult.isValid
       });
 
-      return isConsistent;
+      return consistencyResult.isValid;
 
     } catch (error: any) {
       logger.error('❌ [INTRADAY] KV consistency check failed', {

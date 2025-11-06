@@ -9,6 +9,7 @@ import { createLogger } from './logging.js';
 interface Metric {
   value: string | number;
   label: string;
+  icon?: string;
   trend?: string;
   trendColor?: string;
   color?: string;
