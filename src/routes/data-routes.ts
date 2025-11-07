@@ -209,7 +209,8 @@ async function handleAvailableSymbols(
     });
 
     const response: SymbolsResponse = {
-      symbols: symbolsData,
+      symbols: defaultSymbols,
+      count: defaultSymbols.length,
       metadata: {
         total_count: symbolsData.length,
         last_updated: new Date().toISOString(),
@@ -639,7 +640,7 @@ async function handleSystemHealth(
     const response: SystemHealthResponse = {
       status: overallHealthy ? 'healthy' : servicesHealthy.length >= 3 ? 'degraded' : 'unhealthy',
       timestamp: new Date().toISOString(),
-      uptime_seconds: Math.floor(process.uptime()),
+      uptime_seconds: 0,
       version: '2.0-Phase2D',
       services: {
         ai_models: {

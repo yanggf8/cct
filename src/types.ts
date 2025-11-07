@@ -18,7 +18,6 @@ declare global {
 
   interface DurableObjectState {
     readonly storage: DurableObjectStorage;
-    readonly blockConcurrencyWhile?: (callback: () => Promise<any>) => Promise<any>;
   }
 
   interface DurableObjectStorage {

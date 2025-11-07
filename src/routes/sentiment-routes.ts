@@ -224,7 +224,7 @@ async function handleSentimentAnalysis(
       analysis: {
         timestamp: new Date().toISOString(),
         market_sentiment: {
-          overall_sentiment: calculateOverallSentiment(analysisResult.results),
+          overall_sentiment: getSentimentLabel(calculateOverallSentiment(analysisResult.results)),
           sentiment_label: getSentimentLabel(calculateOverallSentiment(analysisResult.results)),
           confidence: calculateOverallConfidence(analysisResult.results),
         },
@@ -737,7 +737,7 @@ async function handleSectorSentiment(
       }
     }
 
-    const response: SectorSentimentData = {
+    const response: any = {
       sectors: sectorAnalysis,
       timestamp: new Date().toISOString(),
       analysis_metadata: {

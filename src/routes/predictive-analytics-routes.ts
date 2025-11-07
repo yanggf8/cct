@@ -381,7 +381,11 @@ async function handlePredictiveInsights(
       filteredInsights = {
         ...insights,
         tactical_recommendations: {
-          position_sizing: 'Recommendations disabled',
+          position_sizing: {
+            recommendation: 'HOLD',
+            risk_adjusted_sizing: { conservative: 0, moderate: 0, aggressive: 0 },
+            reasoning: 'Recommendations disabled'
+          },
           sector_allocation: [],
           hedge_suggestions: []
         }
@@ -655,7 +659,7 @@ function generateMarketForecast(
   };
 
   if (includeRisk) {
-    baseForecast(risk_analysis as any) = {
+    (baseForecast as any).risk_analysis = {
       risk_level: signals.risk_indicators.tail_risk_probability > 0.4 ? 'elevated' : 'moderate',
       key_risks: insights.overall_outlook.risk_factors,
       volatility_outlook: signals.risk_indicators.volatility_outlook,
@@ -773,7 +777,7 @@ async function handlePredictiveGenerate(
         direction: signals.short_term_outlook.direction,
         confidence: Math.min(signals.short_term_outlook.confidence, confidence / 100),
         timeframe: timeframe,
-        expected_return: (signals.short_term_outlook as any)(risk_adjusted_return as any) || 0,
+        expected_return: (signals.short_term_outlook as any).expected_return || 0,
         key_factors: signals.short_term_outlook.key_factors || []
       },
       technical_indicators: indicators.includes('technical') ? {
@@ -1351,10 +1355,10 @@ async function handleRegimePrediction(
         }
       },
       regime_transition_probability: {
-        to_bull_market: signals.regime_forecast?.transition_probability?.to_bull_market || 0.25,
-        to_bear_market: signals.regime_forecast?.transition_probability?.to_bear_market || 0.20,
-        to_transitional: signals.regime_forecast?.transition_probability?.to_transitional || 0.55,
-        remain_current: signals.regime_forecast?.transition_probability?.remain_current || 0.45
+        to_bull_market: (signals.regime_forecast as any)?.transition_probability?.to_bull_market || 0.25,
+        to_bear_market: (signals.regime_forecast as any)?.transition_probability?.to_bear_market || 0.20,
+        to_transitional: (signals.regime_forecast as any)?.transition_probability?.to_transitional || 0.55,
+        remain_current: (signals.regime_forecast as any)?.transition_probability?.remain_current || 0.45
       },
       historical_regime_analysis: {
         typical_durations: {

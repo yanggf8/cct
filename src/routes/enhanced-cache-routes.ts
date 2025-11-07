@@ -254,10 +254,10 @@ export function createEnhancedCacheRoutes(env: any) {
   // External APIs use KV cache independently
   const cacheManager = createCacheInstance(env, true);
   if (cacheManager) {
-    logger.info('CACHE_ROUTES', 'Using Durable Objects cache (L1)');
+    logger.info('Using Durable Objects cache (L1)');
   } else {
     // Cache endpoints work without cache
-    logger.info('CACHE_ROUTES', 'Cache disabled (L1 not available)');
+    logger.info('Cache disabled (L1 not available)');
   }
 
   const routes = [

@@ -168,7 +168,7 @@ async function transformLegacyRequest(
   const newUrl = new URL(newPath, url.origin);
 
   // Transform method and body based on endpoint type
-  let body = request.body;
+  let body: any = request.body;
   let headers = new Headers(request.headers);
 
   // Handle specific endpoint transformations

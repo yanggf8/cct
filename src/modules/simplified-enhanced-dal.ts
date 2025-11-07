@@ -11,7 +11,7 @@
 
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createLogger } from './logging.js';
-import { EnhancedCacheFactory } from './enhanced-cache-factory.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 import type {
   AnalysisData,
@@ -64,7 +64,7 @@ export class SimplifiedEnhancedDAL {
   private env: CloudflareEnvironment;
   private config: SimplifiedDALConfig;
   private cache: Map<string, { data: any; timestamp: number; ttl: number }>;
-  private optimizedCacheManager: any;
+  private doCacheManager: DualCacheDO | null;
 
   // Cache statistics
   private stats = {
@@ -85,27 +85,24 @@ export class SimplifiedEnhancedDAL {
 
     this.cache = new Map();
 
-    // Initialize enhanced optimized cache manager for maximum KV efficiency
-    try {
-      this.optimizedCacheManager = EnhancedCacheFactory.createOptimizedCacheManager(env, {
-        enableKeyAliasing: true,
-        enableBatchOperations: true,
-        enableMemoryStaticData: true,
-        enablePredictivePrefetching: true,
-        enableVectorizedProcessing: true,
-        enableMonitoring: true
-      });
-      logger.info('Enhanced Optimized Cache Manager initialized for SimplifiedEnhancedDAL');
-    } catch (error: unknown) {
-      logger.warn('Failed to initialize optimized cache manager, falling back to basic cache:', error);
-      this.optimizedCacheManager = null;
+    // Initialize DO cache (persistent in-memory cache)
+    if (config.enableCache) {
+      this.doCacheManager = createCacheInstance(env, true);
+      if (this.doCacheManager) {
+        logger.info('Simplified Enhanced DAL: Using Durable Objects cache');
+      } else {
+        logger.info('Simplified Enhanced DAL: Cache disabled (DO binding not available)');
+      }
+    } else {
+      this.doCacheManager = null;
+      logger.info('Simplified Enhanced DAL: Cache disabled by configuration');
     }
 
     logger.info('Simplified Enhanced DAL initialized', {
       cacheEnabled: this.config.enableCache,
       environment: this.config.environment,
       defaultTTL: this.config.defaultTTL,
-      hasOptimizedCache: !!this.optimizedCacheManager
+      hasDOCache: !!this.doCacheManager
     });
   }
 
@@ -228,30 +225,26 @@ export class SimplifiedEnhancedDAL {
    */
   private async get<T>(key: string, ttl?: number): Promise<CacheAwareResult<T>> {
     const { result, time } = await this.measureOperation(async () => {
-      // Try optimized cache manager first (with predictive pre-fetching)
-      if (this.optimizedCacheManager && this.config.enableCache) {
+      // Try DO cache first (persistent in-memory cache)
+      if (this.doCacheManager && this.config.enableCache) {
         try {
-          const optimizedResult = await (this.optimizedCacheManager.read as any)(key, {
-            useAliasing: true,
-            useMemoryStatic: true,
-            usePredictive: true,
-            useBatching: true,
-            priority: 'high'
+          const cachedData = await this.doCacheManager.get(key, {
+            ttl: ttl || this.config.defaultTTL,
+            namespace: 'SIMPLIFIED_DAL'
           });
 
-          if (optimizedResult.success && optimizedResult.data !== null) {
+          if (cachedData !== null) {
             this.stats.hits++;
             return {
               success: true,
-              data: optimizedResult.data,
+              data: cachedData as T,
               cached: true,
-              cacheSource: (optimizedResult.optimizations.includes('Memory-Only Static Data Hit') ? 'kv' :
-                         optimizedResult.optimizations.includes('Predictive Pre-fetch Hit') ? 'l1' : 'l2') as 'kv' | 'l1' | 'l2',
+              cacheSource: 'l1' as 'l1' | 'l2' | 'kv',
               error: undefined
             };
           }
         } catch (error: unknown) {
-          logger.warn('Optimized cache manager read failed, falling back to standard cache:', error);
+          logger.warn('DO cache read failed, falling back to basic cache:', error);
         }
       }
 
@@ -323,27 +316,24 @@ export class SimplifiedEnhancedDAL {
       try {
         const writeOptions = options || { expirationTtl: this.config.defaultTTL };
 
-        // Try optimized cache manager first for write operations
-        if (this.optimizedCacheManager && this.config.enableCache) {
+        // Try DO cache first for write operations
+        if (this.doCacheManager && this.config.enableCache) {
           try {
-            const optimizedResult = await (this.optimizedCacheManager.write as any)(key, data, {
-              useAliasing: true,
-              useBatching: true,
-              priority: 'medium'
+            await this.doCacheManager.set(key, data, {
+              ttl: writeOptions.expirationTtl || this.config.defaultTTL,
+              namespace: 'SIMPLIFIED_DAL'
             });
 
-            if (optimizedResult.success) {
-              // Invalidate basic cache entry
-              this.cache.delete(key);
+            // Invalidate basic cache entry
+            this.cache.delete(key);
 
-              return {
-                success: true,
-                cached: true,
-                error: undefined
-              };
-            }
+            return {
+              success: true,
+              cached: true,
+              error: undefined
+            };
           } catch (error: unknown) {
-            logger.warn('Optimized cache manager write failed, falling back to standard KV:', error);
+            logger.warn('DO cache write failed, falling back to standard KV:', error);
           }
         }
 

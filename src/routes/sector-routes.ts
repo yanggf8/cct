@@ -173,14 +173,14 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
 
       const body = ApiResponseFactory.success(
         fallbackData,
-        'Sector snapshot generated with fallback data'
+        { message: 'Sector snapshot generated with fallback data' }
       );
       return new Response(JSON.stringify(body), { status: 200 });
     }
 
   } catch (error: unknown) {
     const responseTime = Date.now() - startTime;
-    logger.error('Error in getSectorSnapshot:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error in getSectorSnapshot:', { error: error instanceof Error ? error.message : String(error) } as any);
 
     const body = ApiResponseFactory.error(
       'Failed to generate sector snapshot',
@@ -211,7 +211,7 @@ async function fetchFreshSectorData(services: {
     sectorResults = await services.dataFetcher.fetchSectorData(SECTOR_SYMBOLS);
     logger.info('Sector data fetched successfully', { type: typeof sectorResults });
   } catch (error: unknown) {
-    logger.error('Error fetching sector data:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error fetching sector data:', { error: error instanceof Error ? error.message : String(error) } as any);
     // Create empty Map as fallback
     sectorResults = new Map();
     SECTOR_SYMBOLS.forEach(symbol => sectorResults.set(symbol, null));
@@ -241,7 +241,7 @@ async function fetchFreshSectorData(services: {
       neutralCount = SECTOR_SYMBOLS.length;
     }
   } catch (error: unknown) {
-    logger.error('Error processing sector results:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error processing sector results:', { error: error instanceof Error ? error.message : String(error) } as any);
     // Create fallback structure
     SECTOR_SYMBOLS.forEach(symbol => {
       results.push([symbol, null]);
@@ -478,12 +478,12 @@ export async function getSectorSymbols(request: any, env: any): Promise<Response
 
     const body = ApiResponseFactory.success(
       { symbols, total: symbols.length },
-      'Sector symbols retrieved successfully'
+      { message: 'Sector symbols retrieved successfully' }
     );
     return new Response(JSON.stringify(body), { status: 200 });
 
   } catch (error: unknown) {
-    logger.error('Error in getSectorSymbols:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error in getSectorSymbols:', { error: error instanceof Error ? error.message : String(error) } as any);
     const body = ApiResponseFactory.error(
       'Failed to retrieve sector symbols',
       'SECTOR_SYMBOLS_ERROR'

@@ -472,6 +472,5 @@ export async function migrationMiddleware(
 export default {
   MigrationManager,
   getMigrationManager,
-  migrationMiddleware,
-  legacyUsageTracker
+  migrationMiddleware
 };

@@ -16,7 +16,7 @@ interface RealtimeConnection {
 
 class RealtimeManager {
     private connections: Map<string, RealtimeConnection> = new Map();
-    private intervals: Map<string, NodeJS.Timeout> = new Map();
+    private intervals: Map<string, number> = new Map();
     private cacheManager: any = null;
 
     constructor() {
@@ -102,7 +102,7 @@ class RealtimeManager {
      */
     sendToClient(clientId: string, data: any): boolean {
         const connection = this.connections.get(clientId);
-        if (!connection || connection.controller.closed) {
+        if (!connection || connection.controller.desiredSize === null) {
             this.connections.delete(clientId);
             return false;
         }
@@ -470,7 +470,7 @@ class RealtimeManager {
         const now = new Date();
 
         for (let i = 23; i >= 0; i--) {
-            const timestamp = new Date(now - i * 3600000);
+            const timestamp = new Date(now.getTime() - i * 3600000);
             data.push({
                 timestamp: timestamp.toISOString(),
                 sentiment: (Math.sin(i / 4) * 0.5 + Math.random() * 0.3 - 0.15),
@@ -498,7 +498,7 @@ class RealtimeManager {
         deadConnections.forEach(clientId => {
             try {
                 const connection = this.connections.get(clientId);
-                if (connection && !connection.controller.closed) {
+                if (connection && connection.controller.desiredSize !== null) {
                     connection.controller.close();
                 }
             } catch (error: unknown) {
@@ -623,7 +623,13 @@ export async function handleRealtimeRoutes(request: Request, env: any, path: str
         const manager = getRealtimeManager();
 
         if (path === '/api/v1/realtime/stream') {
-            return await manager.createConnection(request, env, { waitUntil: Promise.resolve });
+            const mockCtx = {
+                waitUntil: (promise: Promise<any>) => {
+                    // Mock implementation for context
+                    promise.catch(() => {});
+                }
+            };
+            return await manager.createConnection(request, env, mockCtx as any);
         }
 
         if (path === '/api/v1/realtime/status') {
