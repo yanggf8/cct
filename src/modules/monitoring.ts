@@ -5,7 +5,7 @@
 
 import { createLogger } from './logging.js';
 import { CONFIG } from './config.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 
 const logger = createLogger('monitoring');
 
@@ -443,18 +443,18 @@ export const HealthMonitor = {
 
     // Check KV storage using DAL
     try {
-      const dal = createDAL(env);
+      const dal = createSimplifiedEnhancedDAL(env);
       const testKey = `health_check_${Date.now()}`;
       const timer = systemMetrics.timer('health.kv_check');
 
       // Test write, read, delete operations
-      const writeResult = await dal.write(testKey, 'test', { expirationTtl: 60 });
+      const writeResult = await dal.write(testKey, 'test');
       const readResult = await dal.read(testKey);
       const deleteResult = await dal.deleteKey(testKey);
 
       const kvDuration = timer.stop();
 
-      if (writeResult.success && readResult.success && deleteResult) {
+      if (writeResult && readResult.data === 'test' && deleteResult.success) {
         health.components.kv_storage = {
           status: 'healthy',
           response_time_ms: kvDuration

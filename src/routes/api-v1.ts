@@ -5,6 +5,8 @@
  */
 
 import { ApiResponseFactory, HttpStatus, generateRequestId as genReqId } from '../modules/api-v1-responses.js';
+import { checkAPISecurity, recordAuthAttempt, getSecurityStatus } from '../modules/api-security.js';
+import { createLogger } from '../modules/logging.js';
 import { handleSentimentRoutes } from './sentiment-routes.js';
 import { handleReportRoutes } from './report-routes.js';
 import { handleDataRoutes } from './data-routes.js';
@@ -22,6 +24,8 @@ import { handlePortfolioRequest } from './portfolio-routes.js';
 import { getSectorIndicatorsSymbol } from './sector-routes.js';
 import { handleRiskManagementRequest } from './risk-management-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
+
+const logger = createLogger('api-v1');
 
 type RequestHeaders = Record<string, string>;
 
@@ -75,6 +79,44 @@ export async function handleApiV1Request(
   };
 
   try {
+    // Extract API key for security checks
+    const apiKey = request.headers.get('X-API-Key');
+
+    // Perform security checks
+    const securityCheck = checkAPISecurity(request, apiKey);
+    if (!securityCheck.allowed) {
+      logger.warn('API security check failed', {
+        reason: securityCheck.reason,
+        path,
+        method: request.method,
+        retryAfter: securityCheck.retryAfter
+      });
+
+      const errorResponse = ApiResponseFactory.error(
+        securityCheck.reason === 'API_KEY_LOCKED_OUT' ? 'API key temporarily locked due to repeated failures' :
+        securityCheck.reason === 'IP_RATE_LIMIT_EXCEEDED' ? 'IP rate limit exceeded' :
+        'API rate limit exceeded',
+        securityCheck.reason === 'API_KEY_LOCKED_OUT' ? 'API_KEY_LOCKED_OUT' :
+        securityCheck.reason === 'IP_RATE_LIMIT_EXCEEDED' ? 'IP_RATE_LIMIT_EXCEEDED' :
+        'RATE_LIMIT_EXCEEDED',
+        {
+          requestId: headers['X-Request-ID'],
+          retryAfter: securityCheck.retryAfter,
+          rateLimitStatus: securityCheck.rateLimitStatus
+        }
+      );
+
+      const responseHeaders = {
+        ...headers,
+        'Retry-After': securityCheck.retryAfter?.toString() || '60'
+      };
+
+      return new Response(JSON.stringify(errorResponse), {
+        status: securityCheck.reason === 'API_KEY_LOCKED_OUT' ? 423 : 429, // 423 Locked or 429 Too Many Requests
+        headers: responseHeaders
+      });
+    }
+
     // Route to appropriate handler based on path
     if (path.startsWith('/api/v1/sentiment/')) {
       return await handleSentimentRoutes(request, env, path, headers);
@@ -153,6 +195,19 @@ export async function handleApiV1Request(
 
       const body = ApiResponseFactory.error('Cache endpoint not found', 'NOT_FOUND', { requested_path: path, cachePath, availableRoutes: cacheRoutes.map(r => r.path) });
       return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
+    } else if (path === '/api/v1/security/status') {
+      // Security status endpoint - requires authentication
+      const auth = validateApiKey(request, env);
+      if (!auth.valid) {
+        return new Response(
+          JSON.stringify(ApiResponseFactory.error('Invalid or missing API key','UNAUTHORIZED',{ requestId: headers['X-Request-ID'] })),
+          { status: HttpStatus.UNAUTHORIZED, headers }
+        );
+      }
+
+      const securityStatus = getSecurityStatus();
+      const body = ApiResponseFactory.success(securityStatus, { requestId: headers['X-Request-ID'] });
+      return new Response(JSON.stringify(body), { status: HttpStatus.OK, headers });
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -286,6 +341,9 @@ export async function handleApiV1Request(
               debug: 'GET /api/v1/cache/debug?namespace=sentiment_analysis&key=AAPL_sentiment',
               deduplication: 'GET /api/v1/cache/deduplication?details=true',
             },
+            security: {
+              status: 'GET /api/v1/security/status',
+            },
           } as ApiDocumentation['available_endpoints'],
           documentation: 'https://github.com/yanggf8/cct',
           status: 'operational',
@@ -326,10 +384,40 @@ export function generateRequestId(): string {
   return genReqId();
 }
 
-export function validateApiKey(request: Request): ApiKeyValidation {
+export function validateApiKey(request: Request, env: CloudflareEnvironment): ApiKeyValidation {
   const apiKey = request.headers.get('X-API-Key');
-  const validKeys = ['yanggf', 'demo', 'test'];
-  return { valid: validKeys.includes(apiKey || ''), key: apiKey };
+
+  // Get API keys from environment variable
+  const configuredKeys = env.X_API_KEY ? env.X_API_KEY.split(',').filter(Boolean) : [];
+
+  if (configuredKeys.length === 0) {
+    console.error('CRITICAL: No API keys configured in X_API_KEY environment variable');
+
+    // Record failed auth attempt (no configured keys)
+    recordAuthAttempt(request, apiKey, false, 'no_keys_configured');
+    return { valid: false, key: null };
+  }
+
+  if (!apiKey) {
+    // Record failed auth attempt (missing API key)
+    recordAuthAttempt(request, null, false, 'missing_api_key');
+    return { valid: false, key: null };
+  }
+
+  const validKeys = configuredKeys.map(key => key.trim());
+  const isValid = validKeys.includes(apiKey);
+
+  if (!isValid) {
+    console.warn(`AUTH_FAILED: Invalid API key attempt for request ID: ${genReqId()}`);
+
+    // Record failed auth attempt (invalid API key)
+    recordAuthAttempt(request, apiKey, false, 'invalid_api_key');
+    return { valid: false, key: apiKey };
+  }
+
+  // Record successful authentication
+  recordAuthAttempt(request, apiKey, true);
+  return { valid: true, key: apiKey };
 }
 
 // Utility helpers used by route modules

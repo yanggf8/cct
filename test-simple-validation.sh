@@ -2,7 +2,7 @@
 
 # Simple validation test for X_API_KEY implementation
 
-export X_API_KEY="yanggf"
+export X_API_KEY="${X_API_KEY:-}"
 API_URL="https://tft-trading-system.yanggf.workers.dev"
 
 echo "🎯 Simple Validation Test Suite"

@@ -10,7 +10,7 @@
 import { createLogger } from './logging.js';
 import { DataValidator, OHLCVBar } from './data-validation.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 
 const logger = createLogger('sector-indicators');
 
@@ -75,7 +75,7 @@ export class SectorIndicators {
   private config: IndicatorConfig;
 
   constructor(env: any, config?: Partial<IndicatorConfig>) {
-    this.dal = createDAL(env);
+    this.dal = createSimplifiedEnhancedDAL(env);
     this.validator = new DataValidator();
 
     this.config = {
@@ -397,7 +397,7 @@ export class SectorIndicators {
         }
       });
 
-      await this.dal.write(cacheKey, indicators, kvOptions);
+      await this.dal.write(cacheKey, indicators);
       logger.debug(`Stored indicators for ${indicators.symbol}`);
 
     } catch (error: unknown) {
@@ -413,7 +413,7 @@ export class SectorIndicators {
       const cacheKey = KeyHelpers.getSectorIndicatorsKey(symbol);
       const result = await this.dal.read(cacheKey);
 
-      if (result && result.data) {
+      if (result.data) {
         return result.data as SectorIndicators;
       }
       return null;

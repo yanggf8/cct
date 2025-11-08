@@ -14,10 +14,11 @@ import {
   generateRequestId
 } from './api-v1.js';
 import { initializeMarketDrivers, type MarketDriversSnapshot } from '../modules/market-drivers.js';
-import { createDAL } from '../modules/dal.js';
+import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import { KVKeyFactory } from '../modules/kv-key-factory.js';
 import type { CloudflareEnvironment } from '../types.js';
+import { createCache } from '../modules/cache-abstraction.js';
 
 const logger = createLogger('market-drivers-routes');
 
@@ -34,7 +35,7 @@ export async function handleMarketDriversRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Market Drivers endpoints require API key authentication
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
 
   // Configure rate limiter from config for market data endpoints
   try {
@@ -153,7 +154,7 @@ async function handleMarketDriversSnapshot(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   const url = new URL(request.url);
 
   try {
@@ -705,7 +706,7 @@ async function handleMarketDriversHistory(
     const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
 
     // Fetch historical data using real API integration
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const historicalData = [];
 
     // Try to get real historical data from cache or API
@@ -1061,12 +1062,14 @@ async function testCacheHealth(env: CloudflareEnvironment): Promise<{ status: st
     const testData = { timestamp: Date.now(), test: 'market_drivers', real_api_test: true };
 
     const startTime = Date.now();
-    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData), { expirationTtl: 60 });
-    const retrieved = await env.TRADING_RESULTS.get(testKey);
-    await env.TRADING_RESULTS.delete(testKey);
+    // Use cache abstraction instead of direct KV operations
+    const cache = createCache(env);
+    await cache.put(testKey, testData, { expirationTtl: 60 });
+    const retrieved = await cache.get(testKey);
+    await cache.delete(testKey);
     const responseTime = Date.now() - startTime;
 
-    const retrievedData = retrieved ? JSON.parse(retrieved) : null;
+    const retrievedData = retrieved || null; // Cache abstraction returns parsed data directly
     const isHealthy = retrievedData && retrievedData.test === 'market_drivers';
 
     return {

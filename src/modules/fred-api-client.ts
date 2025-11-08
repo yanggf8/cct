@@ -19,7 +19,7 @@
 import { createLogger } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import { KeyHelpers } from './kv-key-factory.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { FRED_SERIES, FredSeries } from './market-drivers.js';
 
 const logger = createLogger('fred-api-client');
@@ -184,7 +184,7 @@ export class FredApiClient {
     this.defaultStartDate = options.defaultStartDate || this.getDefaultStartDate();
 
     // Initialize DAL and circuit breaker
-    this.dal = createDAL({ TRADING_RESULTS: null } as any); // DAL for caching
+    this.dal = createSimplifiedEnhancedDAL({ TRADING_RESULTS: null } as any); // DAL for caching
     this.circuitBreaker = CircuitBreakerFactory.getInstance('fred-api');
   }
 
@@ -552,8 +552,8 @@ export class FredApiClient {
    */
   private async getCachedSnapshot(cacheKey: string): Promise<MacroEconomicSnapshot | null> {
     try {
-      const result = await this.dal.read(cacheKey) as { success: boolean; data: MacroEconomicSnapshot | null };
-      return result.success ? result.data : null;
+      const result = await this.dal.read(cacheKey);
+      return result.data || null;
     } catch (error: unknown) {
       logger.error('Cache read error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       return null;
@@ -562,13 +562,7 @@ export class FredApiClient {
 
   private async cacheSnapshot(cacheKey: string, snapshot: MacroEconomicSnapshot): Promise<void> {
     try {
-      const result = await this.dal.write(cacheKey, snapshot, {
-        expirationTtl: 3600, // 1 hour cache
-      });
-
-      if (!result.success) {
-        throw new Error(`Failed to cache snapshot: ${result.error}`);
-      }
+      await this.dal.write(cacheKey, snapshot);
     } catch (error: unknown) {
       logger.error('Cache write error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       // Continue even if caching fails

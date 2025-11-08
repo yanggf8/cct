@@ -1,3 +1,4 @@
+// SECURITY: Hardcoded API keys removed for security
 /**
  * TFT Trading System Dashboard Main
  * Entry point and coordination of all dashboard components

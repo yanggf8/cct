@@ -53,7 +53,7 @@ export async function handleBacktestingRoutes(
   const requestId = headers['X-Request-ID'] || generateApiRequestId();
 
   // Validate API key for protected endpoints
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(

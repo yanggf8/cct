@@ -319,12 +319,12 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
           { text: text }
         );
 
-        const result = response[0];
+        const result = response[0] as { label?: string; score?: number };
 
         return {
-          sentiment: result.label.toLowerCase(),
-          confidence: result.score,
-          score: result.label === 'POSITIVE' ? result.score : -result.score,
+          sentiment: result.label?.toLowerCase() || 'neutral',
+          confidence: result.score || 0.5,
+          score: (result.label === 'POSITIVE' ? result.score : -(result.score || 0)) || 0,
           text_analyzed: text,
           processing_order: index
         };
@@ -356,12 +356,13 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
     const sentimentCounts = { positive: 0, negative: 0, neutral: 0 };
 
     validResults.forEach(result => {
-      const weight = result.confidence;
-      totalScore += result.score * weight;
+      const weight = result.confidence || 0.5;
+      const score = result.score || 0;
+      totalScore += score * weight;
       totalWeight += weight;
 
-      if (result.score > 0.1) sentimentCounts.positive++;
-      else if (result.score < -0.1) sentimentCounts.negative++;
+      if (score > 0.1) sentimentCounts.positive++;
+      else if (score < -0.1) sentimentCounts.negative++;
       else sentimentCounts.neutral++;
     });
 

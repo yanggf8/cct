@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -128,14 +128,8 @@ export class TomorrowOutlookTracker {
         evaluationDate: null
       };
 
-      const dal = createDAL(env);
-      const writeResult = await dal.write(outlookKey, outlookRecord, {
-        expirationTtl: 14 * 24 * 60 * 60 // 14 days
-      });
-
-      if (!writeResult.success) {
-        throw new Error(`Failed to write outlook: ${writeResult.error}`);
-      }
+      const dal = createSimplifiedEnhancedDAL(env);
+      await dal.write(outlookKey, outlookRecord);
 
       logger.info('Stored tomorrow outlook', {
         targetDate: tomorrowString,
@@ -163,9 +157,9 @@ export class TomorrowOutlookTracker {
     const outlookKey = `tomorrow_outlook_${currentDateString}`;
 
     try {
-      const dal = createDAL(env);
+      const dal = createSimplifiedEnhancedDAL(env);
       const result = await dal.read(outlookKey);
-      if (result.success && result.data) {
+      if (result.data) {
         const parsed = result.data as OutlookRecord;
         logger.debug('Retrieved today\'s outlook', {
           targetDate: currentDateString,
@@ -196,11 +190,11 @@ export class TomorrowOutlookTracker {
     const outlookKey = `tomorrow_outlook_${currentDateString}`;
 
     try {
-      const dal = createDAL(env);
+      const dal = createSimplifiedEnhancedDAL(env);
 
       // Get the outlook that was made for today
       const result = await dal.read(outlookKey);
-      if (!result.success || !result.data) {
+      if (!result.data) {
         logger.warn('No outlook found to evaluate', { targetDate: currentDateString });
         return null;
       }
@@ -218,13 +212,7 @@ export class TomorrowOutlookTracker {
       outlookRecord.evaluationDate = new Date().toISOString();
 
       // Save the updated record
-      const writeResult = await dal.write(outlookKey, outlookRecord, {
-        expirationTtl: 14 * 24 * 60 * 60 // 14 days
-      });
-
-      if (!writeResult.success) {
-        throw new Error(`Failed to update outlook: ${writeResult.error}`);
-      }
+      await dal.write(outlookKey, outlookRecord);
 
       logger.info('Evaluated today\'s outlook', {
         targetDate: currentDateString,

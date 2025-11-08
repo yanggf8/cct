@@ -8,7 +8,7 @@
 
 import { createLogger } from '../logging.js';
 import { createHealthResponse } from '../response-factory.js';
-import { createDAL } from '../dal.js';
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { BusinessMetrics } from '../monitoring.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
@@ -350,7 +350,7 @@ export async function fetchHealthData(env: CloudflareEnvironment): Promise<Healt
  */
 export async function fetchModelHealthData(env: CloudflareEnvironment): Promise<ModelHealthData> {
   try {
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
@@ -358,8 +358,8 @@ export async function fetchModelHealthData(env: CloudflareEnvironment): Promise<
     // Get latest analysis data
     const latestAnalysis = await dal.getAnalysis(today);
 
-    // Handle different DAL response formats
-    const analysisData = (latestAnalysis as any)?.data || latestAnalysis;
+    // Handle enhanced DAL response format
+    const analysisData = latestAnalysis.success ? latestAnalysis.data : null;
 
     return {
       status: 'healthy',
@@ -388,15 +388,15 @@ export async function fetchModelHealthData(env: CloudflareEnvironment): Promise<
  */
 export async function fetchLatestAnalysis(env: CloudflareEnvironment): Promise<LatestAnalysisData> {
   try {
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
 
     const analysis = await dal.getAnalysis(today);
 
-    // Handle different DAL response formats
-    const analysisData = (analysis as any)?.data || analysis;
+    // Handle enhanced DAL response format
+    const analysisData = analysis.success ? analysis.data : null;
 
     if (!analysisData) {
       return {
@@ -410,10 +410,10 @@ export async function fetchLatestAnalysis(env: CloudflareEnvironment): Promise<L
     return {
       status: 'available',
       timestamp: analysisData.timestamp,
-      signals: analysisData.signals || [],
-      confidence: analysisData.overall_confidence || 0,
-      summary: analysisData.summary || '',
-      market_sentiment: analysisData.market_sentiment || 'neutral'
+      signals: (analysisData as any).signals || [],
+      confidence: (analysisData as any).overall_confidence || 0,
+      summary: (analysisData as any).summary || '',
+      market_sentiment: (analysisData as any).market_sentiment || 'neutral'
     };
   } catch (error: any) {
     return {
@@ -432,7 +432,7 @@ export async function fetchLatestAnalysis(env: CloudflareEnvironment): Promise<L
  */
 export async function fetchMarketData(env: CloudflareEnvironment): Promise<MarketData> {
   try {
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Get market data from cache or fetch fresh
     const marketData: MarketData = {
@@ -448,9 +448,8 @@ export async function fetchMarketData(env: CloudflareEnvironment): Promise<Marke
     // Try to get cached market data
     try {
       const cached = await dal.read('market_data_cache');
-      const cachedData = (cached as any)?.data || cached;
-      if (cachedData && Date.now() - cachedData.timestamp < 300000) { // 5 minutes
-        marketData.indices = cachedData.data || marketData.indices;
+      if (cached.success && cached.data && Date.now() - (cached.data as any).timestamp < 300000) { // 5 minutes
+        marketData.indices = (cached.data as any).data || marketData.indices;
       }
     } catch (e) {
       // Use default values if cache is unavailable

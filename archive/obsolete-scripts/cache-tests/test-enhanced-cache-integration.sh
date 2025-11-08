@@ -12,7 +12,7 @@ if [[ -z "${X_API_KEY:-}" ]]; then
     echo "  export X_API_KEY=your_api_key"
     exit 1
 fi
-echo "✅ X_API_KEY is set (length: 0)"
+echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
 # Check environment variables
 if [[ -z "${X_API_KEY:-}" ]]; then
     echo "❌ ERROR: X_API_KEY environment variable is not set"
@@ -29,11 +29,11 @@ if [[ -z "${X_API_KEY:-}" ]]; then
     exit 1
 fi
 echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
-echo "✅ X_API_KEY is set (length: 0)"
+echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-X_API_KEY="yanggf"
+X_API_KEY="${X_API_KEY}"
 TIMEOUT=60
 LOG_FILE="test-results-$(date +%Y%m%d-%H%M%S).log"
 FAILED_TESTS=()

@@ -12,8 +12,17 @@ import {
 import type { DailyReportResponse, WeeklyReportResponse } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
-  generateRequestId
+  generateRequestId,
+  parseQueryParams
 } from './api-v1.js';
+import {
+  validateSymbol,
+  validateSymbols,
+  validateRequestBody,
+  validateDate,
+  validateOptionalField,
+  ValidationError
+} from '../modules/validation.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
 import { createLogger } from '../modules/logging.js';
@@ -42,7 +51,7 @@ export async function handleReportRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Validate API key for protected endpoints
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(

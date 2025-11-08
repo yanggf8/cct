@@ -337,7 +337,7 @@ async function fetchExtendedMarketData(
       const data = await (response.json() as { historical?: Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }> });
 
       if ((data.historical && (data.historical as any).length > 0)) {
-        const ohlcData: OHLCData[] = (data.historical as any).reverse().map(day => ({
+        const ohlcData: OHLCData[] = (data.historical as any).reverse().map((day: any) => ({
           timestamp: new Date(day.date).getTime() / 1000,
           open: day.open,
           high: day.high,
@@ -572,10 +572,10 @@ function analyzeTechnicalFeatures(
   // MACD Analysis
   if (features.macd !== null && features.macd_signal !== null) {
     const macdBullish = features.macd > features.macd_signal;
-    if (macdBullish && features.macd_histogram > 0) {
+    if (macdBullish && (features.macd_histogram || 0) > 0) {
       technicalScore += 0.2;
       reasoningFactors.push('MACD bullish crossover');
-    } else if (!macdBullish && features.macd_histogram < 0) {
+    } else if (!macdBullish && (features.macd_histogram || 0) < 0) {
       technicalScore -= 0.2;
       reasoningFactors.push('MACD bearish crossover');
     }
@@ -634,20 +634,26 @@ function combineEnhancedPredictions(
 
   // Neural networks component
   if (components.neural_networks) {
-    const neuralChange = (((components as any).neural_networks.predicted_price - currentPrice) / currentPrice);
-    weightedPrediction += neuralChange * (components.neural_networks as any).weight;
-    totalWeight += (components.neural_networks as any).weight;
-    totalConfidence += (components.neural_networks as any).confidence * (components.neural_networks as any).weight;
-    directionalVotes[(components.neural_networks as any).direction] += (components.neural_networks as any).weight;
+    const neuralComponent = components.neural_networks as any;
+    const neuralChange = ((neuralComponent.predicted_price - currentPrice) / currentPrice);
+    weightedPrediction += neuralChange * neuralComponent.weight;
+    totalWeight += neuralComponent.weight;
+    totalConfidence += neuralComponent.confidence * neuralComponent.weight;
+    if (neuralComponent.direction && ['UP', 'DOWN', 'NEUTRAL'].includes(neuralComponent.direction)) {
+      (directionalVotes as any)[neuralComponent.direction] += neuralComponent.weight;
+    }
   }
 
   // Technical features component
   if (components.technical_features) {
-    const techChange = ((components.technical_features as any).predicted_price - currentPrice) / currentPrice;
-    weightedPrediction += techChange * (components.technical_features as any).weight;
-    totalWeight += (components.technical_features as any).weight;
-    totalConfidence += (components.technical_features as any).confidence * (components.technical_features as any).weight;
-    directionalVotes[(components.technical_features as any).direction] += (components.technical_features as any).weight;
+    const techComponent = components.technical_features as any;
+    const techChange = ((techComponent.predicted_price - currentPrice) / currentPrice);
+    weightedPrediction += techChange * techComponent.weight;
+    totalWeight += techComponent.weight;
+    totalConfidence += techComponent.confidence * techComponent.weight;
+    if (techComponent.direction && ['UP', 'DOWN', 'NEUTRAL'].includes(techComponent.direction)) {
+      (directionalVotes as any)[techComponent.direction] += techComponent.weight;
+    }
   }
 
   // Sentiment component

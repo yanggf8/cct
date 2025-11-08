@@ -4,7 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 
 const logger = createLogger('signal-tracking');
 
@@ -150,9 +150,9 @@ class SignalTrackingManager {
     const signalsKey = `signals_${dateStr}`;
 
     try {
-      const dal = createDAL(env);
+      const dal = createSimplifiedEnhancedDAL(env);
       const result = await dal.read(signalsKey);
-      if (result.success && result.data) {
+      if (result.data) {
         return result.data.signals || [];
       }
     } catch (error: unknown) {
@@ -180,13 +180,8 @@ class SignalTrackingManager {
         }
       };
 
-      const dal = createDAL(env);
-      const writeResult = await dal.write(signalsKey, signalsData);
-
-      if (!writeResult.success) {
-        logger.warn('Failed to write signals data', { error: writeResult.error });
-        return false;
-      }
+      const dal = createSimplifiedEnhancedDAL(env);
+      await dal.write(signalsKey, signalsData);
 
       logger.info('Saved signals to KV storage', {
         date: dateStr,

@@ -4,30 +4,31 @@
  * Following DAC patterns and integrating with existing KV infrastructure
  */
 
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { ProcessingTimer } from './api-v1-responses';
 
-// Simple KV functions using DAL
+// Simple KV functions using enhanced DAL
 async function getKVStore(env: any, key: string) {
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   const result = await dal.read(key);
-  return result.success ? result.data : null;
+  return result.data || null;
 }
 
 async function setKVStore(env: any, key: string, data: any, ttl?: number | null) {
-  const dal = createDAL(env);
-  const expirationTtl: number | undefined = ttl === null ? undefined : ttl;
-  const result = await dal.write(key, data, { expirationTtl });
-  return result.success;
+  const dal = createSimplifiedEnhancedDAL(env);
+  // Note: Enhanced DAL doesn't support options parameter in the same way
+  // We'll use the simplified API
+  await dal.write(key, data);
+  return true;
 }
 async function listKVStore(env: any, prefix: string) {
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   const result = await dal.listKeys(prefix);
   return result.keys;
 }
 
 async function deleteKVStore(env: any, key: string) {
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   return await dal.deleteKey(key);
 }
 

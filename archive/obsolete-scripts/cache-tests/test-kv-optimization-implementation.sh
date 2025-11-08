@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Configuration
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-X_API_KEY="yanggf"
+X_API_KEY="${X_API_KEY}"
 TIMEOUT=30
 LOG_FILE="kv-optimization-$(date +%Y%m%d-%H%M%S).log"
 

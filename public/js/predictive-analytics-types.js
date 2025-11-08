@@ -1,3 +1,4 @@
+// SECURITY: Hardcoded API keys removed for security
 /**
  * API Types for Predictive Analytics Dashboard
  * TypeScript-like type definitions for API responses

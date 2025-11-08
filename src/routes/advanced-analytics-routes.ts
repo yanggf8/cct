@@ -7,11 +7,21 @@
 import {
   ApiResponseFactory,
   ProcessingTimer,
-  validateApiKey,
-  generateRequestId,
   HttpStatus
 } from '../modules/api-v1-responses.js';
+import { validateApiKey, generateRequestId } from './api-v1.js';
+import {
+  validateSymbol,
+  validateSymbols,
+  validateRequestBody,
+  validateNumberRange,
+  validatePercentage,
+  ValidationError,
+  safeValidate
+} from '../modules/validation.js';
 import { createLogger } from '../modules/logging.js';
+import { createCache } from '../modules/cache-abstraction.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('advanced-analytics-routes');
 
@@ -23,15 +33,15 @@ const logger = createLogger('advanced-analytics-routes');
  * @param {Object} headers - Response headers
  * @returns {Promise<Response>} HTTP response
  */
-export async function handleAdvancedAnalyticsRoutes(request: Request, env: any, path: string, headers: Record<string, string>): Promise<Response> {
+export async function handleAdvancedAnalyticsRoutes(request: Request, env: CloudflareEnvironment, path: string, headers: Record<string, string>): Promise<Response> {
   const url = new URL(request.url);
   const method = request.method;
   const requestId = generateRequestId();
 
   try {
     // Validate API key
-    const apiKey = validateApiKey(request);
-    if (!apiKey) {
+    const auth = validateApiKey(request, env);
+    if (!auth.valid) {
       return new Response(
         JSON.stringify(
           ApiResponseFactory.error('Invalid or missing API key', 'UNAUTHORIZED', { requestId })
@@ -133,8 +143,26 @@ async function handleModelComparison(request, env, headers, requestId) {
   const timer = new ProcessingTimer();
 
   try {
+    // Validate request body
     const body = await request.json();
-    const { symbols = ['AAPL', 'MSFT', 'NVDA'], models = ['dual-ai', 'technical', 'hybrid'], timeRange = '1M' } = body;
+    const validatedBody = validateRequestBody(body);
+
+    // Validate and sanitize inputs
+    const symbols = validatedBody.symbols ? validateSymbols(validatedBody.symbols) : ['AAPL', 'MSFT', 'NVDA'];
+
+    // Validate models array (optional field with defaults)
+    const defaultModels = ['dual-ai', 'technical', 'hybrid'];
+    const models = validatedBody.models
+      ? Array.isArray(validatedBody.models) && validatedBody.models.length > 0
+        ? validatedBody.models.filter(m => typeof m === 'string').slice(0, 5)
+        : defaultModels
+      : defaultModels;
+
+    // Validate time range (optional with default)
+    const validTimeRanges = ['1D', '1W', '1M', '3M', '6M', '1Y'];
+    const timeRange = validatedBody.timeRange && validTimeRanges.includes(validatedBody.timeRange)
+      ? validatedBody.timeRange
+      : '1M';
 
     // Simulate model comparison data
     const comparisonData = {
@@ -228,6 +256,33 @@ async function handleModelComparison(request, env, headers, requestId) {
     );
 
   } catch (error: unknown) {
+    // Handle validation errors specifically
+    if (error instanceof ValidationError) {
+      logger.warn('ModelComparison Validation Error', {
+        field: error.field,
+        value: error.value,
+        message: error.message,
+        requestId
+      });
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `Invalid input: ${error.message}`,
+            'VALIDATION_ERROR',
+            {
+              requestId,
+              field: error.field,
+              value: error.value
+            }
+          )
+        ),
+        {
+          status: HttpStatus.BAD_REQUEST,
+          headers
+        }
+      );
+    }
+
     logger.error('Model comparison error', { error: (error instanceof Error ? error.message : String(error)), requestId });
 
     return new Response(
@@ -1295,8 +1350,10 @@ async function checkKVHealth(env: any) {
   try {
     // Test KV read performance
     const testKey = `health_check_${Date.now()}`;
-    await env.TRADING_RESULTS.put(testKey, 'test', { expirationTtl: 60 });
-    const readResult = await env.TRADING_RESULTS.get(testKey);
+    // Use cache abstraction instead of direct KV operations
+    const cache = createCache(env);
+    await cache.put(testKey, 'test', { expirationTtl: 60 });
+    const readResult = await cache.get(testKey);
     responseTime = Date.now() - startTime;
 
     if (readResult === 'test') {
@@ -1311,7 +1368,7 @@ async function checkKVHealth(env: any) {
     }
 
     // Cleanup
-    await env.TRADING_RESULTS.delete(testKey);
+    await cache.delete(testKey);
   } catch (error: unknown) {
     kvStatus = 'unhealthy';
     responseTime = Date.now() - startTime;

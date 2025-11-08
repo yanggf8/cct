@@ -13,7 +13,7 @@
  */
 
 import { createLogger } from './logging.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { initializeMacroEconomicFetcher, type EnhancedMacroDrivers } from './macro-economic-fetcher.js';
 import { initializeMarketStructureFetcher, type EnhancedMarketStructure } from './market-structure-fetcher.js';
 import { initializeMarketRegimeClassifier, type EnhancedRegimeAnalysis } from './market-regime-classifier.js';
@@ -365,7 +365,7 @@ export class MarketDriversManager {
   private fredApiKey?: string;
 
   constructor(env: any) {
-    this.dal = createDAL(env);
+    this.dal = createSimplifiedEnhancedDAL(env);
     this.cacheManager = new DOMarketDriversCacheAdapter(env);
     this.fredApiKey = env.FRED_API_KEY;
 

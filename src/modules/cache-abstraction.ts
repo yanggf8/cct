@@ -67,10 +67,10 @@ export class CacheAbstraction {
 
     if (this.useDO) {
       this.doCache = new DualCacheDO(env.CACHE_DO!);
-      logger.info('CACHE_ABSTRACTION_INIT', 'Using DO cache (primary)');
+      logger.info('CACHE_ABSTRACTION_INIT', { source: 'DO cache (primary)' });
     } else {
       this.doCache = null;
-      logger.info('CACHE_ABSTRACTION_INIT', 'Using KV cache (fallback)');
+      logger.info('CACHE_ABSTRACTION_INIT', { source: 'KV cache (fallback)' });
     }
   }
 
@@ -93,7 +93,7 @@ export class CacheAbstraction {
         logger.debug('CACHE_PUT_KV', { key, ttl, source: 'kv' });
       }
     } catch (error) {
-      logger.error('CACHE_PUT_ERROR', `Failed to write ${key}`, error);
+      logger.error('CACHE_PUT_ERROR', { key, error: String(error) });
       throw error;
     }
   }
@@ -125,7 +125,7 @@ export class CacheAbstraction {
         return null;
       }
     } catch (error) {
-      logger.error('CACHE_GET_ERROR', `Failed to read ${key}`, error);
+      logger.error('CACHE_GET_ERROR', { key, error: String(error) });
       return null;
     }
   }
@@ -146,7 +146,7 @@ export class CacheAbstraction {
         logger.debug('CACHE_DELETE_KV', { key, source: 'kv' });
       }
     } catch (error) {
-      logger.error('CACHE_DELETE_ERROR', `Failed to delete ${key}`, error);
+      logger.error('CACHE_DELETE_ERROR', { key, error: String(error) });
       throw error;
     }
   }
@@ -159,7 +159,7 @@ export class CacheAbstraction {
     try {
       if (this.doCache) {
         // DO cache doesn't support list - use KV fallback for this operation
-        logger.warn('CACHE_LIST_WARNING', 'List operation not supported in DO cache, falling back to KV');
+        logger.warn('CACHE_LIST_WARNING', { message: 'List operation not supported in DO cache, falling back to KV' });
       }
 
       // Always use KV for list operations
@@ -172,7 +172,7 @@ export class CacheAbstraction {
 
       return result as CacheListResult;
     } catch (error) {
-      logger.error('CACHE_LIST_ERROR', 'Failed to list keys', error);
+      logger.error('CACHE_LIST_ERROR', { error: String(error) });
       return { keys: [], list_complete: true };
     }
   }
@@ -199,7 +199,7 @@ export class CacheAbstraction {
       try {
         return await this.doCache.getStats();
       } catch (error) {
-        logger.error('CACHE_STATS_ERROR', 'Failed to get stats', error);
+        logger.error('CACHE_STATS_ERROR', { error: String(error) });
         return null;
       }
     }
@@ -214,13 +214,13 @@ export class CacheAbstraction {
     if (this.doCache) {
       try {
         await this.doCache.clear();
-        logger.info('CACHE_CLEAR_DO', 'All cache entries cleared');
+        logger.info('CACHE_CLEAR_DO', { message: 'All cache entries cleared' });
       } catch (error) {
-        logger.error('CACHE_CLEAR_ERROR', 'Failed to clear cache', error);
+        logger.error('CACHE_CLEAR_ERROR', { error: String(error) });
         throw error;
       }
     } else {
-      logger.warn('CACHE_CLEAR_WARNING', 'Clear operation only supported with DO cache');
+      logger.warn('CACHE_CLEAR_WARNING', { message: 'Clear operation only supported with DO cache' });
     }
   }
 
@@ -242,7 +242,7 @@ export class CacheAbstraction {
         return { healthy: value === 'test', source: 'kv' };
       }
     } catch (error) {
-      logger.error('CACHE_HEALTH_ERROR', 'Health check failed', error);
+      logger.error('CACHE_HEALTH_ERROR', { error: String(error) });
       return { healthy: false, source: this.useDO ? 'do' : 'kv' };
     }
   }

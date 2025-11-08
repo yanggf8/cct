@@ -18,6 +18,13 @@ import {
   extractSymbolsParam,
   generateRequestId
 } from './api-v1.js';
+import {
+  validateSymbol,
+  validateSymbols,
+  validateRequestBody,
+  ValidationError,
+  safeValidate
+} from '../modules/validation.js';
 import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
@@ -71,7 +78,7 @@ export async function handleSentimentRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Validate API key for protected endpoints
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(
@@ -245,15 +252,15 @@ async function handleSentimentAnalysis(
         analysis_time_ms: timer.getElapsedMs(),
         ai_models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
         data_sources: ['Yahoo Finance', 'News APIs'],
-        ...(analysisResult.optimization && {
+        ...((analysisResult as any).optimization && {
           optimization: {
             enabled: true,
-            cacheHitRate: analysisResult.optimization.cacheHitRate,
-            kvReduction: analysisResult.optimization.kvReduction,
-            timeSaved: analysisResult.optimization.timeSaved,
-            batchEfficiency: analysisResult.optimization.batchEfficiency,
-            cachedItems: analysisResult.optimization.statistics.cachedItems,
-            deduplicationRate: analysisResult.optimization.statistics.deduplicationRate
+            cacheHitRate: (analysisResult as any).optimization.cacheHitRate,
+            kvReduction: (analysisResult as any).optimization.kvReduction,
+            timeSaved: (analysisResult as any).optimization.timeSaved,
+            batchEfficiency: (analysisResult as any).optimization.batchEfficiency,
+            cachedItems: (analysisResult as any).optimization.statistics.cachedItems,
+            deduplicationRate: (analysisResult as any).optimization.statistics.deduplicationRate
           }
         })
       },
@@ -324,25 +331,11 @@ async function handleSymbolSentiment(
   }
 
   try {
-    // Validate symbol
-    if (!symbol || symbol.length > 10) {
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.error(
-            'Invalid symbol format',
-            'INVALID_SYMBOL',
-            { requestId, symbol }
-          )
-        ),
-        {
-          status: HttpStatus.BAD_REQUEST,
-          headers,
-        }
-      );
-    }
+    // Validate and sanitize symbol
+    const validatedSymbol = validateSymbol(symbol);
 
     // Check cache first
-    const cacheKey = `symbol_sentiment_${symbol}_${new Date().toISOString().split('T')[0]}`;
+    const cacheKey = `symbol_sentiment_${validatedSymbol}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
     if (cached && cached.success && cached.data) {
@@ -438,6 +431,35 @@ async function handleSymbolSentiment(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
+    // Handle validation errors specifically
+    if (error instanceof ValidationError) {
+      logger.warn('SymbolSentiment Validation Error', {
+        field: error.field,
+        value: error.value,
+        message: error.message,
+        requestId,
+        symbol
+      });
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `Invalid input: ${error.message}`,
+            'VALIDATION_ERROR',
+            {
+              requestId,
+              symbol,
+              field: error.field,
+              value: error.value
+            }
+          )
+        ),
+        {
+          status: HttpStatus.BAD_REQUEST,
+          headers
+        }
+      );
+    }
+
     logger.error('SymbolSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId,

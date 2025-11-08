@@ -14,7 +14,7 @@ import { KVUtils } from './shared-utilities.js';
 import { getFactTableData, getCronHealthStatus } from './data.js';
 // Models removed - using GPT-OSS-120B enhanced analysis instead
 import { analyzeSingleSymbol } from './per_symbol_analysis.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -169,11 +169,11 @@ export async function handleGetResults(request: Request, env: CloudflareEnvironm
 
     // Try to get stored results from KV
     const resultKey = `analysis_${date}`;
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const result = await dal.read(resultKey);
 
-    if ((result as any).success && (result as any).data) {
-      return new Response(JSON.stringify((result as any).data, null, 2), {
+    if (result.data) {
+      return new Response(JSON.stringify(result.data, null, 2), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -376,12 +376,8 @@ export async function handleFacebookTest(request: Request, env: CloudflareEnviro
       };
 
       try {
-        const dal = createDAL(env);
-        const writeResult = await dal.write(
-          testKvKey,
-          testKvData,
-          KVUtils.getOptions('analysis')
-        );
+        const dal = createSimplifiedEnhancedDAL(env);
+        await dal.write(testKvKey, testKvData);
         console.log(`✅ [FB-TEST] KV storage test successful: ${testKvKey}`);
 
         // Verify KV storage by reading it back
@@ -397,7 +393,7 @@ export async function handleFacebookTest(request: Request, env: CloudflareEnviro
           message: 'KV verification failed'
         };
 
-        if (readResult.success && readResult.data) {
+        if (readResult.data) {
           console.log(`✅ [FB-TEST] KV storage verification successful`);
           kvStatus = {
             success: true,
@@ -605,10 +601,10 @@ export async function handleKVGet(request: Request, env: CloudflareEnvironment):
       });
     }
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const result = await dal.read(key);
 
-    if (!(result as any).success || !(result as any).data) {
+    if (!result.data) {
       return new Response(JSON.stringify({
         key: key,
         found: false,
@@ -622,7 +618,7 @@ export async function handleKVGet(request: Request, env: CloudflareEnvironment):
     return new Response(JSON.stringify({
       key: key,
       found: true,
-      value: (result as any).data,
+      value: result.data,
       timestamp: new Date().toISOString()
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -643,7 +639,7 @@ export async function handleKVGet(request: Request, env: CloudflareEnvironment):
  */
 export async function handleKVDebug(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const testKey = `test_kv_${Date.now()}`;
     const testData = {
       test: true,
@@ -704,7 +700,7 @@ export async function handleKVWriteTest(request: Request, env: CloudflareEnviron
     console.log(`🧪 [KV-WRITE-TEST] Testing KV write with key: ${testKey}`);
 
     // Test ONLY KV write
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     await dal.write(testKey,  testData);
 
     console.log(`✅ [KV-WRITE-TEST] KV write completed successfully`);
@@ -766,10 +762,10 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
     console.log(`🧪 [KV-READ-TEST] Testing KV read with key: ${key}`);
 
     // Test ONLY KV read
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const result = await dal.read(key);
 
-    if (!(result as any).success || !(result as any).data) {
+    if (!result.data) {
       console.log(`❌ [KV-READ-TEST] Key not found: ${key}`);
       const response: KVTestResult = {
         success: false,
@@ -794,8 +790,8 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
       operation: 'read_only',
       key: key,
       found: true,
-      value: (result as any).data,
-      raw_value_length: JSON.stringify((result as any).data).length,
+      value: result.data,
+      raw_value_length: JSON.stringify(result.data).length,
       kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
       timestamp: new Date().toISOString()
     };
@@ -1562,7 +1558,7 @@ export async function handleTestAllFacebookMessages(request: Request, env: Cloud
   ];
 
   // Get KV count before testing
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   let initialKVCount = 0;
   try {
     const initialKVList = await dal.listKeys("web_notif_");
@@ -1605,7 +1601,7 @@ export async function handleTestAllFacebookMessages(request: Request, env: Cloud
 
             // Verify the record contains expected data
             const readResult = await dal.read(newRecords[0]);
-            if (readResult.success && readResult.data) {
+            if (readResult.data) {
               const recordData = readResult.data;
               if (!recordData.message_sent || !recordData.cron_execution_id) {
                 kvStored = false;

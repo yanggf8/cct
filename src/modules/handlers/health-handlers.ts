@@ -7,7 +7,7 @@ import { createLogger, logHealthCheck } from '../logging.js';
 import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
-import { createDAL } from '../dal.js';
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('health-handlers');
@@ -34,7 +34,7 @@ export const handleHealthCheck = createHealthHandler('system-health', async (env
     services.yahoo = yahooHealth.status;
 
     // KV health
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const testKey = `health_check_${Date.now()}`;
     const writeResult = await dal.write(testKey, 'ok', { expirationTtl: 60 });
     const readResult = await dal.read(testKey);
@@ -186,7 +186,7 @@ export async function handleModelHealth(
 
     // Test KV storage using DAL
     try {
-      const dal = createDAL(env);
+      const dal = createSimplifiedEnhancedDAL(env);
       const testKey = `health_check_${Date.now()}`;
 
       // Test write

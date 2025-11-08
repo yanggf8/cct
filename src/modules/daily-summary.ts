@@ -13,7 +13,7 @@ import {
 } from './timezone-utils.js';
 import { getSymbolAnalysisByDate } from './data.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -388,7 +388,7 @@ export async function getDailySummary(
   console.log(`🔍 [DAILY-SUMMARY] Checking KV storage for ${kvKey}`);
 
   try {
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Check KV storage first using DAL
     const cachedResult = await dal.read(kvKey);

@@ -36,7 +36,7 @@ export async function handleMarketIntelligenceRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Market Intelligence endpoints require API key authentication
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(

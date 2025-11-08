@@ -917,7 +917,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         }
 
         // Toggle sidebar sections
-        function toggleSection(sectionId: any) {
+        function toggleSection(sectionId) {
             const items = document.getElementById(sectionId + '-items');
             if (items.style.display === 'none') {
                 items.style.display = 'block';
@@ -950,7 +950,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     document.querySelector('.health-indicator').style.background = '#ffc107';
                     document.querySelector('.health-indicator').title = 'System Issues';
                 }
-            } catch (error: unknown) {
+            } catch (error) {
                 document.querySelector('.health-indicator').style.background = '#ff4757';
                 document.querySelector('.health-indicator').title = 'System Error';
             }
@@ -969,7 +969,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                 } else {
                     document.getElementById('ai-status').textContent = 'Error';
                 }
-            } catch (error: unknown) {
+            } catch (error) {
                 document.getElementById('ai-status').textContent = 'Offline';
             }
         }
@@ -1008,6 +1008,8 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             checkSystemHealth();
             checkAIModels();
             updateTime();
+
+            // Initialize market clock immediately
             updateMarketClock();
 
             // Update time every minute
@@ -1016,8 +1018,23 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             // Update market clock every second
             setInterval(updateMarketClock, 1000);
 
+            console.log('Market clock initialized');
+
             // Update market data every 5 seconds
             setInterval(updateMarketData, 5000);
+        });
+
+        // Fallback initialization - run immediately if DOM already loaded
+        if (document.readyState === 'loading') {
+            // DOM is still loading, wait for it
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(updateMarketClock, 100);
+            });
+        } else {
+            // DOM is already loaded, run immediately
+            updateMarketClock();
+            console.log('Market clock fallback initialization completed');
+        }
 
             // Check system health every 30 seconds
             setInterval(checkSystemHealth, 30000);
@@ -1069,7 +1086,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     // Log the API failure gracefully
                     console.warn('Sector API unavailable - response:', response);
                 }
-            } catch (error: unknown) {
+            } catch (error) {
                 console.error('Error fetching sector data:', error);
                 // No fallback - just log the error
             } finally {
@@ -1120,22 +1137,23 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
         // Market Clock Widget Functions
         function updateMarketClock() {
-            const now = new Date();
+            try {
+                const now = new Date();
 
-            // Convert to EST/EDT
-            const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-            const hours = estTime.getHours();
-            const minutes = estTime.getMinutes();
-            const seconds = estTime.getSeconds();
+                // Convert to EST/EDT
+                const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+                const hours = estTime.getHours();
+                const minutes = estTime.getMinutes();
+                const seconds = estTime.getSeconds();
 
-            // Update clock display
-            const clockElement = document.getElementById('market-clock-time');
-            if (clockElement) {
-                clockElement.textContent =
-                    String(hours).padStart(2, '0') + ':' +
-                    String(minutes).padStart(2, '0') + ':' +
-                    String(seconds).padStart(2, '0');
-            }
+                // Update clock display
+                const clockElement = document.getElementById('market-clock-time');
+                if (clockElement) {
+                    clockElement.textContent =
+                        String(hours).padStart(2, '0') + ':' +
+                        String(minutes).padStart(2, '0') + ':' +
+                        String(seconds).padStart(2, '0');
+                }
 
             // Determine market session
             const currentTime = hours * 60 + minutes;
@@ -1187,6 +1205,9 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             if (nextEventElement) {
                 nextEventElement.textContent = nextEvent;
             }
+            } catch (error) {
+                console.error('Error updating market clock:', error);
+            }
         }
 
         // Mobile sidebar toggle
@@ -1232,7 +1253,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
                         // Close modal when clicking outside
                         setTimeout(() => {
-                            document.addEventListener('click', function closeModal(e: any) {
+                            document.addEventListener('click', function closeModal(e) {
                                 if (!modal.contains(e.target) && e.target !== container) {
                                     modal.remove();
                                     document.removeEventListener('click', closeModal);
@@ -1261,7 +1282,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                         badge.style.display = total > 0 ? 'block' : 'none';
                     }
                 }
-            } catch (error: unknown) {
+            } catch (error) {
                 console.error('Failed to update notification status:', error);
             }
         }
@@ -1282,7 +1303,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         'Access-Control-Allow-Headers': 'Content-Type, Authorization'
       }
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Error serving home dashboard:', error);
     return new Response(JSON.stringify({
       success: false,

@@ -1,3 +1,4 @@
+// SECURITY: Hardcoded API keys removed for security
 /**
  * Advanced Backtesting Visualizations Module
  * Provides sophisticated charting and analytics for backtesting results

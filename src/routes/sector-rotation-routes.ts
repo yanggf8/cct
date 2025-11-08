@@ -34,7 +34,7 @@ export async function handleSectorRotationRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Validate API key for protected endpoints
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(

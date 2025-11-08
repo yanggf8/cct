@@ -41,7 +41,7 @@ export async function handlePredictiveAnalyticsRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Predictive Analytics endpoints require API key authentication
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(

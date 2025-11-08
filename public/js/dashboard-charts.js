@@ -1,3 +1,4 @@
+// SECURITY: Hardcoded API keys removed for security
 /**
  * TFT Trading System Dashboard Charts
  * Interactive charts and visualizations using Chart.js

@@ -377,11 +377,11 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
             });
           });
 
-          const result = response[0];
+          const result = (Array.isArray(response) ? response[0] : response) as { label?: string; score?: number };
           return {
             index,
-            sentiment: (result as any).label.toLowerCase(),
-            confidence: (result as any).score,
+            sentiment: result.label?.toLowerCase() || 'neutral',
+            confidence: result.score || 0.5,
             title: (article as any).title.substring(0, 100)
           };
         } catch (error: any) {

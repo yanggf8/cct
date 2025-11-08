@@ -12,7 +12,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // Facebook imports removed - migrated to Chrome web notifications
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
-import { createDAL, DataAccessLayer } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -199,7 +199,7 @@ export async function handleScheduledEvent(
 
     // Store results in KV using DAL
     if (analysisResult) {
-      const dal: DataAccessLayer = createDAL(env);
+      const dal = createSimplifiedEnhancedDAL(env);
       let dateStr = estTime.toISOString().split('T')[0];
       const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, '');
 
@@ -209,7 +209,7 @@ export async function handleScheduledEvent(
       console.log(`💾 [CRON-DAL] ${cronExecutionId} storing results with keys: ${timestampedKey} and ${dailyKey}`);
 
       try {
-        // Store the timestamped analysis using DAL
+        // Store the timestamped analysis using enhanced DAL
         const timestampedResult = await dal.write(
           timestampedKey,
           {
@@ -217,17 +217,12 @@ export async function handleScheduledEvent(
             cron_execution_id: cronExecutionId,
             trigger_mode: triggerMode,
             timestamp: estTime.toISOString()
-          },
-          KVUtils.getOptions('analysis')
+          }
         );
 
-        if (timestampedResult.success) {
-          console.log(`✅ [CRON-DAL] ${cronExecutionId} Timestamped key stored: ${timestampedKey}`);
-        } else {
-          console.error(`❌ [CRON-DAL] ${cronExecutionId} Timestamped write failed: ${timestampedResult.error}`);
-        }
+        console.log(`✅ [CRON-DAL] ${cronExecutionId} Timestamped key stored: ${timestampedKey}`);
 
-        // Update the daily summary using DAL
+        // Update the daily summary using enhanced DAL
         const dailyResult = await dal.write(
           dailyKey,
           {
@@ -235,15 +230,10 @@ export async function handleScheduledEvent(
             cron_execution_id: cronExecutionId,
             trigger_mode: triggerMode,
             last_updated: estTime.toISOString()
-          },
-          KVUtils.getOptions('daily_summary')
+          }
         );
 
-        if (dailyResult.success) {
-          console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey}`);
-        } else {
-          console.error(`❌ [CRON-DAL] ${cronExecutionId} Daily write failed: ${dailyResult.error}`);
-        }
+        console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey}`);
       } catch (dalError: any) {
         console.error(`❌ [CRON-DAL-ERROR] ${cronExecutionId} DAL operation failed:`, {
           error: dalError.message,

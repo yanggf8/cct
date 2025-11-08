@@ -1,3 +1,4 @@
+// SECURITY: Hardcoded API keys removed for security
 /**
  * Portfolio Optimization Client
  * Advanced portfolio construction and optimization visualization

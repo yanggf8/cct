@@ -7,7 +7,7 @@
 import { WebNotificationManager, NotificationType, WebNotification, NotificationSubscription, NotificationPreferences } from '../web-notifications.js';
 import { createLogger, logBusinessMetric } from '../logging.js';
 import { KVKeyFactory, KeyTypes } from '../kv-key-factory.js';
-import { createDAL } from '../dal.js';
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('web-notification-handlers');
@@ -397,8 +397,8 @@ export async function handleNotificationPreferences(
     // Validate and sanitize preferences
     const validPreferences = sanitizePreferences(preferences);
 
-    // Use DAL directly to update preferences
-    const dal = createDAL(env);
+    // Use enhanced DAL directly to update preferences
+    const dal = createSimplifiedEnhancedDAL(env);
     const prefKey = KVKeyFactory.generateKey(KeyTypes.SYSTEM_METADATA, {
       component: `notification_preferences_${subscriptionId}`
     });
@@ -606,8 +606,9 @@ export async function handleNotificationStatus(
       date: today
     });
 
-    const dal = createDAL(env);
-    const analytics: any = await dal.read(analyticsKey) || {};
+    const dal = createSimplifiedEnhancedDAL(env);
+    const analyticsResult = await dal.read(analyticsKey);
+    const analytics: any = analyticsResult.success ? analyticsResult.data : {};
     const notifications = analytics.notifications || {};
 
     const status = {

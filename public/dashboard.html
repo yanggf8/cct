@@ -361,7 +361,10 @@
         // Initialize CCT API Client
         window.cctApi = new CCTApiClient({
             baseUrl: window.location.origin,
-            apiKey: localStorage.getItem('cct_api_key') || 'yanggf',
+            apiKey: localStorage.getItem('cct_api_key') || null,
+        
+        // Security: Require explicit authentication
+        requireAuthentication: true,
             timeout: 30000,
             enableCache: true,
             cacheTimeout: 300000 // 5 minutes

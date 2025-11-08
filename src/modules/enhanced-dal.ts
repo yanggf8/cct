@@ -508,7 +508,7 @@ export class EnhancedDataAccessLayer {
    */
   async deleteKey(key: string): Promise<boolean> {
     // Delete from all cache namespaces
-    if (this.enabled) {
+    if (this.enabled && this.cacheManager) {
       try {
         // Try to delete from common namespaces
         const namespaces = ['analysis_results', 'market_data', 'sector_data', 'market_drivers', 'api_responses'];
@@ -527,7 +527,7 @@ export class EnhancedDataAccessLayer {
    * Clear cache for specific namespace or all cache
    */
   async clearCache(namespace?: string): Promise<void> {
-    if (this.enabled) {
+    if (this.enabled && this.cacheManager) {
       // DualCacheDO.clear() clears all; namespace ignored for compatibility
       await this.cacheManager.clear();
       logger.info(`Cache cleared${namespace ? ` for namespace: ${namespace}` : ' completely'}`);
@@ -570,7 +570,7 @@ export class EnhancedDataAccessLayer {
    * Cleanup expired cache entries
    */
   async cleanup(): Promise<void> {
-    if (this.enabled) {
+    if (this.enabled && this.cacheManager) {
       await this.cacheManager.clear();
       logger.info('Cache cleanup completed');
     }

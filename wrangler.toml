@@ -8,6 +8,10 @@ account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 name = "tft-trading-system"
 main = "src/index.ts"
 
+[[env.production.durable_objects.bindings]]
+name = "CACHE_DO"
+class_name = "CacheDurableObject"
+
 [env.staging]
 name = "tft-trading-system-staging"
 main = "src/index.ts"

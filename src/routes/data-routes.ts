@@ -13,14 +13,23 @@ import {
 } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
-  generateRequestId
+  generateRequestId,
+  parseQueryParams
 } from './api-v1.js';
-import { createDAL } from '../modules/dal.js';
+import {
+  validateSymbol,
+  validateSymbols,
+  validateOptionalField,
+  validateDate,
+  ValidationError
+} from '../modules/validation.js';
+import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import { KVKeyFactory, KeyTypes } from '../modules/kv-key-factory.js';
 import { MemoryStaticDAL } from '../modules/memory-static-data.js';
 import type { CloudflareEnvironment } from '../types.js';
 import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { createCache } from '../modules/cache-abstraction.js';
 
 const logger = createLogger('data-routes');
 
@@ -53,7 +62,7 @@ export async function handleDataRoutes(
   const isPublicEndpoint = publicEndpoints.some(endpoint => path.startsWith(endpoint));
 
   if (!isPublicEndpoint) {
-    const auth = validateApiKey(request);
+    const auth = validateApiKey(request, env);
     if (!auth.valid) {
       return new Response(
         JSON.stringify(
@@ -157,7 +166,7 @@ async function handleAvailableSymbols(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   const memoryStaticDAL = new MemoryStaticDAL(dal);
   const url = new URL(request.url);
 
@@ -282,7 +291,7 @@ async function handleSymbolHistory(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   const url = new URL(request.url);
 
   try {
@@ -303,8 +312,18 @@ async function handleSymbolHistory(
       );
     }
 
-    // Parse query parameters
-    const days = Math.min(parseInt(url.searchParams.get('days') || '30'), 365); // Max 365 days
+    // Parse and validate query parameters
+    const params = parseQueryParams(url);
+    const days = validateOptionalField(
+      params.days ? parseInt(params.days) : 30,
+      (val) => {
+        if (isNaN(val) || val < 1 || val > 365) {
+          throw new ValidationError('Days parameter must be between 1 and 365', 'days', params.days);
+        }
+        return Math.min(val, 365);
+      },
+      'days'
+    ) || 30;
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
 
@@ -445,6 +464,35 @@ async function handleSymbolHistory(
       { status: HttpStatus.OK, headers }
     );
   } catch (error: unknown) {
+    // Handle validation errors specifically
+    if (error instanceof ValidationError) {
+      logger.warn('SymbolHistory Validation Error', {
+        field: error.field,
+        value: error.value,
+        message: error.message,
+        requestId,
+        symbol
+      });
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `Invalid input: ${error.message}`,
+            'VALIDATION_ERROR',
+            {
+              requestId,
+              symbol,
+              field: error.field,
+              value: error.value
+            }
+          )
+        ),
+        {
+          status: HttpStatus.BAD_REQUEST,
+          headers
+        }
+      );
+    }
+
     logger.error('SymbolHistory Error', { error: (error as any).message, requestId, symbol } as any);
 
     return new Response(
@@ -620,7 +668,7 @@ async function handleSystemHealth(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
 
   try {
     // Check AI models health
@@ -823,11 +871,13 @@ async function checkNewsAPIHealth(env: CloudflareEnvironment): Promise<{ status:
       ]
     };
 
-    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData), { expirationTtl: 60 });
-    const retrieved = await env.TRADING_RESULTS.get(testKey);
-    await env.TRADING_RESULTS.delete(testKey);
+    // Use cache abstraction instead of direct KV operations
+    const cache = createCache(env);
+    await cache.put(testKey, testData, { expirationTtl: 60 });
+    const retrieved = await cache.get(testKey);
+    await cache.delete(testKey);
 
-    const retrievedData = retrieved ? JSON.parse(retrieved) : null;
+    const retrievedData = retrieved || null; // Cache abstraction returns parsed data directly
     const isHealthy = retrievedData && retrievedData.headlines.length === 2;
 
     return {
@@ -847,9 +897,11 @@ async function checkKVStorageHealth(env: CloudflareEnvironment): Promise<{ statu
     const testKey = KVKeyFactory.generateTestKey('kv_health');
     const testData = { timestamp: Date.now(), test: 'kv_health' };
 
-    await env.TRADING_RESULTS.put(testKey, JSON.stringify(testData), { expirationTtl: 60 });
-    const retrieved = await env.TRADING_RESULTS.get(testKey);
-    await env.TRADING_RESULTS.delete(testKey);
+    // Use cache abstraction instead of direct KV operations
+    const cache = createCache(env);
+    await cache.put(testKey, testData, { expirationTtl: 60 });
+    const retrieved = await cache.get(testKey);
+    await cache.delete(testKey);
 
     return { status: retrieved ? 'healthy' : 'unhealthy' };
   } catch {
@@ -1007,43 +1059,49 @@ async function handleKVSelfTest(
     // Step 2: Direct KV write test (bypass all abstractions)
     const testKey = `kv-self-test:${requestId}:${Date.now()}`;
     const testValue = JSON.stringify({
-      test: 'KV self-test',
+      test: 'Cache abstraction test',
       timestamp: new Date().toISOString(),
       requestId,
-      data: 'Direct KV write test - bypasses all cache layers and DAL'
+      data: 'Cache abstraction layer test - validates DO cache + KV fallback'
     });
 
     try {
-      await env.TRADING_RESULTS.put(testKey, testValue, {
+      // Test cache abstraction layer (DO cache primary, KV fallback)
+      const cache = createCache(env);
+      await cache.put(testKey, JSON.parse(testValue), {
         expirationTtl: 60 // 1 minute
       });
       testResults.write_test = {
         success: true,
-        message: 'Direct KV put() succeeded',
-        key: testKey
+        message: 'Cache abstraction put() succeeded',
+        key: testKey,
+        source: 'cache_abstraction'
       };
     } catch (error) {
       testResults.write_test = {
         success: false,
-        message: 'Direct KV put() failed',
+        message: 'Cache abstraction put() failed',
         error: error instanceof Error ? error.message : String(error)
       };
       // Continue to next tests even if write fails
     }
 
-    // Step 3: Direct KV read test
+    // Step 3: Cache abstraction read test
     try {
-      const readValue = await env.TRADING_RESULTS.get(testKey);
-      if (readValue === testValue) {
+      const cache = createCache(env);
+      const readValue = await cache.get(testKey);
+      const readValueString = JSON.stringify(readValue);
+      if (readValueString === testValue) {
         testResults.read_test = {
           success: true,
-          message: 'Direct KV get() succeeded - data matches',
-          data: JSON.parse(readValue)
+          message: 'Cache abstraction get() succeeded - data matches',
+          data: readValue,
+          source: 'cache_abstraction'
         };
       } else if (readValue === null) {
         testResults.read_test = {
           success: false,
-          message: 'Direct KV get() returned null - data not found (possible write failure or async delay)',
+          message: 'Cache abstraction get() returned null - data not found (possible write failure or async delay)',
           data: null
         };
       } else {
@@ -1057,59 +1115,65 @@ async function handleKVSelfTest(
     } catch (error) {
       testResults.read_test = {
         success: false,
-        message: 'Direct KV get() failed',
+        message: 'Cache abstraction get() failed',
         error: error instanceof Error ? error.message : String(error)
       };
     }
 
-    // Step 4: Direct KV list test
+    // Step 4: Cache abstraction list test (KV fallback only)
     try {
-      const listResult = await env.TRADING_RESULTS.list({
+      const cache = createCache(env);
+      const listResult = await cache.list({
         prefix: `kv-self-test:${requestId}`,
         limit: 10
       });
       const found = listResult.keys.some(k => k.name === testKey);
       testResults.list_test = {
         success: true,
-        message: found ? 'Direct KV list() found test key' : 'Direct KV list() succeeded but test key not found',
+        message: found ? 'Cache abstraction list() found test key' : 'Cache abstraction list() succeeded but test key not found',
         found,
         totalKeys: listResult.keys.length,
-        keys: listResult.keys.map(k => k.name)
+        keys: listResult.keys.map(k => k.name),
+        source: 'cache_abstraction'
       };
     } catch (error) {
       testResults.list_test = {
         success: false,
-        message: 'Direct KV list() failed',
+        message: 'Cache abstraction list() failed',
         error: error instanceof Error ? error.message : String(error)
       };
     }
 
-    // Step 5: Direct KV delete test
+    // Step 5: Cache abstraction delete test
     try {
-      await env.TRADING_RESULTS.delete(testKey);
+      const cache = createCache(env);
+      await cache.delete(testKey);
       testResults.delete_test = {
         success: true,
-        message: 'Direct KV delete() succeeded'
+        message: 'Cache abstraction delete() succeeded',
+        source: 'cache_abstraction'
       };
     } catch (error) {
       testResults.delete_test = {
         success: false,
-        message: 'Direct KV delete() failed',
+        message: 'Cache abstraction delete() failed',
         error: error instanceof Error ? error.message : String(error)
       };
     }
 
     // Step 6: Verify cleanup
     try {
-      const verifyValue = await env.TRADING_RESULTS.get(testKey);
+      const cache = createCache(env);
+      const verifyValue = await cache.get(testKey);
       testResults.cleanup_verify = {
         success: verifyValue === null,
-        message: verifyValue === null ? 'Cleanup verified - key deleted' : 'WARNING: Key still exists after delete'
+        message: verifyValue === null ? 'Cache abstraction cleanup verified - key deleted' : 'WARNING: Key still exists after delete',
+        source: 'cache_abstraction'
       };
     } catch (error) {
       testResults.cleanup_verify = {
         success: false,
-        message: 'Cleanup verification failed',
+        message: 'Cache abstraction cleanup verification failed',
         error: error instanceof Error ? error.message : String(error)
       };
     }
@@ -1138,19 +1202,19 @@ async function handleKVSelfTest(
               cleanup_verified: testResults.cleanup_verify.success
             },
             recommendations: allTestsPassed ?
-              ['KV binding is fully operational'] :
+              ['Cache abstraction layer is fully operational (DO cache primary, KV fallback)'] :
               !testResults.binding_check.success ?
-                ['CRITICAL: KV namespace not bound - check wrangler.toml configuration',
-                 'Verify TRADING_RESULTS binding exists and has correct namespace ID'] :
+                ['CRITICAL: Cache bindings not available - check wrangler.toml configuration',
+                 'Verify CACHE_DO binding exists and TRADING_RESULTS as fallback'] :
               !testResults.write_test.success ?
-                ['CRITICAL: Cannot write to KV - check namespace permissions',
-                 'Verify namespace ID in wrangler.toml matches actual KV namespace'] :
+                ['CRITICAL: Cannot write to cache - check DO binding or KV permissions',
+                 'Verify CACHE_DO and TRADING_RESULTS bindings are correctly configured'] :
               !testResults.read_test.success ?
-                ['WARNING: Write succeeded but read failed - possible replication delay',
-                 'Try again in a few seconds, or check KV namespace status'] :
-                ['Some tests failed - review test_details for specifics']
-          },
-          'KV self-test completed'
+                ['WARNING: Write succeeded but read failed - possible cache consistency issue',
+                 'Check DO cache health or KV fallback status'] :
+                ['Some cache tests failed - review test_details for specifics'],
+            message: 'Cache abstraction test completed'
+          }
         )
       ),
       {
@@ -1160,12 +1224,12 @@ async function handleKVSelfTest(
     );
 
   } catch (error) {
-    logger.error('KV Self-Test Error', error, { requestId });
+    logger.error('KV Self-Test Error', { requestId, error: String(error) });
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.error(
-          'KV self-test failed with exception',
+          'Cache abstraction test failed with exception',
           'KV_SELFTEST_ERROR',
           {
             requestId,
@@ -1242,7 +1306,7 @@ async function handleShowBindings(
               CACHE_DO: !!env.CACHE_DO
             }
           },
-          'Environment bindings retrieved'
+          { message: 'Environment bindings retrieved' }
         )
       ),
       {
@@ -1252,7 +1316,7 @@ async function handleShowBindings(
     );
 
   } catch (error) {
-    logger.error('Show Bindings Error', error, { requestId });
+    logger.error('Show Bindings Error', { requestId, error: String(error) });
 
     return new Response(
       JSON.stringify(

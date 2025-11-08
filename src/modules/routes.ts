@@ -115,6 +115,75 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   }
 
   // Only handle specific critical static files that we need
+  if (pathname === '/test-market-clock.html') {
+    // Serve market clock test page
+    return new Response(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Clock Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a2e; color: white; }
+        .test-section { margin: 20px 0; padding: 15px; background: rgba(79, 172, 254, 0.1); border-radius: 8px; }
+        .clock-display { font-size: 2rem; font-weight: bold; color: #4facfe; margin: 10px 0; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .success { background: rgba(0, 255, 136, 0.2); }
+        .error { background: rgba(255, 0, 0, 0.2); }
+        .info { background: rgba(79, 172, 254, 0.2); }
+    </style>
+</head>
+<body>
+    <h1>🕐 Market Clock Test</h1>
+    <div class="clock-display" id="test-clock">Loading...</div>
+    <div class="status info" id="test-session">Determining market session...</div>
+    <script>
+        function updateMarketClock() {
+            try {
+                const now = new Date();
+                const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+                const hours = estTime.getHours();
+                const minutes = estTime.getMinutes();
+                const seconds = estTime.getSeconds();
+
+                document.getElementById('test-clock').textContent =
+                    String(hours).padStart(2, '0') + ':' +
+                    String(minutes).padStart(2, '0') + ':' +
+                    String(seconds).padStart(2, '0');
+
+                const currentTime = hours * 60 + minutes;
+                let session = '';
+
+                if (currentTime >= 240 && currentTime < 570) {
+                    session = 'Pre-Market Session';
+                } else if (currentTime >= 570 && currentTime < 960) {
+                    session = 'Market Open';
+                } else if (currentTime >= 960 && currentTime < 1200) {
+                    session = 'After-Hours Trading';
+                } else {
+                    session = 'Market Closed';
+                }
+
+                document.getElementById('test-session').innerHTML = '<strong>' + session + '</strong>';
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        updateMarketClock();
+        setInterval(updateMarketClock, 1000);
+    </script>
+</body>
+</html>
+    `, {
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-cache'
+      }
+    });
+  }
+
   if (pathname === '/js/api-client.js') {
     // Return a basic API client implementation
     const apiClientJS = `
@@ -132,17 +201,17 @@ class CCTApiClient {
             const response = await fetch('/api/v1/sectors/snapshot');
             const data = await response.json();
             return data;
-        } catch (error: unknown) {
+        } catch (error) {
             console.error('Failed to fetch sector snapshot:', error);
             throw error;
         }
     }
 
-    async get(endpoint: string) {
+    async get(endpoint) {
         try {
             const response = await fetch(this.baseUrl + endpoint);
             return await response.json();
-        } catch (error: unknown) {
+        } catch (error) {
             console.error('API request failed:', error);
             throw error;
         }
@@ -181,7 +250,7 @@ class WebNotificationSystem {
         };
     }
 
-    async requestPermission(): Promise<boolean> {
+    async requestPermission() {
         if (!this.isSupported) {
             console.warn('Notifications not supported in this browser');
             return false;
@@ -194,7 +263,7 @@ class WebNotificationSystem {
         return this.permission === 'granted';
     }
 
-    async sendNotification(title: string, options: NotificationOptions = {}): Promise<boolean> {
+    async sendNotification(title, options = {}) {
         if (!this.isSupported || this.permission !== 'granted') {
             console.warn('Notification permission not granted');
             return false;
@@ -215,35 +284,35 @@ class WebNotificationSystem {
             }, 5000);
 
             return true;
-        } catch (error: unknown) {
+        } catch (error) {
             console.error('Failed to send notification:', error);
             return false;
         }
     }
 
     // Type-safe notification methods
-    async sendPreMarketNotification(data: any): Promise<boolean> {
+    async sendPreMarketNotification(data) {
         return this.sendNotification('Pre-Market Briefing Available', {
             body: data.message || 'Check your pre-market trading signals',
             data: { type: 'pre-market', ...data }
         });
     }
 
-    async sendIntradayNotification(data: any): Promise<boolean> {
+    async sendIntradayNotification(data) {
         return this.sendNotification('Intraday Alert', {
             body: data.message || 'Intraday trading alert',
             data: { type: 'intraday', ...data }
         });
     }
 
-    async sendEndOfDayNotification(data: any): Promise<boolean> {
+    async sendEndOfDayNotification(data) {
         return this.sendNotification('End-of-Day Summary', {
             body: data.message || 'Market close analysis available',
             data: { type: 'end-of-day', ...data }
         });
     }
 
-    async sendWeeklyReviewNotification(data: any): Promise<boolean> {
+    async sendWeeklyReviewNotification(data) {
         return this.sendNotification('Weekly Review', {
             body: data.message || 'Weekly trading analysis ready',
             data: { type: 'weekly-review', ...data }

@@ -6,7 +6,7 @@
 
 import { createLogger } from './logging.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('web-notifications');
@@ -83,7 +83,7 @@ export class WebNotificationManager {
   private preferences: NotificationPreferences;
 
   constructor(env: CloudflareEnvironment) {
-    this.dal = createDAL(env);
+    this.dal = createSimplifiedEnhancedDAL(env);
     this.preferences = this.getDefaultPreferences();
   }
 
@@ -300,7 +300,7 @@ export class WebNotificationManager {
         component: `notification_subscription_${subscriptionId}`
       });
 
-      await this.dal.write(key, enrichedSubscription, KeyHelpers.getKVOptions(KeyTypes.SYSTEM_METADATA));
+      await this.dal.write(key, enrichedSubscription);
 
       // Initialize user preferences
       await this.setUserPreferences(subscriptionId, this.preferences);
@@ -365,7 +365,7 @@ export class WebNotificationManager {
       });
 
       const result = await this.dal.read(historyKey);
-      return result?.notifications?.slice(-limit) || [];
+      return result.data?.notifications?.slice(-limit) || [];
 
     } catch (error: unknown) {
       logger.error('Failed to get notification history', {
@@ -466,7 +466,7 @@ export class WebNotificationManager {
       });
 
       const result = await this.dal.read(prefKey);
-      return result || this.preferences;
+      return result.data || this.preferences;
     } catch (error: unknown) {
       logger.error('Failed to get user preferences', {
         userId,
@@ -481,7 +481,7 @@ export class WebNotificationManager {
       component: `notification_preferences_${userId}`
     });
 
-    await this.dal.write(prefKey, preferences, KeyHelpers.getKVOptions(KeyTypes.SYSTEM_METADATA));
+    await this.dal.write(prefKey, preferences);
   }
 
   private shouldSendNotification(
@@ -555,7 +555,7 @@ export class WebNotificationManager {
       maxAttempts: 3
     };
 
-    await this.dal.write(deliveryKey, deliveryData, KeyHelpers.getKVOptions(KeyTypes.SYSTEM_METADATA));
+    await this.dal.write(deliveryKey, deliveryData);
   }
 
   private async storeNotificationAnalytics(
@@ -567,7 +567,8 @@ export class WebNotificationManager {
     });
 
     try {
-      const existing = await this.dal.read(analyticsKey) || {};
+      const existingResult = await this.dal.read(analyticsKey);
+      const existing = existingResult.data || {};
       const updated = {
         ...existing,
         notifications: {
@@ -580,7 +581,7 @@ export class WebNotificationManager {
         }
       };
 
-      await this.dal.write(analyticsKey, updated, KeyHelpers.getKVOptions(KeyTypes.PERFORMANCE_METADATA));
+      await this.dal.write(analyticsKey, updated);
     } catch (error: unknown) {
       logger.error('Failed to store notification analytics', { error: (error instanceof Error ? error.message : String(error)) });
     }

@@ -12,7 +12,14 @@ import {
   validateApiKey,
   generateRequestId
 } from './api-v1.js';
-import { createDAL } from '../modules/dal.js';
+import {
+  validateSymbol,
+  validateSymbols,
+  validateRequestBody,
+  ValidationError,
+  safeValidate
+} from '../modules/validation.js';
+import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -59,7 +66,7 @@ export async function handleTechnicalRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   // Require API key
-  const auth = validateApiKey(request);
+  const auth = validateApiKey(request, env);
   if (!auth.valid) {
     return new Response(
       JSON.stringify(ApiResponseFactory.error('Invalid or missing API key','UNAUTHORIZED',{ requestId })),
@@ -101,13 +108,12 @@ async function handleTechnicalSingle(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createDAL(env);
+  const dal = createSimplifiedEnhancedDAL(env);
   try {
-    if (!symbol || symbol.length > 10) {
-      return new Response(JSON.stringify(ApiResponseFactory.error('Invalid symbol format','INVALID_SYMBOL',{ requestId, symbol })), { status: HttpStatus.BAD_REQUEST, headers });
-    }
+    // Validate and sanitize symbol
+    const validatedSymbol = validateSymbol(symbol);
 
-    const cacheKey = `technical_signal_${symbol}_${new Date().toISOString().split('T')[0]}`;
+    const cacheKey = `technical_signal_${validatedSymbol}_${new Date().toISOString().split('T')[0]}`;
     const cached = await dal.read(cacheKey);
     if (cached.success && cached.data) {
       return new Response(JSON.stringify(ApiResponseFactory.cached(cached.data,'hit',{ source:'cache', ttl: 1800, requestId, processingTime: timer.getElapsedMs() })), { status: HttpStatus.OK, headers });
@@ -125,6 +131,35 @@ async function handleTechnicalSingle(
 
     return new Response(JSON.stringify(ApiResponseFactory.success(signal, { source:'fresh', ttl: 1800, requestId, processingTime: timer.finish() })), { status: HttpStatus.OK, headers });
   } catch (error:any) {
+    // Handle validation errors specifically
+    if (error instanceof ValidationError) {
+      logger.warn('TechnicalSingle Validation Error', {
+        field: error.field,
+        value: error.value,
+        message: error.message,
+        requestId,
+        symbol
+      });
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `Invalid input: ${error.message}`,
+            'VALIDATION_ERROR',
+            {
+              requestId,
+              symbol,
+              field: error.field,
+              value: error.value
+            }
+          )
+        ),
+        {
+          status: HttpStatus.BAD_REQUEST,
+          headers
+        }
+      );
+    }
+
     return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical analysis','ANALYSIS_ERROR',{ requestId, symbol, error: (error instanceof Error ? error.message : String(error)), processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
   }
 }
@@ -137,18 +172,45 @@ async function handleTechnicalBatch(
 ): Promise<Response> {
   const timer = new ProcessingTimer();
   try {
-    const body = (await request.json().catch(() => ({}))) as any;
-    const symbols: string[] = Array.isArray(body.symbols) ? body.symbols.map((s:string)=>String(s).toUpperCase().slice(0,10)) : [];
+    // Validate request body
+    const body = await request.json().catch(() => ({})) as any;
+    const validatedBody = validateRequestBody(body, ['symbols']);
 
-    if (!symbols.length) {
-      return new Response(JSON.stringify(ApiResponseFactory.error('Body must include symbols array','INVALID_REQUEST',{ requestId })), { status: HttpStatus.BAD_REQUEST, headers });
-    }
+    // Validate and sanitize symbols array
+    const symbols = validateSymbols(validatedBody.symbols);
 
     const { runIndependentTechnicalAnalysis } = await import('../modules/independent_technical_analysis.js');
     const result: TechnicalBatchResponse = await runIndependentTechnicalAnalysis(symbols, env);
 
     return new Response(JSON.stringify(ApiResponseFactory.success(result, { source:'fresh', ttl: 1800, requestId, processingTime: timer.finish(), metadata: { symbols: symbols.length } })), { status: HttpStatus.OK, headers });
   } catch (error:any) {
+    // Handle validation errors specifically
+    if (error instanceof ValidationError) {
+      logger.warn('TechnicalBatch Validation Error', {
+        field: error.field,
+        value: error.value,
+        message: error.message,
+        requestId
+      });
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            `Invalid input: ${error.message}`,
+            'VALIDATION_ERROR',
+            {
+              requestId,
+              field: error.field,
+              value: error.value
+            }
+          )
+        ),
+        {
+          status: HttpStatus.BAD_REQUEST,
+          headers
+        }
+      );
+    }
+
     return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical batch analysis','ANALYSIS_ERROR',{ requestId, error: (error instanceof Error ? error.message : String(error)), processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
   }
 }

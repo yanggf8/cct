@@ -7,7 +7,7 @@
 import { getFactTableData, getCronHealthStatus } from '../data.js';
 import { createLogger } from '../logging.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from '../kv-key-factory.js';
-import { createDAL } from '../dal.js';
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('http-data-handlers');
@@ -24,9 +24,9 @@ export async function handleGetResults(
   try {
     logger.info('Results request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
-    // Try to get the latest analysis from KV storage using DAL
+    // Try to get the latest analysis from KV storage using enhanced DAL
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
 
@@ -187,7 +187,7 @@ export async function handleKVDebug(
   try {
     logger.info('KV debug request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Test KV operations
     const testKey = `debug_test_${Date.now()}`;
@@ -213,7 +213,7 @@ export async function handleKVDebug(
       operations: {
         write: writeResult.success,
         read: readResult.success,
-        delete: deleteResult
+        delete: deleteResult.success
       },
       test_key: testKey,
       test_value: testValue,
@@ -224,7 +224,7 @@ export async function handleKVDebug(
 
     logger.info('KV debug operations completed', {
       requestId,
-      allOperationsSuccessful: writeResult.success && readResult.success && deleteResult
+      allOperationsSuccessful: writeResult.success && readResult.success && deleteResult.success
     });
 
     return new Response(JSON.stringify(debugInfo, null, 2), {
@@ -262,7 +262,7 @@ export async function handleKVWriteTest(
   try {
     logger.info('KV write test request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Test data
     const testData = {
@@ -341,7 +341,7 @@ export async function handleKVReadTest(
   try {
     logger.info('KV read test request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const url = new URL(request.url);
     const testKey = url.searchParams.get('key');
 
@@ -412,7 +412,7 @@ export async function handleKVGet(
   try {
     logger.info('KV get request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
 
@@ -497,7 +497,7 @@ export async function handleKVAnalysisWriteTest(
   try {
     logger.info('KV analysis write test request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
 
     // Test analysis data
     const testAnalysisData = {
@@ -582,7 +582,7 @@ export async function handleKVAnalysisReadTest(
   try {
     logger.info('KV analysis read test request received', { requestId });
 
-    const dal = createDAL(env);
+    const dal = createSimplifiedEnhancedDAL(env);
     const url = new URL(request.url);
     const date = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
 

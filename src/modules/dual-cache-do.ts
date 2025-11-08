@@ -512,6 +512,14 @@ export class DualCacheDO<T = any> {
 }
 
 /**
+ * Check if DO cache is enabled
+ * Returns true if FEATURE_FLAG_DO_CACHE=true and CACHE_DO binding exists
+ */
+export function isDOCacheEnabled(env: any): boolean {
+  return env?.FEATURE_FLAG_DO_CACHE === 'true' && env?.CACHE_DO !== undefined;
+}
+
+/**
  * Factory function to create cache instances
  * Returns DO cache if available, null otherwise
  */
@@ -520,7 +528,7 @@ export function createCacheInstance(env: any, useDO: boolean = true): DualCacheD
     logger.info(`CACHE_FACTORY: Using Durable Objects cache`);
     return new DualCacheDO(env.CACHE_DO);
   }
-  
+
   logger.info(`CACHE_FACTORY: No cache (DO binding not available)`);
   return null;
 }

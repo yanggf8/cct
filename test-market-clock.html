@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Clock Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(79, 172, 254, 0.1);
+            border-radius: 8px;
+        }
+        .clock-display {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4facfe;
+            margin: 10px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: rgba(0, 255, 136, 0.2); }
+        .error { background: rgba(255, 0, 0, 0.2); }
+        .info { background: rgba(79, 172, 254, 0.2); }
+    </style>
+</head>
+<body>
+    <h1>🕐 Market Clock Test Page</h1>
+
+    <div class="test-section">
+        <h2>Current Market Clock Status</h2>
+        <div class="clock-display" id="test-clock">Loading...</div>
+        <div class="status info" id="test-session">Determining market session...</div>
+        <div class="status info" id="test-timezone">Checking timezone...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="test-results">Running tests...</div>
+    </div>
+
+    <script>
+        // Copy the market clock function from the main dashboard
+        function updateMarketClock() {
+            try {
+                const now = new Date();
+
+                // Show debugging info
+                const localTime = now.toLocaleString();
+                const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+
+                document.getElementById('test-timezone').innerHTML =
+                    `Local Time: ${localTime}<br>EST Time: ${estTime.toLocaleString()}`;
+
+                const hours = estTime.getHours();
+                const minutes = estTime.getMinutes();
+                const seconds = estTime.getSeconds();
+
+                // Update clock display
+                const clockElement = document.getElementById('test-clock');
+                if (clockElement) {
+                    clockElement.textContent =
+                        String(hours).padStart(2, '0') + ':' +
+                        String(minutes).padStart(2, '0') + ':' +
+                        String(seconds).padStart(2, '0');
+                }
+
+                // Determine market session
+                const currentTime = hours * 60 + minutes;
+                let session = '';
+                let badgeClass = '';
+                let nextEvent = '';
+
+                if (currentTime >= 240 && currentTime < 570) {
+                    // Pre-Market (4:00 AM - 9:30 AM)
+                    session = 'Pre-Market Session';
+                    badgeClass = 'pre-market';
+                    const minutesUntilOpen = 570 - currentTime;
+                    nextEvent = 'Market Opens in ' + Math.floor(minutesUntilOpen / 60) + 'h ' + (minutesUntilOpen % 60) + 'm';
+                } else if (currentTime >= 570 && currentTime < 960) {
+                    // Regular Market (9:30 AM - 4:00 PM)
+                    session = 'Market Open';
+                    badgeClass = 'open';
+                    const minutesUntilClose = 960 - currentTime;
+                    nextEvent = 'Market Closes in ' + Math.floor(minutesUntilClose / 60) + 'h ' + (minutesUntilClose % 60) + 'm';
+                } else if (currentTime >= 960 && currentTime < 1200) {
+                    // After-Hours (4:00 PM - 8:00 PM)
+                    session = 'After-Hours Trading';
+                    badgeClass = 'after-hours';
+                    const minutesUntilClose = 1200 - currentTime;
+                    nextEvent = 'After-Hours Closes in ' + Math.floor(minutesUntilClose / 60) + 'h ' + (minutesUntilClose % 60) + 'm';
+                } else {
+                    // Market Closed
+                    session = 'Market Closed';
+                    badgeClass = 'closed';
+                    if (currentTime >= 1200) {
+                        const minutesUntilPreMarket = (1440 - currentTime) + 240;
+                        nextEvent = 'Pre-Market Opens in ' + Math.floor(minutesUntilPreMarket / 60) + 'h ' + (minutesUntilPreMarket % 60) + 'm';
+                    } else {
+                        const minutesUntilPreMarket = 240 - currentTime;
+                        nextEvent = 'Pre-Market Opens in ' + Math.floor(minutesUntilPreMarket / 60) + 'h ' + (minutesUntilPreMarket % 60) + 'm';
+                    }
+                }
+
+                const sessionElement = document.getElementById('test-session');
+                if (sessionElement) {
+                    sessionElement.innerHTML =
+                        `<strong>${session}</strong><br>${nextEvent}<br>Current EST minutes: ${currentTime}`;
+                }
+
+                return { success: true, session, nextEvent };
+            } catch (error) {
+                console.error('Error updating market clock:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Test function
+        function runTests() {
+            const results = document.getElementById('test-results');
+            let testResults = '<h3>Test Results:</h3>';
+
+            // Test 1: Function exists
+            if (typeof updateMarketClock === 'function') {
+                testResults += '<div class="status success">✅ updateMarketClock function exists</div>';
+            } else {
+                testResults += '<div class="status error">❌ updateMarketClock function not found</div>';
+                return;
+            }
+
+            // Test 2: Initial call
+            const initialResult = updateMarketClock();
+            if (initialResult.success) {
+                testResults += '<div class="status success">✅ Initial clock update successful</div>';
+            } else {
+                testResults += `<div class="status error">❌ Initial update failed: ${initialResult.error}</div>`;
+            }
+
+            // Test 3: Multiple updates
+            let updateCount = 0;
+            const testInterval = setInterval(() => {
+                const result = updateMarketClock();
+                updateCount++;
+
+                if (result.success) {
+                    testResults += `<div class="status success">✅ Update ${updateCount}: ${result.session}</div>`;
+                } else {
+                    testResults += `<div class="status error">❌ Update ${updateCount} failed: ${result.error}</div>`;
+                }
+
+                if (updateCount >= 5) {
+                    clearInterval(testInterval);
+                    testResults += '<div class="status success">✅ Clock test completed - clock is working!</div>';
+                    results.innerHTML = testResults;
+                }
+            }, 1000);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateMarketClock();
+            setInterval(updateMarketClock, 1000);
+            setTimeout(runTests, 2000);
+        });
+    </script>
+</body>
+</html>

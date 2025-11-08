@@ -6,7 +6,7 @@
 import { createLogger } from './logging.js';
 import { CONFIG } from './config.js';
 import { BusinessKPI, SystemMetrics } from './monitoring.js';
-import { createDAL } from './dal.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -125,15 +125,14 @@ export class PerformanceBaseline {
 
     // Store in KV for persistence
     const key = `perf_baseline_${operation}_${timestamp}`;
-    const dal = createDAL(this.env);
-    const writeResult = await dal.write(key, measurement, {
-      expirationTtl: CONFIG.KV_STORAGE.GRANULAR_TTL // 90 days
-    });
+    const dal = createSimplifiedEnhancedDAL(this.env);
 
-    if (!writeResult.success) {
+    try {
+      await dal.write(key, measurement);
+    } catch (error: unknown) {
       logger.warn('Failed to write performance measurement', {
         operation,
-        error: writeResult.error
+        error: error instanceof Error ? error.message : String(error)
       });
     }
 
