@@ -116,7 +116,7 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
 
   // Only handle specific critical static files that we need
   if (pathname === '/test-market-clock.html') {
-    // Serve market clock test page
+    // Serve market clock test page using same logic as dashboard
     return new Response(`
 <!DOCTYPE html>
 <html lang="en">
@@ -135,10 +135,15 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
     </style>
 </head>
 <body>
-    <h1>🕐 Market Clock Test</h1>
-    <div class="clock-display" id="test-clock">Loading...</div>
-    <div class="status info" id="test-session">Determining market session...</div>
+    <h1>🕐 Market Clock Test (Production Logic)</h1>
+    <div class="test-section">
+        <h2>Current Market Clock Status</h2>
+        <div class="clock-display" id="test-clock">Loading...</div>
+        <div class="status info" id="test-session">Determining market session...</div>
+        <div class="status info" id="test-timezone">Checking timezone...</div>
+    </div>
     <script>
+        // Use same logic as dashboard-main.js
         function updateMarketClock() {
             try {
                 const now = new Date();
@@ -147,30 +152,64 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
                 const minutes = estTime.getMinutes();
                 const seconds = estTime.getSeconds();
 
+                // Update clock display
                 document.getElementById('test-clock').textContent =
                     String(hours).padStart(2, '0') + ':' +
                     String(minutes).padStart(2, '0') + ':' +
                     String(seconds).padStart(2, '0');
 
-                const currentTime = hours * 60 + minutes;
-                let session = '';
+                // Show timezone info
+                document.getElementById('test-timezone').innerHTML =
+                    'Local Time: ' + now.toLocaleString() + '<br>' +
+                    'EST Time: ' + estTime.toLocaleString();
 
-                if (currentTime >= 240 && currentTime < 570) {
-                    session = 'Pre-Market Session';
-                } else if (currentTime >= 570 && currentTime < 960) {
-                    session = 'Market Open';
-                } else if (currentTime >= 960 && currentTime < 1200) {
-                    session = 'After-Hours Trading';
-                } else {
-                    session = 'Market Closed';
-                }
-
-                document.getElementById('test-session').innerHTML = '<strong>' + session + '</strong>';
+                // Determine market session (same as dashboard)
+                updateMarketStatus(estTime);
             } catch (error) {
                 console.error('Error:', error);
             }
         }
 
+        function updateMarketStatus(estTime) {
+            const day = estTime.getDay();
+            const hours = estTime.getHours();
+            const minutes = estTime.getMinutes();
+            const currentTime = hours * 60 + minutes;
+            let session = '';
+            let statusClass = '';
+
+            // Weekend
+            if (day === 0 || day === 6) {
+                session = 'Weekend';
+                statusClass = 'error';
+            }
+            // Pre-market (4:00 AM - 9:30 AM ET)
+            else if (hours >= 4 && (hours < 9 || (hours === 9 && minutes < 30))) {
+                session = 'Pre-Market';
+                statusClass = 'info';
+            }
+            // Market hours (9:30 AM - 4:00 PM ET)
+            else if ((hours > 9 || (hours === 9 && minutes >= 30)) && hours < 16) {
+                session = 'Market Open';
+                statusClass = 'success';
+            }
+            // After-hours (4:00 PM - 8:00 PM ET)
+            else if (hours >= 16 && hours < 20) {
+                session = 'After Hours';
+                statusClass = 'info';
+            }
+            // Closed
+            else {
+                session = 'Market Closed';
+                statusClass = 'error';
+            }
+
+            const statusElement = document.getElementById('test-session');
+            statusElement.innerHTML = '<strong>' + session + '</strong>';
+            statusElement.className = 'status ' + statusClass;
+        }
+
+        // Initialize clock
         updateMarketClock();
         setInterval(updateMarketClock, 1000);
     </script>
@@ -185,48 +224,353 @@ async function serveStaticFile(pathname: string): Promise<Response | null> {
   }
 
   if (pathname === '/js/api-client.js') {
-    // Return a basic API client implementation
-    const apiClientJS = `
-// CCT API Client for Trading Platform
-console.log('CCT API Client module loaded');
+    // Serve the secure API client from public/js/api-client.js
+    // Since this is a Worker environment, we need to include the content directly
+    return new Response(`
+/**
+ * CCT API Client v1 - Secure & Backward Compatible
+ * No hardcoded API keys but graceful degradation for unauthenticated requests
+ */
 
 class CCTApiClient {
+  constructor(options = {}) {
+    this.baseUrl = options.baseUrl || '/api/v1';
+    this.apiKey = options.apiKey || this.getStoredApiKey() || null;
+    this.defaultHeaders = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    // Only add API key header if we have one
+    if (this.apiKey) {
+      this.defaultHeaders['X-API-Key'] = this.apiKey;
+    }
+    this.timeout = options.timeout || 30000;
+    this.enableCache = options.enableCache !== false;
+    this.cache = new Map();
+    this.cacheTimeout = options.cacheTimeout || 300000;
+  }
+
+  getStoredApiKey() {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('cct_api_key');
+    }
+    return null;
+  }
+
+  setApiKey(apiKey) {
+    this.apiKey = apiKey;
+    if (this.apiKey) {
+      this.defaultHeaders['X-API-Key'] = apiKey;
+    } else {
+      delete this.defaultHeaders['X-API-Key'];
+    }
+    // SECURITY: Session-based only - no localStorage storage
+  }
+
+  async request(endpoint, options = {}) {
+    const url = \`\${this.baseUrl}\${endpoint}\`;
+    const config = {
+      headers: { ...this.defaultHeaders, ...options.headers },
+      timeout: this.timeout,
+      ...options
+    };
+
+    try {
+      const response = await fetch(url, config);
+
+      if (response.status === 401) {
+        console.warn('Authentication required for:', endpoint);
+        // Don't throw error, return mock data for unauthenticated requests
+        return { success: false, error: 'Authentication required', data: null };
+      }
+
+      if (!response.ok) {
+        throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('API request failed:', error.message);
+      throw error;
+    }
+  }
+
+  // Public endpoints (work without authentication)
+  async getSymbols() {
+    return this.request('/data/symbols');
+  }
+
+  async getHealth() {
+    return this.request('/data/health');
+  }
+
+  // Protected endpoints (require authentication)
+  async getSentimentAnalysis(symbols) {
+    return this.request(\`/sentiment/symbols/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
+  }
+
+  async getMarketSentiment() {
+    return this.request('/sentiment/market');
+  }
+
+  async getDailyReport(date) {
+    return this.request(\`/reports/daily/\${date}\`);
+  }
+
+  async getPreMarketBriefing() {
+    return this.request('/reports/pre-market');
+  }
+
+  async getIntradayCheck() {
+    return this.request('/reports/intraday');
+  }
+
+  async getEndOfDaySummary() {
+    return this.request('/reports/end-of-day');
+  }
+
+  async getSymbolHistory(symbol, period = '1mo') {
+    return this.request(\`/data/history/\${symbol}?period=\${period}\`);
+  }
+
+  async getMarketRegime() {
+    return this.request('/market/regime');
+  }
+
+  async getPredictiveSignals(symbols) {
+    return this.request(\`/predictive/signals/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
+  }
+
+  async getSectorSnapshot() {
+    return this.request('/sectors/snapshot');
+  }
+
+  async getSectorAnalysis() {
+    return this.request('/sectors/analysis');
+  }
+
+  async getPortfolioCorrelation(symbols) {
+    return this.request('/portfolio/correlation', {
+      method: 'POST',
+      body: JSON.stringify({ symbols })
+    });
+  }
+
+  async getRiskMetrics(symbols) {
+    return this.request(\`/risk/metrics/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
+  }
+
+  async getTechnicalAnalysis(symbol, indicators = []) {
+    return this.request(\`/technical/analysis/\${symbol}?indicators=\${indicators.join(',')}\`);
+  }
+
+  // Cache management
+  clearCache() {
+    this.cache.clear();
+  }
+}
+
+// Initialize global API client with backward compatibility
+window.cctApi = new CCTApiClient({
+  baseUrl: window.location.origin,
+  apiKey: (() => {
+    try {
+      return localStorage.getItem('cct_api_key');
+    } catch (e) {
+      return null;
+    }
+  })(),
+  timeout: 30000,
+  enableCache: true,
+  cacheTimeout: 300000
+});
+
+// Global authentication function
+window.setCctApiKey = function(apiKey) {
+  if (window.cctApi) {
+    window.cctApi.setApiKey(apiKey);
+  }
+};
+
+console.log('CCT API Client initialized (secure, backward-compatible version)');
+    `, {
+      headers: {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'no-cache'
+      }
+    });
+  }
+
+  if (pathname === '/js/secure-auth.js') {
+    // Serve secure authentication module
+    return new Response(`
+/**
+ * Secure Authentication Module
+ * Replaces hardcoded API keys with proper authentication
+ */
+
+class SecureAuth {
     constructor() {
-        this.baseUrl = '';
-        this.cache = new Map();
+        this.apiKey = null;
+        this.isAuthenticated = false;
     }
 
-    async getSectorSnapshot() {
+    // Initialize with API key
+    async authenticate(apiKey) {
+        if (!apiKey) {
+            throw new Error('API key is required for authentication');
+        }
+
         try {
-            const response = await fetch('/api/v1/sectors/snapshot');
-            const data = await response.json();
-            return data;
+            // Test API key validity
+            const response = await fetch('/api/v1/data/health', {
+                headers: {
+                    'X-API-Key': apiKey,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                this.apiKey = apiKey;
+                this.isAuthenticated = true;
+
+                // SECURITY: Session-based authentication only
+                console.log('API key authenticated (session-based)');
+
+                // Update global API client
+                if (window.cctApi && window.cctApi.setApiKey) {
+                    window.cctApi.setApiKey(apiKey);
+                }
+
+                return true;
+            } else {
+                throw new Error('Invalid API key');
+            }
         } catch (error) {
-            console.error('Failed to fetch sector snapshot:', error);
-            throw error;
+            throw new Error(\`Authentication failed: \${error.message}\`);
         }
     }
 
-    async get(endpoint) {
-        try {
-            const response = await fetch(this.baseUrl + endpoint);
-            return await response.json();
-        } catch (error) {
-            console.error('API request failed:', error);
-            throw error;
+    // Logout
+    logout() {
+        this.apiKey = null;
+        this.isAuthenticated = false;
+
+        // Session-based - no localStorage cleanup needed
+        if (window.cctApi && window.cctApi.setApiKey) {
+            window.cctApi.setApiKey(null);
         }
+    }
+
+    // Get authentication status
+    getAuthStatus() {
+        return {
+            isAuthenticated: this.isAuthenticated,
+            hasApiKey: !!this.apiKey
+        };
     }
 }
 
-// Initialize global API client
-window.cctApi = new CCTApiClient();
-console.log('CCT API Client initialized');
-`;
+// Global authentication instance
+window.secureAuth = new SecureAuth();
 
-    return new Response(apiClientJS, {
+// Authentication helper functions
+window.requireAuthentication = function() {
+    if (!window.secureAuth.isAuthenticated) {
+        throw new Error('Authentication required. Please provide a valid API key.');
+    }
+};
+
+window.showAuthenticationDialog = function() {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('auth-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.id = 'auth-modal';
+    modal.innerHTML = \`
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 30px; border-radius: 8px; max-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #333;">Authentication Required</h3>
+                <p style="margin: 0 0 20px 0; color: #666; line-height: 1.5;">
+                    Please enter your API key to access all features of the trading dashboard.
+                </p>
+                <input type="password" id="apiKeyInput" placeholder="Enter your API key"
+                    style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="submitApiKey()" style="flex: 1; background: #007cba; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-weight: 500;">Authenticate</button>
+                    <button onclick="closeAuthDialog()" style="flex: 1; background: #ccc; color: #333; border: none; padding: 12px; border-radius: 4px; cursor: pointer;">Cancel</button>
+                </div>
+                <p style="margin: 15px 0 0 0; font-size: 12px; color: #999;">
+                    Your API key will be stored locally for convenience.
+                </p>
+            </div>
+        </div>
+    \`;
+    document.body.appendChild(modal);
+
+    // Focus input
+    setTimeout(() => {
+        const input = document.getElementById('apiKeyInput');
+        if (input) input.focus();
+    }, 100);
+};
+
+window.submitApiKey = async function() {
+    const input = document.getElementById('apiKeyInput');
+    const apiKey = input ? input.value.trim() : '';
+
+    if (!apiKey) {
+        alert('Please enter a valid API key');
+        return;
+    }
+
+    try {
+        await window.secureAuth.authenticate(apiKey);
+        closeAuthDialog();
+
+        // Show success message
+        const successMsg = document.createElement('div');
+        successMsg.innerHTML = \`
+            <div style="position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 15px 20px; border-radius: 4px; z-index: 10000;">
+                ✓ Authentication successful!
+            </div>
+        \`;
+        document.body.appendChild(successMsg);
+
+        setTimeout(() => successMsg.remove(), 3000);
+
+        // Update dashboard API client without page reload
+        setTimeout(() => location.reload(), 1000);
+
+    } catch (error) {
+        alert(\`Authentication failed: \${error.message}\`);
+    }
+};
+
+window.closeAuthDialog = function() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) {
+        modal.remove();
+    }
+};
+
+// Handle Enter key in input
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && document.getElementById('apiKeyInput')) {
+        submitApiKey();
+    }
+});
+
+console.log('Secure Authentication module loaded');
+    `, {
       headers: {
         'Content-Type': 'application/javascript',
-        'Cache-Control': 'public, max-age=3600'
+        'Cache-Control': 'no-cache'
       }
     });
   }

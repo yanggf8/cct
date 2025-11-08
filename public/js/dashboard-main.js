@@ -51,10 +51,12 @@ function initializeMarketClock() {
     const statusText = document.querySelector('.status-text');
 
     function updateClock() {
+        // Convert to EST/EDT timezone
         const now = new Date();
+        const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
 
         if (clockTime) {
-            clockTime.textContent = now.toLocaleTimeString('en-US', {
+            clockTime.textContent = estTime.toLocaleTimeString('en-US', {
                 hour12: false,
                 hour: '2-digit',
                 minute: '2-digit',
@@ -63,7 +65,7 @@ function initializeMarketClock() {
         }
 
         if (clockDate) {
-            clockDate.textContent = now.toLocaleDateString('en-US', {
+            clockDate.textContent = estTime.toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
                 day: 'numeric'
@@ -71,7 +73,7 @@ function initializeMarketClock() {
         }
 
         // Update market status
-        updateMarketStatus(now, statusIndicator, statusText);
+        updateMarketStatus(estTime, statusIndicator, statusText);
     }
 
     // Update immediately and then every second
