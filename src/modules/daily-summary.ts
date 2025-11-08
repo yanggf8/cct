@@ -334,7 +334,8 @@ function generateEmptyDailySummary(dateStr: string): DailySummary {
     charts_data: {
       confidence_trend: [],
       accuracy_breakdown: { labels: [], predicted: [], conflicts: [], confidence_levels: [] },
-      conflict_analysis: []
+      conflict_analysis: [],
+      generated_for_date: dateStr
     }
   };
 }

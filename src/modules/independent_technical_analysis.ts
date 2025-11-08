@@ -121,7 +121,7 @@ export async function runIndependentTechnicalAnalysis(
       console.log(`✅ ${symbol}: ${technicalSignal.direction} (${(technicalSignal.confidence * 100).toFixed(1)}%)`);
 
     } catch (error: any) {
-      console.error(`❌ Technical analysis failed for ${symbol}:`, error.message);
+      console.error(`❌ Technical analysis failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
 
       results.technical_signals[symbol] = {
         symbol: symbol,
@@ -181,7 +181,7 @@ async function fetchExtendedMarketDataFMP(
     return ohlcData;
 
   } catch (error: any) {
-    console.error(`❌ FMP data fetch failed for ${symbol}:`, error.message);
+    console.error(`❌ FMP data fetch failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
     return null;
   }
 }

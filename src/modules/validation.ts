@@ -188,8 +188,8 @@ export function validateOptionalField<T>(
 
   try {
     return validator(value);
-  } catch (error) {
-    throw new ValidationError(`Invalid ${field}: ${error.message}`, field, value);
+  } catch (error: unknown) {
+    throw new ValidationError(`Invalid ${field}: ${(error instanceof Error ? error.message : String(error))}`, field, value);
   }
 }
 
@@ -259,11 +259,11 @@ export function validateArray<T>(
     throw new ValidationError(`${field} array too long (max ${maxLength} items)`, field, value);
   }
 
-  return value.map((item, index) => {
+  return value.map((item: any, index: any) => {
     try {
       return itemValidator(item);
     } catch (error: any) {
-      throw new ValidationError(`Invalid item at index ${index} in ${field}: ${error.message}`, `${field}[${index}]`, item);
+      throw new ValidationError(`Invalid item at index ${index} in ${field}: ${(error instanceof Error ? error.message : String(error))}`, `${field}[${index}]`, item);
     }
   });
 }

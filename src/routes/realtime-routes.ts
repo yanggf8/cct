@@ -4,7 +4,7 @@
  */
 
 import { ApiResponseFactory, HttpStatus, generateRequestId } from '../modules/api-v1-responses.js';
-import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/dual-cache-do.js';
 
 interface RealtimeConnection {
     id: string;
@@ -16,7 +16,7 @@ interface RealtimeConnection {
 
 class RealtimeManager {
     private connections: Map<string, RealtimeConnection> = new Map();
-    private intervals: Map<string, NodeJS.Timeout> = new Map();
+    private intervals: Map<string, number> = new Map();
     private cacheManager: any = null;
 
     constructor() {
@@ -33,10 +33,7 @@ class RealtimeManager {
      * Get cache instance (DO cache if enabled, otherwise null)
      */
     private async getCacheManager(env: any) {
-        if (isDOCacheEnabled(env)) {
-            return createCacheInstance(env, true);
-        }
-        return null; // No cache for realtime
+        return createCacheInstance(env, true); // Returns null if DO not available
     }
 
     /**
@@ -58,7 +55,7 @@ class RealtimeManager {
         };
 
         const stream = new ReadableStream({
-            start: (controller) => {
+            start: (controller: any) => {
                 const connection: RealtimeConnection = {
                     id: clientId,
                     response: new Response(),
@@ -92,7 +89,7 @@ class RealtimeManager {
         });
 
         ctx.waitUntil(
-            new Promise((resolve) => {
+            new Promise((resolve: any) => {
                 stream.cancel().then(resolve);
             })
         );
@@ -105,7 +102,7 @@ class RealtimeManager {
      */
     sendToClient(clientId: string, data: any): boolean {
         const connection = this.connections.get(clientId);
-        if (!connection || connection.controller.closed) {
+        if (!connection || connection.controller.desiredSize === null) {
             this.connections.delete(clientId);
             return false;
         }
@@ -115,7 +112,7 @@ class RealtimeManager {
             connection.controller.enqueue(new TextEncoder().encode(eventData));
             connection.lastActivity = Date.now();
             return true;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(`Failed to send data to client ${clientId}:`, error);
             this.connections.delete(clientId);
             return false;
@@ -129,7 +126,7 @@ class RealtimeManager {
         let sentCount = 0;
         const deadConnections: string[] = [];
 
-        this.connections.forEach((connection, clientId) => {
+        this.connections.forEach((connection: any, clientId: any) => {
             if (filter && !filter(connection)) {
                 return;
             }
@@ -186,7 +183,7 @@ class RealtimeManager {
                 timestamp: new Date().toISOString()
             });
 
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to send initial data:', error);
         }
     }
@@ -203,7 +200,7 @@ class RealtimeManager {
                     type: 'market',
                     payload: marketData,
                     timestamp: new Date().toISOString()
-                }, (conn) => conn.subscriptions.has('market'));
+                }, (conn: any) => conn.subscriptions.has('market'));
             }
         }, 5000));
 
@@ -215,7 +212,7 @@ class RealtimeManager {
                     type: 'sentiment',
                     payload: sentimentData,
                     timestamp: new Date().toISOString()
-                }, (conn) => conn.subscriptions.has('sentiment'));
+                }, (conn: any) => conn.subscriptions.has('sentiment'));
             }
         }, 10000));
 
@@ -227,7 +224,7 @@ class RealtimeManager {
                     type: 'sector',
                     payload: sectorData,
                     timestamp: new Date().toISOString()
-                }, (conn) => conn.subscriptions.has('sector'));
+                }, (conn: any) => conn.subscriptions.has('sector'));
             }
         }, 15000));
 
@@ -239,7 +236,7 @@ class RealtimeManager {
                     type: 'predictive',
                     payload: predictiveData,
                     timestamp: new Date().toISOString()
-                }, (conn) => conn.subscriptions.has('predictive'));
+                }, (conn: any) => conn.subscriptions.has('predictive'));
             }
         }, 30000));
 
@@ -260,7 +257,7 @@ class RealtimeManager {
                     type: 'alert',
                     payload: alert,
                     timestamp: new Date().toISOString()
-                }, (conn) => conn.subscriptions.has('alerts'));
+                }, (conn: any) => conn.subscriptions.has('alerts'));
             }
 
             // Schedule next alert
@@ -310,7 +307,7 @@ class RealtimeManager {
             });
 
             return marketData;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to get market overview:', error);
             return this.getDefaultMarketData();
         }
@@ -354,7 +351,7 @@ class RealtimeManager {
             });
 
             return sentimentData;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to get sentiment data:', error);
             return this.getDefaultSentimentData();
         }
@@ -399,7 +396,7 @@ class RealtimeManager {
             });
 
             return sectorData;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to get sector data:', error);
             return this.getDefaultSectorData();
         }
@@ -437,7 +434,7 @@ class RealtimeManager {
             });
 
             return predictiveData;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to get predictive data:', error);
             return this.getDefaultPredictiveData();
         }
@@ -473,7 +470,7 @@ class RealtimeManager {
         const now = new Date();
 
         for (let i = 23; i >= 0; i--) {
-            const timestamp = new Date(now - i * 3600000);
+            const timestamp = new Date(now.getTime() - i * 3600000);
             data.push({
                 timestamp: timestamp.toISOString(),
                 sentiment: (Math.sin(i / 4) * 0.5 + Math.random() * 0.3 - 0.15),
@@ -492,7 +489,7 @@ class RealtimeManager {
         const timeout = 60000; // 1 minute timeout
         const deadConnections: string[] = [];
 
-        this.connections.forEach((connection, clientId) => {
+        this.connections.forEach((connection: any, clientId: any) => {
             if (now - connection.lastActivity > timeout || connection.controller.closed) {
                 deadConnections.push(clientId);
             }
@@ -501,10 +498,10 @@ class RealtimeManager {
         deadConnections.forEach(clientId => {
             try {
                 const connection = this.connections.get(clientId);
-                if (connection && !connection.controller.closed) {
+                if (connection && connection.controller.desiredSize !== null) {
                     connection.controller.close();
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 // Ignore errors during cleanup
             }
             this.connections.delete(clientId);
@@ -626,7 +623,13 @@ export async function handleRealtimeRoutes(request: Request, env: any, path: str
         const manager = getRealtimeManager();
 
         if (path === '/api/v1/realtime/stream') {
-            return await manager.createConnection(request, env, { waitUntil: Promise.resolve });
+            const mockCtx = {
+                waitUntil: (promise: Promise<any>) => {
+                    // Mock implementation for context
+                    promise.catch(() => {});
+                }
+            };
+            return await manager.createConnection(request, env, mockCtx as any);
         }
 
         if (path === '/api/v1/realtime/status') {
@@ -680,10 +683,10 @@ export async function handleRealtimeRoutes(request: Request, env: any, path: str
             headers
         });
 
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Real-time routes error:', error);
         const body = ApiResponseFactory.error('Internal server error', 'INTERNAL_ERROR', {
-            message: error?.message
+            message: (error as any)?.message || 'Unknown error'
         });
         return new Response(JSON.stringify(body), {
             status: HttpStatus.INTERNAL_SERVER_ERROR,

@@ -171,13 +171,178 @@ export const HttpStatus = {
 // Type for HTTP status codes
 export type HttpStatusType = typeof HttpStatus[keyof typeof HttpStatus];
 
-// Compatibility placeholders for JS route imports
-export const SentimentAnalysisResponse = {};
-export const SymbolSentimentResponse = {};
-export const MarketSentimentData = {};
-export const SectorSentimentData = {};
-export const DailyReportResponse = {};
-export const WeeklyReportResponse = {};
+// Type definitions for API responses
+export interface MarketSentimentDataInterface {
+  overall_sentiment: number;
+  sentiment_label: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  confidence: number;
+}
+
+export interface SectorSentimentDataInterface {
+  sector: string;
+  overall_sentiment: number;
+  sentiment_label: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  confidence: number;
+  symbol_count: number;
+}
+
+export interface SymbolsResponseInterface {
+  symbols: string[];
+  count: number;
+  metadata: {
+    last_updated: string;
+    total_count?: number;
+    data_source?: string;
+    [key: string]: any;
+  };
+}
+
+export interface SystemHealthResponseInterface {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  services: {
+    [serviceName: string]: {
+      status: 'up' | 'down' | 'degraded';
+      response_time_ms?: number;
+      last_check: string;
+      [key: string]: any;
+    };
+  };
+  uptime_seconds: number;
+  version: string;
+  [key: string]: any;
+}
+
+// Export types for use in routes
+export type MarketSentimentData = MarketSentimentDataInterface;
+export type SectorSentimentData = SectorSentimentDataInterface;
+export type SymbolsResponse = SymbolsResponseInterface;
+export type SystemHealthResponse = SystemHealthResponseInterface;
+
+// Type definitions for sentiment response objects
+export interface SentimentAnalysisResponseInterface {
+  symbols: string[];
+  analysis: {
+    timestamp: string;
+    market_sentiment: {
+      overall_sentiment: string;
+      sentiment_label: string;
+      confidence: number;
+    };
+    signals: any[];
+    overall_confidence: number;
+  };
+  metadata: {
+    analysis_time_ms: number;
+    ai_models_used: string[];
+    data_sources: string[];
+    optimization?: {
+      enabled: boolean;
+      cacheHitRate: number;
+      kvReduction: number;
+      timeSaved: number;
+      batchEfficiency: number;
+      cachedItems: number;
+      deduplicationRate: number;
+    };
+  };
+}
+
+export interface SymbolSentimentResponseInterface {
+  symbol: string;
+  analysis: {
+    gpt_analysis: {
+      sentiment: string;
+      confidence: number;
+      reasoning: string;
+      model: string;
+    };
+    distilbert_analysis: {
+      sentiment: string;
+      confidence: number;
+      sentiment_breakdown: {
+        positive: number;
+        negative: number;
+        neutral: number;
+      };
+      model: string;
+    };
+    agreement: {
+      type: string;
+      confidence: number;
+      recommendation: string;
+    };
+  };
+  news?: {
+    articles_analyzed?: number;
+    top_articles?: any[];
+    [key: string]: any;
+  };
+  metadata?: any;
+}
+
+// Type definitions for response objects
+export interface DailyReportResponseInterface {
+  date: string;
+  report: {
+    market_overview: {
+      sentiment: string;
+      confidence: number;
+      key_factors: string[];
+    };
+    symbol_analysis: Array<{
+      symbol: string;
+      sentiment: string;
+      signal: string;
+      confidence: number;
+      reasoning: string;
+    }>;
+    sector_performance: any[];
+    summary: {
+      total_signals: number;
+      bullish_signals: number;
+      bearish_signals: number;
+      accuracy_estimate: number;
+    };
+    recommendations?: string[];
+    [key: string]: any;
+  };
+}
+
+export interface WeeklyReportResponseInterface {
+  week_start: string;
+  week_end: string;
+  report: {
+    weekly_overview: {
+      sentiment_trend: string;
+      average_confidence: number;
+      key_highlights: string[];
+    };
+    daily_breakdown: Array<{
+      date: string;
+      sentiment: string;
+      signal_count: number;
+    }>;
+    performance_summary: {
+      total_signals: number;
+      accuracy_rate: number;
+      best_performing_sectors: string[];
+      worst_performing_sectors: string[];
+    };
+    weekly_summary?: any;
+    [key: string]: any;
+  };
+}
+
+// Export interfaces as types
+export type DailyReportResponse = DailyReportResponseInterface;
+export type WeeklyReportResponse = WeeklyReportResponseInterface;
+export type SentimentAnalysisResponse = SentimentAnalysisResponseInterface;
+export type SymbolSentimentResponse = SymbolSentimentResponseInterface;
+
+// Compatibility placeholders for JS route imports (with different names to avoid conflicts)
+export const MarketSentimentDataValue = {};
+export const SectorSentimentDataValue = {};
 
 // Export types for external use
 export type {

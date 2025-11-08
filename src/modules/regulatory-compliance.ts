@@ -6,14 +6,90 @@
 
 import { createDAL } from './dal.js';
 
+// Type definitions
+interface ComplianceAssessment {
+  id: string;
+  framework: string;
+  jurisdiction: string;
+  assessmentDate: string;
+  overallScore: number;
+  requirements: Record<string, any>;
+  findings: any[];
+  recommendations: any[];
+  nextReviewDate: string;
+  assessor: string;
+  status: string;
+}
+
+interface RegulatoryReport {
+  id: string;
+  reportType: string;
+  framework: string;
+  period: string;
+  generatedDate: string;
+  data: any;
+  status: string;
+  submittedDate?: string;
+  submissionReference?: string;
+}
+
+interface AuditTrail {
+  id: string;
+  eventType: string;
+  timestamp: string;
+  userId: string;
+  details: any;
+  ipAddress: string;
+  userAgent: string;
+  outcome: string;
+}
+
+interface CompliancePolicy {
+  id: string;
+  name: string;
+  category: string;
+  framework: string;
+  version: string;
+  effectiveDate: string;
+  lastReviewed: string;
+  content: string;
+  requirements: string[];
+  status: string;
+}
+
+interface TrainingRecord {
+  id: string;
+  userId: string;
+  trainingType: string;
+  framework: string;
+  completedDate: string;
+  score: number;
+  certificate: string;
+  nextDueDate: string;
+  status: string;
+}
+
+interface ComplianceAlert {
+  id: string;
+  alertType: string;
+  severity: string;
+  framework: string;
+  description: string;
+  timestamp: string;
+  assignedTo: string;
+  status: string;
+  resolution?: string;
+  resolvedDate?: string;
+}
+
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: any, key: string): Promise<any> {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env, key, data, ttl) {
+async function setKVStore(env: any, key: string, data: any, ttl: number): Promise<boolean> {
   const dal = createDAL(env);
   const result = await dal.write(key, data, { expirationTtl: ttl });
   return result.success;
@@ -232,7 +308,12 @@ export const COMPLIANCE_STATUS = {
  * Regulatory Compliance Engine
  */
 export class RegulatoryComplianceEngine {
-  constructor(env) {
+  private env: any;
+  private activeFrameworks: Set<string>;
+  private complianceCalendar: any;
+  private policies: any;
+
+  constructor(env: any) {
     this.env = env;
     this.activeFrameworks = new Set(['SEC_US', 'FINRA']);
     this.complianceCalendar = this.initializeComplianceCalendar();
@@ -242,7 +323,7 @@ export class RegulatoryComplianceEngine {
   /**
    * Perform comprehensive compliance assessment
    */
-  async performComplianceAssessment(portfolioData, clientData = {}, frameworks = []) {
+  async performComplianceAssessment(portfolioData: any, clientData: any = {}, frameworks: string[] = []): Promise<any> {
     try {
       const assessment = {
         id: this.generateAssessmentId(),
@@ -279,16 +360,16 @@ export class RegulatoryComplianceEngine {
       await this.persistComplianceAssessment(assessment);
 
       return assessment;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Compliance assessment failed:', error);
-      throw new Error(`Compliance assessment failed: ${error.message}`);
+      throw new Error(`Compliance assessment failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
   /**
    * Assess specific regulatory framework
    */
-  async assessFramework(portfolioData, clientData, framework) {
+  async assessFramework(portfolioData: any, clientData: any, framework: string): Promise<any> {
     try {
       const frameworkConfig = REGULATORY_FRAMEWORKS[framework];
       if (!frameworkConfig) {
@@ -322,26 +403,26 @@ export class RegulatoryComplianceEngine {
           frameworkResult.violations.push({
             framework,
             requirement,
-            rule: config.rules.join(', '),
-            description: requirementResult.description,
-            severity: requirementResult.status.label,
-            dueDate: requirementResult.dueDate,
-            recommendation: requirementResult.recommendation
+            rule: (config as any).rules.join(', '),
+            description: (requirementResult as any).description,
+            severity: (requirementResult as any).status.label,
+            dueDate: (requirementResult as any).dueDate,
+            recommendation: (requirementResult as any).recommendation
           });
         }
 
-        frameworkResult.recommendations.push(...(requirementResult.recommendations || []));
-        frameworkResult.score -= (requirementResult.deduction || 0);
+        frameworkResult.recommendations.push(...((requirementResult as any).recommendations || []));
+        frameworkResult.score -= ((requirementResult as any).deduction || 0);
       }
 
       return frameworkResult;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Framework assessment failed for ${framework}:`, error);
       return {
         framework,
         status: COMPLIANCE_STATUS.NON_COMPLIANT,
-        error: error.message,
-        violations: [{ framework, error: error.message, severity: 'HIGH' }],
+        error: error instanceof Error ? error.message : String(error),
+        violations: [{ framework, error: error instanceof Error ? error.message : String(error), severity: 'HIGH' }],
         recommendations: []
       };
     }
@@ -396,12 +477,12 @@ export class RegulatoryComplianceEngine {
       }
 
       return assessment;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`Requirement assessment failed for ${requirement}:`, error);
       return {
         requirement,
         status: COMPLIANCE_STATUS.NON_COMPLIANT,
-        description: `Assessment failed: ${error.message}`,
+        description: `Assessment failed: ${error instanceof Error ? error.message : String(error)}`,
         deduction: 25,
         recommendations: []
       };
@@ -451,12 +532,12 @@ export class RegulatoryComplianceEngine {
   async assessSuitabilityRequirement(portfolioData, clientData, assessment) {
     const suitabilityCheck = await this.performSuitabilityCheck(portfolioData, clientData);
 
-    if (!suitibilityCheck.suitable) {
+    if (!suitabilityCheck.suitable) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = suitabilityCheck.reason || 'Portfolio not suitable for client profile';
+      assessment.description = (suitabilityCheck as any).reason || 'Portfolio not suitable for client profile';
       assessment.deduction = 25;
       assessment.recommendation = 'Reassess client risk tolerance and adjust portfolio';
-      assessment.evidence = [suitabilityCheck.evidence];
+      assessment.evidence = [(suitabilityCheck as any).evidence];
     } else {
       assessment.description = 'Portfolio suitable for client profile';
       assessment.evidence = ['Client profile current', 'Risk assessment completed'];
@@ -471,10 +552,10 @@ export class RegulatoryComplianceEngine {
 
     if (!marginCheck.compliant) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = `Margin requirements not met: ${marginCheck.violation}`;
+      assessment.description = `Margin requirements not met: ${(marginCheck as any).violation}`;
       assessment.deduction = 20;
       assessment.recommendation = 'Reduce margin usage or add additional collateral';
-      assessment.evidence = [marginCheck.evidence];
+      assessment.evidence = [(marginCheck as any).evidence];
     } else {
       assessment.description = 'Margin requirements within FINRA limits';
       assessment.evidence = ['Initial margin met', 'Maintenance margin satisfied'];
@@ -492,7 +573,7 @@ export class RegulatoryComplianceEngine {
       assessment.description = 'Best execution processes need improvement';
       assessment.deduction = 10;
       assessment.recommendation = 'Review execution venues and update best execution policy';
-      assessment.evidence = [bestExecutionCheck.evidence];
+      assessment.evidence = [(bestExecutionCheck as any).evidence];
     } else {
       assessment.description = 'Best execution policy followed';
       assessment.evidence = ['Execution venues reviewed', 'Best execution policy current'];
@@ -507,10 +588,10 @@ export class RegulatoryComplianceEngine {
 
     if (!dataProtectionCheck.compliant) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = `GDPR compliance issues: ${dataProtectionCheck.issue}`;
+      assessment.description = `GDPR compliance issues: ${(dataProtectionCheck as any).issue}`;
       assessment.deduction = 25;
       assessment.recommendation = 'Update privacy policies and implement GDPR controls';
-      assessment.evidence = [dataProtectionCheck.evidence];
+      assessment.evidence = [(dataProtectionCheck as any).evidence];
     } else {
       assessment.description = 'Data protection requirements satisfied';
       assessment.evidence = ['Privacy notice current', 'Data processing agreements in place'];
@@ -525,10 +606,10 @@ export class RegulatoryComplianceEngine {
 
     if (!amlCheck.compliant) {
       assessment.status = COMPLIANCE_STATUS.NON_COMPLIANT;
-      assessment.description = `AML compliance issues: ${amlCheck.issue}`;
+      assessment.description = `AML compliance issues: ${(amlCheck as any).issue}`;
       assessment.deduction = 30;
       assessment.recommendation = 'Complete customer due diligence and update AML program';
-      assessment.evidence = [amlCheck.evidence];
+      assessment.evidence = [(amlCheck as any).evidence];
     } else {
       assessment.description = 'AML program compliant';
       assessment.evidence = ['CIP completed', 'Annual AML training current'];
@@ -591,9 +672,9 @@ export class RegulatoryComplianceEngine {
       await this.persistRegulatoryReport(report);
 
       return report;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Regulatory report generation failed:', error);
-      throw new Error(`Report generation failed: ${error.message}`);
+      throw new Error(`Report generation failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -620,9 +701,9 @@ export class RegulatoryComplianceEngine {
       await this.persistCompliancePolicy(policy);
 
       return policy;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Compliance policy creation failed:', error);
-      throw new Error(`Policy creation failed: ${error.message}`);
+      throw new Error(`Policy creation failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -644,9 +725,9 @@ export class RegulatoryComplianceEngine {
       await this.persistTrainingRecord(records);
 
       return records;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Training record update failed:', error);
-      throw new Error(`Training update failed: ${error.message}`);
+      throw new Error(`Training update failed: ${(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -793,12 +874,12 @@ export class RegulatoryComplianceEngine {
     const upcoming = [];
 
     Object.entries(this.complianceCalendar).forEach(([key, deadline]) => {
-      if (frameworks.includes(deadline.framework) && deadline.date > now) {
+      if (frameworks.includes((deadline as any).framework) && (deadline as any).date > now) {
         upcoming.push(deadline);
       }
     });
 
-    return upcoming.sort((a, b) => a.date - b.date).slice(0, 10); // Next 10 deadlines
+    return upcoming.sort((a: any, b: any) => a.date - b.date).slice(0, 10); // Next 10 deadlines
   }
 
   // Simplified assessment methods - would implement actual logic in production
@@ -909,7 +990,7 @@ export class RegulatoryComplianceEngine {
 /**
  * Factory function for creating compliance engine instances
  */
-export function createRegulatoryComplianceEngine(env) {
+export function createRegulatoryComplianceEngine(env: any) {
   return new RegulatoryComplianceEngine(env);
 }
 
@@ -926,7 +1007,7 @@ export async function generateReport(env, portfolioData, reportType, framework, 
   return await engine.generateRegulatoryReport(portfolioData, reportType, framework, period);
 }
 
-export async function createPolicy(env, policyData) {
+export async function createPolicy(env: any, policyData: any) {
   const engine = createRegulatoryComplianceEngine(env);
   return await engine.createCompliancePolicy(policyData);
 }

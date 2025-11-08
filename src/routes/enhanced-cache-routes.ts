@@ -5,7 +5,7 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/dual-cache-do.js';
 
 const logger = createLogger('enhanced-cache-routes');
 
@@ -250,16 +250,14 @@ function generateRandomStockSymbols(count: number): string[] {
  * Create enhanced cache routes
  */
 export function createEnhancedCacheRoutes(env: any) {
-  // Use Durable Objects cache if enabled, otherwise no cache (simple)
+  // Use Durable Objects cache if available
   // External APIs use KV cache independently
-  let cacheManager;
-  if (isDOCacheEnabled(env)) {
-    cacheManager = createCacheInstance(env, true);
-    logger.info('CACHE_ROUTES', 'Using Durable Objects cache (L1)');
+  const cacheManager = createCacheInstance(env, true);
+  if (cacheManager) {
+    logger.info('Using Durable Objects cache (L1)');
   } else {
     // Cache endpoints work without cache
-    cacheManager = null;
-    logger.info('CACHE_ROUTES', 'Cache disabled (L1 not available)');
+    logger.info('Cache disabled (L1 not available)');
   }
 
   const routes = [
@@ -297,7 +295,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache health assessment failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -348,7 +346,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'public, max-age=300', // 5 minutes
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache config retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -433,7 +431,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache metrics retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -484,7 +482,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache promotion data retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -535,7 +533,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('System status retrieval failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -554,7 +552,7 @@ export function createEnhancedCacheRoutes(env: any) {
       method: 'POST',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
         try {
-          const body = await request.json().catch(() => ({}));
+          const body = (await request.json().catch(() => ({}))) as any;
           const {
             strategy = 'comprehensive',
             namespaces = [],
@@ -573,7 +571,7 @@ export function createEnhancedCacheRoutes(env: any) {
           const warmup_start = Date.now();
 
           // Enhanced warmup strategies
-          let warmup_datasets = [];
+          let warmup_datasets: Array<{namespace: string, key: string, data: any, ttl?: number}> = [];
 
           switch (strategy) {
             case 'comprehensive':
@@ -635,10 +633,10 @@ export function createEnhancedCacheRoutes(env: any) {
           for (const dataset of warmup_datasets) {
             try {
               // Set in cache with appropriate TTL based on namespace
-              await cacheManager.set(dataset.namespace, dataset.key, dataset.data);
+              await cacheManager.setWithNamespace(dataset.namespace, dataset.key, dataset.data, dataset.ttl);
 
               // Verify the data was cached
-              const retrieved = await cacheManager.get(dataset.namespace, dataset.key);
+              const retrieved = await cacheManager.getWithNamespace(dataset.namespace, dataset.key);
 
               results.push({
                 namespace: dataset.namespace,
@@ -647,7 +645,7 @@ export function createEnhancedCacheRoutes(env: any) {
                 data_size: JSON.stringify(dataset.data).length,
                 ttl: dataset.ttl || 'default'
               });
-            } catch (error) {
+            } catch (error: unknown) {
               logger.error(`Failed to warm cache entry: ${dataset.namespace}:${dataset.key}`, { error });
               results.push({
                 namespace: dataset.namespace,
@@ -687,7 +685,7 @@ export function createEnhancedCacheRoutes(env: any) {
             l2CacheInfo: {
               ttl_hours: 24,
               total_entries: results.length,
-              estimated_size_kb: Math.round(results.reduce((sum, r) => sum + (r.data_size || 0), 0) / 1024)
+              estimated_size_kb: Math.round(results.reduce((sum: any, r: any) => sum + (r.data_size || 0), 0) / 1024)
             }
           }), {
             headers: {
@@ -695,7 +693,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Enhanced cache warmup failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -785,7 +783,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache timestamp check failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -823,8 +821,11 @@ export function createEnhancedCacheRoutes(env: any) {
 
           // Get comprehensive cache debug information
           const timestampInfo = cacheManager.getTimestampInfo(namespace, key);
+          // @ts-ignore - Cache stats from external adapter
           const cacheStats = cacheManager.getStats();
+          // @ts-ignore - L1 stats from external adapter
           const l1Stats = cacheManager.getL1Stats();
+          // @ts-ignore - Health assessment from external adapter
           const healthAssessment = await cacheManager.performHealthAssessment();
 
           return new Response(JSON.stringify({
@@ -836,21 +837,21 @@ export function createEnhancedCacheRoutes(env: any) {
               cacheStatus: timestampInfo ? 'FOUND' : 'NOT_FOUND',
               timestampInfo: timestampInfo || null,
               cacheStatistics: {
-                totalRequests: cacheStats.totalRequests,
-                l1Hits: cacheStats.l1Hits,
-                l2Hits: cacheStats.l2Hits,
-                misses: cacheStats.misses,
-                l1HitRate: Math.round(cacheStats.l1HitRate * 100),
-                l2HitRate: Math.round(cacheStats.l2HitRate * 100),
-                overallHitRate: Math.round(cacheStats.overallHitRate * 100),
-                currentL1Size: cacheStats.l1Size,
-                currentL2Size: cacheStats.l2Size
+                totalRequests: (cacheStats as any).totalRequests,
+                l1Hits: (cacheStats as any).l1Hits,
+                l2Hits: (cacheStats as any).l2Hits,
+                misses: (cacheStats as any).misses,
+                l1HitRate: Math.round((cacheStats as any).l1HitRate * 100),
+                l2HitRate: Math.round((cacheStats as any).l2HitRate * 100),
+                overallHitRate: Math.round((cacheStats as any).overallHitRate * 100),
+                currentL1Size: (cacheStats as any).l1Size,
+                currentL2Size: (cacheStats as any).l2Size
               },
               healthStatus: {
-                overallScore: healthAssessment.assessment.overallScore,
-                status: healthAssessment.assessment.status,
-                issues: healthAssessment.assessment.issues,
-                recommendations: healthAssessment.assessment.recommendations
+                overallScore: (healthAssessment as any).assessment.overallScore,
+                status: (healthAssessment as any).assessment.status,
+                issues: (healthAssessment as any).assessment.issues,
+                recommendations: (healthAssessment as any).assessment.recommendations
               }
             }
           }), {
@@ -859,7 +860,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache debug failed', { error });
           return new Response(JSON.stringify({
             success: false,
@@ -930,7 +931,7 @@ export function createEnhancedCacheRoutes(env: any) {
               'Cache-Control': 'no-cache',
             },
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.error('Cache deduplication stats failed', { error });
           return new Response(JSON.stringify({
             success: false,

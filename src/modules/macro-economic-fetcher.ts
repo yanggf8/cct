@@ -21,7 +21,7 @@ import { initializeFredApiClient, MockFredApiClient, type MacroEconomicSnapshot 
 import { createFredApiClient, createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { MacroDrivers } from './market-drivers.js';
-import { MarketDriversCacheManager } from './market-drivers-cache-manager.js';
+import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('macro-economic-fetcher');
@@ -32,7 +32,7 @@ const logger = createLogger('macro-economic-fetcher');
 export interface MacroEconomicFetcherOptions {
   fredApiKey?: string;
   useMockData?: boolean;
-  cacheManager?: MarketDriversCacheManager;
+  cacheManager?: DOMarketDriversCacheAdapter;
   enableCaching?: boolean;
   environment?: CloudflareEnvironment;
   forceMockClient?: boolean;
@@ -78,7 +78,7 @@ export interface EnhancedMacroDrivers extends MacroDrivers {
  */
 export class MacroEconomicFetcher {
   private fredApiClient;
-  private cacheManager?: MarketDriversCacheManager;
+  private cacheManager?: DOMarketDriversCacheAdapter;
   private circuitBreaker;
   private enableCaching: boolean;
   private useMockData: boolean;
@@ -135,7 +135,7 @@ export class MacroEconomicFetcher {
 
       // Check cache first
       if (this.enableCaching && this.cacheManager) {
-        const cached = await this.cacheManager.getMacroDrivers(dateStr);
+        const cached = await this.cacheManager.getMarketDrivers();
         if (cached) {
           logger.info('Macro drivers retrieved from cache', { date: dateStr });
           return this.enhanceMacroDrivers(cached);
@@ -155,7 +155,7 @@ export class MacroEconomicFetcher {
 
       // Store in cache
       if (this.enableCaching && this.cacheManager) {
-        await this.cacheManager.setMacroDrivers(enhancedMacroDrivers, dateStr);
+        await this.cacheManager.setMarketDrivers(enhancedMacroDrivers);
       }
 
       logger.info('Macro economic drivers fetched successfully', {
@@ -166,8 +166,8 @@ export class MacroEconomicFetcher {
       });
 
       return enhancedMacroDrivers;
-    } catch (error) {
-      logger.error('Failed to fetch macro economic drivers:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch macro economic drivers:', { error: error instanceof Error ? error.message : String(error) });
 
       // Fall back to mock data if real API fails
       if (!this.useMockData) {
@@ -178,7 +178,7 @@ export class MacroEconomicFetcher {
         return this.enhanceMacroDrivers(basicMacroDrivers);
       }
 
-      throw new Error(`Macro Economic Fetcher Error: ${error.message}`);
+      throw new Error(`Macro Economic Fetcher Error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -520,7 +520,7 @@ export class MacroEconomicFetcher {
     try {
       const fredHealth = await this.fredApiClient.healthCheck();
       const hasCacheManager = !!this.cacheManager;
-      const cacheStats = this.cacheManager?.getCacheStats();
+      const cacheStats = (this.cacheManager as any)?.getCacheStats();
 
       return {
         status: fredHealth.status === 'healthy' ? 'healthy' : 'unhealthy',
@@ -533,11 +533,11 @@ export class MacroEconomicFetcher {
           circuitBreakerStatus: this.circuitBreaker.getMetrics(),
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'unhealthy',
         details: {
-          error: error.message,
+          error: (error instanceof Error ? error.message : String(error)),
           useMockData: this.useMockData,
         }
       };

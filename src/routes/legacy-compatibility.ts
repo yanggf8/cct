@@ -57,14 +57,14 @@ async function routeToNewEndpoint(
     };
 
     // Route to API v1 handler
-    const response = await handleApiV1Request(internalRequest, env, url.pathname, headers);
+    const response = await handleApiV1Request(internalRequest, env, url.pathname);
 
     return response;
 
   } catch (error: any) {
     logger.error('Failed to route to new endpoint', {
       newPath,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -168,7 +168,7 @@ async function transformLegacyRequest(
   const newUrl = new URL(newPath, url.origin);
 
   // Transform method and body based on endpoint type
-  let body = request.body;
+  let body: any = request.body;
   let headers = new Headers(request.headers);
 
   // Handle specific endpoint transformations
@@ -179,13 +179,13 @@ async function transformLegacyRequest(
         try {
           const legacyBody = await request.json();
           const newBody = {
-            symbols: legacyBody.symbols || ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
+            symbols: (legacyBody as any).symbols || ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
             analysis_type: 'comprehensive',
             include_news: true
           };
           body = JSON.stringify(newBody);
           headers.set('Content-Type', 'application/json');
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Failed to transform /analyze request body', { error });
         }
       }
@@ -219,7 +219,7 @@ async function transformLegacyRequest(
           };
           body = JSON.stringify(newBody);
           headers.set('Content-Type', 'application/json');
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Failed to transform /test-facebook request body', { error });
         }
       }
@@ -259,7 +259,7 @@ async function transformLegacyResponse(
   oldPath: string,
   newPath: string
 ): Promise<Response> {
-  let responseData = await response.json();
+  let responseData: any = await response.json();
 
   // Transform response based on original endpoint expectations
   switch (oldPath) {
@@ -399,7 +399,7 @@ export async function handleLegacyEndpoint(
     logger.error('Failed to forward legacy request', {
       oldPath,
       newPath,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

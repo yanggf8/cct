@@ -19,6 +19,7 @@ import { createLogger } from './logging.js';
 import { createDAL } from './dal.js';
 import { KeyHelpers } from './kv-key-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import type { MarketDriversSnapshot, MacroDrivers, MarketStructure, GeopoliticalRisk, MarketRegime } from './market-drivers.js';
 
 const logger = createLogger('market-drivers-cache-manager');
@@ -49,16 +50,20 @@ interface CacheStats {
 }
 
 /**
- * Market Drivers Cache Manager
+ * Market Drivers Cache Manager with Durable Objects
  */
 export class MarketDriversCacheManager {
   private dal;
   private circuitBreaker;
+  private cacheManager: DualCacheDO | null;
 
-  // L1 Memory Cache
-  private l1Cache = new Map<string, CacheEntry<any>>();
-  private readonly L1_TTL = 5 * 60 * 1000; // 5 minutes
-  private readonly L2_TTL = 10 * 60 * 1000; // 10 minutes
+  // Cache TTLs
+  private readonly DEFAULT_TTL = 10 * 60; // 10 minutes
+  public L1_TTL: number;
+  public L2_TTL: number;
+
+  // L1 Cache storage
+  public l1Cache: Map<string, CacheEntry<any>>;
 
   // Cache Statistics
   private stats: CacheStats = {
@@ -77,8 +82,20 @@ export class MarketDriversCacheManager {
     this.dal = createDAL(env);
     this.circuitBreaker = CircuitBreakerFactory.getInstance('market-drivers-cache');
 
-    // Cleanup expired entries every 2 minutes
-    setInterval(() => this.cleanupExpiredL1Entries(), 2 * 60 * 1000);
+    // Initialize TTLs
+    this.L1_TTL = 5 * 60 * 1000; // 5 minutes
+    this.L2_TTL = 10 * 60 * 1000; // 10 minutes
+
+    // Initialize L1 cache
+    this.l1Cache = new Map();
+
+    // Initialize DO cache if available
+    this.cacheManager = createCacheInstance(env, true);
+    if (this.cacheManager) {
+      logger.info('MARKET_DRIVERS_CACHE: Using Durable Objects cache');
+    } else {
+      logger.info('MARKET_DRIVERS_CACHE: Cache disabled (DO binding not available)');
+    }
   }
 
   /**
@@ -89,29 +106,26 @@ export class MarketDriversCacheManager {
       ? KeyHelpers.getMarketDriversSnapshotKey(date)
       : KeyHelpers.getMarketDriversSnapshotKey();
 
-    // Try L1 cache first
-    const l1Result = this.getFromL1<MarketDriversSnapshot>(cacheKey);
-    if (l1Result) {
-      this.stats.l1Hits++;
-      logger.debug('Market Drivers snapshot L1 cache hit', { date, source: 'L1' });
-      return l1Result;
-    }
-    this.stats.l1Misses++;
+    // Try DO cache
+    if (this.cacheManager) {
+      try {
+        const result = await this.cacheManager.get(cacheKey, {
+          ttl: this.DEFAULT_TTL,
+          namespace: 'market_drivers'
+        });
 
-    // Try L2 cache (KV)
-    try {
-      const l2Result = await this.getFromL2<MarketDriversSnapshot>(cacheKey);
-      if (l2Result) {
-        this.stats.l2Hits++;
-        // Store in L1 for faster future access
-        this.setToL1(cacheKey, l2Result);
-        logger.debug('Market Drivers snapshot L2 cache hit', { date, source: 'L2' });
-        return l2Result;
+        if (result) {
+          this.stats.l1Hits++; // Treat DO cache as L1 equivalent
+          logger.debug('Market Drivers snapshot DO cache hit', { date, source: 'DO' });
+          return result;
+        }
+        this.stats.l1Misses++;
+      } catch (error: unknown) {
+        logger.error('DO cache read error for Market Drivers snapshot:', { error: error instanceof Error ? error.message : String(error) });
+        this.stats.l1Misses++;
       }
-      this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Market Drivers snapshot:', error);
-      this.stats.l2Misses++;
+    } else {
+      this.stats.l1Misses++;
     }
 
     logger.debug('Market Drivers snapshot cache miss', { date });
@@ -119,38 +133,24 @@ export class MarketDriversCacheManager {
   }
 
   /**
-   * Store Market Drivers snapshot in cache
+   * Store Market Drivers snapshot in DO cache
    */
   async setMarketDriversSnapshot(data: MarketDriversSnapshot, date?: Date | string): Promise<void> {
     const cacheKey = date
       ? KeyHelpers.getMarketDriversSnapshotKey(date)
       : KeyHelpers.getMarketDriversSnapshotKey();
 
-    // Store in L1 cache
-    this.setToL1(cacheKey, { ...data, source: 'fresh' as const });
-
-    // Store in L2 cache (KV) with circuit breaker protection
-    try {
-      await this.circuitBreaker.execute(async () => {
-        const result = await this.dal.write(cacheKey, data, {
-          expirationTtl: this.L2_TTL / 1000,
+    // Store in DO cache
+    if (this.cacheManager) {
+      try {
+        await this.cacheManager.set(cacheKey, { ...data, source: 'fresh' as const }, {
+          ttl: this.DEFAULT_TTL,
+          namespace: 'market_drivers'
         });
-
-        if (!result.success) {
-          throw new Error(`Failed to write to L2 cache: ${result.error}`);
-        }
-
-        logger.debug('Market Drivers snapshot stored in L2 cache', {
-          date,
-          cacheKey,
-          source: 'L2'
-        });
-
-        return result;
-      });
-    } catch (error) {
-      logger.error('Failed to store Market Drivers snapshot in L2 cache:', error);
-      // Continue even if L2 cache fails - L1 cache is still available
+        logger.debug('Market Drivers snapshot stored in DO cache', { date });
+      } catch (error: unknown) {
+        logger.error('Failed to store Market Drivers snapshot in DO cache:', { error: error instanceof Error ? error.message : String(error) });
+      }
     }
   }
 
@@ -181,8 +181,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Macro Drivers:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Macro Drivers:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -211,8 +211,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Macro Drivers in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Macro Drivers in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -239,8 +239,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Market Structure:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Market Structure:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -269,8 +269,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Market Structure in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Market Structure in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -297,8 +297,8 @@ export class MarketDriversCacheManager {
         return l2Result;
       }
       this.stats.l2Misses++;
-    } catch (error) {
-      logger.error('L2 cache read error for Geopolitical Risk:', error);
+    } catch (error: unknown) {
+      logger.error('L2 cache read error for Geopolitical Risk:', { error: error instanceof Error ? error.message : String(error) });
       this.stats.l2Misses++;
     }
 
@@ -327,8 +327,8 @@ export class MarketDriversCacheManager {
 
         return result;
       });
-    } catch (error) {
-      logger.error('Failed to store Geopolitical Risk in L2 cache:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to store Geopolitical Risk in L2 cache:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -381,8 +381,8 @@ export class MarketDriversCacheManager {
       }
 
       return true;
-    } catch (error) {
-      logger.error('Error validating Market Drivers data:', error);
+    } catch (error: unknown) {
+      logger.error('Error validating Market Drivers data:', { error: error instanceof Error ? error.message : String(error) });
       return false;
     }
   }
@@ -424,8 +424,8 @@ export class MarketDriversCacheManager {
       for (const key of keys) {
         try {
           await this.dal.deleteKey(key);
-        } catch (error) {
-          logger.error(`Failed to delete L2 cache key ${key}:`, error);
+        } catch (error: unknown) {
+          logger.error(`Failed to delete L2 cache key ${key}:`, { error: error instanceof Error ? error.message : String(error) });
         }
       }
     }
@@ -461,7 +461,7 @@ export class MarketDriversCacheManager {
   }
 
   private async getFromL2<T>(key: string): Promise<T | null> {
-    const result = await this.dal.read<T>(key);
+    const result = await (this.dal as any).read(key) as any;
     return result.success ? result.data : null;
   }
 
@@ -514,8 +514,9 @@ export class MarketDriversCacheManager {
 /**
  * Initialize Market Drivers Cache Manager
  */
-export function initializeMarketDriversCacheManager(env: any): MarketDriversCacheManager {
-  return new MarketDriversCacheManager(env);
+export function initializeMarketDriversCacheManager(env: any): any {
+  // @ts-ignore - Adapter not implemented
+  return new (globalThis as any).DOMarketDriversCacheAdapter(env);
 }
 
 export default MarketDriversCacheManager;

@@ -336,7 +336,7 @@ export async function fetchHealthData(env: CloudflareEnvironment): Promise<Healt
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       uptime: 0,
       lastUpdate: new Date().toISOString()
     };
@@ -373,7 +373,7 @@ export async function fetchModelHealthData(env: CloudflareEnvironment): Promise<
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       models: {},
       lastAnalysis: null,
       analysisCount: 0
@@ -418,7 +418,7 @@ export async function fetchLatestAnalysis(env: CloudflareEnvironment): Promise<L
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       signals: [],
       confidence: 0
     };
@@ -457,7 +457,7 @@ export async function fetchMarketData(env: CloudflareEnvironment): Promise<Marke
     }
 
     return marketData;
-  } catch (error) {
+  } catch (error: unknown) {
     return getDefaultMarketData();
   }
 }
@@ -472,7 +472,7 @@ export async function fetchSectorData(env: CloudflareEnvironment): Promise<Secto
     // For now, return default sector data
     // This will be enhanced when sector rotation is implemented
     return getDefaultSectorData();
-  } catch (error) {
+  } catch (error: unknown) {
     return getDefaultSectorData();
   }
 }
@@ -1167,7 +1167,7 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
     // Add smooth animations
     document.addEventListener('DOMContentLoaded', () => {
       const widgets = document.querySelectorAll('.widget');
-      widgets.forEach((widget, index) => {
+      widgets.forEach((widget: any, index: any) => {
         widget.style.opacity = '0';
         widget.style.transform = 'translateY(20px)';
 
@@ -1180,7 +1180,7 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
     });
 
     // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', (e: any) => {
       if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         location.reload();
@@ -1367,7 +1367,7 @@ export async function handleProfessionalDashboard(
   } catch (error: any) {
     logger.error('Dashboard generation failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

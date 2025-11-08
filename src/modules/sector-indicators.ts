@@ -145,9 +145,9 @@ export class SectorIndicators {
 
       // Determine volume trend (accumulation/distribution)
       const recentVolume = validData.slice(-5).map(d => d.volume);
-      const avgRecentVolume = recentVolume.reduce((a, b) => a + b, 0) / recentVolume.length;
+      const avgRecentVolume = recentVolume.reduce((a: any, b: any) => a + b, 0) / recentVolume.length;
       const historicalVolume = validData.slice(-20).map(d => d.volume);
-      const avgHistoricalVolume = historicalVolume.reduce((a, b) => a + b, 0) / historicalVolume.length;
+      const avgHistoricalVolume = historicalVolume.reduce((a: any, b: any) => a + b, 0) / historicalVolume.length;
 
       let volumeTrend: 'accumulating' | 'distributing' | 'neutral' = 'neutral';
       if (avgRecentVolume > avgHistoricalVolume * 1.2) {
@@ -165,8 +165,8 @@ export class SectorIndicators {
         timestamp: Date.now()
       };
 
-    } catch (error) {
-      logger.error(`Error calculating OBV for ${symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error calculating OBV for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -260,8 +260,8 @@ export class SectorIndicators {
         timestamp: Date.now()
       };
 
-    } catch (error) {
-      logger.error(`Error calculating CMF for ${symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error calculating CMF for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -325,8 +325,8 @@ export class SectorIndicators {
         timestamp: Date.now()
       };
 
-    } catch (error) {
-      logger.error(`Error calculating Relative Strength for ${symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error calculating Relative Strength for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -345,7 +345,7 @@ export class SectorIndicators {
         timestamp: Date.now(),
         overallSignal: 'neutral',
         confidence: 0
-      };
+      } as SectorIndicators;
 
       // Calculate OBV
       const obvData = await this.calculateOBV(symbol, sectorData);
@@ -374,8 +374,8 @@ export class SectorIndicators {
 
       return indicators;
 
-    } catch (error) {
-      logger.error(`Error calculating all indicators for ${symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error calculating all indicators for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -400,8 +400,8 @@ export class SectorIndicators {
       await this.dal.write(cacheKey, indicators, kvOptions);
       logger.debug(`Stored indicators for ${indicators.symbol}`);
 
-    } catch (error) {
-      logger.error(`Error storing indicators for ${indicators.symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error storing indicators for ${indicators.symbol}:`, { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -418,8 +418,8 @@ export class SectorIndicators {
       }
       return null;
 
-    } catch (error) {
-      logger.error(`Error retrieving indicators for ${symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error retrieving indicators for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }

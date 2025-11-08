@@ -515,9 +515,9 @@ export class EnhancedCacheConfigManager {
     const configs = this.getAllConfigs();
     const namespaces = Object.keys(configs);
 
-    const avgL1TTL = namespaces.reduce((sum, ns) => sum + configs[ns].l1TTL, 0) / namespaces.length;
-    const avgL2TTL = namespaces.reduce((sum, ns) => sum + configs[ns].l2TTL, 0) / namespaces.length;
-    const totalMemoryMB = namespaces.reduce((sum, ns) => sum + (configs[ns].l1MemoryMB || 0), 0);
+    const avgL1TTL = namespaces.reduce((sum: any, ns: any) => sum + configs[ns].l1TTL, 0) / namespaces.length;
+    const avgL2TTL = namespaces.reduce((sum: any, ns: any) => sum + configs[ns].l2TTL, 0) / namespaces.length;
+    const totalMemoryMB = namespaces.reduce((sum: any, ns: any) => sum + (configs[ns].l1MemoryMB || 0), 0);
 
     return {
       environment: this.environment,

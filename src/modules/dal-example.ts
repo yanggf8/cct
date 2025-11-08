@@ -65,19 +65,21 @@ export async function exampleHandler(request: Request, env: CloudflareEnvironmen
       timestamp: new Date().toISOString()
     };
 
-    const writeResult = await dal.storeAnalysis(today, analysisData);
+    const writeResult = await dal.storeAnalysis(today, analysisData as any);
     if (writeResult.success) {
       console.log('Analysis stored:', writeResult.key);
     }
 
     // Example 3: Store manual analysis (on-demand)
     const timestamp = Date.now();
-    const manualResult = await dal.storeManualAnalysis(timestamp, analysisData);
+    const manualResult = await dal.storeManualAnalysis(timestamp, analysisData as any);
     console.log('Manual analysis stored:', manualResult.key);
 
     // Example 4: List keys
     const keys = await dal.listKeys('analysis_2025-09');
-    console.log('Found keys:', keys.keys.length);
+    if (keys.keys && keys.keys.length > 0) {
+      console.log('Found keys:', keys.keys.length);
+    }
 
     // Example 5: Generic read/write
     const customData = { custom: 'data' };
@@ -96,7 +98,7 @@ export async function exampleHandler(request: Request, env: CloudflareEnvironmen
   } catch (error: any) {
     const errorResponse: ExampleResponse = {
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     };
 
     return new Response(JSON.stringify(errorResponse), {
@@ -210,13 +212,13 @@ export async function advancedDALExample(env: CloudflareEnvironment): Promise<{
     const listStart = Date.now();
 
     const listResult = await dal.listKeys('analysis_');
-    const filteredKeys = listResult.keys.filter(key =>
+    const filteredKeys = listResult.keys ? listResult.keys.filter(key =>
       key.includes('2025') && !key.includes('manual')
-    );
+    ) : [];
 
     operations.push({
       operation: 'pattern_based_listing',
-      success: listResult.success,
+      success: (listResult.keys && listResult.keys.length > 0) || false,
       duration: Date.now() - listStart
     });
 
@@ -241,7 +243,7 @@ export async function advancedDALExample(env: CloudflareEnvironment): Promise<{
       try {
         await env.TRADING_RESULTS.delete(oldKey);
         cleanupCount++;
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(`Failed to cleanup key ${oldKey}:`, error);
       }
     }
@@ -361,9 +363,9 @@ export async function errorHandlingExample(env: CloudflareEnvironment): Promise<
     console.log('=== Large Data Handling Example ===');
     try {
       const largeData = {
-        symbols: Array.from({ length: 1000 }, (_, i) => ({
+        symbols: Array.from({ length: 1000 }, (_: any, i: any) => ({
           symbol: `SYM${i.toString().padStart(4, '0')}`,
-          data: Array.from({ length: 100 }, (_, j) => ({
+          data: Array.from({ length: 100 }, (_: any, j: any) => ({
             timestamp: Date.now() - j * 1000,
             value: Math.random() * 100
           }))
@@ -402,7 +404,7 @@ export async function errorHandlingExample(env: CloudflareEnvironment): Promise<
       success: false,
       errors: [{
         type: 'global_error',
-        message: error.message,
+        message: (error instanceof Error ? error.message : String(error)),
         recovered: false
       }]
     };

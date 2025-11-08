@@ -654,8 +654,8 @@ export function validateInput(input: any, type: string, options?: any): Validati
           error: `Unknown validation type: ${type}`
         };
     }
-  } catch (error) {
-    logger.error('Validation error', { type, input, error: error.message });
+  } catch (error: unknown) {
+    logger.error('Validation error', { type, input, error: error instanceof Error ? error.message : String(error) });
     return {
       isValid: false,
       error: 'Validation failed due to internal error'

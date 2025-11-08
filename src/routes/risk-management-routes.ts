@@ -12,6 +12,10 @@ import { ApiResponseFactory } from '../modules/api-v1-responses.js';
  * Risk Management Routes Handler
  */
 export class RiskManagementRoutesHandler {
+  private env: any;
+  private riskEngine: any;
+  private complianceEngine: any;
+
   constructor(env) {
     this.env = env;
     this.riskEngine = createAdvancedRiskManagementEngine(env);
@@ -61,7 +65,7 @@ export class RiskManagementRoutesHandler {
         summary: {
           totalCategories: Object.keys(assessment.categoryBreakdown).length,
           highRiskCategories: Object.values(assessment.categoryBreakdown)
-            .filter(cat => cat.level.value >= 3).length,
+            .filter((cat: any) => (cat as any).level?.value >= 3).length,
           totalAlerts: assessment.alerts.length,
           totalRecommendations: assessment.recommendations.length
         }
@@ -69,10 +73,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk assessment request failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'RISK_ASSESSMENT_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -119,10 +123,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Market risk assessment failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'MARKET_RISK_ASSESSMENT_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -165,10 +169,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Concentration risk assessment failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'CONCENTRATION_RISK_ASSESSMENT_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -213,10 +217,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Liquidity risk assessment failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'LIQUIDITY_RISK_ASSESSMENT_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -269,10 +273,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Stress test failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'STRESS_TEST_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -330,10 +334,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Compliance assessment failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'COMPLIANCE_ASSESSMENT_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -374,10 +378,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Regulatory report generation failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'REGULATORY_REPORT_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -424,10 +428,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk limits check failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'RISK_LIMITS_CHECK_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -486,7 +490,7 @@ export class RiskManagementRoutesHandler {
       // Include stress test if requested
       if (includeStressTest) {
         const stressTest = await this.riskEngine.performAdvancedStressTest(portfolioData, []);
-        analytics.stressTest = {
+        (analytics as any).stressTest = {
           worstCaseLoss: stressTest.aggregateResults.worstCaseLoss,
           averageLoss: stressTest.aggregateResults.averageLoss,
           scenarios: Object.keys(stressTest.scenarios).length
@@ -504,10 +508,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk analytics failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'RISK_ANALYTICS_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -538,10 +542,10 @@ export class RiskManagementRoutesHandler {
 
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk health check failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'HEALTH_CHECK_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });

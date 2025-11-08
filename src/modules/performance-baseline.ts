@@ -170,8 +170,8 @@ export class PerformanceBaseline {
 
     if (older.length === 0) return 'baseline-establishing';
 
-    const recentAvg = recent.reduce((sum, m) => sum + m.value, 0) / recent.length;
-    const olderAvg = older.reduce((sum, m) => sum + m.value, 0) / older.length;
+    const recentAvg = recent.reduce((sum: any, m: any) => sum + m.value, 0) / recent.length;
+    const olderAvg = older.reduce((sum: any, m: any) => sum + m.value, 0) / older.length;
 
     const changePercent = ((recentAvg - olderAvg) / olderAvg) * 100;
 
@@ -214,7 +214,7 @@ export class PerformanceBaseline {
 
       const operationReport: OperationReport = {
         measurements: recentMeasurements.length,
-        average: values.reduce((sum, v) => sum + v, 0) / values.length,
+        average: values.reduce((sum: any, v: any) => sum + v, 0) / values.length,
         min: Math.min(...values),
         max: Math.max(...values),
         trend,
@@ -256,7 +256,7 @@ export class PerformanceBaseline {
     const target = this.getOperationTarget(operation);
     if (!target) return 'unknown';
 
-    const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+    const average = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
 
     // For time-based metrics, lower is better
     if (operation.includes('time') || operation.includes('duration')) {
@@ -460,7 +460,7 @@ export class PerformanceBaseline {
 
       if (measurementCount > 0) {
         const values = measurements.map(m => m.value);
-        stats.averagePerformance[operation] = values.reduce((sum, v) => sum + v, 0) / values.length;
+        stats.averagePerformance[operation] = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
         stats.trendDistribution[this.calculateTrend(operation)]++;
       }
     }

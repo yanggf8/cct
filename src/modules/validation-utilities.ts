@@ -72,7 +72,7 @@ export const RequestValidation = {
    */
   validateHeaders(request: Request, requiredHeaders: string[] = []): ValidationHeaders {
     const headers: ValidationHeaders = {};
-    request.headers.forEach((value, key) => {
+    request.headers.forEach((value: any, key: any) => {
       headers[key] = value;
     });
 
@@ -328,19 +328,19 @@ export const EnvironmentValidation = {
         'TIMEZONE'
       ]);
     } catch (error: any) {
-      errors.push(error.message);
+      errors.push((error instanceof Error ? error.message : String(error)));
     }
 
     try {
       this.validateKVBindings(env);
     } catch (error: any) {
-      errors.push(error.message);
+      errors.push((error instanceof Error ? error.message : String(error)));
     }
 
     try {
       this.validateR2Bindings(env);
     } catch (error: any) {
-      errors.push(error.message);
+      errors.push((error instanceof Error ? error.message : String(error)));
     }
 
     // AI binding is optional
@@ -390,7 +390,7 @@ export const MarketDataValidation = {
       }
 
       // Validate price values
-      [open, high, low, close].forEach((price, idx) => {
+      [open, high, low, close].forEach((price: any, idx: any) => {
         if (typeof price !== 'number' || price < 0) {
           const fields = ['open', 'high', 'low', 'close'];
           throw new Error(`Candle ${i} has invalid ${fields[idx]}: ${price}`);
@@ -561,7 +561,7 @@ export function safeValidate<T>(
     return ValidationResult.success(result);
   } catch (error: any) {
     logger.warn('Validation failed', {
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       context,
       data: typeof data === 'object' ? JSON.stringify(data) : data
     });

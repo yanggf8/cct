@@ -61,7 +61,7 @@ export class BatchKVOperations {
    * Schedule a batch operation with automatic batching
    */
   async scheduleRead(key: string, namespace?: string, priority: 'high' | 'medium' | 'low' = 'medium'): Promise<any> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve: any, reject: any) => {
       const operation: BatchOperation = {
         type: 'read',
         key,
@@ -105,7 +105,7 @@ export class BatchKVOperations {
     this.scheduleBatchExecution(batchKey, priority);
 
     // Wait for all operations to complete
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve: any, reject: any) => {
       this.waitForBatchCompletion(batchKey, resolve, reject);
     });
   }
@@ -114,7 +114,7 @@ export class BatchKVOperations {
    * Schedule a write operation with batching
    */
   async scheduleWrite(key: string, data: any, namespace?: string, priority: 'high' | 'medium' | 'low' = 'medium'): Promise<boolean> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve: any, reject: any) => {
       const operation: BatchOperation = {
         type: 'write',
         key,
@@ -153,7 +153,7 @@ export class BatchKVOperations {
     this.pendingOperations.set(batchKey, operations);
     this.scheduleBatchExecution(batchKey, priority);
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve: any, reject: any) => {
       this.waitForBatchCompletion(batchKey, resolve, reject);
     });
   }
@@ -185,7 +185,8 @@ export class BatchKVOperations {
     const readOps = operations.filter(op => op.type === 'read');
     const writeOps = operations.filter(op => op.type === 'write');
 
-    const results = [];
+    type OperationResult = { key: string; success: boolean; data?: any | null; error?: string };
+    const results: OperationResult[] = [];
 
     // Execute batch reads
     if (readOps.length > 0) {
@@ -203,15 +204,21 @@ export class BatchKVOperations {
       totalOperations: operations.length,
       successfulOperations: results.filter(r => r.success).length,
       failedOperations: results.filter(r => !r.success).length,
-      operations: results
+      operations: results.map(({ key, success, error }) => ({
+        key,
+        success,
+        error
+      }))
     };
   }
 
   /**
    * Execute batch read operations
    */
-  private async executeBatchReads(operations: BatchOperation[]): Promise<any[]> {
-    const results = [];
+  private async executeBatchReads(
+    operations: BatchOperation[]
+  ): Promise<Array<{ key: string; success: boolean; data: any | null; error?: string }>> {
+    const results: Array<{ key: string; success: boolean; data: any | null; error?: string }> = [];
 
     // Group by namespace for parallel reads
     const namespaceGroups = this.groupByNamespace(operations);
@@ -219,21 +226,21 @@ export class BatchKVOperations {
     for (const [namespace, ops] of namespaceGroups.entries()) {
       // Execute parallel reads within namespace
       const namespaceResults = await Promise.allSettled(
-        ops.map(async (op) => {
+        ops.map(async (op: BatchOperation) => {
           try {
             const result = await this.baseDAL.read(op.key);
             return {
               key: op.key,
               success: true,
-              data: result.success ? result.data : null,
-              error: null
+              data: result.success ? result.data : null
             };
-          } catch (error) {
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
             return {
               key: op.key,
               success: false,
               data: null,
-              error: error.message || 'Unknown error'
+              error: message
             };
           }
         })
@@ -253,8 +260,10 @@ export class BatchKVOperations {
   /**
    * Execute batch write operations
    */
-  private async executeBatchWrites(operations: BatchOperation[]): Promise<any[]> {
-    const results = [];
+  private async executeBatchWrites(
+    operations: BatchOperation[]
+  ): Promise<Array<{ key: string; success: boolean; error?: string }>> {
+    const results: Array<{ key: string; success: boolean; error?: string }> = [];
 
     // Group by namespace
     const namespaceGroups = this.groupByNamespace(operations);
@@ -262,19 +271,19 @@ export class BatchKVOperations {
     for (const [namespace, ops] of namespaceGroups.entries()) {
       // Execute parallel writes within namespace
       const namespaceResults = await Promise.allSettled(
-        ops.map(async (op) => {
+        ops.map(async (op: BatchOperation) => {
           try {
             const success = await this.baseDAL.write(op.key, op.data);
             return {
               key: op.key,
-              success,
-              error: null
+              success
             };
-          } catch (error) {
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
             return {
               key: op.key,
               success: false,
-              error: error.message || 'Unknown error'
+              error: message
             };
           }
         })
@@ -338,7 +347,7 @@ export class BatchKVOperations {
   /**
    * Generate batch key
    */
-  private getBatchKey(type: string, namespace?: string, priority: string): string {
+  private getBatchKey(type: string, namespace: string | undefined, priority: string): string {
     const ns = namespace || 'default';
     return `${type}_${ns}_${priority}`;
   }
@@ -346,7 +355,7 @@ export class BatchKVOperations {
   /**
    * Wait for specific operation completion
    */
-  private waitForOperationCompletion(key: string, resolve: Function, reject: Function): void {
+  private waitForOperationCompletion(key: string, resolve: (value: any) => void, reject: (reason?: any) => void): void {
     // Simple implementation - in real system, this would integrate with DAL callbacks
     const checkInterval = setInterval(() => {
       // This would be replaced with actual DAL integration
@@ -364,7 +373,7 @@ export class BatchKVOperations {
   /**
    * Wait for batch completion
    */
-  private waitForBatchCompletion(batchKey: string, resolve: Function, reject: Function): void {
+  private waitForBatchCompletion(batchKey: string, resolve: (value: Map<string, any> | boolean) => void, reject: (reason?: any) => void): void {
     const checkInterval = setInterval(() => {
       if (!this.pendingOperations.has(batchKey)) {
         clearInterval(checkInterval);
@@ -410,7 +419,7 @@ export class BatchKVOperations {
    */
   async flushAllBatches(): Promise<BatchResult[]> {
     const batchKeys = Array.from(this.pendingOperations.keys());
-    const results = [];
+    const results: BatchResult[] = [];
 
     for (const batchKey of batchKeys) {
       const result = await this.executeBatch(batchKey);
@@ -461,4 +470,3 @@ export class BatchKVOperations {
     }
   }
 }
-

@@ -133,7 +133,7 @@ export const ArrayUtils = {
    * Group array by key
    */
   groupBy<T extends Record<string, any>>(array: T[], key: keyof T): Record<string, T[]> {
-    return array.reduce((groups, item) => {
+    return array.reduce((groups: any, item: any) => {
       const group = String(item[key]);
       if (!groups[group]) {
         groups[group] = [];
@@ -151,7 +151,7 @@ export const ArrayUtils = {
     key: keyof T,
     direction: 'asc' | 'desc' = 'asc'
   ): T[] {
-    return [...array].sort((a, b) => {
+    return [...array].sort((a: any, b: any) => {
       const aVal = a[key];
       const bVal = b[key];
       const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
@@ -212,7 +212,7 @@ export const StringUtils = {
    * Convert to title case
    */
   toTitleCase(str: string): string {
-    return str.replace(/\w\S*/g, (txt) =>
+    return str.replace(/\w\S*/g, (txt: any) =>
       txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
     );
   },
@@ -357,7 +357,7 @@ export const AsyncUtils = {
    * Execute with timeout
    */
   async withTimeout<T>(promise: Promise<T>, timeoutMs: number = getTimeout('api_request')): Promise<T> {
-    const timeoutPromise = new Promise<T>((_, reject) => {
+    const timeoutPromise = new Promise<T>((_: any, reject: any) => {
       setTimeout(() => reject(new Error('Operation timeout')), timeoutMs);
     });
 
@@ -420,7 +420,7 @@ export const ErrorUtils = {
       return await fn();
     } catch (error: any) {
       logger.error('Async operation failed', {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         context
       });
@@ -548,7 +548,7 @@ export const ErrorUtils = {
         attempt++;
 
         if (attempt > maxRetries || !retryableErrors.some(type =>
-          error.message.toUpperCase().includes(type) ||
+          (error instanceof Error ? error.message : String(error)).toUpperCase().includes(type) ||
           (error.name && error.name.toUpperCase().includes(type))
         )) {
           throw error;
@@ -626,17 +626,18 @@ export const KVUtils = {
   /**
    * Get KV options with centralized TTL configuration (legacy - use KeyHelpers.getKVOptions for new code)
    */
-  getOptions(keyType: string, customOptions: KVOptions = {}): KVOptions {
+  getOptions(keyType: string, customOptions: KVOptions = {}, env?: CloudflareEnvironment): KVOptions {
+    const defaultTtl = (env ? (getEnvConfig(env) as any).KV_STORAGE.ANALYSIS_TTL : 86400);
     const ttlMap: Record<string, number> = {
-      'analysis': (getEnvConfig({}) as any).KV_STORAGE.ANALYSIS_TTL,
-      'granular': (getEnvConfig({}) as any).KV_STORAGE.GRANULAR_TTL,
-      'daily_summary': (getEnvConfig({}) as any).KV_STORAGE.DAILY_SUMMARY_TTL,
-      'status': (getEnvConfig({}) as any).KV_STORAGE.STATUS_TTL,
-      'report_cache': (getEnvConfig({}) as any).KV_STORAGE.REPORT_CACHE_TTL,
-      'metadata': (getEnvConfig({}) as any).KV_STORAGE.METADATA_TTL
+      'analysis': defaultTtl,
+      'granular': (env ? (getEnvConfig(env) as any).KV_STORAGE.GRANULAR_TTL : 86400),
+      'daily_summary': (env ? (getEnvConfig(env) as any).KV_STORAGE.DAILY_SUMMARY_TTL : 86400),
+      'status': (env ? (getEnvConfig(env) as any).KV_STORAGE.STATUS_TTL : 3600),
+      'report_cache': (env ? (getEnvConfig(env) as any).KV_STORAGE.REPORT_CACHE_TTL : 86400),
+      'metadata': (env ? (getEnvConfig(env) as any).KV_STORAGE.METADATA_TTL : 3600)
     };
 
-    const ttl = ttlMap[keyType.toLowerCase()] || (getEnvConfig({}) as any).KV_STORAGE.ANALYSIS_TTL;
+    const ttl = ttlMap[keyType.toLowerCase()] || defaultTtl;
 
     return {
       expirationTtl: ttl,

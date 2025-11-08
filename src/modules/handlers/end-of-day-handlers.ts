@@ -7,14 +7,14 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateEndOfDayAnalysis } from '../report/end-of-day-analysis.js';
 import { getEndOfDaySummaryData } from '../report-data-retrieval.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('end-of-day-handlers');
 
 /**
  * Generate End-of-Day Summary Page
  */
-export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment) => {
+export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
 
@@ -53,7 +53,7 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   } catch (error: any) {
     logger.error('❌ [END-OF-DAY] Failed to retrieve end-of-day data', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
   }

@@ -159,7 +159,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
       newsData.push(...fmpNews);
     }
   } catch (error: any) {
-    console.log(`FMP news failed for ${symbol}:`, error.message);
+    console.log(`FMP news failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   try {
@@ -169,7 +169,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
       newsData.push(...newsApiData);
     }
   } catch (error: any) {
-    console.log(`NewsAPI failed for ${symbol}:`, error.message);
+    console.log(`NewsAPI failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   try {
@@ -179,7 +179,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
       newsData.push(...yahooNews);
     }
   } catch (error: any) {
-    console.log(`Yahoo news failed for ${symbol}:`, error.message);
+    console.log(`Yahoo news failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   return newsData;
@@ -215,8 +215,8 @@ async function getFMPNews(symbol: string, env: CloudflareEnvironment): Promise<N
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.error || data.message) {
-    throw new Error(data.error || data.message);
+  if ((data as any).error || (data as any).message) {
+    throw new Error((data as any).error || (data as any).message);
   }
 
   // Check if data is an array
@@ -309,11 +309,11 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
   const response = await fetch(url);
   const data = await response.json();
 
-  if (data.status === 'error') {
-    throw new Error(data.message);
+  if ((data as any).status === 'error') {
+    throw new Error((data as any).message);
   }
 
-  const newsArticles = data.articles?.map(article => ({
+  const newsArticles = (data as any).articles?.map((article: any) => ({
     title: article.title,
     summary: article.description || article.title,
     publishedAt: article.publishedAt,
@@ -346,10 +346,10 @@ async function getYahooNews(symbol: string, env: CloudflareEnvironment): Promise
       }
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const news = data.news || [];
 
-    return news.map(item => ({
+    return news.map((item: any) => ({
       title: item.title,
       summary: item.summary || item.title,
       publishedAt: new Date(item.providerPublishTime * 1000).toISOString(),
@@ -427,7 +427,12 @@ async function getFreeLLMSentiment(newsData: NewsArticle[], symbol: string, env:
     console.log('No Gemini API key, using rule-based sentiment');
     return newsData.map(item => ({
       ...item,
-      llm_sentiment: item.sentiment // Use rule-based as fallback
+      llm_sentiment: {
+        label: item.sentiment.label,
+        score: item.sentiment.score,
+        reasoning: 'Rule-based sentiment analysis fallback',
+        price_impact: 'unknown'
+      }
     }));
   }
 
@@ -465,8 +470,8 @@ Respond with JSON only:
       })
     });
 
-    const result = await response.json();
-    const content = result.candidates[0].content.parts[0].text;
+    const result = await response.json() as any;
+    const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     // Parse JSON response
     const sentimentData = JSON.parse(content.replace(/```json|```/g, ''));
@@ -487,7 +492,12 @@ Respond with JSON only:
     console.log('Gemini LLM sentiment failed, using rule-based:', error);
     return newsData.map(item => ({
       ...item,
-      llm_sentiment: item.sentiment
+      llm_sentiment: {
+        label: item.sentiment.label,
+        score: item.sentiment.score,
+        reasoning: 'Rule-based sentiment analysis fallback (error case)',
+        price_impact: 'unknown'
+      }
     }));
   }
 }
@@ -566,7 +576,7 @@ function calculateAggregatedSentiment(newsData: NewsArticle[]): { label: string;
 
   const avgScore = totalWeight > 0 ? totalScore / totalWeight : 0;
   const dominantSentiment = Object.keys(sentimentCounts)
-    .reduce((a, b) => sentimentCounts[a] > sentimentCounts[b] ? a : b);
+    .reduce((a: any, b: any) => sentimentCounts[a] > sentimentCounts[b] ? a : b);
 
   const confidence = Math.min(0.9, Math.abs(avgScore) + (newsData.length * 0.1));
 

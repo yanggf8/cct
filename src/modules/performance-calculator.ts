@@ -131,7 +131,7 @@ export class PerformanceCalculator {
 
     const totalReturn = this.calculateTotalReturn();
     const benchmarkReturn = this.benchmarkReturns ?
-      this.benchmarkReturns.reduce((sum, r) => sum + r, 0) : 0;
+      this.benchmarkReturns.reduce((sum: any, r: any) => sum + r, 0) : 0;
 
     return {
       stockSelection: totalReturn * 0.4, // Simplified: 40% from selection
@@ -199,7 +199,7 @@ export class PerformanceCalculator {
 
     // T-test against benchmark if provided
     if (benchmark) {
-      const tTestBenchmark = this.performTTest(returns1, benchmark.reduce((sum, r) => sum + r, 0) / benchmark.length);
+      const tTestBenchmark = this.performTTest(returns1, benchmark.reduce((sum: any, r: any) => sum + r, 0) / benchmark.length);
       tests.push(tTestBenchmark);
     }
 
@@ -244,8 +244,8 @@ export class PerformanceCalculator {
   private calculateVolatility(returns: number[]): number {
     if (returns.length === 0) return 0;
 
-    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / (returns.length - 1);
+    const mean = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / (returns.length - 1);
     const dailyVolatility = Math.sqrt(variance);
 
     // Annualize volatility
@@ -261,8 +261,8 @@ export class PerformanceCalculator {
     const downsideReturns = returns.filter(r => r < 0);
     if (downsideReturns.length === 0) return 0;
 
-    const mean = downsideReturns.reduce((sum, r) => sum + r, 0) / downsideReturns.length;
-    const downsideVariance = downsideReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / downsideReturns.length;
+    const mean = downsideReturns.reduce((sum: any, r: any) => sum + r, 0) / downsideReturns.length;
+    const downsideVariance = downsideReturns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / downsideReturns.length;
     const downsideVolatility = Math.sqrt(downsideVariance) * Math.sqrt(252);
 
     if (downsideVolatility === 0) return 0;
@@ -313,8 +313,8 @@ export class PerformanceCalculator {
     const winningTrades = this.trades.filter(t => this.getTradePnL(t) > 0);
     const losingTrades = this.trades.filter(t => this.getTradePnL(t) < 0);
 
-    const grossProfit = winningTrades.reduce((sum, t) => sum + this.getTradePnL(t), 0);
-    const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + this.getTradePnL(t), 0));
+    const grossProfit = winningTrades.reduce((sum: any, t: any) => sum + this.getTradePnL(t), 0);
+    const grossLoss = Math.abs(losingTrades.reduce((sum: any, t: any) => sum + this.getTradePnL(t), 0));
 
     return grossLoss > 0 ? grossProfit / grossLoss : 0;
   }
@@ -329,10 +329,10 @@ export class PerformanceCalculator {
     const losingTrades = this.trades.filter(t => this.getTradePnL(t) < 0);
 
     const avgWin = winningTrades.length > 0 ?
-      winningTrades.reduce((sum, t) => sum + this.getTradePnL(t), 0) / winningTrades.length : 0;
+      winningTrades.reduce((sum: any, t: any) => sum + this.getTradePnL(t), 0) / winningTrades.length : 0;
 
     const avgLoss = losingTrades.length > 0 ?
-      Math.abs(losingTrades.reduce((sum, t) => sum + this.getTradePnL(t), 0) / losingTrades.length) : 0;
+      Math.abs(losingTrades.reduce((sum: any, t: any) => sum + this.getTradePnL(t), 0) / losingTrades.length) : 0;
 
     const tradePnLs = this.trades.map(t => this.getTradePnL(t));
     const bestTrade = tradePnLs.length > 0 ? Math.max(...tradePnLs) : 0;
@@ -344,7 +344,7 @@ export class PerformanceCalculator {
   private calculateAverageTradeDuration(): number {
     const durations = this.calculateTradeDurations();
     return durations.length > 0 ?
-      durations.reduce((sum, d) => sum + d, 0) / durations.length : 0;
+      durations.reduce((sum: any, d: any) => sum + d, 0) / durations.length : 0;
   }
 
   private calculateTradeDurations(): number[] {
@@ -382,7 +382,7 @@ export class PerformanceCalculator {
 
     // Sort trades by timestamp for each symbol
     for (const trades of groups.values()) {
-      trades.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      trades.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     }
 
     return groups;
@@ -401,7 +401,7 @@ export class PerformanceCalculator {
   private calculateVaR(returns: number[], confidenceLevel: number): number {
     if (returns.length === 0) return 0;
 
-    const sortedReturns = [...returns].sort((a, b) => a - b);
+    const sortedReturns = [...returns].sort((a: any, b: any) => a - b);
     const index = Math.floor((1 - confidenceLevel) * sortedReturns.length);
     return sortedReturns[index] || 0;
   }
@@ -420,15 +420,15 @@ export class PerformanceCalculator {
 
     if (tailReturns.length === 0) return varThreshold;
 
-    return tailReturns.reduce((sum, r) => sum + r, 0) / tailReturns.length;
+    return tailReturns.reduce((sum: any, r: any) => sum + r, 0) / tailReturns.length;
   }
 
   private calculateDownsideDeviation(returns: number[]): number {
     const downsideReturns = returns.filter(r => r < 0);
     if (downsideReturns.length === 0) return 0;
 
-    const mean = downsideReturns.reduce((sum, r) => sum + r, 0) / downsideReturns.length;
-    const variance = downsideReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / downsideReturns.length;
+    const mean = downsideReturns.reduce((sum: any, r: any) => sum + r, 0) / downsideReturns.length;
+    const variance = downsideReturns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / downsideReturns.length;
 
     return Math.sqrt(variance) * Math.sqrt(252); // Annualized
   }
@@ -440,8 +440,8 @@ export class PerformanceCalculator {
       return 0;
     }
 
-    const returnsMean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const benchmarkMean = this.benchmarkReturns.reduce((sum, r) => sum + r, 0) / this.benchmarkReturns.length;
+    const returnsMean = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
+    const benchmarkMean = this.benchmarkReturns.reduce((sum: any, r: any) => sum + r, 0) / this.benchmarkReturns.length;
 
     let covariance = 0;
     let benchmarkVariance = 0;
@@ -461,7 +461,7 @@ export class PerformanceCalculator {
   private calculateAlpha(annualizedReturn: number): number {
     if (!this.benchmarkReturns) return 0;
 
-    const benchmarkAnnualReturn = this.benchmarkReturns.reduce((sum, r) => sum + r, 0) / this.benchmarkReturns.length * 252;
+    const benchmarkAnnualReturn = this.benchmarkReturns.reduce((sum: any, r: any) => sum + r, 0) / this.benchmarkReturns.length * 252;
     const beta = this.calculateBeta(this.extractReturns());
 
     return annualizedReturn - (this.riskFreeRate + beta * (benchmarkAnnualReturn - this.riskFreeRate));
@@ -470,10 +470,10 @@ export class PerformanceCalculator {
   private calculateInformationRatio(returns: number[]): number {
     if (!this.benchmarkReturns) return 0;
 
-    const excessReturns = returns.map((r, i) => r - (this.benchmarkReturns[i] || 0));
-    const excessMean = excessReturns.reduce((sum, r) => sum + r, 0) / excessReturns.length;
+    const excessReturns = returns.map((r: any, i: any) => r - (this.benchmarkReturns[i] || 0));
+    const excessMean = excessReturns.reduce((sum: any, r: any) => sum + r, 0) / excessReturns.length;
     const excessStdDev = Math.sqrt(
-      excessReturns.reduce((sum, r) => sum + Math.pow(r - excessMean, 2), 0) / excessReturns.length
+      excessReturns.reduce((sum: any, r: any) => sum + Math.pow(r - excessMean, 2), 0) / excessReturns.length
     );
 
     return excessStdDev > 0 ? excessMean / excessStdDev * Math.sqrt(252) : 0;
@@ -482,9 +482,9 @@ export class PerformanceCalculator {
   private calculateTrackingError(returns: number[]): number {
     if (!this.benchmarkReturns) return 0;
 
-    const excessReturns = returns.map((r, i) => r - (this.benchmarkReturns[i] || 0));
+    const excessReturns = returns.map((r: any, i: any) => r - (this.benchmarkReturns[i] || 0));
     const excessStdDev = Math.sqrt(
-      excessReturns.reduce((sum, r) => sum + r * r, 0) / excessReturns.length
+      excessReturns.reduce((sum: any, r: any) => sum + r * r, 0) / excessReturns.length
     );
 
     return excessStdDev * Math.sqrt(252); // Annualized
@@ -531,8 +531,8 @@ export class PerformanceCalculator {
   private calculateCorrelation(returns1: number[], returns2: number[]): number {
     if (returns1.length !== returns2.length || returns1.length === 0) return 0;
 
-    const mean1 = returns1.reduce((sum, r) => sum + r, 0) / returns1.length;
-    const mean2 = returns2.reduce((sum, r) => sum + r, 0) / returns2.length;
+    const mean1 = returns1.reduce((sum: any, r: any) => sum + r, 0) / returns1.length;
+    const mean2 = returns2.reduce((sum: any, r: any) => sum + r, 0) / returns2.length;
 
     let covariance = 0;
     let variance1 = 0;
@@ -566,8 +566,8 @@ export class PerformanceCalculator {
       };
     }
 
-    const mean = returns.reduce((sum, r) => sum + r, 0) / n;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / (n - 1);
+    const mean = returns.reduce((sum: any, r: any) => sum + r, 0) / n;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / (n - 1);
     const stdError = Math.sqrt(variance / n);
 
     const statistic = stdError > 0 ? (mean - nullHypothesis) / stdError : 0;
@@ -605,7 +605,7 @@ export class PerformanceCalculator {
       };
     }
 
-    const differences = returns1.map((r1, i) => r1 - (returns2[i] || 0));
+    const differences = returns1.map((r1: any, i: any) => r1 - (returns2[i] || 0));
     return this.performTTest(differences, 0);
   }
 
@@ -625,15 +625,15 @@ export class PerformanceCalculator {
 
     // Calculate signed ranks
     const signedRanks = returns
-      .map((value, index) => ({ value, index }))
-      .sort((a, b) => Math.abs(a.value) - Math.abs(b.value))
-      .map((item, rank) => ({
+      .map((value: any, index: any) => ({ value, index }))
+      .sort((a: any, b: any) => Math.abs(a.value) - Math.abs(b.value))
+      .map((item: any, rank: any) => ({
         ...item,
         rank: rank + 1,
         signedRank: item.value >= 0 ? rank + 1 : -(rank + 1)
       }));
 
-    const statistic = signedRanks.reduce((sum, item) => sum + (item.value >= 0 ? item.rank : 0), 0);
+    const statistic = signedRanks.reduce((sum: any, item: any) => sum + (item.value >= 0 ? item.rank : 0), 0);
 
     // Simplified p-value calculation
     const expectedStatistic = n * (n + 1) / 4;

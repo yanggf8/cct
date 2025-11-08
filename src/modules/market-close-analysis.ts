@@ -211,10 +211,10 @@ class MarketCloseAnalysisEngine {
       };
 
       // Get market close data
-      const marketCloseData = await this.getMarketCloseData(env, todaySignals.data.signals);
+      const marketCloseData = await this.getMarketCloseData(env, todaySignals.data.signals as any);
 
       // Generate tomorrow outlook
-      const tomorrowOutlook = await this.generateTomorrowOutlook(env, todaySignals.data.signals, signalSummary);
+      const tomorrowOutlook = await this.generateTomorrowOutlook(env, todaySignals.data.signals as any, signalSummary);
 
       // Calculate performance metrics
       const performanceMetrics = this.calculatePerformanceMetrics(signalSummary);
@@ -253,7 +253,7 @@ class MarketCloseAnalysisEngine {
     } catch (error: any) {
       logger.error('❌ [MARKET-CLOSE] Market close analysis failed', {
         analysisId,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return this.getDefaultMarketCloseAnalysis();
     }
@@ -281,7 +281,7 @@ class MarketCloseAnalysisEngine {
       const marketDataResults = await Promise.allSettled(marketDataPromises);
 
       // Process market data
-      marketDataResults.forEach((result, index) => {
+      marketDataResults.forEach((result: any, index: any) => {
         if (result.status === 'fulfilled' && result.value) {
           const symbol = uniqueSymbols[index];
           marketCloseData.closingPrices[symbol] = result.value;
@@ -290,8 +290,8 @@ class MarketCloseAnalysisEngine {
 
       // Determine overall market status
       const priceChanges = Object.values(marketCloseData.closingPrices).map(p => p.changePercent);
-      const avgChange = priceChanges.reduce((sum, change) => sum + change, 0) / priceChanges.length;
-      const volatility = Math.sqrt(priceChanges.reduce((sum, change) => sum + Math.pow(change - avgChange, 2), 0) / priceChanges.length);
+      const avgChange = priceChanges.reduce((sum: any, change: any) => sum + change, 0) / priceChanges.length;
+      const volatility = Math.sqrt(priceChanges.reduce((sum: any, change: any) => sum + Math.pow(change - avgChange, 2), 0) / priceChanges.length);
 
       // Set market status
       if (Math.abs(avgChange) > 1) {
@@ -312,7 +312,7 @@ class MarketCloseAnalysisEngine {
       };
 
     } catch (error: any) {
-      logger.error('Failed to get market close data', { error: error.message });
+      logger.error('Failed to get market close data', { error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return marketCloseData;
@@ -364,7 +364,7 @@ class MarketCloseAnalysisEngine {
       };
 
     } catch (error: any) {
-      logger.error('Failed to get symbol market data', { symbol, error: error.message });
+      logger.error('Failed to get symbol market data', { symbol, error: (error instanceof Error ? error.message : String(error)) });
       return null;
     }
   }
@@ -439,7 +439,7 @@ class MarketCloseAnalysisEngine {
       outlook.topSignals = signalSummary.topPerformers?.slice(0, 3) || [];
 
     } catch (error: any) {
-      logger.error('Failed to generate tomorrow outlook', { error: error.message });
+      logger.error('Failed to generate tomorrow outlook', { error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return outlook;
@@ -479,7 +479,7 @@ class MarketCloseAnalysisEngine {
       }
 
     } catch (error: any) {
-      logger.error('Failed to calculate performance metrics', { error: error.message });
+      logger.error('Failed to calculate performance metrics', { error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return metrics;
@@ -509,7 +509,7 @@ class MarketCloseAnalysisEngine {
     } catch (error: any) {
       logger.error('Failed to store market close analysis', {
         date: date.toISOString().split('T')[0],
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
   }

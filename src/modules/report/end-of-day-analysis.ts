@@ -141,7 +141,7 @@ export async function generateEndOfDayAnalysis(
     return endOfDayResults;
 
   } catch (error: any) {
-    logger.error('Error generating end-of-day analysis', { error: error.message });
+    logger.error('Error generating end-of-day analysis', { error: (error instanceof Error ? error.message : String(error)) });
     return getDefaultEndOfDayData();
   }
 }
@@ -170,8 +170,8 @@ function analyzeHighConfidenceSignals(
     const tradingSignals = signal.trading_signals || signal;
     const sentimentLayer = signal.sentiment_layers?.[0];
 
-    const predictedDirection = tradingSignals?.primary_direction === 'BULLISH' ? 'up' : 'down';
-    const confidence = (sentimentLayer?.confidence || tradingSignals?.overall_confidence || 0) * 100;
+    const predictedDirection = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' : 'down';
+    const confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
 
     // Only analyze high-confidence signals
     if (confidence < (CONFIDENCE_THRESHOLD * 100)) return;
@@ -215,8 +215,8 @@ function analyzeHighConfidenceSignals(
   });
 
   // Sort top performers
-  topWinners.sort((a, b) => parseFloat(b.performance) - parseFloat(a.performance));
-  topLosers.sort((a, b) => parseFloat(a.performance) - parseFloat(b.performance));
+  topWinners.sort((a: any, b: any) => parseFloat(b.performance) - parseFloat(a.performance));
+  topLosers.sort((a: any, b: any) => parseFloat(a.performance) - parseFloat(b.performance));
 
   // Calculate overall accuracy
   const overallAccuracy = totalSignals > 0 ?
@@ -325,7 +325,7 @@ async function getMarketClosePerformance(
       }
 
       const data = await response.json();
-      const result = data.chart.result[0];
+      const result = (data as any).chart.result[0];
 
       if (!result || !result.indicators || !result.timestamp) {
         throw new Error(`Invalid response format for ${symbol}`);
@@ -362,7 +362,7 @@ async function getMarketClosePerformance(
       logger.info(`Market data for ${symbol}: $${closePrice.toFixed(2)} (${dayChange > 0 ? '+' : ''}${dayChange.toFixed(2)}%)`);
 
     } catch (error: any) {
-      logger.warn(`Failed to get market data for ${symbol}: ${error.message}`);
+      logger.warn(`Failed to get market data for ${symbol}: ${(error instanceof Error ? error.message : String(error))}`);
 
       // Use fallback data with clear indication it's not real
       performance[symbol] = {

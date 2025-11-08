@@ -91,10 +91,10 @@ const fallbackApiRateLimiter = new RateLimiter(10, 60000); // 10 requests per mi
 
 export function configureYahooRateLimiter(maxRequests: number, windowMs: number): void {
   if (typeof maxRequests === 'number' && maxRequests > 0) {
-    yahooFinanceRateLimiter.maxRequests = maxRequests;
+    (yahooFinanceRateLimiter as any).maxRequests = maxRequests;
   }
   if (typeof windowMs === 'number' && windowMs > 0) {
-    yahooFinanceRateLimiter.windowMs = windowMs;
+    (yahooFinanceRateLimiter as any).windowMs = windowMs;
   }
 }
 
@@ -167,8 +167,8 @@ export function getYahooFinanceRateStatus(): RateLimiterStatus {
  * Reset rate limiter (for testing)
  */
 export function resetRateLimiter(): void {
-  yahooFinanceRateLimiter.requests = [];
-  fallbackApiRateLimiter.requests = [];
+  (yahooFinanceRateLimiter as any).requests = [];
+  (fallbackApiRateLimiter as any).requests = [];
 }
 
 /**
@@ -198,7 +198,7 @@ export async function batchRateLimitedRequests(
         const response = await rateLimitedFetch(url, options);
         return { url, status: response.status, statusText: response.statusText, headers: response.headers };
       } catch (error: any) {
-        logger.warn(`Request failed in batch: ${url}`, { error: error.message });
+        logger.warn(`Request failed in batch: ${url}`, { error: (error instanceof Error ? error.message : String(error)) });
         return { error: error.message, url };
       }
     });

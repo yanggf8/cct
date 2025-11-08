@@ -6,6 +6,7 @@
 
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { createLogger } from './logging.js';
+import { batchDualAIAnalysis } from './dual-ai-analysis.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('pre-market-data-bridge');
@@ -64,7 +65,7 @@ export class PreMarketDataBridge {
    * This bridges the gap between the modern API and legacy reporting system
    */
   async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']): Promise<AnalysisData> {
-    logger.info('PreMarketDataBridge', 'Generating pre-market analysis', { symbols });
+    logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols });
 
     try {
       const trading_signals: Record<string, TradingSignal> = {};
@@ -75,7 +76,7 @@ export class PreMarketDataBridge {
         try {
           const sentimentData = await this.getSymbolSentimentData(symbol);
 
-          if (sentimentData && sentimentData.confidence > 0.5) {
+          if (sentimentData && sentimentData.confidence > 0.3) {
             trading_signals[symbol] = {
               symbol,
               sentiment_layers: [{
@@ -85,13 +86,13 @@ export class PreMarketDataBridge {
               }]
             };
 
-            logger.debug('PreMarketDataBridge', `Generated signal for ${symbol}`, {
+            logger.debug(`Generated signal for ${symbol}`, {
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence
             });
           }
-        } catch (error) {
-          logger.warn('PreMarketDataBridge', `Failed to get sentiment for ${symbol}`, error);
+        } catch (error: unknown) {
+          logger.warn(`Failed to get sentiment for ${symbol}`, { error, symbol });
         }
       }
 
@@ -104,9 +105,9 @@ export class PreMarketDataBridge {
 
       // Store in the expected format for pre-market reports
       const analysisKey = `analysis_${today}`;
-      await this.dal.put(analysisKey, analysisData, { namespace: 'ANALYSIS', expirationTtl: 86400 }); // 24 hours
+      await (this.dal as any).put(analysisKey, analysisData, { expirationTtl: 86400 }); // 24 hours
 
-      logger.info('PreMarketDataBridge', 'Pre-market analysis generated and stored', {
+      logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,
         analysis_key: analysisKey,
         high_confidence_signals: Object.values(trading_signals).filter(s => s.sentiment_layers[0].confidence > 0.7).length
@@ -114,33 +115,98 @@ export class PreMarketDataBridge {
 
       return analysisData;
 
-    } catch (error) {
-      logger.error('PreMarketDataBridge', 'Failed to generate pre-market analysis', error);
+    } catch (error: unknown) {
+      logger.error('PreMarketDataBridge: Failed to generate pre-market analysis', error);
       throw error;
     }
   }
 
   /**
-   * Get symbol sentiment data from cache or API
+   * Get symbol sentiment data from cache or by triggering analysis
    */
   private async getSymbolSentimentData(symbol: string): Promise<ModernSentimentData | null> {
     try {
       // Try to get from cache first
       const cacheKey = `sentiment_symbol_${symbol}_${new Date().toISOString().split('T')[0]}`;
-      const cached = await this.dal.get(cacheKey, 'sentiment_analysis');
+      const cached = await (this.dal as any).get(cacheKey);
 
       if (cached && cached.data) {
-        logger.debug('PreMarketDataBridge', `Cache hit for ${symbol}`);
+        logger.debug(`Cache hit for ${symbol}`, { symbol });
         return cached.data;
       }
 
-      // If not in cache, we need to trigger analysis
-      // This would typically be called by the sentiment API itself
-      logger.debug('PreMarketDataBridge', `No cached data for ${symbol}, returning null`);
-      return null;
+      // If not in cache, trigger real-time sentiment analysis
+      logger.info(`No cached data for ${symbol}, triggering real-time analysis`, { symbol });
 
-    } catch (error) {
-      logger.warn('PreMarketDataBridge', `Error getting sentiment data for ${symbol}`, error);
+      try {
+        const batchResult = await batchDualAIAnalysis([symbol], (this.dal as any).env, {
+          timeout: 15000, // 15 seconds for individual analysis
+          cacheResults: true, // Cache the results for future use
+          skipCache: false // Use existing cache if available
+        });
+
+        if (batchResult && batchResult.results && batchResult.results.length > 0) {
+          const firstResult = batchResult.results[0];
+          logger.info(`Batch analysis result for ${symbol}`, {
+            symbol,
+            hasError: !!firstResult.error,
+            hasGPT: !!firstResult.models?.gpt,
+            hasDistilBERT: !!firstResult.models?.distilbert,
+            gptDirection: firstResult.models?.gpt?.direction,
+            distilbertDirection: firstResult.models?.distilbert?.direction,
+            signalAction: firstResult.signal?.action
+          });
+
+          if (firstResult && !firstResult.error && (firstResult.models?.gpt || firstResult.models?.distilbert)) {
+            // Use GPT if available, otherwise fall back to DistilBERT
+            const model = firstResult.models.gpt || firstResult.models.distilbert;
+
+            const sentimentData: ModernSentimentData = {
+              symbol,
+              sentiment: this.normalizeSentiment(model.direction),
+              confidence: model.confidence,
+              signal: firstResult.signal?.action || 'HOLD',
+              reasoning: model.reasoning || 'Sentiment analysis completed',
+              articles_analyzed: model.articles_analyzed || 0,
+              market_sentiment: model.direction,
+              sector_sentiment: model.direction
+            };
+
+            logger.info(`Generated sentiment data for ${symbol}`, {
+              symbol,
+              sentiment: sentimentData.sentiment,
+              confidence: sentimentData.confidence,
+              articles_analyzed: sentimentData.articles_analyzed,
+              model_used: model.model,
+              signal_action: sentimentData.signal
+            });
+
+            return sentimentData;
+          } else {
+            logger.warn(`No valid model data found for ${symbol}`, {
+              symbol,
+              hasError: !!firstResult?.error,
+              error: firstResult?.error,
+              hasGPT: !!firstResult?.models?.gpt,
+              hasDistilBERT: !!firstResult?.models?.distilbert
+            });
+          }
+        }
+
+        logger.warn(`Failed to generate sentiment data for ${symbol}`, {
+          symbol,
+          resultsCount: batchResult?.results?.length || 0,
+          statistics: batchResult?.statistics
+        });
+        return null;
+
+      } catch (analysisError: unknown) {
+        logger.error(`Error triggering sentiment analysis for ${symbol}`, { symbol, error: analysisError });
+        return null;
+      }
+
+    } catch (error: unknown) {
+      logger.warn(`Error getting sentiment data for ${symbol}`, { symbol, error });
       return null;
     }
   }
@@ -169,17 +235,17 @@ export class PreMarketDataBridge {
    * Force refresh of pre-market analysis data
    */
   async refreshPreMarketAnalysis(symbols?: string[]): Promise<AnalysisData> {
-    logger.info('PreMarketDataBridge', 'Force refreshing pre-market analysis');
+    logger.info('Force refreshing pre-market analysis', { symbols });
 
     // Clear existing cache
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
 
     try {
-      await this.dal.delete(analysisKey, 'ANALYSIS');
-      logger.info('PreMarketDataBridge', 'Cleared existing pre-market analysis');
-    } catch (error) {
-      logger.warn('PreMarketDataBridge', 'Failed to clear existing analysis', error);
+      await (this.dal as any).delete(analysisKey);
+      logger.info('Cleared existing pre-market analysis', { analysisKey });
+    } catch (error: unknown) {
+      logger.warn('Failed to clear existing analysis', { analysisKey, error });
     }
 
     // Generate fresh data
@@ -193,11 +259,11 @@ export class PreMarketDataBridge {
     try {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
-      const analysisData = await this.dal.get(analysisKey, 'ANALYSIS');
+      const analysisData = await (this.dal as any).get(analysisKey);
 
-      return !!(analysisData && analysisData.trading_signals);
-    } catch (error) {
-      logger.warn('PreMarketDataBridge', 'Error checking pre-market analysis', error);
+      return !!(analysisData && (analysisData as any).trading_signals);
+    } catch (error: unknown) {
+      logger.warn('PreMarketDataBridge: Error checking pre-market analysis', error);
       return false;
     }
   }
@@ -209,9 +275,9 @@ export class PreMarketDataBridge {
     try {
       const today = new Date().toISOString().split('T')[0];
       const analysisKey = `analysis_${today}`;
-      return await this.dal.get(analysisKey, 'ANALYSIS');
-    } catch (error) {
-      logger.warn('PreMarketDataBridge', 'Error getting current analysis', error);
+      return await (this.dal as any).get(analysisKey, 1 as any) as any;
+    } catch (error: unknown) {
+      logger.warn('PreMarketDataBridge: Error getting current analysis', error);
       return null;
     }
   }

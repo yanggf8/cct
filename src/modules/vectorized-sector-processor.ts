@@ -79,9 +79,9 @@ export class VectorizedSectorProcessor {
 
     // Cache the results efficiently
     await this.batchOperations.scheduleBatchWrite(
-      sectors.map((symbol, index) => ({
+      sectors.map((symbol: any, index: any) => ({
         key: `${this.OPERATION_TEMPLATES.AI_ANALYSIS}_result_${symbol}`,
-        data: batchResult.data ? batchResult.data[index] : null
+        data: (batchResult as any).data ? (batchResult as any).data[index] : null
       })),
       'ai_results',
       priority
@@ -97,7 +97,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(sectors.map((symbol, index) => [symbol, batchResult.data?.[index]]))
+      data: new Map(sectors.map((symbol: any, index: any) => [symbol, (batchResult as any).data?.[index]]))
     };
   }
 
@@ -118,7 +118,7 @@ export class VectorizedSectorProcessor {
     // Optimized storage
     await this.batchOperations.scheduleWrite(
       `${this.OPERATION_TEMPLATES.MARKET_DATA}_batch_${sectors.join(',')}`,
-      batchResult.data,
+      (batchResult as any).data,
       'market_data',
       priority
     );
@@ -133,7 +133,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(sectors.map((symbol, index) => [symbol, batchResult.data?.[index]]))
+      data: new Map(sectors.map((symbol: any, index: any) => [symbol, (batchResult as any).data?.[index]]))
     };
   }
 
@@ -158,7 +158,7 @@ export class VectorizedSectorProcessor {
     await this.batchOperations.scheduleBatchWrite(
       uniqueSymbols.map(symbol => ({
         key: `${this.OPERATION_TEMPLATES.HISTORICAL}_${symbol}_${days}`,
-        data: batchResult.data ? this.findDataForSymbol(batchResult.data, symbol) : null
+        data: (batchResult as any).data ? this.findDataForSymbol((batchResult as any).data, symbol) : null
       })),
       'historical_data',
       priority
@@ -174,7 +174,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(sectors.map(symbol => [symbol, this.findDataForSymbol(batchResult.data, symbol)]))
+      data: new Map(sectors.map(symbol => [symbol, this.findDataForSymbol((batchResult as any).data, symbol)]))
     };
   }
 
@@ -195,9 +195,9 @@ export class VectorizedSectorProcessor {
     // Combine with SPY data and store as batch
     const combinedData = {
       timestamp: Date.now(),
-      sectors: batchResult.data,
+      sectors: (batchResult as any).data,
       spyBenchmark: spyData,
-      rotationAnalysis: this.calculateRotationMetrics(batchResult.data, spyData)
+      rotationAnalysis: this.calculateRotationMetrics((batchResult as any).data, spyData)
     };
 
     await this.batchOperations.scheduleWrite(
@@ -225,7 +225,7 @@ export class VectorizedSectorProcessor {
    * Process multiple sector operations in one vectorized call
    */
   async processBatchSectorData(requests: SectorDataRequest[]): Promise<SectorDataBatchResult> {
-    const totalOperations = requests.reduce((sum, req) => sum + req.operations.length, 0);
+    const totalOperations = requests.reduce((sum: any, req: any) => sum + req.operations.length, 0);
     const originalKVCount = totalOperations * 2; // Read + write per operation
 
     // Group operations by type for optimal batching
@@ -241,7 +241,7 @@ export class VectorizedSectorProcessor {
         const result = await this.processOperationType(operationType, requestsOfType);
         batchResults.push(result);
         totalSuccessfulRequests += requestsOfType.length;
-      } catch (error) {
+      } catch (error: unknown) {
         totalFailedRequests += requestsOfType.length;
       }
     }
@@ -250,7 +250,7 @@ export class VectorizedSectorProcessor {
     const kvOperationsReduced = originalKVCount - optimizedKVCount;
 
     return {
-      totalRequests,
+      totalRequests: totalOperations,
       successfulRequests: totalSuccessfulRequests,
       failedRequests: totalFailedRequests,
       kvOperationsReduced,
@@ -273,7 +273,7 @@ export class VectorizedSectorProcessor {
     const batchResult = await this.batchOperations.scheduleBatchRead(cacheKeys, 'sector_data', 'high');
 
     // Batch write all results
-    await this.batchOperations.scheduleWrite(batchKey, batchResult.data, 'sector_results', 'high');
+    await this.batchOperations.scheduleWrite(batchKey, (batchResult as any).data, 'sector_results', 'high');
 
     const optimizedKVCount = 2; // 1 batch read + 1 write
     const reduction = originalKVCount - optimizedKVCount;
@@ -285,7 +285,7 @@ export class VectorizedSectorProcessor {
       optimizedKVCount,
       reduction,
       reductionPercentage,
-      data: new Map(allSymbols.map((symbol, index) => [symbol, batchResult.data?.[index]]))
+      data: new Map(allSymbols.map((symbol: any, index: any) => [symbol, (batchResult as any).data?.[index]]))
     };
   }
 
@@ -351,8 +351,8 @@ export class VectorizedSectorProcessor {
   private calculateCorrelation(sectorReturns: number[], benchmarkReturn: number): number {
     if (sectorReturns.length === 0) return 0;
 
-    const sectorAvg = sectorReturns.reduce((sum, ret) => sum + ret, 0) / sectorReturns.length;
-    const sectorVariance = sectorReturns.reduce((sum, ret) => sum + Math.pow(ret - sectorAvg, 2), 0) / sectorReturns.length;
+    const sectorAvg = sectorReturns.reduce((sum: any, ret: any) => sum + ret, 0) / sectorReturns.length;
+    const sectorVariance = sectorReturns.reduce((sum: any, ret: any) => sum + Math.pow(ret - sectorAvg, 2), 0) / sectorReturns.length;
 
     // Simplified correlation calculation
     const covariance = (sectorAvg * benchmarkReturn) - (sectorAvg * benchmarkReturn);

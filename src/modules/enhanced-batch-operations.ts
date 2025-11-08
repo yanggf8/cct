@@ -6,7 +6,7 @@
 
 import { requestDeduplicator } from './request-deduplication.js';
 import { createLogger } from './logging.js';
-import { createCacheManager } from './cache-manager.js';
+import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-batch-operations');
@@ -71,13 +71,13 @@ interface BatchCacheEntry<T> {
 }
 
 /**
- * Enhanced batch operations manager
+ * Enhanced batch operations manager with DO cache
  */
 export class EnhancedBatchOperations {
   private static instance: EnhancedBatchOperations;
   private config: BatchOperationConfig;
   private cache: Map<string, BatchCacheEntry<any>> = new Map();
-  private cacheManager: any;
+  private cacheManager: DualCacheDO | null;
 
   private constructor(config: Partial<BatchOperationConfig> = {}) {
     this.config = {
@@ -126,7 +126,14 @@ export class EnhancedBatchOperations {
       const cachedResult = this.getBatchCache<T>(options.cacheKey);
       if (cachedResult) {
         logger.debug('Batch cache hit', { cacheKey: options.cacheKey, itemCount: items.length });
-        return this.createBatchResult(items, cachedResult.items, startTime, true);
+        const cachedItems = cachedResult.items.map(item => ({
+          key: item.key,
+          success: true,
+          data: item.data,
+          cached: true,
+          responseTime: 0
+        }));
+        return this.createBatchResult(items, cachedItems, startTime, true);
       }
     }
 
@@ -175,7 +182,9 @@ export class EnhancedBatchOperations {
 
     // Cache the batch result if enabled
     if (enableCache && options?.cacheKey && allResults.some(r => r.success)) {
-      const successfulResults = allResults.filter(r => r.success && r.data !== undefined);
+      const successfulResults = allResults
+        .filter(r => r.success && r.data !== undefined)
+        .map(r => ({ key: r.key, data: r.data as T, timestamp: Date.now() }));
       if (successfulResults.length > 0) {
         this.setBatchCache(options.cacheKey, successfulResults, options?.customTTL || this.config.cacheTTL);
       }
@@ -205,22 +214,30 @@ export class EnhancedBatchOperations {
   ): Promise<void> {
     const batchItems = allItems.filter(item => batchKeys.includes(item.key));
 
-    const batchPromises = batchItems.map(async (item) => {
+    const batchPromises = batchItems.map(async (item: any) => {
       const itemStartTime = Date.now();
 
       try {
-        let data: T;
+        let data: T | undefined;
         let cached = false;
         let deduplicated = false;
 
-        // Use cache manager if available
+        // Use DO cache manager if available
         if (enableCache && !this.cacheManager) {
-          this.cacheManager = createCacheManager(env, { enabled: true });
+          this.cacheManager = createCacheInstance(env, true);
+          if (this.cacheManager) {
+            logger.info('BATCH_OPERATIONS: Using Durable Objects cache');
+          } else {
+            logger.info('BATCH_OPERATIONS: Cache disabled (DO binding not available)');
+          }
         }
 
         // Check individual cache first
         if (enableCache && this.cacheManager) {
-          const cachedData = await this.cacheManager.get('batch_operations', item.key);
+          const cachedData = await this.cacheManager.get(item.key, {
+            ttl: this.config.cacheTTL,
+            namespace: 'batch_operations'
+          });
           if (cachedData) {
             data = cachedData;
             cached = true;
@@ -256,8 +273,16 @@ export class EnhancedBatchOperations {
 
           // Cache the result
           if (enableCache && this.cacheManager && data) {
-            await this.cacheManager.set('batch_operations', item.key, data);
+            await this.cacheManager.set(item.key, data, {
+              ttl: this.config.cacheTTL,
+              namespace: 'batch_operations'
+            });
           }
+        }
+
+        // Ensure we have data
+        if (data === undefined) {
+          throw new Error(`No data returned for item: ${item.key}`);
         }
 
         const responseTime = Date.now() - itemStartTime;
@@ -270,7 +295,7 @@ export class EnhancedBatchOperations {
           responseTime
         });
 
-      } catch (error) {
+      } catch (error: unknown) {
         const responseTime = Date.now() - itemStartTime;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
@@ -310,7 +335,7 @@ export class EnhancedBatchOperations {
   /**
    * Cache batch result
    */
-  private setBatchCache<T>(cacheKey: string, items: Array<{ key: string; data: T }>, ttlSeconds: number): void {
+  private setBatchCache<T>(cacheKey: string, items: Array<{ key: string; data: T; timestamp: number }>, ttlSeconds: number): void {
     const now = Date.now();
     const expiresAt = now + ttlSeconds * 1000;
 
@@ -371,7 +396,7 @@ export class EnhancedBatchOperations {
     const failedItems = results.filter(r => !r.success).length;
 
     // Calculate average response time
-    const totalResponseTime = results.reduce((sum, r) => sum + r.responseTime, 0);
+    const totalResponseTime = results.reduce((sum: any, r: any) => sum + r.responseTime, 0);
     const averageResponseTime = results.length > 0 ? totalResponseTime / results.length : 0;
 
     // Calculate metrics

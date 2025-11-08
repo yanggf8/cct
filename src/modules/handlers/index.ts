@@ -73,7 +73,7 @@ export {
   handleNotificationHistory,
   handleTestNotification,
   handleNotificationStatus
-} from './web-notification-handlers.ts';
+} from './web-notification-handlers.js';
 
 // Daily summary and backfill handlers
 export {
@@ -85,14 +85,12 @@ export {
 
 // Refactored handler examples
 export {
-  handleIntradayCheckRefactored,
-  handleIntradayCheckEnhanced
+  handleIntradayCheckRefactored
 } from './intraday-refactored.js';
 
 // Decomposed handler examples (replaces 932-line monolithic file)
 export {
-  handleIntradayCheckDecomposed,
-  handleIntradayCheckConsistent
+  handleIntradayCheckDecomposed
 } from './intraday-decomposed.js';
 
 // Professional dashboard handlers

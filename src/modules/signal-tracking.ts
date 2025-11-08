@@ -36,8 +36,31 @@ const SIGNAL_STATUS = {
  * Enhanced Signal Structure
  */
 class EnhancedSignal {
+  id: string;
+  symbol: string;
+  prediction: string;
+  confidence: number;
+  timestamp: number;
+  status: string;
+  period: string;
+  morningPrediction: string;
+  intradayPerformance: any;
+  endOfDayPerformance: any;
+  weeklyPerformance: any;
+  openPrice: any;
+  currentPrice: any;
+  closePrice: any;
+  priceTargets: any;
+  accuracyScore: any;
+  divergenceLevel: any;
+  consistencyRating: any;
+  sentimentLayers: any[];
+  marketConditions: any;
+  reasoning: string;
+  tags: any[];
+
   constructor(symbol, prediction, confidence, timestamp) {
-    this.id = crypto.randomUUID();
+    this.id = (globalThis as any).crypto.randomUUID();
     this.symbol = symbol;
     this.prediction = prediction; // 'up' | 'down' | 'neutral'
     this.confidence = confidence;
@@ -64,7 +87,7 @@ class EnhancedSignal {
     // Performance metrics
     this.accuracyScore = null;
     this.divergenceLevel = null;
-    self.consistencyRating = null;
+    this.consistencyRating = null;
 
     // Analysis metadata
     this.sentimentLayers = [];
@@ -78,6 +101,10 @@ class EnhancedSignal {
  * Signal Tracking Manager
  */
 class SignalTrackingManager {
+  activeSignals: Map<any, any>;
+  archivedSignals: Map<any, any>;
+  performanceHistory: Map<any, any>;
+
   constructor() {
     this.activeSignals = new Map();
     this.archivedSignals = new Map();
@@ -128,8 +155,8 @@ class SignalTrackingManager {
       if (result.success && result.data) {
         return result.data.signals || [];
       }
-    } catch (error) {
-      logger.error('Failed to retrieve signals', { date: dateStr, error: error.message });
+    } catch (error: unknown) {
+      logger.error('Failed to retrieve signals', { date: dateStr, error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return [];
@@ -168,8 +195,8 @@ class SignalTrackingManager {
       });
 
       return true;
-    } catch (error) {
-      logger.error('Failed to save signals to KV', { date: dateStr, error: error.message });
+    } catch (error: unknown) {
+      logger.error('Failed to save signals to KV', { date: dateStr, error: (error instanceof Error ? error.message : String(error)) });
       return false;
     }
   }
@@ -234,7 +261,7 @@ class SignalTrackingManager {
    * Get signals by status
    */
   getSignalsByStatus(status) {
-    return Array.from(this.activeSignals.values()).filter(signal => signal.status === status);
+    return Array.from(this.activeSignals.values()).filter((signal: any) => (signal as any).status === status);
   }
 
   /**
@@ -253,15 +280,15 @@ class SignalTrackingManager {
     }
 
     const totalSignals = signals.length;
-    const highConfidenceSignals = signals.filter(s => s.confidence >= HIGH_CONFIDENCE_THRESHOLD);
-    const accurateSignals = signals.filter(s => s.accuracyScore >= 0.7);
-    const divergentSignals = signals.filter(s => s.divergenceLevel === 'high');
+    const highConfidenceSignals = signals.filter((s: any) => (s as any).confidence >= HIGH_CONFIDENCE_THRESHOLD);
+    const accurateSignals = signals.filter((s: any) => (s as any).accuracyScore >= 0.7);
+    const divergentSignals = signals.filter((s: any) => (s as any).divergenceLevel === 'high');
 
     return {
       totalSignals,
-      averageAccuracy: signals.reduce((sum, s) => sum + (s.accuracyScore || 0), 0) / totalSignals,
+      averageAccuracy: signals.reduce((sum: any, s: any) => sum + (s.accuracyScore || 0), 0) / totalSignals,
       highConfidenceAccuracy: highConfidenceSignals.length > 0
-        ? highConfidenceSignals.reduce((sum, s) => sum + (s.accuracyScore || 0), 0) / highConfidenceSignals.length
+        ? highConfidenceSignals.reduce((sum: any, s: any) => sum + (s.accuracyScore || 0), 0) / highConfidenceSignals.length
         : 0,
       divergenceRate: divergentSignals.length / totalSignals
     };
@@ -271,7 +298,7 @@ class SignalTrackingManager {
 /**
  * Helper functions
  */
-function calculateDivergenceLevel(signal, performanceData) {
+function calculateDivergenceLevel(signal: any, performanceData: any) {
   if (!signal.currentPrice || !performanceData.expectedPrice) {
     return 'unknown';
   }
@@ -283,7 +310,7 @@ function calculateDivergenceLevel(signal, performanceData) {
   return 'low';
 }
 
-function determineSignalStatus(signal, performanceData) {
+function determineSignalStatus(signal: any, performanceData: any) {
   if (signal.divergenceLevel === 'high') {
     return SIGNAL_STATUS.DIVERGENT;
   }
@@ -295,7 +322,7 @@ function determineSignalStatus(signal, performanceData) {
   return SIGNAL_STATUS.TRACKING;
 }
 
-function calculateAccuracyScore(signal, marketCloseData) {
+function calculateAccuracyScore(signal: any, marketCloseData: any) {
   if (!signal.prediction || !marketCloseData.actualMovement) {
     return 0;
   }

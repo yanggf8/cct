@@ -27,7 +27,7 @@ export class CacheKeyResolver {
   private static instance: CacheKeyResolver;
   private cacheKeyMap: Map<string, CacheKeyInfo> = new Map();
   private accessPatterns: Map<string, AccessPattern> = new Map();
-  private symbolSortCache: Map<string, string> = new Map();
+  private symbolSortCache: Map<string, string> = new Map(); // Stores sorted symbols as comma-separated string
 
   private constructor() {}
 
@@ -222,14 +222,14 @@ export class CacheKeyResolver {
   /**
    * Get sorted symbols for consistent key generation
    */
-  private getSortedSymbols(symbols: string[]): string {
+  private getSortedSymbols(symbols: string[]): string[] {
     const cacheKey = symbols.join(',');
     if (this.symbolSortCache.has(cacheKey)) {
-      return this.symbolSortCache.get(cacheKey)!;
+      return this.symbolSortCache.get(cacheKey)!.split(',');
     }
 
     const sorted = [...symbols].sort();
-    this.symbolSortCache.set(cacheKey, sorted);
+    this.symbolSortCache.set(cacheKey, sorted.join(','));
     return sorted;
   }
 
@@ -296,12 +296,12 @@ export class CacheAliasingDAL {
   /**
    * Enhanced read with key alias resolution
    */
-  async read<T>(key: string): Promise<{ success: boolean; data: T | null }> {
+  async read<T = any>(key: string): Promise<{ success: boolean; data: T | null }> {
     // Resolve canonical key
     const canonicalKey = this.keyResolver.resolveCanonicalKey(key);
 
     // Try canonical key first
-    let result = await this.baseDAL.read<T>(canonicalKey);
+    let result = await this.baseDAL.read(canonicalKey);
     if (result.success && result.data) {
       return result;
     }
@@ -309,7 +309,7 @@ export class CacheAliasingDAL {
     // Try all alias keys (useful during migration)
     const aliasKeys = this.keyResolver.getAliasKeys(canonicalKey);
     for (const aliasKey of aliasKeys) {
-      result = await this.baseDAL.read<T>(aliasKey);
+      result = await this.baseDAL.read(aliasKey);
       if (result.success && result.data) {
         // Promote canonical key with data
         await this.baseDAL.write(canonicalKey, result.data);

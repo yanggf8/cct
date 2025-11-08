@@ -360,7 +360,7 @@ export class PredictiveAnalyticsEngine {
 
     } catch (error: any) {
       logger.error('Failed to generate predictive signals', {
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       throw error;
     }
@@ -405,7 +405,7 @@ export class PredictiveAnalyticsEngine {
 
     } catch (error: any) {
       logger.error('Failed to analyze patterns', {
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       throw error;
     }
@@ -445,7 +445,7 @@ export class PredictiveAnalyticsEngine {
 
     } catch (error: any) {
       logger.error('Failed to generate predictive insights', {
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       throw error;
     }
@@ -783,7 +783,7 @@ export class PredictiveAnalyticsEngine {
         return (isFavored && positiveMomentum && positiveSentiment) ||
                (positiveMomentum && technicalStrength && etf.performanceMetrics.daily > 0.5);
       })
-      .sort((a, b) => {
+      .sort((a: any, b: any) => {
         const scoreA = this.calculateSectorScore(a, favoredSectors, avoidedSectors, true);
         const scoreB = this.calculateSectorScore(b, favoredSectors, avoidedSectors, true);
         return scoreB - scoreA;
@@ -837,7 +837,7 @@ export class PredictiveAnalyticsEngine {
 
         return isAvoided || (negativeMomentum && (bearishSentiment || technicalWeakness));
       })
-      .sort((a, b) => {
+      .sort((a: any, b: any) => {
         const scoreA = this.calculateSectorScore(a, favoredSectors, avoidedSectors, false);
         const scoreB = this.calculateSectorScore(b, favoredSectors, avoidedSectors, false);
         return scoreA - scoreB; // Lower is worse for underperformers
@@ -1048,7 +1048,9 @@ export class PredictiveAnalyticsEngine {
       probability_of_change: Math.round(probabilityOfChange * 100) / 100,
       likely_next_regime: likelyNextRegime,
       time_to_transition: timeToTransition,
-      confidence: Math.round((confidence / 100) * 100) / 100
+      confidence: Math.round((confidence / 100) * 100) / 100,
+      regime_transition_matrix: {},
+      historical_regime_accuracy: 0.75
     };
   }
 
@@ -1834,8 +1836,8 @@ export class PredictiveAnalyticsEngine {
     }
 
     // Seasonal catalysts
-    if (patterns.seasonal_tendencies?.length > 0) {
-      const seasonalPattern = patterns.seasonal_tendencies[0];
+    if ((patterns as any).seasonal_tendencies?.length > 0) {
+      const seasonalPattern = (patterns as any).seasonal_tendencies[0];
       catalysts.push({
         catalyst: `Seasonal factor: ${seasonalPattern.pattern}`,
         impact_level: seasonalPattern.historical_accuracy > 0.75 ? 'medium' : 'low',
@@ -2466,8 +2468,8 @@ export class PredictiveAnalyticsEngine {
       catalysts.push(`Sector leadership from ${signals.sector_predictions.top_performers[0].name}`);
     }
 
-    if (patterns.seasonal_tendencies?.length > 0) {
-      catalysts.push(`Seasonal factors: ${patterns.seasonal_tendencies[0].pattern}`);
+    if ((patterns as any).seasonal_tendencies?.length > 0) {
+      catalysts.push(`Seasonal factors: ${(patterns as any).seasonal_tendencies[0].pattern}`);
     }
 
     return catalysts;

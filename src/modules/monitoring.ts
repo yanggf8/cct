@@ -13,16 +13,18 @@ const logger = createLogger('monitoring');
  * System metrics collection
  */
 class SystemMetrics {
+  private metrics: Map<string, any> = new Map();
+  private counters: Map<string, number> = new Map();
+  private timers: Map<string, any> = new Map();
+
   constructor() {
-    this.metrics = new Map();
-    this.counters = new Map();
-    this.timers = new Map();
+    // Properties are already initialized above
   }
 
   /**
    * Increment a counter metric
    */
-  incrementCounter(name, value = 1, tags = {}) {
+  incrementCounter(name: any, value: any = 1, tags: any = {}) {
     const key = this.createMetricKey(name, tags);
     const current = this.counters.get(key) || 0;
     this.counters.set(key, current + value);
@@ -37,7 +39,7 @@ class SystemMetrics {
   /**
    * Record a gauge metric (current value)
    */
-  recordGauge(name, value, tags = {}) {
+  recordGauge(name: any, value: any, tags: any = {}) {
     const key = this.createMetricKey(name, tags);
     this.metrics.set(key, {
       name,
@@ -56,7 +58,7 @@ class SystemMetrics {
   /**
    * Record a timer metric (duration)
    */
-  recordTimer(name, duration, tags = {}) {
+  recordTimer(name: any, duration: any, tags: any = {}) {
     const key = this.createMetricKey(name, tags);
     this.timers.set(key, {
       name,
@@ -75,7 +77,7 @@ class SystemMetrics {
   /**
    * Create a timer instance
    */
-  timer(name, tags = {}) {
+  timer(name: string, tags: Record<string, any> = {}) {
     const startTime = Date.now();
     return {
       stop: () => {
@@ -110,7 +112,7 @@ class SystemMetrics {
   /**
    * Create a unique key for metric storage
    */
-  createMetricKey(name, tags) {
+  createMetricKey(name: string, tags: Record<string, any>) {
     const tagString = Object.entries(tags)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}:${v}`)
@@ -127,41 +129,41 @@ const systemMetrics = new SystemMetrics();
  */
 export const BusinessMetrics = {
   // Analysis metrics
-  analysisRequested: (type, symbols) => {
+  analysisRequested: (type: any, symbols: any) => {
     systemMetrics.incrementCounter('analysis.requested', 1, { type });
     systemMetrics.recordGauge('analysis.symbols_count', symbols, { type });
   },
 
-  analysisCompleted: (type, symbols, duration) => {
+  analysisCompleted: (type: string, symbols: number, duration: number) => {
     systemMetrics.incrementCounter('analysis.completed', 1, { type });
     systemMetrics.recordTimer('analysis.duration', duration, { type });
     systemMetrics.recordGauge('analysis.success_rate', 100, { type });
   },
 
-  analysisFailed: (type, error) => {
+  analysisFailed: (type: any, error: any) => {
     systemMetrics.incrementCounter('analysis.failed', 1, { type, error });
     systemMetrics.recordGauge('analysis.success_rate', 0, { type });
   },
 
   // Prediction metrics
-  predictionMade: (symbol, confidence, direction) => {
+  predictionMade: (symbol: string, confidence: number, direction: string) => {
     systemMetrics.incrementCounter('predictions.made', 1, { symbol, direction });
     systemMetrics.recordGauge('predictions.confidence', confidence * 100, { symbol });
   },
 
-  predictionValidated: (symbol, correct, confidence) => {
+  predictionValidated: (symbol: string, correct: boolean, confidence: number) => {
     systemMetrics.incrementCounter('predictions.validated', 1, { symbol, correct: correct.toString() });
     systemMetrics.recordGauge('predictions.accuracy', correct ? 100 : 0, { symbol });
   },
 
   // API metrics
-  apiRequest: (endpoint, method, status, duration) => {
+  apiRequest: (endpoint: string, method: string, status: number, duration: number) => {
     systemMetrics.incrementCounter('api.requests', 1, { endpoint, method, status: status.toString() });
     systemMetrics.recordTimer('api.response_time', duration, { endpoint });
   },
 
   // Facebook metrics
-  facebookMessageSent: (type, success) => {
+  facebookMessageSent: (type: any, success: any) => {
     systemMetrics.incrementCounter('facebook.messages_sent', 1, { type, success: success.toString() });
   },
 
@@ -172,12 +174,12 @@ export const BusinessMetrics = {
   },
 
   // Daily summary metrics
-  dailySummaryGenerated: (date, predictions) => {
+  dailySummaryGenerated: (date: any, predictions: any) => {
     systemMetrics.incrementCounter('daily_summary.generated', 1, { date });
     systemMetrics.recordGauge('daily_summary.predictions', predictions, { date });
   },
 
-  dailySummaryViewed: (date) => {
+  dailySummaryViewed: (date: any) => {
     systemMetrics.incrementCounter('daily_summary.views', 1, { date });
   }
 };
@@ -189,7 +191,7 @@ export const BusinessKPI = {
   /**
    * Track prediction accuracy against targets
    */
-  trackPredictionAccuracy: (accuracy) => {
+  trackPredictionAccuracy: (accuracy: any) => {
     const target = CONFIG.BUSINESS_KPI.PREDICTION_ACCURACY_TARGET;
     const isOnTarget = accuracy >= target;
 
@@ -209,7 +211,7 @@ export const BusinessKPI = {
   /**
    * Track system performance against targets
    */
-  trackPerformanceKPI: (responseTime, operation) => {
+  trackPerformanceKPI: (responseTime: any, operation: any) => {
     const target = CONFIG.BUSINESS_KPI.RESPONSE_TIME_TARGET_MS;
     const performance = responseTime <= target ? 100 : (target / responseTime) * 100;
 
@@ -248,7 +250,7 @@ export const BusinessKPI = {
   /**
    * Track system uptime against target
    */
-  trackUptimeKPI: (uptimePercentage) => {
+  trackUptimeKPI: (uptimePercentage: any) => {
     const target = CONFIG.BUSINESS_KPI.UPTIME_TARGET;
     const performance = uptimePercentage >= target ? 100 : (uptimePercentage / target) * 100;
 
@@ -325,33 +327,33 @@ export const BusinessKPI = {
 /**
  * Helper functions for KPI calculations
  */
-function getLatestGauge(gauges, metricName) {
+function getLatestGauge(gauges: any, metricName: any) {
   const matching = Object.entries(gauges)
     .filter(([key]) => key.startsWith(metricName))
     .map(([, value]) => value)
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a: any, b: any) => b.timestamp - a.timestamp);
 
-  return matching.length > 0 ? matching[0].value : null;
+  return matching.length > 0 ? ((matching[0] as any).value) : null;
 }
 
-function getLatestTimer(timers, metricName) {
+function getLatestTimer(timers: any, metricName: any) {
   const matching = Object.entries(timers)
     .filter(([key]) => key.startsWith(metricName))
     .map(([, value]) => value)
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a: any, b: any) => b.timestamp - a.timestamp);
 
-  return matching.length > 0 ? matching[0].duration : null;
+  return matching.length > 0 ? ((matching[0] as any).duration) : null;
 }
 
-function getLatestCounter(counters, metricName) {
-  const matching = Object.entries(counters)
+function getLatestCounter(counters: any, metricName: any) {
+  const matching = Object.entries(counters as Record<string, number>)
     .filter(([key]) => key.startsWith(metricName))
-    .reduce((sum, [, value]) => sum + value, 0);
+    .reduce((sum, [, value]) => sum + (value as number), 0);
 
   return matching;
 }
 
-function getKPIStatus(performanceMetric, gauges) {
+function getKPIStatus(performanceMetric: any, gauges: any) {
   const performance = getLatestGauge(gauges, performanceMetric);
   if (performance === null) return 'unknown';
   if (performance >= 95) return 'excellent';
@@ -360,7 +362,7 @@ function getKPIStatus(performanceMetric, gauges) {
   return 'poor';
 }
 
-function calculateOverallKPIHealth(metrics) {
+function calculateOverallKPIHealth(metrics: any) {
   const kpiMetrics = [
     getLatestGauge(metrics.gauges, 'kpi.prediction_accuracy_vs_target'),
     getLatestGauge(metrics.gauges, 'kpi.response_time_performance'),
@@ -371,7 +373,7 @@ function calculateOverallKPIHealth(metrics) {
 
   if (kpiMetrics.length === 0) return 'unknown';
 
-  const avgPerformance = kpiMetrics.reduce((sum, val) => sum + val, 0) / kpiMetrics.length;
+  const avgPerformance = kpiMetrics.reduce((sum: any, val: any) => sum + val, 0) / kpiMetrics.length;
 
   if (avgPerformance >= 95) return 'excellent';
   if (avgPerformance >= 85) return 'good';
@@ -386,12 +388,12 @@ export const PerformanceMonitor = {
   /**
    * Monitor HTTP request performance
    */
-  monitorRequest: (request, handler) => {
+  monitorRequest: (request: any, handler?: any) => {
     const url = new URL(request.url);
     const startTime = Date.now();
 
     return {
-      complete: (response) => {
+      complete: (response: any) => {
         const duration = Date.now() - startTime;
         BusinessMetrics.apiRequest(
           url.pathname,
@@ -432,7 +434,10 @@ export const HealthMonitor = {
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      components: {},
+      components: {
+        kv_storage: {},
+        ai_models: {}
+      },
       metrics: {}
     };
 
@@ -449,7 +454,7 @@ export const HealthMonitor = {
 
       const kvDuration = timer.stop();
 
-      if (writeResult.success && readResult.success && deleteResult.success) {
+      if (writeResult.success && readResult.success && deleteResult) {
         health.components.kv_storage = {
           status: 'healthy',
           response_time_ms: kvDuration
@@ -457,10 +462,10 @@ export const HealthMonitor = {
       } else {
         throw new Error('One or more DAL operations failed');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       health.components.kv_storage = {
         status: 'unhealthy',
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
       health.status = 'degraded';
     }
@@ -487,18 +492,18 @@ export const HealthMonitor = {
           error: 'AI binding not available'
         };
       }
-    } catch (error) {
+    } catch (error: unknown) {
       health.components.ai_models = {
         status: 'unhealthy',
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       };
       health.status = 'degraded';
     }
 
     // Add metrics summary
     health.metrics = {
-      counters: Object.fromEntries(systemMetrics.counters),
-      recent_timers: Array.from(systemMetrics.timers.values())
+      counters: Object.fromEntries((systemMetrics as any).counters),
+      recent_timers: Array.from((systemMetrics as any).timers.values())
         .slice(-10)
         .map(({ name, duration, timestamp }) => ({ name, duration, timestamp }))
     };
@@ -541,7 +546,7 @@ export const AlertManager = {
   /**
    * Check for alerting conditions
    */
-  checkAlerts: (metrics) => {
+  checkAlerts: (metrics: any) => {
     // Example alert conditions
     const alerts = [];
 
@@ -549,7 +554,7 @@ export const AlertManager = {
     const errorRate = metrics.counters['api.requests[status:500]'] || 0;
     const totalRequests = Object.entries(metrics.counters)
       .filter(([key]) => key.startsWith('api.requests'))
-      .reduce((sum, [, value]) => sum + value, 0);
+      .reduce((sum, [, value]) => sum + (value as number), 0);
 
     if (totalRequests > 10 && errorRate / totalRequests > 0.1) {
       alerts.push({
@@ -561,7 +566,7 @@ export const AlertManager = {
 
     // Slow response times
     const recentTimers = Object.values(metrics.timers || {});
-    const slowRequests = recentTimers.filter(timer => timer.duration > 5000);
+    const slowRequests = recentTimers.filter((timer: any) => (timer as any).duration > 5000);
 
     if (slowRequests.length > 0) {
       alerts.push({
@@ -583,7 +588,7 @@ export { systemMetrics as SystemMetrics };
 /**
  * Initialize monitoring
  */
-export function initMonitoring(env) {
+export function initMonitoring(env: any) {
   logger.info('Monitoring system initialized', {
     timestamp: new Date().toISOString()
   });

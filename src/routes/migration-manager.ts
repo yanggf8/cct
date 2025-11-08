@@ -194,7 +194,7 @@ export class MigrationManager {
       await this.dal.write(`migration_event_${fullEvent.id}`, fullEvent, {
         expirationTtl: this.config.migrationEventTTL
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to store migration event', { error });
     }
 
@@ -276,7 +276,7 @@ export class MigrationManager {
       await this.dal.write(`performance_comparison_${endpoint}`, comparison, {
         expirationTtl: this.config.migrationEventTTL
       });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to store performance comparison', { error, endpoint });
     }
   }
@@ -353,7 +353,7 @@ export class MigrationManager {
     }
 
     const avgImprovement = performance.length > 0
-      ? performance.reduce((sum, p) => sum + p.improvement.overallImprovement, 0) / performance.length
+      ? performance.reduce((sum: any, p: any) => sum + p.improvement.overallImprovement, 0) / performance.length
       : 0;
 
     if (avgImprovement > 20) {
@@ -472,6 +472,5 @@ export async function migrationMiddleware(
 export default {
   MigrationManager,
   getMigrationManager,
-  migrationMiddleware,
-  legacyUsageTracker
+  migrationMiddleware
 };

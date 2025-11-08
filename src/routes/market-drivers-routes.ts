@@ -41,7 +41,7 @@ export async function handleMarketDriversRoutes(
     const { getMarketDataConfig } = await import('../modules/config.js');
     const { configureYahooRateLimiter } = await import('../modules/rate-limiter.js');
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 60, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
   } catch {}
   if (!auth.valid) {
     return new Response(
@@ -119,8 +119,8 @@ export async function handleMarketDriversRoutes(
         headers,
       }
     );
-  } catch (error) {
-    logger.error('MarketDriversRoutes Error', error, { requestId, path, method });
+  } catch (error: unknown) {
+    logger.error('MarketDriversRoutes Error', { error, requestId, path, method });
 
     return new Response(
       JSON.stringify(
@@ -167,7 +167,7 @@ async function handleMarketDriversSnapshot(
       const cachedResult = await dal.read<MarketDriversSnapshot>(cacheKey);
 
       if (cachedResult.success && cachedResult.data) {
-        logger.info('MarketDriversSnapshot', 'Cache hit', { requestId, date });
+        logger.info('MarketDriversSnapshot: Cache hit', { requestId, date });
 
         return new Response(
           JSON.stringify(
@@ -195,7 +195,7 @@ async function handleMarketDriversSnapshot(
       await dal.write(cacheKey, snapshot, { expirationTtl: 600 });
     }
 
-    logger.info('MarketDriversSnapshot', 'Data retrieved', {
+    logger.info('MarketDriversSnapshot: Data retrieved', {
       date: snapshot.date,
       regime: snapshot.regime.currentRegime,
       confidence: snapshot.regime.confidence,
@@ -214,8 +214,8 @@ async function handleMarketDriversSnapshot(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('MarketDriversSnapshot Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('MarketDriversSnapshot Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -255,7 +255,7 @@ async function handleEnhancedMarketDriversSnapshot(
     // Fetch enhanced market drivers snapshot
     const enhancedSnapshot = await marketDrivers.getEnhancedMarketDriversSnapshot();
 
-    logger.info('EnhancedMarketDriversSnapshot', 'Data retrieved', {
+    logger.info('EnhancedMarketDriversSnapshot: Data retrieved', {
       date: enhancedSnapshot.basic.date,
       regime: enhancedSnapshot.basic.regime.currentRegime,
       confidence: enhancedSnapshot.basic.regime.confidence,
@@ -275,8 +275,8 @@ async function handleEnhancedMarketDriversSnapshot(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('EnhancedMarketDriversSnapshot Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('EnhancedMarketDriversSnapshot Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -332,7 +332,7 @@ async function handleMacroDrivers(
       },
     };
 
-    logger.info('MacroDrivers', 'Data retrieved', {
+    logger.info('MacroDrivers: Data retrieved', {
       fedFundsRate: snapshot.macro.fedFundsRate,
       unemploymentRate: snapshot.macro.unemploymentRate,
       inflationRate: snapshot.macro.inflationRate,
@@ -352,8 +352,8 @@ async function handleMacroDrivers(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('MacroDrivers Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('MacroDrivers Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -415,7 +415,7 @@ async function handleMarketStructure(
       },
     };
 
-    logger.info('MarketStructure', 'Data retrieved', {
+    logger.info('MarketStructure: Data retrieved', {
       vix: snapshot.marketStructure.vix,
       usDollarIndex: snapshot.marketStructure.usDollarIndex,
       spy: snapshot.marketStructure.spy,
@@ -435,8 +435,8 @@ async function handleMarketStructure(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('MarketStructure Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('MarketStructure Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -503,7 +503,7 @@ async function handleMarketRegime(
       },
     };
 
-    logger.info('MarketRegime', 'Data retrieved', {
+    logger.info('MarketRegime: Data retrieved', {
       regime: snapshot.regime.currentRegime,
       confidence: snapshot.regime.confidence,
       riskLevel: snapshot.regime.riskLevel,
@@ -523,8 +523,8 @@ async function handleMarketRegime(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('MarketRegime Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('MarketRegime Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -585,7 +585,7 @@ async function handleMarketRegimeDetails(
      { status: HttpStatus.OK, headers }
    );
  } catch (error:any) {
-   logger.error('MarketRegimeDetails Error', error, { requestId });
+   logger.error('MarketRegimeDetails Error', { error, requestId });
    return new Response(
      JSON.stringify(
        ApiResponseFactory.error('Failed to retrieve enhanced regime analysis','DATA_ERROR',{ requestId, error: error.message, processingTime: timer.finish() })
@@ -643,7 +643,7 @@ async function handleGeopoliticalRisk(
       },
     };
 
-    logger.info('GeopoliticalRisk', 'Data retrieved', {
+    logger.info('GeopoliticalRisk: Data retrieved', {
       overallRiskScore: snapshot.geopolitical.overallRiskScore,
       riskTrend: snapshot.geopolitical.riskTrend,
       highImpactEvents: snapshot.geopolitical.highImpactEvents,
@@ -663,8 +663,8 @@ async function handleGeopoliticalRisk(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('GeopoliticalRisk Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('GeopoliticalRisk Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -741,7 +741,7 @@ async function handleMarketDriversHistory(
           });
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to fetch historical data, using simulation', { error, requestId });
     }
 
@@ -793,13 +793,13 @@ async function handleMarketDriversHistory(
       data: historicalData,
       summary: {
         most_common_regime: getMostCommonRegime(historicalData),
-        average_vix: Math.round(historicalData.reduce((sum, d) => sum + d.indicators.vix, 0) / historicalData.length * 100) / 100,
-        average_risk_score: Math.round(historicalData.reduce((sum, d) => sum + d.indicators.riskScore, 0) / historicalData.length * 100) / 100,
+        average_vix: Math.round(historicalData.reduce((sum: any, d: any) => sum + d.indicators.vix, 0) / historicalData.length * 100) / 100,
+        average_risk_score: Math.round(historicalData.reduce((sum: any, d: any) => sum + d.indicators.riskScore, 0) / historicalData.length * 100) / 100,
         regime_changes: countRegimeChanges(historicalData),
       },
     };
 
-    logger.info('MarketDriversHistory', 'Data generated', {
+    logger.info('MarketDriversHistory: Data generated', {
       days,
       dataPoints: historicalData.length,
       processingTime: timer.getElapsedMs(),
@@ -817,8 +817,8 @@ async function handleMarketDriversHistory(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('MarketDriversHistory Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('MarketDriversHistory Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -897,7 +897,7 @@ async function handleMarketDriversHealth(
       },
     };
 
-    logger.info('MarketDriversHealth', 'Health check completed', {
+    logger.info('MarketDriversHealth: Health check completed', {
       overallStatus,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -914,8 +914,8 @@ async function handleMarketDriversHealth(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('MarketDriversHealth Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('MarketDriversHealth Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -957,7 +957,7 @@ function getMostCommonRegime(data: any[]): string {
   const regimes = data.map(d => d.regime.currentRegime);
   const counts: Record<string, number> = {};
   regimes.forEach(regime => counts[regime] = (counts[regime] || 0) + 1);
-  return Object.entries(counts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+  return Object.entries(counts).reduce((a: any, b: any) => a[1] > b[1] ? a : b)[0];
 }
 
 function countRegimeChanges(data: any[]): number {
@@ -981,9 +981,9 @@ async function testMacroHealth(env: CloudflareEnvironment): Promise<{ status: st
               health.status === 'degraded' ? 'degraded' : 'unhealthy',
       details: health.details
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('FRED API health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }
 
@@ -997,9 +997,9 @@ async function testMarketStructureHealth(env: CloudflareEnvironment): Promise<{ 
       status: health.status === 'healthy' ? 'healthy' : 'unhealthy',
       details: health
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('Yahoo Finance health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }
 
@@ -1048,9 +1048,9 @@ async function testRegimeHealth(env: CloudflareEnvironment): Promise<{ status: s
         components_loaded: true
       }
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('Regime classification health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }
 
@@ -1078,8 +1078,8 @@ async function testCacheHealth(env: CloudflareEnvironment): Promise<{ status: st
         test_passed: isHealthy
       }
     };
-  } catch (error) {
+  } catch (error: unknown) {
     logger.warn('Cache health check failed', { error });
-    return { status: 'unhealthy', details: { error: error.message } };
+    return { status: 'unhealthy', details: { error: (error as any).message } };
   }
 }

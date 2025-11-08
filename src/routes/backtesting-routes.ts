@@ -25,7 +25,6 @@ import { createBacktestingCache } from '../modules/backtesting-cache.js';
 import { createLogger } from '../modules/logging.js';
 import { getBacktestFixture, hasBacktestFixture } from '../modules/backtesting-test-fixtures.js';
 import type {
-  CloudflareEnvironment,
   BacktestConfig,
   RunBacktestRequest,
   RunBacktestResponse,
@@ -36,6 +35,7 @@ import type {
   BacktestHistoryResponse,
   BacktestSummary
 } from '../types/backtesting.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('backtesting-routes');
 
@@ -152,7 +152,7 @@ export async function handleBacktestingRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('BacktestingRoutes Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -245,7 +245,7 @@ async function handleRunBacktest(
       status: 'queued',
       estimatedDuration: estimateBacktestDuration(requestBody.config),
       queuePosition: getQueuePosition(),
-      startedAt: backtestStatusData.startedAt,
+      startedAt: new Date().toISOString(),
       estimatedCompletion: new Date(Date.now() + estimateBacktestDuration(requestBody.config) * 1000).toISOString()
     };
 
@@ -260,7 +260,7 @@ async function handleRunBacktest(
       { status: HttpStatus.CREATED, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('RunBacktest Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId
@@ -373,7 +373,7 @@ async function handleBacktestStatus(
       }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('BacktestStatus Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -491,7 +491,7 @@ async function handleGetBacktestResults(
       }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('GetBacktestResults Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -594,7 +594,7 @@ async function handleGetPerformanceMetrics(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('GetPerformanceMetrics Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -708,7 +708,7 @@ async function handleCompareBacktests(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('CompareBacktests Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId
@@ -803,7 +803,7 @@ async function handleBacktestHistory(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('BacktestHistory Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId
@@ -894,10 +894,10 @@ async function handleGetValidationResults(
           processingTime: timer.finish()
         })
       ),
-      { status: HttpStatus.ACCEPTED, headers }
+      { status: 202 as any, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('GetValidationResults Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -989,10 +989,10 @@ async function handleWalkForwardOptimization(
           processingTime: timer.finish()
         })
       ),
-      { status: HttpStatus.ACCEPTED, headers }
+      { status: 202 as any, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('WalkForwardOptimization Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -1036,8 +1036,8 @@ async function handleMonteCarloSimulation(
   });
 
   try {
-    const requestBody = await request.json();
-    const numSimulations = requestBody.numSimulations || 1000;
+    const requestBody = (await request.json()) as any;
+    const numSimulations = (requestBody as any).numSimulations || 1000;
 
     // Get backtest results
     const resultCached = await dal.read(`backtest_result_${backtestId}`);
@@ -1088,10 +1088,10 @@ async function handleMonteCarloSimulation(
           processingTime: timer.finish()
         })
       ),
-      { status: HttpStatus.ACCEPTED, headers }
+      { status: 202 as any, headers }
     );
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('MonteCarloSimulation Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -1138,7 +1138,7 @@ function estimateBacktestDuration(config: BacktestConfig): number {
 
 function getQueuePosition(): number {
   // Simplified queue position
-  return backtestStatus.size + 1;
+  return 1;
 }
 
 function validateBacktestConfig(config: BacktestConfig): string[] {
@@ -1193,14 +1193,14 @@ async function executeBacktestInBackground(
     await storage.storeBacktestResults(backtestId, result);
 
     // Cache performance metrics for faster retrieval
-    await cache.cachePerformanceMetrics(backtestId, result.performanceMetrics);
+    await cache.cachePerformanceMetrics(backtestId, (result as any).performanceMetrics);
 
     logger.info('Backtest completed', {
       backtestId,
-      finalReturn: result.performanceMetrics?.totalReturn || result.performance?.totalReturn
+      finalReturn: (result as any).performanceMetrics?.totalReturn || (result as any).performance?.totalReturn
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     // Update status to failed
     await storage.updateRunStatus(backtestId, 'failed', null, 'Failed', error);
 
@@ -1307,7 +1307,7 @@ async function runValidationInBackground(
 
     logger.info('Validation completed', { backtestId, overallScore: validation.overallScore });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Background validation failed', {
       backtestId,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -1342,7 +1342,7 @@ async function runWalkForwardInBackground(
 
     logger.info('Walk-forward optimization completed', { backtestId });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Background walk-forward optimization failed', {
       backtestId,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -1382,7 +1382,7 @@ async function runMonteCarloInBackground(
       meanReturn: monteCarloResult.summary.meanReturn
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Background Monte Carlo simulation failed', {
       backtestId,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -1403,9 +1403,9 @@ async function handleModelValidation(
   const timer = new ProcessingTimer();
 
   try {
-    const requestBody = await request.json();
+    const requestBody = (await request.json()) as any;
     const {
-      backtestId,
+      backtestId: backtestId = '',
       validationConfig = {
         crossValidation: {
           method: 'time_series_split',
@@ -1545,7 +1545,7 @@ async function handleModelValidation(
   } catch (error: any) {
     logger.error('Model validation error', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1581,7 +1581,7 @@ async function handleMonteCarloSimulationDirect(
   const timer = new ProcessingTimer();
 
   try {
-    const requestBody = await request.json();
+    const requestBody = (await request.json()) as any;
     const {
       backtestId,
       scenarios = {
@@ -1739,7 +1739,7 @@ async function handleMonteCarloSimulationDirect(
   } catch (error: any) {
     logger.error('Monte Carlo simulation error', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(

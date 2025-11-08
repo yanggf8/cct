@@ -14,10 +14,10 @@ export function registerRealTimeRoutes(router: Router): void {
       const body = await request.json().catch(() => ({}));
       const rtdm = initializeRealTimeDataManager(env);
       const result = await rtdm.refreshAll({
-        priority: body.priority || 'normal',
-        reason: body.reason || 'manual',
-        symbols: body.symbols,
-        incremental: body.incremental === true
+        priority: (body as any).priority || 'normal',
+        reason: (body as any).reason || 'manual',
+        symbols: (body as any).symbols,
+        incremental: (body as any).incremental === true
       }, ctx);
 
       return new Response(JSON.stringify({ success: true, result }), {
@@ -25,7 +25,7 @@ export function registerRealTimeRoutes(router: Router): void {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: any) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+      return new Response(JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -37,14 +37,14 @@ export function registerRealTimeRoutes(router: Router): void {
     try {
       const body = await request.json().catch(() => ({}));
       const rtdm = initializeRealTimeDataManager(env);
-      await rtdm.warmCachesForMarketOpen(body.symbols, ctx);
+      await rtdm.warmCachesForMarketOpen((body as any).symbols, ctx);
 
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: any) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+      return new Response(JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -61,7 +61,7 @@ export function registerRealTimeRoutes(router: Router): void {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error: any) {
-      return new Response(JSON.stringify({ success: false, error: error.message }), {
+      return new Response(JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });

@@ -3,7 +3,7 @@
  * Handles serving the daily summary HTML page
  */
 
-import type { CloudflareEnvironment } from '../../types.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 /**
  * Handle daily summary page requests
@@ -653,7 +653,7 @@ export async function handleDailySummaryPage(
             currentDate = today;
         }
 
-        function navigateDate(direction) {
+        function navigateDate(direction: any) {
             const datePicker = document.getElementById('date-picker');
             const current = new Date(datePicker.value);
             current.setDate(current.getDate() + direction);
@@ -722,15 +722,15 @@ export async function handleDailySummaryPage(
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
 
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Error loading daily data:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error-message').textContent = error.message;
+                document.getElementById('error-message').textContent = (error instanceof Error ? error.message : String(error));
             }
         }
 
-        function updateOverviewStats(summary) {
+        function updateOverviewStats(summary: any) {
             document.getElementById('daily-accuracy').textContent =
                 summary.overall_accuracy ? Math.round(summary.overall_accuracy * 100) + '%' : '-';
 
@@ -744,7 +744,7 @@ export async function handleDailySummaryPage(
                 summary.major_conflicts ? summary.major_conflicts.length : '0';
         }
 
-        function createConfidenceChart(confidenceData) {
+        function createConfidenceChart(confidenceData: any) {
             const ctx = document.getElementById('confidenceChart').getContext('2d');
 
             if (confidenceChart) {
@@ -806,7 +806,7 @@ export async function handleDailySummaryPage(
             });
         }
 
-        function createConflictChart(conflictData) {
+        function createConflictChart(conflictData: any) {
             const ctx = document.getElementById('conflictChart').getContext('2d');
 
             if (conflictChart) {
@@ -871,7 +871,7 @@ export async function handleDailySummaryPage(
             });
         }
 
-        function updateSymbolBreakdown(symbols) {
+        function updateSymbolBreakdown(symbols: any) {
             const container = document.getElementById('symbol-breakdown');
             container.innerHTML = '';
 
@@ -944,7 +944,7 @@ export async function handleDailySummaryPage(
             });
         }
 
-        function getDirectionEmoji(direction) {
+        function getDirectionEmoji(direction: any) {
             if (!direction) return '❓';
             switch (direction.toUpperCase()) {
                 case 'BULLISH':
@@ -957,7 +957,7 @@ export async function handleDailySummaryPage(
             }
         }
 
-        function getSentimentEmoji(sentiment) {
+        function getSentimentEmoji(sentiment: any) {
             if (!sentiment) return '❓';
             switch (sentiment.toLowerCase()) {
                 case 'bullish': return '🔥';
@@ -986,7 +986,7 @@ export async function handleDailySummaryPage(
                 if (result.success && result.data) {
                     updateKPIDisplay(result.data);
                 }
-            } catch (error) {
+            } catch (error: unknown) {
                 console.warn('Error loading KPI data:', error);
                 // Use default values for KPI display
                 updateKPIDisplay({
@@ -998,7 +998,7 @@ export async function handleDailySummaryPage(
             }
         }
 
-        function updateKPIDisplay(kpiData) {
+        function updateKPIDisplay(kpiData: any) {
             // Update Prediction Accuracy
             const accuracy = kpiData.prediction_accuracy || {};
             document.getElementById('kpi-accuracy').textContent = accuracy.current ? Math.round(accuracy.current) + '%' : '-';
@@ -1033,7 +1033,7 @@ export async function handleDailySummaryPage(
             fillElement.className = 'kpi-fill ' + (status || 'unknown');
         }
 
-        function getStatusText(status) {
+        function getStatusText(status: any) {
             switch (status) {
                 case 'excellent': return 'Excellent';
                 case 'good': return 'Good';
@@ -1044,7 +1044,7 @@ export async function handleDailySummaryPage(
             }
         }
 
-        function getHealthPercentage(health) {
+        function getHealthPercentage(health: any) {
             switch (health) {
                 case 'excellent': return 95;
                 case 'good': return 80;
@@ -1062,7 +1062,7 @@ export async function handleDailySummaryPage(
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error serving daily summary page:', error);
     return new Response(JSON.stringify({
       success: false,

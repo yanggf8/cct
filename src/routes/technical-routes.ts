@@ -85,7 +85,7 @@ export async function handleTechnicalRoutes(
       { status: HttpStatus.METHOD_NOT_ALLOWED, headers }
     );
   } catch (error:any) {
-    logger.error('TechnicalRoutes Error', error, { requestId, path, method });
+    logger.error('TechnicalRoutes Error', { error: (error as any).message, requestId, path, method });
     return new Response(
       JSON.stringify(ApiResponseFactory.error('Internal server error','INTERNAL_ERROR',{ requestId, error: error.message })),
       { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
@@ -117,7 +117,7 @@ async function handleTechnicalSingle(
     const result = await runIndependentTechnicalAnalysis([symbol], env);
     const signal = result.technical_signals?.[symbol];
 
-    if (!signal || signal.status === 'failed') {
+    if (!signal || (signal as any).status === 'failed') {
       return new Response(JSON.stringify(ApiResponseFactory.error('No technical analysis available','NO_DATA',{ requestId, symbol })), { status: HttpStatus.NOT_FOUND, headers });
     }
 
@@ -125,7 +125,7 @@ async function handleTechnicalSingle(
 
     return new Response(JSON.stringify(ApiResponseFactory.success(signal, { source:'fresh', ttl: 1800, requestId, processingTime: timer.finish() })), { status: HttpStatus.OK, headers });
   } catch (error:any) {
-    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical analysis','ANALYSIS_ERROR',{ requestId, symbol, error: error.message, processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
+    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical analysis','ANALYSIS_ERROR',{ requestId, symbol, error: (error instanceof Error ? error.message : String(error)), processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
   }
 }
 
@@ -137,7 +137,7 @@ async function handleTechnicalBatch(
 ): Promise<Response> {
   const timer = new ProcessingTimer();
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = (await request.json().catch(() => ({}))) as any;
     const symbols: string[] = Array.isArray(body.symbols) ? body.symbols.map((s:string)=>String(s).toUpperCase().slice(0,10)) : [];
 
     if (!symbols.length) {
@@ -149,6 +149,6 @@ async function handleTechnicalBatch(
 
     return new Response(JSON.stringify(ApiResponseFactory.success(result, { source:'fresh', ttl: 1800, requestId, processingTime: timer.finish(), metadata: { symbols: symbols.length } })), { status: HttpStatus.OK, headers });
   } catch (error:any) {
-    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical batch analysis','ANALYSIS_ERROR',{ requestId, error: error.message, processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
+    return new Response(JSON.stringify(ApiResponseFactory.error('Failed to perform technical batch analysis','ANALYSIS_ERROR',{ requestId, error: (error instanceof Error ? error.message : String(error)), processingTime: timer.finish() })), { status: HttpStatus.INTERNAL_SERVER_ERROR, headers });
   }
 }

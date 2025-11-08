@@ -140,7 +140,7 @@ export class PredictivePreFetchManager {
     }
 
     // Try regular cache
-    const cacheResult = await this.baseDAL.read<T>(key);
+    const cacheResult = await (this.baseDAL.read as any)(key);
     if (cacheResult.success && cacheResult.data) {
       return {
         success: true,
@@ -217,13 +217,13 @@ export class PredictivePreFetchManager {
         error: 'Failed to fetch data'
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         key,
         preFetched: false,
         wasInCache: false,
         predictionAccuracy: 0,
-        error: error.message || 'Unknown error'
+        error: (error instanceof Error ? error.message : String(error)) || 'Unknown error'
       };
     }
   }
@@ -277,7 +277,7 @@ export class PredictivePreFetchManager {
             preFetched: false,
             wasInCache: false,
             predictionAccuracy: 0,
-            error: result.reason || 'Fetch failed'
+            error: (result as any).reason || 'Fetch failed'
           });
         }
       }
@@ -296,13 +296,13 @@ export class PredictivePreFetchManager {
 
       return results;
 
-    } catch (error) {
+    } catch (error: unknown) {
       return keys.map(key => ({
         key,
         preFetched: false,
         wasInCache: false,
         predictionAccuracy: 0,
-        error: error.message || 'Batch fetch failed'
+        error: (error instanceof Error ? error.message : String(error)) || 'Batch fetch failed'
       }));
     }
   }
@@ -343,7 +343,7 @@ export class PredictivePreFetchManager {
   private addToPreFetchQueue(key: string, priority: number, timestamp: number): void {
     if (this.preFetchQueue.length >= this.config.maxPreFetchQueue) {
       // Remove lowest priority item
-      this.preFetchQueue.sort((a, b) => b.priority - a.priority);
+      this.preFetchQueue.sort((a: any, b: any) => b.priority - a.priority);
       this.preFetchQueue.pop(); // Remove lowest priority
     }
 
@@ -357,7 +357,7 @@ export class PredictivePreFetchManager {
     if (this.preFetchQueue.length === 0) return;
 
     // Sort by priority and timestamp
-    this.preFetchQueue.sort((a, b) => {
+    this.preFetchQueue.sort((a: any, b: any) => {
       if (a.priority !== b.priority) {
         return b.priority - a.priority;
       }
@@ -369,7 +369,7 @@ export class PredictivePreFetchManager {
 
     try {
       await this.batchPreFetch(keysToPreFetch, 1); // Low priority for background pre-fetch
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Pre-fetch batch failed:', error);
     }
   }

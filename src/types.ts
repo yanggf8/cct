@@ -1,3 +1,46 @@
+
+// Cloudflare Workers type stubs
+declare global {
+  // Extended Cloudflare Workers types
+  interface KVNamespace {
+    get(key: string): Promise<string | null>;
+    put(key: string, value: string, options?: any): Promise<void>;
+    delete(key: string): Promise<void>;
+    list(options?: any): Promise<any>;
+  }
+
+  // Durable Object type definitions
+  interface DurableObjectNamespace {
+    new (name: string): DurableObjectConstructor;
+    idFromName(name: string): DurableObjectId;
+    idFromString(id: string): DurableObjectId;
+  }
+
+  interface DurableObjectState {
+    readonly storage: DurableObjectStorage;
+  }
+
+  interface DurableObjectStorage {
+    get<T = unknown>(key: string): Promise<T | null>;
+    put<T = unknown>(key: string, value: T): Promise<void>;
+    delete(key: string): Promise<boolean>;
+    list(): Promise<Record<string, any>>;
+  }
+
+  interface DurableObjectConstructor {
+    new (state: DurableObjectState, env: any): DurableObject;
+  }
+
+  interface DurableObject {
+    fetch(request: Request): Promise<Response>;
+  }
+
+  interface DurableObjectId {
+    toString(): string;
+  }
+}
+
+
 /**
  * Core TypeScript Type Definitions for Dual AI Sentiment Analysis System
  *
@@ -55,7 +98,6 @@ export interface CloudflareEnvironment {
   LOG_LEVEL?: string;
 
   // Feature Flags
-  FEATURE_FLAG_DO_CACHE?: string; // "true" to enable Durable Objects cache
   STRUCTURED_LOGGING?: string;
 
   // AI Model Configuration
@@ -169,6 +211,68 @@ export interface AnalysisResult {
     timestamp: string;
   };
 }
+
+// ============================================================================
+// Enhanced Feature Analysis Types
+// ============================================================================
+
+/**
+ * Market data structure
+ */
+export interface MarketData {
+  symbol: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+}
+
+/**
+ * Enhanced signal from enhanced feature analysis
+ */
+export interface EnhancedSignal {
+  signal: Signal;
+  confidence: number;
+  feature_contribution: { [key: string]: number };
+  sentiment?: Sentiment;
+  reasoning?: string;
+}
+
+/**
+ * System performance metrics
+ */
+export interface SystemPerformance {
+  accuracy: number;
+  avg_confidence: number;
+  feature_coverage: number;
+}
+
+/**
+ * Methodology information
+ */
+export interface Methodology {
+  neural_networks: string;
+  technical_features: string;
+  sentiment_analysis: string;
+}
+
+/**
+ * Enhanced feature analysis result
+ */
+export interface EnhancedFeatureAnalysisResult {
+  timestamp: string;
+  analysis_type: string;
+  feature_count: number;
+  symbols_analyzed: string[];
+  trading_signals: { [symbol: string]: EnhancedSignal | any };
+  system_performance: SystemPerformance;
+  methodology: Methodology;
+}
+
+/**
+ * Alias for backward compatibility
+ */
+// Note: This is defined in enhanced_feature_analysis.ts to avoid circular imports
 
 // ============================================================================
 // Signal Tracking Types
@@ -665,4 +769,130 @@ export interface SectorRotationResult {
     cacheHitRate: number;
     rateLimitAvoided: boolean;
   };
+}
+
+// ============================================================================
+// Report and Analysis Helper Types
+// ============================================================================
+
+/**
+ * Signal structure used in reports
+ */
+export interface ReportSignal {
+  sentiment_layers?: SentimentLayer[];
+  recommendation?: string;
+  [key: string]: any;
+}
+
+/**
+ * Request body for endpoints that accept symbols array
+ */
+export interface SymbolsRequestBody {
+  symbols?: string[];
+  [key: string]: any;
+}
+
+/**
+ * Primary sentiment result from sentiment layers
+ */
+export interface PrimarySentimentResult {
+  sentiment: string;
+  confidence: number;
+  reasoning: string;
+}
+
+/**
+ * Safely extract primary sentiment from sentiment layers
+ * @param layers - Optional array of sentiment layers
+ * @returns Primary sentiment with defaults if layers are missing or empty
+ */
+export function getPrimarySentiment(layers?: SentimentLayer[]): PrimarySentimentResult {
+  if (!layers || layers.length === 0) {
+    return {
+      sentiment: 'NEUTRAL',
+      confidence: 0,
+      reasoning: 'No sentiment data available'
+    };
+  }
+
+  // Find layer with highest confidence
+  const primaryLayer = layers.reduce((prev, current) =>
+    (current.confidence > prev.confidence) ? current : prev
+  );
+
+  return {
+    sentiment: primaryLayer.sentiment,
+    confidence: primaryLayer.confidence,
+    reasoning: primaryLayer.reasoning || 'Automated sentiment analysis'
+  };
+}
+
+// ============================================================================
+// Utility Types and Functions
+// ============================================================================
+
+/**
+ * DeepPartial - makes all properties of a type recursively partial
+ */
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+/**
+ * NonEmptyArray - ensures an array has at least one element
+ */
+export type NonEmptyArray<T> = [T, ...T[]];
+
+/**
+ * SafeGet - safely get nested object property with default value
+ */
+export function safeGet<T>(obj: any, path: string, defaultValue: T): T {
+  try {
+    const keys = path.split('.');
+    let result = obj;
+    for (const key of keys) {
+      if (result === null || result === undefined) {
+        return defaultValue;
+      }
+      result = result[key];
+    }
+    return result !== undefined && result !== null ? result : defaultValue;
+  } catch (error) {
+    return defaultValue;
+  }
+}
+
+/**
+ * AssertNonEmpty - runtime check that array is not empty
+ */
+export function assertNonEmpty<T>(array: T[], message = 'Array must not be empty'): NonEmptyArray<T> {
+  if (array.length === 0) {
+    throw new Error(message);
+  }
+  // @ts-ignore - Type assertion for non-empty array
+  return array as NonEmptyArray<T>;
+}
+
+/**
+ * Apply defaults to partial options object
+ */
+export function applyDefaults<T>(partial: Partial<T>, defaults: T): T {
+  return { ...defaults, ...partial };
+}
+
+/**
+ * Normalize input to array - handles single item, array, or undefined
+ */
+export function asArray<T>(input: T | T[] | undefined | null): T[] {
+  if (input === undefined || input === null) {
+    return [];
+  }
+  return Array.isArray(input) ? input : [input];
+}
+
+/**
+ * Type guard for non-empty arrays
+ */
+export function isNonEmpty<T>(arr?: T[]): arr is NonEmptyArray<T> {
+  return Array.isArray(arr) && arr.length > 0;
 }

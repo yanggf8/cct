@@ -4,7 +4,7 @@
  */
 
 import { getSymbolAnalysisByDate, getFactTableDataWithRange } from './data.js';
-import { validateEnvironment, validateAnalysisData, validateUserInput, sanitizeHTML, safeValidate } from './validation.js';
+import { safeValidate } from './validation-utilities.js';
 import { KVUtils } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createMessageTracker, MessageTracker } from './msg-tracking.js';
@@ -118,7 +118,7 @@ export async function sendTeamsMessage(message: TeamsMessage, env: CloudflareEnv
       return { success: false, error: errorText };
     }
   } catch (error: any) {
-    console.error(`❌ [TEAMS-DEBUG] ${executionId} Teams send error:`, error.message);
+    console.error(`❌ [TEAMS-DEBUG] ${executionId} Teams send error:`, (error instanceof Error ? error.message : String(error)));
     return { success: false, error: error.message };
   }
 }
@@ -182,7 +182,7 @@ export async function sendTeamsAnalysisMessage(
       {
         "@type": "OpenUri",
         name: "📊 View Full Report",
-        target: [reportUrl]
+        target: reportUrl
       }
     ]
   };
@@ -304,7 +304,7 @@ export async function sendTeamsSuccessMessage(
       {
         "@type": "OpenUri",
         name: "📊 View Report",
-        target: [reportUrl]
+        target: reportUrl
       }
     ]
   };

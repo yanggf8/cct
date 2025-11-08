@@ -348,7 +348,7 @@ export function createAPIHandler<T = any>(
     timeout = 30000
   } = options;
 
-  return createHandler(name, async (request: Request, env: CloudflareEnvironment, ctx: EnhancedContext): Promise<APIResponse<T>> => {
+  return (createHandler(name, async (request: Request, env: CloudflareEnvironment, ctx: EnhancedContext): Promise<APIResponse<T>> => {
     const requestId = crypto.randomUUID();
 
     logger.info(`🔧 [${name.toUpperCase()}] API request started`, {
@@ -405,11 +405,11 @@ export function createAPIHandler<T = any>(
         timestamp: new Date().toISOString()
       };
     }
-  }, {
+  }), {
     enableAuth,
     enableMetrics,
     timeout
-  });
+  }) as any;
 }
 
 // ============================================================================
@@ -639,25 +639,4 @@ export default {
   validateRequestEnvironment
 };
 
-// ============================================================================
-// Type Exports
-// ============================================================================
-
-export type {
-  ReportHandlerOptions,
-  ReportGeneratorContext,
-  ReportGeneratorFunction,
-  HTMLGeneratorFunction,
-  WaitingDisplayData,
-  ErrorDisplayData,
-  APIHandlerOptions,
-  APIFunction,
-  APIResponse,
-  DataRetrievalHandlerOptions,
-  DataRetrieverFunction,
-  StandardMetricsData,
-  MetricDisplay,
-  NavigationTab,
-  DashboardLayoutOptions,
-  RequestEnvironmentValidation
-};
+// Types are already exported inline - no need for redundant export block

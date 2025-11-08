@@ -176,7 +176,7 @@ export class EnhancedCacheMetricsManager {
 
       return assessment;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Health assessment failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
       });

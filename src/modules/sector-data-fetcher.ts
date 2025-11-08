@@ -5,12 +5,11 @@
  * Enhanced with data validation and integrated circuit breaker
  */
 
-import { SectorCacheManager, SectorData } from './sector-cache-manager.js';
+import { DOSectorCacheAdapter } from './do-cache-adapter.js';
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
-import { retryWithBackoff, type RetryOptions } from './shared-utilities.js';
-import { CircuitBreaker, CommonCircuitBreakers } from './circuit-breaker.js';
 import { DataValidator, validateOHLCVBar } from './data-validation.js';
+import type { SectorData } from './sector-cache-manager.js';
 
 const logger = createLogger('sector-data-fetcher');
 
@@ -78,7 +77,7 @@ class Semaphore {
   }
 
   async acquire(): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve: any) => {
       if (this.permits > 0) {
         this.permits--;
         resolve();
@@ -110,7 +109,7 @@ class Semaphore {
  * Sector Data Fetcher with semaphore concurrency control
  */
 export class SectorDataFetcher {
-  private cache: SectorCacheManager;
+  private cache: DOSectorCacheAdapter | null;
   private semaphore: Semaphore;
   private circuitBreaker: CircuitBreaker;
   private fetchStats = {
@@ -121,7 +120,7 @@ export class SectorDataFetcher {
     averageResponseTime: 0
   };
 
-  constructor(cache: SectorCacheManager) {
+  constructor(cache: DOSectorCacheAdapter | null) {
     this.cache = cache;
     this.semaphore = new Semaphore(CONCURRENCY_CONFIG.MAX_CONCURRENT_REQUESTS);
     this.circuitBreaker = {
@@ -159,7 +158,7 @@ export class SectorDataFetcher {
       const fetchResults = await Promise.allSettled(fetchPromises);
 
       // Process results
-      fetchResults.forEach((result, index) => {
+      fetchResults.forEach((result: any, index: any) => {
         const symbol = symbols[index];
         if (result.status === 'fulfilled') {
           results.set(symbol, result.value);
@@ -178,8 +177,8 @@ export class SectorDataFetcher {
       logger.info(`Completed fetching ${symbols.length} symbols in ${duration}ms`);
       return results;
 
-    } catch (error) {
-      logger.error('Error in fetchSectorData:', error);
+    } catch (error: unknown) {
+      logger.error('Error in fetchSectorData:', { error: error instanceof Error ? error.message : String(error) });
       symbols.forEach(symbol => results.set(symbol, null));
       return results;
     }
@@ -193,17 +192,21 @@ export class SectorDataFetcher {
 
     try {
       // Check cache first
-      const cachedData = await this.cache.getSectorData(symbol);
-      if (cachedData) {
-        logger.debug(`Cache hit for ${symbol}`);
-        return cachedData;
+      if (this.cache) {
+        const cachedData = await this.cache.getSectorData(symbol);
+        if (cachedData) {
+          logger.debug(`Cache hit for ${symbol}`);
+          return cachedData;
+        }
       }
 
       // Fetch from API
       const freshData = await this.fetchFromAPI(symbol);
       if (freshData) {
         // Store in cache
-        await this.cache.setSectorData(symbol, freshData);
+        if (this.cache) {
+          await this.cache.setSectorData(symbol, freshData);
+        }
         logger.debug(`Fetched and cached ${symbol}`);
       }
 
@@ -239,7 +242,7 @@ export class SectorDataFetcher {
       }
 
       const data = await response.json();
-      const chart = data.chart;
+      const chart = (data as any).chart;
 
       if (!chart || !chart.result || chart.result.length === 0) {
         throw new Error('No data returned from Yahoo Finance');
@@ -271,13 +274,13 @@ export class SectorDataFetcher {
 
       return sectorData;
 
-    } catch (error) {
+    } catch (error: unknown) {
       clearTimeout(timeoutId);
 
       if (error instanceof Error && error.name === 'AbortError') {
         logger.error(`Timeout fetching ${symbol} after ${CONCURRENCY_CONFIG.REQUEST_TIMEOUT}ms`);
       } else {
-        logger.error(`API error for ${symbol}:`, error);
+        logger.error(`API error for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
       }
       return null;
 
@@ -427,12 +430,12 @@ export class SectorDataFetcher {
     const tempSemaphore = new Semaphore(concurrency);
 
     try {
-      const promises = symbols.map(async (symbol) => {
+      const promises = symbols.map(async (symbol: any) => {
         await tempSemaphore.acquire();
         try {
           const data = await this.fetchWithSemaphore(symbol);
           return { symbol, data, error: null };
-        } catch (error) {
+        } catch (error: unknown) {
           errors.push(`${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           return { symbol, data: null, error };
         } finally {
@@ -453,7 +456,7 @@ export class SectorDataFetcher {
         healthStatus: this.getHealthStatus()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         duration: Date.now() - startTime,
@@ -472,8 +475,8 @@ export class SectorDataFetcher {
     try {
       await this.fetchSectorData(testSymbols);
       logger.info('Sector data fetcher warm-up completed');
-    } catch (error) {
-      logger.error('Error during warm-up:', error);
+    } catch (error: unknown) {
+      logger.error('Error during warm-up:', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 }

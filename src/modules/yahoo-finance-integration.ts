@@ -50,7 +50,7 @@ export async function getMarketData(symbol: string): Promise<MarketData | null> 
   try {
     // Ensure rate limiter reflects current config each call
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
 
     logger.debug(`Fetching market data for ${symbol}`);
 
@@ -75,12 +75,12 @@ export async function getMarketData(symbol: string): Promise<MarketData | null> 
 
     const data = await response.json();
 
-    if (!data.chart?.result?.[0]) {
+    if (!(data as any).chart?.result?.[0]) {
       logger.warn(`No data returned from Yahoo Finance for ${symbol}`, { symbol });
       return null;
     }
 
-    const result = data.chart.result[0];
+    const result = (data as any).chart.result[0];
     const meta = result.meta || {};
     const quotes = result.indicators?.quote?.[0] || [];
     const latestQuote = quotes[0] || {};
@@ -114,8 +114,8 @@ export async function getMarketData(symbol: string): Promise<MarketData | null> 
 
     return marketData;
 
-  } catch (error) {
-    logger.error(`Failed to fetch market data for ${symbol}:`, error);
+  } catch (error: unknown) {
+    logger.error(`Failed to fetch market data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }
@@ -143,8 +143,8 @@ export async function getBatchMarketData(symbols: string[]): Promise<Record<stri
 
       logger.debug(`Batch fetch progress: ${i + 1}/${symbols.length} completed`);
 
-    } catch (error) {
-      logger.error(`Failed to fetch market data for ${symbol} in batch:`, error);
+    } catch (error: unknown) {
+      logger.error(`Failed to fetch market data for ${symbol} in batch:`, { error: error instanceof Error ? error.message : String(error) });
       results[symbol] = null;
     }
   }
@@ -178,7 +178,7 @@ export async function getMarketStructureIndicators(): Promise<{
   try {
     // Configure rate limiter dynamically from config
     const cfg = getMarketDataConfig();
-    configureYahooRateLimiter(cfg.RATE_LIMIT_REQUESTS_PER_MINUTE, cfg.RATE_LIMIT_WINDOW_MS);
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
 
     const batchData = await getBatchMarketData(symbols);
 
@@ -191,8 +191,8 @@ export async function getMarketStructureIndicators(): Promise<{
       qqq: batchData['QQQ'],
     };
 
-  } catch (error) {
-    logger.error('Failed to fetch market structure indicators:', error);
+  } catch (error: unknown) {
+    logger.error('Failed to fetch market structure indicators:', { error: error instanceof Error ? error.message : String(error) });
     return {};
   }
 }
@@ -221,11 +221,11 @@ export async function healthCheck(): Promise<{
       }
     };
 
-  } catch (error) {
+  } catch (error: unknown) {
     return {
       status: 'unhealthy',
       details: {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         apiEndpoint: YAHOO_FINANCE_API_URL
       }
     };
@@ -271,6 +271,60 @@ export function getMarketStatus(marketData?: MarketData): string {
       return 'Market Closed';
     default:
       return state;
+  }
+}
+
+export async function getHistoricalData(symbol: string, startDate: string, endDate: string): Promise<any[]> {
+  try {
+    const cfg = getMarketDataConfig();
+    configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
+
+    const period1 = Math.floor(new Date(startDate).getTime() / 1000);
+    const period2 = Math.floor(new Date(endDate).getTime() / 1000);
+    const url = `${YAHOO_FINANCE_API_URL}/${symbol}?interval=1d&period1=${period1}&period2=${period2}`;
+
+    const response = await rateLimitedFetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }
+    });
+
+    if (!response.ok) {
+      logger.warn(`Yahoo Finance historical API returned ${response.status} for ${symbol}`, {
+        status: response.status,
+        statusText: response.statusText,
+        symbol
+      });
+      return [];
+    }
+
+    const data = await response.json();
+    const result = (data as any).chart?.result?.[0];
+    if (!result) return [];
+
+    const timestamps: number[] = result.timestamp || [];
+    const quotes = result.indicators?.quote?.[0] || {};
+    const opens: number[] = quotes.open || [];
+    const highs: number[] = quotes.high || [];
+    const lows: number[] = quotes.low || [];
+    const closes: number[] = quotes.close || [];
+    const volumes: number[] = quotes.volume || [];
+
+    const bars: any[] = timestamps.map((ts, i) => ({
+      date: new Date(ts * 1000).toISOString().split('T')[0],
+      open: opens[i] ?? null,
+      high: highs[i] ?? null,
+      low: lows[i] ?? null,
+      close: closes[i] ?? null,
+      volume: volumes[i] ?? null,
+    })).filter(b => b.close !== null);
+
+    return bars;
+  } catch (error: unknown) {
+    logger.error(`Failed to fetch historical data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
+    return [];
   }
 }
 

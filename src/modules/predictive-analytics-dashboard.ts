@@ -3,8 +3,8 @@
  * Serves the enterprise-grade predictive analytics dashboard with AI capabilities
  */
 
-import { createRequestLogger } from './logging.js';
-import type { CloudflareEnvironment } from '../../types.js';
+import { createRequestLogger, createLogger } from './logging.js';
+import type { CloudflareEnvironment } from '../types';
 
 /**
  * Serve the Predictive Analytics Dashboard HTML page
@@ -14,6 +14,7 @@ export async function servePredictiveAnalyticsDashboard(
   env: CloudflareEnvironment
 ): Promise<Response> {
   const requestLogger = createRequestLogger('dashboard');
+  const logger = createLogger('dashboard');
   const startTime = Date.now();
 
   try {
@@ -651,7 +652,7 @@ export async function servePredictiveAnalyticsDashboard(
 
                 console.log('🚀 Predictive Analytics Dashboard initialized successfully');
 
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('❌ Failed to initialize dashboard:', error);
                 showError('Failed to initialize dashboard. Please try again.');
                 showLoading(false);
@@ -787,7 +788,7 @@ export async function servePredictiveAnalyticsDashboard(
                     currentData.kpiData = kpiResult.data || {};
                 }
 
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Error loading dashboard data:', error);
                 throw error;
             }
@@ -826,7 +827,7 @@ export async function servePredictiveAnalyticsDashboard(
                     updateCharts();
                     renderKPIGrid();
                     renderPredictionsTable();
-                } catch (error) {
+                } catch (error: unknown) {
                     console.error('Error refreshing dashboard:', error);
                 }
             }, 30000);
@@ -835,7 +836,7 @@ export async function servePredictiveAnalyticsDashboard(
         /**
          * Update chart based on control clicked
          */
-        function updateChartByControl(control) {
+        function updateChartByControl(control: any) {
             const period = control.dataset.period;
             const view = control.dataset.view;
             const metric = control.dataset.metric;
@@ -1009,7 +1010,7 @@ export async function servePredictiveAnalyticsDashboard(
         /**
          * Update accuracy chart
          */
-        function updateAccuracyChart(period) {
+        function updateAccuracyChart(period: any) {
             // Generate sample data for demonstration
             const labels = [];
             const data = [];
@@ -1030,7 +1031,7 @@ export async function servePredictiveAnalyticsDashboard(
         /**
          * Update confidence chart
          */
-        function updateConfidenceChart(view) {
+        function updateConfidenceChart(view: any) {
             if (view === 'current') {
                 // Calculate from current predictions
                 const confidenceLevels = {
@@ -1062,7 +1063,7 @@ export async function servePredictiveAnalyticsDashboard(
         /**
          * Update performance chart
          */
-        function updatePerformanceChart(metric) {
+        function updatePerformanceChart(metric: any) {
             // Generate sample time series data
             const labels = [];
             const accuracyData = [];
@@ -1098,24 +1099,24 @@ export async function servePredictiveAnalyticsDashboard(
         /**
          * Utility functions
          */
-        function getConfidenceLevel(confidence) {
+        function getConfidenceLevel(confidence: any) {
             const percentage = confidence * 100;
             if (percentage > 80) return 'high';
             if (percentage >= 60) return 'medium';
             return 'low';
         }
 
-        function formatDate(dateString) {
+        function formatDate(dateString: any) {
             const date = new Date(dateString);
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
         }
 
-        function showLoading(show) {
+        function showLoading(show: any) {
             const overlay = document.getElementById('loading-overlay');
             overlay.style.display = show ? 'flex' : 'none';
         }
 
-        function showError(message) {
+        function showError(message: any) {
             const container = document.querySelector('.dashboard-container');
             container.innerHTML = \`
                 <div class="error-container">
@@ -1137,9 +1138,9 @@ export async function servePredictiveAnalyticsDashboard(
     });
 
   } catch (error: any) {
-    requestLogger.error('Error serving predictive analytics dashboard', {
-      error: error.message,
-      stack: error.stack,
+    logger.error('Error serving predictive analytics dashboard', {
+      error: (error instanceof Error ? error.message : String(error)),
+      stack: (error instanceof Error ? error.stack : undefined),
       duration: Date.now() - startTime
     });
 

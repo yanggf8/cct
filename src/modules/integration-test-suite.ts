@@ -21,8 +21,8 @@ import { createLogger } from './logging.js';
 import { createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { getBatchMarketData, healthCheck as yahooHealthCheck } from './yahoo-finance-integration.js';
 import { initializeAPIHealthMonitor } from './api-health-monitor.js';
-import { CacheManager } from './cache-manager.js';
-import type { CloudflareEnvironment } from '../types.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
+import type { CloudflareEnvironment, MarketData } from '../types.js';
 
 const logger = createLogger('integration-test-suite');
 
@@ -168,12 +168,12 @@ export class IntegrationTestSuite {
           real_data: !health.details?.mock
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'FRED API Connectivity',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -194,15 +194,15 @@ export class IntegrationTestSuite {
         details: health,
         metrics: {
           api_available: health.status === 'healthy',
-          response_time: health.responseTime || 0
+          response_time: (health as any).responseTime || 0
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Yahoo Finance API Connectivity',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -255,12 +255,12 @@ export class IntegrationTestSuite {
           both_models_working: gptWorking && distilWorking
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'AI Model Connectivity',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -308,12 +308,12 @@ export class IntegrationTestSuite {
           series_count: snapshot.metadata.seriesCount
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'FRED Data Quality',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -332,9 +332,9 @@ export class IntegrationTestSuite {
       const validations = {
         hasData: Object.keys(marketData).length > 0,
         hasPrices: Object.values(marketData).some(d => d && d.price > 0),
-        hasVolume: Object.values(marketData).some(d => d && d.volume > 0),
-        hasChanges: Object.values(marketData).some(d => d && d.change !== undefined),
-        realTimeData: Object.values(marketData).some(d => d && d.lastUpdated)
+        hasVolume: Object.values(marketData).some(d => d && (d as any).volume > 0),
+        hasChanges: Object.values(marketData).some(d => d && (d as any).change !== undefined),
+        realTimeData: Object.values(marketData).some(d => d && (d as any).lastUpdated)
       };
 
       const passedValidations = Object.values(validations).filter(Boolean).length;
@@ -357,12 +357,12 @@ export class IntegrationTestSuite {
           data_quality_score: passedValidations / totalValidations
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Market Data Quality',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -377,14 +377,14 @@ export class IntegrationTestSuite {
       const { performDualAIComparison } = await import('./dual-ai-analysis.js');
       const testSymbols = ['AAPL'];
 
-      const result = await performDualAIComparison(testSymbols, this.env);
+      const result = await performDualAIComparison('AAPL', [], this.env);
 
       const validations = {
-        hasSignals: result.signals && result.signals.length > 0,
-        hasGPTAnalysis: result.signals?.some(s => s.gpt_sentiment),
-        hasDistilBERTAnalysis: result.signals?.some(s => s.distilbert_sentiment),
-        hasConfidence: result.overall_confidence !== undefined,
-        hasRecommendation: result.signals?.some(s => s.recommendation)
+        hasSignal: !!result.signal,
+        hasGPTAnalysis: !!(result as any).models?.gpt,
+        hasDistilBERTAnalysis: !!(result as any).models?.distilbert,
+        hasConfidence: (result as any).overall_confidence !== undefined || result.performance_metrics !== undefined,
+        hasRecommendation: !!(result as any).comparison?.recommendation
       };
 
       const passedValidations = Object.values(validations).filter(Boolean).length;
@@ -403,16 +403,16 @@ export class IntegrationTestSuite {
         },
         metrics: {
           validation_pass_rate: passedValidations / totalValidations,
-          signals_generated: result.signals?.length || 0,
-          overall_confidence: result.overall_confidence || 0
+          signals_generated: result.signal ? 1 : 0,
+          overall_confidence: (result as any).overall_confidence || result.performance_metrics?.successful_models / result.performance_metrics?.models_executed || 0
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Sentiment Analysis Integration',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -424,26 +424,26 @@ export class IntegrationTestSuite {
     const startTime = Date.now();
 
     try {
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testKey = `integration_test_${Date.now()}`;
       const testData = { timestamp: Date.now(), test: 'integration' };
 
       // Test cache write
       const writeStart = Date.now();
-      await cacheManager.set(testKey, testData, { ttl: 60 });
+      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 } as any);
       const writeTime = Date.now() - writeStart;
 
       // Test cache read
       const readStart = Date.now();
-      const cached = await cacheManager.get(testKey);
+      const cached = await cacheManager.get('TEST', testKey);
       const readTime = Date.now() - readStart;
 
       // Test cache delete
       const deleteStart = Date.now();
-      await cacheManager.delete(testKey);
+      await cacheManager.delete('TEST', testKey);
       const deleteTime = Date.now() - deleteStart;
 
-      const dataIntegrity = cached && cached.test === 'integration' && cached.timestamp === testData.timestamp;
+      const dataIntegrity = cached && (cached as any).test === 'integration' && (cached as any).timestamp === testData.timestamp;
 
       const status = dataIntegrity ? 'passed' : 'failed';
 
@@ -466,12 +466,12 @@ export class IntegrationTestSuite {
           total_operations_time: writeTime + readTime + deleteTime
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Cache System',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -483,17 +483,17 @@ export class IntegrationTestSuite {
     const startTime = Date.now();
 
     try {
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testKey = `consistency_test_${Date.now()}`;
       const testData = { counter: 1, timestamp: Date.now() };
 
       // Write initial data
-      await cacheManager.set(testKey, testData, { ttl: 60 });
+      await cacheManager.set('TEST', testKey, testData, { l1: 60, l2: 60 } as any);
 
       // Read multiple times to check consistency
       const reads = [];
       for (let i = 0; i < 5; i++) {
-        const cached = await cacheManager.get(testKey);
+        const cached = await cacheManager.get('TEST', testKey);
         reads.push(cached);
       }
 
@@ -504,7 +504,7 @@ export class IntegrationTestSuite {
       );
 
       // Cleanup
-      await cacheManager.delete(testKey);
+      await cacheManager.delete('TEST', testKey);
 
       const status = consistent ? 'passed' : 'failed';
 
@@ -522,12 +522,12 @@ export class IntegrationTestSuite {
           read_operations: reads.length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Cache Consistency',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -557,13 +557,13 @@ export class IntegrationTestSuite {
           await apiTest.test();
           const responseTime = Date.now() - testStart;
           results.push({ name: apiTest.name, response_time: responseTime, status: 'success' });
-        } catch (error) {
+        } catch (error: unknown) {
           const responseTime = Date.now() - testStart;
-          results.push({ name: apiTest.name, response_time: responseTime, status: 'error', error: error.message });
+          results.push({ name: apiTest.name, response_time: responseTime, status: 'error', error: error instanceof Error ? error.message : String(error) });
         }
       }
 
-      const averageResponseTime = results.reduce((sum, r) => sum + r.response_time, 0) / results.length;
+      const averageResponseTime = results.reduce((sum: any, r: any) => sum + r.response_time, 0) / results.length;
       const successRate = results.filter(r => r.status === 'success').length / results.length;
 
       const status = successRate >= 0.8 ? (averageResponseTime < 2000 ? 'passed' : 'warning') : 'failed';
@@ -586,12 +586,12 @@ export class IntegrationTestSuite {
           successful_tests: results.filter(r => r.status === 'success').length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'API Performance',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -603,9 +603,9 @@ export class IntegrationTestSuite {
     const startTime = Date.now();
 
     try {
-      const cacheManager = new CacheManager(this.env);
+      const cacheManager = new DOCacheAdapter(this.env);
       const testCount = 10;
-      const testData = Array.from({ length: testCount }, (_, i) => ({
+      const testData = Array.from({ length: testCount }, (_: any, i: any) => ({
         key: `perf_test_${i}_${Date.now()}`,
         data: { index: i, timestamp: Date.now() }
       }));
@@ -613,7 +613,7 @@ export class IntegrationTestSuite {
       // Test batch writes
       const writeStart = Date.now();
       for (const item of testData) {
-        await cacheManager.set(item.key, item.data, { ttl: 60 });
+        await cacheManager.set('TEST', item.key, item.data, { l1: 60, l2: 60 } as any);
       }
       const writeTime = Date.now() - writeStart;
 
@@ -621,14 +621,14 @@ export class IntegrationTestSuite {
       const readStart = Date.now();
       const reads = [];
       for (const item of testData) {
-        const cached = await cacheManager.get(item.key);
+        const cached = await cacheManager.get('TEST', item.key);
         reads.push(cached);
       }
       const readTime = Date.now() - readStart;
 
       // Cleanup
       for (const item of testData) {
-        await cacheManager.delete(item.key);
+        await cacheManager.delete('TEST', item.key);
       }
 
       const avgWriteTime = writeTime / testCount;
@@ -655,12 +655,12 @@ export class IntegrationTestSuite {
           operations_per_second: testCount / ((writeTime + readTime) / 1000)
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Cache Performance',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -688,13 +688,13 @@ export class IntegrationTestSuite {
       // Step 3: Perform sentiment analysis
       const sentimentStart = Date.now();
       const { performDualAIComparison } = await import('./dual-ai-analysis.js');
-      const sentimentResult = await performDualAIComparison(['AAPL'], this.env);
+      const sentimentResult = await performDualAIComparison('AAPL', [], this.env);
       workflowSteps.push({ step: 'Sentiment Analysis', duration: Date.now() - sentimentStart, success: !!sentimentResult });
 
       // Step 4: Cache results
       const cacheStart = Date.now();
-      const cacheManager = new CacheManager(this.env);
-      await cacheManager.set('workflow_test', { marketData, fredData, sentimentResult }, { ttl: 60 });
+      const cacheManager = new DOCacheAdapter(this.env);
+      await cacheManager.set('workflow_test', 'workflow_test', { marketData, fredData, sentimentResult }, { ttl: 60 } as any);
       workflowSteps.push({ step: 'Cache Results', duration: Date.now() - cacheStart, success: true });
 
       const successRate = workflowSteps.filter(s => s.success).length / workflowSteps.length;
@@ -712,15 +712,15 @@ export class IntegrationTestSuite {
         metrics: {
           success_rate: successRate,
           total_workflow_time: Date.now() - startTime,
-          avg_step_time: workflowSteps.reduce((sum, s) => sum + s.duration, 0) / workflowSteps.length
+          avg_step_time: workflowSteps.reduce((sum: any, s: any) => sum + s.duration, 0) / workflowSteps.length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Complete Workflow',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -744,12 +744,12 @@ export class IntegrationTestSuite {
         {
           name: 'Cache Key Collision',
           test: async () => {
-            const cacheManager = new CacheManager(this.env);
+            const cacheManager = new DOCacheAdapter(this.env);
             const testKey = 'collision_test';
-            await cacheManager.set(testKey, { data: 1 }, { ttl: 60 });
-            await cacheManager.set(testKey, { data: 2 }, { ttl: 60 }); // Should overwrite
-            const result = await cacheManager.get(testKey);
-            await cacheManager.delete(testKey);
+            await cacheManager.set('TEST', testKey, { data: 1 }, { l1: 60, l2: 60 } as any);
+            await cacheManager.set('TEST', testKey, { data: 2 }, { l1: 60, l2: 60 } as any); // Should overwrite
+            const result = await cacheManager.get('TEST', testKey);
+            await cacheManager.delete('TEST', testKey);
             return result;
           }
         }
@@ -761,8 +761,8 @@ export class IntegrationTestSuite {
         try {
           const result = await errorTest.test();
           results.push({ name: errorTest.name, status: 'handled', result });
-        } catch (error) {
-          results.push({ name: errorTest.name, status: 'caught_error', error: error.message });
+        } catch (error: unknown) {
+          results.push({ name: errorTest.name, status: 'caught_error', error: error instanceof Error ? error.message : String(error) });
         }
       }
 
@@ -783,12 +783,12 @@ export class IntegrationTestSuite {
           total_tests: results.length
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         test_name: 'Error Handling',
         status: 'failed',
         duration_ms: Date.now() - startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }

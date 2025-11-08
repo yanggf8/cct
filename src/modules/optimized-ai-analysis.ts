@@ -9,12 +9,10 @@
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
-import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment_utils.js';
-import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
+import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils';
+import { logInfo, logError, logAIDebug } from './logging.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import type { CloudflareEnvironment } from '../types.js';
-
-const logger = initLogging({});
+import type { CloudflareEnvironment } from '../types';
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
@@ -96,7 +94,7 @@ export class OptimizedAIAnalyzer {
       if (!forceRefresh) {
         const cached = await this.dal.read(cacheKey);
         if (cached.success && cached.data) {
-          logger.debug('Analysis cache hit', { symbol });
+          logAIDebug('Analysis cache hit', { symbol });
           return {
             ...cached.data,
             metadata: {
@@ -108,7 +106,7 @@ export class OptimizedAIAnalyzer {
         }
       }
 
-      logger.info('Starting optimized analysis', { symbol });
+      logInfo('Starting optimized analysis', { symbol });
 
       // Get market data first
       const marketData = await this.getMarketData(symbol);
@@ -119,7 +117,7 @@ export class OptimizedAIAnalyzer {
       // Cache the result
       await this.dal.write(cacheKey, aiResult, { expirationTtl: RATE_LIMIT_CONFIG.CACHE_TTL_SECONDS });
 
-      logger.info('Analysis completed', {
+      logInfo('Analysis completed', {
         symbol,
         type: aiResult.analysis_type,
         processing_time: Date.now() - startTime
@@ -128,7 +126,7 @@ export class OptimizedAIAnalyzer {
       return aiResult;
 
     } catch (error: any) {
-      logger.error('Analysis failed', { symbol, error: error.message });
+      logError('Analysis failed', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
       // Return technical fallback
       return this.createTechnicalFallback(symbol, error.message, Date.now() - startTime);
@@ -140,7 +138,7 @@ export class OptimizedAIAnalyzer {
    */
   async analyzeBatch(symbols: string[]): Promise<BatchOptimizedResult> {
     const startTime = Date.now();
-    logger.info('Starting batch optimized analysis', { symbolCount: symbols.length });
+    logInfo('Starting batch optimized analysis', { symbolCount: symbols.length });
 
     const results: OptimizedAnalysisResult[] = [];
     const summary = {
@@ -173,7 +171,7 @@ export class OptimizedAIAnalyzer {
         }
 
       } catch (error: any) {
-        logger.error('Batch analysis failed for symbol', { symbol, error: error.message });
+        logError('Batch analysis failed for symbol', { symbol, error: (error instanceof Error ? error.message : String(error)) });
 
         // Add technical fallback
         const fallback = this.createTechnicalFallback(symbol, error.message, 0);
@@ -185,7 +183,7 @@ export class OptimizedAIAnalyzer {
     const totalTime = Date.now() - startTime;
     summary.average_processing_time = totalTime / symbols.length;
 
-    logger.info('Batch analysis completed', {
+    logInfo('Batch analysis completed', {
       total_time: totalTime,
       successful: summary.successful_analyses,
       cache_hits: summary.cache_hits,
@@ -216,9 +214,9 @@ export class OptimizedAIAnalyzer {
       }
 
     } catch (error: any) {
-      logger.warn('AI analysis hit rate limit, falling back to technical', {
+      logError('AI analysis hit rate limit, falling back to technical', {
         symbol,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
 
       // Return technical analysis with rate limit flag
@@ -240,7 +238,7 @@ export class OptimizedAIAnalyzer {
       // Use only GPT to reduce subrequest count
       const topArticles = newsData.slice(0, 3); // Limit to 3 articles
       const newsContext = topArticles
-        .map((item, i) => `${i+1}. ${item.title}\n${item.summary || ''}`)
+        .map((item: any, i: any) => `${i+1}. ${item.title}\n${item.summary || ''}`)
         .join('\n\n');
 
       const prompt = `As a financial analyst, provide a brief sentiment analysis for ${symbol} based on this news:
@@ -265,7 +263,7 @@ Short-term outlook: [1-2 sentences]`;
         symbol,
         timestamp: new Date().toISOString(),
         analysis_type: 'full_ai',
-        sentiment: analysis.sentiment,
+        sentiment: (analysis as any).sentiment,
         technical_indicators: this.calculateBasicTechnicals(marketData),
         market_data: {
           current_price: marketData.current_price,
@@ -282,13 +280,13 @@ Short-term outlook: [1-2 sentences]`;
       };
 
     } catch (error: any) {
-      if (error.message.includes('Too many subrequests') ||
-          error.message.includes('rate limit') ||
-          error.message.includes('429')) {
+      if ((error instanceof Error ? error.message : String(error)).includes('Too many subrequests') ||
+          (error instanceof Error ? error.message : String(error)).includes('rate limit') ||
+          (error instanceof Error ? error.message : String(error)).includes('429')) {
         throw error; // Re-throw rate limit errors
       }
 
-      logger.error('AI analysis failed', { symbol, error: error.message });
+      logError('AI analysis failed', { symbol, error: error.message });
       return this.createTechnicalAnalysis(symbol, marketData);
     }
   }
@@ -365,7 +363,7 @@ Short-term outlook: [1-2 sentences]`;
         processing_time_ms: 50,
         cache_hit: false,
         model_used: 'technical_analysis',
-        rate_limit_hit
+        rate_limit_hit: !!rateLimitHit
       }
     };
   }
@@ -445,8 +443,8 @@ Short-term outlook: [1-2 sentences]`;
       }
 
       return { direction, confidence, reasoning: reasoning.trim() || 'AI analysis completed' };
-    } catch (error) {
-      logger.error('Failed to parse GPT response', error);
+    } catch (error: unknown) {
+      logError('Failed to parse GPT response', { error: error instanceof Error ? error.message : String(error) });
       return {
         direction: 'neutral',
         confidence: 0.5,

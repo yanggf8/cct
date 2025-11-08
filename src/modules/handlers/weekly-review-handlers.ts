@@ -7,14 +7,14 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('weekly-review-handlers');
 
 /**
  * Generate Weekly Review Page
  */
-export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment) => {
+export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
 
@@ -53,7 +53,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   } catch (error: any) {
     logger.error('❌ [WEEKLY-REVIEW] Failed to retrieve weekly data', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
   }

@@ -125,10 +125,10 @@ export function generatePreMarketSignals(analysisData: AnalysisData | null): Pre
       const tradingSignal = signal.signal || {};
 
       // Use agreement status and signal for sentiment/direction
-      if (comparison.agree && tradingSignal.direction) {
-        sentiment = tradingSignal.direction;
-        confidence = (tradingSignal.strength === 'STRONG' ? 0.85 :
-                      tradingSignal.strength === 'MODERATE' ? 0.75 : 0.65) * 100;
+      if ((comparison as any).agree && (tradingSignal as any).direction) {
+        sentiment = (tradingSignal as any).direction;
+        confidence = ((tradingSignal as any).strength === 'STRONG' ? 0.85 :
+                      (tradingSignal as any).strength === 'MODERATE' ? 0.75 : 0.65) * 100;
       } else {
         // For partial agreement or disagreement, use weighted average
         const gptConfidence = models.gpt?.confidence || 0;
@@ -143,20 +143,20 @@ export function generatePreMarketSignals(analysisData: AnalysisData | null): Pre
 
       // Add AI insights for dual AI analysis
       aiInsights = {
-        agree: comparison.agree,
-        agreement_type: comparison.agreement_type,
-        gpt_direction: models.gpt?.direction,
-        distilbert_direction: models.distilbert?.direction,
-        signal_action: tradingSignal.action
+        agree: (comparison as any).agree,
+        agreement_type: (comparison as any).agreement_type,
+        gpt_direction: (models as any).gpt?.direction,
+        distilbert_direction: (models as any).distilbert?.direction,
+        signal_action: (tradingSignal as any).action
       };
 
     } else {
       // Process legacy analysis
       const sentimentLayer = signal.sentiment_layers?.[0];
-      sentiment = sentimentLayer?.sentiment || 'neutral';
-      confidence = (sentimentLayer?.confidence || tradingSignals?.overall_confidence || 0) * 100;
-      direction = tradingSignals?.primary_direction === 'BULLISH' ? 'up' :
-                   tradingSignals?.primary_direction === 'BEARISH' ? 'down' : 'neutral';
+      sentiment = (sentimentLayer as any)?.sentiment || 'neutral';
+      confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
+      direction = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' :
+                   (tradingSignals as any)?.primary_direction === 'BEARISH' ? 'down' : 'neutral';
     }
 
     if (sentiment === 'bullish') bullishCount++;
@@ -286,11 +286,11 @@ function getDefaultPreMarketData(): PreMarketResult {
     bearishCount: 2,
     totalSymbols: 5,
     highConfidenceUps: [
-      { symbol: 'AAPL', expectedMove: '1.5', confidence: 75, driver: 'Technical breakout pattern' },
-      { symbol: 'MSFT', expectedMove: '1.2', confidence: 73, driver: 'Cloud momentum strength' }
+      { symbol: 'AAPL', expectedMove: '1.5', confidence: 75, driver: 'Technical breakout pattern', sentiment: 'BULLISH', direction: 'UP' },
+      { symbol: 'MSFT', expectedMove: '1.2', confidence: 73, driver: 'Cloud momentum strength', sentiment: 'BULLISH', direction: 'UP' }
     ],
     highConfidenceDowns: [
-      { symbol: 'TSLA', expectedMove: '2.1', confidence: 76, driver: 'Production headwinds' }
+      { symbol: 'TSLA', expectedMove: '2.1', confidence: 76, driver: 'Production headwinds', sentiment: 'BEARISH', direction: 'DOWN' }
     ],
     strongestSectors: ['Technology', 'Consumer Discretionary'],
     weakestSectors: ['Healthcare', 'Energy'],

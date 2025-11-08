@@ -7,7 +7,8 @@ import { createLogger } from './logging.js';
 import { tomorrowOutlookTracker, type MarketBias, type ConfidenceLevel, type VolatilityLevel } from './tomorrow-outlook-tracker.js';
 import { runEnhancedAnalysis, type EnhancedAnalysisResults } from './enhanced_analysis.js';
 import { createDAL } from './dal.js';
-import type { CloudflareEnvironment, DALResult } from '../types.js';
+import type { CloudflareEnvironment } from '../types.js';
+import type { KVReadResult } from './dal.js';
 
 const logger = createLogger('report-data-retrieval');
 
@@ -207,22 +208,23 @@ export class ReportDataRetrieval {
 
       // Get today's analysis
       const analysisKey = `analysis_${dateStr}`;
-      const analysisResult: DALResult = await dal.read(analysisKey);
+      const analysisResult: KVReadResult<any> = await dal.read(analysisKey);
 
       // Get morning predictions (if available)
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       // Evaluate yesterday's outlook accuracy
       let outlookEvaluation: OutlookEvaluation | null = null;
-      const yesterdayOutlook: YesterdayOutlook | null = await tomorrowOutlookTracker.getTodaysOutlook(env, date);
+      const yesterdayOutlook: YesterdayOutlook | null = await tomorrowOutlookTracker.getTodaysOutlook(env, date) as any;
 
       if (yesterdayOutlook && yesterdayOutlook.evaluationStatus === 'pending') {
         // We need actual market data to evaluate - for now, we'll use yesterday's predictions
         const yesterdayPredictions = await this.getYesterdaysPredictions(env, date);
         if (yesterdayPredictions) {
           const actualMarketData: ActualMarketData = this.generateActualMarketData(yesterdayPredictions);
-          outlookEvaluation = await tomorrowOutlookTracker.evaluateTodaysOutlook(env, date, actualMarketData);
+          const evaluation = await tomorrowOutlookTracker.evaluateTodaysOutlook(env, date, actualMarketData) as unknown as OutlookEvaluation;
+          outlookEvaluation = evaluation;
         }
       }
 
@@ -270,7 +272,7 @@ export class ReportDataRetrieval {
 
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to retrieve pre-market briefing data', {
         date: dateStr,
         error: (error as Error).message
@@ -290,7 +292,7 @@ export class ReportDataRetrieval {
 
       // Get morning predictions with performance updates
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       let predictions: PredictionsData | null = null;
       let performanceSummary: IntradayPerformanceSummary | null = null;
@@ -337,7 +339,7 @@ export class ReportDataRetrieval {
 
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to retrieve intraday check data', {
         date: dateStr,
         error: (error as Error).message
@@ -357,11 +359,11 @@ export class ReportDataRetrieval {
 
       // Get morning predictions with final performance
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       // Get end-of-day summary if available
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryResult: DALResult = await dal.read(summaryKey);
+      const summaryResult: KVReadResult<any> = await dal.read(summaryKey);
 
       let finalSummary: EndOfDaySummary | null = null;
       let tomorrowOutlook: TomorrowOutlook | null = null;
@@ -384,7 +386,7 @@ export class ReportDataRetrieval {
             marketBias: tomorrowOutlook.marketBias,
             confidence: tomorrowOutlook.confidence
           });
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('⚠️ [END-OF-DAY] AI analysis failed, using fallback', {
             date: dateStr,
             error: (error as Error).message
@@ -395,7 +397,7 @@ export class ReportDataRetrieval {
 
         // Store tomorrow outlook for next day evaluation
         if (tomorrowOutlook) {
-          await tomorrowOutlookTracker.storeTomorrowOutlook(env, date, tomorrowOutlook);
+          await tomorrowOutlookTracker.storeTomorrowOutlook(env, date, tomorrowOutlook as any);
         }
       }
 
@@ -460,7 +462,7 @@ export class ReportDataRetrieval {
 
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to retrieve end-of-day summary data', {
         date: dateStr,
         error: (error as Error).message
@@ -522,7 +524,7 @@ export class ReportDataRetrieval {
 
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('❌ [WEEKLY-REVIEW] CRITICAL: Failed to retrieve weekly review data', {
         date: dateStr,
         error: (error as Error).message,
@@ -587,7 +589,7 @@ export class ReportDataRetrieval {
 
       // Try to get end-of-day summary first
       const summaryKey = `end_of_day_summary_${dateStr}`;
-      const summaryResult: DALResult = await dal.read(summaryKey);
+      const summaryResult: KVReadResult<any> = await dal.read(summaryKey);
 
       if (summaryResult.success && summaryResult.data) {
         const parsed = summaryResult.data;
@@ -600,7 +602,7 @@ export class ReportDataRetrieval {
 
       // Fall back to morning predictions
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
 
       if (predictionsResult.success && predictionsResult.data) {
         const parsed = predictionsResult.data;
@@ -614,7 +616,7 @@ export class ReportDataRetrieval {
 
       return null;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to get single day performance data', {
         date: dateStr,
         error: (error as Error).message
@@ -649,7 +651,7 @@ export class ReportDataRetrieval {
 
     const signalsWithPerformance = predictions.filter(p => p.performance?.accuracy !== undefined);
     const averageAccuracy = signalsWithPerformance.length > 0
-      ? signalsWithPerformance.reduce((sum, p) => sum + (p.performance?.accuracy || 0), 0) / signalsWithPerformance.length
+      ? signalsWithPerformance.reduce((sum: any, p: any) => sum + (p.performance?.accuracy || 0), 0) / signalsWithPerformance.length
       : 0;
 
     // Group by status
@@ -681,7 +683,7 @@ export class ReportDataRetrieval {
     const predictions: Prediction[] = predictionsData?.predictions || [];
     const topPerformers: TopPerformer[] = predictions
       .filter(p => p.performance?.accuracy !== undefined)
-      .sort((a, b) => (b.performance?.accuracy || 0) - (a.performance?.accuracy || 0))
+      .sort((a: any, b: any) => (b.performance?.accuracy || 0) - (a.performance?.accuracy || 0))
       .slice(0, 3)
       .map(p => ({
         symbol: p.symbol,
@@ -692,7 +694,7 @@ export class ReportDataRetrieval {
 
     const underperformers: TopPerformer[] = predictions
       .filter(p => p.performance?.accuracy !== undefined)
-      .sort((a, b) => (a.performance?.accuracy || 0) - (b.performance?.accuracy || 0))
+      .sort((a: any, b: any) => (a.performance?.accuracy || 0) - (b.performance?.accuracy || 0))
       .slice(0, 3)
       .map(p => ({
         symbol: p.symbol,
@@ -827,7 +829,9 @@ export class ReportDataRetrieval {
       analysisTimestamp: aiAnalysis.analysis_time,
       symbolsAnalyzed: symbols.length,
       highConfidenceSignals,
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      keyFocus: 'AI-driven market analysis',
+      recommendations: []
     };
   }
 
@@ -836,9 +840,9 @@ export class ReportDataRetrieval {
       return this.getDefaultWeeklyAnalysis();
     }
 
-    const totalSignals = weeklyData.reduce((sum, day) => sum + (day.summary?.totalSignals || 0), 0);
-    const totalValidated = weeklyData.reduce((sum, day) => sum + (day.summary?.validatedSignals || 0), 0);
-    const averageAccuracy = weeklyData.reduce((sum, day) => sum + (day.summary?.averageAccuracy || 0), 0) / weeklyData.length;
+    const totalSignals = weeklyData.reduce((sum: any, day: any) => sum + (day.summary?.totalSignals || 0), 0);
+    const totalValidated = weeklyData.reduce((sum: any, day: any) => sum + (day.summary?.validatedSignals || 0), 0);
+    const averageAccuracy = weeklyData.reduce((sum: any, day: any) => sum + (day.summary?.averageAccuracy || 0), 0) / weeklyData.length;
 
     // Find best and worst performing days
     const dayPerformances: DayPerformanceRecord[] = weeklyData.map(day => ({
@@ -848,9 +852,9 @@ export class ReportDataRetrieval {
       signals: day.summary?.totalSignals || 0
     }));
 
-    const bestDay = dayPerformances.reduce((best, current) =>
+    const bestDay = dayPerformances.reduce((best: any, current: any) =>
       current.accuracy > best.accuracy ? current : best);
-    const worstDay = dayPerformances.reduce((worst, current) =>
+    const worstDay = dayPerformances.reduce((worst: any, current: any) =>
       current.accuracy < worst.accuracy ? current : worst);
 
     return {
@@ -899,8 +903,8 @@ export class ReportDataRetrieval {
     const firstHalf = dailyPerformances.slice(0, Math.floor(dailyPerformances.length / 2));
     const secondHalf = dailyPerformances.slice(Math.floor(dailyPerformances.length / 2));
 
-    const firstAvg = firstHalf.reduce((sum, day) => sum + day.accuracy, 0) / firstHalf.length;
-    const secondAvg = secondHalf.reduce((sum, day) => sum + day.accuracy, 0) / secondHalf.length;
+    const firstAvg = firstHalf.reduce((sum: any, day: any) => sum + day.accuracy, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((sum: any, day: any) => sum + day.accuracy, 0) / secondHalf.length;
 
     if (secondAvg > firstAvg + 10) return { accuracyTrend: 'improving' };
     if (secondAvg < firstAvg - 10) return { accuracyTrend: 'declining' };
@@ -932,11 +936,11 @@ export class ReportDataRetrieval {
     try {
       const dal = createDAL(env);
       const predictionsKey = `morning_predictions_${yesterdayStr}`;
-      const predictionsResult: DALResult = await dal.read(predictionsKey);
+      const predictionsResult: KVReadResult<any> = await dal.read(predictionsKey);
       if (predictionsResult.success && predictionsResult.data) {
         return predictionsResult.data;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to get yesterday\'s predictions', {
         date: yesterdayStr,
         error: (error as Error).message
@@ -981,7 +985,7 @@ export class ReportDataRetrieval {
     else if (divergenceRate < 0.1) volatility = 'low';
 
     // Calculate average change based on actual performance
-    const avgChange = predictions.reduce((sum, p) => {
+    const avgChange = predictions.reduce((sum: any, p: any) => {
       const actualChange = p.performance?.actualChange || 0;
       return sum + actualChange;
     }, 0) / predictions.length;

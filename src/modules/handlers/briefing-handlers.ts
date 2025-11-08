@@ -10,14 +10,14 @@ import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
 import { getPreMarketBriefingData } from '../report-data-retrieval.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
 import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('briefing-handlers');
 
 /**
  * Generate Pre-Market Briefing Page
  */
-export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request: Request, env: CloudflareEnvironment) => {
+export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
   const today = new Date();
@@ -83,7 +83,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     } catch (error: any) {
       logger.error('❌ [PRE-MARKET] Failed to retrieve pre-market data', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
     }
@@ -107,7 +107,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   } catch (error: any) {
     logger.error('❌ [PRE-MARKET] Pre-market briefing failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
       duration: Date.now() - startTime
     });
@@ -783,7 +783,7 @@ function generateActionItems(actionItems: any[]): string {
     return '<li class="action-item"><h4>📋 Monitor Market</h4><p>Watch for pre-market movements and news that could impact today\'s trading session.</p></li>';
   }
 
-  return actionItems.map((item, index) => `
+  return actionItems.map((item: any, index: any) => `
     <li class="action-item">
       <h4>${item.title || `Action ${index + 1}`}</h4>
       <p>${item.description || 'Monitor market conditions and adjust strategy accordingly.'}</p>

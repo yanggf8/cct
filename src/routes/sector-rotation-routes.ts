@@ -88,8 +88,8 @@ export async function handleSectorRotationRoutes(
         headers,
       }
     );
-  } catch (error) {
-    logger.error('SectorRotationRoutes Error', error, { requestId, path, method });
+  } catch (error: unknown) {
+    logger.error('SectorRotationRoutes Error', { error: (error as any).message,  requestId, path, method });
 
     return new Response(
       JSON.stringify(
@@ -151,7 +151,7 @@ async function handleSectorRotationAnalysis(
   } catch (error: any) {
     logger.error('Sector rotation analysis failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -249,7 +249,7 @@ async function handleSectorRotationResults(
   } catch (error: any) {
     logger.error('Failed to retrieve sector rotation results', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -323,7 +323,7 @@ async function handleSectorInformation(
   } catch (error: any) {
     logger.error('Failed to retrieve sector information', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -431,7 +431,7 @@ async function handleETFAnalysis(
         isEmerging: cachedResults.rotationSignals.emergingSectors.includes(symbol as any),
         isDeclining: cachedResults.rotationSignals.decliningSectors.includes(symbol as any),
         rank: cachedResults.etfAnalyses
-          .sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)
+          .sort((a: any, b: any) => b.performanceMetrics.daily - a.performanceMetrics.daily)
           .findIndex(etf => etf.symbol === symbol) + 1
       },
       lastUpdated: cachedResults.timestamp
@@ -461,7 +461,7 @@ async function handleETFAnalysis(
     logger.error('Failed to retrieve ETF analysis', {
       requestId,
       symbol,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(

@@ -4,7 +4,7 @@
  */
 
 import { createMessageTracker } from './msg-tracking.js';
-import type { CloudflareEnvironment } from '../../types.js';
+import type { CloudflareEnvironment } from '../types';
 
 /**
  * Example: Sending a Facebook message with tracking
@@ -82,7 +82,7 @@ export async function exampleFacebookMessageWithTracking(
       trackingId,
       'failed',
       undefined,
-      error.message
+      (error instanceof Error ? error.message : String(error))
     );
 
     throw error;

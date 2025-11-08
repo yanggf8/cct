@@ -191,7 +191,7 @@ function extractSubscriptionId(url: string): string | null {
   try {
     const urlObj = new URL(url);
     return urlObj.searchParams.get('id');
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to parse URL', { url, error: (error as Error).message });
     return null;
   }
@@ -295,7 +295,7 @@ export async function handleNotificationSubscription(
       return createJsonResponse(response, 500);
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Notification subscription error', {
       error: (error as Error).message,
       requestId
@@ -356,7 +356,7 @@ export async function handleNotificationUnsubscription(
       return createJsonResponse(response, 500);
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Notification unsubscription error', {
       error: (error as Error).message,
       requestId,
@@ -424,7 +424,7 @@ export async function handleNotificationPreferences(
       'X-Request-ID': requestId
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Notification preferences update error', {
       error: (error as Error).message,
       requestId,
@@ -476,7 +476,7 @@ export async function handleNotificationHistory(
       'X-Request-ID': requestId
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Notification history error', {
       error: (error as Error).message,
       requestId,
@@ -573,7 +573,7 @@ export async function handleTestNotification(
       'X-Request-ID': requestId
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Test notification error', {
       error: (error as Error).message,
       requestId
@@ -620,8 +620,8 @@ export async function handleNotificationStatus(
         weeklyReview: notifications.weekly_review || { sent: 0, failed: 0 }
       },
       total: {
-        sent: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.sent || 0), 0),
-        failed: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.failed || 0), 0)
+        sent: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.sent || 0), 0) as number,
+        failed: Object.values(notifications).reduce((sum: number, stat: any) => sum + (stat.failed || 0), 0) as number
       }
     };
 
@@ -635,7 +635,7 @@ export async function handleNotificationStatus(
       'X-Request-ID': requestId
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Notification status error', {
       error: (error as Error).message,
       requestId

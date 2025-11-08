@@ -79,8 +79,8 @@ export async function handleIntegrationTestRoutes(
         headers,
       }
     );
-  } catch (error) {
-    logger.error('IntegrationTestRoutes Error', error, { requestId, path, method });
+  } catch (error: unknown) {
+    logger.error('IntegrationTestRoutes Error', { error: (error as any).message, requestId, path, method } as any);
 
     return new Response(
       JSON.stringify(
@@ -121,8 +121,8 @@ async function handleRunFullTestSuite(
     let config = {};
     try {
       const body = await request.json();
-      config = body.config || {};
-    } catch (error) {
+      config = (body as any).config || {};
+    } catch (error: unknown) {
       // Use default config if no body provided
       config = {};
     }
@@ -151,8 +151,8 @@ async function handleRunFullTestSuite(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('RunFullTestSuite Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('RunFullTestSuite Error', { error: (error as any).message, requestId } as any);
 
     return new Response(
       JSON.stringify(
@@ -215,8 +215,8 @@ async function handleHealthCheck(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('HealthCheck Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('HealthCheck Error', { error, requestId });
 
     return new Response(
       JSON.stringify(
@@ -287,8 +287,8 @@ async function handleTestStatus(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
-    logger.error('TestStatus Error', error, { requestId });
+  } catch (error: unknown) {
+    logger.error('TestStatus Error', { error, requestId });
 
     return new Response(
       JSON.stringify(

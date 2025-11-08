@@ -290,7 +290,7 @@ export async function runBasicAnalysis(env: CloudflareEnvironment, options: Anal
     } catch (error: any) {
       logger.error('Symbol analysis failed', {
         symbol,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         errorName: error.name,
         stack: error.stack,
         errorDetails: JSON.stringify(error, Object.getOwnPropertyNames(error)),
@@ -416,7 +416,7 @@ async function getMarketData(symbol: string): Promise<MarketDataResponse> {
     };
 
   } catch (error: any) {
-    logger.error('Market data error', { symbol, error: error.message });
+    logger.error('Market data error', { symbol, error: (error instanceof Error ? error.message : String(error)) });
     return {
       success: false,
       error: error.message
@@ -518,7 +518,7 @@ async function saveHighConfidenceSignals(
       metadata: {
         totalSignals: signals.length,
         highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
-        averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+        averageConfidence: signals.reduce((sum: any, s: any) => sum + s.confidence, 0) / signals.length,
         generatedAt: currentTime.toISOString(),
         symbols: signals.map(s => s.symbol)
       }
@@ -566,7 +566,7 @@ async function saveHighConfidenceSignals(
   } catch (error: any) {
     logger.error('Failed to save high-confidence signals to KV', {
       date: dateStr,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
   }
 }
@@ -595,7 +595,7 @@ export async function getHighConfidenceSignalsForTracking(env: CloudflareEnviron
   } catch (error: any) {
     logger.error('Failed to retrieve signals for tracking', {
       date: dateStr,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
   }
 
@@ -649,7 +649,7 @@ export async function updateSignalPerformanceTracking(
     logger.error('Failed to update signal performance tracking', {
       signalId,
       date: dateStr,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
   }
 }

@@ -6,13 +6,12 @@
 
 import {
   ApiResponseFactory,
-  SentimentAnalysisResponse,
-  SymbolSentimentResponse,
   MarketSentimentData,
   SectorSentimentData,
   ProcessingTimer,
   HttpStatus
 } from '../modules/api-v1-responses.js';
+import type { SentimentAnalysisResponse, SymbolSentimentResponse } from '../modules/api-v1-responses.js';
 import {
   validateApiKey,
   parseQueryParams,
@@ -22,7 +21,7 @@ import {
 import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/dual-cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('sentiment-routes');
@@ -139,7 +138,7 @@ export async function handleSentimentRoutes(
         headers,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SentimentRoutes Error', {
       error: error instanceof Error ? error.message : 'Unknown error',
       requestId,
@@ -180,14 +179,12 @@ async function handleSentimentAnalysis(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
@@ -206,8 +203,8 @@ async function handleSentimentAnalysis(
     const cacheKey = `sentiment_analysis_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
-      logger.info('SentimentAnalysis', 'Cache hit', { symbols: symbols.join(','), requestId });
+    if (cached && cached.success && cached.data) {
+      logger.info('SentimentAnalysis: Cache hit', { symbols: symbols.join(','), requestId });
 
       return new Response(
         JSON.stringify(
@@ -223,7 +220,7 @@ async function handleSentimentAnalysis(
     }
 
     // Perform fresh analysis
-    logger.info('SentimentAnalysis', 'Starting analysis', { symbols: symbols.join(','), requestId });
+    logger.info('SentimentAnalysis: Starting analysis', { symbols: symbols.join(','), requestId });
 
       // Use standard batch analysis (enhanced batch temporarily disabled due to CacheManager dependency)
     const analysisResult = await batchDualAIAnalysis(symbols, env, {
@@ -237,7 +234,7 @@ async function handleSentimentAnalysis(
       analysis: {
         timestamp: new Date().toISOString(),
         market_sentiment: {
-          overall_sentiment: calculateOverallSentiment(analysisResult.results),
+          overall_sentiment: getSentimentLabel(calculateOverallSentiment(analysisResult.results)),
           sentiment_label: getSentimentLabel(calculateOverallSentiment(analysisResult.results)),
           confidence: calculateOverallConfidence(analysisResult.results),
         },
@@ -265,7 +262,7 @@ async function handleSentimentAnalysis(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('SentimentAnalysis', 'Analysis complete', {
+    logger.info('SentimentAnalysis: Analysis complete', {
       symbols: symbols.join(','),
       processingTime: timer.getElapsedMs(),
       requestId
@@ -282,7 +279,7 @@ async function handleSentimentAnalysis(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SentimentAnalysis Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId
@@ -318,14 +315,12 @@ async function handleSymbolSentiment(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
 
   try {
@@ -350,8 +345,8 @@ async function handleSymbolSentiment(
     const cacheKey = `symbol_sentiment_${symbol}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
-      logger.info('SymbolSentiment', 'Cache hit', { symbol, requestId });
+    if (cached && cached.success && cached.data) {
+      logger.info('SymbolSentiment: Cache hit', { symbol, requestId });
 
       return new Response(
         JSON.stringify(
@@ -367,7 +362,7 @@ async function handleSymbolSentiment(
     }
 
     // Perform fresh analysis for single symbol
-    logger.info('SymbolSentiment', 'Starting analysis', { symbol, requestId });
+    logger.info('SymbolSentiment: Starting analysis', { symbol, requestId });
 
     const analysisResult = await batchDualAIAnalysis([symbol], env);
 
@@ -425,7 +420,7 @@ async function handleSymbolSentiment(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('SymbolSentiment', 'Analysis complete', {
+    logger.info('SymbolSentiment: Analysis complete', {
       symbol,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -442,7 +437,7 @@ async function handleSymbolSentiment(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SymbolSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId,
@@ -482,14 +477,12 @@ async function handleMarketSentiment(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
 
   try {
@@ -497,8 +490,8 @@ async function handleMarketSentiment(
     const cacheKey = `market_sentiment_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
-      logger.info('MarketSentiment', 'Cache hit', { requestId });
+    if (cached && cached.success && cached.data) {
+      logger.info('MarketSentiment: Cache hit', { requestId });
 
       return new Response(
         JSON.stringify(
@@ -516,7 +509,8 @@ async function handleMarketSentiment(
     // Get recent analysis data to compute market sentiment
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
-    const analysisResult = await dal.read(analysisKey);
+    const sentimentDal = createSimplifiedEnhancedDAL(env);
+    const analysisResult = await sentimentDal.read(analysisKey);
     const analysisData = analysisResult.success ? analysisResult.data : null;
 
     if (!analysisData || !analysisData.trading_signals) {
@@ -538,12 +532,12 @@ async function handleMarketSentiment(
     // Compute market-wide sentiment from all symbols
     const signals = Object.values(analysisData.trading_signals);
     const sentimentScores = signals.map(signal => {
-      const score = signal.sentiment_layers?.[0]?.confidence || 0;
-      const sentiment = signal.sentiment_layers?.[0]?.sentiment || 'neutral';
+      const score = (signal as any).sentiment_layers?.[0]?.confidence || 0;
+      const sentiment = (signal as any).sentiment_layers?.[0]?.sentiment || 'neutral';
       return sentiment === 'bullish' ? score : sentiment === 'bearish' ? -score : 0;
     });
 
-    const overallSentiment = sentimentScores.reduce((sum, score) => sum + score, 0) / sentimentScores.length;
+    const overallSentiment = sentimentScores.reduce((sum: any, score: any) => sum + score, 0) / sentimentScores.length;
 
     const response: MarketSentimentData = {
       overall_sentiment: Math.max(-1, Math.min(1, overallSentiment)),
@@ -554,7 +548,7 @@ async function handleMarketSentiment(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('MarketSentiment', 'Analysis complete', {
+    logger.info('MarketSentiment: Analysis complete', {
       overallSentiment: response.overall_sentiment,
       processingTime: timer.getElapsedMs(),
       requestId
@@ -571,7 +565,7 @@ async function handleMarketSentiment(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('MarketSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId
@@ -609,14 +603,12 @@ async function handleSectorSentiment(
   const timer = new ProcessingTimer();
   // Use Durable Objects cache if enabled, otherwise no cache (simple)
   // External APIs (FMP, NewsAPI) use KV cache independently
-  let cacheInstance;
-  if (isDOCacheEnabled(env)) {
-    cacheInstance = createCacheInstance(env, true);
-    logger.info('SENTIMENT_ROUTES', 'Using Durable Objects cache (L1)');
+  const cacheInstance = createCacheInstance(env, true);
+  if (cacheInstance) {
+    logger.info('SENTIMENT_ROUTES: Using Durable Objects cache (L1)');
   } else {
     // No cache - simple, direct execution
-    logger.info('SENTIMENT_ROUTES', 'No cache (L1 disabled)');
-    cacheInstance = null;
+    logger.info('SENTIMENT_ROUTES: No cache (L1 disabled)');
   }
   const url = new URL(request.url);
   const params = parseQueryParams(url);
@@ -646,8 +638,8 @@ async function handleSectorSentiment(
     const cacheKey = `sector_sentiment_${sectors.join(',')}_${new Date().toISOString().split('T')[0]}`;
     const cached = await getFromCache(cacheKey, cacheInstance);
 
-    if (cached.success && cached.data) {
-      logger.info('SectorSentiment', 'Cache hit', { sectors: sectors.join(','), requestId });
+    if (cached && cached.success && cached.data) {
+      logger.info('SectorSentiment: Cache hit', { sectors: sectors.join(','), requestId });
 
       return new Response(
         JSON.stringify(
@@ -711,7 +703,7 @@ async function handleSectorSentiment(
             confidence: Math.abs(transformedSignal.overall_confidence || 0.5),
             ai_context: transformedSignal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
             news_count: transformedSignal.news_count || 0,
-            price_change: priceData?.changePercent || 0,
+            price_change: (priceData as any)?.changePercent || 0,
             real_data: true,
             models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
             agreement_type: transformedSignal.agreement_type || 'DISAGREE'
@@ -732,7 +724,7 @@ async function handleSectorSentiment(
             agreement_type: 'NO_DATA'
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn(`Failed to analyze sector ${sector}:`, {
           error: error instanceof Error ? error.message : 'Unknown error',
           sector
@@ -755,7 +747,7 @@ async function handleSectorSentiment(
       }
     }
 
-    const response: SectorSentimentData = {
+    const response: any = {
       sectors: sectorAnalysis,
       timestamp: new Date().toISOString(),
       analysis_metadata: {
@@ -769,7 +761,7 @@ async function handleSectorSentiment(
     // Cache the result for 1 hour
     await setCache(cacheKey, response, cacheInstance);
 
-    logger.info('SectorSentiment', 'Analysis complete', {
+    logger.info('SectorSentiment: Analysis complete', {
       sectors: sectors.join(','),
       processingTime: timer.getElapsedMs(),
       requestId
@@ -786,7 +778,7 @@ async function handleSectorSentiment(
       ),
       { status: HttpStatus.OK, headers }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('SectorSentiment Error', {
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId
@@ -826,7 +818,7 @@ function calculateOverallSentiment(results: any[]): number {
     return 0;
   });
 
-  return sentiments.reduce((sum, sentiment) => sum + sentiment, 0) / sentiments.length;
+  return sentiments.reduce((sum: any, sentiment: any) => sum + sentiment, 0) / sentiments.length;
 }
 
 function getSentimentLabel(sentiment: number): string {
@@ -847,7 +839,7 @@ function calculateOverallConfidence(results: any[]): number {
     return (gptConf + dbConf) / 2;
   });
 
-  return confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length;
+  return confidences.reduce((sum: any, conf: any) => sum + conf, 0) / confidences.length;
 }
 
 function transformBatchResultsToSignals(results: any[]): any[] {

@@ -4,7 +4,7 @@
  */
 import { performDualAIComparison, batchDualAIAnalysis, type DualAIComparisonResult, type BatchDualAIAnalysisResult } from './dual-ai-analysis.js';
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
-import { mapSentimentToDirection } from './sentiment_utils.js';
+import { mapSentimentToDirection } from './sentiment-utils.js';
 import { storeSymbolAnalysis, batchStoreAnalysisResults, trackCronHealth } from './data.js';
 import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -222,7 +222,7 @@ export async function getGPTOSSSentiment(symbol: string, newsData: NewsArticle[]
     // Prepare news context for GPT-OSS-120B
     const newsContext = newsData
       .slice(0, 10)
-      .map((item, i) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
+      .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}`)
       .join('\n\n');
 
     const prompt = `Analyze the financial sentiment for ${symbol} stock based on these news headlines:
@@ -310,7 +310,7 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
 
   try {
     // Process multiple news items with DistilBERT
-    const sentimentPromises = newsData.slice(0, 8).map(async (newsItem, index) => {
+    const sentimentPromises = newsData.slice(0, 8).map(async (newsItem: any, index: any) => {
       try {
         const text = `${newsItem.title}. ${newsItem.summary || ''}`.substring(0, 500);
 
@@ -335,7 +335,7 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
           sentiment: 'neutral',
           confidence: 0,
           score: 0,
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         };
       }
     });
@@ -634,7 +634,7 @@ export async function validateSentimentEnhancement(env: CloudflareEnvironment): 
     logError('Sentiment enhancement validation failed:', error);
     return {
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       ai_available: !!env.AI
     };
   }

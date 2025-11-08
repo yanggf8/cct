@@ -125,7 +125,7 @@ export class BacktestingEngine {
         generatedAt: new Date().toISOString()
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.metadata.processingTime = Date.now() - startTime;
       this.metadata.errors.push({
         code: 'BACKTEST_ERROR',
@@ -164,7 +164,7 @@ export class BacktestingEngine {
             end: data[data.length - 1]?.date
           }
         });
-      } catch (error) {
+      } catch (error: unknown) {
         const errorMsg = `Failed to load data for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         this.metadata.errors.push({
           code: 'DATA_LOAD_ERROR',
@@ -367,7 +367,7 @@ export class BacktestingEngine {
           });
         }
 
-      } catch (error) {
+      } catch (error: unknown) {
         this.logExecution('error', 'simulation', `Error processing ${currentDate}`, {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
@@ -416,7 +416,7 @@ export class BacktestingEngine {
 
     // Update total equity
     const totalPositionValue = Array.from(this.positions.values())
-      .reduce((sum, pos) => sum + pos.marketValue, 0);
+      .reduce((sum: any, pos: any) => sum + pos.marketValue, 0);
     this.totalEquity = this.cash + totalPositionValue;
   }
 
@@ -469,7 +469,8 @@ export class BacktestingEngine {
       const entrySignal = await this.generateEntrySignal(symbol, date);
       if (entrySignal && this.shouldEnter(entrySignal)) {
         const positionSize = this.calculatePositionSize(symbol, entrySignal, date);
-        if (positionSize > 0 && this.cash >= positionSize * this.getPrice(symbol, date)) {
+        const priceNow = this.getPrice(symbol, date);
+        if (priceNow && positionSize > 0 && this.cash >= positionSize * priceNow) {
           await this.executePositionEntry(symbol, positionSize, date, entrySignal);
         }
       }
@@ -496,7 +497,7 @@ export class BacktestingEngine {
 
       return signal;
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.logExecution('warning', 'signals', `Failed to generate entry signal for ${symbol}`, {
         date,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -529,7 +530,7 @@ export class BacktestingEngine {
 
       return signal;
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.logExecution('warning', 'signals', `Failed to generate exit signal for ${symbol}`, {
         date,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -576,7 +577,7 @@ export class BacktestingEngine {
 
       return prediction;
 
-    } catch (error) {
+    } catch (error: unknown) {
       this.logExecution('warning', 'prediction', `Failed to get prediction for ${symbol}`, {
         date,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -700,10 +701,10 @@ export class BacktestingEngine {
 
     switch (method) {
       case 'fixed_dollar':
-        return Math.floor(params.fixedDollarAmount / price);
+        return Math.floor((params.fixedDollarAmount ?? 0) / price);
 
       case 'fixed_percent':
-        const investableAmount = this.totalEquity * params.fixedPercent;
+        const investableAmount = this.totalEquity * (params.fixedPercent ?? 0);
         return Math.floor(investableAmount / price);
 
       case 'volatility_target':
@@ -847,7 +848,7 @@ export class BacktestingEngine {
 
     switch (config.model) {
       case 'fixed_percent':
-        const slippagePercent = direction === 'buy' ? config.parameters.buySlippage : config.parameters.sellSlippage;
+        const slippagePercent = direction === 'buy' ? (config.parameters.buySlippage ?? 0) : (config.parameters.sellSlippage ?? 0);
         return price * (1 + slippagePercent);
 
       case 'zero':
@@ -867,13 +868,13 @@ export class BacktestingEngine {
 
     switch (config.model) {
       case 'fixed_per_share':
-        return quantity * config.parameters.perShare;
+        return quantity * (config.parameters.perShare ?? 0);
 
       case 'fixed_per_trade':
-        return config.parameters.perTrade;
+        return config.parameters.perTrade ?? 0;
 
       case 'percent_of_value':
-        const commission = tradeValue * config.parameters.percent;
+        const commission = tradeValue * (config.parameters.percent ?? 0);
         return Math.max(commission, config.parameters.minCommission || 0);
 
       case 'zero':
@@ -906,12 +907,16 @@ export class BacktestingEngine {
     for (const [symbol, position] of this.positions.entries()) {
       if (position.weight > this.config.strategy.riskManagement.maxConcentration) {
         const excessAmount = position.marketValue * (position.weight - this.config.strategy.riskManagement.maxConcentration);
-        const excessShares = Math.floor(excessAmount / this.getPrice(symbol, date));
+        const priceNowForConcentration = this.getPrice(symbol, date);
+        if (!priceNowForConcentration || priceNowForConcentration <= 0) {
+          continue;
+        }
+        const excessShares = Math.floor(excessAmount / priceNowForConcentration);
 
         if (excessShares > 0) {
           // Reduce position
           position.quantity -= excessShares;
-          position.marketValue = position.quantity * this.getPrice(symbol, date);
+          position.marketValue = position.quantity * priceNowForConcentration;
           position.weight = position.marketValue / this.totalEquity;
 
           this.logExecution('info', 'risk', `Reduced position in ${symbol} due to concentration limits`, {
@@ -961,9 +966,9 @@ export class BacktestingEngine {
 
     const winRate = this.trades.length > 0 ? winningTrades.length / this.trades.length : 0;
     const avgWin = winningTrades.length > 0 ?
-      winningTrades.reduce((sum, t) => sum + this.getTradePnL(t), 0) / winningTrades.length : 0;
+      winningTrades.reduce((sum: any, t: any) => sum + this.getTradePnL(t), 0) / winningTrades.length : 0;
     const avgLoss = losingTrades.length > 0 ?
-      Math.abs(losingTrades.reduce((sum, t) => sum + this.getTradePnL(t), 0) / losingTrades.length) : 0;
+      Math.abs(losingTrades.reduce((sum: any, t: any) => sum + this.getTradePnL(t), 0) / losingTrades.length) : 0;
     const profitFactor = avgLoss > 0 ? avgWin / avgLoss : 0;
 
     const tradePnLs = this.trades.map(t => this.getTradePnL(t));
@@ -973,7 +978,7 @@ export class BacktestingEngine {
     // Calculate average trade duration
     const tradeDurations = this.calculateTradeDurations();
     const avgTradeDuration = tradeDurations.length > 0 ?
-      tradeDurations.reduce((sum, d) => sum + d, 0) / tradeDurations.length : 0;
+      tradeDurations.reduce((sum: any, d: any) => sum + d, 0) / tradeDurations.length : 0;
 
     return {
       totalReturn,
@@ -1234,7 +1239,7 @@ export class BacktestingEngine {
     if (!data || data.length < 20) return 0.02; // Default 2% volatility
 
     const recentData = data.slice(-20); // Last 20 trading days
-    const returns = recentData.slice(1).map((row, i) =>
+    const returns = recentData.slice(1).map((row: any, i: any) =>
       Math.log(row.close / recentData[i].close)
     );
 
@@ -1244,8 +1249,8 @@ export class BacktestingEngine {
   private calculateVolatilityFromReturns(returns: number[]): number {
     if (returns.length === 0) return 0;
 
-    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+    const mean = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / returns.length;
     return Math.sqrt(variance);
   }
 

@@ -143,7 +143,7 @@ export async function waitForConsistency(
       logger.debug('Consistency check failed', {
         key,
         attempt,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
 
@@ -266,7 +266,7 @@ export async function verifyDependencyConsistency(
       } catch (error: any) {
         logger.debug('Dependency consistency check failed', {
           date,
-          error: error.message
+          error: (error instanceof Error ? error.message : String(error))
         });
         return false;
       }
@@ -363,7 +363,7 @@ export async function executeAtomicLikeOperation(
   } catch (error: any) {
     logger.error('Atomic-like operation failed', {
       operationId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       duration: Date.now() - startTime
     });
 
@@ -421,7 +421,7 @@ export function createExistenceCheck(expectedValue?: string): ConsistencyConditi
         return value === expectedValue;
       }
       return value !== null && value !== undefined;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.debug('Existence check failed', { key, error: (error as Error).message });
       return false;
     }
@@ -441,7 +441,7 @@ export function createJsonCheck<T = any>(
 
       const data = JSON.parse(value) as T;
       return validator(data);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.debug('JSON consistency check failed', { key, error: (error as Error).message });
       return false;
     }
@@ -488,13 +488,4 @@ export default {
   CONSISTENCY_CONFIG
 };
 
-// Export types for external use
-export type {
-  RetryStrategy,
-  ConsistencyConfig,
-  ConsistencyOptions,
-  AtomicOperationOptions,
-  AtomicOperationResult,
-  DependencyConsistencyResult,
-  ConsistencyCondition
-};
+// Note: Types are already exported via 'export interface' and 'export type' declarations above

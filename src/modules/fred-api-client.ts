@@ -51,7 +51,6 @@ interface FredSeriesResponse {
   frequency: string;
   frequency_short: string;
   last_updated: string;
-  observation_end: string;
   sort_order: string;
   count: number;
   observations: FredObservation[];
@@ -226,9 +225,9 @@ export class FredApiClient {
       });
 
       return snapshot;
-    } catch (error) {
-      logger.error('Failed to generate macro economic snapshot:', error);
-      throw new Error(`FRED API Error: ${error.message}`);
+    } catch (error: unknown) {
+      logger.error('Failed to generate macro economic snapshot:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
+      throw new Error(`FRED API Error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -263,16 +262,9 @@ export class FredApiClient {
         throw new Error(`FRED API request failed: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
 
       if (data.error_code) {
-        // If key-related error, try rotation
-        const msg = `${data.error_message || ''}`.toLowerCase();
-        if ((msg.includes('api key') || msg.includes('invalid key')) && this.rotateApiKey() && retries < this.maxRetries) {
-          logger.warn('FRED API key error detected, rotating key and retrying');
-          await this.delay(this.rateLimitDelay);
-          return this.makeRequest(url, retries + 1);
-        }
         throw new Error(`FRED API Error ${data.error_code}: ${data.error_message}`);
       }
 
@@ -298,8 +290,8 @@ export class FredApiClient {
 
       const data: FredInfoResponse = await response.json();
 
-      if (data.error_code) {
-        throw new Error(`FRED API Error ${data.error_code}: ${data.error_message}`);
+      if ((data as any).error_code) {
+        throw new Error(`FRED API Error ${(data as any).error_code}: ${(data as any).error_message}`);
       }
 
       return data.series_info;
@@ -362,8 +354,8 @@ export class FredApiClient {
         if (i < requiredSeries.length - 1) {
           await this.delay(this.rateLimitDelay);
         }
-      } catch (error) {
-        logger.warn(`Failed to fetch series ${series}:`, error);
+      } catch (error: unknown) {
+        logger.warn(`Failed to fetch series ${series}:`, { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
         // Continue with other series even if one fails
       }
     }
@@ -544,7 +536,7 @@ export class FredApiClient {
       }
 
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       if (retries < this.maxRetries) {
         logger.warn(`Request failed, retrying (${retries + 1}/${this.maxRetries})`, { url, error });
         await this.delay(this.rateLimitDelay * (retries + 1));
@@ -560,10 +552,10 @@ export class FredApiClient {
    */
   private async getCachedSnapshot(cacheKey: string): Promise<MacroEconomicSnapshot | null> {
     try {
-      const result = await this.dal.read<MacroEconomicSnapshot>(cacheKey);
+      const result = await this.dal.read(cacheKey) as { success: boolean; data: MacroEconomicSnapshot | null };
       return result.success ? result.data : null;
-    } catch (error) {
-      logger.error('Cache read error:', error);
+    } catch (error: unknown) {
+      logger.error('Cache read error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       return null;
     }
   }
@@ -577,8 +569,8 @@ export class FredApiClient {
       if (!result.success) {
         throw new Error(`Failed to cache snapshot: ${result.error}`);
       }
-    } catch (error) {
-      logger.error('Cache write error:', error);
+    } catch (error: unknown) {
+      logger.error('Cache write error:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
       // Continue even if caching fails
     }
   }
@@ -635,11 +627,11 @@ export class FredApiClient {
           latestObservation: data.observations[0]?.date || null,
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         status: 'unhealthy',
         details: {
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           apiKeyConfigured: !!this.apiKey,
           lastTest: new Date().toISOString(),
         }

@@ -19,7 +19,7 @@
 import { createLogger } from './logging.js';
 import { initializeAPIHealthMonitor, type SystemHealthReport } from './api-health-monitor.js';
 import { initializeIntegrationTestSuite, type TestSuite } from './integration-test-suite.js';
-import { CacheManager } from './cache-manager.js';
+import { DOCacheAdapter } from './do-cache-adapter.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -137,7 +137,7 @@ export class RealTimeMonitoringSystem {
       enableEndToEndTests: false // Skip expensive tests in monitoring
     });
 
-    this.cacheManager = new CacheManager(env);
+    this.cacheManager = new DOCacheAdapter(env);
     this.startTime = Date.now();
   }
 
@@ -202,8 +202,8 @@ export class RealTimeMonitoringSystem {
       }
 
       return metrics;
-    } catch (error) {
-      logger.error('Failed to get current metrics:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to get current metrics:', { error: error instanceof Error ? error.message : String(error) });
 
       // Return degraded metrics
       return {
@@ -264,8 +264,8 @@ export class RealTimeMonitoringSystem {
       };
 
       return dashboard;
-    } catch (error) {
-      logger.error('Failed to get dashboard data:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to get dashboard data:', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -288,10 +288,10 @@ export class RealTimeMonitoringSystem {
       const cacheStats = this.cacheManager.getCacheStats();
 
       // Calculate metrics
-      const avgResponseTime = cbMetrics.averageResponseTime || 0;
-      const successRate = cbMetrics.successRate || 0;
+      const avgResponseTime = (cbMetrics as any).averageResponseTime || 0;
+      const successRate = (cbMetrics as any).successRate || 0;
       const errorRate = (1 - successRate) * 100;
-      const requestsPerMinute = cbMetrics.requestCount || 0;
+      const requestsPerMinute = (cbMetrics as any).requestCount || 0;
 
       return {
         avgResponseTime,
@@ -299,8 +299,8 @@ export class RealTimeMonitoringSystem {
         errorRate,
         requestsPerMinute
       };
-    } catch (error) {
-      logger.warn('Failed to calculate performance metrics:', error);
+    } catch (error: unknown) {
+      logger.warn('Failed to calculate performance metrics:', { error: error instanceof Error ? error.message : String(error) });
       return {
         avgResponseTime: 0,
         successRate: 0,
@@ -335,8 +335,8 @@ export class RealTimeMonitoringSystem {
         cacheHitRate: cacheStats.overallHitRate || 0,
         validationPassRate: 0.95 // Mock validation pass rate
       };
-    } catch (error) {
-      logger.warn('Failed to calculate data quality metrics:', error);
+    } catch (error: unknown) {
+      logger.warn('Failed to calculate data quality metrics:', { error: error instanceof Error ? error.message : String(error) });
       return {
         realDataAvailable: false,
         dataFreshnessHours: 999,
@@ -525,8 +525,8 @@ export class RealTimeMonitoringSystem {
       // In a real implementation, this would fetch from a database or cache
       // For now, return empty array
       return [];
-    } catch (error) {
-      logger.warn('Failed to get recent health reports:', error);
+    } catch (error: unknown) {
+      logger.warn('Failed to get recent health reports:', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }
@@ -539,8 +539,8 @@ export class RealTimeMonitoringSystem {
       // In a real implementation, this would fetch from a database or cache
       // For now, return empty array
       return [];
-    } catch (error) {
-      logger.warn('Failed to get recent test results:', error);
+    } catch (error: unknown) {
+      logger.warn('Failed to get recent test results:', { error: error instanceof Error ? error.message : String(error) });
       return [];
     }
   }

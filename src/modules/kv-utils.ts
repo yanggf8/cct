@@ -55,7 +55,7 @@ export async function getWithRetry(
         logger.debug('KV GET returned null', { key, attempt: i + 1 });
       }
     } catch (error: any) {
-      logger.warn('KV operation failed, retrying', { key, attempt: i + 1, error: error.message });
+      logger.warn('KV operation failed, retrying', { key, attempt: i + 1, error: (error instanceof Error ? error.message : String(error)) });
     }
 
     if (i < maxRetries - 1) {
@@ -110,7 +110,7 @@ export async function putWithVerification(
   } catch (error: any) {
     logger.error('KV PUT operation failed', {
       key,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       bytes: value.length
     });
     throw error;
@@ -149,7 +149,7 @@ export async function deleteWithVerification(
       return false;
     }
   } catch (error: any) {
-    logger.error('KV DELETE operation failed', { key, error: error.message });
+    logger.error('KV DELETE operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
     throw error;
   }
 }
@@ -193,7 +193,7 @@ export async function getMultipleWithRetry(
     try {
       results[key] = await getWithRetry(key, env);
     } catch (error: any) {
-      logger.warn('Failed to get KV key in batch', { key, error: error.message });
+      logger.warn('Failed to get KV key in batch', { key, error: (error instanceof Error ? error.message : String(error)) });
       results[key] = null;
     }
   }
@@ -251,7 +251,7 @@ export async function updateJobStatus(
       jobType,
       date,
       status,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
     throw error;
   }
@@ -292,7 +292,7 @@ export async function validateDependencies(
   const missing: string[] = [];
   const completed: string[] = [];
 
-  requiredJobs.forEach((jobType, index) => {
+  requiredJobs.forEach((jobType: any, index: any) => {
     const status = statuses[index];
     if (status && status.status === 'done') {
       completed.push(jobType);

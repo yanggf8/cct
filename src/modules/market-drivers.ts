@@ -17,7 +17,7 @@ import { createDAL } from './dal.js';
 import { initializeMacroEconomicFetcher, type EnhancedMacroDrivers } from './macro-economic-fetcher.js';
 import { initializeMarketStructureFetcher, type EnhancedMarketStructure } from './market-structure-fetcher.js';
 import { initializeMarketRegimeClassifier, type EnhancedRegimeAnalysis } from './market-regime-classifier.js';
-import { MarketDriversCacheManager } from './market-drivers-cache-manager.js';
+import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 
 const logger = createLogger('market-drivers');
 
@@ -358,7 +358,7 @@ export const REGIME_CLASSIFICATION_RULES: RegimeRule[] = [
  */
 export class MarketDriversManager {
   private dal;
-  private cacheManager: MarketDriversCacheManager;
+  private cacheManager: DOMarketDriversCacheAdapter;
   private macroEconomicFetcher;
   private marketStructureFetcher;
   private regimeClassifier;
@@ -366,7 +366,7 @@ export class MarketDriversManager {
 
   constructor(env: any) {
     this.dal = createDAL(env);
-    this.cacheManager = new MarketDriversCacheManager(env);
+    this.cacheManager = new DOMarketDriversCacheAdapter(env);
     this.fredApiKey = env.FRED_API_KEY;
 
     // Initialize macro economic fetcher
@@ -391,7 +391,7 @@ export class MarketDriversManager {
       enableCaching: true,
       historicalLookbackDays: 30,
       minConfidenceThreshold: 60,
-    });
+    } as any);
   }
 
   /**
@@ -474,10 +474,10 @@ export class MarketDriversManager {
       });
 
       return snapshot;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating market drivers snapshot:', {
-        error: error.message,
-        stack: error.stack,
+        error: (error instanceof Error ? error.message : String(error)),
+        stack: error instanceof Error ? error.stack : undefined,
         timestamp
       });
       throw error;
@@ -514,8 +514,8 @@ export class MarketDriversManager {
         enhancedMarketStructure,
         enhancedRegime,
       };
-    } catch (error) {
-      logger.error('Error generating enhanced market drivers snapshot:', error);
+    } catch (error: unknown) {
+      logger.error('Error generating enhanced market drivers snapshot:', { error: error instanceof Error ? error.message : String(error) });
       throw error;
     }
   }
@@ -559,8 +559,8 @@ export class MarketDriversManager {
       });
 
       return macro;
-    } catch (error) {
-      logger.error('Failed to fetch macroeconomic drivers:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch macroeconomic drivers:', { error: error instanceof Error ? error.message : String(error) });
       // Fall back to mock data if API fails
       return this.getMockMacroDrivers();
     }
@@ -601,8 +601,8 @@ export class MarketDriversManager {
       });
 
       return structure;
-    } catch (error) {
-      logger.error('Failed to fetch market structure indicators:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to fetch market structure indicators:', { error: error instanceof Error ? error.message : String(error) });
       // Fall back to mock data
       return this.getMockMarketStructure();
     }
@@ -661,8 +661,8 @@ export class MarketDriversManager {
 
       return regime;
 
-    } catch (error) {
-      logger.error('Failed to classify market regime:', error);
+    } catch (error: unknown) {
+      logger.error('Failed to classify market regime:', { error: error instanceof Error ? error.message : String(error) });
       // Fall back to mock regime classification
       return this.getMockMarketRegime();
     }
@@ -744,7 +744,7 @@ export class MarketDriversManager {
         throw new Error('Invalid date generated');
       }
       return dateString;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error creating snapshot date:', { error });
       // Fallback to a safe date format
       return new Date().toISOString().split('T')[0];
@@ -761,7 +761,7 @@ export class MarketDriversManager {
         return 999; // Very old if date is invalid
       }
       return (now - lastUpdate) / (1000 * 60 * 60); // Hours
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error calculating data age:', { error, lastUpdated });
       return 999; // Very old if error occurs
     }

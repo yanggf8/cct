@@ -138,8 +138,8 @@ export async function handlePredictiveAnalyticsRoutes(
         headers,
       }
     );
-  } catch (error) {
-    logger.error('PredictiveAnalyticsRoutes Error', error, { requestId, path, method });
+  } catch (error: unknown) {
+    logger.error('PredictiveAnalyticsRoutes Error', { error: (error as any).message,  requestId, path, method });
 
     return new Response(
       JSON.stringify(
@@ -202,7 +202,7 @@ async function handlePredictiveSignals(
       outlook: signals.short_term_outlook.direction,
       confidence: signals.short_term_outlook.confidence,
       confidence_interval: signals.short_term_outlook.confidence_interval,
-      risk_adjusted_return: signals.short_term_outlook.risk_adjusted_return,
+      risk_adjusted_return: (signals.short_term_outlook as any).risk_adjusted_return,
       sectors_predicted: signals.sector_predictions.top_performers.length,
       processingTime: timer.getElapsedMs()
     });
@@ -226,7 +226,7 @@ async function handlePredictiveSignals(
   } catch (error: any) {
     logger.error('Failed to generate predictive signals', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -318,7 +318,7 @@ async function handlePatternAnalysis(
   } catch (error: any) {
     logger.error('Failed to analyze patterns', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -381,7 +381,11 @@ async function handlePredictiveInsights(
       filteredInsights = {
         ...insights,
         tactical_recommendations: {
-          position_sizing: 'Recommendations disabled',
+          position_sizing: {
+            recommendation: 'HOLD',
+            risk_adjusted_sizing: { conservative: 0, moderate: 0, aggressive: 0 },
+            reasoning: 'Recommendations disabled'
+          },
           sector_allocation: [],
           hedge_suggestions: []
         }
@@ -418,7 +422,7 @@ async function handlePredictiveInsights(
   } catch (error: any) {
     logger.error('Failed to generate predictive insights', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -500,7 +504,7 @@ async function handleMarketForecast(
   } catch (error: any) {
     logger.error('Failed to generate market forecast', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -604,7 +608,7 @@ async function handlePredictiveAnalyticsHealth(
   } catch (error: any) {
     logger.error('Predictive analytics health check failed', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -655,7 +659,7 @@ function generateMarketForecast(
   };
 
   if (includeRisk) {
-    baseForecast.risk_analysis = {
+    (baseForecast as any).risk_analysis = {
       risk_level: signals.risk_indicators.tail_risk_probability > 0.4 ? 'elevated' : 'moderate',
       key_risks: insights.overall_outlook.risk_factors,
       volatility_outlook: signals.risk_indicators.volatility_outlook,
@@ -689,7 +693,7 @@ async function testPredictiveSignalsHealth(env: CloudflareEnvironment): Promise<
         regime_forecast: !!signals.regime_forecast,
         enhanced_features: {
           confidence_intervals: !!signals.short_term_outlook?.confidence_interval,
-          risk_adjusted_returns: !!signals.short_term_outlook?.risk_adjusted_return,
+          risk_adjusted_returns: !!(signals.short_term_outlook as any)?.risk_adjusted_return,
           backtesting_reference: !!signals.short_term_outlook?.backtesting_reference,
           stress_testing: !!signals.risk_indicators?.stress_test_results,
           var_metrics: !!signals.risk_indicators?.var_metrics
@@ -773,7 +777,7 @@ async function handlePredictiveGenerate(
         direction: signals.short_term_outlook.direction,
         confidence: Math.min(signals.short_term_outlook.confidence, confidence / 100),
         timeframe: timeframe,
-        expected_return: signals.short_term_outlook.risk_adjusted_return || 0,
+        expected_return: (signals.short_term_outlook as any).expected_return || 0,
         key_factors: signals.short_term_outlook.key_factors || []
       },
       technical_indicators: indicators.includes('technical') ? {
@@ -828,7 +832,7 @@ async function handlePredictiveGenerate(
   } catch (error: any) {
     logger.error('Failed to generate prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -928,7 +932,7 @@ async function handleMarketForecastPOST(
   } catch (error: any) {
     logger.error('Failed to generate market forecast with parameters', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1040,7 +1044,7 @@ async function handleEnsemblePrediction(
   } catch (error: any) {
     logger.error('Failed to generate ensemble prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1172,7 +1176,7 @@ async function handleSymbolPrediction(
   } catch (error: any) {
     logger.error('Failed to generate symbol-specific prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1288,7 +1292,7 @@ async function handleAccuracyAnalysis(
   } catch (error: any) {
     logger.error('Failed to analyze prediction accuracy', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1351,10 +1355,10 @@ async function handleRegimePrediction(
         }
       },
       regime_transition_probability: {
-        to_bull_market: signals.regime_forecast?.transition_probability?.to_bull_market || 0.25,
-        to_bear_market: signals.regime_forecast?.transition_probability?.to_bear_market || 0.20,
-        to_transitional: signals.regime_forecast?.transition_probability?.to_transitional || 0.55,
-        remain_current: signals.regime_forecast?.transition_probability?.remain_current || 0.45
+        to_bull_market: (signals.regime_forecast as any)?.transition_probability?.to_bull_market || 0.25,
+        to_bear_market: (signals.regime_forecast as any)?.transition_probability?.to_bear_market || 0.20,
+        to_transitional: (signals.regime_forecast as any)?.transition_probability?.to_transitional || 0.55,
+        remain_current: (signals.regime_forecast as any)?.transition_probability?.remain_current || 0.45
       },
       historical_regime_analysis: {
         typical_durations: {
@@ -1410,7 +1414,7 @@ async function handleRegimePrediction(
   } catch (error: any) {
     logger.error('Failed to predict market regime', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1552,7 +1556,7 @@ async function handleVolatilityForecast(
   } catch (error: any) {
     logger.error('Failed to generate volatility forecast', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -1714,7 +1718,7 @@ async function handleSentimentEnhancedPrediction(
   } catch (error: any) {
     logger.error('Failed to generate sentiment-enhanced prediction', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(

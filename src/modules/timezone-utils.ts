@@ -97,14 +97,14 @@ export function getLastNDaysEST(days: number): string[] {
  * Get KV key for daily summary
  */
 export function getDailySummaryKVKey(date: string): string {
-  return KVKeyFactory.createKey(KeyTypes.DAILY_SUMMARY, { date });
+  return `daily_summary_${date}`;
 }
 
 /**
  * Get KV key for daily analysis
  */
 export function getDailyAnalysisKVKey(date: string): string {
-  return KVKeyFactory.createKey(KeyTypes.ANALYSIS, { date });
+  return `analysis_${date}`;
 }
 
 /**

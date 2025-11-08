@@ -94,7 +94,7 @@ export function createFredApiClient(
 
   try {
     return new FredApiClient(clientOptions);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Failed to create FRED API client, falling back to mock:', error);
     return new MockFredApiClient();
   }
@@ -119,8 +119,8 @@ export async function createFredApiClientWithHealthCheck(
     });
 
     return { client, health };
-  } catch (error) {
-    logger.error('FRED API client health check failed:', error);
+  } catch (error: unknown) {
+    logger.error('FRED API client health check failed:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
 
     // If health check fails for real client, fall back to mock
     if (!(client instanceof MockFredApiClient)) {
@@ -130,7 +130,7 @@ export async function createFredApiClientWithHealthCheck(
         client: mockClient,
         health: {
           status: 'unhealthy',
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
           fallback: 'mock-client'
         }
       };
@@ -140,7 +140,7 @@ export async function createFredApiClientWithHealthCheck(
       client,
       health: {
         status: 'unhealthy',
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       }
     };
   }
@@ -178,8 +178,8 @@ export async function testFREDApiKey(apiKey: string): Promise<boolean> {
     const client = new FredApiClient({ apiKey });
     const health = await client.healthCheck();
     return health.status === 'healthy';
-  } catch (error) {
-    logger.error('FRED API key test failed:', error);
+  } catch (error: unknown) {
+    logger.error('FRED API key test failed:', { error: error instanceof Error ? error instanceof Error ? error.message : String(error) : String(error) });
     return false;
   }
 }
@@ -238,10 +238,10 @@ export class FredClientManager {
     for (const [name, client] of this.clients) {
       try {
         results[name] = await client.healthCheck();
-      } catch (error) {
+      } catch (error: unknown) {
         results[name] = {
           status: 'unhealthy',
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         };
       }
     }

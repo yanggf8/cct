@@ -274,7 +274,7 @@ export async function withCache<T extends MarketDataResponse>(
     return freshData;
 
   } catch (error: any) {
-    logger.warn(`Failed to fetch fresh data for ${symbol}`, { error: error.message });
+    logger.warn(`Failed to fetch fresh data for ${symbol}`, { error: (error instanceof Error ? error.message : String(error)) });
     throw error;
   }
 }

@@ -70,7 +70,7 @@ import {
   handleNotificationHistory,
   handleTestNotification,
   handleNotificationStatus
-} from './handlers/web-notification-handlers.ts';
+} from './handlers/web-notification-handlers.js';
 
 // Import new v1 API router
 import { handleApiV1Request, handleApiV1CORS } from '../routes/api-v1.js';
@@ -132,7 +132,7 @@ class CCTApiClient {
             const response = await fetch('/api/v1/sectors/snapshot');
             const data = await response.json();
             return data;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to fetch sector snapshot:', error);
             throw error;
         }
@@ -142,7 +142,7 @@ class CCTApiClient {
         try {
             const response = await fetch(this.baseUrl + endpoint);
             return await response.json();
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('API request failed:', error);
             throw error;
         }
@@ -215,7 +215,7 @@ class WebNotificationSystem {
             }, 5000);
 
             return true;
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to send notification:', error);
             return false;
         }
@@ -330,7 +330,7 @@ export async function handleHttpRequest(
 
   // Handle health endpoints before authentication validation (public access)
   if (url.pathname === '/health') {
-    return handleHealthCheck(request, env);
+    return handleHealthCheck(request, env, ctx as any);
   }
   if (url.pathname === '/model-health') {
     return handleModelHealth(request, env);
@@ -405,10 +405,10 @@ export async function handleHttpRequest(
     let response: Response | undefined;
     switch (url.pathname) {
       case '/':
-        response = await handleHomeDashboardPage(request, env);
+        response = await handleHomeDashboardPage(request, env as any);
         break;
       case '/analyze':
-        response = await handleManualAnalysis(request, env);
+        response = await handleManualAnalysis(request, env, ctx as any);
         break;
       case '/generate-morning-predictions':
         response = await handleGenerateMorningPredictions(request, env);
@@ -426,7 +426,7 @@ export async function handleHttpRequest(
         response = await handleFactTable(request, env);
         break;
       case '/professional-dashboard':
-        response = await handleProfessionalDashboard(request, env);
+        response = await handleProfessionalDashboard(request, env, ctx as any);
         break;
       case '/kv-debug':
         response = await handleKVDebug(request, env);
@@ -453,7 +453,7 @@ export async function handleHttpRequest(
         response = await handleWeeklyDataAPI(request, env);
         break;
       case '/sector-rotation':
-        response = await handleSectorRotationDashboardPage(request, env);
+        response = await handleSectorRotationDashboardPage(request, env as any);
         break;
       case '/predictive-analytics':
         response = await servePredictiveAnalyticsDashboard(request, env);
@@ -465,22 +465,22 @@ export async function handleHttpRequest(
         response = await handleDailySummaryPageRequest(request, env);
         break;
       case '/pre-market-briefing':
-        response = await handlePreMarketBriefing(request, env);
+        response = await handlePreMarketBriefing(request, env, ctx as any);
         break;
       case '/intraday-check':
-        response = await handleIntradayCheck(request, env);
+        response = await handleIntradayCheck(request, env, ctx as any);
         break;
       case '/intraday-check-decomposed':
-        response = await handleIntradayCheckDecomposed(request, env);
+        response = await handleIntradayCheckDecomposed(request, env, ctx as any);
         break;
       case '/intraday-check-refactored':
         response = await handleIntradayCheckRefactored(request, env);
         break;
       case '/end-of-day-summary':
-        response = await handleEndOfDaySummary(request, env);
+        response = await handleEndOfDaySummary(request, env, ctx as any);
         break;
       case '/weekly-review':
-        response = await handleWeeklyReview(request, env);
+        response = await handleWeeklyReview(request, env, ctx as any);
         break;
       case '/test-sentiment':
         response = await handleSentimentTest(request, env);
@@ -637,7 +637,7 @@ export async function handleHttpRequest(
     const errorResponse = new Response(JSON.stringify({
       success: false,
       error: 'Internal server error',
-      message: error.message,
+      message: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,

@@ -189,11 +189,13 @@ export class DataAccessLayer {
    */
   private cleanupCache(): void {
     const now = Date.now();
+    const keysToDelete: string[] = [];
     for (const [key, entry] of this.cache.entries()) {
       if (now - entry.timestamp > this.cacheTTL) {
-        this.cache.delete(key);
+        keysToDelete.push(key);
       }
     }
+    keysToDelete.forEach(key => this.cache.delete(key));
   }
 
   /**
@@ -205,14 +207,14 @@ export class DataAccessLayer {
       let oldestTime = Date.now();
       let lowestAccess = Infinity;
 
-      for (const [key, entry] of this.cache.entries()) {
+      this.cache.forEach((entry, key) => {
         if (entry.accessCount < lowestAccess ||
             (entry.accessCount === lowestAccess && entry.timestamp < oldestTime)) {
           oldestKey = key;
           oldestTime = entry.timestamp;
           lowestAccess = entry.accessCount;
         }
-      }
+      });
 
       if (oldestKey) {
         this.cache.delete(oldestKey);
@@ -230,7 +232,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('JSON parsing failed', {
         context,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         dataPreview: jsonString.substring(0, 100),
       });
       throw new Error(`JSON parse error in ${context}: ${error.message}`);
@@ -508,7 +510,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to list keys', {
         prefix,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return { keys: [] };
@@ -533,7 +535,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to delete key', {
         key,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return false;
@@ -572,7 +574,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to read from KV', {
         key,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return {
@@ -613,7 +615,7 @@ export class DataAccessLayer {
     } catch (error: any) {
       logger.error('Failed to write to KV', {
         key,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
       });
 
       return {
@@ -644,7 +646,7 @@ export class DataAccessLayer {
       metadata: {
         totalSignals: signals.length,
         highConfidenceSignals: signals.filter(s => s.confidence >= 80).length,
-        averageConfidence: signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length,
+        averageConfidence: signals.reduce((sum: any, s: any) => sum + s.confidence, 0) / signals.length,
         bullishSignals: signals.filter(s => s.prediction === 'up').length,
         bearishSignals: signals.filter(s => s.prediction === 'down').length,
         neutralSignals: signals.filter(s => s.prediction === 'neutral').length,
@@ -668,7 +670,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, signalsData);
+      this.cache.set(key, {
+        data: signalsData,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;
@@ -739,7 +745,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, trackingRecord);
+      this.cache.set(key, {
+        data: trackingRecord,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;
@@ -790,7 +800,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, marketData);
+      this.cache.set(key, {
+        data: marketData,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;
@@ -855,7 +869,11 @@ export class DataAccessLayer {
 
     // Update cache on successful write
     if (result.success) {
-      this.cache.set(key, enhancedReportData);
+      this.cache.set(key, {
+        data: enhancedReportData,
+        timestamp: Date.now(),
+        accessCount: 0
+      });
     }
 
     return result;

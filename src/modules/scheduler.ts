@@ -165,9 +165,9 @@ export async function handleScheduledEvent(
 
         if (sectorResult) {
           console.log(`✅ [CRON-SECTORS] ${cronExecutionId} Sector rotation data refreshed successfully`, {
-            sectors_analyzed: sectorResult.sectors?.length || 0,
-            top_performer: sectorResult.summary?.topPerformer,
-            worst_performer: sectorResult.summary?.worstPerformer
+            sectors_analyzed: (sectorResult as any).sectors?.length || 0,
+            top_performer: (sectorResult as any).summary?.topPerformer,
+            worst_performer: (sectorResult as any).summary?.worstPerformer
           });
         } else {
           console.log(`⚠️ [CRON-SECTORS] ${cronExecutionId} Sector rotation analysis returned null`);
@@ -193,22 +193,8 @@ export async function handleScheduledEvent(
         cronExecutionId
       });
 
-      // Send Facebook messages for daily cron jobs
-      console.log(`📱 [CRON-FB] ${cronExecutionId} Attempting Facebook message for trigger: ${triggerMode}`);
-      if (triggerMode === 'morning_prediction_alerts') {
-        console.log(`📱 [CRON-FB-MORNING] ${cronExecutionId} Sending morning predictions via Facebook`);
-        await sendMorningPredictionsWithTracking(analysisResult, env, cronExecutionId);
-        console.log(`✅ [CRON-FB-MORNING] ${cronExecutionId} Morning Facebook message completed`);
-      } else if (triggerMode === 'midday_validation_prediction') {
-        console.log(`📱 [CRON-FB-MIDDAY] ${cronExecutionId} Sending midday validation via Facebook`);
-        await sendMiddayValidationWithTracking(analysisResult, env, cronExecutionId);
-        console.log(`✅ [CRON-FB-MIDDAY] ${cronExecutionId} Midday Facebook message completed`);
-      } else if (triggerMode === 'next_day_market_prediction') {
-        console.log(`📱 [CRON-FB-DAILY] ${cronExecutionId} Sending daily validation via Facebook`);
-        await sendDailyValidationWithTracking(analysisResult, env, cronExecutionId);
-        console.log(`✅ [CRON-FB-DAILY] ${cronExecutionId} Daily Facebook message completed`);
-      }
-      console.log(`📱 [CRON-FB-COMPLETE] ${cronExecutionId} All Facebook messaging completed for ${triggerMode}`);
+      // Facebook messaging has been migrated to Chrome web notifications
+      console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
     }
 
     // Store results in KV using DAL

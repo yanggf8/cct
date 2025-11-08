@@ -7,13 +7,13 @@
 import { createDAL } from './dal.js';
 
 // Simple KV functions using DAL
-async function getKVStore(env, key) {
+async function getKVStore(env: any, key: any) {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env, key, data, ttl) {
+async function setKVStore(env: any, key: any, data: any, ttl: number) {
   const dal = createDAL(env);
   const result = await dal.write(key, data, { expirationTtl: ttl });
   return result.success;
@@ -42,7 +42,11 @@ export const CORRELATION_TTL = {
  * Correlation Analysis Engine
  */
 export class CorrelationAnalysisEngine {
-  constructor(env) {
+  private env: any;
+  private calculationCache: Map<string, any>;
+  private riskFreeRate: number;
+
+  constructor(env: any) {
     this.env = env;
     this.calculationCache = new Map();
     this.riskFreeRate = 0.02; // 2% annual risk-free rate
@@ -51,14 +55,14 @@ export class CorrelationAnalysisEngine {
   /**
    * Calculate correlation matrix for multiple assets
    */
-  async calculateCorrelationMatrix(symbols, lookbackPeriod = 252) {
+  async calculateCorrelationMatrix(symbols: string[], lookbackPeriod = 252) {
     const cacheKey = `correlation_${symbols.join('_')}_${lookbackPeriod}`;
     const cached = this.calculationCache.get(cacheKey);
     if (cached) return cached;
 
     try {
       // Fetch historical price data for all symbols
-      const priceData = await this.fetchHistoricalData(symbols, lookbackPeriod);
+      const priceData: any = await this.fetchHistoricalData(symbols, lookbackPeriod);
 
       if (!priceData || priceData.length === 0) {
         throw new Error('No price data available for correlation calculation');
@@ -86,16 +90,16 @@ export class CorrelationAnalysisEngine {
       await this.persistCorrelationMatrix(cacheKey, result);
 
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Correlation calculation failed:', error);
-      throw new Error(`Correlation analysis failed: ${error.message}`);
+      throw new Error(`Correlation analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Calculate covariance matrix
    */
-  async calculateCovarianceMatrix(symbols, lookbackPeriod = 252) {
+  async calculateCovarianceMatrix(symbols: string[], lookbackPeriod = 252) {
     const cacheKey = `covariance_${symbols.join('_')}_${lookbackPeriod}`;
     const cached = this.calculationCache.get(cacheKey);
     if (cached) return cached;
@@ -123,16 +127,16 @@ export class CorrelationAnalysisEngine {
       await this.persistCovarianceMatrix(cacheKey, result);
 
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Covariance calculation failed:', error);
-      throw new Error(`Covariance analysis failed: ${error.message}`);
+      throw new Error(`Covariance analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Calculate efficient frontier
    */
-  async calculateEfficientFrontier(symbols, numPortfolios = 100) {
+  async calculateEfficientFrontier(symbols: string[], numPortfolios = 100) {
     const cacheKey = `frontier_${symbols.join('_')}_${numPortfolios}`;
     const cached = this.calculationCache.get(cacheKey);
     if (cached) return cached;
@@ -167,13 +171,13 @@ export class CorrelationAnalysisEngine {
               portfolioId: `EF_${i + 1}`
             });
           }
-        } catch (error) {
-          console.warn(`Frontier point ${i} calculation failed:`, error.message);
+        } catch (error: unknown) {
+          console.warn(`Frontier point ${i} calculation failed:`, error instanceof Error ? error.message : 'Unknown error');
         }
       }
 
       // Sort by volatility
-      frontier.sort((a, b) => a.volatility - b.volatility);
+      frontier.sort((a: any, b: any) => a.volatility - b.volatility);
 
       const result = {
         symbols,
@@ -182,7 +186,7 @@ export class CorrelationAnalysisEngine {
         calculatedAt: new Date().toISOString(),
         maxSharpeRatio: frontier.length > 0 ? Math.max(...frontier.map(p => p.sharpeRatio)) : 0,
         minVolatilityPortfolio: frontier.length > 0 ? frontier[0] : null,
-        maxSharpePortfolio: frontier.length > 0 ? frontier.reduce((max, p) =>
+        maxSharpePortfolio: frontier.length > 0 ? frontier.reduce((max: any, p: any) =>
           p.sharpeRatio > max.sharpeRatio ? p : max
         ) : null
       };
@@ -191,16 +195,16 @@ export class CorrelationAnalysisEngine {
       await this.persistEfficientFrontier(cacheKey, result);
 
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Efficient frontier calculation failed:', error);
-      throw new Error(`Efficient frontier analysis failed: ${error.message}`);
+      throw new Error(`Efficient frontier analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Optimize portfolio for different objectives
    */
-  async optimizePortfolio(symbols, expectedReturns, covarianceMatrix, objective, constraints = {}) {
+  async optimizePortfolio(symbols: string[], expectedReturns: any, covarianceMatrix: any, objective: string, constraints: any = {}) {
     try {
       switch (objective) {
         case 'MAX_SHARPE':
@@ -216,16 +220,16 @@ export class CorrelationAnalysisEngine {
         default:
           throw new Error(`Unknown optimization objective: ${objective}`);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio optimization failed:', error);
-      throw new Error(`Portfolio optimization failed: ${error.message}`);
+      throw new Error(`Portfolio optimization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Calculate portfolio risk metrics
    */
-  async calculatePortfolioRiskMetrics(weights, covarianceMatrix, expectedReturns) {
+  async calculatePortfolioRiskMetrics(weights: number[], covarianceMatrix: any, expectedReturns: number[]) {
     try {
       // Extract matrix if nested structure
       const matrix = Array.isArray(covarianceMatrix) && Array.isArray(covarianceMatrix[0]) ? covarianceMatrix :
@@ -266,16 +270,16 @@ export class CorrelationAnalysisEngine {
         riskFreeRate: this.riskFreeRate,
         calculatedAt: new Date().toISOString()
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk metrics calculation failed:', error);
-      throw new Error(`Risk metrics calculation failed: ${error.message}`);
+      throw new Error(`Risk metrics calculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Perform stress testing on portfolio
    */
-  async performStressTest(weights, covarianceMatrix, scenarios = []) {
+  async performStressTest(weights: number[], covarianceMatrix: any, scenarios: any[] = []) {
     try {
       // Extract matrix if nested structure
       const matrix = Array.isArray(covarianceMatrix) && Array.isArray(covarianceMatrix[0]) ? covarianceMatrix :
@@ -290,7 +294,7 @@ export class CorrelationAnalysisEngine {
       ];
 
       const testScenarios = scenarios.length > 0 ? scenarios : defaultScenarios;
-      const results = [];
+      const results: any[] = [];
 
       for (const scenario of testScenarios) {
         const stressedReturns = this.applyStressScenario(weights, scenario.shock);
@@ -309,30 +313,30 @@ export class CorrelationAnalysisEngine {
           volatility: stressedVolatility,
           sharpeRatio: stressedSharpe,
           var95: stressedVaR,
-          performanceImpact: stressedReturns / (weights.reduce((sum, w, i) => sum + w * 0.08, 0) - 1)
+          performanceImpact: stressedReturns / (weights.reduce((sum: number, w: number, i: number) => sum + w * 0.08, 0) - 1)
         });
       }
 
       return {
         scenarios: results,
-        worstCase: results.reduce((worst, r) => r.var95 < worst.var95 ? r : worst),
-        bestCase: results.reduce((best, r) => r.expectedReturn > best.expectedReturn ? r : best),
-        averageImpact: results.reduce((sum, r) => sum + r.performanceImpact, 0) / results.length,
+        worstCase: results.reduce((worst: any, r: any) => r.var95 < worst.var95 ? r : worst),
+        bestCase: results.reduce((best: any, r: any) => r.expectedReturn > best.expectedReturn ? r : best),
+        averageImpact: results.reduce((sum: number, r: any) => sum + r.performanceImpact, 0) / results.length,
         calculatedAt: new Date().toISOString()
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Stress testing failed:', error);
-      throw new Error(`Stress testing failed: ${error.message}`);
+      throw new Error(`Stress testing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Calculate portfolio performance attribution
    */
-  async calculatePerformanceAttribution(weights, benchmarkWeights, returns, factorReturns = {}) {
+  async calculatePerformanceAttribution(weights: number[], benchmarkWeights: number[], returns: number[], factorReturns: any = {}) {
     try {
-      const portfolioReturn = weights.reduce((sum, w, i) => sum + w * returns[i], 0);
-      const benchmarkReturn = benchmarkWeights.reduce((sum, w, i) => sum + w * returns[i], 0);
+      const portfolioReturn = weights.reduce((sum: number, w: number, i: number) => sum + w * returns[i], 0);
+      const benchmarkReturn = benchmarkWeights.reduce((sum: number, w: number, i: number) => sum + w * returns[i], 0);
 
       // Asset allocation attribution
       const allocationEffect = this.calculateAllocationEffect(
@@ -359,18 +363,18 @@ export class CorrelationAnalysisEngine {
         totalAttribution: allocationEffect + selectionEffect + (factorAttribution?.total || 0),
         calculatedAt: new Date().toISOString()
       };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Performance attribution failed:', error);
-      throw new Error(`Performance attribution failed: ${error.message}`);
+      throw new Error(`Performance attribution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   // Private helper methods
 
-  async fetchHistoricalData(symbols, lookbackPeriod) {
+  async fetchHistoricalData(symbols: string[], lookbackPeriod: number) {
     // This would integrate with existing market data fetching
     // For now, return mock data structure
-    const mockData = {};
+    const mockData: any = {};
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - lookbackPeriod);
 
@@ -381,8 +385,8 @@ export class CorrelationAnalysisEngine {
     return mockData;
   }
 
-  generateMockPriceData(startDate, days) {
-    const data = [];
+  generateMockPriceData(startDate: Date, days: number) {
+    const data: any[] = [];
     let price = 100;
 
     for (let i = 0; i < days; i++) {
@@ -403,13 +407,13 @@ export class CorrelationAnalysisEngine {
     return data;
   }
 
-  calculateReturns(priceData) {
-    const returns = {};
+  calculateReturns(priceData: any) {
+    const returns: any = {};
 
     for (const [symbol, data] of Object.entries(priceData)) {
       returns[symbol] = [];
-      for (let i = 1; i < data.length; i++) {
-        const return_ = (data[i].price - data[i-1].price) / data[i-1].price;
+      for (let i = 1; i < (data as any).length; i++) {
+        const return_ = ((data as any)[i].price - (data as any)[i-1].price) / (data as any)[i-1].price;
         returns[symbol].push(return_);
       }
     }
@@ -417,10 +421,10 @@ export class CorrelationAnalysisEngine {
     return returns;
   }
 
-  computeCorrelationMatrix(returns) {
+  computeCorrelationMatrix(returns: any) {
     const symbols = Object.keys(returns);
     const n = symbols.length;
-    const matrix = Array(n).fill().map(() => Array(n).fill(0));
+    const matrix = Array(n).fill(0).map(() => Array(n).fill(0));
 
     // Calculate correlations
     for (let i = 0; i < n; i++) {
@@ -443,12 +447,12 @@ export class CorrelationAnalysisEngine {
     };
   }
 
-  calculateCorrelation(returns1, returns2) {
+  calculateCorrelation(returns1: number[], returns2: number[]) {
     const n = Math.min(returns1.length, returns2.length);
     if (n === 0) return 0;
 
-    const mean1 = returns1.reduce((sum, r) => sum + r, 0) / n;
-    const mean2 = returns2.reduce((sum, r) => sum + r, 0) / n;
+    const mean1 = returns1.reduce((sum: number, r: number) => sum + r, 0) / n;
+    const mean2 = returns2.reduce((sum: number, r: number) => sum + r, 0) / n;
 
     let covariance = 0;
     let variance1 = 0;
@@ -471,7 +475,7 @@ export class CorrelationAnalysisEngine {
     return isNaN(correlation) ? 0 : Math.max(-1, Math.min(1, correlation));
   }
 
-  calculateAverageCorrelation(matrix) {
+  calculateAverageCorrelation(matrix: number[][]) {
     let sum = 0;
     let count = 0;
     const n = matrix.length;
@@ -486,8 +490,8 @@ export class CorrelationAnalysisEngine {
     return count > 0 ? sum / count : 0;
   }
 
-  async calculateVolatilities(symbols, lookbackPeriod = 252) {
-    const volatilities = {};
+  async calculateVolatilities(symbols: string[], lookbackPeriod: number = 252) {
+    const volatilities: any = {};
 
     for (const symbol of symbols) {
       // Mock calculation - in real implementation would use historical data
@@ -497,10 +501,10 @@ export class CorrelationAnalysisEngine {
     return volatilities;
   }
 
-  convertToCovarianceMatrix(correlationMatrix, volatilities) {
+  convertToCovarianceMatrix(correlationMatrix: any, volatilities: any) {
     const { symbols, matrix } = correlationMatrix;
     const n = symbols.length;
-    const covarianceMatrix = Array(n).fill().map(() => Array(n).fill(0));
+    const covarianceMatrix = Array(n).fill(0).map(() => Array(n).fill(0));
 
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
@@ -515,12 +519,12 @@ export class CorrelationAnalysisEngine {
     };
   }
 
-  async calculateExpectedReturns(symbols) {
+  async calculateExpectedReturns(symbols: string[]) {
     // Mock expected returns - in real implementation would use historical data or forecasts
     return symbols.map(() => 0.05 + Math.random() * 0.10); // 5% to 15% annual returns
   }
 
-  maximizeSharpeRatio(symbols, expectedReturns, covarianceMatrix, constraints) {
+  maximizeSharpeRatio(symbols: string[], expectedReturns: number[], covarianceMatrix: any, constraints: any) {
     // Simplified implementation - would use numerical optimization in production
     const n = symbols.length;
     const weights = Array(n).fill(1 / n);
@@ -531,7 +535,7 @@ export class CorrelationAnalysisEngine {
     }
 
     // Extract matrix if nested structure
-    let matrix;
+    let matrix: any;
     if (Array.isArray(covarianceMatrix)) {
       if (covarianceMatrix.length === 0) {
         throw new Error('Covariance matrix is empty array');
@@ -557,12 +561,12 @@ export class CorrelationAnalysisEngine {
     }
 
     // Apply simple optimization logic
-    const riskAdjustedReturns = expectedReturns.map((r, i) => {
+    const riskAdjustedReturns = expectedReturns.map((r: number, i: number) => {
       const variance = matrix[i] && matrix[i][i] ? matrix[i][i] : 0.01; // Default variance
       return r / Math.sqrt(Math.max(variance, 0.0001)); // Prevent division by zero
     });
 
-    const totalRiskAdjusted = riskAdjustedReturns.reduce((sum, r) => sum + r, 0);
+    const totalRiskAdjusted = riskAdjustedReturns.reduce((sum: number, r: number) => sum + r, 0);
 
     if (totalRiskAdjusted === 0) {
       // Fallback to equal weights if calculation fails
@@ -570,13 +574,13 @@ export class CorrelationAnalysisEngine {
         success: true,
         weights: Array(n).fill(1 / n),
         objective: 'MAX_SHARPE',
-        expectedReturn: expectedReturns.reduce((sum, r) => sum + r, 0) / n,
+        expectedReturn: expectedReturns.reduce((sum: number, r: number) => sum + r, 0) / n,
         volatility: 0.15,
         sharpeRatio: 0.5
       };
     }
 
-    const optimizedWeights = riskAdjustedReturns.map(r => r / totalRiskAdjusted);
+    const optimizedWeights = riskAdjustedReturns.map((r: number) => r / totalRiskAdjusted);
 
     return {
       success: true,
@@ -588,7 +592,7 @@ export class CorrelationAnalysisEngine {
     };
   }
 
-  minimizeVolatility(symbols, expectedReturns, covarianceMatrix, constraints) {
+  minimizeVolatility(symbols: string[], expectedReturns: number[], covarianceMatrix: any, constraints: any) {
     const n = symbols.length;
     const weights = Array(n).fill(1 / n);
 
@@ -601,13 +605,13 @@ export class CorrelationAnalysisEngine {
       success: true,
       weights,
       objective: 'MIN_VOLATILITY',
-      expectedReturn: weights.reduce((sum, w, i) => sum + w * expectedReturns[i], 0),
+      expectedReturn: weights.reduce((sum: number, w: number, i: number) => sum + w * expectedReturns[i], 0),
       volatility: Math.sqrt(this.calculatePortfolioVariance(weights, matrix)),
       sharpeRatio: 0.5 + Math.random() * 0.3
     };
   }
 
-  equalWeightPortfolio(symbols, expectedReturns, covarianceMatrix) {
+  equalWeightPortfolio(symbols: string[], expectedReturns: number[], covarianceMatrix: any) {
     const n = symbols.length;
     const weights = Array(n).fill(1 / n);
 
@@ -619,13 +623,13 @@ export class CorrelationAnalysisEngine {
       success: true,
       weights,
       objective: 'EQUAL_WEIGHT',
-      expectedReturn: weights.reduce((sum, w, i) => sum + w * expectedReturns[i], 0),
+      expectedReturn: weights.reduce((sum: number, w: number, i: number) => sum + w * expectedReturns[i], 0),
       volatility: Math.sqrt(this.calculatePortfolioVariance(weights, matrix)),
       sharpeRatio: 0.6 + Math.random() * 0.3
     };
   }
 
-  riskParityPortfolio(symbols, expectedReturns, covarianceMatrix) {
+  riskParityPortfolio(symbols: string[], expectedReturns: number[], covarianceMatrix: any) {
     // Simplified risk parity calculation
     const n = symbols.length;
     const weights = Array(n).fill(1 / n);
@@ -638,13 +642,13 @@ export class CorrelationAnalysisEngine {
       success: true,
       weights,
       objective: 'RISK_PARITY',
-      expectedReturn: weights.reduce((sum, w, i) => sum + w * expectedReturns[i], 0),
+      expectedReturn: weights.reduce((sum: number, w: number, i: number) => sum + w * expectedReturns[i], 0),
       volatility: Math.sqrt(this.calculatePortfolioVariance(weights, matrix)),
       sharpeRatio: 0.7 + Math.random() * 0.3
     };
   }
 
-  targetReturnPortfolio(symbols, expectedReturns, covarianceMatrix, constraints) {
+  targetReturnPortfolio(symbols: string[], expectedReturns: number[], covarianceMatrix: any, constraints: any) {
     const targetReturn = constraints.targetReturn || 0.08;
     const n = symbols.length;
     const weights = Array(n).fill(1 / n);
@@ -669,7 +673,7 @@ export class CorrelationAnalysisEngine {
     };
   }
 
-  calculatePortfolioVariance(weights, covarianceMatrix) {
+  calculatePortfolioVariance(weights: number[], covarianceMatrix: any) {
     let variance = 0;
     const n = weights.length;
 
@@ -682,31 +686,31 @@ export class CorrelationAnalysisEngine {
     return variance;
   }
 
-  calculateVaR(expectedReturn, volatility, confidenceLevel) {
+  calculateVaR(expectedReturn: number, volatility: number, confidenceLevel: number) {
     const zScore = this.getZScore(confidenceLevel);
     return expectedReturn - zScore * volatility;
   }
 
-  calculateCVaR(expectedReturn, volatility, confidenceLevel) {
+  calculateCVaR(expectedReturn: number, volatility: number, confidenceLevel: number) {
     const zScore = this.getZScore(confidenceLevel);
     const phi = Math.exp(-0.5 * zScore * zScore) / Math.sqrt(2 * Math.PI);
     return expectedReturn - (volatility * phi / confidenceLevel);
   }
 
-  getZScore(confidenceLevel) {
+  getZScore(confidenceLevel: number) {
     // Simplified z-score calculation
     if (confidenceLevel === 0.05) return 1.645;
     if (confidenceLevel === 0.01) return 2.326;
     return 1.645; // Default
   }
 
-  estimateMaxDrawdown(volatility, expectedReturn) {
+  estimateMaxDrawdown(volatility: number, expectedReturn: number) {
     // Rough approximation based on volatility and return
     return Math.max(0.05, volatility * 2 - expectedReturn);
   }
 
-  calculateDiversificationRatio(weights, covarianceMatrix) {
-    const weightedVolatility = weights.reduce((sum, w, i) => {
+  calculateDiversificationRatio(weights: number[], covarianceMatrix: any) {
+    const weightedVolatility = weights.reduce((sum: number, w: number, i: number) => {
       return sum + w * Math.sqrt(covarianceMatrix[i][i]);
     }, 0);
 
@@ -715,13 +719,13 @@ export class CorrelationAnalysisEngine {
     return weightedVolatility / portfolioVolatility;
   }
 
-  applyStressScenario(weights, shock) {
+  applyStressScenario(weights: number[], shock: number) {
     // Apply shock to portfolio return
-    const baseReturn = weights.reduce((sum, w) => sum + w * 0.08, 0); // 8% base return
+    const baseReturn = weights.reduce((sum: number, w: number) => sum + w * 0.08, 0); // 8% base return
     return baseReturn * (1 + shock);
   }
 
-  calculateAllocationEffect(weights, benchmarkWeights, returns) {
+  calculateAllocationEffect(weights: number[], benchmarkWeights: number[], returns: number[]) {
     // Simplified allocation effect calculation
     let effect = 0;
     for (let i = 0; i < weights.length; i++) {
@@ -730,20 +734,20 @@ export class CorrelationAnalysisEngine {
     return effect;
   }
 
-  calculateSelectionEffect(weights, benchmarkWeights, returns) {
+  calculateSelectionEffect(weights: number[], benchmarkWeights: number[], returns: number[]) {
     // Simplified selection effect calculation
-    const benchmarkReturn = benchmarkWeights.reduce((sum, w, i) => sum + w * returns[i], 0);
-    const portfolioReturn = weights.reduce((sum, w, i) => sum + w * returns[i], 0);
+    const benchmarkReturn = benchmarkWeights.reduce((sum: number, w: number, i: number) => sum + w * returns[i], 0);
+    const portfolioReturn = weights.reduce((sum: number, w: number, i: number) => sum + w * returns[i], 0);
     return portfolioReturn - benchmarkReturn - this.calculateAllocationEffect(weights, benchmarkWeights, returns);
   }
 
-  calculateFactorAttribution(weights, factorReturns) {
+  calculateFactorAttribution(weights: number[], factorReturns: any) {
     // Simplified factor attribution
-    const attribution = {};
+    const attribution: any = {};
     let totalEffect = 0;
 
     for (const [factor, return_] of Object.entries(factorReturns)) {
-      attribution[factor] = return_ * 0.5; // Simplified calculation
+      attribution[factor] = (return_ as number) * 0.5; // Simplified calculation
       totalEffect += attribution[factor];
     }
 
@@ -753,32 +757,32 @@ export class CorrelationAnalysisEngine {
     };
   }
 
-  async persistCorrelationMatrix(key, data) {
+  async persistCorrelationMatrix(key: string, data: any) {
     const storageKey = `${CORRELATION_NAMESPACES.CORRELATION_MATRICES}:${key}`;
     await setKVStore(this.env, storageKey, data, CORRELATION_TTL.CORRELATION_CACHE);
   }
 
-  async persistCovarianceMatrix(key, data) {
+  async persistCovarianceMatrix(key: string, data: any) {
     const storageKey = `${CORRELATION_NAMESPACES.COVARIANCE_MATRICES}:${key}`;
     await setKVStore(this.env, storageKey, data, CORRELATION_TTL.COVARIANCE_CACHE);
   }
 
-  async persistEfficientFrontier(key, data) {
+  async persistEfficientFrontier(key: string, data: any) {
     const storageKey = `${CORRELATION_NAMESPACES.EFFICIENT_FRONTIERS}:${key}`;
     await setKVStore(this.env, storageKey, data, CORRELATION_TTL.FRONTIER_CACHE);
   }
 
-  async persistOptimalPortfolio(key, data) {
+  async persistOptimalPortfolio(key: string, data: any) {
     const storageKey = `${CORRELATION_NAMESPACES.OPTIMAL_PORTFOLIOS}:${key}`;
     await setKVStore(this.env, storageKey, data, CORRELATION_TTL.PORTFOLIO_CACHE);
   }
 
-  async persistRiskMetrics(key, data) {
+  async persistRiskMetrics(key: string, data: any) {
     const storageKey = `${CORRELATION_NAMESPACES.RISK_METRICS}:${key}`;
     await setKVStore(this.env, storageKey, data, CORRELATION_TTL.RISK_CACHE);
   }
 
-  async persistAttribution(key, data) {
+  async persistAttribution(key: string, data: any) {
     const storageKey = `${CORRELATION_NAMESPACES.ATTRIBUTION}:${key}`;
     await setKVStore(this.env, storageKey, data, CORRELATION_TTL.ATTRIBUTION_CACHE);
   }
@@ -786,7 +790,7 @@ export class CorrelationAnalysisEngine {
   /**
    * Get cached correlation matrix
    */
-  async getCachedCorrelationMatrix(symbols, lookbackPeriod = 252) {
+  async getCachedCorrelationMatrix(symbols: string[], lookbackPeriod: number = 252) {
     const cacheKey = `correlation_${symbols.join('_')}_${lookbackPeriod}`;
     const storageKey = `${CORRELATION_NAMESPACES.CORRELATION_MATRICES}:${cacheKey}`;
     return await getKVStore(this.env, storageKey);
@@ -795,7 +799,7 @@ export class CorrelationAnalysisEngine {
   /**
    * Get cached efficient frontier
    */
-  async getCachedEfficientFrontier(symbols, numPortfolios = 100) {
+  async getCachedEfficientFrontier(symbols: string[], numPortfolios: number = 100) {
     const cacheKey = `frontier_${symbols.join('_')}_${numPortfolios}`;
     const storageKey = `${CORRELATION_NAMESPACES.EFFICIENT_FRONTIERS}:${cacheKey}`;
     return await getKVStore(this.env, storageKey);
@@ -822,24 +826,24 @@ export class CorrelationAnalysisEngine {
 /**
  * Factory function for creating correlation analysis engine instances
  */
-export function createCorrelationAnalysisEngine(env) {
+export function createCorrelationAnalysisEngine(env: any) {
   return new CorrelationAnalysisEngine(env);
 }
 
 /**
  * Utility functions for correlation analysis
  */
-export async function getCorrelationMatrix(env, symbols, lookbackPeriod = 252) {
+export async function getCorrelationMatrix(env: any, symbols: string[], lookbackPeriod: number = 252) {
   const engine = createCorrelationAnalysisEngine(env);
   return await engine.calculateCorrelationMatrix(symbols, lookbackPeriod);
 }
 
-export async function getEfficientFrontier(env, symbols, numPortfolios = 100) {
+export async function getEfficientFrontier(env: any, symbols: string[], numPortfolios: number = 100) {
   const engine = createCorrelationAnalysisEngine(env);
   return await engine.calculateEfficientFrontier(symbols, numPortfolios);
 }
 
-export async function optimizePortfolio(env, symbols, objective = 'MAX_SHARPE', constraints = {}) {
+export async function optimizePortfolio(env: any, symbols: string[], objective: string = 'MAX_SHARPE', constraints: any = {}) {
   const engine = createCorrelationAnalysisEngine(env);
   const expectedReturns = await engine.calculateExpectedReturns(symbols);
   const covarianceResult = await engine.calculateCovarianceMatrix(symbols);

@@ -55,7 +55,7 @@ export default {
 
     } catch (error: any) {
       logger.error('Scheduled event failed', {
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         scheduledTime: controller.scheduledTime,
         cron: controller.cron
@@ -77,10 +77,11 @@ export default {
       await import('./modules/logging.js').then(m => m.initLogging(env));
 
       // Create enhanced request handler (cached across requests)
-      let enhancedHandler = (global as any).enhancedRequestHandler;
+      const globalScope = globalThis as any;
+      let enhancedHandler = globalScope.enhancedRequestHandler;
       if (!enhancedHandler) {
         enhancedHandler = createEnhancedRequestHandler(env);
-        (global as any).enhancedRequestHandler = enhancedHandler;
+        globalScope.enhancedRequestHandler = enhancedHandler;
 
         logger.info('Enhanced request handler initialized', {
           environment: env.ENVIRONMENT || 'production',
@@ -111,7 +112,7 @@ export default {
       logger.error('Request failed', {
         method: request.method,
         url: request.url,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         responseTime: Date.now() - startTime
       });
@@ -141,8 +142,9 @@ export default {
  * Development helper: Reset enhanced handler cache
  */
 export function resetEnhancedHandler(): void {
-  if ((global as any).enhancedRequestHandler) {
-    delete (global as any).enhancedRequestHandler;
+  const globalScope = globalThis as any;
+  if (globalScope.enhancedRequestHandler) {
+    delete globalScope.enhancedRequestHandler;
     logger.info('Enhanced request handler cache reset');
   }
 }
@@ -153,12 +155,8 @@ export function resetEnhancedHandler(): void {
 export async function getSystemStatus(env: CloudflareEnvironment): Promise<SystemStatus> {
   try {
     const handler = createEnhancedRequestHandler(env);
-
-    // Get DAL status
-    const dalStats = handler.dal.getPerformanceStats();
-
-    // Get migration status
-    const migrationStats = await handler.migrationManager.getMigrationStatistics();
+    const dalStats = handler.getDalPerformanceStats();
+    const migrationStats = await handler.getMigrationStatistics();
 
     return {
       status: 'operational',
@@ -170,7 +168,8 @@ export async function getSystemStatus(env: CloudflareEnvironment): Promise<Syste
   } catch (error: any) {
     return {
       status: 'error',
-      error: error.message,
+      version: '2.0-enhanced',
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     };
   }

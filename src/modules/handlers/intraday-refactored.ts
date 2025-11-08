@@ -20,7 +20,7 @@ import {
   generateSignalItem,
   generateCompletePage
 } from '../html-generators.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('intraday-refactored');
 
@@ -34,14 +34,14 @@ class IntradayDataRetriever {
   static async retrieveData(
     env: CloudflareEnvironment,
     date: string,
-    context: { requestId: string } = {}
+    context: { requestId: string } = { requestId: 'default' }
   ): Promise<any> {
     const { requestId } = context;
 
     logger.debug('📥 [INTRADAY] Retrieving intraday data', { requestId, date });
 
     try {
-      const data = await getIntradayCheckData(date, env, { requestId });
+      const data = await getIntradayCheckData(env, new Date(date));
 
       if (!data) {
         logger.warn('⚠️ [INTRADAY] No intraday data found', { requestId, date });
@@ -51,8 +51,8 @@ class IntradayDataRetriever {
       logger.debug('✅ [INTRADAY] Intraday data retrieved', {
         requestId,
         date,
-        hasSignals: !!(data.signals && data.signals.length > 0),
-        signalsCount: data.signals ? data.signals.length : 0
+        hasSignals: !!((data as any).signals && (data as any).signals.length > 0),
+        signalsCount: (data as any).signals ? (data as any).signals.length : 0
       });
 
       return data;
@@ -61,7 +61,7 @@ class IntradayDataRetriever {
       logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
         requestId,
         date,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       throw error;
@@ -113,7 +113,7 @@ class IntradayPerformanceAnalyzer {
     logger.debug('📊 [INTRADAY] Analyzing performance', { requestId });
 
     try {
-      const performanceData = await generateIntradayPerformance(data, env, { requestId });
+      const performanceData = await generateIntradayPerformance(data, null, env);
 
       logger.debug('✅ [INTRADAY] Performance analysis completed', {
         requestId,
@@ -125,7 +125,7 @@ class IntradayPerformanceAnalyzer {
     } catch (error: any) {
       logger.error('❌ [INTRADAY] Performance analysis failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       throw error;
@@ -147,7 +147,7 @@ class IntradayPerformanceAnalyzer {
     }
 
     const accurateSignals = signals.filter(signal => signal.status === 'correct');
-    const totalConfidence = signals.reduce((sum, signal) => sum + (signal.confidence || 0), 0);
+    const totalConfidence = signals.reduce((sum: any, signal: any) => sum + (signal.confidence || 0), 0);
     const performingSymbols = signals
       .filter(signal => signal.performance && signal.performance > 0)
       .map(signal => ({
@@ -183,23 +183,25 @@ class IntradayHTMLGenerator {
     try {
       const metrics = IntradayPerformanceAnalyzer.generateMetrics(data.signals);
 
-      const htmlContent = generateCompletePage({
-        title: '🔍 Intraday Performance Check',
-        subtitle: 'Real-time signal performance analysis',
-        requestId,
-        sections: [
-          IntradayHTMLGenerator.generateMetricsSection(metrics),
-          IntradayHTMLGenerator.generateSignalsSection(data.signals),
-          IntradayHTMLGenerator.generatePerformanceSection(performance)
-        ]
-      });
+      const sectionsContent = [
+        IntradayHTMLGenerator.generateMetricsSection(metrics),
+        IntradayHTMLGenerator.generateSignalsSection(data.signals),
+        IntradayHTMLGenerator.generatePerformanceSection(performance)
+      ].join('\n');
+
+      const htmlContent = generateCompletePage(
+        '🔍 Intraday Performance Check',
+        'Real-time signal performance analysis',
+        sectionsContent,
+        'Operational'
+      );
 
       return htmlContent;
 
     } catch (error: any) {
       logger.error('❌ [INTRADAY] HTML generation failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return generateErrorDisplay(error.message, requestId);
@@ -212,27 +214,25 @@ class IntradayHTMLGenerator {
   static generateMetricsSection(metrics: any): string {
     const metricsGrid = generateMetricsGrid([
       {
-        title: 'Total Signals',
+        label: 'Total Signals',
         value: metrics.totalSignals.toString(),
         icon: '📊',
         color: '#4facfe'
       },
       {
-        title: 'Accuracy Rate',
+        label: 'Accuracy Rate',
         value: `${Math.round(metrics.accuracyRate * 100)}%`,
         icon: '🎯',
         color: metrics.accuracyRate >= 0.7 ? '#48dbfb' : '#ff6b6b'
       },
       {
-        title: 'Avg Confidence',
+        label: 'Avg Confidence',
         value: `${Math.round(metrics.avgConfidence * 100)}%`,
-        icon: '💪',
         color: '#feca57'
       },
       {
-        title: 'Performing Symbols',
+        label: 'Performing Symbols',
         value: metrics.performingSymbols.length.toString(),
-        icon: '📈',
         color: '#00f2fe'
       }
     ]);
@@ -265,10 +265,10 @@ class IntradayHTMLGenerator {
         symbol: signal.symbol,
         direction: signal.direction,
         confidence: signal.confidence,
-        status: signal.status,
+        status: (signal as any).status,
         performance: signal.performance,
         timestamp: signal.timestamp
-      })
+      } as any)
     ).join('');
 
     return `
@@ -351,7 +351,7 @@ class DependencyValidator {
     } catch (error: any) {
       logger.error('❌ [INTRADAY] Dependency validation failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return {
@@ -374,19 +374,20 @@ class DependencyValidator {
     logger.debug('🔍 [INTRADAY] Verifying KV consistency', { requestId });
 
     try {
-      const isConsistent = await verifyDependencyConsistency(env);
+      const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const consistencyResult = await verifyDependencyConsistency(dateStr, ['analysis', 'morning_predictions'], env);
 
       logger.debug('✅ [INTRADAY] KV consistency verified', {
         requestId,
-        isConsistent
+        isConsistent: consistencyResult.isValid
       });
 
-      return isConsistent;
+      return consistencyResult.isValid;
 
     } catch (error: any) {
       logger.error('❌ [INTRADAY] KV consistency check failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return false;
@@ -397,13 +398,14 @@ class DependencyValidator {
 /**
  * Main intraday refactored handler
  */
-export const handleIntradayCheckRefactored = createReportHandler(
-  'intraday-check-refactored',
-  async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
-    const requestId = crypto.randomUUID();
-    const startTime = Date.now();
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
+export const handleIntradayCheckRefactored = async (
+  request: Request,
+  env: CloudflareEnvironment
+): Promise<Response> => {
+  const requestId = crypto.randomUUID();
+  const startTime = Date.now();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
 
     const context = { requestId, date: dateStr };
 
@@ -426,8 +428,7 @@ export const handleIntradayCheckRefactored = createReportHandler(
 
         const waitingHTML = generateWaitingDisplay(
           'Intraday Analysis in Progress',
-          dependencyValidation.completionRate,
-          'Market analysis is currently being prepared. This typically takes 2-3 minutes to complete.'
+          dependencyValidation
         );
 
         return new Response(waitingHTML, {
@@ -510,7 +511,7 @@ export const handleIntradayCheckRefactored = createReportHandler(
     } catch (error: any) {
       logger.error('❌ [INTRADAY-REFACTORED] Intraday check failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         duration: Date.now() - startTime
       });
@@ -525,5 +526,4 @@ export const handleIntradayCheckRefactored = createReportHandler(
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
-  }
-);
+};

@@ -8,7 +8,7 @@ import { createHealthHandler } from '../handler-factory.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { createDAL } from '../dal.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('health-handlers');
 
@@ -89,7 +89,7 @@ export async function handleModelHealth(
     if (env.AI) {
       try {
         // Test GPT-OSS model with minimal input
-        const gptTest = await env.AI.run('@cf/gpt-oss-120b', {
+        const gptTest = await (env.AI as any).run('@cf/gpt-oss-120b', {
           messages: [{ role: 'user', content: 'Test' }],
           max_tokens: 5
         });
@@ -97,7 +97,7 @@ export async function handleModelHealth(
         healthResults.models.gpt_oss_120b = {
           status: 'healthy',
           model: '@cf/gpt-oss-120b',
-          test_response: gptTest?.response || 'Success',
+          test_response: (gptTest as any)?.response || 'Success',
           latency_ms: 'measured'
         };
 
@@ -198,7 +198,7 @@ export async function handleModelHealth(
       // Test delete
       const deleteResult = await dal.deleteKey(testKey);
 
-      if (writeResult.success && readResult.success && deleteResult.success) {
+      if (writeResult.success && readResult.success && deleteResult) {
         healthResults.models.kv_storage = {
           status: 'healthy',
           read_write: 'operational',
@@ -236,7 +236,7 @@ export async function handleModelHealth(
   } catch (error: any) {
     logger.error('Model health check failed completely', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -308,7 +308,7 @@ export async function handleDebugEnvironment(
   } catch (error: any) {
     logger.error('Debug environment failed', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 

@@ -4,7 +4,7 @@
  */
 
 import { createRouter, Router } from './router/index.js';
-import { createRequestLogger, initLogging } from './logging.js';
+import { createLogger } from './logging.js';
 import { PerformanceMonitor, BusinessMetrics } from './monitoring';
 
 // Import route registration functions
@@ -43,14 +43,14 @@ export async function handleHttpRequest(
   ctx: ExecutionContext
 ): Promise<Response> {
   // Initialize logging
-  initLogging(env);
-  const logger = createRequestLogger(request);
+  const logger = createLogger('request-handler');
 
   // Start performance monitoring
-  const perfMonitor = new PerformanceMonitor();
+  const perfMonitor = PerformanceMonitor;
+  const startTime = Date.now();
 
   try {
-    const url = new URL(request.url);
+    const url = new URL((request as any).url);
     logger.info('Incoming request', {
       method: request.method,
       pathname: url.pathname
@@ -63,11 +63,11 @@ export async function handleHttpRequest(
     const response = await router.handle(request, env, ctx);
 
     // Record metrics
-    const duration = perfMonitor.end();
-    BusinessMetrics.recordHttpRequest(url.pathname, response.status, duration);
+    const duration = Date.now() - startTime;
+    BusinessMetrics.apiRequest(url.pathname, request.method, (response as any).status, duration);
 
     logger.info('Request completed', {
-      status: response.status,
+      status: (response as any).status,
       duration: `${duration.toFixed(2)}ms`
     });
 
@@ -75,8 +75,8 @@ export async function handleHttpRequest(
 
   } catch (error: any) {
     logger.error('Unhandled error in request handler', {
-      error: error.message,
-      stack: error.stack
+      error: (error instanceof Error ? error.message : String(error)),
+      stack: (error instanceof Error ? error.stack : undefined)
     });
 
     return new Response(

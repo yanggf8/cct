@@ -23,7 +23,7 @@ import {
   generateSignalItem,
   generateCompletePage
 } from '../html-generators.js';
-import type { CloudflareEnvironment } from '../../../types.js';
+import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('intraday-decomposed');
 
@@ -37,14 +37,14 @@ class IntradayDataModule {
   static async retrieve(
     env: CloudflareEnvironment,
     date: string,
-    context: { requestId: string } = {}
+    context: { requestId: string } = { requestId: 'default' }
   ): Promise<any> {
     const { requestId } = context;
 
     logger.debug('📥 Retrieving intraday data', { requestId, date });
 
     try {
-      const data = await getIntradayCheckData(date, env, { requestId });
+      const data = await getIntradayCheckData(env, new Date(date));
 
       if (!data) {
         logger.warn('⚠️ No intraday data found', { requestId, date });
@@ -53,7 +53,7 @@ class IntradayDataModule {
 
       logger.debug('✅ Intraday data retrieved', {
         requestId,
-        signalCount: data.signals?.length || 0
+        signalCount: (data as any).signals?.length || 0
       });
 
       return data;
@@ -62,7 +62,7 @@ class IntradayDataModule {
       logger.error('❌ Failed to retrieve intraday data', {
         requestId,
         date,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       throw error;
@@ -114,7 +114,7 @@ class PerformanceModule {
     logger.debug('📊 Analyzing performance', { requestId });
 
     try {
-      const performance = await generateIntradayPerformance(data, env, { requestId });
+      const performance = await generateIntradayPerformance(data, null, env);
 
       logger.debug('✅ Performance analysis completed', {
         requestId,
@@ -126,7 +126,7 @@ class PerformanceModule {
     } catch (error: any) {
       logger.error('❌ Performance analysis failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return null;
@@ -147,7 +147,7 @@ class PerformanceModule {
     }
 
     const accurateSignals = signals.filter(s => s.status === 'correct');
-    const totalConfidence = signals.reduce((sum, s) => sum + (s.confidence || 0), 0);
+    const totalConfidence = signals.reduce((sum: any, s: any) => sum + (s.confidence || 0), 0);
     const uniqueSymbols = new Set(signals.map(s => s.symbol)).size;
 
     return [
@@ -194,26 +194,28 @@ class HTMLModule {
     const { requestId } = context;
 
     try {
-      const metrics = PerformanceModule.generateMetrics(data.signals);
+      const metrics = PerformanceModule.generateMetrics((data as any).signals);
 
-      const htmlContent = generateCompletePage({
-        title: '🔍 Intraday Performance Check',
-        subtitle: 'Modular architecture demonstration',
-        requestId,
-        sections: [
-          HTMLModule.generateMetricsSection(metrics),
-          HTMLModule.generateSignalsSection(data.signals),
-          HTMLModule.generatePerformanceSection(performance),
-          HTMLModule.generateArchitectureSection()
-        ]
-      });
+      // Build HTML content from sections
+      const content = [
+        HTMLModule.generateMetricsSection(metrics),
+        HTMLModule.generateSignalsSection((data as any).signals),
+        HTMLModule.generatePerformanceSection(performance),
+        HTMLModule.generateArchitectureSection()
+      ].join('\n');
+
+      const htmlContent = generateCompletePage(
+        '🔍 Intraday Performance Check',
+        'Modular architecture demonstration',
+        content
+      );
 
       return htmlContent;
 
     } catch (error: any) {
       logger.error('❌ HTML generation failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack
       });
       return generateErrorDisplay(error.message, requestId);
@@ -254,10 +256,10 @@ class HTMLModule {
         symbol: signal.symbol,
         direction: signal.direction,
         confidence: signal.confidence,
-        status: signal.status,
+        status: (signal as any).status,
         timestamp: signal.timestamp,
         performance: signal.performance
-      })
+      } as any)
     ).join('');
 
     return `
@@ -457,9 +459,7 @@ class ErrorModule {
     });
 
     const waitingHTML = generateWaitingDisplay(
-      message,
-      completionRate,
-      'Analysis is in progress. This typically takes 2-3 minutes to complete.'
+      `${message} ${completionRate}\n\nAnalysis is in progress. This typically takes 2-3 minutes to complete.`
     );
 
     return new Response(waitingHTML, {
@@ -474,9 +474,11 @@ class ErrorModule {
 /**
  * Main decomposed intraday handler
  */
-export const handleIntradayCheckDecomposed = createReportHandler(
-  'intraday-check-decomposed',
-  async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
+export const handleIntradayCheckDecomposed = async (
+  request: Request,
+  env: CloudflareEnvironment,
+  ctx: ExecutionContext
+): Promise<Response> => {
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
     const today = new Date();
@@ -492,12 +494,12 @@ export const handleIntradayCheckDecomposed = createReportHandler(
 
     try {
       // Validate request environment
-      const envValidation = validateRequestEnvironment(env, { requestId });
+      const envValidation = validateRequestEnvironment(request, env);
 
       if (!envValidation.isValid) {
         logger.warn('⚠️ Environment validation failed', {
           requestId,
-          issues: envValidation.issues
+          issues: envValidation.errors
         });
 
         return ErrorModule.generateErrorResponse(
@@ -561,12 +563,11 @@ export const handleIntradayCheckDecomposed = createReportHandler(
     } catch (error: any) {
       logger.error('❌ [INTRADAY-DECOMPOSED] Intraday check failed', {
         requestId,
-        error: error.message,
+        error: (error instanceof Error ? error.message : String(error)),
         stack: error.stack,
         duration: Date.now() - startTime
       });
 
       return ErrorModule.generateErrorResponse(error, context);
     }
-  }
-);
+  };

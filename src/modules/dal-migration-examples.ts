@@ -336,7 +336,7 @@ export async function runCompleteMigrationExample(env: CloudflareEnvironment) {
     logger.info('✅ Complete DAL Migration Example finished successfully');
 
   } catch (error: any) {
-    logger.error('❌ Migration example failed', { error: error.message, stack: error.stack });
+    logger.error('❌ Migration example failed', { error: (error instanceof Error ? error.message : String(error)), stack: error.stack });
   }
 }
 
@@ -357,7 +357,7 @@ export function checkMigrationCompatibility(): {
   const enhancedMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(enhancedDAL))
     .filter(name => typeof (enhancedDAL as any)[name] === 'function' && name !== 'constructor');
 
-  const compatibility = originalMethods.filter(method => enhancedDAL.includes(method));
+  const compatibility = originalMethods.filter(method => Object.keys(enhancedDAL).includes(method));
 
   return {
     originalDALMethods: originalMethods,

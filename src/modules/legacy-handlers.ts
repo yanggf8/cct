@@ -51,7 +51,7 @@ export async function handleFridayMondayPredictionsReport(
     console.error('❌ Friday/Monday predictions error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -70,9 +70,7 @@ export async function handleFridayMarketCloseReport(
   try {
     console.log('📊 Friday market close report requested');
 
-    const analysis = await runWeeklyMarketCloseAnalysis(env, {
-      triggerMode: 'friday_market_close'
-    });
+    const analysis = await runWeeklyMarketCloseAnalysis(env, new Date());
 
     return new Response(JSON.stringify(analysis, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -82,7 +80,7 @@ export async function handleFridayMarketCloseReport(
     console.error('❌ Friday market close report error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -118,7 +116,7 @@ export async function handleHighConfidenceTest(
     console.error('❌ High confidence test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -141,16 +139,17 @@ export async function handleKVCleanup(
     const pattern = url.searchParams.get('pattern') || 'test_*';
     const dryRun = url.searchParams.get('dryRun') !== 'false';
 
-    const kvUtils = new KVUtils(env);
-    const keys = await kvUtils.listKeys(pattern);
+    const dal = createDAL(env);
+    const keysResult = await dal.listKeys(pattern);
+    const keys = keysResult.keys;
 
     let deletedCount = 0;
     const deletedKeys: string[] = [];
 
     if (!dryRun) {
       for (const key of keys) {
-        const result = await kvUtils.delete(key);
-        if (result.success) {
+        const success = await dal.deleteKey(key);
+        if (success) {
           deletedCount++;
           deletedKeys.push(key);
         }
@@ -175,7 +174,7 @@ export async function handleKVCleanup(
     console.error('❌ KV cleanup error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -212,7 +211,7 @@ export async function handleDebugWeekendMessage(
     console.error('❌ Debug weekend message error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -251,7 +250,7 @@ export async function handleSentimentDebugTest(
     console.error('❌ Sentiment debug test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -297,7 +296,7 @@ export async function handleModelScopeTest(
     console.error('❌ Model scope test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -333,7 +332,7 @@ export async function handleTestLlama(
     console.error('❌ Llama test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -379,7 +378,7 @@ export async function handleR2Upload(
     console.error('❌ R2 upload error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -416,7 +415,7 @@ export async function handleFacebookTest(
     console.error('❌ Facebook test error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,

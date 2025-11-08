@@ -19,6 +19,7 @@ import {
   MonteCarloSimulation,
   MonteCarloSummary,
   BootstrapResult,
+  BootstrapSample,
   FoldResult,
   StatisticalTest,
   PerformanceMetrics,
@@ -517,24 +518,24 @@ export class ModelValidator {
     }
 
     const avgPerformance: PerformanceMetrics = {
-      totalReturn: performances.reduce((sum, p) => sum + p.totalReturn, 0) / performances.length,
-      annualizedReturn: performances.reduce((sum, p) => sum + p.annualizedReturn, 0) / performances.length,
-      volatility: performances.reduce((sum, p) => sum + p.volatility, 0) / performances.length,
-      sharpeRatio: performances.reduce((sum, p) => sum + p.sharpeRatio, 0) / performances.length,
-      sortinoRatio: performances.reduce((sum, p) => sum + p.sortinoRatio, 0) / performances.length,
-      maxDrawdown: performances.reduce((sum, p) => sum + p.maxDrawdown, 0) / performances.length,
-      calmarRatio: performances.reduce((sum, p) => sum + p.calmarRatio, 0) / performances.length,
-      winRate: performances.reduce((sum, p) => sum + p.winRate, 0) / performances.length,
-      profitFactor: performances.reduce((sum, p) => sum + p.profitFactor, 0) / performances.length,
-      avgWin: performances.reduce((sum, p) => sum + p.avgWin, 0) / performances.length,
-      avgLoss: performances.reduce((sum, p) => sum + p.avgLoss, 0) / performances.length,
-      bestTrade: performances.reduce((sum, p) => sum + p.bestTrade, 0) / performances.length,
-      worstTrade: performances.reduce((sum, p) => sum + p.worstTrade, 0) / performances.length,
-      totalTrades: Math.round(performances.reduce((sum, p) => sum + p.totalTrades, 0) / performances.length),
-      winningTrades: Math.round(performances.reduce((sum, p) => sum + p.winningTrades, 0) / performances.length),
-      losingTrades: Math.round(performances.reduce((sum, p) => sum + p.losingTrades, 0) / performances.length),
-      avgTradeDuration: performances.reduce((sum, p) => sum + p.avgTradeDuration, 0) / performances.length,
-      sharpeRatioAdjusted: performances.reduce((sum, p) => sum + p.sharpeRatioAdjusted, 0) / performances.length
+      totalReturn: performances.reduce((sum: any, p: any) => sum + p.totalReturn, 0) / performances.length,
+      annualizedReturn: performances.reduce((sum: any, p: any) => sum + p.annualizedReturn, 0) / performances.length,
+      volatility: performances.reduce((sum: any, p: any) => sum + p.volatility, 0) / performances.length,
+      sharpeRatio: performances.reduce((sum: any, p: any) => sum + p.sharpeRatio, 0) / performances.length,
+      sortinoRatio: performances.reduce((sum: any, p: any) => sum + p.sortinoRatio, 0) / performances.length,
+      maxDrawdown: performances.reduce((sum: any, p: any) => sum + p.maxDrawdown, 0) / performances.length,
+      calmarRatio: performances.reduce((sum: any, p: any) => sum + p.calmarRatio, 0) / performances.length,
+      winRate: performances.reduce((sum: any, p: any) => sum + p.winRate, 0) / performances.length,
+      profitFactor: performances.reduce((sum: any, p: any) => sum + p.profitFactor, 0) / performances.length,
+      avgWin: performances.reduce((sum: any, p: any) => sum + p.avgWin, 0) / performances.length,
+      avgLoss: performances.reduce((sum: any, p: any) => sum + p.avgLoss, 0) / performances.length,
+      bestTrade: performances.reduce((sum: any, p: any) => sum + p.bestTrade, 0) / performances.length,
+      worstTrade: performances.reduce((sum: any, p: any) => sum + p.worstTrade, 0) / performances.length,
+      totalTrades: Math.round(performances.reduce((sum: any, p: any) => sum + p.totalTrades, 0) / performances.length),
+      winningTrades: Math.round(performances.reduce((sum: any, p: any) => sum + p.winningTrades, 0) / performances.length),
+      losingTrades: Math.round(performances.reduce((sum: any, p: any) => sum + p.losingTrades, 0) / performances.length),
+      avgTradeDuration: performances.reduce((sum: any, p: any) => sum + p.avgTradeDuration, 0) / performances.length,
+      sharpeRatioAdjusted: performances.reduce((sum: any, p: any) => sum + p.sharpeRatioAdjusted, 0) / performances.length
     };
 
     return avgPerformance;
@@ -546,8 +547,8 @@ export class ModelValidator {
     }
 
     const calculateStd = (values: number[]) => {
-      const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-      const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+      const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+      const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
       return Math.sqrt(variance);
     };
 
@@ -588,8 +589,8 @@ export class ModelValidator {
   private calculateMetricStability(values: number[]): number {
     if (values.length === 0) return 0;
 
-    const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+    const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
     const coefficientOfVariation = Math.sqrt(variance) / Math.abs(mean);
 
     // Convert coefficient of variation to stability score (0-1)
@@ -634,8 +635,8 @@ export class ModelValidator {
 
   private performTTest(returns: number[], confidenceLevel: number): StatisticalTest {
     const n = returns.length;
-    const mean = returns.reduce((sum, r) => sum + r, 0) / n;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / (n - 1);
+    const mean = returns.reduce((sum: any, r: any) => sum + r, 0) / n;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / (n - 1);
     const stdError = Math.sqrt(variance / n);
 
     const statistic = stdError > 0 ? mean / stdError : 0;
@@ -671,15 +672,15 @@ export class ModelValidator {
     }
 
     const signedRanks = returns
-      .map((value, index) => ({ value, index }))
-      .sort((a, b) => Math.abs(a.value) - Math.abs(b.value))
-      .map((item, rank) => ({
+      .map((value: any, index: any) => ({ value, index }))
+      .sort((a: any, b: any) => Math.abs(a.value) - Math.abs(b.value))
+      .map((item: any, rank: any) => ({
         ...item,
         rank: rank + 1,
         signedRank: item.value >= 0 ? rank + 1 : -(rank + 1)
       }));
 
-    const statistic = signedRanks.reduce((sum, item) => sum + (item.value >= 0 ? item.rank : 0), 0);
+    const statistic = signedRanks.reduce((sum: any, item: any) => sum + (item.value >= 0 ? item.rank : 0), 0);
     const expectedStatistic = n * (n + 1) / 4;
     const variance = n * (n + 1) * (2 * n + 1) / 24;
     const zScore = variance > 0 ? (statistic - expectedStatistic) / Math.sqrt(variance) : 0;
@@ -702,12 +703,12 @@ export class ModelValidator {
 
     for (let i = 0; i < numBootstrapSamples; i++) {
       const sample = this.resampleWithReplacement(returns);
-      const mean = sample.reduce((sum, r) => sum + r, 0) / sample.length;
+      const mean = sample.reduce((sum: any, r: any) => sum + r, 0) / sample.length;
       bootstrapMeans.push(mean);
     }
 
-    bootstrapMeans.sort((a, b) => a - b);
-    const originalMean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    bootstrapMeans.sort((a: any, b: any) => a - b);
+    const originalMean = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
 
     const alpha = 1 - confidenceLevel;
     const lowerIndex = Math.floor(alpha / 2 * numBootstrapSamples);
@@ -794,7 +795,7 @@ export class ModelValidator {
     if (tests.length === 0) return 0;
 
     // Combine p-values using Fisher's method
-    const chiSquareStatistic = -2 * tests.reduce((sum, test) => sum + Math.log(test.pValue), 0);
+    const chiSquareStatistic = -2 * tests.reduce((sum: any, test: any) => sum + Math.log(test.pValue), 0);
     const degreesOfFreedom = 2 * tests.length;
 
     // Simplified p-value calculation
@@ -863,7 +864,7 @@ export class ModelValidator {
   private calculateOverfittingRiskScore(indicators: any[], threshold: number): number {
     if (indicators.length === 0) return 0;
 
-    const totalRisk = indicators.reduce((sum, indicator) => {
+    const totalRisk = indicators.reduce((sum: any, indicator: any) => {
       return sum + (indicator.isOverfit ? 1 : 0) * indicator.severity === 'high' ? 1 : indicator.severity === 'medium' ? 0.5 : 0.25;
     }, 0);
 
@@ -931,8 +932,8 @@ export class ModelValidator {
   private async runMonteCarloSimulation(simulationId: number): Promise<MonteCarloSimulation> {
     // Generate randomized returns based on original distribution
     const originalReturns = this.extractReturns();
-    const mean = originalReturns.reduce((sum, r) => sum + r, 0) / originalReturns.length;
-    const stdDev = Math.sqrt(originalReturns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / originalReturns.length);
+    const mean = originalReturns.reduce((sum: any, r: any) => sum + r, 0) / originalReturns.length;
+    const stdDev = Math.sqrt(originalReturns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / originalReturns.length);
 
     const simulatedReturns = this.generateRandomReturns(originalReturns.length, mean, stdDev);
     const simulatedEquityCurve = this.generateEquityCurveFromReturns(simulatedReturns);
@@ -984,8 +985,8 @@ export class ModelValidator {
   private calculatePerformanceFromReturns(returns: number[]): PerformanceMetrics {
     // Simplified performance calculation from returns
     const totalReturn = returns.reduce((sum, r, i) => sum + r, 0);
-    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+    const mean = returns.reduce((sum: any, r: any) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / returns.length;
     const volatility = Math.sqrt(variance) * Math.sqrt(252);
     const annualizedReturn = totalReturn * (252 / returns.length);
     const sharpeRatio = volatility > 0 ? annualizedReturn / volatility : 0;
@@ -1018,12 +1019,12 @@ export class ModelValidator {
     const sharpeRatios = simulations.map(s => s.sharpeRatio);
     const volatilities = simulations.map(s => s.volatility);
 
-    finalReturns.sort((a, b) => a - b);
+    finalReturns.sort((a: any, b: any) => a - b);
 
     return {
-      meanReturn: finalReturns.reduce((sum, r) => sum + r, 0) / finalReturns.length,
+      meanReturn: finalReturns.reduce((sum: any, r: any) => sum + r, 0) / finalReturns.length,
       medianReturn: finalReturns[Math.floor(finalReturns.length / 2)],
-      stdDevReturn: Math.sqrt(finalReturns.reduce((sum, r) => sum + Math.pow(r - finalReturns.reduce((s, r) => s + r, 0) / finalReturns.length, 2), 0) / finalReturns.length),
+      stdDevReturn: Math.sqrt(finalReturns.reduce((sum: any, r: any) => sum + Math.pow(r - finalReturns.reduce((s: any, r: any) => s + r, 0) / finalReturns.length, 2), 0) / finalReturns.length),
       percentiles: {
         5: finalReturns[Math.floor(0.05 * finalReturns.length)],
         25: finalReturns[Math.floor(0.25 * finalReturns.length)],
@@ -1041,10 +1042,10 @@ export class ModelValidator {
     const intervals: any[] = [];
 
     for (const metric of metrics) {
-      const values = simulations.map(s => s[metric as keyof MonteCarloSimulation] as number).sort((a, b) => a - b);
+      const values = simulations.map(s => s[metric as keyof MonteCarloSimulation] as number).sort((a: any, b: any) => a - b);
       const lower = values[Math.floor(0.025 * values.length)];
       const upper = values[Math.floor(0.975 * values.length)];
-      const estimate = values.reduce((sum, v) => sum + v, 0) / values.length;
+      const estimate = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
 
       intervals.push({
         metric,
@@ -1060,12 +1061,12 @@ export class ModelValidator {
   }
 
   private calculateTailRiskMetrics(simulations: MonteCarloSimulation[]): any {
-    const finalReturns = simulations.map(s => s.finalReturn).sort((a, b) => a - b);
+    const finalReturns = simulations.map(s => s.finalReturn).sort((a: any, b: any) => a - b);
     const var95 = finalReturns[Math.floor(0.05 * finalReturns.length)];
     const worstReturns = finalReturns.slice(0, Math.floor(0.05 * finalReturns.length));
 
     return {
-      expectedShortfall: worstReturns.reduce((sum, r) => sum + r, 0) / worstReturns.length,
+      expectedShortfall: worstReturns.reduce((sum: any, r: any) => sum + r, 0) / worstReturns.length,
       conditionalVar: var95,
       maximumLoss: finalReturns[0],
       recoveryTime: 30, // Simplified
@@ -1091,13 +1092,13 @@ export class ModelValidator {
 
     for (const metric of metrics) {
       const values = samples.map(s => s.performance[metric as keyof PerformanceMetrics] as number);
-      const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-      const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+      const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
+      const variance = values.reduce((sum: any, v: any) => sum + Math.pow(v - mean, 2), 0) / values.length;
       const stdDev = Math.sqrt(variance);
 
       // Simplified skewness and kurtosis calculation
-      const skewness = values.reduce((sum, v) => sum + Math.pow((v - mean) / stdDev, 3), 0) / values.length;
-      const kurtosis = values.reduce((sum, v) => sum + Math.pow((v - mean) / stdDev, 4), 0) / values.length;
+      const skewness = values.reduce((sum: any, v: any) => sum + Math.pow((v - mean) / stdDev, 3), 0) / values.length;
+      const kurtosis = values.reduce((sum: any, v: any) => sum + Math.pow((v - mean) / stdDev, 4), 0) / values.length;
 
       distribution.mean[metric] = mean;
       distribution.stdDev[metric] = stdDev;
@@ -1105,7 +1106,7 @@ export class ModelValidator {
       distribution.kurtosis[metric] = kurtosis;
 
       // Calculate percentiles
-      values.sort((a, b) => a - b);
+      values.sort((a: any, b: any) => a - b);
       distribution.percentiles[metric] = {
         5: values[Math.floor(0.05 * values.length)],
         25: values[Math.floor(0.25 * values.length)],
@@ -1168,7 +1169,7 @@ export class ModelValidator {
       return 0.5; // Default score
     });
 
-    return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    return scores.reduce((sum: any, score: any) => sum + score, 0) / scores.length;
   }
 
   private generateRecommendation(overallScore: number, keyResults: any[]): 'accept' | 'reject' | 'conditional' {

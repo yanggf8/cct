@@ -53,14 +53,24 @@ export interface CacheStats {
  * - Best performance (DO memory) + best durability (KV)
  * - Single cache layer with dual persistence
  */
+interface DOState {
+  storage: {
+    get<T = any>(key: string): Promise<T | undefined>;
+    put(key: string, value: any): Promise<void>;
+    deleteAll(): Promise<void>;
+    setAlarm(scheduledTime: number): Promise<void>;
+  };
+}
+
 export class CacheDurableObject extends DurableObject {
   private cache: Map<string, CacheEntry>;
   private maxSize: number = 1000; // Max entries
   private stats: CacheStats;
   private cleanupScheduled: boolean = false;
 
-  constructor(state: DurableObjectState, env: CloudflareEnvironment) {
+  constructor(state: any, env: CloudflareEnvironment) {
     super(state, env);
+    this.state = state as DOState;
     this.env = env;
     this.cache = new Map();
     this.stats = {
@@ -75,7 +85,8 @@ export class CacheDurableObject extends DurableObject {
     this.initializeFromStorage();
   }
 
-  private env: CloudflareEnvironment;
+  public state: DOState;
+  public env: CloudflareEnvironment;
 
   /**
    * Initialize from persistent storage (cold start)
@@ -93,20 +104,20 @@ export class CacheDurableObject extends DurableObject {
           if (kvStatsStr) {
             this.stats = JSON.parse(kvStatsStr);
           }
-          logger.info('CACHE_DO_INIT', `Loaded ${this.cache.size} entries from KV (shared)`);
+          logger.info('CACHE_DO_INIT', { source: 'kv', entries: this.cache.size });
         }
       }
 
       // If KV empty, try DO storage
       if (this.cache.size === 0) {
-        const stored = await this.storage.get<any>('cache');
+        const stored = await this.state.storage.get<any>('cache');
         if (stored) {
           this.cache = new Map(stored.entries || []);
-          const storedStats = await this.storage.get<CacheStats>('stats');
+          const storedStats = await this.state.storage.get<CacheStats>('stats');
           if (storedStats) {
             this.stats = storedStats;
           }
-          logger.info('CACHE_DO_INIT', `Loaded ${this.cache.size} entries from DO storage`);
+          logger.info('CACHE_DO_INIT', { source: 'do_storage', entries: this.cache.size });
         }
       }
 
@@ -114,8 +125,8 @@ export class CacheDurableObject extends DurableObject {
       if (!this.cleanupScheduled) {
         await this.scheduleCleanup();
       }
-    } catch (error) {
-      logger.error('CACHE_DO_INIT_ERROR', 'Failed to initialize from storage', error);
+    } catch (error: unknown) {
+      logger.error('CACHE_DO_INIT_ERROR', { error: error instanceof Error ? error.message : 'Failed to initialize from storage' });
     }
   }
 
@@ -197,7 +208,7 @@ export class CacheDurableObject extends DurableObject {
       evictions: 0,
       hitRate: 0
     };
-    await this.storage.deleteAll();
+    await this.state.storage.deleteAll();
 
     // Also clear KV namespace
     if (this.env.CACHE_DO_KV) {
@@ -205,7 +216,7 @@ export class CacheDurableObject extends DurableObject {
       await this.env.CACHE_DO_KV.delete('do_cache_stats');
     }
 
-    logger.info('CACHE_DO_CLEAR', 'Cache cleared from DO storage + KV');
+    logger.info('CACHE_DO_CLEAR', { message: 'Cache cleared from DO storage + KV' });
   }
 
   /**
@@ -284,7 +295,7 @@ export class CacheDurableObject extends DurableObject {
    * Update statistics in persistent storage
    */
   private async updateStats(): Promise<void> {
-    await this.storage.put('stats', this.stats);
+    await this.state.storage.put('stats', this.stats);
   }
 
   /**
@@ -298,17 +309,17 @@ export class CacheDurableObject extends DurableObject {
       const data = { entries };
 
       // Persist to DO storage (for DO instance recovery)
-      await this.storage.put('cache', data);
+      await this.state.storage.put('cache', data);
       await this.updateStats();
 
       // Also persist to KV namespace (for sharing across workers)
       if (this.env.CACHE_DO_KV) {
         await this.env.CACHE_DO_KV.put('do_cache_entries', JSON.stringify(data));
         await this.env.CACHE_DO_KV.put('do_cache_stats', JSON.stringify(this.stats));
-        logger.debug('CACHE_DO_PERSIST', `Synced ${entries.length} entries to KV`);
+        logger.debug('CACHE_DO_PERSIST', { synced_entries: entries.length });
       }
-    } catch (error) {
-      logger.error('CACHE_DO_PERSIST_ERROR', 'Failed to persist cache', error);
+    } catch (error: unknown) {
+      logger.error('CACHE_DO_PERSIST_ERROR', { error: error instanceof Error ? error.message : 'Failed to persist cache' });
     }
   }
 
@@ -317,14 +328,20 @@ export class CacheDurableObject extends DurableObject {
    */
   private async scheduleCleanup(): Promise<void> {
     try {
-      await this.storage.setAlarm(Date.now() + 300000, async () => {
-        await this.cleanupExpired();
-        // Schedule next cleanup
-        await this.scheduleCleanup();
-      });
+      await this.state.storage.setAlarm(Date.now() + 300000);
       this.cleanupScheduled = true;
-    } catch (error) {
-      logger.error('CACHE_DO_ALARM_ERROR', 'Failed to schedule cleanup', error);
+    } catch (error: unknown) {
+      logger.error('CACHE_DO_ALARM_ERROR', { error: error instanceof Error ? error.message : 'Failed to schedule cleanup' });
+    }
+  }
+
+  // Alarm handler invoked by the platform
+  async alarm(): Promise<void> {
+    try {
+      await this.cleanupExpired();
+      await this.scheduleCleanup();
+    } catch (error: unknown) {
+      logger.error('CACHE_DO_ALARM_HANDLER_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
 
@@ -344,7 +361,7 @@ export class CacheDurableObject extends DurableObject {
 
     if (cleaned > 0) {
       await this.persistToStorage();
-      logger.info('CACHE_DO_CLEANUP', `Cleaned ${cleaned} expired entries`);
+      logger.info('CACHE_DO_CLEANUP', { cleaned });
     }
   }
 }

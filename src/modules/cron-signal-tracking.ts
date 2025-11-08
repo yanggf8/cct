@@ -4,7 +4,6 @@
  */
 
 import { createLogger } from './logging.js';
-import { kvStorageManager } from './kv-storage-manager.js';
 import { rateLimitedFetch } from './rate-limiter.js';
 import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
 import { createDAL } from './dal.js';
@@ -187,7 +186,7 @@ class CronSignalTracker {
         predictions: highConfidenceSignals,
         metadata: {
           totalSignals: highConfidenceSignals.length,
-          averageConfidence: highConfidenceSignals.reduce((sum, s) => sum + s.confidence, 0) / highConfidenceSignals.length,
+          averageConfidence: highConfidenceSignals.reduce((sum: any, s: any) => sum + s.confidence, 0) / highConfidenceSignals.length,
           bullishCount: highConfidenceSignals.filter(s => s.prediction === 'up').length,
           bearishCount: highConfidenceSignals.filter(s => s.prediction === 'down').length,
           generatedAt: new Date().toISOString()
@@ -244,7 +243,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to save morning predictions', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return false;
     }
@@ -266,7 +265,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to retrieve morning predictions', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
 
@@ -336,7 +335,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to update signal performance', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return null;
     }
@@ -377,7 +376,7 @@ class CronSignalTracker {
           }
         }
       } catch (error: any) {
-        logger.warn('Failed to get current price', { symbol, error: error.message });
+        logger.warn('Failed to get current price', { symbol, error: (error instanceof Error ? error.message : String(error)) });
       }
     }
 
@@ -456,19 +455,19 @@ class CronSignalTracker {
       const validatedSignals = predictions.filter(p => p.status === 'validated').length;
       const divergentSignals = predictions.filter(p => p.status === 'divergent').length;
 
-      const averageAccuracy = predictions.reduce((sum, p) =>
+      const averageAccuracy = predictions.reduce((sum: any, p: any) =>
         sum + (p.performance?.accuracy || 0), 0) / totalSignals;
 
       // Get top performers
       const topPerformers = predictions
-        .filter(p => p.performance?.accuracy > 0)
-        .sort((a, b) => b.performance!.accuracy - a.performance!.accuracy)
+        .filter(p => (p.performance?.accuracy ?? 0) > 0)
+        .sort((a: any, b: any) => (b.performance?.accuracy ?? 0) - (a.performance?.accuracy ?? 0))
         .slice(0, 3);
 
       // Get underperformers
       const underperformers = predictions
         .filter(p => p.performance?.accuracy !== undefined)
-        .sort((a, b) => a.performance!.accuracy - b.performance!.accuracy)
+        .sort((a: any, b: any) => a.performance!.accuracy - b.performance!.accuracy)
         .slice(0, 3);
 
       // Generate tomorrow outlook based on today's performance
@@ -510,7 +509,7 @@ class CronSignalTracker {
     } catch (error: any) {
       logger.error('Failed to generate end-of-day summary', {
         date: dateStr,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return this.getDefaultSummary();
     }
@@ -567,7 +566,7 @@ class CronSignalTracker {
       }
 
     } catch (error: any) {
-      logger.error('Failed to generate tomorrow outlook', { error: error.message });
+      logger.error('Failed to generate tomorrow outlook', { error: (error instanceof Error ? error.message : String(error)) });
     }
 
     return outlook;

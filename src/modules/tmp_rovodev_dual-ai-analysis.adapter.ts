@@ -30,7 +30,7 @@ export async function performDualAIAnalysis(symbols: string[], env: CloudflareEn
     }
   }
 
-  const score = results.reduce((acc, r) => {
+  const score = results.reduce((acc: any, r: any) => {
     const dir = (r.gpt_sentiment || 'neutral');
     const val = dir === 'bullish' ? 1 : dir === 'bearish' ? -1 : 0;
     return acc + val;

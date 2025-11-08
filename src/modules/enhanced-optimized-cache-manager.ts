@@ -7,7 +7,7 @@
 import { CacheKeyResolver, CacheAliasingDAL } from './cache-key-aliasing.js';
 import { BatchKVOperations } from './batch-kv-operations.js';
 import { MemoryStaticDataManager, MemoryStaticDAL } from './memory-static-data.js';
-import { PredictivePrefetchManager, PredictivePrefetchDAL } from './predictive-prefetching.js';
+import { PredictivePreFetchManager as PredictivePrefetchManager, PredictivePrefetchDAL } from './predictive-prefetching.js';
 import { VectorizedSectorProcessor } from './vectorized-sector-processor.js';
 
 export interface OptimizationConfig {
@@ -49,20 +49,21 @@ export class EnhancedOptimizedCacheManager {
   private config: OptimizationConfig;
 
   // Optimization modules
-  private keyResolver: CacheKeyResolver;
-  private cacheAliasingDAL: CacheAliasingDAL;
-  private batchOperations: BatchKVOperations;
-  private memoryStaticDAL: MemoryStaticDAL;
-  private predictivePrefetch: PredictivePrefetchDAL;
-  private vectorizedProcessor: VectorizedSectorProcessor;
+  private keyResolver!: CacheKeyResolver;
+  private cacheAliasingDAL!: CacheAliasingDAL;
+  private batchOperations!: BatchKVOperations;
+  private memoryStaticDAL!: MemoryStaticDAL;
+  private predictivePrefetch!: PredictivePrefetchDAL;
+  private vectorizedProcessor!: VectorizedSectorProcessor;
 
   // Performance tracking
-  private stats: OptimizationStats;
+  private stats!: OptimizationStats;
   private operationLog: Array<{
     timestamp: number;
     operation: string;
     kvOpsSaved: number;
     optimizations: string[];
+    duration?: number;
   }> = [];
 
   private constructor(baseDAL: any, config: Partial<OptimizationConfig> = {}) {
@@ -181,13 +182,16 @@ export class EnhancedOptimizedCacheManager {
         const batchResult = await this.batchOperations.scheduleBatchRead([key], undefined, options?.priority || 'medium');
 
         // Extract specific result for this key
-        for (const [batchResultKey, data] of batchResult.data.entries()) {
-          if (batchResultKey === key && data) {
-            aliasedResult = { success: true, data };
-            optimizations.push('Batch Operations Hit');
-            cacheHits++;
-            actualKVCount = 1; // Single batch read
-            break;
+        const batchData = batchResult as Map<string, any>;
+        if (batchData && typeof (batchData as any).entries === 'function') {
+          for (const [batchResultKey, data] of batchData.entries()) {
+            if (batchResultKey === key && data) {
+              aliasedResult = { success: true, data: data as T };
+              optimizations.push('Batch Operations Hit');
+              cacheHits++;
+              actualKVCount = 1; // Single batch read
+              break;
+            }
           }
         }
       }
@@ -201,7 +205,7 @@ export class EnhancedOptimizedCacheManager {
         finalResult = preFetchResult;
       }
       if (!finalResult.success) {
-        finalResult = await this.baseDAL.read<T>(key);
+        finalResult = await this.baseDAL.read(key) as { success: boolean; data: T | null };
       }
 
       if (finalResult.success) {
@@ -227,14 +231,15 @@ export class EnhancedOptimizedCacheManager {
         optimizations
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
         data: null,
         kvOperations: actualKVCount,
         cacheHits,
-        optimizations: [...optimizations, 'Error: ' + error.message],
-        error: error.message || 'Unknown error'
+        optimizations: [...optimizations, 'Error: ' + errorMessage],
+        error: errorMessage
       };
     }
   }
@@ -270,7 +275,7 @@ export class EnhancedOptimizedCacheManager {
 
       // Strategy 2: Memory-Only Static Data (no KV write for static)
       if (!success && this.config.enableMemoryStaticData && this.isStaticDataKey(key)) {
-        this.memoryStaticDAL.set(key, data);
+        await this.memoryStaticDAL.write(key, data);
         optimizations.push('Memory-Only Static Data Write');
         success = true;
         originalKVCount = 0; // No KV operations
@@ -305,7 +310,7 @@ export class EnhancedOptimizedCacheManager {
 
       return success;
 
-    } catch (error) {
+    } catch (error: unknown) {
       return false;
     }
   }
@@ -362,14 +367,15 @@ export class EnhancedOptimizedCacheManager {
         optimizations
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
         data: null,
         kvOperations: sectors.length * 3,
         cacheHits: 0,
-        optimizations: ['Vectorized Sector Processing', 'Error: ' + error.message],
-        error: error.message
+        optimizations: ['Vectorized Sector Processing', 'Error: ' + errorMessage],
+        error: errorMessage
       };
     }
   }
@@ -403,14 +409,15 @@ export class EnhancedOptimizedCacheManager {
         optimizations: ['Predictive Pre-fetching Triggered']
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
         data: [],
         kvOperations: 0,
         cacheHits: 0,
         optimizations: ['Predictive Pre-fetching Error'],
-        error: error.message
+        error: errorMessage
       };
     }
   }
@@ -440,7 +447,7 @@ export class EnhancedOptimizedCacheManager {
     }
     if (newConfig.enablePredictivePrefetching !== undefined) {
       // Update predictive pre-fetching config
-      this.predictivePrefetch.setEnabled(newConfig.enablePredictivePrefetching);
+      (this.predictivePrefetch as any).setEnabled(newConfig.enablePredictivePrefetching);
     }
   }
 
@@ -526,8 +533,7 @@ export class EnhancedOptimizedCacheManager {
       timestamp: Date.now(),
       operation,
       kvOpsSaved,
-      optimizations,
-      duration
+      optimizations
     });
 
     // Keep only recent logs

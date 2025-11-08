@@ -60,7 +60,7 @@ export class OptimizedCacheConfig {
       kvOperationReductionTarget: 85, // Target 85% KV operation reduction
       enableMonitoring: true,
 
-      debugMode: process.env.NODE_ENV === 'development',
+      debugMode: (((globalThis as any).process?.env?.NODE_ENV) === 'development'),
       enableOptimizationLogging: true
     };
   }
@@ -103,7 +103,7 @@ export class OptimizedCacheConfig {
     }
 
     // Production optimizations
-    if (process.env.NODE_ENV === 'production') {
+    if (((globalThis as any).process?.env?.NODE_ENV) === 'production') {
       return {
         ...baseSettings,
         maxMemoryBudgetMB: 30, // Conservative memory for production
@@ -163,7 +163,7 @@ export class OptimizedCacheConfig {
       totalFeatures: features.length,
       enabledFeatures: features,
       estimatedKVReduction: `${totalReduction}%`,
-      estimatedMemoryUsage
+      estimatedMemoryUsage: memoryUsage
     };
   }
 
@@ -267,7 +267,7 @@ export class OptimizedCacheConfig {
       settings: this.settings,
       validation: this.validateConfiguration(),
       features: this.getOptimizationFeatures(),
-      environment: process.env.NODE_ENV || 'development'
+      environment: (((globalThis as any).process?.env?.NODE_ENV) || 'development')
     };
 
     return JSON.stringify(exportData, null, 2);
@@ -285,7 +285,7 @@ export class OptimizedCacheConfig {
     // Conservative estimates based on typical usage
     const currentDailyKV = 5000; // 5,000 KV ops/day
     const baseOptimization = 0.70; // 70% reduction from original plan
-    const additionalOptimization = this.getOptimizationFeatures().estimatedKVReduction.replace('%', '') / 100;
+    const additionalOptimization = parseFloat(this.getOptimizationFeatures().estimatedKVReduction.replace('%', '')) / 100;
     const totalOptimization = baseOptimization + additionalOptimization;
 
     const optimizedDailyKV = Math.round(currentDailyKV * (1 - totalOptimization));

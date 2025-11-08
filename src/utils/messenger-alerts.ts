@@ -3,15 +3,7 @@
  * Send trading alerts via Facebook Messenger and LINE messaging platforms
  */
 
-/**
- * Interface for Cloudflare environment variables
- */
-export interface CloudflareEnvironment {
-  FACEBOOK_PAGE_TOKEN?: string;
-  FACEBOOK_RECIPIENT_ID?: string;
-  LINE_CHANNEL_TOKEN?: string;
-  LINE_USER_ID?: string;
-}
+import type { CloudflareEnvironment } from '../types';
 
 /**
  * Alert level enumeration
@@ -334,7 +326,7 @@ export async function sendFacebookMessengerAlert(
       console.error('❌ Facebook Messenger alert failed:', error);
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Facebook Messenger error:', error);
   }
 }
@@ -399,7 +391,7 @@ export async function sendFacebookSignalCard(
       body: JSON.stringify(cardTemplate)
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Facebook card send error:', error);
   }
 }
@@ -454,7 +446,7 @@ export async function sendLINEAlert(
       console.error('❌ LINE alert failed:', error);
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ LINE error:', error);
   }
 }
@@ -721,7 +713,7 @@ export async function sendLINESticker(userId: string, token: string): Promise<vo
         ]
       } as LineMessagePushRequest)
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ LINE sticker error:', error);
   }
 }
@@ -774,7 +766,7 @@ export async function sendCriticalMessengerAlert(
           messaging_type: 'UPDATE'
         } as FacebookMessageRequest)
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Critical Facebook alert failed:', error);
     }
   }
@@ -803,35 +795,10 @@ export async function sendCriticalMessengerAlert(
           ]
         } as LineMessagePushRequest)
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Critical LINE alert failed:', error);
     }
   }
 }
 
-// Export all types for external use
-export type {
-  CloudflareEnvironment,
-  AlertLevel,
-  TradingSignal,
-  PerformanceMetrics,
-  AnalysisResults,
-  TradingAlert,
-  FacebookGraphResponse,
-  FacebookGraphError,
-  LineMessageResponse,
-  LineMessageError,
-  FacebookRecipient,
-  FacebookMessage,
-  FacebookGenericElement,
-  FacebookButton,
-  FacebookMessageRequest,
-  LineMessageAction,
-  LineFlexContent,
-  LineBubbleContainer,
-  LineCarouselContainer,
-  LineFlexMessage,
-  LineStickerMessage,
-  LineMessagePushRequest,
-  CompanyDomainMap
-};
+// Note: Types are already exported via 'export interface' and 'export type' declarations above

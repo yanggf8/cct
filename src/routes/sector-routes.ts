@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance, isDOCacheEnabled } from '../modules/dual-cache-do.js';
+import { DOSectorCacheAdapter } from '../modules/do-cache-adapter.js';
 import { SectorDataFetcher } from '../modules/sector-data-fetcher.js';
 import { SectorIndicators } from '../modules/sector-indicators.js';
 import { ApiResponseFactory } from '../modules/api-v1-responses.js';
@@ -87,8 +87,7 @@ export interface SectorSnapshotResponse {
  * Initialize sector services
  */
 function initializeSectorServices(env: any) {
-  // Use DO cache if enabled, otherwise no cache
-  const cacheManager = isDOCacheEnabled(env) ? createCacheInstance(env, true) : null;
+  const cacheManager = env?.CACHE_DO ? new DOSectorCacheAdapter(env) : null;
   const dataFetcher = new SectorDataFetcher(cacheManager);
   const indicators = new SectorIndicators(env);
   const circuitBreaker = CircuitBreakerFactory.getInstance('sector-api');
@@ -133,15 +132,12 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
         const responseTime = Date.now() - startTime;
 
         const body = ApiResponseFactory.success(
-          {
-            ...cachedSnapshot,
-            metadata: {
-              ...cachedSnapshot.metadata,
-              cacheHit: true,
-              responseTime
-            }
-          },
-          'Sector snapshot retrieved from cache'
+          cachedSnapshot,
+          { 
+            cacheHit: true,
+            responseTime,
+            message: 'Sector snapshot retrieved from cache'
+          }
         );
         return new Response(JSON.stringify(body), { status: 200 });
       }
@@ -160,12 +156,16 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
 
       const body = ApiResponseFactory.success(
         freshData,
-        'Sector snapshot generated successfully'
+        { 
+          cacheHit: false,
+          responseTime,
+          message: 'Sector snapshot generated successfully'
+        }
       );
       return new Response(JSON.stringify(body), { status: 200 });
 
     } catch (complexError) {
-      logger.warn('Complex sector fetch failed, using fallback:', complexError);
+      logger.warn('Complex sector fetch failed, using fallback', { error: complexError });
 
       // Fallback to simple sector data
       const fallbackData = await generateSimpleSectorSnapshot();
@@ -173,20 +173,20 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
 
       const body = ApiResponseFactory.success(
         fallbackData,
-        'Sector snapshot generated with fallback data'
+        { message: 'Sector snapshot generated with fallback data' }
       );
       return new Response(JSON.stringify(body), { status: 200 });
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     const responseTime = Date.now() - startTime;
-    logger.error('Error in getSectorSnapshot:', error);
+    logger.error('Error in getSectorSnapshot:', { error: error instanceof Error ? error.message : String(error) } as any);
 
     const body = ApiResponseFactory.error(
       'Failed to generate sector snapshot',
       'SECTOR_SNAPSHOT_ERROR',
       {
-        error: error.message,
+        error: (error as any).message,
         responseTime,
         cacheHit
       }
@@ -199,7 +199,7 @@ export async function getSectorSnapshot(request: any, env: any): Promise<Respons
  * Fetch fresh sector data from APIs and calculate indicators
  */
 async function fetchFreshSectorData(services: {
-  cacheManager: SectorCacheManager;
+  cacheManager: DOSectorCacheAdapter | null;
   dataFetcher: SectorDataFetcher;
   indicators: SectorIndicators;
 }): Promise<SectorSnapshotResponse> {
@@ -209,9 +209,9 @@ async function fetchFreshSectorData(services: {
   let sectorResults;
   try {
     sectorResults = await services.dataFetcher.fetchSectorData(SECTOR_SYMBOLS);
-    logger.info('Sector data fetched successfully, type:', typeof sectorResults);
-  } catch (error) {
-    logger.error('Error fetching sector data:', error);
+    logger.info('Sector data fetched successfully', { type: typeof sectorResults });
+  } catch (error: unknown) {
+    logger.error('Error fetching sector data:', { error: error instanceof Error ? error.message : String(error) } as any);
     // Create empty Map as fallback
     sectorResults = new Map();
     SECTOR_SYMBOLS.forEach(symbol => sectorResults.set(symbol, null));
@@ -228,20 +228,20 @@ async function fetchFreshSectorData(services: {
   try {
     if (sectorResults instanceof Map) {
       results = Array.from(sectorResults.entries());
-      logger.info('Processing Map results, count:', results.length);
+      logger.info('Processing Map results', { count: results.length });
     } else if (sectorResults && typeof sectorResults === 'object') {
       results = Object.entries(sectorResults);
-      logger.info('Processing Object results, count:', results.length);
+      logger.info('Processing Object results', { count: results.length });
     } else {
-      logger.warn('Invalid sectorResults type:', typeof sectorResults, 'creating fallback');
-      // Create fallback structure
+      logger.warn('Invalid sectorResults type, creating fallback', { type: typeof sectorResults });
+      // Log API failure - don't generate fake data
       SECTOR_SYMBOLS.forEach(symbol => {
         results.push([symbol, null]);
       });
       neutralCount = SECTOR_SYMBOLS.length;
     }
-  } catch (error) {
-    logger.error('Error processing sector results:', error);
+  } catch (error: unknown) {
+    logger.error('Error processing sector results:', { error: error instanceof Error ? error.message : String(error) } as any);
     // Create fallback structure
     SECTOR_SYMBOLS.forEach(symbol => {
       results.push([symbol, null]);
@@ -264,7 +264,8 @@ async function fetchFreshSectorData(services: {
         indicators: data.indicators // Will be populated below
       });
     } else {
-      // Add minimal sector data even when API fails
+      // Log API failure and use last known good data or error response
+      logger.error('Sector API unavailable, no fallback data', { symbol });
       sectorData.push({
         symbol,
         name: getSectorName(symbol),
@@ -272,6 +273,7 @@ async function fetchFreshSectorData(services: {
         change: 0,
         changePercent: 0,
         volume: 0,
+        error: 'Data unavailable',
         indicators: undefined
       });
       neutralCount++;
@@ -338,8 +340,8 @@ async function fetchFreshSectorData(services: {
           await services.indicators.storeIndicators(indicators);
         }
       }
-    } catch (error) {
-      logger.error(`Error calculating indicators for ${sector.symbol}:`, error);
+    } catch (error: unknown) {
+      logger.error(`Error calculating indicators for ${sector.symbol}:`, { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -349,17 +351,19 @@ async function fetchFreshSectorData(services: {
   let worstPerformer = null;
 
   if (sectorData.length > 0) {
-    averageChange = sectorData.reduce((sum, s) => sum + s.changePercent, 0) / sectorData.length;
-    topPerformer = sectorData.reduce((best, current) =>
+    averageChange = sectorData.reduce((sum: any, s: any) => sum + s.changePercent, 0) / sectorData.length;
+    topPerformer = sectorData.reduce((best: any, current: any) =>
       current.changePercent > best.changePercent ? current : best
     );
-    worstPerformer = sectorData.reduce((worst, current) =>
+    worstPerformer = sectorData.reduce((worst: any, current: any) =>
       current.changePercent < worst.changePercent ? current : worst
     );
   }
 
   // Get cache statistics (if cache is enabled)
-  const cacheStats = services.cacheManager ? services.cacheManager.getCacheStats() : { enabled: false };
+  const cacheStats = services.cacheManager
+    ? await (services.cacheManager as any).getCacheStats()
+    : { enabled: false, l1HitRate: 0, l2HitRate: 0, overallHitRate: 0, l1Size: 0, memoryUsage: 0 };
 
   const snapshot: SectorSnapshotResponse = {
     timestamp: Date.now(),
@@ -401,8 +405,8 @@ async function getHistoricalData(symbol: string, days: number): Promise<any[]> {
     // This would use your existing fetchFromAPI method from sector-data-fetcher.ts
     // For now, return mock data structure
     return [];
-  } catch (error) {
-    logger.error(`Error fetching historical data for ${symbol}:`, error);
+  } catch (error: unknown) {
+    logger.error(`Error fetching historical data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
     return [];
   }
 }
@@ -414,7 +418,9 @@ async function getHistoricalData(symbol: string, days: number): Promise<any[]> {
 export async function getSectorHealth(request: any, env: any): Promise<Response> {
   try {
     const services = initializeSectorServices(env);
-    const cacheStats = services.cacheManager ? services.cacheManager.getCacheStats() : { enabled: false };
+    const cacheStats = services.cacheManager
+      ? await (services.cacheManager as any).getCacheStats()
+      : { enabled: false, l1HitRate: 0, l2HitRate: 0, overallHitRate: 0, l1Size: 0, memoryUsage: 0 };
     const circuitBreakerStatus = services.circuitBreaker.getMetrics();
 
     const health = {
@@ -444,12 +450,12 @@ export async function getSectorHealth(request: any, env: any): Promise<Response>
 
     const body = ApiResponseFactory.success(
       health,
-      isHealthy ? 'All sector services operational' : 'Some services degraded'
+      { message: isHealthy ? 'All sector services operational' : 'Some services degraded' }
     );
     return new Response(JSON.stringify(body), { status: 200 });
 
-  } catch (error) {
-    logger.error('Error in getSectorHealth:', error);
+  } catch (error: unknown) {
+    logger.error('Error in getSectorHealth:', { error: error instanceof Error ? error.message : String(error) });
     const body = ApiResponseFactory.error(
       'Sector health check failed',
       'SECTOR_HEALTH_ERROR'
@@ -472,12 +478,12 @@ export async function getSectorSymbols(request: any, env: any): Promise<Response
 
     const body = ApiResponseFactory.success(
       { symbols, total: symbols.length },
-      'Sector symbols retrieved successfully'
+      { message: 'Sector symbols retrieved successfully' }
     );
     return new Response(JSON.stringify(body), { status: 200 });
 
-  } catch (error) {
-    logger.error('Error in getSectorSymbols:', error);
+  } catch (error: unknown) {
+    logger.error('Error in getSectorSymbols:', { error: error instanceof Error ? error.message : String(error) } as any);
     const body = ApiResponseFactory.error(
       'Failed to retrieve sector symbols',
       'SECTOR_SYMBOLS_ERROR'
@@ -504,11 +510,11 @@ async function generateSimpleSectorSnapshot(): Promise<SectorSnapshotResponse> {
   }));
 
   // Calculate summary statistics
-  const averageChange = sectors.reduce((sum, s) => sum + s.changePercent, 0) / sectors.length;
-  const topPerformer = sectors.reduce((best, current) =>
+  const averageChange = sectors.reduce((sum: any, s: any) => sum + s.changePercent, 0) / sectors.length;
+  const topPerformer = sectors.reduce((best: any, current: any) =>
     current.changePercent > best.changePercent ? current : best
   );
-  const worstPerformer = sectors.reduce((worst, current) =>
+  const worstPerformer = sectors.reduce((worst: any, current: any) =>
     current.changePercent < worst.changePercent ? current : worst
   );
 
@@ -596,7 +602,7 @@ export async function getSectorIndicatorsSymbol(request: any, env: any, symbolPa
     return new Response(JSON.stringify(body), { status: 404 });
   } catch (error:any) {
     loggerLocal.error('Error in getSectorIndicatorsSymbol:', error);
-    const body = ApiResponseFactory.error('Sector indicators retrieval failed','SECTOR_INDICATORS_ERROR', { error: error.message });
+    const body = ApiResponseFactory.error('Sector indicators retrieval failed','SECTOR_INDICATORS_ERROR', { error: (error instanceof Error ? error.message : String(error)) });
     return new Response(JSON.stringify(body), { status: 500 });
   }
 }

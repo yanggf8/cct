@@ -93,8 +93,8 @@ export async function handleMarketIntelligenceRoutes(
         headers,
       }
     );
-  } catch (error) {
-    logger.error('MarketIntelligenceRoutes Error', error, { requestId, path, method });
+  } catch (error: unknown) {
+    logger.error('MarketIntelligenceRoutes Error', { error: (error as any).message,  requestId, path, method });
 
     return new Response(
       JSON.stringify(
@@ -215,7 +215,7 @@ async function handleUnifiedDashboard(
   } catch (error: any) {
     logger.error('Failed to generate unified dashboard', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -312,7 +312,7 @@ async function handleMarketSynopsis(
   } catch (error: any) {
     logger.error('Failed to generate market synopsis', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -392,7 +392,7 @@ async function handleTopPicks(
   } catch (error: any) {
     logger.error('Failed to generate top picks', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -482,7 +482,7 @@ async function handleRiskReport(
   } catch (error: any) {
     logger.error('Failed to generate risk report', {
       requestId,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     });
 
     return new Response(
@@ -576,7 +576,7 @@ async function handleComprehensiveAnalysis(
   } catch (error: any) {
     logger.error('Failed to execute comprehensive analysis', {
       requestId,
-      error: error.message,
+      error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
 
@@ -659,7 +659,7 @@ function generateMarketNarrative(driversSnapshot: MarketDriversSnapshot, sectorR
 
 function getTopPerformers(sectorRotation: SectorRotationResult): Array<{symbol: string, name: string, performance: number}> {
   return sectorRotation.etfAnalyses
-    .sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)
+    .sort((a: any, b: any) => b.performanceMetrics.daily - a.performanceMetrics.daily)
     .slice(0, 3)
     .map(etf => ({
       symbol: etf.symbol,
@@ -670,7 +670,7 @@ function getTopPerformers(sectorRotation: SectorRotationResult): Array<{symbol: 
 
 function getUnderperformers(sectorRotation: SectorRotationResult): Array<{symbol: string, name: string, performance: number}> {
   return sectorRotation.etfAnalyses
-    .sort((a, b) => a.performanceMetrics.daily - b.performanceMetrics.daily)
+    .sort((a: any, b: any) => a.performanceMetrics.daily - b.performanceMetrics.daily)
     .slice(0, 3)
     .map(etf => ({
       symbol: etf.symbol,
@@ -741,7 +741,7 @@ function generateTopPicks(sectorRotation: SectorRotationResult | null, driversSn
 
       return isFavored && goodPerformance && positiveSentiment;
     })
-    .sort((a, b) => b.performanceMetrics.daily - a.performanceMetrics.daily)
+    .sort((a: any, b: any) => b.performanceMetrics.daily - a.performanceMetrics.daily)
     .slice(0, 5)
     .map(etf => ({
       symbol: etf.symbol,
@@ -865,7 +865,7 @@ function identifyRiskAdjustedOpportunities(sectorRotation: SectorRotationResult,
       const riskAdjustedReturn = etf.performanceMetrics.daily / (etf.performanceMetrics.volatility / 100);
       return riskAdjustedReturn > 0.1 && etf.sentiment.overall !== 'bearish';
     })
-    .sort((a, b) => {
+    .sort((a: any, b: any) => {
       const riskReturnA = a.performanceMetrics.daily / (a.performanceMetrics.volatility / 100);
       const riskReturnB = b.performanceMetrics.daily / (b.performanceMetrics.volatility / 100);
       return riskReturnB - riskReturnA;

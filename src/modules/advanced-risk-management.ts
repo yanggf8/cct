@@ -55,6 +55,95 @@ interface AlertThresholds {
   liquidity: { high: number; critical: number };
 }
 
+interface MarketRiskMetrics {
+  var95?: number;
+  var99?: number;
+  cvar95?: number;
+  cvar99?: number;
+  portfolioBeta?: number;
+  systematicRisk?: number;
+  rollingVolatility?: number;
+  volatilityRegime?: string;
+  averageCorrelation?: number;
+  correlationRisk?: string;
+}
+
+interface CreditRiskMetrics {
+  creditSpreadRisk?: number;
+  defaultProbability?: number;
+  creditVaR?: number;
+  counterpartyRisk?: number;
+}
+
+interface CreditRiskExposures {
+  ratingDistribution?: Record<string, number>;
+  sectorExposure?: Record<string, number>;
+}
+
+interface ConcentrationRiskMetrics {
+  maxSingleAssetWeight?: number;
+  top5Concentration?: number;
+  top10Concentration?: number;
+  maxSectorWeight?: number;
+  herfindahlIndex?: number;
+  maxGeographicWeight?: number;
+}
+
+interface ConcentrationRiskConcentrations {
+  sectorWeights?: Record<string, number>;
+  geographicWeights?: Record<string, number>;
+  currencyWeights?: Record<string, number>;
+}
+
+interface LiquidityRiskMetrics {
+  averageDailyVolume?: number;
+  liquidityRatio?: number;
+  bidAskSpread?: number;
+  marketImpact?: number;
+  liquidationTime?: number;
+}
+
+interface LiquidityRiskFactors {
+  fundingLiquidity?: number;
+  contingentLiquidity?: number;
+}
+
+interface ModelRiskMetrics {
+  modelAccuracy?: number;
+  backtestResults?: any;
+  modelStability?: number;
+}
+
+interface ModelRiskModels {
+  activeModels?: string[];
+  modelDependencies?: any;
+}
+
+interface RiskCategory {
+  category: string;
+  metrics: MarketRiskMetrics | CreditRiskMetrics | ConcentrationRiskMetrics | LiquidityRiskMetrics | ModelRiskMetrics;
+  score: number;
+  level: typeof RISK_LEVELS[keyof typeof RISK_LEVELS];
+  factors?: any;
+  exposures?: CreditRiskExposures;
+  concentrations?: ConcentrationRiskConcentrations;
+  models?: ModelRiskModels;
+  error?: string;
+}
+
+interface CategoryBreakdown {
+  marketRisk?: RiskCategory;
+  creditRisk?: RiskCategory;
+  concentrationRisk?: RiskCategory;
+  liquidityRisk?: RiskCategory;
+  modelRisk?: RiskCategory;
+}
+
+interface RiskLimitCheck {
+  breached: any[];
+  withinLimits: any[];
+}
+
 interface RiskAssessment {
   id: string;
   portfolioId: string;
@@ -62,11 +151,11 @@ interface RiskAssessment {
   riskScores: Record<string, number>;
   overallRiskScore: number;
   riskLevel: typeof RISK_LEVELS[keyof typeof RISK_LEVELS];
-  categoryBreakdown: Record<string, any>;
+  categoryBreakdown: CategoryBreakdown;
   recommendations: any[];
   stressTestResults: Record<string, any>;
   complianceStatus: Record<string, any>;
-  riskLimits: any;
+  riskLimits: RiskLimitCheck;
   alerts: any[];
 }
 
@@ -164,45 +253,28 @@ export class AdvancedRiskManagementEngine {
    */
   async performRiskAssessment(portfolioData: PortfolioData, marketData: MarketData = {}): Promise<RiskAssessment> {
     try {
-      const assessment = {
+      const categoryBreakdown: CategoryBreakdown = {
+        marketRisk: await this.assessMarketRisk(portfolioData, marketData),
+        creditRisk: await this.assessCreditRisk(portfolioData),
+        concentrationRisk: await this.assessConcentrationRisk(portfolioData),
+        liquidityRisk: await this.assessLiquidityRisk(portfolioData, marketData),
+        modelRisk: await this.assessModelRisk(portfolioData)
+      };
+
+      const assessment: RiskAssessment = {
         id: this.generateAssessmentId(),
         portfolioId: portfolioData.portfolioId,
         assessmentDate: new Date().toISOString(),
         riskScores: {},
         overallRiskScore: 0,
         riskLevel: RISK_LEVELS.LOW,
-        categoryBreakdown: {},
+        categoryBreakdown,
         recommendations: [],
         stressTestResults: {},
         complianceStatus: {},
-        riskLimits: {},
+        riskLimits: { breached: [], withinLimits: [] },
         alerts: []
       };
-
-      // Market Risk Assessment
-      assessment.categoryBreakdown.marketRisk = await this.assessMarketRisk(
-        portfolioData, marketData
-      );
-
-      // Credit Risk Assessment
-      assessment.categoryBreakdown.creditRisk = await this.assessCreditRisk(
-        portfolioData
-      );
-
-      // Concentration Risk Assessment
-      assessment.categoryBreakdown.concentrationRisk = await this.assessConcentrationRisk(
-        portfolioData
-      );
-
-      // Liquidity Risk Assessment
-      assessment.categoryBreakdown.liquidityRisk = await this.assessLiquidityRisk(
-        portfolioData, marketData
-      );
-
-      // Model Risk Assessment
-      assessment.categoryBreakdown.modelRisk = await this.assessModelRisk(
-        portfolioData
-      );
 
       // Calculate overall risk score
       assessment.overallRiskScore = this.calculateOverallRiskScore(
@@ -227,57 +299,59 @@ export class AdvancedRiskManagementEngine {
       await this.persistRiskAssessment(assessment);
 
       return assessment;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk assessment failed:', error);
-      throw new Error(`Risk assessment failed: ${error.message}`);
+      throw new Error(`Risk assessment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
    * Assess market risk
    */
-  async assessMarketRisk(portfolioData, marketData) {
-    const marketRisk = {
+  async assessMarketRisk(portfolioData: PortfolioData, marketData: MarketData): Promise<RiskCategory> {
+    const marketRisk: RiskCategory = {
       category: RISK_CATEGORIES.MARKET_RISK,
-      metrics: {},
+      metrics: {} as MarketRiskMetrics,
       score: 0,
       level: RISK_LEVELS.LOW,
       factors: {}
     };
 
     try {
+      const metrics = marketRisk.metrics as MarketRiskMetrics;
+
       // Value at Risk (VaR) calculation
-      marketRisk.metrics.var95 = this.calculateVaR(portfolioData, 0.95);
-      marketRisk.metrics.var99 = this.calculateVaR(portfolioData, 0.99);
+      metrics.var95 = this.calculateVaR(portfolioData, 0.95);
+      metrics.var99 = this.calculateVaR(portfolioData, 0.99);
 
       // Conditional VaR (CVaR)
-      marketRisk.metrics.cvar95 = this.calculateCVaR(portfolioData, 0.95);
-      marketRisk.metrics.cvar99 = this.calculateCVaR(portfolioData, 0.99);
+      metrics.cvar95 = this.calculateCVaR(portfolioData, 0.95);
+      metrics.cvar99 = this.calculateCVaR(portfolioData, 0.99);
 
       // Beta and systematic risk
-      marketRisk.metrics.portfolioBeta = this.calculatePortfolioBeta(portfolioData);
-      marketRisk.metrics.systematicRisk = this.calculateSystematicRisk(portfolioData);
+      metrics.portfolioBeta = this.calculatePortfolioBeta(portfolioData);
+      metrics.systematicRisk = this.calculateSystematicRisk(portfolioData);
 
       // Volatility metrics
-      marketRisk.metrics.rollingVolatility = this.calculateRollingVolatility(portfolioData);
-      marketRisk.metrics.volatilityRegime = this.assessVolatilityRegime(marketData);
+      metrics.rollingVolatility = this.calculateRollingVolatility(portfolioData);
+      metrics.volatilityRegime = this.assessVolatilityRegime(marketData);
 
       // Correlation breakdown
-      marketRisk.metrics.averageCorrelation = this.calculateAverageCorrelation(portfolioData);
-      marketRisk.metrics.correlationRisk = this.assessCorrelationRisk(portfolioData);
+      metrics.averageCorrelation = this.calculateAverageCorrelation(portfolioData);
+      metrics.correlationRisk = this.assessCorrelationRisk(portfolioData);
 
       // Factor exposures
       marketRisk.factors = this.calculateFactorExposures(portfolioData, marketData);
 
       // Calculate market risk score
-      marketRisk.score = this.calculateMarketRiskScore(marketRisk.metrics, marketRisk.factors);
+      marketRisk.score = this.calculateMarketRiskScore(metrics, marketRisk.factors);
       marketRisk.level = this.determineRiskLevel(marketRisk.score);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Market risk assessment failed:', error);
       marketRisk.score = 2;
       marketRisk.level = RISK_LEVELS.MEDIUM;
-      marketRisk.error = error.message;
+      marketRisk.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
     return marketRisk;
@@ -286,41 +360,44 @@ export class AdvancedRiskManagementEngine {
   /**
    * Assess credit risk
    */
-  async assessCreditRisk(portfolioData) {
-    const creditRisk = {
+  async assessCreditRisk(portfolioData: PortfolioData): Promise<RiskCategory> {
+    const creditRisk: RiskCategory = {
       category: RISK_CATEGORIES.CREDIT_RISK,
-      metrics: {},
+      metrics: {} as CreditRiskMetrics,
       score: 0,
       level: RISK_LEVELS.LOW,
-      exposures: {}
+      exposures: {} as CreditRiskExposures
     };
 
     try {
+      const metrics = creditRisk.metrics as CreditRiskMetrics;
+      const exposures = creditRisk.exposures as CreditRiskExposures;
+
       // Credit spread risk
-      creditRisk.metrics.creditSpreadRisk = this.calculateCreditSpreadRisk(portfolioData);
+      metrics.creditSpreadRisk = this.calculateCreditSpreadRisk(portfolioData);
 
       // Default probability
-      creditRisk.metrics.defaultProbability = this.calculateDefaultProbability(portfolioData);
+      metrics.defaultProbability = this.calculateDefaultProbability(portfolioData);
 
       // Credit VaR
-      creditRisk.metrics.creditVaR = this.calculateCreditVaR(portfolioData);
+      metrics.creditVaR = this.calculateCreditVaR(portfolioData);
 
       // Counterparty risk
-      creditRisk.metrics.counterpartyRisk = this.assessCounterpartyRisk(portfolioData);
+      metrics.counterpartyRisk = this.assessCounterpartyRisk(portfolioData);
 
       // Credit rating distribution
-      creditRisk.exposures.ratingDistribution = this.getCreditRatingDistribution(portfolioData);
-      creditRisk.exposures.sectorExposure = this.getCreditSectorExposure(portfolioData);
+      exposures.ratingDistribution = this.getCreditRatingDistribution(portfolioData);
+      exposures.sectorExposure = this.getCreditSectorExposure(portfolioData);
 
       // Calculate credit risk score
-      creditRisk.score = this.calculateCreditRiskScore(creditRisk.metrics, creditRisk.exposures);
+      creditRisk.score = this.calculateCreditRiskScore(metrics, exposures);
       creditRisk.level = this.determineRiskLevel(creditRisk.score);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Credit risk assessment failed:', error);
       creditRisk.score = 1;
       creditRisk.level = RISK_LEVELS.LOW;
-      creditRisk.error = error.message;
+      creditRisk.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
     return creditRisk;
@@ -329,42 +406,45 @@ export class AdvancedRiskManagementEngine {
   /**
    * Assess concentration risk
    */
-  async assessConcentrationRisk(portfolioData) {
-    const concentrationRisk = {
+  async assessConcentrationRisk(portfolioData: PortfolioData): Promise<RiskCategory> {
+    const concentrationRisk: RiskCategory = {
       category: RISK_CATEGORIES.CONCENTRATION_RISK,
-      metrics: {},
+      metrics: {} as ConcentrationRiskMetrics,
       score: 0,
       level: RISK_LEVELS.LOW,
-      concentrations: {}
+      concentrations: {} as ConcentrationRiskConcentrations
     };
 
     try {
+      const metrics = concentrationRisk.metrics as ConcentrationRiskMetrics;
+      const concentrations = concentrationRisk.concentrations as ConcentrationRiskConcentrations;
+
       // Asset concentration
-      concentrationRisk.metrics.maxSingleAssetWeight = Math.max(...Object.values(portfolioData.weights || {}));
-      concentrationRisk.metrics.top5Concentration = this.calculateTopNConcentration(portfolioData.weights || {}, 5);
-      concentrationRisk.metrics.top10Concentration = this.calculateTopNConcentration(portfolioData.weights || {}, 10);
+      metrics.maxSingleAssetWeight = Math.max(...Object.values(portfolioData.weights || {}));
+      metrics.top5Concentration = this.calculateTopNConcentration(portfolioData.weights || {}, 5);
+      metrics.top10Concentration = this.calculateTopNConcentration(portfolioData.weights || {}, 10);
 
       // Sector concentration
-      concentrationRisk.concentrations.sectorWeights = this.calculateSectorWeights(portfolioData);
-      concentrationRisk.metrics.maxSectorWeight = Math.max(...Object.values(concentrationRisk.concentrations.sectorWeights));
-      concentrationRisk.metrics.herfindahlIndex = this.calculateHerfindahlIndex(portfolioData.weights || {});
+      concentrations.sectorWeights = this.calculateSectorWeights(portfolioData);
+      metrics.maxSectorWeight = Math.max(...Object.values(concentrations.sectorWeights));
+      metrics.herfindahlIndex = this.calculateHerfindahlIndex(portfolioData.weights || {});
 
       // Geographic concentration
-      concentrationRisk.concentrations.geographicWeights = this.calculateGeographicWeights(portfolioData);
-      concentrationRisk.metrics.maxGeographicWeight = Math.max(...Object.values(concentrationRisk.concentrations.geographicWeights));
+      concentrations.geographicWeights = this.calculateGeographicWeights(portfolioData);
+      metrics.maxGeographicWeight = Math.max(...Object.values(concentrations.geographicWeights));
 
       // Currency concentration
-      concentrationRisk.concentrations.currencyWeights = this.calculateCurrencyWeights(portfolioData);
+      concentrations.currencyWeights = this.calculateCurrencyWeights(portfolioData);
 
       // Calculate concentration risk score
-      concentrationRisk.score = this.calculateConcentrationRiskScore(concentrationRisk.metrics, concentrationRisk.concentrations);
+      concentrationRisk.score = this.calculateConcentrationRiskScore(metrics, concentrations);
       concentrationRisk.level = this.determineRiskLevel(concentrationRisk.score);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Concentration risk assessment failed:', error);
       concentrationRisk.score = 1;
       concentrationRisk.level = RISK_LEVELS.LOW;
-      concentrationRisk.error = error.message;
+      concentrationRisk.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
     return concentrationRisk;
@@ -373,38 +453,41 @@ export class AdvancedRiskManagementEngine {
   /**
    * Assess liquidity risk
    */
-  async assessLiquidityRisk(portfolioData, marketData) {
-    const liquidityRisk = {
+  async assessLiquidityRisk(portfolioData: PortfolioData, marketData: MarketData): Promise<RiskCategory> {
+    const liquidityRisk: RiskCategory = {
       category: RISK_CATEGORIES.LIQUIDITY_RISK,
-      metrics: {},
+      metrics: {} as LiquidityRiskMetrics,
       score: 0,
       level: RISK_LEVELS.LOW,
-      factors: {}
+      factors: {} as LiquidityRiskFactors
     };
 
     try {
+      const metrics = liquidityRisk.metrics as LiquidityRiskMetrics;
+      const factors = liquidityRisk.factors as LiquidityRiskFactors;
+
       // Liquidity metrics
-      liquidityRisk.metrics.averageDailyVolume = this.calculateAverageDailyVolume(portfolioData);
-      liquidityRisk.metrics.liquidityRatio = this.calculateLiquidityRatio(portfolioData);
-      liquidityRisk.metrics.bidAskSpread = this.calculateAverageBidAskSpread(portfolioData);
+      metrics.averageDailyVolume = this.calculateAverageDailyVolume(portfolioData);
+      metrics.liquidityRatio = this.calculateLiquidityRatio(portfolioData);
+      metrics.bidAskSpread = this.calculateAverageBidAskSpread(portfolioData);
 
       // Market impact
-      liquidityRisk.metrics.marketImpact = this.estimateMarketImpact(portfolioData);
-      liquidityRisk.metrics.liquidationTime = this.estimateLiquidationTime(portfolioData);
+      metrics.marketImpact = this.estimateMarketImpact(portfolioData);
+      metrics.liquidationTime = this.estimateLiquidationTime(portfolioData);
 
       // Funding liquidity
-      liquidityRisk.factors.fundingLiquidity = this.assessFundingLiquidity(portfolioData);
-      liquidityRisk.factors.contingentLiquidity = this.assessContingentLiquidity(portfolioData);
+      factors.fundingLiquidity = this.assessFundingLiquidity(portfolioData);
+      factors.contingentLiquidity = this.assessContingentLiquidity(portfolioData);
 
       // Calculate liquidity risk score
-      liquidityRisk.score = this.calculateLiquidityRiskScore(liquidityRisk.metrics, liquidityRisk.factors);
+      liquidityRisk.score = this.calculateLiquidityRiskScore(metrics, factors);
       liquidityRisk.level = this.determineRiskLevel(liquidityRisk.score);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Liquidity risk assessment failed:', error);
       liquidityRisk.score = 1;
       liquidityRisk.level = RISK_LEVELS.LOW;
-      liquidityRisk.error = error.message;
+      liquidityRisk.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
     return liquidityRisk;
@@ -413,34 +496,37 @@ export class AdvancedRiskManagementEngine {
   /**
    * Assess model risk
    */
-  async assessModelRisk(portfolioData) {
-    const modelRisk = {
+  async assessModelRisk(portfolioData: PortfolioData): Promise<RiskCategory> {
+    const modelRisk: RiskCategory = {
       category: RISK_CATEGORIES.MODEL_RISK,
-      metrics: {},
+      metrics: {} as ModelRiskMetrics,
       score: 0,
       level: RISK_LEVELS.LOW,
-      models: {}
+      models: {} as ModelRiskModels
     };
 
     try {
+      const metrics = modelRisk.metrics as ModelRiskMetrics;
+      const models = modelRisk.models as ModelRiskModels;
+
       // Model validation metrics
-      modelRisk.metrics.modelAccuracy = this.assessModelAccuracy(portfolioData);
-      modelRisk.metrics.backtestResults = this.performModelBacktest(portfolioData);
-      modelRisk.metrics.modelStability = this.assessModelStability(portfolioData);
+      metrics.modelAccuracy = this.assessModelAccuracy(portfolioData);
+      metrics.backtestResults = this.performModelBacktest(portfolioData);
+      metrics.modelStability = this.assessModelStability(portfolioData);
 
       // Model inventory
-      modelRisk.models.activeModels = this.getActiveModelInventory(portfolioData);
-      modelRisk.models.modelDependencies = this.assessModelDependencies(portfolioData);
+      models.activeModels = this.getActiveModelInventory(portfolioData);
+      models.modelDependencies = this.assessModelDependencies(portfolioData);
 
       // Calculate model risk score
-      modelRisk.score = this.calculateModelRiskScore(modelRisk.metrics, modelRisk.models);
+      modelRisk.score = this.calculateModelRiskScore(metrics, models);
       modelRisk.level = this.determineRiskLevel(modelRisk.score);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Model risk assessment failed:', error);
       modelRisk.score = 1;
       modelRisk.level = RISK_LEVELS.LOW;
-      modelRisk.error = error.message;
+      modelRisk.error = error instanceof Error ? error.message : 'Unknown error';
     }
 
     return modelRisk;
@@ -449,9 +535,9 @@ export class AdvancedRiskManagementEngine {
   /**
    * Perform advanced stress testing
    */
-  async performAdvancedStressTest(portfolioData, scenarios = []) {
+  async performAdvancedStressTest(portfolioData: PortfolioData, scenarios: any[] = []): Promise<StressTest> {
     try {
-      const stressTest = {
+      const stressTest: StressTest = {
         id: this.generateStressTestId(),
         portfolioId: portfolioData.portfolioId,
         testDate: new Date().toISOString(),
@@ -482,18 +568,18 @@ export class AdvancedRiskManagementEngine {
       await this.persistStressTest(stressTest);
 
       return stressTest;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Advanced stress testing failed:', error);
-      throw new Error(`Stress testing failed: ${error.message}`);
+      throw new Error(`Stress testing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
-   * Check regulatory compliance
+   * Assess regulatory compliance
    */
-  async checkRegulatoryCompliance(portfolioData, regulations = []) {
+  async checkRegulatoryCompliance(portfolioData: PortfolioData, regulations: string[] = []): Promise<ComplianceCheck> {
     try {
-      const complianceCheck = {
+      const complianceCheck: ComplianceCheck = {
         id: this.generateComplianceId(),
         portfolioId: portfolioData.portfolioId,
         checkDate: new Date().toISOString(),
@@ -525,9 +611,9 @@ export class AdvancedRiskManagementEngine {
       await this.persistComplianceCheck(complianceCheck);
 
       return complianceCheck;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Regulatory compliance check failed:', error);
-      throw new Error(`Compliance check failed: ${error.message}`);
+      throw new Error(`Compliance check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -593,7 +679,7 @@ export class AdvancedRiskManagementEngine {
 
   // Risk calculation methods (simplified implementations)
 
-  calculateVaR(portfolioData, confidenceLevel) {
+  calculateVaR(portfolioData: PortfolioData, confidenceLevel: number): number {
     // Simplified VaR calculation - would use historical simulation in production
     const portfolioValue = portfolioData.totalValue || 1000000;
     const volatility = portfolioData.volatility || 0.15;
@@ -601,34 +687,34 @@ export class AdvancedRiskManagementEngine {
     return portfolioValue * volatility * zScore;
   }
 
-  calculateCVaR(portfolioData, confidenceLevel) {
+  calculateCVaR(portfolioData: PortfolioData, confidenceLevel: number): number {
     // Simplified CVaR calculation
     const var_ = this.calculateVaR(portfolioData, confidenceLevel);
     return var_ * 1.2; // CVaR typically ~20% higher than VaR
   }
 
-  calculatePortfolioBeta(portfolioData) {
+  calculatePortfolioBeta(portfolioData: PortfolioData): number {
     // Simplified beta calculation
     const weights = portfolioData.weights || {};
     const betas = portfolioData.betas || {};
 
-    return Object.entries(weights).reduce((beta, [asset, weight]) => {
-      return beta + weight * (betas[asset] || 1.0);
+    return Object.entries(weights).reduce((beta, [asset, weight]: [string, number]) => {
+      return beta + (weight as number) * (betas[asset] || 1.0);
     }, 0);
   }
 
-  calculateSystematicRisk(portfolioData) {
+  calculateSystematicRisk(portfolioData: PortfolioData): number {
     const beta = this.calculatePortfolioBeta(portfolioData);
     const marketVolatility = 0.16; // ~16% annual market volatility
     return Math.abs(beta * marketVolatility);
   }
 
-  calculateRollingVolatility(portfolioData) {
+  calculateRollingVolatility(portfolioData: PortfolioData): number {
     // Simplified rolling volatility
     return portfolioData.volatility || 0.15;
   }
 
-  assessVolatilityRegime(marketData) {
+  assessVolatilityRegime(marketData: MarketData): string {
     const vix = marketData.vix || 20;
     if (vix < 15) return 'LOW_VOLATILITY';
     if (vix < 25) return 'NORMAL_VOLATILITY';
@@ -636,7 +722,7 @@ export class AdvancedRiskManagementEngine {
     return 'EXTREME_VOLATILITY';
   }
 
-  calculateAverageCorrelation(portfolioData) {
+  calculateAverageCorrelation(portfolioData: PortfolioData): number {
     const correlationMatrix = portfolioData.correlationMatrix;
     if (!correlationMatrix || !correlationMatrix.matrix) return 0.3;
 
@@ -655,14 +741,14 @@ export class AdvancedRiskManagementEngine {
     return count > 0 ? sum / count : 0;
   }
 
-  assessCorrelationRisk(portfolioData) {
+  assessCorrelationRisk(portfolioData: PortfolioData): string {
     const avgCorrelation = this.calculateAverageCorrelation(portfolioData);
     if (avgCorrelation > 0.7) return 'HIGH';
     if (avgCorrelation > 0.5) return 'MEDIUM';
     return 'LOW';
   }
 
-  calculateFactorExposures(portfolioData, marketData) {
+  calculateFactorExposures(portfolioData: PortfolioData, marketData: MarketData): any {
     // Simplified factor exposure calculation
     const weights = portfolioData.weights || {};
 
@@ -676,27 +762,27 @@ export class AdvancedRiskManagementEngine {
     };
   }
 
-  calculateSizeFactor(weights) {
+  calculateSizeFactor(weights: Record<string, number>): number {
     // Simplified size factor - would use market cap in production
     return Object.keys(weights).length > 10 ? -0.2 : 0.1;
   }
 
-  calculateValueFactor(weights) {
+  calculateValueFactor(weights: Record<string, number>): number {
     // Simplified value factor calculation
     return 0.1; // Mock value exposure
   }
 
-  calculateMomentumFactor(weights) {
+  calculateMomentumFactor(weights: Record<string, number>): number {
     // Simplified momentum factor calculation
     return 0.05; // Mock momentum exposure
   }
 
-  calculateQualityFactor(weights) {
+  calculateQualityFactor(weights: Record<string, number>): number {
     // Simplified quality factor calculation
     return 0.15; // Mock quality exposure
   }
 
-  calculateVolatilityFactor(weights) {
+  calculateVolatilityFactor(weights: Record<string, number>): number {
     // Simplified volatility factor calculation
     return -0.1; // Mock low volatility exposure
   }
@@ -704,78 +790,78 @@ export class AdvancedRiskManagementEngine {
   // Additional helper methods would be implemented here...
   // For brevity, including key method signatures
 
-  calculateMarketRiskScore(metrics, factors) {
+  calculateMarketRiskScore(metrics: MarketRiskMetrics, factors: any): number {
     let score = 1;
 
     // VaR-based scoring
-    if (metrics.var95 > 50000) score += 0.5;
-    if (metrics.var99 > 100000) score += 0.5;
+    if ((metrics.var95 ?? 0) > 50000) score += 0.5;
+    if ((metrics.var99 ?? 0) > 100000) score += 0.5;
 
     // Volatility scoring
-    if (metrics.rollingVolatility > 0.20) score += 0.5;
+    if ((metrics.rollingVolatility ?? 0) > 0.20) score += 0.5;
     if (metrics.volatilityRegime === 'HIGH_VOLATILITY') score += 0.5;
 
     // Correlation scoring
-    if (metrics.averageCorrelation > 0.6) score += 0.5;
+    if ((metrics.averageCorrelation ?? 0) > 0.6) score += 0.5;
 
     return Math.min(score, 4);
   }
 
-  calculateCreditRiskScore(metrics, exposures) {
+  calculateCreditRiskScore(metrics: CreditRiskMetrics, exposures: CreditRiskExposures): number {
     let score = 1;
 
-    if (metrics.defaultProbability > 0.05) score += 1;
-    if (metrics.creditVaR > 25000) score += 0.5;
+    if ((metrics.defaultProbability ?? 0) > 0.05) score += 1;
+    if ((metrics.creditVaR ?? 0) > 25000) score += 0.5;
 
     return Math.min(score, 4);
   }
 
-  calculateConcentrationRiskScore(metrics, concentrations) {
+  calculateConcentrationRiskScore(metrics: ConcentrationRiskMetrics, concentrations: ConcentrationRiskConcentrations): number {
     let score = 1;
 
-    if (metrics.maxSingleAssetWeight > 0.15) score += 0.5;
-    if (metrics.maxSectorWeight > 0.25) score += 0.5;
-    if (metrics.herfindahlIndex > 0.25) score += 0.5;
+    if ((metrics.maxSingleAssetWeight ?? 0) > 0.15) score += 0.5;
+    if ((metrics.maxSectorWeight ?? 0) > 0.25) score += 0.5;
+    if ((metrics.herfindahlIndex ?? 0) > 0.25) score += 0.5;
 
     return Math.min(score, 4);
   }
 
-  calculateLiquidityRiskScore(metrics, factors) {
+  calculateLiquidityRiskScore(metrics: LiquidityRiskMetrics, factors: LiquidityRiskFactors): number {
     let score = 1;
 
-    if (metrics.liquidityRatio < 0.10) score += 0.5;
-    if (metrics.marketImpact > 0.02) score += 0.5;
+    if ((metrics.liquidityRatio ?? 1) < 0.10) score += 0.5;
+    if ((metrics.marketImpact ?? 0) > 0.02) score += 0.5;
 
     return Math.min(score, 4);
   }
 
-  calculateModelRiskScore(metrics, models) {
+  calculateModelRiskScore(metrics: ModelRiskMetrics, models: ModelRiskModels): number {
     let score = 1;
 
-    if (metrics.modelAccuracy < 0.80) score += 0.5;
-    if (metrics.modelStability < 0.85) score += 0.5;
+    if ((metrics.modelAccuracy ?? 1) < 0.80) score += 0.5;
+    if ((metrics.modelStability ?? 1) < 0.85) score += 0.5;
 
     return Math.min(score, 4);
   }
 
-  calculateOverallRiskScore(categoryBreakdown) {
-    const categories = Object.values(categoryBreakdown);
+  calculateOverallRiskScore(categoryBreakdown: CategoryBreakdown): number {
+    const categories = Object.values(categoryBreakdown).filter((cat): cat is RiskCategory => cat !== undefined);
     const totalScore = categories.reduce((sum, category) => sum + category.score, 0);
-    return totalScore / categories.length;
+    return categories.length > 0 ? totalScore / categories.length : 0;
   }
 
-  determineRiskLevel(score) {
+  determineRiskLevel(score: number): typeof RISK_LEVELS[keyof typeof RISK_LEVELS] {
     if (score >= 3.5) return RISK_LEVELS.CRITICAL;
     if (score >= 2.5) return RISK_LEVELS.HIGH;
     if (score >= 1.5) return RISK_LEVELS.MEDIUM;
     return RISK_LEVELS.LOW;
   }
 
-  generateRiskRecommendations(categoryBreakdown, riskLevel) {
-    const recommendations = [];
+  generateRiskRecommendations(categoryBreakdown: CategoryBreakdown, riskLevel: typeof RISK_LEVELS[keyof typeof RISK_LEVELS]): any[] {
+    const recommendations: any[] = [];
 
     Object.entries(categoryBreakdown).forEach(([category, assessment]) => {
-      if (assessment.score >= 2.5) {
+      if (assessment && assessment.score >= 2.5) {
         recommendations.push({
           category,
           priority: assessment.score >= 3.5 ? 'HIGH' : 'MEDIUM',
@@ -788,8 +874,8 @@ export class AdvancedRiskManagementEngine {
     return recommendations;
   }
 
-  getSuggestedActions(category, assessment) {
-    const actionMap = {
+  getSuggestedActions(category: string, assessment: RiskCategory): string[] {
+    const actionMap: Record<string, string[]> = {
       'marketRisk': ['Consider hedging strategies', 'Reduce portfolio beta', 'Increase diversification'],
       'creditRisk': ['Review credit quality', 'Consider credit default swaps', 'Reduce high-yield exposure'],
       'concentrationRisk': ['Reduce position sizes', 'Increase diversification', 'Add new sectors/regions'],
@@ -800,17 +886,19 @@ export class AdvancedRiskManagementEngine {
     return actionMap[category] || ['Review risk factors', 'Implement mitigation strategies'];
   }
 
-  async checkRiskLimits(assessment) {
-    const limits = {
+  async checkRiskLimits(assessment: RiskAssessment): Promise<RiskLimitCheck> {
+    const limits: RiskLimitCheck = {
       breached: [],
       withinLimits: []
     };
 
     // Check VaR limits
-    if (assessment.categoryBreakdown.marketRisk?.metrics?.var95 > this.riskLimits.maxVaR * 1000000) {
+    const marketRiskMetrics = assessment.categoryBreakdown.marketRisk?.metrics as MarketRiskMetrics | undefined;
+    const var95 = marketRiskMetrics?.var95 ?? 0;
+    if (var95 > this.riskLimits.maxVaR * 1000000) {
       limits.breached.push({
         limitType: 'VaR',
-        current: assessment.categoryBreakdown.marketRisk.metrics.var95,
+        current: var95,
         limitValue: this.riskLimits.maxVaR * 1000000,
         severity: 'HIGH'
       });
@@ -830,11 +918,11 @@ export class AdvancedRiskManagementEngine {
     return limits;
   }
 
-  generateRiskAlerts(assessment) {
-    const alerts = [];
+  generateRiskAlerts(assessment: RiskAssessment): any[] {
+    const alerts: any[] = [];
 
     Object.entries(assessment.categoryBreakdown).forEach(([category, risk]) => {
-      if (risk.level.value >= RISK_LEVELS.HIGH.value) {
+      if (risk && risk.level.value >= RISK_LEVELS.HIGH.value) {
         alerts.push({
           id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           type: 'RISK_THRESHOLD',
@@ -847,7 +935,7 @@ export class AdvancedRiskManagementEngine {
       }
     });
 
-    assessment.riskLimits.breached?.forEach(breach => {
+    assessment.riskLimits.breached?.forEach((breach: any) => {
       alerts.push({
         id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         type: 'LIMIT_BREACH',
@@ -863,16 +951,16 @@ export class AdvancedRiskManagementEngine {
   }
 
   // Simplified implementations for remaining methods
-  calculateTopNConcentration(weights, n) {
-    const sortedWeights = Object.values(weights).sort((a, b) => b - a);
-    return sortedWeights.slice(0, n).reduce((sum, weight) => sum + weight, 0);
+  calculateTopNConcentration(weights: Record<string, number>, n: number): number {
+    const sortedWeights = Object.values(weights).sort((a: any, b: any) => b - a);
+    return sortedWeights.slice(0, n).reduce((sum: any, weight: any) => sum + weight, 0);
   }
 
-  calculateHerfindahlIndex(weights) {
-    return Object.values(weights).reduce((sum, weight) => sum + weight * weight, 0);
+  calculateHerfindahlIndex(weights: Record<string, number>): number {
+    return Object.values(weights).reduce((sum: any, weight: any) => sum + weight * weight, 0);
   }
 
-  calculateSectorWeights(portfolioData) {
+  calculateSectorWeights(portfolioData: PortfolioData): Record<string, number> {
     // Mock sector weights - would use actual sector data
     return {
       'Technology': 0.35,
@@ -883,7 +971,7 @@ export class AdvancedRiskManagementEngine {
     };
   }
 
-  calculateGeographicWeights(portfolioData) {
+  calculateGeographicWeights(portfolioData: PortfolioData): Record<string, number> {
     // Mock geographic weights
     return {
       'US': 0.70,
@@ -893,7 +981,7 @@ export class AdvancedRiskManagementEngine {
     };
   }
 
-  calculateCurrencyWeights(portfolioData) {
+  calculateCurrencyWeights(portfolioData: PortfolioData): Record<string, number> {
     // Mock currency weights
     return {
       'USD': 0.80,
@@ -903,7 +991,7 @@ export class AdvancedRiskManagementEngine {
     };
   }
 
-  getDefaultStressScenarios() {
+  getDefaultStressScenarios(): any[] {
     return [
       {
         name: 'Market Crash',
@@ -948,7 +1036,7 @@ export class AdvancedRiskManagementEngine {
     ];
   }
 
-  async runStressScenario(portfolioData, scenario) {
+  async runStressScenario(portfolioData: PortfolioData, scenario: any): Promise<any> {
     // Simplified stress scenario execution
     const baseValue = portfolioData.totalValue || 1000000;
     const baseVolatility = portfolioData.volatility || 0.15;
@@ -969,30 +1057,30 @@ export class AdvancedRiskManagementEngine {
     };
   }
 
-  calculateAggregateStressResults(scenarios) {
+  calculateAggregateStressResults(scenarios: Record<string, any>): any {
     const scenarioResults = Object.values(scenarios);
 
     return {
       worstCaseLoss: Math.max(...scenarioResults.map(s => s.valueLoss)),
-      averageLoss: scenarioResults.reduce((sum, s) => sum + s.valueLoss, 0) / scenarioResults.length,
+      averageLoss: scenarioResults.reduce((sum: any, s: any) => sum + s.valueLoss, 0) / scenarioResults.length,
       maxVolatility: Math.max(...scenarioResults.map(s => s.stressedVolatility)),
-      weightedLoss: scenarioResults.reduce((sum, s) => sum + s.valueLoss * s.probability, 0),
+      weightedLoss: scenarioResults.reduce((sum: any, s: any) => sum + s.valueLoss * s.probability, 0),
       scenarioCount: scenarioResults.length
     };
   }
 
-  identifyWorstCaseScenario(scenarios) {
+  identifyWorstCaseScenario(scenarios: Record<string, any>): any {
     const scenarioResults = Object.entries(scenarios);
-    return scenarioResults.reduce((worst, [name, result]) => {
+    return scenarioResults.reduce((worst: any, [name, result]) => {
       if (!worst || result.valueLoss > worst.result.valueLoss) {
         return { name, result };
       }
       return worst;
-    }, null);
+    }, null as any);
   }
 
-  generateStressTestRecommendations(stressTest) {
-    const recommendations = [];
+  generateStressTestRecommendations(stressTest: StressTest): any[] {
+    const recommendations: any[] = [];
 
     if (stressTest.aggregateResults.worstCaseLoss > 200000) {
       recommendations.push({
@@ -1013,13 +1101,13 @@ export class AdvancedRiskManagementEngine {
     return recommendations;
   }
 
-  async checkComplianceFramework(portfolioData, framework) {
+  async checkComplianceFramework(portfolioData: PortfolioData, framework: string): Promise<any> {
     const frameworkConfig = this.complianceFrameworks[framework];
     if (!frameworkConfig) {
       return { framework, compliant: false, error: 'Unknown framework' };
     }
 
-    const checkResult = {
+    const checkResult: any = {
       framework,
       frameworkName: frameworkConfig.name,
       compliant: true,
@@ -1046,9 +1134,9 @@ export class AdvancedRiskManagementEngine {
     return checkResult;
   }
 
-  async performComplianceCheck(portfolioData, framework, check) {
+  async performComplianceCheck(portfolioData: PortfolioData, framework: string, check: string): Promise<any> {
     // Simplified compliance checking - would implement actual rule logic
-    const checkMap = {
+    const checkMap: Record<string, () => any> = {
       'insider_trading': () => ({ compliant: true, description: 'No insider trading detected' }),
       'market_manipulation': () => ({ compliant: true, description: 'No market manipulation patterns detected' }),
       'suitability': () => ({ compliant: true, description: 'Portfolio suitable for risk profile' }),
@@ -1062,10 +1150,10 @@ export class AdvancedRiskManagementEngine {
     return checkMap[check]?.() || { compliant: true, description: 'Check passed' };
   }
 
-  generateComplianceRecommendations(complianceCheck) {
-    const recommendations = [];
+  generateComplianceRecommendations(complianceCheck: ComplianceCheck): any[] {
+    const recommendations: any[] = [];
 
-    complianceCheck.violations.forEach(violation => {
+    complianceCheck.violations.forEach((violation: any) => {
       recommendations.push({
         framework: violation.framework,
         priority: violation.severity === 'HIGH' ? 'IMMEDIATE' : 'HIGH',
@@ -1079,37 +1167,37 @@ export class AdvancedRiskManagementEngine {
   }
 
   // Additional simplified methods
-  calculateCreditSpreadRisk(portfolioData) { return 0.02; }
-  calculateDefaultProbability(portfolioData) { return 0.01; }
-  calculateCreditVaR(portfolioData) { return 15000; }
-  assessCounterpartyRisk(portfolioData) { return 0.05; }
-  getCreditRatingDistribution(portfolioData) { return { 'AAA': 0.3, 'AA': 0.4, 'A': 0.3 }; }
-  getCreditSectorExposure(portfolioData) { return { 'Corporate': 0.6, 'Sovereign': 0.4 }; }
-  calculateAverageDailyVolume(portfolioData) { return 5000000; }
-  calculateLiquidityRatio(portfolioData) { return 0.20; }
-  calculateAverageBidAskSpread(portfolioData) { return 0.001; }
-  estimateMarketImpact(portfolioData) { return 0.015; }
-  estimateLiquidationTime(portfolioData) { return 5; }
-  assessFundingLiquidity(portfolioData) { return 0.85; }
-  assessContingentLiquidity(portfolioData) { return 0.90; }
-  assessModelAccuracy(portfolioData) { return 0.88; }
-  performModelBacktest(portfolioData) { return { success: 0.85, accuracy: 0.82 }; }
-  assessModelStability(portfolioData) { return 0.90; }
-  getActiveModelInventory(portfolioData) { return ['VaR', 'Expected Shortfall', 'Monte Carlo']; }
-  assessModelDependencies(portfolioData) { return { independent: true, validated: true }; }
+  calculateCreditSpreadRisk(portfolioData: PortfolioData): number { return 0.02; }
+  calculateDefaultProbability(portfolioData: PortfolioData): number { return 0.01; }
+  calculateCreditVaR(portfolioData: PortfolioData): number { return 15000; }
+  assessCounterpartyRisk(portfolioData: PortfolioData): number { return 0.05; }
+  getCreditRatingDistribution(portfolioData: PortfolioData): Record<string, number> { return { 'AAA': 0.3, 'AA': 0.4, 'A': 0.3 }; }
+  getCreditSectorExposure(portfolioData: PortfolioData): Record<string, number> { return { 'Corporate': 0.6, 'Sovereign': 0.4 }; }
+  calculateAverageDailyVolume(portfolioData: PortfolioData): number { return 5000000; }
+  calculateLiquidityRatio(portfolioData: PortfolioData): number { return 0.20; }
+  calculateAverageBidAskSpread(portfolioData: PortfolioData): number { return 0.001; }
+  estimateMarketImpact(portfolioData: PortfolioData): number { return 0.015; }
+  estimateLiquidationTime(portfolioData: PortfolioData): number { return 5; }
+  assessFundingLiquidity(portfolioData: PortfolioData): number { return 0.85; }
+  assessContingentLiquidity(portfolioData: PortfolioData): number { return 0.90; }
+  assessModelAccuracy(portfolioData: PortfolioData): number { return 0.88; }
+  performModelBacktest(portfolioData: PortfolioData): any { return { success: 0.85, accuracy: 0.82 }; }
+  assessModelStability(portfolioData: PortfolioData): number { return 0.90; }
+  getActiveModelInventory(portfolioData: PortfolioData): string[] { return ['VaR', 'Expected Shortfall', 'Monte Carlo']; }
+  assessModelDependencies(portfolioData: PortfolioData): any { return { independent: true, validated: true }; }
 
   // Persistence methods
-  async persistRiskAssessment(assessment) {
+  async persistRiskAssessment(assessment: RiskAssessment): Promise<void> {
     const key = `${RISK_NAMESPACES.RISK_ASSESSMENTS}:${assessment.id}`;
     await setKVStore(this.env, key, assessment, RISK_TTL.ASSESSMENT_CACHE);
   }
 
-  async persistStressTest(stressTest) {
+  async persistStressTest(stressTest: StressTest): Promise<void> {
     const key = `${RISK_NAMESPACES.STRESS_TESTS}:${stressTest.id}`;
     await setKVStore(this.env, key, stressTest, RISK_TTL.STRESS_TEST_CACHE);
   }
 
-  async persistComplianceCheck(complianceCheck) {
+  async persistComplianceCheck(complianceCheck: ComplianceCheck): Promise<void> {
     const key = `${RISK_NAMESPACES.COMPLIANCE_CHECKS}:${complianceCheck.id}`;
     await setKVStore(this.env, key, complianceCheck, RISK_TTL.COMPLIANCE_CACHE);
   }
@@ -1118,24 +1206,24 @@ export class AdvancedRiskManagementEngine {
 /**
  * Factory function for creating risk management engine instances
  */
-export function createAdvancedRiskManagementEngine(env) {
+export function createAdvancedRiskManagementEngine(env: any) {
   return new AdvancedRiskManagementEngine(env);
 }
 
 /**
  * Utility functions for risk management
  */
-export async function performRiskAssessment(env, portfolioData, marketData) {
+export async function performRiskAssessment(env: CloudflareEnvironment, portfolioData: PortfolioData, marketData: MarketData): Promise<RiskAssessment> {
   const engine = createAdvancedRiskManagementEngine(env);
   return await engine.performRiskAssessment(portfolioData, marketData);
 }
 
-export async function performStressTest(env, portfolioData, scenarios) {
+export async function performStressTest(env: CloudflareEnvironment, portfolioData: PortfolioData, scenarios: any[]): Promise<StressTest> {
   const engine = createAdvancedRiskManagementEngine(env);
   return await engine.performAdvancedStressTest(portfolioData, scenarios);
 }
 
-export async function checkCompliance(env, portfolioData, regulations) {
+export async function checkCompliance(env: CloudflareEnvironment, portfolioData: PortfolioData, regulations: string[]): Promise<ComplianceCheck> {
   const engine = createAdvancedRiskManagementEngine(env);
   return await engine.checkRegulatoryCompliance(portfolioData, regulations);
 }

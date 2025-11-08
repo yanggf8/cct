@@ -149,7 +149,7 @@ export class TomorrowOutlookTracker {
     } catch (error: any) {
       logger.error('Failed to store tomorrow outlook', {
         targetDate: tomorrowString,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return false;
     }
@@ -177,7 +177,7 @@ export class TomorrowOutlookTracker {
     } catch (error: any) {
       logger.error('Failed to retrieve today\'s outlook', {
         targetDate: currentDateString,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
     }
 
@@ -239,7 +239,7 @@ export class TomorrowOutlookTracker {
     } catch (error: any) {
       logger.error('Failed to evaluate today\'s outlook', {
         targetDate: currentDateString,
-        error: error.message
+        error: (error instanceof Error ? error.message : String(error))
       });
       return null;
     }
@@ -288,7 +288,7 @@ export class TomorrowOutlookTracker {
       evaluation.details.performanceFactors = this.getPerformanceFactors(predictedOutlook, actualMarketData);
 
     } catch (error: any) {
-      logger.error('Failed to evaluate outlook accuracy', { error: error.message });
+      logger.error('Failed to evaluate outlook accuracy', { error: (error instanceof Error ? error.message : String(error)) });
       evaluation.score = 0;
     }
 
@@ -417,20 +417,20 @@ export class TomorrowOutlookTracker {
       }
 
       // Sort by date
-      history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      history.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       logger.info('Retrieved outlook accuracy history', {
         daysRequested: days,
         recordsFound: history.length,
         averageAccuracy: history.length > 0
-          ? history.reduce((sum, h) => sum + h.accuracyScore, 0) / history.length
+          ? history.reduce((sum: any, h: any) => sum + h.accuracyScore, 0) / history.length
           : 0
       });
 
       return history;
 
     } catch (error: any) {
-      logger.error('Failed to get outlook accuracy history', { error: error.message });
+      logger.error('Failed to get outlook accuracy history', { error: (error instanceof Error ? error.message : String(error)) });
       return [];
     }
   }
@@ -465,14 +465,14 @@ export class TomorrowOutlookTracker {
       }
 
       const totalOutlooks = history.length;
-      const averageAccuracy = history.reduce((sum, h) => sum + h.accuracyScore, 0) / totalOutlooks;
+      const averageAccuracy = history.reduce((sum: any, h: any) => sum + h.accuracyScore, 0) / totalOutlooks;
       const biasCorrectCount = history.filter(h => h.biasCorrect).length;
       const biasAccuracy = (biasCorrectCount / totalOutlooks) * 100;
 
-      const bestPrediction = history.reduce((best, current) =>
+      const bestPrediction = history.reduce((best: any, current: any) =>
         current.accuracyScore > best.accuracyScore ? current : best
       );
-      const worstPrediction = history.reduce((worst, current) =>
+      const worstPrediction = history.reduce((worst: any, current: any) =>
         current.accuracyScore < worst.accuracyScore ? current : worst
       );
 
@@ -495,7 +495,7 @@ export class TomorrowOutlookTracker {
       };
 
     } catch (error: any) {
-      logger.error('Failed to get outlook accuracy stats', { error: error.message });
+      logger.error('Failed to get outlook accuracy stats', { error: (error instanceof Error ? error.message : String(error)) });
       return {
         totalOutlooks: 0,
         averageAccuracy: 0,
@@ -551,10 +551,10 @@ export class TomorrowOutlookTracker {
       const weeklyAverages = Array.from(weeklyData.entries())
         .map(([week, data]) => ({
           week,
-          accuracy: data.accuracies.reduce((sum, acc) => sum + acc, 0) / data.accuracies.length,
-          biasAccuracy: (data.biasCorrect.reduce((sum, count) => sum + count, 0) / data.accuracies.length) * 100
+          accuracy: data.accuracies.reduce((sum: any, acc: any) => sum + acc, 0) / data.accuracies.length,
+          biasAccuracy: (data.biasCorrect.reduce((sum: any, count: any) => sum + count, 0) / data.accuracies.length) * 100
         }))
-        .sort((a, b) => a.week.localeCompare(b.week));
+        .sort((a: any, b: any) => a.week.localeCompare(b.week));
 
       // Calculate trends
       const accuracyTrend = this.calculateTrend(weeklyAverages.map(w => w.accuracy));
@@ -568,7 +568,7 @@ export class TomorrowOutlookTracker {
       };
 
     } catch (error: any) {
-      logger.error('Failed to get outlook performance trends', { error: error.message });
+      logger.error('Failed to get outlook performance trends', { error: (error instanceof Error ? error.message : String(error)) });
       return {
         accuracyTrend: 'stable',
         biasAccuracyTrend: 'stable',
@@ -589,8 +589,8 @@ export class TomorrowOutlookTracker {
 
     if (older.length === 0) return 'stable';
 
-    const recentAvg = recent.reduce((sum, val) => sum + val, 0) / recent.length;
-    const olderAvg = older.reduce((sum, val) => sum + val, 0) / older.length;
+    const recentAvg = recent.reduce((sum: any, val: any) => sum + val, 0) / recent.length;
+    const olderAvg = older.reduce((sum: any, val: any) => sum + val, 0) / older.length;
 
     const change = recentAvg - olderAvg;
     const threshold = Math.abs(olderAvg) * 0.1; // 10% change threshold
@@ -622,7 +622,7 @@ export class TomorrowOutlookTracker {
       logger.info('Cleanup expired outlooks', { cutoffDate: cutoffDate.toISOString() });
       return 0;
     } catch (error: any) {
-      logger.error('Failed to cleanup expired outlooks', { error: error.message });
+      logger.error('Failed to cleanup expired outlooks', { error: (error instanceof Error ? error.message : String(error)) });
       return 0;
     }
   }
@@ -635,19 +635,4 @@ export {
   tomorrowOutlookTracker
 };
 
-// Export types for external use
-export type {
-  MarketBias,
-  ConfidenceLevel,
-  VolatilityLevel,
-  EvaluationStatus,
-  OutlookData,
-  ActualMarketData,
-  OutlookRecord,
-  EvaluationDetails,
-  OutlookEvaluation,
-  OutlookAccuracyHistory,
-  BestPrediction,
-  WorstPrediction,
-  OutlookAccuracyStats
-};
+// Note: Types are already exported via 'export type' declarations above

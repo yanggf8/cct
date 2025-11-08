@@ -12,6 +12,10 @@ import { ApiResponseFactory } from '../modules/api-v1-responses.js';
  * Portfolio Routes Handler
  */
 export class PortfolioRoutesHandler {
+  private env: any;
+  private correlationEngine: any;
+  private rebalancingEngine: any;
+
   constructor(env) {
     this.env = env;
     this.correlationEngine = createCorrelationAnalysisEngine(env);
@@ -52,10 +56,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(correlationResult);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Correlation analysis failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'CORRELATION_ANALYSIS_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -125,10 +129,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(result);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio optimization failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'PORTFOLIO_OPTIMIZATION_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -174,10 +178,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(frontierResult);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Efficient frontier calculation failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'EFFICIENT_FRONTIER_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -234,7 +238,7 @@ export class PortfolioRoutesHandler {
       }
 
       // Validate weights sum to 1
-      const weightSum = weights.reduce((sum, w) => sum + w, 0);
+      const weightSum = weights.reduce((sum: any, w: any) => sum + w, 0);
       if (Math.abs(weightSum - 1.0) > 0.01) {
         const body = ApiResponseFactory.error(
           'Portfolio weights must sum to 1.0',
@@ -265,16 +269,16 @@ export class PortfolioRoutesHandler {
       // Include stress test if requested
       if (includeStressTest) {
         const stressTest = await this.correlationEngine.performStressTest(weights, covarianceResult.covarianceMatrix, scenarios);
-        result.stressTest = stressTest;
+        (result as any).stressTest = stressTest;
       }
 
       const body = ApiResponseFactory.success(result);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Risk metrics calculation failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'RISK_METRICS_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -322,10 +326,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(stressTest);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Stress testing failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'STRESS_TESTING_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -379,10 +383,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(attribution);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Performance attribution failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'PERFORMANCE_ATTRIBUTION_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -409,10 +413,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(strategy);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing strategy creation failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'REBALANCING_STRATEGY_CREATION_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -458,10 +462,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(analysis);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing analysis failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'REBALANCING_ANALYSIS_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -508,10 +512,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(execution);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing execution failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'REBALANCING_EXECUTION_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -553,10 +557,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(monitoring);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio monitoring failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'PORTFOLIO_MONITORING_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -586,10 +590,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(harvesting);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Tax-loss harvesting failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'TAX_LOSS_HARVESTING_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -624,10 +628,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(allocation);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Dynamic allocation failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'DYNAMIC_ALLOCATION_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -662,10 +666,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(stressTest);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Rebalancing stress testing failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'REBALANCING_STRESS_TESTING_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -699,15 +703,15 @@ export class PortfolioRoutesHandler {
       };
 
       // Correlation analysis
-      analytics.correlation = await this.correlationEngine.calculateCorrelationMatrix(symbols, lookbackPeriod);
+      (analytics as any).correlation = await this.correlationEngine.calculateCorrelationMatrix(symbols, lookbackPeriod);
 
       // Efficient frontier
-      analytics.efficientFrontier = await this.correlationEngine.calculateEfficientFrontier(symbols, 50);
+      (analytics as any).efficientFrontier = await this.correlationEngine.calculateEfficientFrontier(symbols, 50);
 
       if (includeOptimization) {
         // Multiple optimization scenarios
         const objectives = ['MAX_SHARPE', 'MIN_VOLATILITY', 'EQUAL_WEIGHT', 'RISK_PARITY'];
-        analytics.optimizations = {};
+        (analytics as any).optimizations = {};
 
         for (const objective of objectives) {
           const covarianceResult = await this.correlationEngine.calculateCovarianceMatrix(symbols, lookbackPeriod);
@@ -726,7 +730,7 @@ export class PortfolioRoutesHandler {
             expectedReturns
           );
 
-          analytics.optimizations[objective] = {
+          (analytics as any).optimizations[objective] = {
             optimization,
             riskMetrics
           };
@@ -736,10 +740,10 @@ export class PortfolioRoutesHandler {
       const body = ApiResponseFactory.success(analytics);
       return new Response(JSON.stringify(body), { status: 200 });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Portfolio analytics failed:', error);
       const body = ApiResponseFactory.error(
-        error.message,
+        (error instanceof Error ? error.message : String(error)),
         'PORTFOLIO_ANALYTICS_FAILED'
       );
       return new Response(JSON.stringify(body), { status: 500 });
@@ -868,12 +872,12 @@ export async function handlePortfolioRequest(request, env, ctx) {
           headers: { 'Content-Type': 'application/json' }
         });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Portfolio request error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: 'Internal Server Error',
-      message: error.message,
+      message: (error instanceof Error ? error.message : String(error)),
       timestamp: new Date().toISOString()
     }), {
       status: 500,

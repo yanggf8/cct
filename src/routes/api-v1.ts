@@ -5,29 +5,25 @@
  */
 
 import { ApiResponseFactory, HttpStatus, generateRequestId as genReqId } from '../modules/api-v1-responses.js';
-import { handleSentimentRoutes } from './sentiment-routes.ts';
-import { handleReportRoutes } from './report-routes.ts';
-import { handleDataRoutes } from './data-routes.ts';
-import { handleSectorRotationRoutes } from './sector-rotation-routes.ts';
-import { sectorRoutes } from './sector-routes.ts';
+import { handleSentimentRoutes } from './sentiment-routes.js';
+import { handleReportRoutes } from './report-routes.js';
+import { handleDataRoutes } from './data-routes.js';
+import { handleSectorRotationRoutes } from './sector-rotation-routes.js';
+import { sectorRoutes } from './sector-routes.js';
 import { handleMarketDriversRoutes } from './market-drivers-routes.js';
 import { handleMarketIntelligenceRoutes } from './market-intelligence-routes.js';
 import { handlePredictiveAnalyticsRoutes } from './predictive-analytics-routes.js';
-import { handleTechnicalRoutes } from './technical-routes.ts';
+import { handleTechnicalRoutes } from './technical-routes.js';
 import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.js';
 import { handleRealtimeRoutes } from './realtime-routes.js';
 import { handleBacktestingRoutes } from './backtesting-routes.js';
 import { createEnhancedCacheRoutes } from './enhanced-cache-routes.js';
-import { handlePortfolioRequest } from './portfolio-routes.ts';
-import { getSectorIndicatorsSymbol } from './sector-routes.ts';
+import { handlePortfolioRequest } from './portfolio-routes.js';
+import { getSectorIndicatorsSymbol } from './sector-routes.js';
 import { handleRiskManagementRequest } from './risk-management-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
-interface RequestHeaders {
-  'X-Request-ID': string;
-  'X-API-Version': string;
-  'Content-Type': string;
-}
+type RequestHeaders = Record<string, string>;
 
 interface APIEndpoint {
   [key: string]: string | APIEndpoint;

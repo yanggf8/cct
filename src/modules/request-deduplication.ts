@@ -87,7 +87,7 @@ export class RequestDeduplicator {
       memoryUsage: 0
     };
 
-    // Cleanup interval disabled for Cloudflare Workers (setInterval not allowed in global scope)
+  // Cleanup interval disabled for Cloudflare Workers (setInterval not allowed in global scope)
     // this.startCleanupInterval(); // Disabled - would cause runtime error
     logger.info('Request deduplicator initialized (cleanup interval disabled)', this.config);
   }
@@ -143,7 +143,7 @@ export class RequestDeduplicator {
         }
 
         // Subscribe to existing request
-        return new Promise<T>((resolve, reject) => {
+        return new Promise<T>((resolve: any, reject: any) => {
           existingRequest.subscribers.push({ resolve, reject });
         });
       }
@@ -153,7 +153,7 @@ export class RequestDeduplicator {
       this.recordResponseTime(startTime);
       return await promise;
 
-    } catch (error) {
+    } catch (error: unknown) {
       // Clean up on error
       this.cleanupRequest(key);
       throw error;
@@ -210,9 +210,9 @@ export class RequestDeduplicator {
             this.stats.deduplicatedRequests++;
             deduplicated = true;
 
-            return new Promise<{ key: string; result: T; cached: boolean; deduplicated: boolean }>((resolve, reject) => {
+            return new Promise<{ key: string; result: T; cached: boolean; deduplicated: boolean }>((resolve: any, reject: any) => {
               existingRequest.subscribers.push({
-                resolve: (result) => resolve({ key, result, cached, deduplicated }),
+                resolve: (result: any) => resolve({ key, result, cached, deduplicated }),
                 reject
               });
             });
@@ -222,7 +222,7 @@ export class RequestDeduplicator {
           const result = await this.createNewRequest<T>(key, requestFn, options);
           return { key, result, cached, deduplicated };
 
-        } catch (error) {
+        } catch (error: unknown) {
           this.cleanupRequest(key);
           throw error;
         }
@@ -246,7 +246,7 @@ export class RequestDeduplicator {
     const timeoutMs = options?.timeoutMs || this.config.requestTimeoutMs;
     const cacheMs = options?.cacheMs || this.config.cacheTimeoutMs;
 
-    return new Promise<T>((resolve, reject) => {
+    return new Promise<T>((resolve: any, reject: any) => {
       const timeoutId = setTimeout(() => {
         this.stats.timeoutRequests++;
         this.cleanupRequest(key);
@@ -267,7 +267,7 @@ export class RequestDeduplicator {
 
       // Execute the request
       pendingRequest.promise
-        .then(async (result) => {
+        .then(async (result: any) => {
           clearTimeout(timeoutId);
 
           // Cache the result
@@ -281,7 +281,7 @@ export class RequestDeduplicator {
 
           this.cleanupRequest(key);
         })
-        .catch((error) => {
+        .catch((error: any) => {
           clearTimeout(timeoutId);
 
           // Reject all subscribers
@@ -346,11 +346,12 @@ export class RequestDeduplicator {
 
   /**
    * Start cleanup interval for expired cache entries and old requests
+   * DISABLED: Not compatible with Cloudflare Workers global scope restrictions
    */
   private startCleanupInterval(): void {
-    setInterval(() => {
-      this.cleanup();
-    }, 60000); // Cleanup every minute
+    // setInterval is not allowed in global scope in Cloudflare Workers
+    // Manual cleanup should be called when needed
+    console.log('Auto cleanup disabled for Cloudflare Workers compatibility');
   }
 
   /**

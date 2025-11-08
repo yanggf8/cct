@@ -39,7 +39,7 @@ interface BaseAlert {
 }
 
 interface KPIDeviationAlert extends BaseAlert {
-  type: AlertTypeType.KPI_DEVIATION;
+  type: typeof AlertType.KPI_DEVIATION;
   operation: string;
   currentValue: number | string;
   target?: number | string;
@@ -47,20 +47,20 @@ interface KPIDeviationAlert extends BaseAlert {
 }
 
 interface PerformanceAlert extends BaseAlert {
-  type: AlertTypeType.PERFORMANCE;
+  type: typeof AlertType.PERFORMANCE;
   operation: string;
   error?: string;
   [key: string]: any;
 }
 
 interface SystemErrorAlert extends BaseAlert {
-  type: AlertTypeType.SYSTEM_ERROR;
+  type: typeof AlertType.SYSTEM_ERROR;
   service: string;
   error: string;
 }
 
 interface BusinessMetricAlert extends BaseAlert {
-  type: AlertTypeType.BUSINESS_METRIC;
+  type: typeof AlertType.BUSINESS_METRIC;
   [key: string]: any;
 }
 
@@ -82,9 +82,7 @@ interface SuppressionRule {
   createdAt: number;
 }
 
-interface AlertHistoryEntry extends Alert {
-  recordedAt: number;
-}
+type AlertHistoryEntry = Alert & { recordedAt: number };
 
 interface AlertResult {
   success: boolean;
@@ -99,9 +97,9 @@ interface AlertResult {
 
 interface ChannelResult {
   success: boolean;
-  channel?: string;
   skipped?: boolean;
   reason?: string;
+  channel?: 'slack' | 'discord' | 'email';
 }
 
 interface SlackPayload {
@@ -206,14 +204,15 @@ export class AlertManager {
         }))
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       logger.error('Failed to send alert', {
         alertId: alert.id,
-        error: error.message,
-        stack: error.stack
+        error: message,
+        stack: error instanceof Error ? error.stack : undefined
       });
 
-      return { success: false, error: error.message };
+      return { success: false, error: message };
     }
   }
 
@@ -223,7 +222,7 @@ export class AlertManager {
   private async sendSlackAlert(alert: FormattedAlert): Promise<ChannelResult> {
     const slackWebhook = this.env.SLACK_WEBHOOK_URL;
     if (!slackWebhook) {
-      return { skipped: true, reason: 'No Slack webhook configured' };
+      return { success: false, skipped: true, reason: 'No Slack webhook configured' };
     }
 
     const payload: SlackPayload = {
@@ -281,7 +280,7 @@ export class AlertManager {
   private async sendDiscordAlert(alert: FormattedAlert): Promise<ChannelResult> {
     const discordWebhook = this.env.DISCORD_WEBHOOK_URL;
     if (!discordWebhook) {
-      return { skipped: true, reason: 'No Discord webhook configured' };
+      return { success: false, skipped: true, reason: 'No Discord webhook configured' };
     }
 
     const payload: DiscordPayload = {
@@ -339,7 +338,7 @@ export class AlertManager {
     const alertEmail = this.env.ALERT_EMAIL;
 
     if (!emailWebhook || !alertEmail) {
-      return { skipped: true, reason: 'No email webhook/address configured' };
+      return { success: false, skipped: true, reason: 'No email webhook/address configured' };
     }
 
     const payload: EmailPayload = {
@@ -365,6 +364,7 @@ export class AlertManager {
    * Format alert for notifications
    */
   private formatAlert(alert: Alert): FormattedAlert {
+    const targetValue = 'target' in alert ? alert.target : undefined;
     return {
       id: alert.id,
       title: alert.title || this.generateTitle(alert),
@@ -372,7 +372,7 @@ export class AlertManager {
       severity: alert.severity,
       service: alert.service || 'TFT Trading System',
       currentValue: this.formatValue(this.extractCurrentValue(alert)),
-      target: alert.target ? this.formatValue(alert.target) : undefined,
+      target: targetValue !== undefined ? this.formatValue(targetValue as number | string | null | undefined) : undefined,
       timestamp: alert.timestamp || new Date().toISOString()
     };
   }
@@ -428,11 +428,15 @@ export class AlertManager {
       case AlertType.KPI_DEVIATION:
         return alert.currentValue;
       case AlertType.PERFORMANCE:
-        return alert.currentValue || 'N/A';
+        return 'currentValue' in alert && alert.currentValue !== undefined
+          ? (alert.currentValue as number | string)
+          : 'N/A';
       case AlertType.SYSTEM_ERROR:
         return 'N/A';
       default:
-        return alert.currentValue || 'N/A';
+        return 'currentValue' in alert && alert.currentValue !== undefined
+          ? (alert.currentValue as number | string)
+          : 'N/A';
     }
   }
 
@@ -461,8 +465,10 @@ export class AlertManager {
 
     // Keep only recent alerts in memory (last 100)
     if (this.alertHistory.size > 100) {
-      const oldestKey = this.alertHistory.keys().next().value;
-      this.alertHistory.delete(oldestKey);
+      const iterator = this.alertHistory.keys().next();
+      if (!iterator.done) {
+        this.alertHistory.delete(iterator.value);
+      }
     }
   }
 
@@ -561,7 +567,7 @@ export class AlertManager {
    */
   getRecentAlerts(limit: number = 10): AlertHistoryEntry[] {
     const alerts = Array.from(this.alertHistory.values())
-      .sort((a, b) => b.recordedAt - a.recordedAt)
+      .sort((a: any, b: any) => b.recordedAt - a.recordedAt)
       .slice(0, limit);
 
     return alerts;
@@ -698,7 +704,6 @@ export async function sendSystemErrorAlert(
 
 // Export types for external use
 export type {
-  Alert,
   FormattedAlert,
   AlertHistoryEntry,
   AlertResult,

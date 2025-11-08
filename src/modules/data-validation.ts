@@ -247,8 +247,8 @@ export class DataValidator {
       errors.push(...timestampValidation.errors);
       warnings.push(...timestampValidation.warnings);
 
-    } catch (error) {
-      errors.push(`Date parsing error: ${error.message}`);
+    } catch (error: unknown) {
+      errors.push(`Date parsing error: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return {
@@ -343,7 +343,7 @@ export class DataValidator {
       return { isValid: false, errors, warnings };
     }
 
-    bars.forEach((bar, index) => {
+    bars.forEach((bar: any, index: any) => {
       const validation = this.validateOHLCVBar(bar);
       if (validation.isValid) {
         validBars.push(bar);

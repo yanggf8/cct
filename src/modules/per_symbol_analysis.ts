@@ -210,8 +210,8 @@ function convertDualAIToLegacyFormat(
       total_articles: newsData.length,
       sources: newsData.map(item => item.source),
       time_range: {
-        earliest: newsData.length > 0 ? Math.min(...newsData.map(item => new Date(item.published_at).getTime())) : new Date().getTime(),
-        latest: newsData.length > 0 ? Math.max(...newsData.map(item => new Date(item.published_at).getTime())) : new Date().getTime()
+        earliest: newsData.length > 0 ? Math.min(...newsData.map(item => new Date((item as any).publishedAt ?? (item as any).published_at).getTime())) : new Date().getTime(),
+        latest: newsData.length > 0 ? Math.max(...newsData.map(item => new Date((item as any).publishedAt ?? (item as any).published_at).getTime())) : new Date().getTime()
       }
     },
 
@@ -322,7 +322,7 @@ async function gatherComprehensiveNewsForSymbol(symbol: string, env: CloudflareE
     logSentimentDebug(`Gathered ${newsData.length} news articles for ${symbol}`);
 
     // Enhance news data with additional processing
-    const enhancedNews = newsData.map((article, index) => ({
+    const enhancedNews = newsData.map((article: any, index: any) => ({
       ...article,
       processing_order: index,
       relevance_score: calculateArticleRelevance(article, symbol),
@@ -330,7 +330,7 @@ async function gatherComprehensiveNewsForSymbol(symbol: string, env: CloudflareE
     }));
 
     // Sort by relevance and weight
-    enhancedNews.sort((a, b) => (b.relevance_score * b.sentiment_weight) - (a.relevance_score * a.sentiment_weight));
+    enhancedNews.sort((a: any, b: any) => (b.relevance_score * b.sentiment_weight) - (a.relevance_score * a.sentiment_weight));
 
     logInfo(`Enhanced and sorted ${enhancedNews.length} articles for ${symbol}`);
     return enhancedNews.slice(0, 15); // Top 15 most relevant articles
@@ -357,7 +357,7 @@ function calculateArticleRelevance(article: NewsArticle, symbol: string): number
     'earnings', 'revenue', 'profit', 'growth', 'forecast'
   ];
 
-  const keywordScore = relevantKeywords.reduce((score, keyword) => {
+  const keywordScore = relevantKeywords.reduce((score: any, keyword: any) => {
     const mentions = (title.match(new RegExp(keyword, 'g')) || []).length +
                      (summary.match(new RegExp(keyword, 'g')) || []).length;
     return score + mentions;
@@ -368,7 +368,7 @@ function calculateArticleRelevance(article: NewsArticle, symbol: string): number
 
 function calculateArticleWeight(article: NewsArticle): number {
   // Weight based on recency and source reliability
-  const ageInHours = (Date.now() - new Date(article.published_at).getTime()) / (1000 * 60 * 60);
+  const ageInHours = (Date.now() - new Date((article as any).publishedAt ?? (article as any).published_at).getTime()) / (1000 * 60 * 60);
   const recencyWeight = Math.max(0.1, 1.0 - (ageInHours / 168)); // Decay over a week
 
   const sourceWeights: Record<string, number> = {
@@ -674,8 +674,8 @@ export async function runCompleteAnalysisPipeline(
       // Dual AI specific metrics
       dual_ai_metrics: {
         agreement_rate: dualAIResult.execution_metadata.agreement_rate,
-        successful_models: dualAIResult.results.reduce((sum, result) => sum + (result.performance_metrics?.successful_models || 0), 0),
-        total_ai_executions: dualAIResult.results.reduce((sum, result) => sum + (result.performance_metrics?.models_executed || 0), 0)
+        successful_models: dualAIResult.results.reduce((sum: any, result: any) => sum + (result.performance_metrics?.successful_models || 0), 0),
+        total_ai_executions: dualAIResult.results.reduce((sum: any, result: any) => sum + (result.performance_metrics?.models_executed || 0), 0)
       }
     };
 
