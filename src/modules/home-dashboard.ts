@@ -1036,13 +1036,12 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             console.log('Market clock fallback initialization completed');
         }
 
-            // Check system health every 30 seconds
-            setInterval(checkSystemHealth, 30000);
+        // Check system health every 30 seconds
+        setInterval(checkSystemHealth, 30000);
 
-            // Initialize sector data
-            refreshSectorData();
-            refreshTopMovers();
-        });
+        // Initialize sector data
+        refreshSectorData();
+        refreshTopMovers();
 
         // Sector Performance Widget Functions - Live Data Integration
         async function refreshSectorData() {

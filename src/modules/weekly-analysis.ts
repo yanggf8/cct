@@ -292,7 +292,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
 
-            } catch (error: unknown) {
+            } catch (error) {
                 console.error('Error loading data:', error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
@@ -300,7 +300,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             }
         }
 
-        function updateOverviewStats(data: any) {
+        function updateOverviewStats(data) {
             const stats = data.overview || {};
             document.getElementById('overall-accuracy').textContent =
                 stats.overallAccuracy ? \`\${stats.overallAccuracy.toFixed(2)}%\` : '-';
@@ -312,7 +312,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             document.getElementById('best-model').textContent = stats.primaryModel || stats.bestModel || 'GPT-OSS-120B';
         }
 
-        function createAccuracyChart(dailyData: any) {
+        function createAccuracyChart(dailyData) {
             const ctx = document.getElementById('accuracyChart').getContext('2d');
             if (accuracyChart) accuracyChart.destroy();
 
@@ -355,7 +355,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             });
         }
 
-        function updatePredictionsTable(predictions: any) {
+        function updatePredictionsTable(predictions) {
             const tbody = document.getElementById('predictions-table-body');
             tbody.innerHTML = '';
 
@@ -401,7 +401,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             });
         }
 
-        function updateSymbolBreakdown(symbolData: any) {
+        function updateSymbolBreakdown(symbolData) {
             const container = document.getElementById('symbol-breakdown');
             container.innerHTML = '';
 

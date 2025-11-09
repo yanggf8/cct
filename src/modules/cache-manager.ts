@@ -11,7 +11,7 @@ import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount } from './config.js';
 import { ErrorUtils, type RetryOptions } from './shared-utilities.js';
 import { KVKeyFactory, KeyTypes } from './kv-key-factory.js';
-import { cacheMetrics, type CacheNamespace as MetricsCacheNamespace } from './cache-metrics.js';
+import { cacheMetrics, type CacheNamespace as MetricsCacheNamespace } from './DO_CACHE_METRICS.js';
 import { EnhancedHashCache, createEnhancedHashCache, type CacheTimestampInfo } from './enhanced-hash-cache.js';
 import { EnhancedOptimizedCacheManager } from './enhanced-optimized-cache-manager.js';
 import {
