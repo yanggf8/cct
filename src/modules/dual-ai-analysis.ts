@@ -11,7 +11,8 @@ import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentime
 import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import { executeOptimizedBatch } from './enhanced-batch-operations.js';
-import type { CloudflareEnvironment } from '../types.js';
+import { handleAIError, handleError } from '../utils/error-handling-migration.js';
+import type { CloudflareEnvironment, CloudflareAI } from '../types.js';
 
 // Type Definitions
 export type Direction = 'up' | 'down' | 'neutral' | 'bullish' | 'bearish' | 'UNCLEAR';

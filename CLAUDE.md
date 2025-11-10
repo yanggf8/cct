@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Current Version**: Latest (2025-11-09 - Code Refactoring + Cleanup)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
-- **Authentication**: Session-based (no localStorage vulnerabilities) ✅
+- **Authentication**: Enterprise-grade security with active protection ✅
+- **Security Module**: Fully integrated in API v1 layer (60+ endpoints) ✅
 - **Frontend**: JavaScript syntax errors fixed ✅
 - **Market Clock**: Real-time with unified logic ✅
 - **Integration**: All components properly connected ✅
@@ -21,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **Code Refactoring** | ✅ Complete | DO cache metrics module refactored, improved organization |
 | **Frontend Code Cleanup** | ✅ Complete | JavaScript syntax errors fixed in dashboard and weekly analysis |
 | **Critical Integration Fixes** | ✅ Complete | All authentication and integration issues resolved |
-| **Enhanced Session-Based Auth** | ✅ Complete | No localStorage vulnerabilities, enterprise security |
+| **Enhanced Session-Based Auth** | ✅ Complete | Enterprise security with active rate limiting & protection |
 | **P0/P1 Security Implementation** | ✅ Complete | 100% vulnerability resolution, enterprise-grade security |
 | **Frontend Security** | ✅ Complete | 12 frontend files secured, hardcoded keys eliminated |
 | **Real-time Market Clock** | ✅ Complete | Live market session detection with unified logic |
@@ -34,9 +35,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🏗️ Current Architecture
 
-### **Data Access Layer**
+### **Security & Data Access Layer**
 ```
 ┌─────────────────────────────────────────────┐
+│            ENTERPRISE SECURITY              │
+│  • Multi-Tier Rate Limiting (API/IP/Auth)  │
+│  • Brute Force Protection                   │
+│  • Suspicious Activity Monitoring           │
+│  • Active in ALL /api/v1/* endpoints       │
+├─────────────────────────────────────────────┤
 │              API v1 GATEWAY                 │
 │  • RESTful Endpoints (60+ endpoints)       │
 │  • Standardized Responses                   │
@@ -105,6 +112,13 @@ GET /api/v1/cache/warmup              # Cache warming
 # + 2 additional
 ```
 
+#### Security & Monitoring (3 endpoints)
+```bash
+GET /api/v1/security/status           # Security system status 🔒 PROTECTED
+POST /api/v1/security/test-auth       # Test authentication 🔒 PROTECTED
+GET /api/v1/security/config           # Security configuration (admin only)
+```
+
 ### **Frontend API Client**
 - **Location**: `public/js/api-client.js`
 - **Features**: Type-safe, intelligent caching, batch processing
@@ -127,6 +141,12 @@ Midday (12:00 PM):  Intraday Check       → Performance tracking
 Daily (4:05 PM):    End-of-Day Summary   → Market close + outlook
 Sunday (10:00 AM):  Weekly Review        → Pattern analysis
 ```
+
+### **Architecture Migration Status**
+- **Modern API v1**: ✅ Fully operational with enterprise security
+- **Legacy Routes**: ⚠️ Contains embedded JavaScript (440+ lines)
+- **Migration Plan**: Gradual transition to pure API v1 architecture
+- **Backward Compatibility**: Maintained during migration process
 
 ### **Business Intelligence (Design Complete)**
 - **Sector Rotation**: 11 SPDR ETFs analysis (v1.3 ready)

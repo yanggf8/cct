@@ -1,43 +1,120 @@
 
-// Cloudflare Workers type stubs
+// Enhanced Cloudflare type imports
+import type {
+  KVNamespace,
+  DurableObjectNamespace,
+  DurableObjectState,
+  DurableObjectStorage,
+  DurableObjectId,
+  R2Bucket,
+  D1Database,
+  MessageBatch,
+  ScheduledEvent,
+  Email,
+  Ai,
+  CloudflareEnvironment as CfEnvironment
+} from './types/cloudflare';
+
+import type {
+  AppError,
+  EnhancedError,
+  ValidationError,
+  NetworkError,
+  DatabaseError,
+  ExternalAPIError
+} from './types/errors';
+
+import type {
+  CloudflareAI,
+  GPTInput,
+  GPTOutput,
+  DistilBERTInput,
+  DistilBERTOutput,
+  DualAIAnalysisResult,
+  BatchAnalysisResult,
+  SingleModelAnalysis
+} from './types/ai-analysis';
+
+import type {
+  ApiResponse as ApiResponseType,
+  ErrorResponse as ErrorResponseType,
+  RequestContext,
+  SymbolsRequest,
+  SymbolRequest,
+  AnalysisApiRequest
+} from './types/api';
+
+// Re-export for backward compatibility
+export {
+  // Error types
+  AppError,
+  EnhancedError,
+  ValidationError,
+  NetworkError,
+  DatabaseError,
+  ExternalAPIError,
+  toAppError,
+  isAppError
+} from './types/errors';
+
+// AI Analysis types
+export {
+  CloudflareAI,
+  GPTInput,
+  GPTOutput,
+  DistilBERTInput,
+  DistilBERTOutput,
+  DualAIAnalysisResult,
+  BatchAnalysisResult,
+  SingleModelAnalysis,
+  isGPTAnalysisResult,
+  isDistilBERTAnalysisResult,
+  isDualAIAnalysisResult
+} from './types/ai-analysis';
+
+// Cloudflare types
+export {
+  KVNamespace,
+  DurableObjectNamespace,
+  DurableObjectState,
+  DurableObjectStorage,
+  DurableObjectId,
+  R2Bucket,
+  D1Database,
+  MessageBatch,
+  ScheduledEvent,
+  Email,
+  Ai,
+  CloudflareEnvironment as CfEnvironment
+} from './types/cloudflare';
+
+// API types
+export {
+  ApiResponse as ApiResponseType,
+  ErrorResponse as ErrorResponseType,
+  RequestContext,
+  SymbolsRequest,
+  SymbolRequest,
+  AnalysisApiRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  isErrorResponse,
+  isSuccessResponse
+} from './types/api';
+
+// Legacy global declarations for backward compatibility
 declare global {
-  // Extended Cloudflare Workers types
-  interface KVNamespace {
-    get(key: string): Promise<string | null>;
-    put(key: string, value: string, options?: any): Promise<void>;
-    delete(key: string): Promise<void>;
-    list(options?: any): Promise<any>;
-  }
-
-  // Durable Object type definitions
-  interface DurableObjectNamespace {
-    new (name: string): DurableObjectConstructor;
-    idFromName(name: string): DurableObjectId;
-    idFromString(id: string): DurableObjectId;
-  }
-
-  interface DurableObjectState {
-    readonly storage: DurableObjectStorage;
-  }
-
-  interface DurableObjectStorage {
-    get<T = unknown>(key: string): Promise<T | null>;
-    put<T = unknown>(key: string, value: T): Promise<void>;
-    delete(key: string): Promise<boolean>;
-    list(): Promise<Record<string, any>>;
-  }
-
-  interface DurableObjectConstructor {
-    new (state: DurableObjectState, env: any): DurableObject;
-  }
-
-  interface DurableObject {
-    fetch(request: Request): Promise<Response>;
-  }
-
-  interface DurableObjectId {
-    toString(): string;
-  }
+  interface KVNamespace {}
+  interface DurableObjectNamespace {}
+  interface DurableObjectState {}
+  interface DurableObjectStorage {}
+  interface DurableObjectId {}
+  interface R2Bucket {}
+  interface D1Database {}
+  interface MessageBatch {}
+  interface ScheduledEvent {}
+  interface Email {}
+  interface Ai {}
 }
 
 
@@ -53,62 +130,89 @@ declare global {
 // ============================================================================
 
 /**
- * Cloudflare Worker Environment Bindings
- * Replaces all `env: any` usage across the codebase
+ * Enhanced Cloudflare Worker Environment Interface
+ * Replaces all `env: any` usage with properly typed environment bindings
  */
-export interface CloudflareEnvironment {
-  // KV Namespace
+export interface CloudflareEnvironment extends CfEnvironment {
+  // KV Namespaces
   TRADING_RESULTS: KVNamespace;
   CACHE_DO_KV?: KVNamespace;  // KV namespace for DO cache persistence
+  ANALYSIS_CACHE?: KVNamespace;
+  USER_SESSIONS?: KVNamespace;
+  RATE_LIMIT?: KVNamespace;
+  SYSTEM_CONFIG?: KVNamespace;
 
   // R2 Buckets
   TRADING_MODELS?: R2Bucket;
   TRAINED_MODELS?: R2Bucket;
+  DATA_EXPORTS?: R2Bucket;
+  USER_FILES?: R2Bucket;
 
-  // AI Binding
-  AI: Ai;
+  // D1 Databases
+  DATABASE?: D1Database;
+  ANALYTICS_DB?: D1Database;
+  USER_DB?: D1Database;
 
   // Durable Objects
   CACHE_DO?: DurableObjectNamespace;
+  USER_SESSIONS_DO?: DurableObjectNamespace;
+  RATE_LIMIT_DO?: DurableObjectNamespace;
+  ANALYTICS_DO?: DurableObjectNamespace;
 
-  // Facebook Integration
-  FACEBOOK_PAGE_TOKEN?: string;
-  FACEBOOK_RECIPIENT_ID?: string;
+  // AI Binding (enhanced type)
+  AI: CloudflareAI;
 
-  // API Keys
+  // Queue Producers
+  ANALYSIS_QUEUE?: MessageBatch;
+  NOTIFICATION_QUEUE?: MessageBatch;
+  REPORT_QUEUE?: MessageBatch;
+
+  // Email
+  EMAIL?: Email;
+
+  // API Keys and Secrets
   FMP_API_KEY?: string;
   NEWSAPI_KEY?: string;
   WORKER_API_KEY?: string;
-  // Real-time data providers
-  FRED_API_KEY?: string;            // Primary FRED API key
-  FRED_API_KEYS?: string;           // Optional comma-separated list for rotation
-  
-  // Market data configuration
-  YAHOO_FINANCE_RATE_LIMIT?: string; // requests per minute
-  RATE_LIMIT_WINDOW?: string;        // window in ms
-  MARKET_DATA_CACHE_TTL?: string;    // seconds
-  
-  // Environment/mode
-  ENVIRONMENT?: string;              // 'development' | 'production' | 'staging'
-  // Trading Configuration
-  TRADING_SYMBOLS?: string;
-  SIGNAL_CONFIDENCE_THRESHOLD?: string;
+  FRED_API_KEY?: string;
+  FRED_API_KEYS?: string;
+  OPENAI_API_KEY?: string;
+  HUGGINGFACE_API_KEY?: string;
 
-  // Logging Configuration
-  LOG_LEVEL?: string;
-
-  // Feature Flags
-  STRUCTURED_LOGGING?: string;
-
-  // AI Model Configuration
-  GPT_MAX_TOKENS?: string;
-  GPT_TEMPERATURE?: string;
-
-  // Webhook URLs
+  // Social Media Integration
+  FACEBOOK_PAGE_TOKEN?: string;
+  FACEBOOK_RECIPIENT_ID?: string;
+  TWITTER_API_KEY?: string;
+  TWITTER_API_SECRET?: string;
   SLACK_WEBHOOK_URL?: string;
   DISCORD_WEBHOOK_URL?: string;
 
-  // Allow dynamic access to environment variables
+  // Configuration
+  YAHOO_FINANCE_RATE_LIMIT?: string;
+  RATE_LIMIT_WINDOW?: string;
+  MARKET_DATA_CACHE_TTL?: string;
+  ENVIRONMENT?: string;
+  LOG_LEVEL?: string;
+  STRUCTURED_LOGGING?: string;
+
+  // AI Configuration
+  GPT_MAX_TOKENS?: string;
+  GPT_TEMPERATURE?: string;
+  ANALYSIS_CONFIDENCE_THRESHOLD?: string;
+
+  // Trading Configuration
+  TRADING_SYMBOLS?: string;
+  SIGNAL_CONFIDENCE_THRESHOLD?: string;
+  MAX_POSITION_SIZE?: string;
+  RISK_LEVEL?: string;
+
+  // Feature Flags
+  FEATURE_FLAG_DO_CACHE?: string;
+  FEATURE_FLAG_AI_ENHANCEMENT?: string;
+  FEATURE_FLAG_REAL_TIME_ANALYSIS?: string;
+  FEATURE_FLAG_SECTOR_ROTATION?: string;
+
+  // Allow dynamic access to environment variables (for backward compatibility)
   [key: string]: any;
 }
 

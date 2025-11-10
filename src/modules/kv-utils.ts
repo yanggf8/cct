@@ -5,7 +5,8 @@
 
 import { createLogger } from './logging.js';
 import { verifyWriteConsistency, verifyStatusConsistency } from './kv-consistency.js';
-import type { CloudflareEnvironment } from '../types.js';
+import { toAppError, isNetworkError, isDatabaseError } from '../types/errors.js';
+import type { CloudflareEnvironment, DatabaseError, NetworkError } from '../types.js';
 
 const logger = createLogger('kv-utils');
 
@@ -54,8 +55,15 @@ export async function getWithRetry(
       } else {
         logger.debug('KV GET returned null', { key, attempt: i + 1 });
       }
-    } catch (error: any) {
-      logger.warn('KV operation failed, retrying', { key, attempt: i + 1, error: (error instanceof Error ? error.message : String(error)) });
+    } catch (error: unknown) {
+      const appError = toAppError(error, { key, attempt: i + 1, operation: 'get' });
+      logger.warn('KV operation failed, retrying', {
+        key,
+        attempt: i + 1,
+        error: appError.message,
+        category: appError.category,
+        retryable: appError.retryable
+      });
     }
 
     if (i < maxRetries - 1) {
@@ -107,7 +115,7 @@ export async function putWithVerification(
       });
       return false;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('KV PUT operation failed', {
       key,
       error: (error instanceof Error ? error.message : String(error)),
@@ -148,7 +156,7 @@ export async function deleteWithVerification(
       logger.error('KV DELETE verification failed - key still exists', { key });
       return false;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('KV DELETE operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
     throw error;
   }
@@ -192,7 +200,7 @@ export async function getMultipleWithRetry(
   for (const key of keys) {
     try {
       results[key] = await getWithRetry(key, env);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.warn('Failed to get KV key in batch', { key, error: (error instanceof Error ? error.message : String(error)) });
       results[key] = null;
     }
@@ -246,7 +254,7 @@ export async function updateJobStatus(
         error: 'Verification failed'
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logKVOperation('UPDATE_STATUS', statusKey, false, {
       jobType,
       date,
@@ -270,7 +278,7 @@ export async function getJobStatus(
   try {
     const result = await getWithRetry(statusKey, env);
     return JSON.parse(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.debug('Job status not found', { jobType, date });
     return null;
   }

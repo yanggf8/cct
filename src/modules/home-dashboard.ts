@@ -4,11 +4,13 @@
  * Role-based hybrid architecture: Dashboard for traders, Console for admins
  */
 
+import type { CloudflareAI } from '../types';
+
 interface Env {
   TRADING_RESULTS: KVNamespace;
   TRAINED_MODELS: R2Bucket;
   ENHANCED_MODELS: R2Bucket;
-  AI: any;
+  AI: CloudflareAI;
   WORKER_VERSION?: string;
   TRADING_SYMBOLS?: string;
   LOG_LEVEL?: string;

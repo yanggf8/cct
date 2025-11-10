@@ -1,5 +1,11 @@
 /**
  * CCT API Client v1 - Secure & Backward Compatible
+ * Exported as a string for serving from Cloudflare Worker
+ * No hardcoded API keys but graceful degradation for unauthenticated requests
+ */
+
+export const API_CLIENT_CONTENT = `/**
+ * CCT API Client v1 - Secure & Backward Compatible
  * No hardcoded API keys but graceful degradation for unauthenticated requests
  */
 
@@ -40,7 +46,7 @@ class CCTApiClient {
   }
 
   async request(endpoint, options = {}) {
-    const url = `${this.baseUrl}${endpoint}`;
+    const url = \`\${this.baseUrl}\${endpoint}\`;
     const config = {
       headers: { ...this.defaultHeaders, ...options.headers },
       timeout: this.timeout,
@@ -57,7 +63,7 @@ class CCTApiClient {
       }
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
       }
 
       return await response.json();
@@ -78,7 +84,7 @@ class CCTApiClient {
 
   // Protected endpoints (require authentication)
   async getSentimentAnalysis(symbols) {
-    return this.request(`/sentiment/symbols/${Array.isArray(symbols) ? symbols.join(',') : symbols}`);
+    return this.request(\`/sentiment/symbols/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
   }
 
   async getMarketSentiment() {
@@ -86,7 +92,7 @@ class CCTApiClient {
   }
 
   async getDailyReport(date) {
-    return this.request(`/reports/daily/${date}`);
+    return this.request(\`/reports/daily/\${date}\`);
   }
 
   async getPreMarketBriefing() {
@@ -102,7 +108,7 @@ class CCTApiClient {
   }
 
   async getSymbolHistory(symbol, period = '1mo') {
-    return this.request(`/data/history/${symbol}?period=${period}`);
+    return this.request(\`/data/history/\${symbol}?period=\${period}\`);
   }
 
   async getMarketRegime() {
@@ -110,7 +116,7 @@ class CCTApiClient {
   }
 
   async getPredictiveSignals(symbols) {
-    return this.request(`/predictive/signals/${Array.isArray(symbols) ? symbols.join(',') : symbols}`);
+    return this.request(\`/predictive/signals/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
   }
 
   async getSectorSnapshot() {
@@ -129,11 +135,11 @@ class CCTApiClient {
   }
 
   async getRiskMetrics(symbols) {
-    return this.request(`/risk/metrics/${Array.isArray(symbols) ? symbols.join(',') : symbols}`);
+    return this.request(\`/risk/metrics/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
   }
 
   async getTechnicalAnalysis(symbol, indicators = []) {
-    return this.request(`/technical/analysis/${symbol}?indicators=${indicators.join(',')}`);
+    return this.request(\`/technical/analysis/\${symbol}?indicators=\${indicators.join(',')}\`);
   }
 
   // Cache management
@@ -164,4 +170,4 @@ window.setCctApiKey = function(apiKey) {
   }
 };
 
-console.log('CCT API Client initialized (secure, backward-compatible version)');
+console.log('CCT API Client initialized (secure, backward-compatible version)');`;
