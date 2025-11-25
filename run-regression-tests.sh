@@ -1,18 +1,19 @@
 #!/bin/bash
 
-# Regression Test Runner for Enhanced Cache System
+# Regression Test Runner for DAC Service Binding Integration
 # Automated testing with baseline comparison and regression detection
 
 set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEST_SCRIPT="$SCRIPT_DIR/test-enhanced-cache-integration.sh"
+TEST_SCRIPT="$SCRIPT_DIR/test-dac-service-binding-comprehensive.sh"
 BASELINE_DIR="$SCRIPT_DIR/baselines"
 CURRENT_DATE=$(date +%Y%m%d)
-REPORT_DIR="$SCRIPT_DIR/reports"
-CURRENT_REPORT="$REPORT_DIR/regression-report-$CURRENT_DATE.html"
+REPORT_DIR="$SCRIPT_DIR/test-reports"
+CURRENT_REPORT="$REPORT_DIR/dac-regression-report-$CURRENT_DATE.html"
 API_URL="https://tft-trading-system.yanggf.workers.dev"
+API_KEY="${API_KEY:-yanggf}"  # Allow override via environment, defaults to "yanggf"
 
 # Colors
 RED='\033[0;31m'
@@ -96,66 +97,58 @@ check_api_connectivity() {
 # Save current test results as baseline
 save_baseline() {
     local baseline_name="$1"
-    local baseline_file="$BASELINE_DIR/baseline-$baseline_name.json"
+    local baseline_file="$BASELINE_DIR/dac-service-binding-baseline-$baseline_name.json"
 
     info "Saving baseline: $baseline_name"
 
-    # Run the integration test and capture results
-    if "$TEST_SCRIPT" > "$baseline_file.tmp" 2>&1; then
-        mv "$baseline_file.tmp" "$baseline_file"
+    # Run the integration test in baseline mode with API_KEY
+    if API_KEY="$API_KEY" "$TEST_SCRIPT" baseline > /dev/null 2>&1; then
+        # Find the most recent JSON report
+        local latest_report=$(find "$REPORT_DIR" -name "dac-service-binding-test-*.json" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
 
-        # Extract key metrics from baseline
-        local metrics=$(extract_metrics_from_log "$baseline_file")
-        echo "$metrics" > "${baseline_file%.json}.metrics"
-
-        success "Baseline saved: $baseline_name"
-        return 0
+        if [[ -f "$latest_report" ]]; then
+            cp "$latest_report" "$baseline_file"
+            # Create symlink for CI compatibility
+            local ci_baseline="$BASELINE_DIR/dac-service-binding-baseline.json"
+            ln -sf "$(basename "$baseline_file")" "$ci_baseline"
+            success "Baseline saved: $baseline_name from $latest_report"
+            success "CI baseline symlink created: $ci_baseline -> $baseline_file"
+            return 0
+        else
+            error "Failed to find test report for baseline"
+            return 1
+        fi
     else
         error "Failed to create baseline: $baseline_name"
-        rm -f "$baseline_file.tmp"
         return 1
     fi
 }
 
-# Extract key metrics from test log
-extract_metrics_from_log() {
-    local log_file="$1"
+# Extract key metrics from JSON report
+extract_metrics_from_report() {
+    local report_file="$1"
 
-    # Extract key metrics using grep and awk
-    local passed=$(grep -c "✅ PASS:" "$log_file" || echo "0")
-    local failed=$(grep -c "❌ FAIL:" "$log_file" || echo "0")
-    local skipped=$(grep -c "⏭️  SKIP:" "$log_file" || echo "0")
-    local total=$((passed + failed + skipped))
+    if [[ ! -f "$report_file" ]]; then
+        echo "{}"
+        return 1
+    fi
 
-    # Extract performance metrics
-    local cache_hit_rate=$(grep "L1 Hit Rate:" "$log_file" | tail -1 | grep -o "[0-9.]*%" | head -1 || echo "N/A")
-    local health_score=$(grep "Score:" "$log_file" | grep -o "[0-9]*" | head -1 || echo "N/A")
-    local ops_per_sec=$(grep "ops/sec" "$log_file" | grep -o "[0-9.]*" | head -1 || echo "N/A")
-
-    cat <<EOF
-{
-  "timestamp": "$(date -Iseconds)",
-  "tests": {
-    "total": $total,
-    "passed": $passed,
-    "failed": $failed,
-    "skipped": $skipped,
-    "success_rate": $(echo "scale=2; $passed * 100 / $total" | bc -l)
-  },
-  "performance": {
-    "cache_hit_rate": "$cache_hit_rate",
-    "health_score": "$health_score",
-    "ops_per_second": "$ops_per_sec"
-  }
-}
-EOF
+    # Extract metrics using jq
+    jq '{
+        timestamp: .timestamp,
+        tests: .summary,
+        performance: {
+            avg_duration: (.performance_metrics | map(select(.status == "PASS")) | map(.duration_ms) | add / length),
+            cache_hit_rate: (.tests[] | select(.name == "L1 Cache Hit Rate") | .hit_rate // null),
+            service_binding_p50: (.tests[] | select(.name == "Service Binding Latency") | .p50_ms // null)
+        }
+    }' "$report_file" 2>/dev/null || echo "{}"
 }
 
 # Compare current results with baseline
 compare_with_baseline() {
     local baseline_name="$1"
-    local baseline_file="$BASELINE_DIR/baseline-$baseline_name.json"
-    local baseline_metrics="${baseline_file%.json}.metrics"
+    local baseline_file="$BASELINE_DIR/dac-service-binding-baseline-$baseline_name.json"
 
     if [[ ! -f "$baseline_file" ]]; then
         warning "Baseline not found: $baseline_name"
@@ -164,83 +157,95 @@ compare_with_baseline() {
 
     info "Comparing with baseline: $baseline_name"
 
-    # Run current tests
-    local current_results="$REPORT_DIR/current-test-$CURRENT_DATE.log"
-    "$TEST_SCRIPT" > "$current_results" 2>&1
+    # Run current tests with API_KEY
+    API_KEY="$API_KEY" "$TEST_SCRIPT" run > /dev/null 2>&1
     local current_exit_code=$?
 
-    # Extract current metrics
-    local current_metrics=$(extract_metrics_from_log "$current_results")
+    # Find the most recent test report
+    local current_report=$(find "$REPORT_DIR" -name "dac-service-binding-test-*.json" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
 
-    # Load baseline metrics
-    local baseline_data=$(cat "$baseline_metrics")
+    if [[ ! -f "$current_report" ]]; then
+        error "Failed to find current test report"
+        return 3
+    fi
+
+    # Extract metrics
+    local baseline_metrics=$(extract_metrics_from_report "$baseline_file")
+    local current_metrics=$(extract_metrics_from_report "$current_report")
 
     # Compare metrics
-    local comparison=$(compare_metrics "$baseline_data" "$current_metrics")
+    local comparison=$(compare_metrics "$baseline_metrics" "$current_metrics")
 
     # Generate comparison report
-    generate_comparison_report "$baseline_name" "$baseline_data" "$current_metrics" "$comparison" "$current_results"
+    generate_comparison_report "$baseline_name" "$baseline_metrics" "$current_metrics" "$comparison" "$current_report"
 
-    # Check for regressions
-    if [[ $current_exit_code -eq 0 ]]; then
-        if has_regression "$comparison"; then
-            warning "Performance regression detected compared to baseline: $baseline_name"
-            return 2
-        else
-            success "No regressions detected compared to baseline: $baseline_name"
-            return 0
-        fi
+    # Check for regressions (5% threshold)
+    if has_regression "$comparison"; then
+        error "Performance regression detected (>5% degradation) compared to baseline: $baseline_name"
+        return 2
     else
-        error "Current tests failed - regression detected"
-        return 3
+        success "No regressions detected compared to baseline: $baseline_name"
+        return 0
     fi
 }
 
-# Compare metrics between baseline and current
+# Compare metrics between baseline and current using jq
 compare_metrics() {
     local baseline="$1"
     local current="$2"
 
-    # Parse JSON values (simplified parsing without jq dependency)
-    local baseline_success_rate=$(echo "$baseline" | grep -o '"success_rate": [0-9.]*' | cut -d: -f2 | tr -d ' ')
-    local current_success_rate=$(echo "$current" | grep -o '"success_rate": [0-9.]*' | cut -d: -f2 | tr -d ' ')
+    # Use jq to extract success rates and performance metrics
+    local baseline_success_rate=$(echo "$baseline" | jq -r '.tests.success_rate // 0')
+    local current_success_rate=$(echo "$current" | jq -r '.tests.success_rate // 0')
 
-    local baseline_health=$(echo "$baseline" | grep -o '"health_score": "[^"]*"' | cut -d: -f2 | tr -d '" ')
-    local current_health=$(echo "$current" | grep -o '"health_score": "[^"]*"' | cut -d: -f2 | tr -d '" ')
+    local baseline_avg_duration=$(echo "$baseline" | jq -r '.performance.avg_duration // 0')
+    local current_avg_duration=$(echo "$current" | jq -r '.performance.avg_duration // 0')
 
-    local baseline_ops=$(echo "$baseline" | grep -o '"ops_per_second": "[^"]*"' | cut -d: -f2 | tr -d '" ')
-    local current_ops=$(echo "$current" | grep -o '"ops_per_second": "[^"]*"' | cut -d: -f2 | tr -d '" ')
+    local baseline_cache_hit_rate=$(echo "$baseline" | jq -r '.performance.cache_hit_rate // 0')
+    local current_cache_hit_rate=$(echo "$current" | jq -r '.performance.cache_hit_rate // 0')
+
+    local baseline_latency=$(echo "$baseline" | jq -r '.performance.service_binding_p50 // 0')
+    local current_latency=$(echo "$current" | jq -r '.performance.service_binding_p50 // 0')
+
+    local success_rate_change=$(echo "scale=2; $current_success_rate - $baseline_success_rate" | bc -l)
 
     cat <<EOF
 {
   "success_rate": {
     "baseline": $baseline_success_rate,
     "current": $current_success_rate,
-    "change": $(echo "scale=2; $current_success_rate - $baseline_success_rate" | bc -l)
+    "change": $success_rate_change
   },
-  "health_score": {
-    "baseline": "$baseline_health",
-    "current": "$current_health",
-    "improved": $(echo "$baseline_health" | grep -q "^[0-9]" && echo "$current_health" | grep -q "^[0-9]" && echo "$current_health > $baseline_health" | bc -l || echo "1")
-  },
-  "ops_per_second": {
-    "baseline": "$baseline_ops",
-    "current": "$current_ops",
-    "improved": $(echo "$baseline_ops" | grep -q "^[0-9]" && echo "$current_ops" | grep -q "^[0-9]" && echo "$current_ops > $baseline_ops" | bc -l || echo "1")
+  "performance": {
+    "avg_duration_ms": {
+      "baseline": $baseline_avg_duration,
+      "current": $current_avg_duration,
+      "change": $(echo "scale=2; $current_avg_duration - $baseline_avg_duration" | bc -l)
+    },
+    "cache_hit_rate": {
+      "baseline": $baseline_cache_hit_rate,
+      "current": $current_cache_hit_rate,
+      "change": $(echo "scale=2; $current_cache_hit_rate - $baseline_cache_hit_rate" | bc -l)
+    },
+    "service_binding_p50": {
+      "baseline": $baseline_latency,
+      "current": $current_latency,
+      "change": $(echo "scale=2; $current_latency - $baseline_latency" | bc -l)
+    }
   }
 }
 EOF
 }
 
-# Check if regression exists
+# Check if regression exists (5% threshold for success rate)
 has_regression() {
     local comparison="$1"
 
     # Check for significant performance degradation
-    local success_rate_change=$(echo "$comparison" | grep -o '"change": [^,]*' | cut -d: -f2 | tr -d ' ')
+    local success_rate_change=$(echo "$comparison" | jq -r '.success_rate.change // 0')
 
-    # Regression if success rate dropped by more than 10%
-    if (( $(echo "$success_rate_change < -10" | bc -l) )); then
+    # Regression if success rate dropped by more than 5%
+    if (( $(echo "$success_rate_change < -5" | bc -l) )); then
         return 0
     fi
 
@@ -352,18 +357,33 @@ EOF
 
 # List available baselines
 list_baselines() {
-    info "Available baselines:"
+    info "Available DAC baselines:"
     if [[ -d "$BASELINE_DIR" && -n "$(ls -A "$BASELINE_DIR" 2>/dev/null)" ]]; then
-        for baseline in "$BASELINE_DIR"/baseline-*.metrics; do
+        # Show active CI baseline first
+        local ci_baseline="$BASELINE_DIR/dac-service-binding-baseline.json"
+        if [[ -f "$ci_baseline" ]] && [[ -L "$ci_baseline" ]]; then
+            local target=$(readlink "$ci_baseline")
+            local name=$(basename "$target" .json | sed 's/dac-service-binding-baseline-//')
+            local timestamp=$(jq -r '.timestamp // "unknown"' "$ci_baseline")
+            local success_rate=$(jq -r '.summary.success_rate // 0' "$ci_baseline")
+            echo "  → $name (ACTIVE for CI, timestamp: $timestamp, success rate: ${success_rate}%)"
+        fi
+
+        # Show all named baselines
+        for baseline in "$BASELINE_DIR"/dac-service-binding-baseline-*.json; do
             if [[ -f "$baseline" ]]; then
-                local name=$(basename "$baseline" .metrics | sed 's/baseline-//')
-                local timestamp=$(grep -o '"timestamp": "[^"]*"' "$baseline" | cut -d: -f2 | tr -d '"')
-                local success_rate=$(grep -o '"success_rate": [0-9.]*' "$baseline" | cut -d: -f2 | tr -d ' ')
+                local name=$(basename "$baseline" .json | sed 's/dac-service-binding-baseline-//')
+                local timestamp=$(jq -r '.timestamp // "unknown"' "$baseline")
+                local success_rate=$(jq -r '.summary.success_rate // 0' "$baseline")
+                if [[ "$ci_baseline" && "$(readlink "$ci_baseline" 2>/dev/null)" == "$(basename "$baseline")" ]]; then
+                    # Skip the active one since we already showed it
+                    continue
+                fi
                 echo "  - $name (timestamp: $timestamp, success rate: ${success_rate}%)"
             fi
         done
     else
-        echo "  No baselines found"
+        echo "  No DAC baselines found"
     fi
 }
 
@@ -389,6 +409,7 @@ Examples:
 
 Environment Variables:
   API_URL                   Override API URL (default: $API_URL)
+  API_KEY                   Override API key (default: yanggf)
 
 EOF
 }

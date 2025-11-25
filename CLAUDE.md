@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Enterprise-grade AI trading intelligence system
-- **Current Version**: Latest (2025-11-09 - Code Refactoring + Cleanup)
+- **Current Version**: Latest (2025-01-XX - DAC Integration Testing Enhancements)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -19,6 +19,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **DAC Integration Testing** | ✅ Complete | Week 1 critical fixes implemented, all thresholds enforced |
+| **93% Cache Hit Rate Enforcement** | ✅ Complete | Both simple and comprehensive tests enforce 93% threshold |
+| **Service Binding Latency Test** | ✅ Complete | Direct measurement with p50<100ms, p95 monitoring |
+| **5% Regression Enforcement** | ✅ Complete | CI and local tests fail on >5% degradation |
+| **Security Alignment** | ✅ Complete | Unified X_API_KEY usage across all tests |
+| **Baseline Management** | ✅ Complete | Symlink-based CI/runner compatibility implemented |
 | **Code Refactoring** | ✅ Complete | DO cache metrics module refactored, improved organization |
 | **Frontend Code Cleanup** | ✅ Complete | JavaScript syntax errors fixed in dashboard and weekly analysis |
 | **Critical Integration Fixes** | ✅ Complete | All authentication and integration issues resolved |
@@ -298,9 +304,13 @@ wrangler secret put FEATURE_FLAG_DO_CACHE
 - **Performance Focused**: Multi-level caching with intelligent management
 - **Type Safety**: TypeScript coverage for all modules
 
-### **Deploy Command**
+### **Deploy Command** ⚠️ **DO NOT REMOVE - CRITICAL INSTRUCTION**
 ```bash
-env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler
+# Deploy without API token (uses browser auth) - REQUIRED DEPLOYMENT METHOD
+env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
+
+# Alternative (both variables unset):
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy
 ```
 
 ### **Related Documentation**
@@ -326,6 +336,6 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2025-11-09
-**Current Version**: Production Ready with Code Refactoring + Cleanup
-**Major Updates**: DO cache metrics refactored, frontend JavaScript syntax errors fixed, code organization improved
+**Last Updated**: 2025-01-XX
+**Current Version**: Production Ready with DAC Integration Testing Enhancements
+**Major Updates**: DAC integration testing Week 1 critical fixes, 93% cache hit rate enforcement, service binding latency measurement, 5% regression enforcement

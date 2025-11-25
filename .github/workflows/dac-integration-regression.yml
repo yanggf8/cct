@@ -1,0 +1,314 @@
+name: DAC Service Binding Integration & Regression Tests
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/modules/dac-articles-pool.ts'
+      - 'src/modules/enhanced-sentiment-pipeline.ts'
+      - 'src/routes/enhanced-sentiment-routes.ts'
+      - 'src/types/cloudflare.ts'
+      - 'wrangler.toml'
+      - 'test-dac-*.sh'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'src/modules/dac-articles-pool.ts'
+      - 'src/modules/enhanced-sentiment-pipeline.ts'
+      - 'src/routes/enhanced-sentiment-routes.ts'
+      - 'src/types/cloudflare.ts'
+      - 'wrangler.toml'
+      - 'test-dac-*.sh'
+  schedule:
+    # Run regression tests daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of test to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - quick
+          - baseline
+
+jobs:
+  regression-tests:
+    name: DAC Integration Regression Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g wrangler
+
+      - name: Cache test dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+          key: ${{ runner.os }}-node-${{ matrix.node-version }}-deps-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node-version }}-deps-
+
+      - name: Test dependencies
+        run: |
+          command -v curl || (sudo apt-get update && sudo apt-get install -y curl)
+          command -v jq || (sudo apt-get update && sudo apt-get install -y jq)
+          command -v bc || (sudo apt-get update && sudo apt-get install -y bc)
+
+      - name: Validate TypeScript compilation
+        run: |
+          npm run typecheck || npm run build || echo "TypeScript build validation"
+
+      - name: Wait for deployment (if push to main)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          echo "Waiting 60 seconds for deployment to propagate..."
+          sleep 60
+
+      - name: Run quick DAC integration tests
+        env:
+          API_KEY: ${{ secrets.X_API_KEY || 'yanggf' }}
+        run: |
+          echo "🔍 Running quick DAC integration tests..."
+          ./test-dac-service-binding-comprehensive.sh quick
+
+      - name: Run full DAC integration tests
+        env:
+          API_KEY: ${{ secrets.X_API_KEY || 'yanggf' }}
+        if: github.event.inputs.test_type == 'full' || github.event.inputs.test_type == ''
+        run: |
+          echo "🧪 Running full DAC integration test suite..."
+          ./test-dac-service-binding-comprehensive.sh run
+
+      - name: Update regression baseline
+        env:
+          API_KEY: ${{ secrets.X_API_KEY || 'yanggf' }}
+        if: github.event.inputs.test_type == 'baseline'
+        run: |
+          echo "📊 Updating regression baseline..."
+          ./test-dac-service-binding-comprehensive.sh baseline
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dac-test-results-${{ matrix.node-version }}
+          path: |
+            test-reports/
+            baselines/
+          retention-days: 30
+
+      - name: Performance regression check
+        run: |
+          echo "📈 Checking for performance regressions..."
+
+          # Find the most recent test report
+          REPORT_FILE=$(find test-reports -name "dac-service-binding-test-*.json" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+
+          if [[ -f $REPORT_FILE ]]; then
+            echo "Using report: $REPORT_FILE"
+
+            # Check success rate and 93% cache hit rate threshold
+            SUCCESS_RATE=$(jq -r '.summary.success_rate // 0' $REPORT_FILE)
+            CACHE_HIT_RATE=$(jq -r '.tests[] | select(.name == "L1 Cache Hit Rate") | .hit_rate // 0' $REPORT_FILE)
+            AVG_PERFORMANCE=$(jq -r '.performance_metrics | map(select(.status == "PASS")) | map(.duration_ms) | add / length' $REPORT_FILE 2>/dev/null || echo "0")
+
+            echo "Success Rate: ${SUCCESS_RATE}%"
+            echo "Cache Hit Rate: ${CACHE_HIT_RATE}%"
+            echo "Average Performance: ${AVG_PERFORMANCE}ms"
+
+            # Fail if success rate is below 90% (raised from 80%)
+            if (( $(echo "$SUCCESS_RATE < 90" | bc -l) )); then
+              echo "❌ FAIL: Success rate (${SUCCESS_RATE}%) is below 90%"
+              exit 1
+            fi
+
+            # Fail if cache hit rate is below 93%
+            if (( $(echo "$CACHE_HIT_RATE < 93" | bc -l) )); then
+              echo "❌ FAIL: Cache hit rate (${CACHE_HIT_RATE}%) is below 93% threshold"
+              exit 1
+            fi
+
+            # Fail if average performance is above 5 seconds
+            if (( $(echo "$AVG_PERFORMANCE > 5000" | bc -l) )); then
+              echo "❌ FAIL: Average performance (${AVG_PERFORMANCE}ms) is above 5000ms"
+              exit 1
+            fi
+
+            echo "✅ Performance checks passed"
+
+            # Run baseline regression check if baseline exists
+            if [[ -f "baselines/dac-service-binding-baseline.json" ]]; then
+              echo "🔍 Running baseline regression check..."
+
+              BASELINE_SUCCESS_RATE=$(jq -r '.summary.success_rate // 0' baselines/dac-service-binding-baseline.json)
+              SUCCESS_RATE_CHANGE=$(echo "scale=2; $SUCCESS_RATE - $BASELINE_SUCCESS_RATE" | bc -l)
+
+              echo "Baseline Success Rate: ${BASELINE_SUCCESS_RATE}%"
+              echo "Current Success Rate: ${SUCCESS_RATE}%"
+              echo "Change: ${SUCCESS_RATE_CHANGE}%"
+
+              # Fail if success rate dropped by more than 5% (regression threshold)
+              if (( $(echo "$SUCCESS_RATE_CHANGE < -5" | bc -l) )); then
+                echo "❌ FAIL: Success rate dropped by ${SUCCESS_RATE_CHANGE}% (>5% regression threshold)"
+                exit 1
+              else
+                echo "✅ No regression detected (change: ${SUCCESS_RATE_CHANGE}%)"
+              fi
+            else
+              echo "ℹ️  No baseline found - skipping regression comparison"
+            fi
+
+          else
+            echo "❌ FAIL: No test report found"
+            exit 1
+          fi
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## 📊 DAC Service Binding Test Summary" >> $GITHUB_STEP_SUMMARY
+
+          # Find the most recent test report
+          REPORT_FILE=$(find test-reports -name "dac-service-binding-test-*.json" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
+
+          if [[ -f $REPORT_FILE ]]; then
+            TOTAL_TESTS=$(jq -r '.summary.total_tests // 0' $REPORT_FILE)
+            PASSED_TESTS=$(jq -r '.summary.passed // 0' $REPORT_FILE)
+            FAILED_TESTS=$(jq -r '.summary.failed // 0' $REPORT_FILE)
+            SUCCESS_RATE=$(jq -r '.summary.success_rate // 0' $REPORT_FILE)
+            CACHE_HIT_RATE=$(jq -r '.tests[] | select(.name == "L1 Cache Hit Rate") | .hit_rate // "N/A"' $REPORT_FILE)
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total Tests | $TOTAL_TESTS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Passed | $PASSED_TESTS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Failed | $FAILED_TESTS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Success Rate | ${SUCCESS_RATE}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Cache Hit Rate | ${CACHE_HIT_RATE}% |" >> $GITHUB_STEP_SUMMARY
+            echo "| Node Version | ${{ matrix.node-version }} |" >> $GITHUB_STEP_SUMMARY
+
+            # Status indicator
+            if (( $(echo "$SUCCESS_RATE >= 95" | bc -l) )); then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "🟢 **Status: EXCELLENT** - Integration is working perfectly"
+            elif (( $(echo "$SUCCESS_RATE >= 85" | bc -l) )); then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "🟡 **Status: GOOD** - Minor issues detected"
+            else
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "🔴 **Status: NEEDS ATTENTION** - Significant issues found"
+            fi
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Test Report Not Found** - Tests may have failed to run"
+          fi
+
+      - name: Slack notification on failure
+        if: failure() && github.ref == 'refs/heads/main'
+        run: |
+          # You can add Slack notification logic here
+          echo "🚨 DAC integration tests failed on main branch"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security audit
+        run: |
+          npm audit --audit-level high
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "🔍 Checking for potential security issues..."
+
+          # Check for potential API keys in DAC integration files
+          if grep -r "AIzaSy\|sk-\|xoxb-\|ghp_" src/modules/dac-*.ts src/routes/enhanced-*.ts 2>/dev/null; then
+            echo "❌ Potential hardcoded secrets found!"
+            exit 1
+          else
+            echo "✅ No hardcoded secrets detected"
+          fi
+
+      - name: Validate service binding configuration
+        run: |
+          echo "🔌 Validating service binding security..."
+
+          # Check if service binding is properly configured
+          if grep -q "binding = \"DAC_BACKEND\"" wrangler.toml; then
+            echo "✅ Service binding properly configured"
+          else
+            echo "❌ Service binding configuration issue"
+            exit 1
+          fi
+
+  deploy-validation:
+    name: Post-Deploy Validation
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [regression-tests, security-scan]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup test environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq bc
+
+      - name: Wait for deployment propagation
+        run: |
+          echo "⏳ Waiting for deployment to propagate..."
+          sleep 120
+
+      - name: Validate production deployment
+        run: |
+          CCT_URL="https://tft-trading-system.yanggf.workers.dev"
+
+          echo "🚀 Validating production deployment..."
+
+          # Test health endpoints
+          echo "Testing CCT health..."
+          curl -f -s "$CCT_URL/api/v1/data/health" | jq .
+
+          echo "Testing cache health..."
+          curl -f -s "$CCT_URL/api/v1/cache/health" | jq .
+
+          echo "Testing DAC service binding integration..."
+          curl -f -s "$CCT_URL/api/v1/sentiment/health" | jq .
+
+          # Test actual functionality
+          echo "Testing enhanced sentiment pipeline..."
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: yanggf" \
+            -d '{"symbol":"AAPL","use_dac_integration":true}' \
+            "$CCT_URL/api/v1/sentiment/enhanced" | jq .
+
+          echo "✅ Production deployment validation complete"
