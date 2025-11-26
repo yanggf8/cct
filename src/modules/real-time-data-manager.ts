@@ -196,7 +196,10 @@ export class RealTimeDataManager {
   // Refresh market structure (uses Yahoo internally)
   private async refreshMarketStructure(ttl: { l1: number; l2: number; }): Promise<FreshnessRecord> {
     try {
-      const fetcher = initializeMarketStructureFetcher({});
+      const fetcher = initializeMarketStructureFetcher({
+        environment: this.env,
+        enableCaching: true
+      });
       const ms = await fetcher.fetchMarketStructure();
       const ns = getCacheNamespace('market_data');
       await this.cache.set(ns.name, 'market_structure:current', ms, ttl as any);

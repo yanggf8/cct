@@ -70,6 +70,7 @@ export interface MarketStructure {
 
   // Treasury Yields
   yield10Y: number;               // 10Y yield for comparison
+  yield2Y: number;                // 2Y yield for yield curve analysis
   yieldCurveStatus: 'normal' | 'flat' | 'inverted';
 
   // Credit Markets
