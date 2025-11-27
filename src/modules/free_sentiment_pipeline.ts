@@ -5,6 +5,7 @@
  */
 
 import type { CloudflareEnvironment } from '../types.js';
+import { DACArticlesAdapter } from './dac-articles-pool.js';
 
 // Type definitions
 interface FreeSentimentConfig {
@@ -151,6 +152,25 @@ const FREE_SENTIMENT_CONFIG: FreeSentimentConfig = {
  */
 export async function getFreeStockNews(symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
   const newsData: NewsArticle[] = [];
+
+  // 0. Try DAC Articles Pool (Highest Priority)
+  try {
+    const dacAdapter = new DACArticlesAdapter(env);
+    // Only use DAC if configured
+    if (env.DAC_BACKEND || env.DAC_ARTICLES_POOL_URL) {
+      const dacResult = await dacAdapter.getArticlesForSentiment(symbol);
+      if (dacResult.source === 'dac_pool' && dacResult.articles.length > 0) {
+        console.log(`[DAC Pool] HIT for ${symbol} (${dacResult.articles.length} articles)`);
+        // Add source type if missing
+        return dacResult.articles.map(article => ({
+          ...article,
+          source_type: 'dac_pool'
+        }));
+      }
+    }
+  } catch (error: any) {
+    console.log(`DAC Pool lookup failed for ${symbol} (continuing to fallbacks):`, (error instanceof Error ? error.message : String(error)));
+  }
 
   try {
     // 1. Financial Modeling Prep (has built-in sentiment!)

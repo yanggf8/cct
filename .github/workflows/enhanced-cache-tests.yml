@@ -145,7 +145,7 @@ jobs:
         path: |
           test-results-*.log
           response.json
-        retention-days: 7
+        retention-days: 0
 
     - name: Fail on test failures
       if: env.ALL_TESTS_PASSED == 'false'
@@ -204,7 +204,7 @@ jobs:
       with:
         name: regression-reports
         path: reports/
-        retention-days: 30
+        retention-days: 0
 
   deploy-validation:
     name: Deploy Validation

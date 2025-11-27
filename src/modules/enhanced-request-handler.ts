@@ -185,10 +185,16 @@ export class EnhancedRequestHandler {
           break;
       }
 
-      // Add enhanced system headers
+      // Add enhanced system headers while preserving existing Content-Type
       (response as any).headers.set('X-Enhanced-System', 'true');
       (response as any).headers.set('X-API-Version', 'v1');
       (response as any).headers.set('X-Migration-Reason', reason);
+
+      // Ensure proper Content-Type for HTML responses
+      const contentType = (response as any).headers.get('Content-Type') || '';
+      if (contentType.includes('text/html')) {
+        (response as any).headers.set('Content-Type', 'text/html; charset=utf-8');
+      }
 
       monitor.complete(response);
 
@@ -394,10 +400,16 @@ export class EnhancedRequestHandler {
     try {
       const response = await handleHttpRequest(request, this.env, ctx);
 
-      // Add migration headers
+      // Add migration headers while preserving existing Content-Type
       (response as any).headers.set('X-Enhanced-System', 'true');
       (response as any).headers.set('X-API-Version', 'legacy');
       (response as any).headers.set('X-Migration-Reason', reason);
+
+      // Ensure proper Content-Type for HTML responses
+      const contentType = (response as any).headers.get('Content-Type') || '';
+      if (contentType.includes('text/html')) {
+        (response as any).headers.set('Content-Type', 'text/html; charset=utf-8');
+      }
 
       monitor.complete(response);
 

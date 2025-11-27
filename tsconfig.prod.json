@@ -1,0 +1,30 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/guards/*": ["src/guards/*"],
+      "@/mocks/*": ["src/guards/no-mock-stub"],
+      "@/test-utils/*": ["src/guards/no-test-stub"]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/utils/capture_psid_webhook.ts",
+    "src/utils/get_psid.ts",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "src/**/__tests__/**"
+  ]
+}

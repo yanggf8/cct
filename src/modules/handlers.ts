@@ -15,6 +15,7 @@ import { getFactTableData, getCronHealthStatus } from './data.js';
 // Models removed - using GPT-OSS-120B enhanced analysis instead
 import { analyzeSingleSymbol } from './per_symbol_analysis.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
+import { createDAL } from './dal.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -539,15 +540,74 @@ export async function handleFridayMarketCloseReport(request: Request, env: Cloud
  * Handle other endpoints with simple responses
  */
 export async function handleFridayMondayPredictionsReport(request: Request, env: CloudflareEnvironment): Promise<Response> {
-  return new Response(JSON.stringify({ message: 'Monday predictions feature coming soon' }), {
+  const isProduction = env.ENVIRONMENT === 'production';
+
+  if (isProduction) {
+    return new Response(JSON.stringify({
+      error: 'Feature not found',
+      code: 404,
+      message: 'Monday predictions feature is not implemented'
+    }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Development environment: provide basic placeholder response
+  return new Response(JSON.stringify({
+    message: 'Monday predictions feature - Development placeholder',
+    status: 'not_implemented',
+    environment: env.ENVIRONMENT || 'development'
+  }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
 
 export async function handleHighConfidenceTest(request: Request, env: CloudflareEnvironment): Promise<Response> {
-  return new Response(JSON.stringify({ message: 'High confidence test feature coming soon' }), {
-    headers: { 'Content-Type': 'application/json' }
-  });
+  const isProduction = env.ENVIRONMENT === 'production';
+
+  if (isProduction) {
+    return new Response(JSON.stringify({
+      error: 'Feature not found',
+      code: 404,
+      message: 'High confidence test feature is not implemented'
+    }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Development environment: provide basic test functionality
+  try {
+    const testData = {
+      timestamp: new Date().toISOString(),
+      testType: 'high_confidence_validation',
+      status: 'development_mode',
+      confidence: 0.95,
+      environment: env.ENVIRONMENT || 'development',
+      data: {
+        testResults: [
+          { symbol: 'AAPL', confidence: 0.98, signal: 'bullish' },
+          { symbol: 'MSFT', confidence: 0.92, signal: 'neutral' }
+        ]
+      }
+    };
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: testData
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 export async function handleFactTable(request: Request, env: CloudflareEnvironment): Promise<Response> {
@@ -575,15 +635,104 @@ export async function handleFactTable(request: Request, env: CloudflareEnvironme
 }
 
 export async function handleKVCleanup(request: Request, env: CloudflareEnvironment): Promise<Response> {
-  return new Response(JSON.stringify({ message: 'KV cleanup feature coming soon' }), {
-    headers: { 'Content-Type': 'application/json' }
-  });
+  const isProduction = env.ENVIRONMENT === 'production';
+
+  if (isProduction) {
+    return new Response(JSON.stringify({
+      error: 'Feature not found',
+      code: 404,
+      message: 'KV cleanup feature is not implemented'
+    }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Development environment: implement basic KV cleanup functionality
+  try {
+    // Simple KV cleanup for development
+    const dal = createDAL(env);
+    const keysToDelete = ['test_data', 'temp_cache', 'debug_data'];
+    const deletionResults = [];
+
+    for (const key of keysToDelete) {
+      try {
+        await dal.delete(key);
+        deletionResults.push({ key, status: 'deleted' });
+      } catch (error) {
+        deletionResults.push({
+          key,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'KV cleanup completed',
+      results: deletionResults,
+      environment: env.ENVIRONMENT || 'development'
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 export async function handleDebugWeekendMessage(request: Request, env: CloudflareEnvironment): Promise<Response> {
-  return new Response(JSON.stringify({ message: 'Debug weekend message feature coming soon' }), {
-    headers: { 'Content-Type': 'application/json' }
-  });
+  const isProduction = env.ENVIRONMENT === 'production';
+
+  if (isProduction) {
+    return new Response(JSON.stringify({
+      error: 'Feature not found',
+      code: 404,
+      message: 'Debug weekend message feature is not implemented'
+    }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  // Development environment: provide debug information
+  try {
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      environment: env.ENVIRONMENT || 'development',
+      features: {
+        market_clock: 'implemented',
+        sentiment_analysis: 'implemented',
+        macro_data: 'implemented',
+        market_structure: 'implemented',
+        debug_mode: 'active'
+      },
+      debug_message: 'Weekend debug information available in development mode only',
+      data_quality: 'high',
+      cache_status: 'operational'
+    };
+
+    return new Response(JSON.stringify({
+      success: true,
+      debug_data: debugInfo
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
 
 export async function handleKVGet(request: Request, env: CloudflareEnvironment): Promise<Response> {

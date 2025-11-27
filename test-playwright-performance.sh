@@ -4,30 +4,19 @@
 # Tests real user workflows and performance for the trading system
 
 set -euo pipefail
-# Check environment variables
+
+# Check environment variables - fail-fast on missing X_API_KEY
 if [[ -z "${X_API_KEY:-}" ]]; then
     echo "❌ ERROR: X_API_KEY environment variable is not set"
-    echo "Please set X_API_KEY in your .zshrc or export it:"
-    echo "  export X_API_KEY=your_api_key"
-    exit 1
-fi
-echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
-# Check environment variables
-if [[ -z "${X_API_KEY:-}" ]]; then
-    echo "❌ ERROR: X_API_KEY environment variable is not set"
+    echo ""
+    echo "Set it via one of the following methods:"
+    echo "  • In ~/.zshrc: export X_API_KEY=your_api_key && source ~/.zshrc"
+    echo "  • Temporarily: X_API_KEY=your_api_key ./test-playwright-performance.sh"
     echo ""
     echo "Current environment variables with API_KEY:"
     env | grep -i api_key || echo "  (none found)"
-    echo ""
-    echo "Please set X_API_KEY in your .zshrc:"
-    echo "  export X_API_KEY=your_api_key"
-    echo "  source ~/.zshrc"
-    echo ""
-    echo "Or set it temporarily:"
-    echo "  X_API_KEY=your_api_key ./test-script.sh"
     exit 1
 fi
-echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
 echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
 
 # Colors

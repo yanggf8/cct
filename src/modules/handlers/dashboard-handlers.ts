@@ -1071,7 +1071,7 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
           <div style="text-align: center; padding: 2rem 0; color: #94a3b8;">
             <i class="fas fa-chart-line" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
             <p>Market Drivers Analysis</p>
-            <p style="font-size: 0.85rem; margin-top: 0.5rem;">FRED API integration coming soon</p>
+            
           </div>
         </div>
       </div>

@@ -1,0 +1,365 @@
+name: Artifact Retention and Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_type:
+        description: 'Type of cleanup to perform'
+        required: true
+        default: 'retention-policy'
+        type: choice
+        options:
+        - retention-policy
+        - all-artifacts
+        - old-artifacts
+      retention_days:
+        description: 'Days to retain artifacts (0 for delete all)'
+        required: true
+        default: '7'
+        type: string
+  schedule:
+    # Run weekly cleanup on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  artifact-cleanup:
+    name: Artifact Cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: |
+        npm ci --prefer-offline --no-audit
+
+    - name: Get Workflow Artifacts
+      id: get-artifacts
+      run: |
+        RETENTION_DAYS="${{ github.event.inputs.retention_days || 7 }}"
+        CLEANUP_TYPE="${{ github.event.inputs.cleanup_type || 'retention-policy' }}"
+
+        echo "🧹 Starting artifact cleanup..."
+        echo "Cleanup Type: $CLEANUP_TYPE"
+        echo "Retention Days: $RETENTION_DAYS"
+        echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        # Get list of artifacts older than retention period
+        CUTOFF_DATE=$(date -d "$RETENTION_DAYS days ago" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-"$RETENTION_DAYS"d -u +%Y-%m-%dT%H:%M:%SZ)
+        echo "Cutoff Date: $CUTOFF_DATE"
+
+        # List artifacts using GitHub CLI
+        ARTIFACTS_JSON=$(gh api repos/:owner/:repo/actions/artifacts --paginate | jq '.artifacts')
+        TOTAL_ARTIFACTS=$(echo "$ARTIFACTS_JSON" | jq length)
+
+        echo "Total artifacts found: $TOTAL_ARTIFACTS"
+        echo "$ARTIFACTS_JSON" > artifacts-list.json
+
+        # Filter artifacts based on cleanup type
+        case "$CLEANUP_TYPE" in
+          "retention-policy")
+            # Keep important artifacts longer
+            echo "Applying retention policy..."
+            ARTIFACTS_TO_DELETE=$(echo "$ARTIFACTS_JSON" | jq --arg cutoff "$CUTOFF_DATE" '
+              map(select(
+                (.created_at < $cutoff) and
+                (not (.name | contains("schema-validation"))) and
+                (not (.name | contains("slo-report"))) and
+                (not (.name | contains("security-audit"))) and
+                (not (.name | contains("bundle"))) and
+                (.size_in_bytes > 1000000)  # Only large artifacts
+              ))
+            ')
+            ;;
+          "old-artifacts")
+            # Delete all artifacts older than retention period
+            echo "Finding old artifacts..."
+            ARTIFACTS_TO_DELETE=$(echo "$ARTIFACTS_JSON" | jq --arg cutoff "$CUTOFF_DATE" '
+              map(select(.created_at < $cutoff))
+            ')
+            ;;
+          "all-artifacts")
+            # Delete all artifacts (retention_days = 0)
+            if [[ "$RETENTION_DAYS" == "0" ]]; then
+              echo "Preparing to delete ALL artifacts..."
+              ARTIFACTS_TO_DELETE="$ARTIFACTS_JSON"
+            else
+              echo "Error: all-artifacts cleanup requires retention_days = 0"
+              exit 1
+            fi
+            ;;
+        esac
+
+        DELETE_COUNT=$(echo "$ARTIFACTS_TO_DELETE" | jq length)
+        echo "Artifacts to delete: $DELETE_COUNT"
+
+        # Save artifact list for cleanup
+        echo "$ARTIFACTS_TO_DELETE" > artifacts-to-delete.json
+
+        # Generate cleanup report
+        cat > cleanup-report.json << EOF
+        {
+          "cleanup_metadata": {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "cleanup_type": "$CLEANUP_TYPE",
+            "retention_days": $RETENTION_DAYS,
+            "cutoff_date": "$CUTOFF_DATE",
+            "total_artifacts": $TOTAL_ARTIFACTS,
+            "artifacts_to_delete": $DELETE_COUNT
+          },
+          "artifacts_processed": $(echo "$ARTIFACTS_TO_DELETE" | jq '[.[] | {
+            name: .name,
+            id: .id,
+            size_mb: (.size_in_bytes / 1048576 | floor),
+            created_at: .created_at,
+            workflow_run_id: .workflow_run.id,
+            expired: .expired
+          }]'),
+          "space_freed_mb": $(echo "$ARTIFACTS_TO_DELETE" | jq '[.[] | .size_in_bytes] | add / 1048576 | floor')
+        }
+        EOF
+
+        echo "Cleanup report generated:"
+        cat cleanup-report.json | jq '.cleanup_metadata'
+
+        echo "artifacts_to_delete=$DELETE_COUNT" >> $GITHUB_OUTPUT
+        echo "total_artifacts=$TOTAL_ARTIFACTS" >> $GITHUB_OUTPUT
+
+    - name: Delete Artifacts
+      if: steps.get-artifacts.outputs.artifacts_to_delete != '0'
+      run: |
+        DELETE_COUNT=${{ steps.get-artifacts.outputs.artifacts_to_delete }}
+
+        if [[ $DELETE_COUNT -gt 0 ]]; then
+          echo "🗑️  Starting artifact deletion ($DELETE_COUNT artifacts)..."
+
+          DELETED=0
+          FAILED=0
+          ERROR_DETAILS=()
+
+          # Process artifacts in batches to avoid rate limits
+          jq -c '.[]' artifacts-to-delete.json | while read -r artifact; do
+            ARTIFACT_ID=$(echo "$artifact" | jq -r '.id')
+            ARTIFACT_NAME=$(echo "$artifact" | jq -r '.name')
+            ARTIFACT_SIZE=$(echo "$artifact" | jq -r '.size_in_bytes')
+
+            echo "Deleting artifact: $ARTIFACT_NAME (${ARTIFACT_SIZE} bytes)"
+
+            if gh api --method DELETE "repos/:owner/:repo/actions/artifacts/$ARTIFACT_ID" --silent; then
+              ((DELETED++))
+              echo "  ✅ Deleted successfully"
+            else
+              ((FAILED++))
+              ERROR_DETAILS+=("Failed to delete $ARTIFACT_NAME (ID: $ARTIFACT_ID)")
+              echo "  ❌ Delete failed"
+            fi
+
+            # Rate limiting protection
+            if [[ $((DELETED + FAILED)) -gt 0 && $(((DELETED + FAILED) % 10)) -eq 0 ]]; then
+              echo "  ⏳ Pausing for rate limit protection..."
+              sleep 2
+            fi
+          done
+
+          echo "📊 Artifact Deletion Results:"
+          echo "  Successfully deleted: $DELETED"
+          echo "  Failed to delete: $FAILED"
+          echo "  Total processed: $((DELETED + FAILED))"
+
+          # Update cleanup report with results
+          jq --argjson deleted "$DELETED" --argjson failed "$FAILED" '
+            .cleanup_results = {
+              artifacts_deleted: $deleted,
+              artifacts_failed: $failed,
+              success_rate: (($deleted / ($deleted + $failed)) * 100 | floor)
+            }
+          ' cleanup-report.json > cleanup-report-updated.json
+          mv cleanup-report-updated.json cleanup-report.json
+
+          if [[ $FAILED -gt 0 ]]; then
+            echo "⚠️  Some artifacts failed to delete:"
+            printf '%s\n' "${ERROR_DETAILS[@]}"
+          fi
+        else
+          echo "✅ No artifacts to delete"
+        fi
+
+    - name: Generate Cleanup Summary
+      if: always()
+      run: |
+        TOTAL_ARTIFACTS=${{ steps.get-artifacts.outputs.total_artifacts }}
+        DELETE_COUNT=${{ steps.get-artifacts.outputs.artifacts_to_delete }}
+
+        echo ""
+        echo "🧹 Artifact Cleanup Summary"
+        echo "============================"
+        echo "Total artifacts in repository: $TOTAL_ARTIFACTS"
+        echo "Artifacts marked for deletion: $DELETE_COUNT"
+        echo "Artifacts remaining: $((TOTAL_ARTIFACTS - DELETE_COUNT))"
+        echo ""
+
+        if [[ -f cleanup-report.json ]]; then
+          SPACE_FREED=$(jq -r '.space_freed_mb // 0' cleanup-report.json)
+          echo "💾 Space freed: ${SPACE_FREED} MB"
+          echo ""
+
+          if [[ -f artifacts-to-delete.json ]] && [[ $(jq length artifacts-to-delete.json) -gt 0 ]]; then
+            echo "📋 Deleted artifacts:"
+            jq -r '.artifacts_processed[] | "  • \(.name) (\(.size_mb)MB, \(.created_at))"' cleanup-report.json | head -20
+            if [[ $(jq '.artifacts_processed | length' cleanup-report.json) -gt 20 ]]; then
+              echo "  ... and $(( $(jq '.artifacts_processed | length' cleanup-report.json) - 20 )) more"
+            fi
+          fi
+        fi
+
+        echo ""
+        echo "✅ Artifact cleanup completed"
+
+    - name: Upload Cleanup Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifact-cleanup-report-$(date +%Y%m%d-%H%M%S)
+        path: |
+          cleanup-report.json
+          artifacts-list.json
+          artifacts-to-delete.json
+        retention-days: 14
+
+    - name: Create Cleanup Issue (if failures)
+      if: failure() && steps.get-artifacts.outputs.artifacts_to_delete != '0'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+
+          let issueBody = '## 🧹 Artifact Cleanup Failure\n\n';
+
+          if (fs.existsSync('cleanup-report.json')) {
+            const report = JSON.parse(fs.readFileSync('cleanup-report.json', 'utf8'));
+            issueBody += `**Cleanup Details:**\n`;
+            issueBody += `- Type: ${report.cleanup_metadata.cleanup_type}\n`;
+            issueBody += `- Retention Days: ${report.cleanup_metadata.retention_days}\n`;
+            issueBody += `- Total Artifacts: ${report.cleanup_metadata.total_artifacts}\n`;
+            issueBody += `- Artifacts to Delete: ${report.cleanup_metadata.artifacts_to_delete}\n`;
+            issueBody += `- Space to Free: ${report.space_freed_mb} MB\n\n`;
+          }
+
+          issueBody += '### 🚨 Issue\n';
+          issueBody += 'Artifact cleanup process failed or encountered errors.\n\n';
+          issueBody += '### 🔍 Next Steps\n';
+          issueBody += '1. Review the cleanup workflow logs\n';
+          issueBody += '2. Check artifact permissions and settings\n';
+          issueBody += '3. Consider manual cleanup if necessary\n';
+          issueBody += '4. Adjust retention policy if too aggressive\n\n';
+          issueBody += `**Workflow:** [${{ github.workflow }} #${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Artifact Cleanup Failure - ${new Date().toISOString().split('T')[0]}`,
+            body: issueBody,
+            labels: ['maintenance', 'artifacts', 'cleanup']
+          });
+
+  retention-policy-review:
+    name: Review Retention Policy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    needs: artifact-cleanup
+
+    steps:
+    - name: Check Storage Usage
+      id: storage-check
+      run: |
+        echo "📊 Repository Storage Analysis"
+        echo "=============================="
+
+        # Get current artifacts
+        ARTIFACTS_JSON=$(gh api repos/:owner/:repo/actions/artifacts --paginate | jq '.artifacts')
+        CURRENT_ARTIFACTS=$(echo "$ARTIFACTS_JSON" | jq length)
+
+        # Calculate total size
+        TOTAL_SIZE=$(echo "$ARTIFACTS_JSON" | jq '[.[] | .size_in_bytes] | add / 1073741824') # Convert to GB
+        TOTAL_SIZE_GB=$(echo "$TOTAL_SIZE" | cut -d. -f1)
+
+        # Get large artifacts (>100MB)
+        LARGE_ARTIFACTS=$(echo "$ARTIFACTS_JSON" | jq '[.[] | select(.size_in_bytes > 104857600)] | length')
+
+        # Get old artifacts (>30 days)
+        CUTOFF_DATE=$(date -d "30 days ago" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-30d -u +%Y-%m-%dT%H:%M:%SZ)
+        OLD_ARTIFACTS=$(echo "$ARTIFACTS_JSON" | jq --arg cutoff "$CUTOFF_DATE" '[.[] | select(.created_at < $cutoff)] | length')
+
+        echo "Current artifacts: $CURRENT_ARTIFACTS"
+        echo "Total storage: ${TOTAL_SIZE_GB} GB"
+        echo "Large artifacts (>100MB): $LARGE_ARTIFACTS"
+        echo "Old artifacts (>30 days): $OLD_ARTIFACTS"
+
+        echo "current_artifacts=$CURRENT_ARTIFACTS" >> $GITHUB_OUTPUT
+        echo "total_size_gb=$TOTAL_SIZE_GB" >> $GITHUB_OUTPUT
+        echo "large_artifacts=$LARGE_ARTIFACTS" >> $GITHUB_OUTPUT
+        echo "old_artifacts=$OLD_ARTIFACTS" >> $GITHUB_OUTPUT
+
+    - name: Create Storage Review Issue
+      if: steps.storage-check.outputs.total_size_gb > '5' || steps.storage-check.outputs.old_artifacts > '50'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const currentArtifacts = '${{ steps.storage-check.outputs.current_artifacts }}';
+          const totalSizeGB = '${{ steps.storage-check.outputs.total_size_gb }}';
+          const largeArtifacts = '${{ steps.storage-check.outputs.large_artifacts }}';
+          const oldArtifacts = '${{ steps.storage-check.outputs.old_artifacts }}';
+
+          let issueBody = '## 📊 Repository Storage Review\n\n';
+          issueBody += `**Current Status:**\n`;
+          issueBody += `- Total Artifacts: ${currentArtifacts}\n`;
+          issueBody += `- Storage Used: ${totalSizeGB} GB\n`;
+          issueBody += `- Large Artifacts (>100MB): ${largeArtifacts}\n`;
+          issueBody += `- Old Artifacts (>30 days): ${oldArtifacts}\n\n`;
+
+          if (parseInt(totalSizeGB) > 5) {
+            issueBody += '### ⚠️ High Storage Usage Alert\n';
+            issueBody += `Repository is using ${totalSizeGB} GB of storage.\n\n`;
+          }
+
+          if (parseInt(oldArtifacts) > 50) {
+            issueBody += '### 📅 Old Artifacts Alert\n';
+            issueBody += `${oldArtifacts} artifacts are older than 30 days.\n\n`;
+          }
+
+          issueBody += '### 💡 Recommendations\n';
+
+          if (parseInt(totalSizeGB) > 5) {
+            issueBody += '- Consider reducing artifact retention period\n';
+            issueBody += '- Implement more aggressive cleanup\n';
+            issueBody += '- Review large artifact necessity\n';
+          }
+
+          if (parseInt(oldArtifacts) > 50) {
+            issueBody += '- Reduce retention period for build artifacts\n';
+            issueBody += '- Implement automatic cleanup for test artifacts\n';
+          }
+
+          issueBody += '- Review artifact naming conventions\n';
+          issueBody += '- Consider using package registries for large binaries\n\n';
+
+          issueBody += `**Last Review:** ${new Date().toISOString().split('T')[0]}\n`;
+
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Repository Storage Review - ${new Date().toISOString().split('T')[0]}`,
+            body: issueBody,
+            labels: ['maintenance', 'storage', 'review']
+          });

@@ -10,7 +10,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CCT_URL="${CCT_URL:-https://tft-trading-system.yanggf.workers.dev}"
 DAC_URL="${DAC_URL:-https://dac-backend.yanggf.workers.dev}"
-API_KEY="${API_KEY:-yanggf}"  # Allow override via environment
+# Use unified X_API_KEY; no insecure defaults
+API_KEY="${X_API_KEY:-}"
+if [[ -z "$API_KEY" ]]; then
+  echo "❌ ERROR: X_API_KEY environment variable is not set (required for authenticated tests)" >&2
+  echo "Set it via: export X_API_KEY=your_api_key" >&2
+  exit 1
+fi
 TEST_SYMBOLS=("AAPL" "MSFT" "GOOGL" "TSLA" "NVDA" "META" "AMZN" "NFLX")
 REPORT_DIR="$SCRIPT_DIR/test-reports"
 BASELINE_DIR="$SCRIPT_DIR/baselines"
@@ -335,9 +341,9 @@ test_service_binding_latency() {
             record_performance "Service Binding Latency p50" "$avg_latency" "PASS"
             TEST_RESULTS+=("{\"name\":\"Service Binding Latency\",\"status\":\"PASS\",\"p50_ms\":$avg_latency,\"p95_ms\":$p95_latency,\"target_p50\":\"<100ms\",\"successful_requests\":$successful_requests}")
         else
-            warning "Service binding latency: p50=${avg_latency}ms (PASS), but p95=${p95_latency}ms (>200ms)"
-            record_performance "Service Binding Latency p50" "$avg_latency" "WARN"
-            TEST_RESULTS+=("{\"name\":\"Service Binding Latency\",\"status\":\"WARN\",\"p50_ms\":$avg_latency,\"p95_ms\":$p95_latency,\"warning\":\"p95 above 200ms\"}")
+            fail "Service binding latency: p50=${avg_latency}ms (PASS), but p95=${p95_latency}ms (>200ms)"
+            record_performance "Service Binding Latency p50" "$avg_latency" "FAIL"
+            TEST_RESULTS+=("{\"name\":\"Service Binding Latency\",\"status\":\"FAIL\",\"p50_ms\":$avg_latency,\"p95_ms\":$p95_latency,\"error\":\"p95 above 200ms\"}")
         fi
     else
         fail "Service binding latency: p50=${avg_latency}ms (>=100ms threshold)"

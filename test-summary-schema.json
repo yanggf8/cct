@@ -1,0 +1,459 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Test Summary Schema",
+  "description": "Standardized schema for test execution summaries used in CI/CD pipelines",
+  "type": "object",
+  "properties": {
+    "test_metadata": {
+      "type": "object",
+      "properties": {
+        "test_name": {
+          "type": "string",
+          "description": "Human-readable name of the test script"
+        },
+        "test_version": {
+          "type": "string",
+          "description": "Version of the test script"
+        },
+        "execution_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9-]{36}$",
+          "description": "UUID for this test execution"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when test started"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total duration of test execution in seconds"
+        },
+        "environment": {
+          "type": "object",
+          "properties": {
+            "runner_os": {
+              "type": "string",
+              "description": "Operating system of test runner"
+            },
+            "node_version": {
+              "type": "string",
+              "description": "Node.js version used"
+            },
+            "npm_version": {
+              "type": "string",
+              "description": "npm version used"
+            },
+            "git_commit": {
+              "type": "string",
+              "description": "Git commit SHA being tested"
+            },
+            "git_branch": {
+              "type": "string",
+              "description": "Git branch being tested"
+            },
+            "test_mode": {
+              "type": "string",
+              "enum": ["quick", "full", "validation", "production", "staging"],
+              "description": "Test execution mode"
+            }
+          }
+        }
+      },
+      "required": ["test_name", "execution_id", "timestamp", "duration_seconds", "environment"]
+    },
+    "test_results": {
+      "type": "object",
+      "properties": {
+        "total_tests": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of individual tests run"
+        },
+        "tests_passed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tests that passed"
+        },
+        "tests_failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tests that failed"
+        },
+        "tests_skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tests that were skipped"
+        },
+        "tests_warned": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of tests that passed with warnings"
+        },
+        "success_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Success rate as percentage"
+        },
+        "overall_status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "WARN", "ERROR", "TIMEOUT"],
+          "description": "Overall test execution status"
+        }
+      },
+      "required": ["total_tests", "tests_passed", "tests_failed", "success_rate", "overall_status"]
+    },
+    "key_metrics": {
+      "type": "object",
+      "properties": {
+        "performance": {
+          "type": "object",
+          "properties": {
+            "slowest_test": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "duration_ms": {"type": "number"},
+                "status": {"type": "string"}
+              }
+            },
+            "fastest_test": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "duration_ms": {"type": "number"},
+                "status": {"type": "string"}
+              }
+            },
+            "average_test_duration_ms": {
+              "type": "number",
+              "description": "Average duration of all tests in milliseconds"
+            }
+          }
+        },
+        "build_metrics": {
+          "type": "object",
+          "properties": {
+            "build_duration_seconds": {
+              "type": "number",
+              "description": "Build process duration if applicable"
+            },
+            "build_artifact_size_bytes": {
+              "type": "number",
+              "description": "Size of build artifacts in bytes"
+            },
+            "build_artifact_count": {
+              "type": "integer",
+              "description": "Number of build artifacts created"
+            },
+            "bundle_hash": {
+              "type": "string",
+              "description": "Hash of build bundle for reproducibility verification"
+            }
+          }
+        },
+        "security_metrics": {
+          "type": "object",
+          "properties": {
+            "vulnerabilities_found": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of security vulnerabilities found"
+            },
+            "high_severity_vulns": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of high severity vulnerabilities"
+            },
+            "dependencies_scanned": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of dependencies scanned"
+            }
+          }
+        },
+        "compliance_metrics": {
+          "type": "object",
+          "properties": {
+            "exemptions_found": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of production exemptions found"
+            },
+            "exemptions_expired": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of expired exemptions found"
+            },
+            "policy_violations": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of policy violations detected"
+            }
+          }
+        }
+      }
+    },
+    "request_ids": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "Unique identifier for the request/test"
+          },
+          "test_name": {
+            "type": "string",
+            "description": "Name of the test that generated this request ID"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this request ID was generated"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["initiated", "completed", "failed", "timeout"],
+            "description": "Status of the request"
+          }
+        }
+      },
+      "description": "List of all request IDs generated during test execution for traceability"
+    },
+    "failed_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the failed test"
+          },
+          "error_message": {
+            "type": "string",
+            "description": "Error message describing the failure"
+          },
+          "error_type": {
+            "type": "string",
+            "enum": ["assertion", "timeout", "network", "auth", "schema", "system", "unknown"],
+            "description": "Type of error that occurred"
+          },
+          "duration_ms": {
+            "type": "number",
+            "description": "Duration of the failed test in milliseconds"
+          },
+          "stack_trace": {
+            "type": "string",
+            "description": "Stack trace if available"
+          },
+          "context": {
+            "type": "object",
+            "description": "Additional context about the failure"
+          }
+        },
+        "required": ["name", "error_message", "error_type"]
+      },
+      "description": "Detailed information about failed tests"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "test_name": {
+            "type": "string",
+            "description": "Name of the test that generated the warning"
+          },
+          "warning_message": {
+            "type": "string",
+            "description": "Warning message"
+          },
+          "warning_type": {
+            "type": "string",
+            "enum": ["performance", "deprecation", "configuration", "security", "compliance"],
+            "description": "Type of warning"
+          },
+          "recommendation": {
+            "type": "string",
+            "description": "Recommended action to address the warning"
+          }
+        },
+        "required": ["test_name", "warning_message", "warning_type"]
+      },
+      "description": "List of warnings generated during test execution"
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["immediate", "short_term", "long_term", "monitoring", "documentation"],
+            "description": "Category of the recommendation"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"],
+            "description": "Priority level of the recommendation"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title of the recommendation"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of the recommendation"
+          },
+          "action_items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Specific action items to implement the recommendation"
+          },
+          "estimated_effort": {
+            "type": "string",
+            "description": "Estimated effort to implement (e.g., '2-4 hours', '1-2 days')"
+          }
+        },
+        "required": ["category", "priority", "title", "description"]
+      },
+      "description": "Recommendations for improvement based on test results"
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the log file"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the log file"
+              },
+              "size_bytes": {
+                "type": "integer",
+                "description": "Size of the log file in bytes"
+              }
+            }
+          }
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the report file"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the report file"
+              },
+              "format": {
+                "type": "string",
+                "enum": ["json", "markdown", "html", "pdf"],
+                "description": "Format of the report"
+              }
+            }
+          }
+        },
+        "screenshots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the screenshot"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to the screenshot file"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the screenshot was taken"
+              }
+            }
+          }
+        }
+      },
+      "description": "Artifacts generated during test execution"
+    },
+    "ci_annotations": {
+      "type": "object",
+      "properties": {
+        "pull_request_comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["success", "warning", "error", "info"],
+                "description": "Type of comment to add to PR"
+              },
+              "message": {
+                "type": "string",
+                "description": "Message to add to pull request"
+              },
+              "file_path": {
+                "type": "string",
+                "description": "Specific file path to comment on (optional)"
+              },
+              "line_number": {
+                "type": "integer",
+                "description": "Line number to comment on (optional)"
+              }
+            }
+          }
+        },
+        "check_run_annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the check run"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["queued", "in_progress", "completed"],
+                "description": "Status of the check run"
+              },
+              "conclusion": {
+                "type": "string",
+                "enum": ["success", "failure", "neutral", "cancelled", "timed_out", "action_required"],
+                "description": "Conclusion of the check run"
+              },
+              "title": {
+                "type": "string",
+                "description": "Title of the check run"
+              },
+              "summary": {
+                "type": "string",
+                "description": "Summary of the check run results"
+              }
+            }
+          }
+        }
+      },
+      "description": "Annotations for CI/CD systems to integrate with test results"
+    }
+  },
+  "required": ["test_metadata", "test_results"],
+  "additionalProperties": false
+}

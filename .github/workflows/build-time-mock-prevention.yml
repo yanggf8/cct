@@ -1,0 +1,459 @@
+name: Build-Time Mock Prevention (Sprint 1-C)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of scan to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - quick
+          - strict
+
+jobs:
+  mock-prevention:
+    name: Build-Time Mock Prevention
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comprehensive scanning
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g wrangler
+
+      - name: Mock Data Detection - Strict Scan
+        run: |
+          echo "🔍 Running strict mock data detection..."
+
+          # Define banned patterns that should never appear in production
+          declare -A BANNED_PATTERNS=(
+            ["coming soon"]="Placeholder text indicating incomplete implementation"
+            ["COMING SOON"]="Uppercase placeholder text"
+            ["mock data"]="Explicit mock data references"
+            ["MOCK DATA"]="Uppercase mock data"
+            ["placeholder"]="Generic placeholder content"
+            ["PLACEHOLDER"]="Uppercase placeholder"
+            ["test data"]="Test-only data references"
+            ["TEST DATA"]="Uppercase test data"
+            ["lorem ipsum"]="Latin placeholder text"
+            ["Lorem ipsum"]="Capitalized placeholder"
+            ["fake.*timestamp"]="Generated fake timestamps"
+            ["FAKE.*timestamp"]="Uppercase fake timestamps"
+            ["example\.com"]="Example domain references"
+            ["EXAMPLE\.COM"]="Uppercase example domain"
+            ["not implemented"]="Unimplemented feature markers"
+            ["NOT IMPLEMENTED"]="Uppercase unimplemented"
+            ["TODO.*mock"]="TODO items referencing mock data"
+            ["FIXME.*mock"]="FIXME items referencing mock data"
+            ["HACK.*mock"]="HACK comments referencing mock data"
+            ["XXX.*mock"]="XXX comments referencing mock data"
+          )
+
+          # Files to scan
+          SOURCE_FILES=$(find src public -type f \( -name "*.ts" -o -name "*.js" -o -name "*.html" -o -name "*.json" \) 2>/dev/null || true)
+          BUILD_FILES=$(find dist -type f 2>/dev/null || true)
+
+          echo "Source files found:"
+          echo "$SOURCE_FILES" | wc -l
+          echo "Build files found:"
+          echo "$BUILD_FILES" | wc -l
+
+          VIOLATIONS_FOUND=0
+
+          # Scan source files
+          if [[ -n "$SOURCE_FILES" ]]; then
+            echo ""
+            echo "📁 Scanning source files..."
+
+            for pattern in "${!BANNED_PATTERNS[@]}"; do
+              echo "Checking for pattern: $pattern"
+
+              # Use ripgrep for fast searching with context
+              if command -v rg >/dev/null 2>&1; then
+                MATCHES=$(rg -i "$pattern" $SOURCE_FILES --type-add 'web:*.{ts,js,html,json}' -t web -n --context 1 2>/dev/null || true)
+              else
+                MATCHES=$(grep -rinE "$pattern" $SOURCE_FILES 2>/dev/null || true)
+              fi
+
+              if [[ -n "$MATCHES" ]]; then
+                echo "❌ BANNED PATTERN FOUND: $pattern"
+                echo "$MATCHES"
+                echo "Description: ${BANNED_PATTERNS[$pattern]}"
+                echo ""
+                ((VIOLATIONS_FOUND++))
+              else
+                echo "✅ Pattern '$pattern' not found"
+              fi
+            done
+          fi
+
+          # Scan build files (if they exist)
+          if [[ -n "$BUILD_FILES" ]]; then
+            echo ""
+            echo "🏗️ Scanning build files (even stricter check)..."
+
+            for pattern in "${!BANNED_PATTERNS[@]}"; do
+              # Even stricter check for build files - no exceptions
+              if command -v rg >/dev/null 2>&1; then
+                MATCHES=$(rg -i "$pattern" $BUILD_FILES -n --context 1 2>/dev/null || true)
+              else
+                MATCHES=$(grep -rinE "$pattern" $BUILD_FILES 2>/dev/null || true)
+              fi
+
+              if [[ -n "$MATCHES" ]]; then
+                echo "❌ CRITICAL: Banned pattern in build artifact: $pattern"
+                echo "$MATCHES"
+                echo ""
+                ((VIOLATIONS_FOUND++))
+              fi
+            done
+          fi
+
+          # Additional hardcoded value checks
+          echo ""
+          echo "🔢 Checking for hardcoded values that should be dynamic..."
+
+          HARDcoded_PATTERNS=(
+            "19\.84%"  # Hardcoded percentages
+            "45\.12%"  # Hardcoded percentages
+            "2023-01-01"  # Fake dates
+            "2024-12-31"  # Fake dates
+            "123\.45"  # Fake numbers
+            "\$1,234\.56"  # Fake currency
+          )
+
+          for pattern in "${HARDcoded_PATTERNS[@]}"; do
+            if command -v rg >/dev/null 2>&1; then
+              MATCHES=$(rg "$pattern" $SOURCE_FILES --type-add 'web:*.{ts,js,html,json}' -t web -n 2>/dev/null || true)
+            else
+              MATCHES=$(grep -rn "$pattern" $SOURCE_FILES 2>/dev/null || true)
+            fi
+
+            if [[ -n "$MATCHES" ]]; then
+              echo "⚠️ Potential hardcoded value detected: $pattern"
+              echo "$MATCHES"
+              echo ""
+            fi
+          done
+
+          # Fail if violations found
+          if [[ $VIOLATIONS_FOUND -gt 0 ]]; then
+            echo ""
+            echo "❌ MOCK PREVENTION CHECK FAILED"
+            echo "Found $VIOLATIONS_FOUND violations with banned patterns"
+            echo "Please remove all mock/placeholder content before production deployment"
+            echo ""
+            echo "To bypass this check for legitimate uses, add a JIRA ticket reference:"
+            echo "  // MOCK-EXEMPTION: JIRA-123 - Temporary placeholder for X feature"
+            exit 1
+          else
+            echo ""
+            echo "✅ MOCK PREVENTION CHECK PASSED"
+            echo "No banned patterns found in source or build files"
+          fi
+
+      - name: ESLint Mock Data Rules
+        run: |
+          echo "📏 Running ESLint with mock data prevention rules..."
+
+          # Create custom ESLint configuration for mock prevention
+          cat > .eslintrc.mock-prevention.js << 'EOF'
+          module.exports = {
+            extends: ['./.eslintrc.js'],
+            rules: {
+              // Custom rules for mock prevention
+              'no-console': 'warn',
+              // Additional rules for production safety
+              'no-debugger': 'error',
+              'no-alert': 'error',
+              'no-eval': 'error',
+              'no-implied-eval': 'error',
+              'no-new-func': 'error',
+              'no-script-url': 'error',
+              'no-lone-blocks': 'warn',
+              'no-self-compare': 'error',
+              'no-sequences': 'error',
+              'no-throw-literal': 'error',
+              'no-unmodified-loop-condition': 'error',
+              'no-unused-expressions': 'error',
+              'no-useless-call': 'error',
+              'no-useless-concat': 'error',
+              'no-useless-return': 'error',
+              'no-void': 'error',
+              'no-with': 'error',
+              'radix': 'error',
+              'wrap-iife': 'error',
+              'yoda': 'error'
+            }
+          };
+          EOF
+
+          # Run ESLint with mock prevention config
+          npx eslint src --ext .ts,.js --config .eslintrc.mock-prevention.js || {
+            echo "❌ ESLINT MOCK PREVENTION FAILED"
+            echo "Fix linting errors before proceeding with deployment"
+            exit 1
+          }
+
+          echo "✅ ESLint mock prevention rules passed"
+
+      - name: Build Verification Scan
+        run: |
+          echo "🔨 Running build verification scan..."
+
+          # Build the project first
+          npm run build || {
+            echo "❌ BUILD FAILED"
+            exit 1
+          }
+
+          echo "✅ Build completed successfully"
+
+          # Scan built artifacts
+          if [[ -d "dist" ]]; then
+            echo ""
+            echo "📦 Scanning built artifacts..."
+
+            # Look for development/debug code in production build
+            DEBUG_PATTERNS=(
+              "console\.log"
+              "console\.warn"
+              "console\.error"
+              "debugger"
+              "DEBUG"
+              "DEVELOPMENT"
+              "test"
+              "TEST"
+            )
+
+            BUILD_VIOLATIONS=0
+
+            for pattern in "${DEBUG_PATTERNS[@]}"; do
+              if command -v rg >/dev/null 2>&1; then
+                MATCHES=$(rg "$pattern" dist -n 2>/dev/null || true)
+              else
+                MATCHES=$(grep -rn "$pattern" dist 2>/dev/null || true)
+              fi
+
+              if [[ -n "$MATCHES" ]]; then
+                echo "⚠️ Debug code found in production build: $pattern"
+                echo "$MATCHES"
+                echo ""
+                ((BUILD_VIOLATIONS++))
+              fi
+            done
+
+            # Check file sizes (no bloated bundles)
+            echo ""
+            echo "📏 Checking bundle sizes..."
+            find dist -name "*.js" -exec ls -lh {} \; | while read -r line; do
+              SIZE=$(echo "$line" | awk '{print $5}')
+              FILE=$(echo "$line" | awk '{print $9}')
+
+              # Convert size to KB for comparison (skip if less than 1KB)
+              if [[ "$SIZE" == *K* ]]; then
+                SIZE_KB=${SIZE%K}
+                if (( $(echo "$SIZE_KB > 500" | bc -l) )); then
+                  echo "⚠️ Large bundle detected: $FILE ($SIZE)"
+                fi
+              elif [[ "$SIZE" == *M* ]]; then
+                echo "❌ Very large bundle detected: $FILE ($SIZE)"
+                ((BUILD_VIOLATIONS++))
+              fi
+            done
+
+            if [[ $BUILD_VIOLATIONS -gt 0 ]]; then
+              echo ""
+              echo "❌ BUILD VERIFICATION FAILED"
+              echo "Found $BUILD_VIOLATIONS violations in built artifacts"
+              exit 1
+            else
+              echo ""
+              echo "✅ BUILD VERIFICATION PASSED"
+              echo "No debug code or issues found in production artifacts"
+            fi
+          else
+            echo "⚠️ No dist directory found - skipping build artifact scan"
+          fi
+
+      - name: Deterministic Build Verification
+        run: |
+          echo "🔐 Running deterministic build verification..."
+
+          # Build twice and compare
+          npm run build
+          BUILD1_HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum || echo "no_build_files")
+
+          # Clean and rebuild
+          rm -rf dist
+          npm run build
+          BUILD2_HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum || echo "no_build_files")
+
+          if [[ "$BUILD1_HASH" == "$BUILD2_HASH" ]]; then
+            echo "✅ Deterministic build verification passed"
+            echo "Build hash: $BUILD1_HASH"
+          else
+            echo "❌ DETERMINISTIC BUILD FAILED"
+            echo "Build hashes differ between runs - non-deterministic build detected"
+            echo "Build 1: $BUILD1_HASH"
+            echo "Build 2: $BUILD2_HASH"
+            exit 1
+          fi
+
+      - name: Bundle Analysis
+        run: |
+          echo "📊 Running bundle analysis..."
+
+          if [[ -f "package.json" ]] && [[ -d "dist" ]]; then
+            # Analyze bundle composition
+            echo "Bundle composition:"
+            find dist -name "*.js" -exec wc -l {} \; | while read -r lines file; do
+              echo "  $file: $lines lines"
+            done
+
+            # Check for external dependencies that should be bundled
+            if [[ -f "package-lock.json" ]]; then
+              echo ""
+              echo "External dependencies analysis:"
+              # Look for common CDN dependencies that might indicate missing bundling
+              if grep -r "cdn\.jsdelivr\|unpkg\|cdnjs\.cloudflare" dist/ >/dev/null 2>&1; then
+                echo "⚠️ External CDN dependencies found in production build"
+              fi
+            fi
+
+            echo "✅ Bundle analysis completed"
+          fi
+
+  security-scanning:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g gitleaks
+
+      - name: Run npm audit
+        run: |
+          echo "🔒 Running npm security audit..."
+          npm audit --audit-level high || {
+            echo "❌ NPM AUDIT FAILED"
+            echo "High/medium vulnerabilities found - update dependencies"
+            exit 1
+          }
+          echo "✅ NPM audit passed"
+
+      - name: Run Gitleaks
+        run: |
+          echo "🕵️ Running Gitleaks secret scanning..."
+          gitleaks detect --verbose --redact || {
+            echo "❌ GITLEAKS FAILED"
+            echo "Potential secrets detected in code"
+            exit 1
+          }
+          echo "✅ Gitleaks scan passed"
+
+      - name: Dependency Policy Check
+        run: |
+          echo "📦 Checking dependency policy..."
+
+          # Check for overly permissive version ranges
+          if grep -E '"[^"]": "\^[0-9]\.[0-9]\.[0-9]+"' package.json >/dev/null 2>&1; then
+            echo "⚠️ Some dependencies use caret ranges - consider pinning for production"
+          fi
+
+          # Check for security-relevant dependencies
+          SECURITY_DEPS=(
+            "express"
+            "axios"
+            "lodash"
+            "request"
+            "node-fetch"
+          )
+
+          for dep in "${SECURITY_DEPS[@]}"; do
+            if grep -q "\"$dep\"" package.json; then
+              echo "🔍 Checking security status of $dep..."
+              npm audit --json | jq -r ".advisories[] | select(.module_name == \"$dep\") | .severity" | head -1
+            fi
+          done
+
+          echo "✅ Dependency policy check completed"
+
+  reproducible-builds:
+    name: Reproducible Builds Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify build reproducibility
+        run: |
+          echo "🔄 Verifying build reproducibility across Node versions..."
+
+          # Build with Node 18
+          npm run build
+          BUILD_18_HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum || echo "no_files")
+          echo "Node 18 build hash: $BUILD_18_HASH"
+
+          # Clean
+          rm -rf dist node_modules/.cache
+
+          # Setup Node 20
+          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          apt-get install -y nodejs
+          npm ci
+
+          # Build with Node 20
+          npm run build
+          BUILD_20_HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum || echo "no_files")
+          echo "Node 20 build hash: $BUILD_20_HASH"
+
+          if [[ "$BUILD_18_HASH" == "$BUILD_20_HASH" ]]; then
+            echo "✅ Builds are reproducible across Node versions"
+          else
+            echo "⚠️ Build hashes differ across Node versions"
+            echo "This may indicate environment-specific build behavior"
+          fi

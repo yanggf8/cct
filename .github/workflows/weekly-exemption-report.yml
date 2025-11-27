@@ -1,0 +1,307 @@
+name: Weekly Exemption Report
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (send to test recipients)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  weekly-exemption-report:
+    name: Generate Weekly Exemption Report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g wrangler
+
+      - name: Generate Exemption Report
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+        run: |
+          echo "📊 Generating weekly exemption report..."
+
+          # Get current exemption status from production
+          CCT_URL="https://tft-trading-system.yanggf.workers.dev"
+
+          # Get exemption report
+          REPORT_RESPONSE=$(curl -s -H "X-API-Key: $X_API_KEY" "$CCT_URL/api/v1/exemptions/weekly-report")
+
+          if [[ $? -eq 0 ]]; then
+            echo "✅ Successfully retrieved exemption report"
+            echo "$REPORT_RESPONSE" | jq . > weekly-exemption-report.json
+          else
+            echo "❌ Failed to retrieve exemption report"
+            # Create a default report
+            cat > weekly-exemption-report.json << EOF
+          {
+            "service": "exemption-management",
+            "success": false,
+            "error": "Failed to retrieve report from production"
+          }
+          EOF
+          fi
+
+          echo "Report data:"
+          cat weekly-exemption-report.json | jq .
+
+      - name: Parse Report Data
+        id: parse_report
+        run: |
+          # Extract key metrics from the report
+          TOTAL_ACTIVE=$(cat weekly-exemption-report.json | jq -r '.data.summary.totalActive // 0')
+          TOTAL_EXPIRED=$(cat weekly-exemption-report.json | jq -r '.data.summary.totalExpired // 0')
+          UPCOMING_EXPIRATIONS=$(cat weekly-exemption-report.json | jq -r '.data.summary.upcomingExpirations // 0')
+
+          echo "total_active=$TOTAL_ACTIVE" >> $GITHUB_OUTPUT
+          echo "total_expired=$TOTAL_EXPIRED" >> $GITHUB_OUTPUT
+          echo "upcoming_expirations=$UPCOMING_EXPIRATIONS" >> $GITHUB_OUTPUT
+
+          # Determine alert level
+          ALERT_LEVEL="info"
+          if [[ $UPCOMING_EXPIRATIONS -gt 5 ]]; then
+            ALERT_LEVEL="warning"
+          fi
+          if [[ $TOTAL_ACTIVE -gt 15 ]]; then
+            ALERT_LEVEL="warning"
+          fi
+
+          echo "alert_level=$ALERT_LEVEL" >> $GITHUB_OUTPUT
+
+      - name: Generate Report Summary
+        run: |
+          cat > exemption-summary.md << EOF
+          # Weekly Exemption Report - $(date +%Y-%m-%d)
+
+          ## 📊 Summary
+          - **Total Active Exemptions**: ${{ steps.parse_report.outputs.total_active }}
+          - **Total Expired Exemptions**: ${{ steps.parse_report.outputs.total_expired }}
+          - **Upcoming Expirations (30 days)**: ${{ steps.parse_report.outputs.upcoming_expirations }}
+          - **Alert Level**: ${{ steps.parse_report.outputs.alert_level }}
+
+          ## 🚨 Upcoming Expirations
+
+          EOF
+
+          # Add upcoming expirations details
+          if [[ -f weekly-exemption-report.json ]] && [[ $(cat weekly-exemption-report.json | jq -r '.success // false') == "true" ]]; then
+            cat weekly-exemption-report.json | jq -r '.data.upcomingExpirations[]? | "- **\(.jiraReference)**: \(.file):\(.line) (Owner: \(.owner), Expires: \(.expirationDate), Days left: \(.daysUntilExpiration))"' >> exemption-summary.md
+          else
+            echo "Unable to retrieve upcoming expirations details" >> exemption-summary.md
+          fi
+
+          cat >> exemption-summary.md << EOF
+
+          ## 📈 By Owner
+
+          EOF
+
+          # Add owner breakdown
+          if [[ -f weekly-exemption-report.json ]] && [[ $(cat weekly-exemption-report.json | jq -r '.success // false') == "true" ]]; then
+            cat weekly-exemption-report.json | jq -r '.data.byOwner[]? | "- **\(.owner)**: \(.count) exemptions"' >> exemption-summary.md
+          else
+            echo "Unable to retrieve owner breakdown" >> exemption-summary.md
+          fi
+
+          cat >> exemption-summary.md << EOF
+
+          ## 🎯 Recommendations
+
+          EOF
+
+          # Add recommendations
+          if [[ -f weekly-exemption-report.json ]] && [[ $(cat weekly-exemption-report.json | jq -r '.success // false') == "true" ]]; then
+            cat weekly-exemption-report.json | jq -r '.data.recommendations[]? | "- \(.)"' >> exemption-summary.md
+          else
+            echo "- Unable to retrieve recommendations" >> exemption-summary.md
+          fi
+
+          cat >> exemption-summary.md << EOF
+
+          ## 🔧 Actions Required
+
+          ### High Priority
+          - Review upcoming expirations and plan for renewal or implementation
+          - Contact owners of exemptions expiring within 7 days
+
+          ### Medium Priority
+          - Consider permanent solutions for frequently used exemption patterns
+          - Review exemption usage by owner and redistribute work if needed
+
+          ### Low Priority
+          - Clean up expired exemptions from the system
+          - Update exemption documentation
+
+          ---
+          *Report generated automatically on $(date)*
+          *View detailed exemption management: [Production Dashboard](https://tft-trading-system.yanggf.workers.dev/api/v1/exemptions/report)*
+
+          EOF
+
+          echo "Report summary generated:"
+          cat exemption-summary.md
+
+      - name: Create Alert if Needed
+        if: steps.parse_report.outputs.alert_level == 'warning'
+        run: |
+          echo "🚨 Creating alert for high exemption usage..."
+
+          # Create GitHub issue for tracking
+          cat > issue_body.md << EOF
+          ## 🚨 High Exemption Usage Alert
+
+          ### Metrics
+          - **Total Active Exemptions**: ${{ steps.parse_report.outputs.total_active }}
+          - **Upcoming Expirations**: ${{ steps.parse_report.outputs.upcoming_expirations }}
+          - **Alert Date**: $(date +%Y-%m-%d)
+
+          ### Details
+          $(cat exemption-summary.md)
+
+          ### Actions Required
+          1. [ ] Review upcoming expirations
+          2. [ ] Contact exemption owners
+          3. [ ] Plan permanent implementations
+          4. [ ] Update exemption policies if needed
+
+          ### Automations
+          - This issue was created automatically by the weekly exemption report workflow
+          - Consider implementing automated reminder notifications for exemption owners
+
+          EOF
+
+          # This would create a GitHub issue using the API
+          echo "Issue body prepared for GitHub API"
+          cat issue_body.md
+
+      - name: Send Notifications
+        if: github.event.inputs.test_mode != 'true'
+        run: |
+          echo "📧 Sending notifications..."
+
+          # Send to Slack (if webhook configured)
+          if [[ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]]; then
+            echo "Sending Slack notification..."
+
+            SLACK_MESSAGE=$(cat << EOF
+          {
+            "text": "Weekly Exemption Report - $(date +%Y-%m-%d)",
+            "attachments": [
+              {
+                "color": "${{ steps.parse_report.outputs.alert_level == 'warning' && 'warning' || 'good' }}",
+                "fields": [
+                  {
+                    "title": "Active Exemptions",
+                    "value": "${{ steps.parse_report.outputs.total_active }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Upcoming Expirations",
+                    "value": "${{ steps.parse_report.outputs.upcoming_expirations }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Alert Level",
+                    "value": "${{ steps.parse_report.outputs.alert_level }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Report Link",
+                    "value": "https://tft-trading-system.yanggf.workers.dev/api/v1/exemptions/report",
+                    "short": true
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "button",
+                    "text": "View Detailed Report",
+                    "url": "https://tft-trading-system.yanggf.workers.dev/api/v1/exemptions/report"
+                  },
+                  {
+                    "type": "button",
+                    "text": "Manage Exemptions",
+                    "url": "https://tft-trading-system.yanggf.workers.dev/api/v1/exemptions/weekly-report"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+            )
+
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$SLACK_MESSAGE" \
+              "${{ secrets.SLACK_WEBHOOK_URL }}" || echo "Slack notification failed"
+          else
+            echo "Slack webhook not configured - skipping Slack notification"
+          fi
+
+          # Send email notification (if configured)
+          if [[ -n "${{ secrets.SMTP_HOST }}" && -n "${{ secrets.NOTIFICATION_EMAIL }}" ]]; then
+            echo "Sending email notification..."
+            # This would use your preferred email sending method
+            echo "Email notification would be sent to ${{ secrets.NOTIFICATION_EMAIL }}"
+          else
+            echo "Email not configured - skipping email notification"
+          fi
+
+      - name: Test Mode Notification
+        if: github.event.inputs.test_mode == 'true'
+        run: |
+          echo "🧪 TEST MODE - Notifications would be sent here"
+          echo "Report data:"
+          cat weekly-exemption-report.json | jq .
+
+      - name: Upload Report Artifacts
+        if: ${{ false }}
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-exemption-report-$(date +%Y%m%d)
+          path: |
+            weekly-exemption-report.json
+            exemption-summary.md
+            issue_body.md
+          retention-days: 0
+
+      - name: Create Summary in GitHub
+        if: always()
+        run: |
+          echo "## 📊 Weekly Exemption Report Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Active Exemptions | ${{ steps.parse_report.outputs.total_active }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Total Expired Exemptions | ${{ steps.parse_report.outputs.total_expired }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Upcoming Expirations (30 days) | ${{ steps.parse_report.outputs.upcoming_expirations }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Alert Level | ${{ steps.parse_report.outputs.alert_level }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.parse_report.outputs.alert_level }}" == "warning" ]]; then
+            echo "⚠️ **WARNING**: High exemption usage detected. Review detailed report above." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **NORMAL**: Exemption usage is within acceptable limits." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Detailed Report" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat exemption-summary.md >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

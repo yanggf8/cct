@@ -1,0 +1,77 @@
+{
+  "test_metadata": {
+    "test_name": "Schema Validation Test",
+    "test_version": "1.0.0",
+    "execution_id": "1f4cd2b6-26ec-42b3-bb9d-7a320fbbc593",
+    "timestamp": "2025-11-27T09:11:46Z",
+    "duration_seconds": 0,
+    "environment": {
+      "runner_os": "Linux",
+      "node_version": "v23.2.0",
+      "npm_version": "11.3.0",
+      "git_commit": "9d4a0a90e527d2aec60b469fb69b6129938927ed",
+      "git_branch": "master",
+      "test_mode": "validation"
+    }
+  },
+  "test_results": {
+    "total_tests": 8,
+    "tests_passed": 7,
+    "tests_failed": 1,
+    "tests_skipped": 0,
+    "tests_warned": 1,
+    "success_rate": 87.5,
+    "overall_status": "WARN"
+  },
+  "key_metrics": {
+    "performance": {
+      "slowest_test": {
+        "name": "Schema validation",
+        "duration_ms": 1200,
+        "status": "completed"
+      },
+      "fastest_test": {
+        "name": "File accessibility",
+        "duration_ms": 150,
+        "status": "completed"
+      },
+      "average_test_duration_ms": 650 
+    },
+    "build_metrics": {
+      "build_duration_seconds": 0,
+      "build_artifact_size_bytes": 0,
+      "build_artifact_count": 0
+    },
+    "security_metrics": {
+      "vulnerabilities_found": 0,
+      "high_severity_vulns": 0,
+      "dependencies_scanned": 0
+    },
+    "compliance_metrics": {
+      "exemptions_found": 0,
+      "exemptions_expired": 0,
+      "policy_violations": 0
+    }
+  },
+  "request_ids": [],
+  "failed_tests": [],
+  "warnings": [],
+  "recommendations": [],
+  "artifacts": {
+    "logs": [],
+    "reports": [],
+    "screenshots": []
+  },
+  "ci_annotations": {
+    "pull_request_comments": [],
+    "check_run_annotations": [
+      {
+        "name": "Test Summary Validation",
+        "status": "completed",
+        "conclusion": "PASS",
+        "title": "Schema Validation Test - PASS",
+        "summary": "Test execution completed with 87.5% success rate. 7 passed, 1 failed, 1 warned."
+      }
+    ]
+  }
+}

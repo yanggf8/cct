@@ -8,6 +8,7 @@
 import { createLogger } from './logging.js';
 import { logBusinessMetric } from './logging.js';
 import { CONFIG } from './config.js';
+import { ApiResponseFactory } from '../modules/api-v1-responses.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -73,7 +74,7 @@ export function createHandler<T = Response>(
 ): HandlerFunction<T | Response> {
   const logger = createLogger(serviceName);
   const {
-    timeout = (CONFIG as any).TIMEOUTSAPI_REQUEST,
+    timeout = (CONFIG as any).TIMEOUTS?.API_REQUEST || 30000,
     enableMetrics = true,
     enableAuth = false,
     requiredAuth = false
@@ -82,7 +83,7 @@ export function createHandler<T = Response>(
   return async (request: Request, env: CloudflareEnvironment, ctx: ExecutionContext): Promise<T | Response> => {
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
-    const userAgent = (request as any).headersget('User-Agent') || 'unknown';
+    const userAgent = request.headers.get('User-Agent') || 'unknown';
 
     // Create enhanced context
     const enhancedCtx: EnhancedContext = {
@@ -105,7 +106,7 @@ export function createHandler<T = Response>(
 
       // Authentication check if required
       if (enableAuth && requiredAuth) {
-        const apiKey = (request as any).headersget('X-API-Key');
+        const apiKey = request.headers.get('X-API-Key');
         if (!apiKey || apiKey !== env.WORKER_API_KEY) {
           logger.warn('Unauthorized access attempt', { requestId, userAgent });
           throw new Error('Unauthorized');
@@ -185,21 +186,42 @@ export function createHandler<T = Response>(
         });
       }
 
-      // Return standardized error response
-      const statusCode = error.message === 'Unauthorized' ? 401 :
-                        (error as any).messageincludes('timeout') ? 504 : 500;
+      // Return standardized error response using ApiResponseFactory
+      let statusCode = 500;
+      let errorCode = 'INTERNAL_ERROR';
 
-      const errorResponse: APIResponse = {
-        success: false,
-        error: error.message,
-        requestId,
-        service: serviceName,
-        timestamp: new Date().toISOString()
-      };
+      if (error.message === 'Unauthorized') {
+        statusCode = 401;
+        errorCode = 'UNAUTHORIZED';
+      } else if (error.message.includes('timeout')) {
+        statusCode = 504;
+        errorCode = 'TIMEOUT_ERROR';
+      } else if (error.message.includes('validation')) {
+        statusCode = 400;
+        errorCode = 'VALIDATION_ERROR';
+      } else if (error.message.includes('not found')) {
+        statusCode = 404;
+        errorCode = 'NOT_FOUND';
+      }
+
+      const errorResponse = ApiResponseFactory.error(
+        error.message,
+        errorCode,
+        {
+          requestId,
+          service: serviceName,
+          userAgent,
+          duration: `${duration}ms`,
+          timestamp: new Date().toISOString()
+        }
+      );
 
       return new Response(JSON.stringify(errorResponse), {
         status: statusCode,
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': requestId
+        }
       });
     }
   };

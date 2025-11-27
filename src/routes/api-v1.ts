@@ -23,6 +23,7 @@ import { createEnhancedCacheRoutes } from './enhanced-cache-routes.js';
 import { handlePortfolioRequest } from './portfolio-routes.js';
 import { getSectorIndicatorsSymbol } from './sector-routes.js';
 import { handleRiskManagementRequest } from './risk-management-routes.js';
+import { handleProductionGuardsStatus, handleProductionGuardsValidate, handleProductionGuardsHealthCheck } from './production-guards-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('api-v1');
@@ -53,6 +54,7 @@ interface ApiDocumentation {
     portfolio_optimization: APIEndpoint;
     portfolio_rebalancing: APIEndpoint;
     risk_management: APIEndpoint;
+    production_guards: APIEndpoint;
   };
   documentation: string;
   status: string;
@@ -168,6 +170,38 @@ export async function handleApiV1Request(
     } else if (path.startsWith('/api/v1/risk/')) {
       // Route to risk management API
       return await handleRiskManagementRequest(request, env, {} as ExecutionContext);
+    } else if (path.startsWith('/api/v1/guards/')) {
+      // Route to production guards API - requires authentication
+      if (!securityCheck.authenticated) {
+        const errorResponse = ApiResponseFactory.error(
+          'Authentication required for production guards endpoints',
+          'AUTHENTICATION_REQUIRED',
+          {
+            requestId: headers['X-Request-ID'],
+            endpoint: path,
+            requires_auth: true
+          }
+        );
+        return new Response(JSON.stringify(errorResponse), {
+          status: HttpStatus.UNAUTHORIZED,
+          headers
+        });
+      }
+
+      // Route to specific guard endpoints
+      if (path === '/api/v1/guards/status') {
+        return await handleProductionGuardsStatus(request, env);
+      } else if (path === '/api/v1/guards/validate') {
+        return await handleProductionGuardsValidate(request, env);
+      } else if (path === '/api/v1/guards/health') {
+        return await handleProductionGuardsHealthCheck(request, env);
+      } else {
+        const body = ApiResponseFactory.error('Production guards endpoint not found', 'NOT_FOUND', {
+          requested_path: path,
+          available_endpoints: ['/api/v1/guards/status', '/api/v1/guards/validate', '/api/v1/guards/health']
+        });
+        return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
+      }
     } else if (path.startsWith('/api/v1/cache/')) {
       // Route to enhanced cache API
       const cacheRoutes = createEnhancedCacheRoutes(env);
@@ -328,6 +362,11 @@ export async function handleApiV1Request(
               limits: 'POST /api/v1/risk/limits',
               analytics: 'POST /api/v1/risk/analytics',
               health: 'GET /api/v1/risk/health',
+            },
+            production_guards: {
+              status: 'GET /api/v1/guards/status',
+              validate: 'GET /api/v1/guards/validate',
+              health: 'GET /api/v1/guards/health',
             },
             cache: {
               health: 'GET /api/v1/cache/health',

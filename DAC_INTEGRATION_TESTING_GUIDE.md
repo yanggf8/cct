@@ -61,14 +61,19 @@ This guide provides comprehensive testing procedures for the DAC (Dual AI Capita
 ### Environment Variables (Updated 2025-01-XX)
 
 ```bash
+# Required - Set your API key first
+export X_API_KEY=your_api_key_here
+
 # Optional - Override defaults
 export CCT_URL="https://tft-trading-system.yanggf.workers.dev"  # Default: same
 export DAC_URL="https://dac-backend.yanggf.workers.dev"       # Default: same
-export API_KEY="yanggf"                                        # Default: yanggf
 
 # For GitHub Actions
 # Secret name: X_API_KEY
-# Value: yanggf (or production key)
+# Value: your_production_api_key
+
+# Validation example
+curl -H "X-API-Key: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/api/v1/health"
 ```
 
 ### Test Dependencies
@@ -155,7 +160,7 @@ Measure response times and cache efficiency:
 # Single request performance
 time curl -s -X POST \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: yanggf" \
+  -H "X-API-Key: $X_API_KEY" \
   -d '{"symbol":"AAPL","use_dac_integration":true}' \
   "$CCT_URL/api/v1/sentiment/enhanced"
 
@@ -178,13 +183,13 @@ curl -s -X POST \
 
 # Invalid symbol format
 curl -s -X POST \
-  -H "X-API-Key: yanggf" \
+  -H "X-API-Key: $X_API_KEY" \
   -d '{"symbol":"INVALID123"}' \
   "$CCT_URL/api/v1/sentiment/enhanced"
 
 # Missing required fields
 curl -s -X POST \
-  -H "X-API-Key: yanggf" \
+  -H "X-API-Key: $X_API_KEY" \
   -d '{"use_dac_integration":true}' \
   "$CCT_URL/api/v1/sentiment/enhanced"
 ```
@@ -197,7 +202,7 @@ Ensure response format and data quality:
 # Test single symbol analysis
 response=$(curl -s -X POST \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: yanggf" \
+  -H "X-API-Key: $X_API_KEY" \
   -d '{"symbol":"AAPL","use_dac_integration":true}' \
   "$CCT_URL/api/v1/sentiment/enhanced")
 
@@ -251,7 +256,7 @@ The system automatically detects and FAILS on regressions:
 
 1. **Success Rate**: Drops > 5% from baseline (FAILS)
 2. **Cache Hit Rate**: Below 93% threshold (FAILS)
-3. **Service Binding Latency**: p50 ≥ 100ms (FAILS), p95 ≥ 200ms (WARN)
+3. **Service Binding Latency**: p50 ≥ 100ms (FAILS), p95 ≥ 200ms (FAILS)
 4. **Functionality**: Previously passing tests start failing
 
 ### Manual Regression Testing

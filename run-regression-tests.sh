@@ -13,7 +13,12 @@ CURRENT_DATE=$(date +%Y%m%d)
 REPORT_DIR="$SCRIPT_DIR/test-reports"
 CURRENT_REPORT="$REPORT_DIR/dac-regression-report-$CURRENT_DATE.html"
 API_URL="https://tft-trading-system.yanggf.workers.dev"
-API_KEY="${API_KEY:-yanggf}"  # Allow override via environment, defaults to "yanggf"
+# Use unified X_API_KEY; no insecure defaults
+API_KEY="${X_API_KEY:-}"
+if [[ -z "$API_KEY" ]]; then
+  error "X_API_KEY environment variable is not set (required)"
+  exit 1
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -102,7 +107,7 @@ save_baseline() {
     info "Saving baseline: $baseline_name"
 
     # Run the integration test in baseline mode with API_KEY
-    if API_KEY="$API_KEY" "$TEST_SCRIPT" baseline > /dev/null 2>&1; then
+    if X_API_KEY="$API_KEY" "$TEST_SCRIPT" baseline > /dev/null 2>&1; then
         # Find the most recent JSON report
         local latest_report=$(find "$REPORT_DIR" -name "dac-service-binding-test-*.json" -type f -printf '%T@ %p\n' | sort -rn | head -1 | cut -d' ' -f2-)
 
@@ -158,7 +163,7 @@ compare_with_baseline() {
     info "Comparing with baseline: $baseline_name"
 
     # Run current tests with API_KEY
-    API_KEY="$API_KEY" "$TEST_SCRIPT" run > /dev/null 2>&1
+    X_API_KEY="$API_KEY" "$TEST_SCRIPT" run > /dev/null 2>&1
     local current_exit_code=$?
 
     # Find the most recent test report
@@ -179,12 +184,25 @@ compare_with_baseline() {
     # Generate comparison report
     generate_comparison_report "$baseline_name" "$baseline_metrics" "$current_metrics" "$comparison" "$current_report"
 
+    # Enforce hard thresholds in addition to regression
+    local current_cache_hit=$(echo "$current_metrics" | jq -r '.performance.cache_hit_rate // 0')
+    local current_p50=$(echo "$current_metrics" | jq -r '.performance.service_binding_p50 // 999999')
+
+    if (( $(echo "$current_cache_hit < 93" | bc -l) )); then
+        error "Cache hit rate below threshold: ${current_cache_hit}% (<93%)"
+        return 2
+    fi
+    if (( $(echo "$current_p50 >= 100" | bc -l) )); then
+        error "Service binding p50 latency above threshold: ${current_p50}ms (>=100ms)"
+        return 2
+    fi
+
     # Check for regressions (5% threshold)
     if has_regression "$comparison"; then
         error "Performance regression detected (>5% degradation) compared to baseline: $baseline_name"
         return 2
     else
-        success "No regressions detected compared to baseline: $baseline_name"
+        success "No regressions detected and thresholds met compared to baseline: $baseline_name"
         return 0
     fi
 }

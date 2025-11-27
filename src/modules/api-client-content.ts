@@ -58,7 +58,7 @@ class CCTApiClient {
 
       if (response.status === 401) {
         console.warn('Authentication required for:', endpoint);
-        // Don't throw error, return mock data for unauthenticated requests
+        // Don't throw; return a structured error for unauthenticated requests
         return { success: false, error: 'Authentication required', data: null };
       }
 

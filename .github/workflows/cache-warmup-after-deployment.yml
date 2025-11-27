@@ -154,11 +154,12 @@ jobs:
           echo "📄 Warmup report created"
 
       - name: Upload Warmup Report
+        if: ${{ false }}
         uses: actions/upload-artifact@v4
         with:
           name: cache-warmup-report
           path: warmup-report.md
-          retention-days: 30
+          retention-days: 0
 
       - name: Notify Success
         if: success()

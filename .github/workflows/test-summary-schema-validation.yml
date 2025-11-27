@@ -1,0 +1,364 @@
+name: Test Summary Schema Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_summary_file:
+        description: 'Path to test-summary.json file'
+        required: true
+        default: 'test-summary.json'
+      validation_mode:
+        description: 'Validation mode'
+        required: true
+        default: 'strict'
+        type: choice
+        options:
+        - strict
+        - warn
+        - silent
+  pull_request:
+    paths:
+      - 'test-summary.json'
+      - 'test-summary-schema.json'
+      - '.github/workflows/test-summary-schema-validation.yml'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'test-summary.json'
+      - 'test-summary-schema.json'
+
+jobs:
+  validate-test-summary:
+    name: Validate Test Summary Schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: |
+        npm ci --prefer-offline --no-audit
+
+    - name: Validate Test Summary Schema
+      run: |
+        SUMMARY_FILE="${{ github.event.inputs.test_summary_file || 'test-summary.json' }}"
+        VALIDATION_MODE="${{ github.event.inputs.validation_mode || 'strict' }}"
+
+        echo "🔍 Validating test summary schema..."
+        echo "Summary file: $SUMMARY_FILE"
+        echo "Validation mode: $VALIDATION_MODE"
+
+        # Basic schema validation
+        if [[ ! -f "$SUMMARY_FILE" ]]; then
+          echo "❌ Test summary file not found: $SUMMARY_FILE"
+          if [[ "$VALIDATION_MODE" == "strict" ]]; then
+            exit 1
+          else
+            echo "⚠️ Continuing in non-strict mode"
+          fi
+        else
+          # Validate JSON syntax
+          if ! jq empty "$SUMMARY_FILE" 2>/dev/null; then
+            echo "❌ Invalid JSON in test summary file"
+            if [[ "$VALIDATION_MODE" == "strict" ]]; then
+              exit 1
+            else
+              echo "⚠️ Continuing in non-strict mode"
+            fi
+          else
+            echo "✅ JSON syntax validation passed"
+          fi
+
+          # Validate required sections
+          if ! jq -e 'has("test_metadata") and has("test_results")' "$SUMMARY_FILE" >/dev/null 2>&1; then
+            echo "❌ Missing required sections (test_metadata, test_results)"
+            if [[ "$VALIDATION_MODE" == "strict" ]]; then
+              exit 1
+            else
+              echo "⚠️ Continuing in non-strict mode"
+            fi
+          else
+            echo "✅ Required sections validation passed"
+          fi
+
+          # Validate overall status
+          STATUS=$(jq -r '.test_results.overall_status' "$SUMMARY_FILE" 2>/dev/null || echo "INVALID")
+          case "$STATUS" in
+            "PASS"|"FAIL"|"WARN"|"ERROR"|"TIMEOUT")
+              echo "✅ Overall status validation passed: $STATUS"
+              ;;
+            *)
+              echo "❌ Invalid overall status: $STATUS"
+              if [[ "$VALIDATION_MODE" == "strict" ]]; then
+                exit 1
+              else
+                echo "⚠️ Continuing in non-strict mode"
+              fi
+              ;;
+          esac
+
+          # Validate numeric fields
+          TOTAL_TESTS=$(jq -r '.test_results.total_tests // 0' "$SUMMARY_FILE")
+          SUCCESS_RATE=$(jq -r '.test_results.success_rate // 0' "$SUMMARY_FILE")
+
+          if [[ "$TOTAL_TESTS" -ge 0 ]] && [[ "$SUCCESS_RATE" -ge 0 ]] && [[ "$SUCCESS_RATE" -le 100 ]]; then
+            echo "✅ Numeric field validation passed"
+          else
+            echo "❌ Invalid numeric values found"
+            if [[ "$VALIDATION_MODE" == "strict" ]]; then
+              exit 1
+            else
+              echo "⚠️ Continuing in non-strict mode"
+            fi
+          fi
+
+          echo "✅ Schema validation completed successfully!"
+        fi
+
+    - name: Install AJV for Advanced Validation
+      run: |
+        npm install -g ajv-cli
+
+    - name: Advanced Schema Validation with AJV
+      run: |
+        SUMMARY_FILE="${{ github.event.inputs.test_summary_file || 'test-summary.json' }}"
+
+        if [[ -f "$SUMMARY_FILE" ]]; then
+          echo "🔍 Running advanced validation with AJV..."
+
+          # Validate with AJV
+          ajv validate -s test-summary-schema.json -d "$SUMMARY_FILE" --verbose || {
+            echo "❌ AJV validation failed"
+            if [[ "${{ github.event.inputs.validation_mode || 'strict' }}" == "strict" ]]; then
+              exit 1
+            fi
+          }
+
+          echo "✅ AJV validation passed"
+        else
+          echo "⚠️ No test-summary.json found, skipping AJV validation"
+        fi
+
+    - name: Generate Validation Report
+      if: always()
+      run: |
+        SUMMARY_FILE="${{ github.event.inputs.test_summary_file || 'test-summary.json' }}"
+        VALIDATION_MODE="${{ github.event.inputs.validation_mode || 'strict' }}"
+
+        # Create validation report
+        cat > schema-validation-report.json << EOF
+        {
+          "validation_metadata": {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}",
+            "repository": "${{ github.repository }}",
+            "branch": "${{ github.ref_name }}",
+            "commit": "${{ github.sha }}",
+            "summary_file": "$SUMMARY_FILE",
+            "validation_mode": "$VALIDATION_MODE"
+          },
+          "validation_results": {
+            "schema_file_exists": $([ -f "test-summary-schema.json" ] && echo "true" || echo "false"),
+            "summary_file_exists": $([ -f "$SUMMARY_FILE" ] && echo "true" || echo "false"),
+            "json_syntax_valid": $([ -f "$SUMMARY_FILE" ] && jq empty "$SUMMARY_FILE" 2>/dev/null && echo "true" || echo "false"),
+            "has_required_sections": $([ -f "$SUMMARY_FILE" ] && (jq -e 'has("test_metadata") and has("test_results")' "$SUMMARY_FILE" >/dev/null 2>&1) && echo "true" || echo "false")
+          }
+        }
+        EOF
+
+        echo "📄 Validation report generated:"
+        cat schema-validation-report.json | jq .
+
+    - name: Comment on Pull Request
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+
+          let commentBody = '## 🔍 Test Summary Schema Validation\n\n';
+
+          if (fs.existsSync('schema-validation-report.json')) {
+            const report = JSON.parse(fs.readFileSync('schema-validation-report.json', 'utf8'));
+            const results = report.validation_results;
+
+            // Validation status
+            if (results.schema_file_exists && results.summary_file_exists && results.json_syntax_valid && results.has_required_sections) {
+              commentBody += '✅ **Schema validation passed**\n\n';
+            } else {
+              commentBody += '❌ **Schema validation failed**\n\n';
+            }
+
+            // Detailed results
+            commentBody += '### Validation Results\n\n';
+            commentBody += '| Check | Status |\n';
+            commentBody += '|------|--------|\n';
+            commentBody += `| Schema file exists | ${results.schema_file_exists ? '✅' : '❌'} |\n`;
+            commentBody += `| Summary file exists | ${results.summary_file_exists ? '✅' : '❌'} |\n`;
+            commentBody += `| JSON syntax valid | ${results.json_syntax_valid ? '✅' : '❌'} |\n`;
+            commentBody += `| Required sections present | ${results.has_required_sections ? '✅' : '❌'} |\n`;
+
+            // Recommendations
+            if (!results.schema_file_exists || !results.summary_file_exists || !results.json_syntax_valid || !results.has_required_sections) {
+              commentBody += '\n### 📝 Recommendations\n\n';
+              if (!results.schema_file_exists) commentBody += '- Ensure `test-summary-schema.json` exists and is accessible\n';
+              if (!results.summary_file_exists) commentBody += '- Ensure test script generates `test-summary.json`\n';
+              if (!results.json_syntax_valid) commentBody += '- Fix JSON syntax errors in test summary\n';
+              if (!results.has_required_sections) commentBody += '- Include required `test_metadata` and `test_results` sections\n';
+            }
+          } else {
+            commentBody += '❌ **Schema validation incomplete** - No validation report found\n\n';
+          }
+
+          // Add execution metadata
+          commentBody += '\n---\n';
+          commentBody += `*Validation run: ${new Date().toISOString()}*\n`;
+          commentBody += `*Workflow: [${{ github.workflow }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*\n`;
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const existingComment = comments.find(comment =>
+            comment.body.includes('Test Summary Schema Validation') &&
+            comment.user.type === 'Bot'
+          );
+
+          if (existingComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: commentBody,
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody,
+            });
+          }
+
+    - name: Upload Validation Artifacts
+      if: always()
+      if: ${{ false }}
+        uses: actions/upload-artifact@v4
+      with:
+        name: schema-validation-report
+        path: |
+          schema-validation-report.json
+          test-summary.json
+          test-summary-schema.json
+        retention-days: 0
+
+    - name: Set Check Run Status
+      if: always()
+      run: |
+        SUMMARY_FILE="${{ github.event.inputs.test_summary_file || 'test-summary.json' }}"
+
+        if [[ -f "$SUMMARY_FILE" ]] && jq empty "$SUMMARY_FILE" 2>/dev/null && \
+           jq -e 'has("test_metadata") and has("test_results")' "$SUMMARY_FILE" >/dev/null 2>&1; then
+          echo "✅ Schema validation successful"
+          exit 0
+        else
+          echo "❌ Schema validation failed"
+          exit 1
+        fi
+
+  schema-drift-detection:
+    name: Schema Drift Detection
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 3
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Detect Schema Changes
+      id: schema-changes
+      run: |
+        if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E "(test-summary-schema\.json|ci-schema-validation\.sh)"; then
+          echo "schema_changed=true" >> $GITHUB_OUTPUT
+          echo "🔄 Schema validation files changed"
+        else
+          echo "schema_changed=false" >> $GITHUB_OUTPUT
+          echo "📋 No schema changes detected"
+        fi
+
+    - name: Validate Schema File
+      if: steps.schema-changes.outputs.schema_changed == 'true'
+      run: |
+        echo "🔍 Validating updated schema file..."
+
+        # Check schema file syntax
+        if ! jq empty test-summary-schema.json; then
+          echo "❌ Schema file has invalid JSON syntax"
+          exit 1
+        fi
+
+        # Check schema structure
+        if ! jq -e 'has("$schema") and has("title") and has("type") and has("properties")' test-summary-schema.json; then
+          echo "❌ Schema file missing required structure"
+          exit 1
+        fi
+
+        echo "✅ Schema file validation passed"
+
+    - name: Comment on Schema Changes
+      if: steps.schema-changes.outputs.schema_changed == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const commentBody = `## 🔄 Schema Changes Detected
+
+The following schema-related files have been modified:
+\`\`\`
+$(git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E "(test-summary-schema\.json|ci-schema-validation\.sh)")
+\`\`\`
+
+### 📋 Schema Validation Requirements
+
+All schema changes must:
+- ✅ Maintain backward compatibility when possible
+- ✅ Update version number in schema title if breaking changes
+- ✅ Include proper JSON Schema Draft 7 specification
+- ✅ Validate all test summary files against new schema
+- ✅ Update CI validation script if needed
+
+### ⚠️ Impact Assessment
+
+Review how these changes affect:
+- Existing test scripts and their generated summaries
+- CI/CD pipeline integration
+- PR annotations and check runs
+- Downstream tools consuming test summary data
+
+---
+
+*Schema change detected in PR: [${{ github.number }}](${{ github.server_url }}/${{ github.repository }}/pull/${{ github.number }})*`;
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: commentBody,
+          });

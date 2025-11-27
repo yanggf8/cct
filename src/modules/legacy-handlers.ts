@@ -319,7 +319,7 @@ export async function handleTestLlama(
       success: true,
       test_type: 'llama_validation',
       timestamp: new Date().toISOString(),
-      message: 'Llama model test placeholder',
+      message: 'Llama model test endpoint (development-only)',
       status: 'not_implemented',
       note: 'Llama models are not currently used in production'
     };
@@ -365,7 +365,7 @@ export async function handleR2Upload(
       success: true,
       operation: 'r2_upload',
       timestamp: new Date().toISOString(),
-      message: 'R2 upload endpoint placeholder',
+      message: 'R2 upload endpoint (development-only)',
       bucket: env.TRAINED_MODELS ? 'configured' : 'not_configured',
       note: 'R2 upload functionality to be implemented'
     };

@@ -1,0 +1,327 @@
+name: Mock Data Prevention
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/js/**'
+      - 'src/modules/**'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**'
+      - 'public/js/**'
+
+jobs:
+  prevent-mock-data:
+    name: Prevent Mock Data in Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: |
+        npm ci --prefer-offline --no-audit
+
+    - name: Run Mock Elimination Audit
+      id: audit
+      run: |
+        echo "🔍 Running comprehensive mock elimination audit..."
+
+        # Run the audit script
+        if timeout 120 ./mock-elimination-audit.sh; then
+          echo "✅ Mock elimination audit passed"
+          echo "audit_status=passed" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Mock elimination audit failed"
+          echo "audit_status=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Validate TypeScript Compilation
+      run: |
+        echo "🔍 Validating TypeScript compilation..."
+
+        if npm run typecheck; then
+          echo "✅ TypeScript compilation successful"
+        else
+          echo "❌ TypeScript compilation failed - indicates mock data issues"
+          exit 1
+        fi
+
+    - name: Check for Mock API Keys
+      run: |
+        echo "🔍 Checking for mock/test API keys..."
+
+        MOCK_KEYS_FOUND=0
+
+        # Check for mock API key patterns
+        if grep -r -i "demo-key\|mock-key\|test-key\|fake.*api.*key" src/; then
+          echo "❌ Mock API keys found in source code"
+          MOCK_KEYS_FOUND=$((MOCK_KEYS_FOUND + 1))
+        fi
+
+        # Check for obviously fake API keys
+        if grep -r -E "apiKey.*:.*['\"](demo|mock|test|fake|sample).*['\"]" src/; then
+          echo "❌ Fake API keys detected"
+          MOCK_KEYS_FOUND=$((MOCK_KEYS_FOUND + 1))
+        fi
+
+        if [[ $MOCK_KEYS_FOUND -gt 0 ]]; then
+          echo ""
+          echo "To fix mock API key issues:"
+          echo "1. Remove all mock/test API keys from source code"
+          echo "2. Use environment variables for API keys"
+          echo "3. Add proper API key validation"
+          exit 1
+        else
+          echo "✅ No mock API keys found"
+        fi
+
+    - name: Validate Real Data Integration
+      run: |
+        echo "🔍 Validating real data integration..."
+
+        # Check that mock elimination guards are present
+        if [[ ! -f "src/modules/mock-elimination-guards.ts" ]]; then
+          echo "❌ Mock elimination guards not found"
+          exit 1
+        fi
+
+        if [[ ! -f "src/modules/real-data-integration.ts" ]]; then
+          echo "❌ Real data integration module not found"
+          exit 1
+        fi
+
+        # Validate guards are properly implemented
+        if grep -q "getMockMacroDrivers\|getMockMarketStructure\|getMockGeopoliticalRisk" src/modules/market-drivers.ts; then
+          echo "❌ Mock data generation functions still present"
+          echo "Replace mock functions with real data integration"
+          exit 1
+        else
+          echo "✅ Mock data functions eliminated"
+        fi
+
+        echo "✅ Real data integration validated"
+
+    - name: Validate Frontend JavaScript
+      run: |
+        echo "🔍 Validating frontend JavaScript for mock data..."
+
+        FRONTEND_ISSUES=0
+
+        # Check for mock data generators in frontend
+        if find public/js -name "*.js" -exec grep -l "generateMock\|mockData\|dummy.*data\|fake.*price" {} \; 2>/dev/null; then
+          echo "❌ Mock data generators found in frontend"
+          FRONTEND_ISSUES=$((FRONTEND_ISSUES + 1))
+        fi
+
+        # Check for obviously fake data patterns
+        if find public/js -name "*.js" -exec grep -l "Math\.random.*200\|price.*:.*Math\.random\|changePercent.*:.*Math\.random" {} \; 2>/dev/null; then
+          echo "❌ Fake data generation with Math.random found in frontend"
+          FRONTEND_ISSUES=$((FRONTEND_ISSUES + 1))
+        fi
+
+        # Check for hardcoded placeholder values
+        if grep -r "price.*:.*0\|change.*:.*0\|volume.*:.*0" public/js/ 2>/dev/null; then
+          echo "❌ Hardcoded zero values found in frontend"
+          FRONTEND_ISSUES=$((FRONTEND_ISSUES + 1))
+        fi
+
+        if [[ $FRONTEND_ISSUES -gt 0 ]]; then
+          echo ""
+          echo "Frontend mock data issues found:"
+          echo "1. Replace mock data generators with real API calls"
+          echo "2. Eliminate Math.random() based data generation"
+          echo "3. Remove hardcoded placeholder values"
+          exit 1
+        else
+          echo "✅ Frontend JavaScript validated - no mock data found"
+        fi
+
+    - name: Validate Data Source Configuration
+      run: |
+        echo "🔍 Validating data source configuration..."
+
+        # Check config.ts for proper data source setup
+        if [[ -f "src/modules/config.ts" ]]; then
+          # Ensure no mock/demo API keys in config
+          if grep -q "demo.*\|mock.*\|test.*" src/modules/config.ts; then
+            echo "❌ Configuration contains mock/demo values"
+            echo "Replace mock values with environment variable references"
+            exit 1
+          fi
+
+          # Check for proper environment variable usage
+          if grep -q "FRED_API_KEY\|YAHOO_API_KEY\|ALPHA_VANTAGE_API_KEY" src/modules/config.ts; then
+            echo "✅ Proper API key configuration found"
+          else
+            echo "⚠️  Consider adding real API key configurations"
+          fi
+        fi
+
+        # Validate environment variables are properly referenced
+        if grep -r "process\.env\." src/modules/ | grep -v "NODE_ENV\|DEPLOYMENT_ENV"; then
+          echo "✅ Environment variables properly referenced"
+        else
+          echo "⚠️  Consider using environment variables for API keys"
+        fi
+
+    - name: Build and Test Real Data Integration
+      run: |
+        echo "🔧 Testing build with real data integration..."
+
+        # Build the project
+        npm run build
+
+        # Validate no mock data in built output
+        if [[ -d "dist" ]]; then
+          echo "🔍 Checking built output for mock data..."
+
+          if grep -r -i "mock\|placeholder\|dummy\|fake.*data" dist/ 2>/dev/null; then
+            echo "❌ Mock data found in built output"
+            exit 1
+          else
+            echo "✅ Built output is clean - no mock data"
+          fi
+        fi
+
+    - name: Generate Mock Prevention Report
+      if: always()
+      run: |
+        echo ""
+        echo "📋 Mock Data Prevention Report"
+        echo "=============================="
+        echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "Repository: ${{ github.repository }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo ""
+
+        echo "✅ Validation Results:"
+        echo "  • Mock elimination audit: ${{ steps.audit.outputs.audit_status }}"
+        echo "  • TypeScript compilation: Passed"
+        echo "  • API key validation: Passed"
+        echo "  • Real data integration: Passed"
+        echo "  • Frontend JavaScript: Passed"
+        echo "  • Data source configuration: Passed"
+        echo ""
+
+        if [[ "${{ steps.audit.outputs.audit_status }}" == "passed" ]]; then
+          echo "🎉 COMPLIANCE STATUS: ✅ PRODUCTION READY"
+          echo ""
+          echo "All mock data has been successfully eliminated:"
+          echo "  • No mock data generation functions"
+          echo "  • No placeholder API keys"
+          echo "  • Real data sources integrated"
+          echo "  • Frontend uses live data"
+          echo "  • Production guards in place"
+          echo ""
+          echo "System is ready for production deployment with real data only."
+        else
+          echo "🚨 COMPLIANCE STATUS: ❌ NOT PRODUCTION READY"
+          echo ""
+          echo "Mock data issues found that must be resolved:"
+          echo "  • Review mock elimination audit report"
+          echo "  • Replace mock functions with real data integration"
+          echo "  • Eliminate placeholder values"
+          echo "  • Configure real API keys"
+          echo ""
+          echo "This PR cannot be merged until all mock data is eliminated."
+        fi
+
+    - name: Comment on Pull Request
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const auditStatus = '${{ steps.audit.outputs.audit_status }}';
+          const isCompliant = auditStatus === 'passed';
+
+          let commentBody = `## 🛡️ Mock Data Prevention Validation\n\n`;
+
+          if (isCompliant) {
+            commentBody += `✅ **VALIDATION PASSED** - No mock data detected\n\n`;
+            commentBody += `### ✅ Compliance Checklist\n`;
+            commentBody += `- [x] No mock data generation functions\n`;
+            commentBody += `- [x] No placeholder API keys\n`;
+            commentBody += `- [x] Real data sources integrated\n`;
+            commentBody += `- [x] Frontend uses live data\n`;
+            commentBody += `- [x] Production guards implemented\n`;
+            commentBody += `- [x] TypeScript compilation successful\n\n`;
+            commentBody += `### 🎯 Production Readiness\n`;
+            commentBody += `This change is **production-ready** with real data only.\n`;
+            commentBody += `All mock data has been successfully eliminated and replaced with legitimate data sources.\n\n`;
+            commentBody += `**Deployment Status:** ✅ Ready for production\n`;
+          } else {
+            commentBody += `❌ **VALIDATION FAILED** - Mock data detected\n\n`;
+            commentBody += `### ❌ Issues Found\n`;
+            commentBody += `- [ ] Mock data generation functions present\n`;
+            commentBody += `- [ ] Placeholder API keys detected\n`;
+            commentBody += `- [ ] Frontend using fake/random data\n`;
+            commentBody += `- [ ] Hardcoded values instead of real data\n\n`;
+            commentBody += `### 🔧 Required Actions\n`;
+            commentBody += `1. **Run mock elimination audit locally:**\n`;
+            commentBody += `   \`\`\`bash\n`;
+            commentBody += `   ./mock-elimination-audit.sh\n`;
+            commentBody += `   \`\`\`\n\n`;
+            commentBody += `2. **Replace mock functions** with real data integration:\n`;
+            commentBody += `   - Use \`RealEconomicIndicators\` from \`src/modules/real-data-integration.ts\`\n`;
+            commentBody += `   - Integrate with FRED API for economic data\n`;
+            commentBody += `   - Use Yahoo Finance for market data\n\n`;
+            commentBody += `3. **Remove placeholder values** from frontend:\n`;
+            commentBody += `   - Replace \`Math.random()\` with real API calls\n`;
+            commentBody += `   - Remove hardcoded prices and changes\n`;
+            commentBody += `   - Implement live data fetching\n\n`;
+            commentBody += `4. **Configure real API keys:**\n`;
+            commentBody += `   - Set \`FRED_API_KEY\` environment variable\n`;
+            commentBody += `   - Remove all mock/test API keys from source\n\n`;
+            commentBody += `### 🚫 Blocker\n`;
+            commentBody += `This PR **cannot be merged** until all mock data is eliminated.\n\n`;
+            commentBody += `**Deployment Status:** ❌ Blocked - requires mock data elimination\n`;
+          }
+
+          commentBody += `\n---\n*Validation run: [${{ github.workflow }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const existingComment = comments.find(comment =>
+            comment.body.includes('Mock Data Prevention Validation') &&
+            comment.user.type === 'Bot'
+          );
+
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: commentBody,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody,
+            });
+          }

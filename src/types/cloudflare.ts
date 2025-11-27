@@ -9,6 +9,11 @@
 // Type Definitions (not global)
 // ============================================================================
 
+// Service Binding Fetcher interface
+export interface Fetcher {
+  fetch(input: RequestInfo, init?: RequestInit): Promise<Response>;
+}
+
 // Enhanced KV Namespace interface
 export interface KVNamespace {
     // Basic operations
@@ -405,6 +410,9 @@ export interface CloudflareEnvironment {
   // AI Binding
   AI: Ai;
 
+  // Service Bindings
+  DAC_BACKEND?: Fetcher; // DAC backend service binding for direct Worker-to-Worker communication
+
   // Queue Producers
   ANALYSIS_QUEUE?: MessageBatch;
   NOTIFICATION_QUEUE?: MessageBatch;
@@ -421,6 +429,7 @@ export interface CloudflareEnvironment {
   FRED_API_KEYS?: string;
   OPENAI_API_KEY?: string;
   HUGGINGFACE_API_KEY?: string;
+  DAC_ARTICLES_POOL_API_KEY?: string;
 
   // Social Media Integration
   FACEBOOK_PAGE_TOKEN?: string;

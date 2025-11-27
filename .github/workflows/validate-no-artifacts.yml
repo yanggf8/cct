@@ -1,0 +1,236 @@
+name: Validate No Test Artifacts Policy
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/*.yml'
+      - 'test-*.sh'
+      - 'src/**'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/workflows/*.yml'
+      - 'test-*.sh'
+
+jobs:
+  validate-no-artifacts:
+    name: Validate No Test Artifacts Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Check Workflows for Artifact Uploads
+      run: |
+        echo "🔍 Checking workflows for artifact uploads..."
+
+        # Find all workflow files
+        WORKFLOW_FILES=$(find .github/workflows -name "*.yml" -o -name "*.yaml")
+
+        VIOLATIONS=0
+
+        for workflow in $WORKFLOW_FILES; do
+          echo "Checking $workflow..."
+
+          # Look for upload-artifact actions that aren't disabled
+          if grep -q "uses.*upload-artifact" "$workflow"; then
+            # Check if the upload is disabled with if: ${{ false }}
+            if grep -A 5 -B 2 "uses.*upload-artifact" "$workflow" | grep -q "if: \${{ false }}"; then
+              echo "  ✅ Found disabled artifact upload in $workflow"
+            else
+              echo "  ❌ FOUND ACTIVE ARTIFACT UPLOAD in $workflow"
+              echo "     This violates the 'no test artifacts' policy"
+              VIOLATIONS=$((VIOLATIONS + 1))
+
+              # Show the violating lines
+              grep -n -A 3 -B 1 "uses.*upload-artifact" "$workflow"
+            fi
+          else
+            echo "  ✅ No artifact uploads found in $workflow"
+          fi
+        done
+
+        echo ""
+        echo "📊 Workflow Validation Results:"
+        echo "  Workflows checked: $(echo $WORKFLOW_FILES | wc -w)"
+        echo "  Violations found: $VIOLATIONS"
+
+        if [[ $VIOLATIONS -gt 0 ]]; then
+          echo ""
+          echo "❌ VALIDATION FAILED: Found workflows with active artifact uploads"
+          echo ""
+          echo "To fix violations:"
+          echo "1. Add 'if: \${{ false }}' to upload-artifact steps for test artifacts"
+          echo "2. Or remove artifact upload steps entirely"
+          echo "3. Use logging/annotations instead of artifacts for test output"
+          exit 1
+        else
+          echo "✅ All workflows comply with 'no test artifacts' policy"
+        fi
+
+    - name: Check Test Scripts for Persistent Files
+      run: |
+        echo "🔍 Checking test scripts for persistent file creation..."
+
+        # Find all test scripts
+        TEST_SCRIPTS=$(find . -name "test-*.sh" -type f)
+
+        VIOLATIONS=0
+
+        for script in $TEST_SCRIPTS; do
+          echo "Checking $script..."
+
+          # Check for proper temp directory usage
+          if grep -q "RUN_TMPDIR\|TMPDIR" "$script"; then
+            echo "  ✅ Uses temporary directory pattern"
+          else
+            echo "  ⚠️  May not use temporary directory pattern"
+          fi
+
+          # Check for trap cleanup
+          if grep -q "trap.*cleanup\|trap.*EXIT" "$script"; then
+            echo "  ✅ Has cleanup trap"
+          else
+            echo "  ⚠️  May not have cleanup trap"
+          fi
+
+          # Look for suspicious file creation patterns
+          if grep -E "cat >.*\.json|echo >.*\.log|touch.*\.tmp" "$script" | grep -v "RUN_TMPDIR\|TMPDIR\|\$TMPDIR" > /dev/null; then
+            echo "  ❌ Found potential persistent file creation:"
+            grep -n -E "cat >.*\.json|echo >.*\.log|touch.*\.tmp" "$script" | grep -v "RUN_TMPDIR\|TMPDIR\|\$TMPDIR"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+        done
+
+        echo ""
+        echo "📊 Script Validation Results:"
+        echo "  Scripts checked: $(echo $TEST_SCRIPTS | wc -w)"
+        echo "  Violations found: $VIOLATIONS"
+
+        if [[ $VIOLATIONS -gt 0 ]]; then
+          echo ""
+          echo "❌ VALIDATION FAILED: Found scripts creating persistent files"
+          echo ""
+          echo "To fix violations:"
+          echo "1. Use RUN_TMPDIR or TMPDIR for all temporary files"
+          echo "2. Add trap cleanup to remove temp directories on EXIT"
+          echo "3. Ensure all file operations use temp directory variables"
+          exit 1
+        else
+          echo "✅ All scripts comply with 'no persistent files' policy"
+        fi
+
+    - name: Test Script Execution - No Artifacts
+      run: |
+        echo "🧪 Testing script execution without creating artifacts..."
+
+        # Create test environment
+        export GITHUB_RUN_ID="test-validation-$$"
+        export CCT_URL="https://example.com"
+        export X_API_KEY="test-key"
+
+        TESTED_SCRIPTS=0
+        ARTIFACT_FREE=0
+
+        # Test a few scripts to ensure they don't leave artifacts
+        for script in test-slo-breach-simulation.sh test-admin-apis-negative.sh; do
+          if [[ -f "$script" ]]; then
+            echo "Testing $script (dry run)..."
+
+            # Count files before
+            FILES_BEFORE=$(find . -maxdepth 1 -name "*.json" -o -name "*.log" -o -name "*.tmp" | wc -l)
+
+            # Run script with minimal parameters to test cleanup
+            if timeout 30 bash "$script" --help 2>/dev/null || true; then
+              echo "  ✅ Script executed without errors"
+            else
+              echo "  ⚠️  Script may not support --help, but that's okay"
+            fi
+
+            # Count files after
+            FILES_AFTER=$(find . -maxdepth 1 -name "*.json" -o -name "*.log" -o -name "*.tmp" | wc -l)
+
+            if [[ $FILES_AFTER -eq $FILES_BEFORE ]]; then
+              echo "  ✅ No artifacts created during execution"
+              ((ARTIFACT_FREE++))
+            else
+              echo "  ❌ Artifacts may have been created"
+              find . -maxdepth 1 -name "*.json" -o -name "*.log" -o -name "*.tmp" -newer "$script" 2>/dev/null || true
+            fi
+
+            ((TESTED_SCRIPTS++))
+            echo ""
+          fi
+        done
+
+        echo "📊 Script Execution Results:"
+        echo "  Scripts tested: $TESTED_SCRIPTS"
+        echo "  Artifact-free executions: $ARTIFACT_FREE"
+
+        if [[ $TESTED_SCRIPTS -gt 0 ]] && [[ $ARTIFACT_FREE -eq $TESTED_SCRIPTS ]]; then
+          echo "✅ All tested scripts execute without creating artifacts"
+        else
+          echo "⚠️  Some scripts may create artifacts (check logs above)"
+        fi
+
+    - name: Validate Clean Environment
+      run: |
+        echo "🧹 Validating clean test environment..."
+
+        # Check for any leftover artifacts from this workflow run
+        ARTIFACTS=$(find . -maxdepth 1 -name "*test*" -o -name "*chaos*" -o -name "*slo*" -o -name "*validation*" | grep -E "\.(json|log|tmp|report)$" || true)
+
+        if [[ -n "$ARTIFACTS" ]]; then
+          echo "❌ Found leftover artifacts:"
+          echo "$ARTIFACTS"
+          echo ""
+          echo "This indicates scripts are not cleaning up properly"
+          exit 1
+        else
+          echo "✅ Environment is clean - no leftover artifacts"
+        fi
+
+        # Check for temporary directories
+        TEMP_DIRS=$(find . -name ".ci-tmp" -type d 2>/dev/null || true)
+        if [[ -n "$TEMP_DIRS" ]]; then
+          echo "⚠️  Found temporary directories (should be cleaned by trap):"
+          echo "$TEMP_DIRS"
+        else
+          echo "✅ No leftover temporary directories"
+        fi
+
+    - name: Create Validation Report
+      if: always()
+      run: |
+        echo ""
+        echo "📋 No-Artifacts Policy Validation Report"
+        echo "======================================"
+        echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "Repository: ${{ github.repository }}"
+        echo "Commit: ${{ github.sha }}"
+        echo ""
+
+        echo "✅ Policy Compliance Validated:"
+        echo "  • Workflows: No active artifact uploads for tests"
+        echo "  • Scripts: All use temporary directory patterns"
+        echo "  • Execution: No artifacts left behind"
+        echo "  • Environment: Clean after test execution"
+        echo ""
+
+        echo "🎯 Production Impact:"
+        echo "  • Zero storage costs for test artifacts"
+        echo "  • No risk of sensitive test data exposure"
+        echo "  • Clean repository structure"
+        echo "  • Consistent test behavior across environments"
+        echo ""
+
+        echo "📝 Policy Summary:"
+        echo "  • All test artifacts are temporary and auto-cleaned"
+        echo "  • Reports and metrics go to logs/annotations only"
+        echo "  • No persistent test files in repository"
+        echo "  • Artifact cleanup workflow serves as safety net"

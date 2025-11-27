@@ -6,14 +6,16 @@
  * and provides additional analysis and calculations.
  *
  * Features:
- * - FRED API integration with fallback to mock data
- * - Data transformation and validation
- * - Cache integration
- * - Error handling and retry logic
+ * - FRED API integration with production strict mode (no mock fallbacks)
+ * - Data transformation and validation with fail-fast errors in production
+ * - Cache integration with 4-hour TTL for macroeconomic data
+ * - Error handling and retry logic with circuit breaker pattern
  * - Derived metric calculations
+ * - Strict mode enforcement for production environments
  *
  * @author Market Drivers Pipeline - Phase 2 Day 2
  * @since 2025-10-10
+ * @updated Sprint 1-A - Production Market Indicators Implementation
  */
 
 import { createLogger } from './logging.js';
@@ -22,6 +24,7 @@ import { createFredApiClient, createFredApiClientWithHealthCheck } from './fred-
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { MacroDrivers } from './market-drivers.js';
 import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
+import { createProductionGuards } from './production-guards.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('macro-economic-fetcher');
@@ -36,6 +39,7 @@ export interface MacroEconomicFetcherOptions {
   enableCaching?: boolean;
   environment?: CloudflareEnvironment;
   forceMockClient?: boolean;
+  strictMode?: boolean;  // NEW: Production-only mode that prevents mock fallbacks
 }
 
 /**
@@ -82,17 +86,45 @@ export class MacroEconomicFetcher {
   private circuitBreaker;
   private enableCaching: boolean;
   private useMockData: boolean;
+  private strictMode: boolean;  // NEW: Production-only mode flag
   private environment?: CloudflareEnvironment;
+  private productionGuards;  // NEW: Runtime mock detection
 
   constructor(options: MacroEconomicFetcherOptions) {
     this.environment = options.environment;
     this.enableCaching = options.enableCaching !== false;
     this.cacheManager = options.cacheManager;
+    this.strictMode = options.strictMode || false;
 
-    // Determine if we should use mock data
-    this.useMockData = options.forceMockClient ||
-                      options.useMockData ||
-                      !options.fredApiKey;
+    // Production strict mode validation
+    if (this.strictMode && this.environment) {
+      const isProduction = this.environment.ENVIRONMENT === 'production';
+      if (isProduction) {
+        // In production strict mode, mock data is forbidden
+        if (options.forceMockClient || options.useMockData) {
+          throw new Error('Production strict mode: Mock data is forbidden in production environment');
+        }
+
+        // Require FRED API key in production strict mode
+        if (!options.fredApiKey) {
+          throw new Error('Production strict mode: FRED API key is required in production environment');
+        }
+      }
+    }
+
+    // Determine if we should use mock data (restricted by strict mode)
+    this.useMockData = !this.strictMode && (
+      options.forceMockClient ||
+      options.useMockData ||
+      !options.fredApiKey
+    );
+
+    // Initialize production guards for runtime mock detection
+    this.productionGuards = createProductionGuards({
+      strictMode: this.strictMode,
+      environment: this.environment,
+      failOnMock: this.strictMode
+    });
 
     // Initialize FRED API client using the new factory
     if (this.environment && !options.forceMockClient) {
@@ -165,20 +197,41 @@ export class MacroEconomicFetcher {
         inflationRate: enhancedMacroDrivers.inflationRate,
       });
 
+      // Production guard verification - ensure data integrity before returning
+      if (this.strictMode) {
+        const verification = this.productionGuards.verifyApiResponse(enhancedMacroDrivers, 'macro-economic-fetcher');
+
+        if (!verification.isReal) {
+          throw new Error(`Production strict mode: Data integrity verification failed - ${JSON.stringify(verification.flags)}`);
+        }
+
+        logger.info('Production guard verification passed', {
+          source: verification.source,
+          confidence: verification.confidence,
+          flags: verification.flags
+        });
+      }
+
       return enhancedMacroDrivers;
     } catch (error: unknown) {
-      logger.error('Failed to fetch macro economic drivers:', { error: error instanceof Error ? error.message : String(error) });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to fetch macro economic drivers:', { error: errorMessage });
 
-      // Fall back to mock data if real API fails
+      // In strict mode, fail fast without any mock fallbacks
+      if (this.strictMode) {
+        throw new Error(`Production strict mode: FRED API failure - ${errorMessage}. No fallback to mock data allowed.`);
+      }
+
+      // Legacy behavior: fall back to mock data only if not using mock already
       if (!this.useMockData) {
-        logger.warn('Falling back to mock data due to API failure');
+        logger.warn('Falling back to mock data due to API failure (strict mode disabled)');
         const mockClient = new MockFredApiClient();
         const mockSnapshot = await mockClient.getMacroEconomicSnapshot();
         const basicMacroDrivers = this.transformSnapshotToMacroDrivers(mockSnapshot);
         return this.enhanceMacroDrivers(basicMacroDrivers);
       }
 
-      throw new Error(`Macro Economic Fetcher Error: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Macro Economic Fetcher Error: ${errorMessage}`);
     }
   }
 
