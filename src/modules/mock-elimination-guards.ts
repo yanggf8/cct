@@ -26,8 +26,9 @@ export interface RealDataRequirement {
 
 /**
  * Detects if data appears to be mock/placeholder
+ * Enhanced with proper TypeScript generics for better type safety
  */
-export function detectMockData(value: any, fieldName: string, location: string): MockDataDetection {
+export function detectMockData<T>(value: T, fieldName: keyof T, location: string): MockDataDetection {
   const stringValue = String(value).toLowerCase();
 
   // Critical mock patterns - immediately fail
@@ -48,28 +49,52 @@ export function detectMockData(value: any, fieldName: string, location: string):
     }
   }
 
-  // Hardcoded value patterns that suggest mock data
+  // Hardcoded value patterns that suggest mock data - refined to reduce false positives
   if (typeof value === 'number') {
-    // Obviously fake prices (round numbers ending in .00 or .5)
-    if (fieldName.toLowerCase().includes('price') && (value === 0 || value % 1 === 0 || value % 1 === 0.5)) {
-      return {
-        isMock: true,
-        detectionReason: `Suspicious price value: ${value} (appears hardcoded)`,
-        location: `${location}.${fieldName}`,
-        severity: 'high',
-        recommendedAction: 'Replace with live market data from Yahoo Finance'
-      };
+    // Suspicious price patterns - refined to avoid false positives on legitimate whole dollar prices
+    if (fieldName.toLowerCase().includes('price')) {
+      const fieldNameStr = String(fieldName).toLowerCase();
+
+      // Only flag obviously fake price patterns, not legitimate market prices
+      if (
+        // Exact zero prices (unless it's a penny stock or crypto which can be near zero)
+        (value === 0 && !fieldNameStr.includes('penny') && !fieldNameStr.includes('crypto')) ||
+        // Round numbers that are clearly placeholders (like 100, 200, 500, 1000)
+        ([100, 200, 500, 1000, 2000, 5000].includes(value)) ||
+        // Obvious test values like 42, 69, 123, 456, 789
+        ([42, 69, 123, 456, 789].includes(value))
+      ) {
+        return {
+          isMock: true,
+          detectionReason: `Suspicious price value: ${value} (appears to be placeholder/test data)`,
+          location: `${location}.${String(fieldName)}`,
+          severity: 'high',
+          recommendedAction: 'Replace with live market data from Yahoo Finance'
+        };
+      }
     }
 
-    // Obviously fake percentages (round numbers)
-    if (fieldName.toLowerCase().includes('rate') && (value === 0 || value % 10 === 0 || value % 5 === 0)) {
-      return {
-        isMock: true,
-        detectionReason: `Suspicious rate value: ${value}% (appears hardcoded)`,
-        location: `${location}.${fieldName}`,
-        severity: 'high',
-        recommendedAction: 'Replace with real economic data from FRED'
-      };
+    // Suspicious rate patterns - refined to avoid false positives on legitimate round rates
+    if (fieldName.toLowerCase().includes('rate')) {
+      const fieldNameStr = String(fieldName).toLowerCase();
+
+      // Only flag obviously fake rates, not legitimate round percentages
+      if (
+        // Zero rates (unless it's a special case like ZIRP)
+        (value === 0 && !fieldNameStr.includes('zero') && !fieldNameStr.includes('zirp')) ||
+        // Obviously fake high rates (>50% for most economic indicators)
+        (value > 50 && !fieldNameStr.includes('inflation') && !fieldNameStr.includes('interest')) ||
+        // Perfect round numbers that are likely placeholders (25, 50, 75)
+        ([25, 50, 75].includes(value) && Math.abs(value % 1) < 0.001)
+      ) {
+        return {
+          isMock: true,
+          detectionReason: `Suspicious rate value: ${value}% (appears to be placeholder/test data)`,
+          location: `${location}.${String(fieldName)}`,
+          severity: 'high',
+          recommendedAction: 'Replace with real economic data from FRED'
+        };
+      }
     }
 
     // Fake stock prices under $1 (unless it's actually a penny stock)

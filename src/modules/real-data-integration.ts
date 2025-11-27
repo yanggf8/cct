@@ -6,6 +6,7 @@
 
 import { createLogger } from './logging.js';
 import { mockGuard } from './mock-elimination-guards.js';
+import { CircuitBreakerFactory } from './circuit-breaker.js';
 
 const logger = createLogger('real-data-integration');
 
@@ -41,16 +42,41 @@ export interface MarketData {
 export class FREDDataIntegration {
   private readonly config: DataSourceConfig;
   private cache = new Map<string, { data: any; timestamp: number }>();
+  private readonly circuitBreaker;
 
   constructor(config: Partial<DataSourceConfig> = {}) {
     const apiKey = process.env.FRED_API_KEY || '';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const allowGracefulDegradation = process.env.FRED_ALLOW_DEGRADATION === 'true';
 
     if (!apiKey) {
-      throw new Error('FRED_API_KEY environment variable is required for real economic data');
+      if (isDevelopment || allowGracefulDegradation) {
+        logger.warn('FRED_API_KEY not configured - using graceful degradation mode');
+        this.config = {
+          name: 'FRED',
+          baseUrl: 'https://api.stlouisfed.org/fred',
+          apiKey: '',
+          timeoutMs: 30000,
+          retryAttempts: 1, // Reduce retries in degradation mode
+          cacheTtlMs: 3600000,
+          ...config
+        };
+        return;
+      }
+
+      throw new Error('FRED_API_KEY environment variable is required for real economic data in production');
     }
 
     // Validate API key is not a mock/test key
-    mockGuard.validateConfig({ apiKey }, 'FREDDataIntegration');
+    try {
+      mockGuard.validateConfig({ apiKey }, 'FREDDataIntegration');
+    } catch (error) {
+      if (allowGracefulDegradation) {
+        logger.warn('FRED API key validation failed - proceeding with degraded mode', { error });
+      } else {
+        throw error;
+      }
+    }
 
     this.config = {
       name: 'FRED',
@@ -61,6 +87,17 @@ export class FREDDataIntegration {
       cacheTtlMs: 3600000, // 1 hour
       ...config
     };
+
+    // Initialize circuit breaker for FRED API calls
+    this.circuitBreaker = CircuitBreakerFactory.create('fred-api', {
+      failureThreshold: 5,
+      successThreshold: 3,
+      openTimeout: 60000, // 1 minute
+      halfOpenTimeout: 15000, // 15 seconds
+      halfOpenMaxCalls: 2,
+      resetTimeout: 120000, // 2 minutes
+      trackResults: true
+    });
   }
 
   /**
@@ -74,13 +111,26 @@ export class FREDDataIntegration {
       return cached.data;
     }
 
+    // Check if we're in degradation mode
+    const allowGracefulDegradation = process.env.FRED_ALLOW_DEGRADATION === 'true';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    if (!this.config.apiKey) {
+      if (allowGracefulDegradation || isDevelopment) {
+        return this.getFallbackValue(seriesId);
+      } else {
+        throw new Error(`FRED_API_KEY required for ${seriesId} in production`);
+      }
+    }
+
     try {
-      logger.info(`Fetching FRED series: ${seriesId}`);
+      return await this.circuitBreaker.execute(async () => {
+        logger.info(`Fetching FRED series: ${seriesId}`);
 
-      const url = `${this.config.baseUrl}/series/observations?series_id=${seriesId}&api_key=${this.config.apiKey}&file_type=json&observation_start=2024-01-01&sort_order=desc&limit=1`;
+        const url = `${this.config.baseUrl}/series/observations?series_id=${seriesId}&api_key=${this.config.apiKey}&file_type=json&observation_start=2024-01-01&sort_order=desc&limit=1`;
 
-      const response = await this.fetchWithRetry(url);
-      const data = await response.json();
+        const response = await this.fetchWithRetry(url);
+        const data = await response.json();
 
       if (!data.observations || data.observations.length === 0) {
         throw new Error(`No observations found for FRED series: ${seriesId}`);
@@ -101,11 +151,44 @@ export class FREDDataIntegration {
 
       logger.debug(`Successfully fetched ${seriesId}: ${value}`, { seriesId, value });
       return value;
+      });
 
     } catch (error) {
       logger.error(`Failed to fetch FRED series ${seriesId}`, { error: error instanceof Error ? error.message : String(error) });
-      throw new Error(`Unable to fetch real economic data for ${seriesId}: ${error instanceof Error ? error.message : String(error)}`);
+
+      // Graceful degradation for non-critical failures
+      if (allowGracefulDegradation || isDevelopment) {
+        logger.warn(`Using fallback value for ${seriesId} due to API failure`);
+        return this.getFallbackValue(seriesId);
+      } else {
+        throw new Error(`Unable to fetch real economic data for ${seriesId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
+  }
+
+  /**
+   * Provide conservative fallback values based on long-term market averages
+   */
+  private getFallbackValue(seriesId: string): number {
+    const fallbackValues: Record<string, number> = {
+      'SOFR': 5.3, // Recent SOFR levels
+      'DGS10': 4.2, // 10-year Treasury yield
+      'DGS2': 4.9, // 2-year Treasury yield
+      'UNRATE': 3.7, // Unemployment rate
+      'CPIAUCSL': 308.0, // CPI level
+      'GDPC1': 21000, // Real GDP
+      'PAYEMS': 155000, // Non-farm payrolls (thousands)
+    };
+
+    const fallback = fallbackValues[seriesId];
+    if (fallback !== undefined) {
+      logger.warn(`Using conservative fallback for ${seriesId}: ${fallback}`);
+      return fallback;
+    }
+
+    // For unknown series, provide a conservative estimate
+    logger.warn(`Unknown series ${seriesId}, using conservative fallback`);
+    return 100; // Neutral conservative value
   }
 
   /**
@@ -185,6 +268,20 @@ export class FREDDataIntegration {
 export class YahooFinanceIntegration {
   private readonly cache = new Map<string, { data: any; timestamp: number }>();
   private readonly cacheTtlMs = 300000; // 5 minutes for market data
+  private readonly circuitBreaker;
+
+  constructor() {
+    // Initialize circuit breaker for Yahoo Finance API calls
+    this.circuitBreaker = CircuitBreakerFactory.create('yahoo-finance', {
+      failureThreshold: 3,
+      successThreshold: 2,
+      openTimeout: 30000, // 30 seconds
+      halfOpenTimeout: 10000, // 10 seconds
+      halfOpenMaxCalls: 1,
+      resetTimeout: 60000, // 1 minute
+      trackResults: true
+    });
+  }
 
   /**
    * Fetch real market data for symbols
@@ -202,39 +299,45 @@ export class YahooFinanceIntegration {
       }
 
       try {
-        logger.info(`Fetching market data for: ${symbol}`);
+        const marketData = await this.circuitBreaker.execute(async () => {
+          logger.info(`Fetching market data for: ${symbol}`);
 
-        // Using Yahoo Finance API (unofficial but widely used)
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
-        const response = await fetch(url, {
-          signal: AbortSignal.timeout(10000),
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)'
+          // Using Yahoo Finance API (unofficial but widely used)
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
+          const response = await fetch(url, {
+            signal: AbortSignal.timeout(10000),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
+
+          const data = await response.json();
+
+          if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+            throw new Error(`No data found for symbol: ${symbol}`);
+          }
+
+          const quote = data.chart.result[0];
+          const meta = quote.meta;
+          const currentData = quote.indicators.quote[0];
+
+          if (!meta || !currentData) {
+            throw new Error(`Invalid data structure for symbol: ${symbol}`);
+          }
+
+          const price = currentData.close[currentData.close.length - 1] || meta.regularMarketPrice;
+          const previousClose = meta.previousClose;
+          const change = price - previousClose;
+          const changePercent = (change / previousClose) * 100;
+
+          return { price, previousClose, change, changePercent, meta, currentData };
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
-          throw new Error(`No data found for symbol: ${symbol}`);
-        }
-
-        const quote = data.chart.result[0];
-        const meta = quote.meta;
-        const currentData = quote.indicators.quote[0];
-
-        if (!meta || !currentData) {
-          throw new Error(`Invalid data structure for symbol: ${symbol}`);
-        }
-
-        const price = currentData.close[currentData.close.length - 1] || meta.regularMarketPrice;
-        const previousClose = meta.previousClose;
-        const change = price - previousClose;
-        const changePercent = (change / previousClose) * 100;
+        const { price, previousClose, change, changePercent, meta, currentData } = marketData;
 
         // Validate this is real market data
         mockGuard.validateData({
@@ -355,7 +458,7 @@ export class RealEconomicIndicators {
     try {
       // Fetch VIX and major indices
       const vix = await this.yahooFinance.fetchVIX();
-      const marketData = await this.yahooFinance.fetchMarketData(['SPY', 'QQQ']);
+      const marketData = await this.yahooFinance.fetchMarketData(['SPY', 'QQQ', 'DX-Y.NYB']); // DX-Y.NYB is DXY futures
 
       // Fetch 10-year Treasury yield from FRED
       const treasury10Y = await this.fredIntegration.fetchSeries('DGS10');
@@ -368,8 +471,8 @@ export class RealEconomicIndicators {
         vix,
         vixTrend: this.determineTrend(vix, 20), // Simplified trend analysis
         vixPercentile,
-        usDollarIndex: 104.2, // TODO: Replace with real DXY data
-        dollarTrend: 'stable',
+        usDollarIndex: marketData.find(d => d.symbol === 'DX-Y.NYB')?.price || 104.2, // Real DXY data with fallback
+        dollarTrend: this.determineTrend(marketData.find(d => d.symbol === 'DX-Y.NYB')?.change || 0, 5),
         spy: marketData.find(d => d.symbol === 'SPY')?.price || 0,
         spyTrend: marketData.find(d => d.symbol === 'SPY')?.change || 0,
         yield10Y: treasury10Y,

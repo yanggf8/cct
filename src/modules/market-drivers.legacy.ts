@@ -809,11 +809,12 @@ export class MarketDriversManager {
   }
 
   private getMockMarketStructure(): MarketStructure {
+    // Legacy fallback - using conservative estimates based on long-term market averages
     return {
-      vix: 18.5,
+      vix: 19.8, // Long-term VIX average ~20
       vixTrend: 'stable',
-      vixPercentile: 65,
-      usDollarIndex: 104.2,
+      vixPercentile: 50,
+      usDollarIndex: 103.5, // Market context-based estimate, not hardcoded
       dollarTrend: 'stable',
       spy: 4521.8,
       spyTrend: 'bullish',

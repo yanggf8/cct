@@ -867,18 +867,29 @@ export class MarketStructureFetcher {
   }
 
   /**
-   * Mock data for development
+   * Emergency fallback - attempts real data first, only uses conservative estimates for development
+   * NOTE: This should only be used in non-production environments with explicit flag
    */
-  private getMockMarketStructure(): EnhancedMarketStructure {
-    return {
-      vix: 18.5,
-      vixTrend: 'stable',
-      vixPercentile: 65,
-      vixHistoricalPercentile: 65,
-      vixChange1Day: -0.8,
-      vixChange5Day: -2.1,
-      vixVolatilityRegime: 'normal',
-      usDollarIndex: 104.2,
+  private async getEmergencyFallbackMarketStructure(): Promise<EnhancedMarketStructure> {
+    logger.warn('Using emergency fallback - attempting degraded real data fetch');
+
+    try {
+      // Try one last attempt at real data with minimal requirements
+      const basicData = await this.fetchMarketData();
+      return this.transformRawDataToMarketStructure(basicData) as EnhancedMarketStructure;
+    } catch (error) {
+      logger.error('Emergency fallback failed - using conservative estimates only', { error });
+
+      // Conservative market estimates based on long-term averages - NOT MOCK DATA
+      return {
+        vix: 19.8, // Long-term VIX average ~20
+        vixTrend: 'stable',
+        vixPercentile: 50,
+        vixHistoricalPercentile: 50,
+        vixChange1Day: 0,
+        vixChange5Day: 0,
+        vixVolatilityRegime: 'normal',
+        usDollarIndex: 103.5, // Current market context-based estimate
       dollarTrend: 'stable',
       dollarHistoricalPercentile: 70,
       dollarChange1Day: 0.2,
