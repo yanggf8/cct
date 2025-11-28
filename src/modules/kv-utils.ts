@@ -44,7 +44,7 @@ export async function getWithRetry(
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const result = await env.TRADING_RESULTS.get(key);
+      const result = await env.MARKET_ANALYSIS_CACHE.get(key);
       if (result) {
         if (i > 0) {
           logger.info('KV retry successful', { key, attempt: i + 1 });
@@ -95,7 +95,7 @@ export async function putWithVerification(
 
   try {
     // First attempt to put the value
-    await env.TRADING_RESULTS.put(key, value, options);
+    await env.MARKET_ANALYSIS_CACHE.put(key, value, options);
 
     // Verify the put was successful by reading it back
     const verifyKey = await getWithRetry(key, env, 2, 500);
@@ -136,7 +136,7 @@ export async function deleteWithVerification(
 
   try {
     // First verify the key exists
-    const exists = await env.TRADING_RESULTS.get(key);
+    const exists = await env.MARKET_ANALYSIS_CACHE.get(key);
 
     if (!exists) {
       logger.warn('KV DELETE - key does not exist', { key });
@@ -144,10 +144,10 @@ export async function deleteWithVerification(
     }
 
     // Delete the key
-    await env.TRADING_RESULTS.delete(key);
+    await env.MARKET_ANALYSIS_CACHE.delete(key);
 
     // Verify deletion by trying to read it
-    const verify = await env.TRADING_RESULTS.get(key);
+    const verify = await env.MARKET_ANALYSIS_CACHE.get(key);
 
     if (verify === null) {
       logger.info('KV DELETE successful and verified', { key });

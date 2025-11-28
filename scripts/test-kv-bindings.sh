@@ -77,19 +77,19 @@ if [ "$HTTP_CODE" = "200" ]; then
     SUCCESS=$(echo "$BODY" | jq -r '.success // false')
     BINDING_COUNT=$(echo "$BODY" | jq -r '.data.binding_count // 0')
     KV_NAMESPACES=$(echo "$BODY" | jq -r '.data.kv_namespaces // []' | jq -r 'join(", ")')
-    TRADING_RESULTS_EXISTS=$(echo "$BODY" | jq -r '.data.critical_bindings_status.TRADING_RESULTS // false')
+    MARKET_ANALYSIS_CACHE_EXISTS=$(echo "$BODY" | jq -r '.data.critical_bindings_status.MARKET_ANALYSIS_CACHE // false')
 
     echo ""
     echo "Binding Discovery Results:"
     echo "  Total bindings: $BINDING_COUNT"
     echo "  KV namespaces: $KV_NAMESPACES"
-    echo "  TRADING_RESULTS exists: $TRADING_RESULTS_EXISTS"
+    echo "  MARKET_ANALYSIS_CACHE exists: $MARKET_ANALYSIS_CACHE_EXISTS"
     echo ""
 
-    if [ "$TRADING_RESULTS_EXISTS" = "true" ]; then
-        print_result "TRADING_RESULTS binding exists" "PASS"
+    if [ "$MARKET_ANALYSIS_CACHE_EXISTS" = "true" ]; then
+        print_result "MARKET_ANALYSIS_CACHE binding exists" "PASS"
     else
-        print_result "TRADING_RESULTS binding exists" "FAIL" "CRITICAL: KV namespace not bound"
+        print_result "MARKET_ANALYSIS_CACHE binding exists" "FAIL" "CRITICAL: KV namespace not bound"
     fi
 
     # Show all bindings for debugging

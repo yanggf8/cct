@@ -11,16 +11,16 @@
  * @since 2025-11-27
  */
 
-import { createLogger } from './logging.js';
-import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { initializeMacroEconomicFetcher, type EnhancedMacroDrivers } from './macro-economic-fetcher.js';
-import { initializeMarketStructureFetcher, type EnhancedMarketStructure } from './market-structure-fetcher.js';
-import { initializeMarketRegimeClassifier, type EnhancedRegimeAnalysis } from './market-regime-classifier.js';
-import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
+import { createLogger } from './logging';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal';
+import { initializeMacroEconomicFetcher, type EnhancedMacroDrivers } from './macro-economic-fetcher';
+import { initializeMarketStructureFetcher, type EnhancedMarketStructure } from './market-structure-fetcher';
+import { initializeMarketRegimeClassifier, type EnhancedRegimeAnalysis } from './market-regime-classifier';
+import { DOMarketDriversCacheAdapter } from './do-cache-adapter';
 
 // Import real data integration
-import { ProductionMarketDrivers, type MacroDrivers as RealMacroDrivers, type MarketStructure as RealMarketStructure, type GeopoliticalRisk as RealGeopoliticalRisk } from './market-drivers-replacement.js';
-import { mockGuard, requireRealData } from './mock-elimination-guards.js';
+import { ProductionMarketDrivers, type MacroDrivers as RealMacroDrivers, type MarketStructure as RealMarketStructure, type GeopoliticalRisk as RealGeopoliticalRisk } from './market-drivers-replacement';
+import { mockGuard, requireRealData } from './mock-elimination-guards';
 
 const logger = createLogger('market-drivers');
 
@@ -30,7 +30,7 @@ export {
   type MacroDrivers,
   type MarketStructure,
   type GeopoliticalRisk
-} from './market-drivers-replacement.js';
+} from './market-drivers-replacement';
 
 // Legacy compatibility interfaces - preserve existing API
 export interface MarketDriversSnapshot {
@@ -465,7 +465,7 @@ export class MarketDriversManager {
     logger.warn('Using legacy market drivers with mock data');
 
     // Import legacy modules only when needed
-    const { getMockMacroDrivers, getMockMarketStructure, getMockGeopoliticalRisk } = await import('./market-drivers-legacy.js');
+    const { getMockMacroDrivers, getMockMarketStructure, getMockGeopoliticalRisk } = await import('./market-drivers-legacy.ts');
 
     const mockMacro = getMockMacroDrivers();
     const mockStructure = getMockMarketStructure();
@@ -505,21 +505,21 @@ export class MarketDriversManager {
 
   private async getLegacyMacroDrivers(): Promise<RealMacroDrivers> {
     // Import legacy modules only when needed
-    const { getMockMacroDrivers } = await import('./market-drivers-legacy.js');
+    const { getMockMacroDrivers } = await import('./market-drivers-legacy.ts');
     const mockMacro = getMockMacroDrivers();
 
     return this.transformLegacyToReal(mockMacro);
   }
 
   private async getLegacyMarketStructure(): Promise<RealMarketStructure> {
-    const { getMockMarketStructure } = await import('./market-drivers-legacy.js');
+    const { getMockMarketStructure } = await import('./market-drivers-legacy.ts');
     const mockStructure = getMockMarketStructure();
 
     return this.transformLegacyToReal(mockStructure);
   }
 
   private async getLegacyGeopoliticalRisk(): Promise<RealGeopoliticalRisk> {
-    const { getMockGeopoliticalRisk } = await import('./market-drivers-legacy.js');
+    const { getMockGeopoliticalRisk } = await import('./market-drivers-legacy.ts');
     const mockGeopolitical = getMockGeopoliticalRisk();
 
     return this.transformLegacyToReal(mockGeopolitical);
@@ -599,4 +599,4 @@ export type {
   GeopoliticalRisk,
   MarketRegime,
   MarketRegimeType
-} from './market-drivers-replacement.js';
+} from './market-drivers-replacement';

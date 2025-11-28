@@ -89,7 +89,7 @@ export class CacheAbstraction {
       } else {
         // Fallback: Use KV
         const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-        await this.env.TRADING_RESULTS.put(key, serialized, options);
+        await this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options);
         logger.debug('CACHE_PUT_KV', { key, ttl, source: 'kv' });
       }
     } catch (error) {
@@ -111,7 +111,7 @@ export class CacheAbstraction {
         return value;
       } else {
         // Fallback: Use KV
-        const value = await this.env.TRADING_RESULTS.get(key);
+        const value = await this.env.MARKET_ANALYSIS_CACHE.get(key);
         logger.debug('CACHE_GET_KV', { key, hit: value !== null, source: 'kv' });
 
         // Try to parse JSON, return as-is if not JSON
@@ -142,7 +142,7 @@ export class CacheAbstraction {
         logger.debug('CACHE_DELETE_DO', { key, source: 'do' });
       } else {
         // Fallback: Use KV
-        await this.env.TRADING_RESULTS.delete(key);
+        await this.env.MARKET_ANALYSIS_CACHE.delete(key);
         logger.debug('CACHE_DELETE_KV', { key, source: 'kv' });
       }
     } catch (error) {
@@ -163,7 +163,7 @@ export class CacheAbstraction {
       }
 
       // Always use KV for list operations
-      const result = await this.env.TRADING_RESULTS.list(options);
+      const result = await this.env.MARKET_ANALYSIS_CACHE.list(options);
       logger.debug('CACHE_LIST_KV', {
         prefix: options?.prefix,
         count: result.keys.length,
@@ -235,9 +235,9 @@ export class CacheAbstraction {
       } else {
         // KV health check - try a simple get
         const testKey = '_health_check_' + Date.now();
-        await this.env.TRADING_RESULTS.put(testKey, 'test', { expirationTtl: 60 });
-        const value = await this.env.TRADING_RESULTS.get(testKey);
-        await this.env.TRADING_RESULTS.delete(testKey);
+        await this.env.MARKET_ANALYSIS_CACHE.put(testKey, 'test', { expirationTtl: 60 });
+        const value = await this.env.MARKET_ANALYSIS_CACHE.get(testKey);
+        await this.env.MARKET_ANALYSIS_CACHE.delete(testKey);
 
         return { healthy: value === 'test', source: 'kv' };
       }
@@ -250,7 +250,7 @@ export class CacheAbstraction {
 
 /**
  * Factory function to create cache abstraction instances
- * Replaces direct env.TRADING_RESULTS access
+ * Replaces direct env.MARKET_ANALYSIS_CACHE access
  */
 export function createCache(env: CloudflareEnvironment): CacheAbstraction {
   return new CacheAbstraction(env);

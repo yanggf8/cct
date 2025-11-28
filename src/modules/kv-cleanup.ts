@@ -79,7 +79,7 @@ export async function cleanupKVCache(env: CloudflareEnvironment, req: KVCleanupR
 
     try {
       do {
-        const list = await env.TRADING_RESULTS.list({ prefix, cursor });
+        const list = await env.MARKET_ANALYSIS_CACHE.list({ prefix, cursor });
         cursor = list.list_complete ? undefined : list.cursor;
         for (const entry of list.keys) {
           if (limitPerPrefix && examinedThisPrefix >= limitPerPrefix) {
@@ -101,7 +101,7 @@ export async function cleanupKVCache(env: CloudflareEnvironment, req: KVCleanupR
             if (result.samples.toDelete.length < 20) result.samples.toDelete.push(entry.name);
             if (!dryRun) {
               try {
-                await env.TRADING_RESULTS.delete(entry.name);
+                await env.MARKET_ANALYSIS_CACHE.delete(entry.name);
                 deletedThisPrefix++;
                 result.deleted++;
                 if (result.samples.deleted.length < 20) result.samples.deleted.push(entry.name);

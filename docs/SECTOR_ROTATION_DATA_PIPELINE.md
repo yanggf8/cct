@@ -421,7 +421,7 @@ async function backfillSectorHistory(): Promise<void> {
 
       // Store in KV with sector_history key
       const key = kvKeyFactory.create('sector_history', { symbol, period });
-      await env.TRADING_RESULTS.put(key, JSON.stringify(data), {
+      await env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(data), {
         expirationTtl: 30 * 24 * 3600 // 30 days
       });
 

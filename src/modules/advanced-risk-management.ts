@@ -9,7 +9,7 @@ import { createDAL } from './dal.js';
 // TypeScript type definitions
 interface CloudflareEnvironment {
   AI: any;
-  TRADING_RESULTS: KVNamespace;
+  MARKET_ANALYSIS_CACHE: KVNamespace;
   [key: string]: any;
 }
 

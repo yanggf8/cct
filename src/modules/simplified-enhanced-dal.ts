@@ -265,7 +265,7 @@ export class SimplifiedEnhancedDAL {
       // Fetch from KV
       try {
         const data = await this.retry(
-          () => this.env.TRADING_RESULTS.get(key, 'json'),
+          () => this.env.MARKET_ANALYSIS_CACHE.get(key, 'json'),
           `KV get ${key}`
         );
 
@@ -339,7 +339,7 @@ export class SimplifiedEnhancedDAL {
 
         // Fallback to standard KV write
         await this.retry(
-          () => this.env.TRADING_RESULTS.put(key, JSON.stringify(data), writeOptions),
+          () => this.env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(data), writeOptions),
           `KV put ${key}`
         );
 
@@ -374,7 +374,7 @@ export class SimplifiedEnhancedDAL {
   private async delete(key: string): Promise<{ success: boolean; error?: string }> {
     try {
       await this.retry(
-        () => this.env.TRADING_RESULTS.delete(key),
+        () => this.env.MARKET_ANALYSIS_CACHE.delete(key),
         `KV delete ${key}`
       );
 
@@ -395,7 +395,7 @@ export class SimplifiedEnhancedDAL {
   private async list(prefix: string, limit?: number): Promise<{ keys: string[]; cursor?: string }> {
     try {
       const result = await this.retry(
-        () => this.env.TRADING_RESULTS.list({ prefix, limit }),
+        () => this.env.MARKET_ANALYSIS_CACHE.list({ prefix, limit }),
         `KV list ${prefix}`
       );
 

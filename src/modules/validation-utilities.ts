@@ -284,8 +284,8 @@ export const EnvironmentValidation = {
    * Validate KV bindings
    */
   validateKVBindings(env: CloudflareEnvironment): boolean {
-    if (!env.TRADING_RESULTS) {
-      throw new Error('TRADING_RESULTS KV binding is required');
+    if (!env.MARKET_ANALYSIS_CACHE) {
+      throw new Error('MARKET_ANALYSIS_CACHE KV binding is required');
     }
 
     return true;

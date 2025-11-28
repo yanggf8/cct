@@ -296,7 +296,7 @@ export async function runBasicAnalysis(env: CloudflareEnvironment, options: Anal
         errorDetails: JSON.stringify(error, Object.getOwnPropertyNames(error)),
         context: {
           currentTime: new Date().toISOString(),
-          tradingResultsAvailable: !!env.TRADING_RESULTS,
+          tradingResultsAvailable: !!env.MARKET_ANALYSIS_CACHE,
           trainedModelsAvailable: !!env.TRAINED_MODELS
         }
       });

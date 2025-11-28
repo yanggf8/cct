@@ -282,8 +282,8 @@ export function validateEnvironment(env: CloudflareEnvironment): void {
     throw new ValidationError('Environment object is required', 'env', env);
   }
 
-  if (!env.TRADING_RESULTS) {
-    throw new ValidationError('TRADING_RESULTS KV namespace is required', 'env.TRADING_RESULTS', env.TRADING_RESULTS);
+  if (!env.MARKET_ANALYSIS_CACHE) {
+    throw new ValidationError('MARKET_ANALYSIS_CACHE KV namespace is required', 'env.MARKET_ANALYSIS_CACHE', env.MARKET_ANALYSIS_CACHE);
   }
 
   // Optional validations

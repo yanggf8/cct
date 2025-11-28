@@ -350,7 +350,7 @@ export async function storeFactTableData(env: CloudflareEnvironment, factTableDa
   try {
     const factTableKey = 'fact_table_data';
     await KVUtils.putWithTTL(
-      env.TRADING_RESULTS,
+      env.MARKET_ANALYSIS_CACHE,
       factTableKey,
       JSON.stringify(factTableData),
       'analysis'
@@ -380,7 +380,7 @@ export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: st
     const dataString = JSON.stringify(analysisData);
 
     await KVUtils.putWithTTL(
-      env.TRADING_RESULTS,
+      env.MARKET_ANALYSIS_CACHE,
       key,
       dataString,
       'granular'
@@ -426,7 +426,7 @@ export async function batchStoreAnalysisResults(env: CloudflareEnvironment, anal
     // Add main daily analysis to batch
     kvOperations.push(
       KVUtils.putWithTTL(
-        env.TRADING_RESULTS,
+        env.MARKET_ANALYSIS_CACHE,
         `analysis_${date}`,
         JSON.stringify(dailyAnalysis),
         'analysis'
@@ -440,7 +440,7 @@ export async function batchStoreAnalysisResults(env: CloudflareEnvironment, anal
 
         kvOperations.push(
           KVUtils.putWithTTL(
-            env.TRADING_RESULTS,
+            env.MARKET_ANALYSIS_CACHE,
             `analysis_${date}_${result.symbol}`,
             JSON.stringify(compactResult),
             'granular'

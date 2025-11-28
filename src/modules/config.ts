@@ -98,6 +98,64 @@ export interface KVStorageConfig {
   MAX_RETRIES: number;
 }
 
+// ============================================================================
+// Storage Adapter Configuration (Phase 2 Migration)
+// ============================================================================
+
+export interface StorageClassConfig {
+  hot_cache: 'disabled' | 'dual' | 'do' | 'do_final';
+  warm_cache: 'disabled' | 'dual' | 'do' | 'do_final';
+  cold_storage: 'disabled' | 'd1';
+  ephemeral: 'disabled' | 'memory';
+}
+
+export interface StorageRoutingPattern {
+  pattern: string;
+  storageClass: 'hot_cache' | 'warm_cache' | 'cold_storage' | 'ephemeral';
+}
+
+export interface StorageAdapterConfig {
+  enabled: boolean;
+  modes: StorageClassConfig;
+  keyPatterns: StorageRoutingPattern[];
+  recencyThreshold: number; // hours for analysis hot/warm split
+  ttlPolicies: {
+    hot_cache: number;    // seconds
+    warm_cache: number;   // seconds
+    cold_storage: number; // seconds
+    ephemeral: number;    // seconds
+  };
+}
+
+// ============================================================================
+// Metrics Configuration (Option B Implementation)
+// ============================================================================
+
+export interface MetricsConfig {
+  enabled: boolean;
+  prometheus: {
+    enabled: boolean;
+    endpoint: string;
+    refreshInterval: number; // seconds
+  };
+  json: {
+    enabled: boolean;
+    endpoint: string;
+    refreshInterval: number; // seconds
+  };
+  collection: {
+    enabled: boolean;
+    sampleRate: number; // 0.0-1.0
+    maxOperations: number; // max ops to keep in memory
+  };
+  production: {
+    enforceQuotas: boolean;
+    maxMemoryMB: number;
+    maxLatencyMs: number;
+    errorThreshold: number; // error rate threshold 0.0-1.0
+  };
+}
+
 export interface FacebookConfig {
   MESSAGE_LENGTH_LIMIT: number;
   RETRY_DELAY_MS: number;
@@ -597,4 +655,74 @@ export function getAnalysisConfig(): AnalysisConfig {
  */
 export function isEnhancedFeaturesEnabled(): boolean {
   return CONFIG.ANALYSIS.ENABLE_ENHANCED_FEATURES;
+}
+
+/**
+ * Get storage adapter configuration
+ */
+export function getStorageAdapterConfig(env: CloudflareEnvironment): StorageAdapterConfig {
+  // Default disabled for safety - can be enabled via environment variables
+  const enabled = env.STORAGE_ADAPTER_ENABLED === 'true' || process.env.STORAGE_ADAPTER_ENABLED === 'true';
+
+  return {
+    enabled,
+    modes: {
+      hot_cache: (env.HOT_CACHE_MODE as StorageClassConfig['hot_cache']) || 'disabled',
+      warm_cache: (env.WARM_CACHE_MODE as StorageClassConfig['warm_cache']) || 'disabled',
+      cold_storage: env.COLD_STORAGE_MODE === 'd1' ? 'd1' : 'disabled',
+      ephemeral: env.EPHEMERAL_MODE === 'memory' ? 'memory' : 'disabled'
+    },
+    keyPatterns: [
+      { pattern: '^analysis_.*', storageClass: 'hot_cache' },
+      { pattern: '^dual_ai_analysis_.*', storageClass: 'hot_cache' },
+      { pattern: '^market_cache_.*', storageClass: 'hot_cache' },
+      { pattern: '^report_cache_.*', storageClass: 'hot_cache' },
+      { pattern: '^job_.*_status_.*', storageClass: 'ephemeral' },
+      { pattern: '^daily_summary_.*', storageClass: 'cold_storage' },
+      { pattern: '^facebook_.*', storageClass: 'cold_storage' },
+      { pattern: '.*', storageClass: 'hot_cache' } // Default fallback
+    ],
+    recencyThreshold: 24, // 24 hours for analysis hot/warm split
+    ttlPolicies: {
+      hot_cache: 3600,      // 1 hour
+      warm_cache: 604800,   // 7 days
+      cold_storage: 7776000, // 90 days
+      ephemeral: 3600       // 1 hour
+    }
+  };
+}
+
+/**
+ * Get metrics configuration with production safety controls
+ */
+export function getMetricsConfig(env: CloudflareEnvironment): MetricsConfig {
+  // Metrics are enabled by default when storage adapters are enabled
+  const storageAdapterEnabled = env.STORAGE_ADAPTER_ENABLED === 'true';
+  const metricsEnabled = storageAdapterEnabled &&
+    (env.METRICS_ENABLED !== 'false'); // Can be explicitly disabled
+
+  return {
+    enabled: metricsEnabled,
+    prometheus: {
+      enabled: env.METRICS_PROMETHEUS_ENABLED !== 'false', // Default enabled
+      endpoint: '/api/v1/cache/metrics.prom',
+      refreshInterval: parseInt(env.METRICS_REFRESH_INTERVAL || '30', 10)
+    },
+    json: {
+      enabled: env.METRICS_JSON_ENABLED !== 'false', // Default enabled
+      endpoint: '/api/v1/cache/metrics',
+      refreshInterval: parseInt(env.METRICS_REFRESH_INTERVAL || '30', 10)
+    },
+    collection: {
+      enabled: env.METRICS_COLLECTION_ENABLED !== 'false', // Default enabled
+      sampleRate: Math.max(0.0, Math.min(1.0, parseFloat(env.METRICS_SAMPLE_RATE || '1.0'))),
+      maxOperations: parseInt(env.METRICS_MAX_OPERATIONS || '10000', 10)
+    },
+    production: {
+      enforceQuotas: env.PRODUCTION_METRICS_ENFORCE_QUOTAS === 'true', // Default false
+      maxMemoryMB: parseInt(env.PRODUCTION_METRICS_MAX_MEMORY_MB || '50', 10),
+      maxLatencyMs: parseInt(env.PRODUCTION_METRICS_MAX_LATENCY_MS || '100', 10),
+      errorThreshold: Math.max(0.0, Math.min(1.0, parseFloat(env.PRODUCTION_METRICS_ERROR_THRESHOLD || '0.05')))
+    }
+  };
 }

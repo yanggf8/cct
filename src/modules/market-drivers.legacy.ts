@@ -872,6 +872,24 @@ export function initializeMarketDrivers(env: any): MarketDriversManager {
 }
 
 /**
+ * Legacy mock data access functions (for fallback only)
+ */
+export function getMockMacroDrivers(): any {
+  const manager = new MarketDriversManager({} as any);
+  return (manager as any).getMockMacroDrivers();
+}
+
+export function getMockMarketStructure(): any {
+  const manager = new MarketDriversManager({} as any);
+  return (manager as any).getMockMarketStructure();
+}
+
+export function getMockGeopoliticalRisk(): any {
+  const manager = new MarketDriversManager({} as any);
+  return (manager as any).getMockGeopoliticalRisk();
+}
+
+/**
  * Cache Key Management for Market Drivers
  */
 export const MARKET_DRIVERS_KEYS = {

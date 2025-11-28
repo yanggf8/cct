@@ -24,6 +24,7 @@ import { handlePortfolioRequest } from './portfolio-routes.js';
 import { getSectorIndicatorsSymbol } from './sector-routes.js';
 import { handleRiskManagementRequest } from './risk-management-routes.js';
 import { handleProductionGuardsStatus, handleProductionGuardsValidate, handleProductionGuardsHealthCheck } from './production-guards-routes.js';
+import { handleDashboardRoutes } from './dashboard/index.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('api-v1');
@@ -55,6 +56,7 @@ interface ApiDocumentation {
     portfolio_rebalancing: APIEndpoint;
     risk_management: APIEndpoint;
     production_guards: APIEndpoint;
+    dashboard: APIEndpoint;
   };
   documentation: string;
   status: string;
@@ -202,6 +204,9 @@ export async function handleApiV1Request(
         });
         return new Response(JSON.stringify(body), { status: HttpStatus.NOT_FOUND, headers });
       }
+    } else if (path.startsWith('/api/v1/dashboard/')) {
+      // Route to dashboard API
+      return await handleDashboardRoutes(request, env, {} as ExecutionContext, headers);
     } else if (path.startsWith('/api/v1/cache/')) {
       // Route to enhanced cache API
       const cacheRoutes = createEnhancedCacheRoutes(env);
@@ -379,6 +384,13 @@ export async function handleApiV1Request(
               timestamps: 'GET /api/v1/cache/timestamps?namespace=sentiment_analysis&key=AAPL_sentiment',
               debug: 'GET /api/v1/cache/debug?namespace=sentiment_analysis&key=AAPL_sentiment',
               deduplication: 'GET /api/v1/cache/deduplication?details=true',
+            },
+            dashboard: {
+              metrics: 'GET /api/v1/dashboard/metrics',
+              economics: 'GET /api/v1/dashboard/economics',
+              guards: 'GET /api/v1/dashboard/guards',
+              health: 'GET /api/v1/dashboard/health',
+              refresh: 'POST /api/v1/dashboard/refresh',
             },
             security: {
               status: 'GET /api/v1/security/status',

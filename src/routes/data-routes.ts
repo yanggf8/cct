@@ -1024,11 +1024,11 @@ async function handleKVSelfTest(
   };
 
   try {
-    // Step 1: Check if TRADING_RESULTS binding exists
-    if (!env.TRADING_RESULTS) {
+    // Step 1: Check if MARKET_ANALYSIS_CACHE binding exists
+    if (!env.MARKET_ANALYSIS_CACHE) {
       testResults.binding_check = {
         success: false,
-        message: 'CRITICAL: TRADING_RESULTS binding is undefined - KV namespace not bound to worker'
+        message: 'CRITICAL: MARKET_ANALYSIS_CACHE binding is undefined - KV namespace not bound to worker'
       };
 
       return new Response(
@@ -1053,7 +1053,7 @@ async function handleKVSelfTest(
     }
     testResults.binding_check = {
       success: true,
-      message: 'TRADING_RESULTS binding exists'
+      message: 'MARKET_ANALYSIS_CACHE binding exists'
     };
 
     // Step 2: Direct KV write test (bypass all abstractions)
@@ -1205,10 +1205,10 @@ async function handleKVSelfTest(
               ['Cache abstraction layer is fully operational (DO cache primary, KV fallback)'] :
               !testResults.binding_check.success ?
                 ['CRITICAL: Cache bindings not available - check wrangler.toml configuration',
-                 'Verify CACHE_DO binding exists and TRADING_RESULTS as fallback'] :
+                 'Verify CACHE_DO binding MARKET_ANALYSIS_CACHE as fallback'] :
               !testResults.write_test.success ?
                 ['CRITICAL: Cannot write to cache - check DO binding or KV permissions',
-                 'Verify CACHE_DO and TRADING_RESULTS bindings are correctly configured'] :
+                 'Verify CACHE_DO and MARKET_ANALYSIS_CACHE bindings are correctly configured'] :
               !testResults.read_test.success ?
                 ['WARNING: Write succeeded but read failed - possible cache consistency issue',
                  'Check DO cache health or KV fallback status'] :
@@ -1301,7 +1301,7 @@ async function handleShowBindings(
             durable_objects: Object.keys(bindings).filter(k => bindings[k].type === 'DurableObjectNamespace'),
             env_vars: Object.keys(bindings).filter(k => bindings[k].type === 'string'),
             critical_bindings_status: {
-              TRADING_RESULTS: !!env.TRADING_RESULTS,
+              MARKET_ANALYSIS_CACHE: !!env.MARKET_ANALYSIS_CACHE,
               AI: !!env.AI,
               CACHE_DO: !!env.CACHE_DO
             }

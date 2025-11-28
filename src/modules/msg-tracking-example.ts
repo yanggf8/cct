@@ -162,11 +162,11 @@ export async function exampleCleanupOldTracking(
  * BEFORE (facebook.js with embedded KV):
  * ```ts
  * const messagingKey = `facebook_status_${date}_${messageType}`;
- * await env.TRADING_RESULTS.put(messagingKey, JSON.stringify({...}));
+ * await env.MARKET_ANALYSIS_CACHE.put(messagingKey, JSON.stringify({...}));
  * // ... send message ...
- * const updatedKvData = JSON.parse(await env.TRADING_RESULTS.get(messagingKey));
+ * const updatedKvData = JSON.parse(await env.MARKET_ANALYSIS_CACHE.get(messagingKey));
  * updatedKvData.status = 'sent';
- * await env.TRADING_RESULTS.put(messagingKey, JSON.stringify(updatedKvData));
+ * await env.MARKET_ANALYSIS_CACHE.put(messagingKey, JSON.stringify(updatedKvData));
  * ```
  *
  * AFTER (pure messaging + tracking):

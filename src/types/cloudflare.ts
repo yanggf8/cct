@@ -383,7 +383,7 @@ export interface D1ExecResult {
 
 export interface CloudflareEnvironment {
   // KV Namespaces
-  TRADING_RESULTS: KVNamespace;
+  MARKET_ANALYSIS_CACHE: KVNamespace;
   CACHE_DO_KV?: KVNamespace;
   ANALYSIS_CACHE?: KVNamespace;
   USER_SESSIONS?: KVNamespace;
@@ -427,6 +427,40 @@ export interface CloudflareEnvironment {
   WORKER_API_KEY?: string;
   FRED_API_KEY?: string;
   FRED_API_KEYS?: string;
+
+  // Storage Adapter Configuration (Phase 2 Migration)
+  STORAGE_ADAPTER_ENABLED?: string;
+  HOT_CACHE_MODE?: 'disabled' | 'dual' | 'do' | 'do_final';
+  WARM_CACHE_MODE?: 'disabled' | 'dual' | 'do' | 'do_final';
+  COLD_STORAGE_MODE?: 'disabled' | 'd1';
+  EPHEMERAL_MODE?: 'disabled' | 'memory';
+
+  // Metrics Configuration (Option B Implementation)
+  METRICS_ENABLED?: string;
+  METRICS_PROMETHEUS_ENABLED?: string;
+  METRICS_JSON_ENABLED?: string;
+  METRICS_COLLECTION_ENABLED?: string;
+  METRICS_REFRESH_INTERVAL?: string;
+  METRICS_SAMPLE_RATE?: string;
+  METRICS_MAX_OPERATIONS?: string;
+  PRODUCTION_METRICS_ENFORCE_QUOTAS?: string;
+  PRODUCTION_METRICS_MAX_MEMORY_MB?: string;
+  PRODUCTION_METRICS_MAX_LATENCY_MS?: string;
+  PRODUCTION_METRICS_ERROR_THRESHOLD?: string;
+
+  // Storage Guards Configuration (Option C Implementation)
+  STORAGE_GUARDS_ENABLED?: string;
+  STORAGE_GUARDS_MODE?: 'disabled' | 'warn' | 'error' | 'block';
+  HOT_CACHE_DO_ONLY?: string;
+  WARM_CACHE_DO_ONLY?: string;
+  COLD_STORAGE_ALLOW_D1?: string;
+  EPHEMERAL_ALLOW_MEMORY?: string;
+  GUARD_MAX_KV_OPS_PER_MINUTE?: string;
+  GUARD_MAX_KV_LATENCY_MS?: string;
+  GUARD_ERROR_RATE_THRESHOLD?: string;
+  GUARD_ADMIN_BYPASS?: string;
+  GUARD_ALLOWED_PREFIXES?: string;
+  GUARD_MAINTENANCE_MODE?: string;
   OPENAI_API_KEY?: string;
   HUGGINGFACE_API_KEY?: string;
   DAC_ARTICLES_POOL_API_KEY?: string;

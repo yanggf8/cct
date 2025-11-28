@@ -135,7 +135,7 @@ declare global {
  */
 export interface CloudflareEnvironment extends CfEnvironment {
   // KV Namespaces
-  TRADING_RESULTS: KVNamespace;
+  MARKET_ANALYSIS_CACHE: KVNamespace;
   CACHE_DO_KV?: KVNamespace;  // KV namespace for DO cache persistence
   ANALYSIS_CACHE?: KVNamespace;
   USER_SESSIONS?: KVNamespace;

@@ -15,7 +15,7 @@ const logger = createLogger('weekly-review-analysis');
  * Cloudflare Environment interface
  */
 export interface CloudflareEnvironment {
-  TRADING_RESULTS: KVNamespace;
+  MARKET_ANALYSIS_CACHE: KVNamespace;
 }
 
 /**
@@ -304,7 +304,7 @@ async function getWeeklyPerformanceData(
   for (const date of dates) {
     try {
       const dateStr = date.toISOString().split('T')[0];
-      const dailyData = await env.TRADING_RESULTS.get(`analysis_${dateStr}`);
+      const dailyData = await env.MARKET_ANALYSIS_CACHE.get(`analysis_${dateStr}`);
 
       if (dailyData) {
         const parsed: AnalysisData = JSON.parse(dailyData);

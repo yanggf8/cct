@@ -9,7 +9,7 @@
 ### Key Findings
 
 1. ✅ **KV Binding Configuration: VALID**
-   - TRADING_RESULTS binding correctly configured
+   - MARKET_ANALYSIS_CACHE binding correctly configured
    - Namespace ID `321593c6717448dfb24ea2bd48cde1fa` is valid
    - Worker can access KV namespace
 
@@ -33,7 +33,7 @@
 ✅ Deployment successful
 ✅ Worker version: d8bc4d3c-0674-42b8-985b-b0d3606ff8e9
 ✅ URL: https://tft-trading-system.yanggf.workers.dev
-✅ Bindings: TRADING_RESULTS (321593c6717448dfb24ea2bd48cde1fa)
+✅ Bindings: MARKET_ANALYSIS_CACHE (321593c6717448dfb24ea2bd48cde1fa)
 ```
 
 ### KV Binding Test Results
@@ -41,7 +41,7 @@
 | Test | Status | Details |
 |------|--------|---------|
 | Bindings endpoint | ✅ PASS | HTTP 200, 31 bindings found |
-| TRADING_RESULTS exists | ✅ PASS | Binding correctly configured |
+| MARKET_ANALYSIS_CACHE exists | ✅ PASS | Binding correctly configured |
 | KV write (put) | ❌ FAIL | **KV put() limit exceeded for the day** |
 | KV read (get) | ❌ FAIL | Data not found (write failed) |
 | KV list | ⚠️ WARN | List works but key not found |
@@ -217,7 +217,7 @@ curl -H "X-API-KEY: test" \
 ### Check Current KV Usage
 
 1. Navigate to: Workers & Pages → KV
-2. Select: `TRADING_RESULTS` namespace
+2. Select: `MARKET_ANALYSIS_CACHE` namespace
 3. Check: "Operations" tab
 4. Review: Daily write count
 

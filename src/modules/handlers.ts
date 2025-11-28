@@ -334,8 +334,8 @@ export async function handleFacebookTest(request: Request, env: CloudflareEnviro
 
   // Check KV storage binding
   console.log(`🔍 [FB-TEST] Checking KV storage binding...`);
-  if (!env.TRADING_RESULTS) {
-    console.log(`❌ [FB-TEST] TRADING_RESULTS KV binding not available`);
+  if (!env.MARKET_ANALYSIS_CACHE) {
+    console.log(`❌ [FB-TEST] MARKET_ANALYSIS_CACHE KV binding not available`);
     return new Response(JSON.stringify({
       success: false,
       error: 'KV storage not configured'
@@ -811,7 +811,7 @@ export async function handleKVDebug(request: Request, env: CloudflareEnvironment
       test_key: testKey,
       written_data: testData,
       read_data: readResult.data,
-      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
       timestamp: new Date().toISOString()
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -822,7 +822,7 @@ export async function handleKVDebug(request: Request, env: CloudflareEnvironment
       success: false,
       error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
-      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
       timestamp: new Date().toISOString()
     }, null, 2), {
       status: 500,
@@ -859,7 +859,7 @@ export async function handleKVWriteTest(request: Request, env: CloudflareEnviron
       operation: 'write_only',
       test_key: testKey,
       written_data: testData,
-      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
       message: "KV write test successful - data written but not verified",
       timestamp: new Date().toISOString(),
       note: "Use /kv-read-test?key=" + testKey + " to verify the data was stored"
@@ -874,7 +874,7 @@ export async function handleKVWriteTest(request: Request, env: CloudflareEnviron
       operation: 'write_only',
       error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
-      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
       timestamp: new Date().toISOString()
     };
 
@@ -922,7 +922,7 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
         key: key,
         found: false,
         message: 'Key not found in KV store',
-        kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+        kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
         timestamp: new Date().toISOString()
       };
 
@@ -941,7 +941,7 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
       found: true,
       value: result.data,
       raw_value_length: JSON.stringify(result.data).length,
-      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
       timestamp: new Date().toISOString()
     };
 
@@ -956,7 +956,7 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
       operation: 'read_only',
       error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack,
-      kv_binding: env.TRADING_RESULTS ? "available" : "not_available",
+      kv_binding: env.MARKET_ANALYSIS_CACHE ? "available" : "not_available",
       timestamp: new Date().toISOString()
     };
 
@@ -1120,7 +1120,7 @@ export async function handleDebugEnvironment(request: Request, env: CloudflareEn
         trained_models: !!env.TRAINED_MODELS
       },
       kv_namespace: {
-        trading_results: !!env.TRADING_RESULTS
+        trading_results: !!env.MARKET_ANALYSIS_CACHE
       }
     }
   }, null, 2), {

@@ -241,7 +241,7 @@ export async function advancedDALExample(env: CloudflareEnvironment): Promise<{
     let cleanupCount = 0;
     for (const oldKey of oldKeys.slice(0, 5)) { // Limit cleanup for demo
       try {
-        await env.TRADING_RESULTS.delete(oldKey);
+        await env.MARKET_ANALYSIS_CACHE.delete(oldKey);
         cleanupCount++;
       } catch (error: unknown) {
         console.warn(`Failed to cleanup key ${oldKey}:`, error);
@@ -417,7 +417,7 @@ export async function errorHandlingExample(env: CloudflareEnvironment): Promise<
  * BEFORE (Direct KV access):
  * ```js
  * const key = `analysis_${date}`;
- * const data = await env.TRADING_RESULTS.get(key);
+ * const data = await env.MARKET_ANALYSIS_CACHE.get(key);
  * const parsed = JSON.parse(data);
  * ```
  *

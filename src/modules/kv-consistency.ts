@@ -187,7 +187,7 @@ export async function verifyWriteConsistency(
   return waitForConsistency(
     key,
     async (env: CloudflareEnvironment, key: string) => {
-      const actualValue = await env.TRADING_RESULTS.get(key);
+      const actualValue = await env.MARKET_ANALYSIS_CACHE.get(key);
       return actualValue === expectedValue;
     },
     env,
@@ -213,7 +213,7 @@ export async function verifyStatusConsistency(
   return waitForConsistency(
     statusKey,
     async (env: CloudflareEnvironment, key: string) => {
-      const statusData = await env.TRADING_RESULTS.get(key);
+      const statusData = await env.MARKET_ANALYSIS_CACHE.get(key);
       if (!statusData) return false;
 
       const status = JSON.parse(statusData);
@@ -246,7 +246,7 @@ export async function verifyDependencyConsistency(
     statusKey,
     async (env: CloudflareEnvironment, key: string) => {
       try {
-        const statusData = await env.TRADING_RESULTS.get(key);
+        const statusData = await env.MARKET_ANALYSIS_CACHE.get(key);
         if (!statusData) return false;
 
         const status = JSON.parse(statusData);
@@ -416,7 +416,7 @@ export function getConsistencyConfig(operationType: string): RetryStrategy {
 export function createExistenceCheck(expectedValue?: string): ConsistencyCondition {
   return async (env: CloudflareEnvironment, key: string): Promise<boolean> => {
     try {
-      const value = await env.TRADING_RESULTS.get(key);
+      const value = await env.MARKET_ANALYSIS_CACHE.get(key);
       if (expectedValue !== undefined) {
         return value === expectedValue;
       }
@@ -436,7 +436,7 @@ export function createJsonCheck<T = any>(
 ): ConsistencyCondition {
   return async (env: CloudflareEnvironment, key: string): Promise<boolean> => {
     try {
-      const value = await env.TRADING_RESULTS.get(key);
+      const value = await env.MARKET_ANALYSIS_CACHE.get(key);
       if (!value) return false;
 
       const data = JSON.parse(value) as T;

@@ -46,10 +46,10 @@ fi
 # Check for KV namespaces
 if grep -q "kv_namespaces" wrangler.toml; then
     success "KV namespaces configured"
-    if grep -q "TRADING_RESULTS" wrangler.toml; then
-        success "TRADING_RESULTS KV namespace binding configured"
+    if grep -q "MARKET_ANALYSIS_CACHE" wrangler.toml; then
+        success "MARKET_ANALYSIS_CACHE KV namespace binding configured"
     else
-        warning "TRADING_RESULTS KV namespace binding not found"
+        warning "MARKET_ANALYSIS_CACHE KV namespace binding not found"
     fi
 else
     warning "No KV namespaces found"

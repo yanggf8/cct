@@ -304,7 +304,7 @@ export class DataAccessLayer {
 
     try {
       const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
+        () => this.env.MARKET_ANALYSIS_CACHE.get(key),
         operationName
       );
 
@@ -378,7 +378,7 @@ export class DataAccessLayer {
       const serialized = JSON.stringify(data);
 
       await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, serialized, options),
+        () => this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options),
         operationName
       );
 
@@ -490,7 +490,7 @@ export class DataAccessLayer {
       logger.info('Listing KV keys', { prefix, limit });
 
       const result: any = await this.retry(
-        () => this.env.TRADING_RESULTS.list({ prefix, limit }),
+        () => this.env.MARKET_ANALYSIS_CACHE.list({ prefix, limit }),
         'listKeys'
       );
 
@@ -525,7 +525,7 @@ export class DataAccessLayer {
       logger.info('Deleting KV key', { key });
 
       await this.retry(
-        () => this.env.TRADING_RESULTS.delete(key),
+        () => this.env.MARKET_ANALYSIS_CACHE.delete(key),
         'deleteKey'
       );
 
@@ -550,7 +550,7 @@ export class DataAccessLayer {
       logger.info('Reading from KV', { key });
 
       const data = await this.retry(
-        () => this.env.TRADING_RESULTS.get(key),
+        () => this.env.MARKET_ANALYSIS_CACHE.get(key),
         'read'
       );
 
@@ -600,7 +600,7 @@ export class DataAccessLayer {
       const writeOptions: any = options ?? {};
 
       await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, JSON.stringify(data), writeOptions),
+        () => this.env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(data), writeOptions),
         'write'
       );
 

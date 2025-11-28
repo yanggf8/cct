@@ -209,7 +209,7 @@ export async function handleKVDebug(
     const debugInfo = {
       success: true,
       requestId,
-      kv_binding: !!env.TRADING_RESULTS,
+      kv_binding: !!env.MARKET_ANALYSIS_CACHE,
       operations: {
         write: writeResult.success,
         read: readResult.success,

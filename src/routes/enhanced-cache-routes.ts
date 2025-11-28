@@ -6,6 +6,8 @@
 
 import { createLogger } from '../modules/logging.js';
 import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { getMetricsConfig } from '../modules/config.js';
+import { StorageGuards, type GuardConfig } from '../modules/storage-guards.js';
 
 const logger = createLogger('enhanced-cache-routes');
 
@@ -323,7 +325,7 @@ export function createEnhancedCacheRoutes(env: any) {
               config: {
                 enabled: false,
                 l1Cache: { enabled: false },
-                l2Cache: { enabled: false, namespace: 'TRADING_RESULTS' },
+                l2Cache: { enabled: false, namespace: 'MARKET_ANALYSIS_CACHE' },
                 message: 'Cache is disabled (DO cache not enabled)'
               }
             }), {
@@ -510,7 +512,7 @@ export function createEnhancedCacheRoutes(env: any) {
                 status: 'disabled',
                 enabled: false,
                 l1Cache: { enabled: false },
-                l2Cache: { enabled: true, namespace: 'TRADING_RESULTS' },
+                l2Cache: { enabled: true, namespace: 'MARKET_ANALYSIS_CACHE' },
                 message: 'Cache is disabled (DO cache not enabled)'
               }
             }), {
@@ -936,6 +938,937 @@ export function createEnhancedCacheRoutes(env: any) {
           return new Response(JSON.stringify({
             success: false,
             error: 'Failed to retrieve deduplication statistics',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    // ============================================================================
+    // DAC-Aligned Metrics Endpoints (Option B Implementation)
+    // ============================================================================
+
+    {
+      path: '/cache/metrics',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          // Check metrics configuration and safety controls
+          const metricsConfig = getMetricsConfig(env);
+          if (!metricsConfig.enabled) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Metrics endpoint disabled',
+              message: 'Set STORAGE_ADAPTER_ENABLED=true to enable metrics',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          if (!metricsConfig.json.enabled) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'JSON metrics format disabled',
+              message: 'Set METRICS_JSON_ENABLED=true to enable JSON metrics',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          const url = new URL(request.url);
+          const format = url.searchParams.get('format') || 'json';
+
+          // Initialize metrics manager with configuration
+          const { EnhancedCacheMetricsManager } = await import('../modules/enhanced-cache-metrics.js');
+          const metricsManager = new EnhancedCacheMetricsManager({
+            sampleRate: metricsConfig.collection.sampleRate,
+            maxRecentOperations: metricsConfig.collection.maxOperations
+          });
+
+          // Check if storage adapters are enabled and have metrics
+          if (env.STORAGE_ADAPTER_ENABLED === 'true') {
+            try {
+              // Initialize router adapter and inject metrics collector
+              const { RouterAdapter } = await import('../modules/router-storage-adapter.js');
+
+              // Create instances and inject metrics collector
+              const router = new RouterAdapter(env);
+              router.setMetricsCollector(metricsManager);
+
+              // Collect adapter health statistics
+              const adapterStats = await router.getAdapterStats();
+
+              // Update gauges with adapter statistics
+              Object.entries(adapterStats).forEach(([adapterName, stats]: [string, any]) => {
+                if (stats.enabled) {
+                  metricsManager.setGauge('adapter_operations_total', {
+                    layer: stats.storageClass === 'cold_storage' ? 'kv' : 'do',
+                    storage_class: stats.storageClass,
+                    keyspace: 'market_analysis_cache'
+                  }, stats.totalOperations);
+
+                  metricsManager.setGauge('adapter_hit_rate', {
+                    layer: stats.storageClass === 'cold_storage' ? 'kv' : 'do',
+                    storage_class: stats.storageClass,
+                    keyspace: 'market_analysis_cache'
+                  }, stats.hits / Math.max(stats.totalOperations, 1));
+
+                  metricsManager.setGauge('adapter_avg_latency_ms', {
+                    layer: stats.storageClass === 'cold_storage' ? 'kv' : 'do',
+                    storage_class: stats.storageClass,
+                    keyspace: 'market_analysis_cache'
+                  }, stats.avgLatency);
+                }
+              });
+            } catch (adapterError) {
+              logger.warn('Failed to collect adapter metrics', { error: adapterError });
+            }
+          }
+
+          // Get metrics snapshot
+          const metricsSnapshot = metricsManager.toJSON();
+
+          if (format === 'prometheus') {
+            // Return Prometheus format
+            const prometheusMetrics = metricsManager.renderPrometheus();
+            return new Response(prometheusMetrics, {
+              headers: {
+                'Content-Type': 'text/plain; version=0.0.4',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+
+          // Return JSON format (default)
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            metrics: metricsSnapshot,
+            storage_adapters: {
+              enabled: env.STORAGE_ADAPTER_ENABLED === 'true',
+              hot_cache_mode: env.HOT_CACHE_MODE || 'disabled',
+              warm_cache_mode: env.WARM_CACHE_MODE || 'disabled',
+              cold_storage_mode: env.COLD_STORAGE_MODE || 'disabled',
+              ephemeral_mode: env.EPHEMERAL_MODE || 'disabled'
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Cache metrics failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to retrieve cache metrics',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/cache/metrics.prom',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          // Check metrics configuration and safety controls
+          const metricsConfig = getMetricsConfig(env);
+          if (!metricsConfig.enabled) {
+            return new Response('# Metrics disabled\n# Set STORAGE_ADAPTER_ENABLED=true to enable metrics', {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain' },
+            });
+          }
+
+          if (!metricsConfig.prometheus.enabled) {
+            return new Response('# Prometheus metrics disabled\n# Set METRICS_PROMETHEUS_ENABLED=true to enable', {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain' },
+            });
+          }
+
+          // Initialize metrics manager with configuration
+          const { EnhancedCacheMetricsManager } = await import('../modules/enhanced-cache-metrics.js');
+          const metricsManager = new EnhancedCacheMetricsManager({
+            sampleRate: metricsConfig.collection.sampleRate,
+            maxRecentOperations: metricsConfig.collection.maxOperations
+          });
+
+          // Check if storage adapters are enabled and have metrics
+          if (env.STORAGE_ADAPTER_ENABLED === 'true') {
+            try {
+              // Initialize router adapter and inject metrics collector
+              const { RouterAdapter } = await import('../modules/router-storage-adapter.js');
+
+              // Create instances and inject metrics collector
+              const router = new RouterAdapter(env);
+              router.setMetricsCollector(metricsManager);
+
+              // Collect adapter health statistics
+              const adapterStats = await router.getAdapterStats();
+
+              // Update gauges with adapter statistics
+              Object.entries(adapterStats).forEach(([adapterName, stats]: [string, any]) => {
+                if (stats.enabled) {
+                  metricsManager.setGauge('adapter_operations_total', {
+                    layer: stats.storageClass === 'cold_storage' ? 'kv' : 'do',
+                    storage_class: stats.storageClass,
+                    keyspace: 'market_analysis_cache'
+                  }, stats.totalOperations);
+
+                  metricsManager.setGauge('adapter_hit_rate', {
+                    layer: stats.storageClass === 'cold_storage' ? 'kv' : 'do',
+                    storage_class: stats.storageClass,
+                    keyspace: 'market_analysis_cache'
+                  }, stats.hits / Math.max(stats.totalOperations, 1));
+
+                  metricsManager.setGauge('adapter_avg_latency_ms', {
+                    layer: stats.storageClass === 'cold_storage' ? 'kv' : 'do',
+                    storage_class: stats.storageClass,
+                    keyspace: 'market_analysis_cache'
+                  }, stats.avgLatency);
+                }
+              });
+            } catch (adapterError) {
+              logger.warn('Failed to collect adapter metrics for Prometheus', { error: adapterError });
+            }
+          }
+
+          // Return Prometheus format
+          const prometheusMetrics = metricsManager.renderPrometheus();
+          return new Response(prometheusMetrics, {
+            headers: {
+              'Content-Type': 'text/plain; version=0.0.4',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Cache metrics (Prometheus) failed', { error });
+          return new Response(`# Error generating metrics\n${error instanceof Error ? error.message : 'Unknown error'}`, {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        }
+      },
+    },
+
+    // ============================================================================
+    // Production Guard Drill Endpoints (Option C Implementation)
+    // ============================================================================
+
+    {
+      path: '/production-guards/health',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          // Initialize storage guards from environment
+          const guardConfig = StorageGuards.fromEnvironment(env);
+          const guards = new StorageGuards(guardConfig);
+
+          const stats = guards.getStats();
+          const config = guards.getConfiguration ? guards.getConfiguration() : null;
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            guards: {
+              enabled: guardConfig.enabled,
+              mode: guardConfig.mode,
+              enforcement: guardConfig.enforcement,
+              thresholds: guardConfig.thresholds,
+              exceptions: guardConfig.exceptions
+            },
+            statistics: {
+              totalChecks: stats.totalChecks,
+              violations: stats.violations,
+              actions: stats.actions,
+              byStorageClass: stats.byStorageClass,
+              lastViolation: stats.lastViolation
+            },
+            recentViolations: guards.getRecentViolations(10)
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Production guards health check failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to retrieve production guards status',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/production-guards/drill',
+      method: 'POST',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const body = await request.json() as {
+            operation?: 'get' | 'put' | 'delete' | 'list';
+            key?: string;
+            storageClass?: 'hot_cache' | 'warm_cache' | 'cold_storage' | 'ephemeral';
+            mode?: 'disabled' | 'warn' | 'error' | 'block';
+            latencyMs?: number;
+            caller?: string;
+          };
+
+          const {
+            operation = 'get',
+            key = 'drill_test_analysis_AAPL_2024-01-01',
+            storageClass = 'hot_cache',
+            mode = 'warn',
+            latencyMs,
+            caller = 'admin_drill'
+          } = body;
+
+          // Validate inputs
+          if (!key || !storageClass) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing required fields: key, storageClass',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Initialize guards with drill mode
+          const guardConfig: GuardConfig = {
+            enabled: true,
+            mode,
+            enforcement: {
+              hotCacheOnlyDO: true,
+              warmCacheOnlyDO: true,
+              coldStorageAllowD1: true,
+              ephemeralAllowMemory: true
+            },
+            thresholds: {
+              maxKvOperationsPerMinute: 100,
+              maxKvReadLatencyMs: 50,
+              errorRateThreshold: 0.05
+            },
+            exceptions: {
+              adminBypass: false, // Disable admin bypass for drill
+              allowedPrefixes: [], // No allowed prefixes for drill
+              maintenanceMode: false
+            }
+          };
+
+          const guards = new StorageGuards(guardConfig);
+          const beforeStats = guards.getStats();
+
+          // Run the drill
+          const startTime = Date.now();
+          const result = await guards.checkKvOperation(operation, key, storageClass, {
+            latencyMs: latencyMs || 25,
+            caller
+          });
+          const drillDuration = Date.now() - startTime;
+
+          const afterStats = guards.getStats();
+          const newViolations = afterStats.violations.total - beforeStats.violations.total;
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            drill: {
+              operation,
+              key,
+              storageClass,
+              mode,
+              latencyMs,
+              caller,
+              duration: drillDuration
+            },
+            result: {
+              allowed: result.allowed,
+              action: result.action,
+              reason: result.reason
+            },
+            statistics: {
+              before: {
+                totalChecks: beforeStats.totalChecks,
+                violations: beforeStats.violations.total
+              },
+              after: {
+                totalChecks: afterStats.totalChecks,
+                violations: afterStats.violations.total
+              },
+              newViolations
+            },
+            guardState: {
+              enabled: guardConfig.enabled,
+              mode: guardConfig.mode,
+              enforcement: guardConfig.enforcement
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Production guard drill failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Drill execution failed',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/production-guards/simulate-kv-violation',
+      method: 'POST',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const body = await request.json() as {
+            storageClass?: 'hot_cache' | 'warm_cache';
+            key?: string;
+            mode?: 'warn' | 'error' | 'block';
+          };
+
+          const {
+            storageClass = 'hot_cache',
+            key = 'test_forbidden_kv_operation',
+            mode = 'warn'
+          } = body;
+
+          // Initialize guards with strict KV enforcement
+          const guardConfig: GuardConfig = {
+            enabled: true,
+            mode,
+            enforcement: {
+              hotCacheOnlyDO: storageClass === 'hot_cache',
+              warmCacheOnlyDO: storageClass === 'warm_cache',
+              coldStorageAllowD1: true,
+              ephemeralAllowMemory: true
+            },
+            thresholds: {
+              maxKvOperationsPerMinute: 10, // Low for testing
+              maxKvReadLatencyMs: 25,
+              errorRateThreshold: 0.01
+            },
+            exceptions: {
+              adminBypass: false,
+              allowedPrefixes: [],
+              maintenanceMode: false
+            }
+          };
+
+          const guards = new StorageGuards(guardConfig);
+
+          // Simulate multiple KV operations to trigger rate limiting
+          const results = [];
+          for (let i = 0; i < 15; i++) {
+            const testKey = `${key}_${i}`;
+            const result = await guards.checkKvOperation('get', testKey, storageClass, {
+              caller: 'simulate_kv_drill'
+            });
+            results.push({
+              key: testKey,
+              allowed: result.allowed,
+              action: result.action,
+              reason: result.reason
+            });
+          }
+
+          const finalStats = guards.getStats();
+          const blockedCount = results.filter(r => !r.allowed).length;
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            drill: {
+              type: 'simulate_kv_violation',
+              storageClass,
+              mode,
+              totalOperations: results.length,
+              blockedOperations: blockedCount,
+              violationRate: blockedCount / results.length
+            },
+            results,
+            statistics: {
+              totalChecks: finalStats.totalChecks,
+              violations: finalStats.violations,
+              byStorageClass: finalStats.byStorageClass
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('KV violation simulation failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Simulation failed',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/production-guards/config',
+      method: 'POST',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const body = await request.json() as {
+            mode?: 'disabled' | 'warn' | 'error' | 'block';
+            hotCacheOnlyDO?: boolean;
+            warmCacheOnlyDO?: boolean;
+            coldStorageAllowD1?: boolean;
+            ephemeralAllowMemory?: boolean;
+            maxKvOpsPerMinute?: number;
+            maxKvLatencyMs?: number;
+            maintenanceMode?: boolean;
+          };
+
+          // Initialize current guards
+          const currentConfig = StorageGuards.fromEnvironment(env);
+          const guards = new StorageGuards(currentConfig);
+
+          // Apply configuration updates
+          const updates: Partial<GuardConfig> = {};
+          if (body.mode !== undefined) updates.mode = body.mode;
+          if (body.hotCacheOnlyDO !== undefined) {
+            updates.enforcement = { ...currentConfig.enforcement, hotCacheOnlyDO: body.hotCacheOnlyDO };
+          }
+          if (body.warmCacheOnlyDO !== undefined) {
+            updates.enforcement = { ...currentConfig.enforcement, warmCacheOnlyDO: body.warmCacheOnlyDO };
+          }
+          if (body.coldStorageAllowD1 !== undefined) {
+            updates.enforcement = { ...currentConfig.enforcement, coldStorageAllowD1: body.coldStorageAllowD1 };
+          }
+          if (body.ephemeralAllowMemory !== undefined) {
+            updates.enforcement = { ...currentConfig.enforcement, ephemeralAllowMemory: body.ephemeralAllowMemory };
+          }
+          if (body.maxKvOpsPerMinute !== undefined) {
+            updates.thresholds = { ...currentConfig.thresholds, maxKvOperationsPerMinute: body.maxKvOpsPerMinute };
+          }
+          if (body.maxKvLatencyMs !== undefined) {
+            updates.thresholds = { ...currentConfig.thresholds, maxKvReadLatencyMs: body.maxKvLatencyMs };
+          }
+          if (body.maintenanceMode !== undefined) {
+            updates.exceptions = { ...currentConfig.exceptions, maintenanceMode: body.maintenanceMode };
+          }
+
+          guards.updateConfig(updates);
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            message: 'Guard configuration updated',
+            updates: Object.keys(updates),
+            newConfig: {
+              mode: body.mode || currentConfig.mode,
+              enforcement: {
+                hotCacheOnlyDO: body.hotCacheOnlyDO ?? currentConfig.enforcement.hotCacheOnlyDO,
+                warmCacheOnlyDO: body.warmCacheOnlyDO ?? currentConfig.enforcement.warmCacheOnlyDO,
+                coldStorageAllowD1: body.coldStorageAllowD1 ?? currentConfig.enforcement.coldStorageAllowD1,
+                ephemeralAllowMemory: body.ephemeralAllowMemory ?? currentConfig.enforcement.ephemeralAllowMemory
+              },
+              thresholds: {
+                maxKvOperationsPerMinute: body.maxKvOpsPerMinute ?? currentConfig.thresholds.maxKvOperationsPerMinute,
+                maxKvReadLatencyMs: body.maxKvLatencyMs ?? currentConfig.thresholds.maxKvReadLatencyMs
+              },
+              maintenanceMode: body.maintenanceMode ?? currentConfig.exceptions.maintenanceMode
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Guard configuration update failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Configuration update failed',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    // ============================================================================
+    // Operations Endpoints - D1 Cold Storage Integration
+    // ============================================================================
+
+    {
+      path: '/ops/cache-rollups',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const url = new URL(request.url);
+          const day = url.searchParams.get('day'); // Format: YYYY-MM-DD
+          const keyspace = url.searchParams.get('keyspace');
+          const storageClass = url.searchParams.get('storageClass') as 'hot_cache' | 'warm_cache' | 'cold_storage' | 'ephemeral' | null;
+
+          // Import D1 cold storage module
+          const { D1ColdStorage } = await import('../modules/d1-storage.js');
+
+          if (!env.ANALYTICS_DB) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'ANALYTICS_DB not configured',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          const d1Storage = new D1ColdStorage(env.ANALYTICS_DB);
+          const result = await d1Storage.getRollups(day || undefined, keyspace || undefined, storageClass || undefined);
+
+          if (!result.success) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: result.error,
+              timestamp: new Date().toISOString()
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Calculate summary statistics
+          const rollups = result.rollups || [];
+          const summary = {
+            totalRollups: rollups.length,
+            totalHits: rollups.reduce((sum, r) => sum + r.hits, 0),
+            totalMisses: rollups.reduce((sum, r) => sum + r.misses, 0),
+            totalErrors: rollups.reduce((sum, r) => sum + r.errors, 0),
+            avgHitRate: rollups.length > 0 ?
+              rollups.reduce((sum, r) => sum + (r.hits / (r.hits + r.misses)), 0) / rollups.length : 0,
+            totalEgressBytes: rollups.reduce((sum, r) => sum + r.egress_bytes, 0),
+            totalComputeMs: rollups.reduce((sum, r) => sum + r.compute_ms, 0)
+          };
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            query: { day, keyspace, storageClass },
+            summary,
+            rollups
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=300', // 5 minute cache
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Cache rollups retrieval failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to retrieve cache rollups',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/ops/cache-rollups',
+      method: 'POST',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const body = await request.json() as {
+            day: string; // Format: YYYY-MM-DD
+            keyspace: string;
+            storageClass: 'hot_cache' | 'warm_cache' | 'cold_storage' | 'ephemeral';
+            metrics: {
+              hits: number;
+              misses: number;
+              errors: number;
+              totalOperations: number;
+              latencies: number[];
+              egressBytes: number;
+              computeMs: number;
+            };
+          };
+
+          // Import D1 cold storage module
+          const { D1ColdStorage } = await import('../modules/d1-storage.js');
+
+          if (!env.ANALYTICS_DB) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'ANALYTICS_DB not configured',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          const d1Storage = new D1ColdStorage(env.ANALYTICS_DB);
+          const result = await d1Storage.upsertRollup(
+            body.day,
+            body.keyspace,
+            body.storageClass,
+            body.metrics
+          );
+
+          if (result.success) {
+            return new Response(JSON.stringify({
+              success: true,
+              timestamp: new Date().toISOString(),
+              message: 'Cache rollup upserted successfully',
+              data: {
+                day: body.day,
+                keyspace: body.keyspace,
+                storageClass: body.storageClass,
+                totalOperations: body.metrics.totalOperations,
+                hitRate: body.metrics.hits / (body.metrics.hits + body.metrics.misses)
+              }
+            }), {
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          } else {
+            return new Response(JSON.stringify({
+              success: false,
+              error: result.error,
+              timestamp: new Date().toISOString()
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        } catch (error: unknown) {
+          logger.error('Cache rollup upsert failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to upsert cache rollup',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/ops/storage/lookup',
+      method: 'GET',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const url = new URL(request.url);
+          const key = url.searchParams.get('key');
+          const includeMetadata = url.searchParams.get('includeMetadata') === 'true';
+
+          if (!key) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: key',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Import router and D1 modules
+          const { RouterStorageAdapter, createDefaultRouterConfig } = await import('../modules/router-storage-adapter.js');
+          const { D1ColdStorage } = await import('../modules/d1-storage.js');
+          const { createStorageGuards } = await import('../modules/storage-guards.js');
+
+          // Initialize router with environment configuration
+          const routerConfig = createDefaultRouterConfig(env);
+          const router = new RouterStorageAdapter(routerConfig);
+
+          // Set up guards and metrics if available
+          const guards = createStorageGuards();
+          router.setStorageGuards(guards);
+
+          // Route the request to determine storage class
+          const route = router.routeRequest(key);
+
+          let result = {
+            key,
+            storageClass: route.storageClass,
+            adapter: route.adapter.name,
+            found: false,
+            data: null,
+            metadata: null,
+            error: null
+          };
+
+          try {
+            // Attempt to retrieve the data
+            const getResult = await route.adapter.get(key, { includeMetadata });
+            result.found = getResult.success;
+            result.data = getResult.data;
+            result.metadata = getResult.metadata;
+            result.error = getResult.error;
+          } catch (error) {
+            result.error = error instanceof Error ? error.message : 'Unknown retrieval error';
+          }
+
+          // Add routing information
+          result.routing = {
+            matchedPattern: route.pattern?.pattern || 'default',
+            adapterConfigured: !!route.adapter,
+            fallbackAvailable: !!routerConfig.adapters.fallback
+          };
+
+          // Include guard information if applicable
+          if (result.storageClass !== 'cold_storage') {
+            const guardCheck = await guards.checkKvOperation('get', key, route.storageClass);
+            result.guardCheck = {
+              allowed: guardCheck.allowed,
+              action: guardCheck.action,
+              reason: guardCheck.reason
+            };
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            timestamp: new Date().toISOString(),
+            lookup: result
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': includeMetadata ? 'no-cache' : 'public, max-age=60',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Storage lookup failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Storage lookup failed',
+            timestamp: new Date().toISOString(),
+            details: error instanceof Error ? error.message : 'Unknown error'
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      },
+    },
+
+    {
+      path: '/ops/storage/lookup',
+      method: 'DELETE',
+      handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        try {
+          const url = new URL(request.url);
+          const key = url.searchParams.get('key');
+
+          if (!key) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Missing required parameter: key',
+              timestamp: new Date().toISOString()
+            }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Import router and D1 modules
+          const { RouterStorageAdapter, createDefaultRouterConfig } = await import('../modules/router-storage-adapter.js');
+          const { D1ColdStorage } = await import('../modules/d1-storage.js');
+          const { createStorageGuards } = await import('../modules/storage-guards.js');
+
+          // Initialize router with environment configuration
+          const routerConfig = createDefaultRouterConfig(env);
+          const router = new RouterStorageAdapter(routerConfig);
+
+          // Set up guards
+          const guards = createStorageGuards();
+          router.setStorageGuards(guards);
+
+          // Route the request to determine storage class
+          const route = router.routeRequest(key);
+
+          // Check guard permissions first
+          const guardCheck = await guards.checkKvOperation('delete', key, route.storageClass);
+          if (!guardCheck.allowed) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Operation blocked by storage guard: ${guardCheck.reason}`,
+              guardAction: guardCheck.action,
+              timestamp: new Date().toISOString()
+            }), {
+              status: guardCheck.action === 'blocked' ? 403 : 429,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Attempt to delete from the routed storage
+          const deleteResult = await route.adapter.delete(key);
+
+          return new Response(JSON.stringify({
+            success: deleteResult.success,
+            timestamp: new Date().toISOString(),
+            deletion: {
+              key,
+              storageClass: route.storageClass,
+              adapter: route.adapter.name,
+              deleted: deleteResult.deleted,
+              error: deleteResult.error
+            }
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        } catch (error: unknown) {
+          logger.error('Storage deletion failed', { error });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Storage deletion failed',
             timestamp: new Date().toISOString(),
             details: error instanceof Error ? error.message : 'Unknown error'
           }), {

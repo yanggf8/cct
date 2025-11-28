@@ -349,7 +349,7 @@ describe('Type Compatibility', () => {
   it('should maintain backward compatibility', () => {
     // Test that our types work with existing code patterns
     const mockEnv = {
-      TRADING_RESULTS: {
+      MARKET_ANALYSIS_CACHE: {
         get: async () => 'test-value',
         put: async () => {},
         delete: async () => {},
@@ -361,7 +361,7 @@ describe('Type Compatibility', () => {
     } as any;
 
     // Should not throw type errors
-    expect(typeof mockEnv.TRADING_RESULTS.get).toBe('function');
+    expect(typeof mockEnv.MARKET_ANALYSIS_CACHE.get).toBe('function');
     expect(typeof mockEnv.AI.run).toBe('function');
   });
 

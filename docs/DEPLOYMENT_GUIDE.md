@@ -88,7 +88,7 @@ ANALYSIS_CACHE_TTL = "86400"
 
 # KV Namespaces
 [[kv_namespaces]]
-binding = "TRADING_RESULTS"
+binding = "MARKET_ANALYSIS_CACHE"
 id = "your_kv_namespace_id"
 preview_id = "your_preview_kv_namespace_id"
 
@@ -210,10 +210,10 @@ wrangler whoami
 #### **Step 2: Create KV Namespace**
 ```bash
 # Create production KV namespace
-wrangler kv:namespace create "TRADING_RESULTS"
+wrangler kv:namespace create "MARKET_ANALYSIS_CACHE"
 
 # Create preview KV namespace
-wrangler kv:namespace create "TRADING_RESULTS" --preview
+wrangler kv:namespace create "MARKET_ANALYSIS_CACHE" --preview
 
 # Update wrangler.toml with the returned IDs
 ```
@@ -373,8 +373,8 @@ echo "=== Health Check Complete ==="
 #### **Staging Environment**
 ```bash
 # Create staging environment
-wrangler kv:namespace create "TRADING_RESULTS_STAGING"
-wrangler kv:namespace create "TRADING_RESULTS_STAGING" --preview
+wrangler kv:namespace create "MARKET_ANALYSIS_CACHE_STAGING"
+wrangler kv:namespace create "MARKET_ANALYSIS_CACHE_STAGING" --preview
 
 # Deploy to staging
 wrangler deploy --env staging
@@ -511,8 +511,8 @@ CLEANUP_INTERVAL = "60000"            # Cleanup interval (ms)
 ```bash
 # Error: KV namespace not found
 # Solution: Create KV namespace and update wrangler.toml
-wrangler kv:namespace create "TRADING_RESULTS"
-wrangler kv:namespace create "TRADING_RESULTS" --preview
+wrangler kv:namespace create "MARKET_ANALYSIS_CACHE"
+wrangler kv:namespace create "MARKET_ANALYSIS_CACHE" --preview
 ```
 
 #### **Issue 2: API Key Authentication Failure**

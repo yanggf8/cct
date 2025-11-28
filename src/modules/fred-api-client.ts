@@ -184,7 +184,7 @@ export class FredApiClient {
     this.defaultStartDate = options.defaultStartDate || this.getDefaultStartDate();
 
     // Initialize DAL and circuit breaker
-    this.dal = createSimplifiedEnhancedDAL({ TRADING_RESULTS: null } as any); // DAL for caching
+    this.dal = createSimplifiedEnhancedDAL({ MARKET_ANALYSIS_CACHE: null } as any); // DAL for caching
     this.circuitBreaker = CircuitBreakerFactory.getInstance('fred-api');
   }
 

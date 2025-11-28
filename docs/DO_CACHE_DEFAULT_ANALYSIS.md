@@ -28,12 +28,12 @@ if (isDOCacheEnabled(env)) {
 
 #### 1. **Data Access Layer (DAL)** - `src/modules/dal.ts`
 
-**Problem**: DAL directly writes to `env.TRADING_RESULTS` (KV):
+**Problem**: DAL directly writes to `env.MARKET_ANALYSIS_CACHE` (KV):
 
 ```typescript
 // Line 379: Direct KV write
 await this.retry(
-  () => this.env.TRADING_RESULTS.put(key, serialized, options),
+  () => this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options),
   operationName
 );
 ```
@@ -58,7 +58,7 @@ await this.retry(
 
 ```typescript
 // Similar direct KV writes
-() => this.env.TRADING_RESULTS.put(key, JSON.stringify(data), writeOptions)
+() => this.env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(data), writeOptions)
 ```
 
 **Impact**: Same as regular DAL
@@ -71,7 +71,7 @@ await this.retry(
 
 ```typescript
 // Line 90: Direct KV write
-await env.TRADING_RESULTS.put(key, value, options);
+await env.MARKET_ANALYSIS_CACHE.put(key, value, options);
 ```
 
 **Impact**:
@@ -97,7 +97,7 @@ await KVUtils.putWithTTL(env, cacheKey, cached Data, ttl);
 
 ```typescript
 // src/routes/data-routes.ts (KV self-test)
-await env.TRADING_RESULTS.put(testKey, testValue, { expirationTtl: 60 });
+await env.MARKET_ANALYSIS_CACHE.put(testKey, testValue, { expirationTtl: 60 });
 ```
 
 **Note**: These are intentionally direct KV access for testing purposes
@@ -132,7 +132,7 @@ export class CacheAbstraction {
       await this.doCache.set(key, value, { ttl });
     } else {
       // Fallback to KV (legacy)
-      await this.env.TRADING_RESULTS.put(key, JSON.stringify(value), options);
+      await this.env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(value), options);
     }
   }
 
@@ -142,7 +142,7 @@ export class CacheAbstraction {
       return await this.doCache.get(key, { ttl: 3600 });
     } else {
       // Fallback to KV (legacy)
-      const value = await this.env.TRADING_RESULTS.get(key);
+      const value = await this.env.MARKET_ANALYSIS_CACHE.get(key);
       return value ? JSON.parse(value) : null;
     }
   }
@@ -151,7 +151,7 @@ export class CacheAbstraction {
     if (this.doCache) {
       await this.doCache.delete(key, { ttl: 0 });
     } else {
-      await this.env.TRADING_RESULTS.delete(key);
+      await this.env.MARKET_ANALYSIS_CACHE.delete(key);
     }
   }
 }
@@ -184,7 +184,7 @@ private async write<T>(
     } else {
       // Fallback to KV
       await this.retry(
-        () => this.env.TRADING_RESULTS.put(key, serialized, options),
+        () => this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options),
         operationName
       );
 
@@ -246,7 +246,7 @@ private async write<T>(
 **Changes**:
 ```typescript
 // Instead of:
-await this.env.TRADING_RESULTS.put(key, serialized, options);
+await this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options);
 
 // Use:
 const cache = new CacheAbstraction(this.env);

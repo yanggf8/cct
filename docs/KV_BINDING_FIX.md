@@ -15,7 +15,7 @@ Multiple configuration issues causing "KV put() succeeds but no data appears" in
    - Result: KV namespace not actually bound to worker in production
 
 2. **Duplicate KV Namespace IDs in wrangler.toml**
-   - `TRADING_RESULTS` and `CACHE_DO_KV` both using same namespace ID `321593c6717448dfb24ea2bd48cde1fa`
+   - `MARKET_ANALYSIS_CACHE` and `CACHE_DO_KV` both using same namespace ID `321593c6717448dfb24ea2bd48cde1fa`
    - Result: Confusion in namespace usage and verification
 
 3. **Type Definition Duplication**
@@ -38,7 +38,7 @@ Multiple configuration issues causing "KV put() succeeds but no data appears" in
 ```diff
  # KV namespace for storing analysis results
  [[kv_namespaces]]
- binding = "TRADING_RESULTS"
+ binding = "MARKET_ANALYSIS_CACHE"
  id = "321593c6717448dfb24ea2bd48cde1fa"
  preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
@@ -47,7 +47,7 @@ Multiple configuration issues causing "KV put() succeeds but no data appears" in
 -binding = "CACHE_DO_KV"
 -id = "321593c6717448dfb24ea2bd48cde1fa"
 -preview_id = "220ca67255ed4bfeada7eb6816ce6413"
-+# NOTE: CACHE_DO_KV removed - was duplicate of TRADING_RESULTS
++# NOTE: CACHE_DO_KV removed - was duplicate of MARKET_ANALYSIS_CACHE
 +# Durable Objects cache uses CACHE_DO binding for persistent memory
 +# If separate KV needed for DO cache, create new namespace with unique ID
 ```
@@ -66,7 +66,7 @@ Multiple configuration issues causing "KV put() succeeds but no data appears" in
 ```toml
 # KV bindings at top-level (not inherited by environments)
 [[kv_namespaces]]
-binding = "TRADING_RESULTS"
+binding = "MARKET_ANALYSIS_CACHE"
 id = "trading-results-kv"  # Invalid - not a UUID
 preview_id = "trading-results-kv-preview"  # Invalid
 ```
@@ -80,7 +80,7 @@ main = "src/index-enhanced.js"
 
 # Production KV bindings - MUST use real UUID from main wrangler.toml
 [[env.production.kv_namespaces]]
-binding = "TRADING_RESULTS"
+binding = "MARKET_ANALYSIS_CACHE"
 id = "321593c6717448dfb24ea2bd48cde1fa"  # Real UUID
 
 # Production R2, AI, Durable Objects bindings
@@ -124,9 +124,9 @@ name = "tft-trading-system-staging"
 2. `GET /api/v1/data/bindings` - Environment binding inspection
 
 **KV Self-Test Features**:
-- ✅ **Bypasses all cache layers and DAL** - Direct `env.TRADING_RESULTS` access
+- ✅ **Bypasses all cache layers and DAL** - Direct `env.MARKET_ANALYSIS_CACHE` access
 - ✅ **6-stage validation**:
-  1. Binding check - Verify `TRADING_RESULTS` exists
+  1. Binding check - Verify `MARKET_ANALYSIS_CACHE` exists
   2. Write test - `put()` with unique test key
   3. Read test - `get()` and verify data matches
   4. List test - `list()` to find test key
@@ -142,7 +142,7 @@ name = "tft-trading-system-staging"
     "all_tests_passed": true,
     "critical_tests_passed": true,
     "test_details": {
-      "binding_check": { "success": true, "message": "TRADING_RESULTS binding exists" },
+      "binding_check": { "success": true, "message": "MARKET_ANALYSIS_CACHE binding exists" },
       "write_test": { "success": true, "message": "Direct KV put() succeeded" },
       "read_test": { "success": true, "message": "Direct KV get() succeeded - data matches" },
       "list_test": { "success": true, "message": "Direct KV list() found test key" },
@@ -235,7 +235,7 @@ BASE_URL="https://tft-trading-system-staging.yanggf.workers.dev" \
 1. Navigate to Workers & Pages → tft-trading-system
 2. Settings → Variables and Secrets → KV Namespace Bindings
 3. Verify:
-   - Binding name: `TRADING_RESULTS`
+   - Binding name: `MARKET_ANALYSIS_CACHE`
    - Namespace: Should show actual namespace name (not placeholder)
    - Namespace ID: Should match `321593c6717448dfb24ea2bd48cde1fa`
 
@@ -260,7 +260,7 @@ curl -s -H "X-API-KEY: your-key" \
 **Expected**:
 ```json
 {
-  "TRADING_RESULTS": true,
+  "MARKET_ANALYSIS_CACHE": true,
   "AI": true,
   "CACHE_DO": true
 }
@@ -270,7 +270,7 @@ curl -s -H "X-API-KEY: your-key" \
 
 ## Troubleshooting
 
-### Issue: "TRADING_RESULTS binding is undefined"
+### Issue: "MARKET_ANALYSIS_CACHE binding is undefined"
 
 **Cause**: KV namespace not bound to worker
 

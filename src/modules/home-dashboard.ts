@@ -7,7 +7,7 @@
 import type { CloudflareAI } from '../types';
 
 interface Env {
-  TRADING_RESULTS: KVNamespace;
+  MARKET_ANALYSIS_CACHE: KVNamespace;
   TRAINED_MODELS: R2Bucket;
   ENHANCED_MODELS: R2Bucket;
   AI: CloudflareAI;

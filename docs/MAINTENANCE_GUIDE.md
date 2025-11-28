@@ -245,7 +245,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="CRON-STA
 # The system automatically cleans up records older than 30 days
 
 # Verify KV storage usage
-env -u CLOUDFLARE_API_TOKEN npx wrangler kv key list --binding=TRADING_RESULTS --limit=100
+env -u CLOUDFLARE_API_TOKEN npx wrangler kv key list --binding=MARKET_ANALYSIS_CACHE --limit=100
 ```
 
 #### **3. Security Audit**
@@ -401,7 +401,7 @@ curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/he
 #### **Data Recovery**
 ```bash
 # Verify KV storage integrity
-env -u CLOUDFLARE_API_TOKEN npx wrangler kv key list --binding=TRADING_RESULTS
+env -u CLOUDFLARE_API_TOKEN npx wrangler kv key list --binding=MARKET_ANALYSIS_CACHE
 
 # Check data consistency
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/data/health

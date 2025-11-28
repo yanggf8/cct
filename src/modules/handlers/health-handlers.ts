@@ -202,7 +202,7 @@ export async function handleModelHealth(
         healthResults.models.kv_storage = {
           status: 'healthy',
           read_write: 'operational',
-          binding: 'TRADING_RESULTS'
+          binding: 'MARKET_ANALYSIS_CACHE'
         };
 
         logger.debug('KV storage health check successful', { requestId });
@@ -275,7 +275,7 @@ export async function handleDebugEnvironment(
       request_id: requestId,
       environment: {
         cloudflare_ai: typeof env.AI !== 'undefined',
-        trading_results_kv: typeof env.TRADING_RESULTS !== 'undefined',
+        trading_results_kv: typeof env.MARKET_ANALYSIS_CACHE !== 'undefined',
         model_bucket_r2: typeof env.MODEL_BUCKET !== 'undefined',
         facebook_configured: !!(env.FACEBOOK_PAGE_TOKEN && env.FACEBOOK_RECIPIENT_ID),
         log_level: env.LOG_LEVEL || 'not_set',
@@ -284,7 +284,7 @@ export async function handleDebugEnvironment(
       },
       bindings: {
         ai: !!env.AI,
-        kv: !!env.TRADING_RESULTS,
+        kv: !!env.MARKET_ANALYSIS_CACHE,
         r2: !!env.MODEL_BUCKET
       },
       secrets: {

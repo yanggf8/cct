@@ -12,6 +12,12 @@ main = "src/index.ts"
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
 
+# D1 Database for analytics and cold storage (production)
+[[env.production.d1_databases]]
+binding = "ANALYTICS_DB"
+database_name = "tft-trading-system-analytics"
+database_id = "your-production-database-id"  # To be created with: wrangler d1 create tft-trading-system-analytics
+
 [env.staging]
 name = "tft-trading-system-staging"
 main = "src/index.ts"
@@ -20,9 +26,15 @@ main = "src/index.ts"
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
 
-# KV bindings
+# D1 Database for analytics and cold storage (staging)
+[[env.staging.d1_databases]]
+binding = "ANALYTICS_DB"
+database_name = "tft-trading-system-analytics-staging"
+database_id = "your-staging-database-id"  # To be created with: wrangler d1 create tft-trading-system-analytics-staging
+
+# KV bindings - Market Analysis & Operations Cache (stores analysis results, market data, job status)
 [[kv_namespaces]]
-binding = "TRADING_RESULTS"
+binding = "MARKET_ANALYSIS_CACHE"
 id = "321593c6717448dfb24ea2bd48cde1fa"
 preview_id = "220ca67255ed4bfeada7eb6816ce6413"
 
