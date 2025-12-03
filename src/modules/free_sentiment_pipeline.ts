@@ -5,7 +5,7 @@
  */
 
 import type { CloudflareEnvironment } from '../types.js';
-import { DACArticlesAdapter } from './dac-articles-pool.js';
+import { DACArticlesAdapterV2 } from './dac-articles-pool-v2.js';
 
 // Type definitions
 interface FreeSentimentConfig {
@@ -155,9 +155,9 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
 
   // 0. Try DAC Articles Pool (Highest Priority)
   try {
-    const dacAdapter = new DACArticlesAdapter(env);
+    const dacAdapter = new DACArticlesAdapterV2(env);
     // Only use DAC if configured
-    if (env.DAC_BACKEND || env.DAC_ARTICLES_POOL_URL) {
+    if (env.DAC_BACKEND) {
       const dacResult = await dacAdapter.getArticlesForSentiment(symbol);
       if (dacResult.source === 'dac_pool' && dacResult.articles.length > 0) {
         console.log(`[DAC Pool] HIT for ${symbol} (${dacResult.articles.length} articles)`);

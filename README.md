@@ -4,7 +4,7 @@
 
 **Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (GPT-OSS-120B + DistilBERT-SST-2), revolutionary Durable Objects caching architecture with 100% KV elimination, predictive analytics dashboard, and real-time sector rotation analysis.
 
-**Current Status**: ✅ **PRODUCTION READY** - **Phase 3 BI Dashboard Scaffolding Complete + Critical Issues Resolution** (2025-11-28)
+**Current Status**: ✅ **PRODUCTION READY** - **DAC Article Pool V2 Integration Complete** (2025-12-03)
 
 **Live System**: https://tft-trading-system.yanggf.workers.dev
 
@@ -17,6 +17,13 @@
 - ✅ **Dashboard API Infrastructure**: 5 new endpoints for comprehensive system monitoring
 - ✅ **Testing Framework**: Cache economics validation, D1 rollups testing, performance benchmarking
 - ✅ **Frontend Integration**: Modern dashboard interface with auto-refresh and theme support
+
+### **🔗 DAC Article Pool V2 Integration (2025-12-03)**
+- ✅ **Updated to DAC v3.7.0+**: Using correct admin probe endpoints via service binding
+- ✅ **Enhanced Metadata**: Access to freshness, staleness, TTL, and source tracking
+- ✅ **Typed Error Handling**: NOT_FOUND, STALE, FRESHNESS_EXPIRED responses
+- ✅ **Confidence Penalties**: Automatic quality-based adjustments for stale/low-count data
+- ✅ **Future-Ready**: Support for sectors & categories (v3.7.0+ features)
 
 ### **🛡️ Critical Issues Resolution & Production Hardening (2025-11-27)**
 - ✅ **Real DXY Integration**: Yahoo Finance DX-Y.NYB futures replacing hardcoded `usDollarIndex: 104.2`
@@ -338,6 +345,6 @@ Reduction:     100%
 
 ---
 
-**Last Updated**: 2025-11-28
-**Version**: Production Ready - Phase 3 BI Dashboard Scaffolding Complete
-**Status**: ✅ **FULLY OPERATIONAL** - Enterprise-grade AI trading intelligence system with business intelligence dashboard
+**Last Updated**: 2025-12-03
+**Version**: Production Ready - DAC Article Pool V2 Integration Complete
+**Status**: ✅ **FULLY OPERATIONAL** - Enterprise-grade AI trading intelligence system with DAC v3.7.0+ integration
