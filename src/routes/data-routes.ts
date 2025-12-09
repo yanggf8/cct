@@ -108,6 +108,11 @@ export async function handleDataRoutes(
       }
     }
 
+    // GET /api/v1/data/money-flow-pool - Money Flow Pool health check
+    if (path === '/api/v1/data/money-flow-pool' && method === 'GET') {
+      return await handleMoneyFlowPoolHealth(request, env, headers, requestId);
+    }
+
     // GET /api/v1/data/kv-self-test - Direct KV binding test (bypasses cache layers)
     if (path === '/api/v1/data/kv-self-test' && method === 'GET') {
       return await handleKVSelfTest(request, env, headers, requestId);
@@ -1323,6 +1328,88 @@ async function handleShowBindings(
         ApiResponseFactory.error(
           'Failed to retrieve bindings',
           'BINDINGS_ERROR',
+          {
+            requestId,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        )
+      ),
+      {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+  }
+}
+
+
+/**
+ * Handle Money Flow Pool health check
+ * GET /api/v1/data/money-flow-pool
+ */
+async function handleMoneyFlowPoolHealth(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  try {
+    const { createMoneyFlowAdapter } = await import('../modules/dac-money-flow-adapter.js');
+    
+    const adapter = createMoneyFlowAdapter(env);
+    
+    if (!adapter) {
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            'DAC Money Flow Pool not configured',
+            'SERVICE_UNAVAILABLE',
+            { requestId }
+          )
+        ),
+        {
+          status: HttpStatus.SERVICE_UNAVAILABLE,
+          headers,
+        }
+      );
+    }
+
+    const isHealthy = await adapter.checkHealth();
+    const testResult = await adapter.getMoneyFlow('AAPL');
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.success(
+          {
+            status: isHealthy ? 'healthy' : 'degraded',
+            pool: {
+              available: !!testResult,
+              testSymbol: 'AAPL',
+              testResult: testResult ? {
+                cmf: testResult.cmf,
+                trend: testResult.trend,
+                cachedAt: testResult.cachedAt
+              } : null
+            },
+            timestamp: new Date().toISOString()
+          },
+          { message: 'Money Flow Pool health check completed' }
+        )
+      ),
+      {
+        status: HttpStatus.OK,
+        headers,
+      }
+    );
+
+  } catch (error) {
+    logger.error('Money Flow Pool Health Error', { requestId, error: String(error) });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          'Money Flow Pool health check failed',
+          'HEALTH_CHECK_ERROR',
           {
             requestId,
             error: error instanceof Error ? error.message : String(error)

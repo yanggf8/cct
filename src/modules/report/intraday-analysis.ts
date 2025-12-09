@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../logging.js';
+import { getBatchMarketData } from '../yahoo-finance-integration.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 // Type definitions
@@ -212,23 +213,37 @@ function comparePerformanceVsPredictions(
 }
 
 /**
- * Get current market prices for symbols (placeholder - will be real API call)
+ * Get current market prices for symbols using live Yahoo Finance data
  */
 async function getCurrentMarketPrices(symbols: string[], env: CloudflareEnvironment): Promise<CurrentPrices> {
-  // This will be implemented with real market data API
-  // For now, return mock data structure
+  if (!symbols || symbols.length === 0) {
+    return {};
+  }
+
   const prices: CurrentPrices = {};
 
-  symbols.forEach(symbol => {
-    prices[symbol] = {
-      current: 150 + Math.random() * 50,
-      change: (Math.random() - 0.5) * 4, // -2% to +2% random change
-      changePercent: (Math.random() - 0.5) * 4
-    };
-  });
+  const batchData = await getBatchMarketData(symbols);
+
+  for (const symbol of symbols) {
+    const data = batchData[symbol];
+    if (data) {
+      prices[symbol] = {
+        current: data.price,
+        change: data.regularMarketChange ?? 0,
+        changePercent: data.regularMarketChangePercent ?? 0
+      };
+    } else {
+      logger.warn('No market data returned for symbol', { symbol });
+    }
+  }
+
+  if (Object.keys(prices).length === 0) {
+    throw new Error('No market data available for requested symbols');
+  }
 
   return prices;
 }
+
 
 /**
  * Get current performance for a specific symbol

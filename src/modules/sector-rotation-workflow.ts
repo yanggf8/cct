@@ -25,6 +25,7 @@ import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache } from './market-data-cache.js';
 import { CONFIG } from './config.js';
 import { analyzeSingleSymbolOptimized } from './optimized-ai-analysis.js';
+import { analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import type { CloudflareEnvironment, SentimentLayer } from '../types.js';
 
 const logger = createLogger('sector-rotation-workflow');
@@ -508,16 +509,93 @@ export class SectorRotationWorkflow {
    * Get news sentiment for ETF
    */
   private async getNewsSentiment(symbol: string): Promise<any> {
-    // This would integrate with news APIs
-    // For now, return mock data
+    const articles: Array<{ title: string; summary?: string }> = [];
+
+    // Preferred source: FMP with built-in news coverage
+    if (this.env.FMP_API_KEY) {
+      try {
+        const fmpUrl = `https://financialmodelingprep.com/api/v3/stock_news?tickers=${symbol}&limit=12&apikey=${this.env.FMP_API_KEY}`;
+        const response = await rateLimitedFetch(fmpUrl, {
+          headers: { 'User-Agent': 'SectorRotationWorkflow/1.0' }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            data.forEach((item: any) => {
+              articles.push({
+                title: item.title,
+                summary: item.text
+              });
+            });
+          } else {
+            logger.warn('Unexpected FMP news payload shape', { symbol });
+          }
+        } else {
+          logger.warn('FMP news request failed', { symbol, status: response.status });
+        }
+      } catch (error: any) {
+        logger.warn('FMP news fetch error', { symbol, error: error instanceof Error ? error.message : String(error) });
+      }
+    } else {
+      logger.warn('FMP_API_KEY missing - skipping FMP news sentiment', { symbol });
+    }
+
+    // Fallback: Yahoo Finance news search
+    if (articles.length === 0) {
+      try {
+        const yahooUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&lang=en-US&region=US&quotesCount=0&newsCount=10`;
+        const response = await rateLimitedFetch(yahooUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SectorRotationWorkflow/1.0)' }
+        });
+
+        if (response.ok) {
+          const data = await response.json() as any;
+          const newsItems = (data as any).news || [];
+
+          newsItems.forEach((item: any) => {
+            articles.push({
+              title: item.title,
+              summary: item.summary
+            });
+          });
+        } else {
+          logger.warn('Yahoo news request failed', { symbol, status: response.status });
+        }
+      } catch (error: any) {
+        logger.warn('Yahoo news fetch error', { symbol, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+
+    if (articles.length === 0) {
+      return {
+        positiveCount: 0,
+        negativeCount: 0,
+        neutralCount: 0,
+        topHeadlines: []
+      };
+    }
+
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let neutralCount = 0;
+
+    articles.forEach(article => {
+      const sentiment = analyzeTextSentiment(`${article.title} ${article.summary || ''}`);
+      if (sentiment.label === 'bullish') {
+        positiveCount++;
+      } else if (sentiment.label === 'bearish') {
+        negativeCount++;
+      } else {
+        neutralCount++;
+      }
+    });
+
     return {
-      positiveCount: Math.floor(Math.random() * 10) + 5,
-      negativeCount: Math.floor(Math.random() * 5) + 1,
-      neutralCount: Math.floor(Math.random() * 8) + 3,
-      topHeadlines: [
-        `Sector analysis for ${SPDR_ETFs[symbol as ETFSymbol]?.name}`,
-        `Market sentiment update for ${symbol}`
-      ]
+      positiveCount,
+      negativeCount,
+      neutralCount,
+      topHeadlines: articles.slice(0, 5).map(article => article.title)
     };
   }
 
