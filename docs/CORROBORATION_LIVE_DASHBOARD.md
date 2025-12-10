@@ -1,11 +1,19 @@
 # Corroboration: Live Dashboard Data Implementation
 
 **Date:** 2025-12-10
-**Status:** ✅ VERIFIED
+**Status:** ✅ VERIFIED & FIXED
 
 ## Summary
 
 Implemented live dashboard data and removed fake scaffolding. All dashboard endpoints now pull real metrics from the monitoring stack and live alerts, with honest nulls where data is unavailable.
+
+## Issues Found & Fixed (2025-12-10)
+
+| Severity | Issue | Fix |
+|----------|-------|-----|
+| **HIGH** | New monitoring instance per request = empty alerts/history | Singleton `monitoringInstance` per isolate accumulates data |
+| **MEDIUM** | `getCacheStats()` accessed non-existent DO properties = always zeros | Now properly proxies `await doCache.getStats()` |
+| **LOW** | Non-numeric COST_PER_REQUEST = NaN with `data_available: true` | Added `Number.isFinite()` guard |
 
 ## Files Changed
 

@@ -616,6 +616,69 @@ git push
 
 ---
 
+## 🛠️ Troubleshooting
+
+### **Common Deployment Issues (Resolved 2025-12-10)**
+
+#### **Import Path Errors**
+Cloudflare Workers requires `.js` extensions in imports, not `.ts`:
+```typescript
+// ❌ Wrong
+import { something } from './module.ts';
+
+// ✅ Correct
+import { something } from './module.js';
+```
+
+#### **process.env Not Available**
+Workers don't have Node.js `process.env` at module initialization:
+```typescript
+// ❌ Wrong - fails at module load
+const API_KEY = process.env.API_KEY;
+
+// ✅ Correct - access env in request handler
+export default {
+  async fetch(request, env) {
+    const apiKey = env.API_KEY;
+  }
+}
+```
+
+#### **setInterval in Global Scope**
+Workers don't support `setInterval` at module level:
+```typescript
+// ❌ Wrong - causes deployment failure
+setInterval(() => cleanup(), 60000);
+
+// ✅ Correct - use alarm() in Durable Objects or scheduled handlers
+```
+
+#### **TypeScript Decorators**
+Use modern decorator syntax for Workers compatibility:
+```typescript
+// ❌ Legacy decorators may fail
+@decorator
+class MyClass {}
+
+// ✅ Ensure tsconfig has correct decorator settings
+// Or use function wrappers instead
+```
+
+#### **Browser Auth for Deployment**
+If API token issues occur, use browser authentication:
+```bash
+env -u CLOUDFLARE_API_TOKEN wrangler deploy
+```
+
+#### **FRED API Graceful Degradation**
+Enable fallback when FRED API is unavailable:
+```bash
+wrangler secret put FRED_ALLOW_DEGRADATION
+# Enter: true
+```
+
+---
+
 ## 🎯 Success Metrics
 
 ### **📊 Deployment Success Indicators**
@@ -634,6 +697,6 @@ git push
 
 ---
 
-**Last Updated: 2025-10-01 | Version: e650aa19-c631-474e-8da8-b3144d373ae5**
+**Last Updated: 2025-12-10 | Version: Production-Ready with DAC Money Flow**
 
 *This deployment guide should be followed for all production deployments and updated as the system evolves.*
