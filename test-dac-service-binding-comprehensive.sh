@@ -127,7 +127,7 @@ test_api_endpoint() {
     local url="$1"
     local test_name="$2"
     local expected_status="${3:-200}"
-    local auth_header="$4"
+    local auth_header="${4:-}"
 
     ((TOTAL_TESTS++))
 
@@ -587,7 +587,7 @@ test_data_integrity() {
             TEST_RESULTS+=("{\"name\":\"Required Fields Test\",\"status\":\"PASS\"}")
         else
             fail "Response missing fields: ${missing_fields[*]}"
-            TEST_RESULTS+=("{\"name\":\"Required Fields Test\",\"status\":\"FAIL\",\"missing_fields\":[\"$(IFS=','; echo "${missing_fields[*]}\")\"]}")
+            TEST_RESULTS+=("{\"name\":\"Required Fields Test\",\"status\":\"FAIL\",\"missing_fields\":\"${missing_fields[*]}\"}")
         fi
     else
         fail "Invalid JSON response for data integrity test"
@@ -646,10 +646,10 @@ compare_with_baseline() {
         ((TOTAL_TESTS++))
         if (( $(echo "$success_rate_diff >= -5" | bc -l) )); then
             success "No regression detected: Current $current_success_rate%, Baseline $baseline_success_rate%"
-            TEST_RESULTS+=("{\"name\":\"Regression Test\",\"status\":\"PASS\",\"current_rate\":$current_success_rate,\"baseline_rate\":$baseline_success_rate,\"diff\":$success_rate_diff})
+            TEST_RESULTS+=("{\"name\":\"Regression Test\",\"status\":\"PASS\",\"current_rate\":$current_success_rate,\"baseline_rate\":$baseline_success_rate,\"diff\":$success_rate_diff}")
         else
             fail "Regression detected: Current $current_success_rate%, Baseline $baseline_success_rate% (${success_rate_diff}% change, >5% regression threshold)"
-            TEST_RESULTS+=("{\"name\":\"Regression Test\",\"status\":\"FAIL\",\"current_rate\":$current_success_rate,\"baseline_rate\":$baseline_success_rate,\"diff\":$success_rate_diff,\"threshold\":-5})
+            TEST_RESULTS+=("{\"name\":\"Regression Test\",\"status\":\"FAIL\",\"current_rate\":$current_success_rate,\"baseline_rate\":$baseline_success_rate,\"diff\":$success_rate_diff,\"threshold\":-5}")
         fi
     else
         info "No baseline found for comparison"
