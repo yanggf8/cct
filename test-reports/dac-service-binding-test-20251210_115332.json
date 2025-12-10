@@ -1,0 +1,14 @@
+{
+  "test_suite": "DAC Service Binding Integration Tests",
+  "timestamp": "2025-12-10T11:53:32+08:00",
+  "cct_url": "https://tft-trading-system.yanggf.workers.dev",
+  "dac_url": "https://dac-backend.yanggf.workers.dev",
+  "test_symbols": ["AAPL","MSFT","GOOGL","TSLA","NVDA","META","AMZN","NFLX"],
+  "environment": {
+    "node": "v23.2.0",
+    "wrangler": "4.51.0",
+    "platform": "Linux",
+    "shell": "/home/yanggf/a/cct/test-dac-service-binding-comprehensive.sh"
+  },
+  "tests": []
+}

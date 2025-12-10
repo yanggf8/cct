@@ -465,7 +465,7 @@ export class MarketDriversManager {
     logger.warn('Using legacy market drivers with mock data');
 
     // Import legacy modules only when needed
-    const { getMockMacroDrivers, getMockMarketStructure, getMockGeopoliticalRisk } = await import('./market-drivers-legacy.ts');
+    const { getMockMacroDrivers, getMockMarketStructure, getMockGeopoliticalRisk } = await import('./market-drivers.legacy.js');
 
     const mockMacro = getMockMacroDrivers();
     const mockStructure = getMockMarketStructure();
@@ -505,21 +505,21 @@ export class MarketDriversManager {
 
   private async getLegacyMacroDrivers(): Promise<RealMacroDrivers> {
     // Import legacy modules only when needed
-    const { getMockMacroDrivers } = await import('./market-drivers-legacy.ts');
+    const { getMockMacroDrivers } = await import('./market-drivers.legacy.js');
     const mockMacro = getMockMacroDrivers();
 
     return this.transformLegacyToReal(mockMacro);
   }
 
   private async getLegacyMarketStructure(): Promise<RealMarketStructure> {
-    const { getMockMarketStructure } = await import('./market-drivers-legacy.ts');
+    const { getMockMarketStructure } = await import('./market-drivers.legacy.js');
     const mockStructure = getMockMarketStructure();
 
     return this.transformLegacyToReal(mockStructure);
   }
 
   private async getLegacyGeopoliticalRisk(): Promise<RealGeopoliticalRisk> {
-    const { getMockGeopoliticalRisk } = await import('./market-drivers-legacy.ts');
+    const { getMockGeopoliticalRisk } = await import('./market-drivers.legacy.js');
     const mockGeopolitical = getMockGeopoliticalRisk();
 
     return this.transformLegacyToReal(mockGeopolitical);

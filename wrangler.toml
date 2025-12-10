@@ -94,6 +94,8 @@ RATE_LIMIT_WINDOW = "60000" # 1 minute in milliseconds
 FEATURE_FLAG_DO_CACHE = "true" # DO cache enabled - eliminates KV writes, 50x faster performance
 # DAC Articles Pool Integration
 DAC_ARTICLES_POOL_URL = "https://dac-backend.yanggf.workers.dev"
+# FRED API graceful degradation (uses Yahoo Finance fallback when FRED_API_KEY not set)
+FRED_ALLOW_DEGRADATION = "true"
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:

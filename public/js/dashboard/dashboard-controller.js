@@ -308,23 +308,27 @@ class BIDashboardController {
   updateMetricsDisplay(data) {
     if (!data || !data.operational_health) return;
 
-    const { operational_health } = data;
+    const { operational_health, system_performance = {} } = data;
+    const cpuUtil = operational_health.cpu_utilization ?? system_performance.cpu_utilization;
+    const memUtil = operational_health.memory_usage ?? system_performance.memory_usage;
+    const storageUtil = operational_health.storage_utilization ?? system_performance.storage_utilization;
+    const networkLatency = operational_health.network_latency ?? system_performance.network_latency;
 
-    this.updateMetricCard('overall-score', operational_health.overall_score.toFixed(1), '', 'score');
-    this.updateMetricCard('api-response-time', `${operational_health.api_response_time.toFixed(0)} ms`, '', 'response-time');
-    this.updateMetricCard('cache-hit-rate', `${operational_health.cache_hit_rate.toFixed(1)}%`, '', 'hit-rate');
-    this.updateMetricCard('error-rate', `${operational_health.error_rate.toFixed(1)}%`, '', 'error-rate');
+    this.updateMetricCard('overall-score', this.formatNumber(operational_health.overall_score, 1), '', 'score');
+    this.updateMetricCard('api-response-time', this.formatNumber(operational_health.api_response_time, 0, ' ms'), '', 'response-time');
+    this.updateMetricCard('cache-hit-rate', this.formatPercent(operational_health.cache_hit_rate), '', 'hit-rate');
+    this.updateMetricCard('error-rate', this.formatPercent(operational_health.error_rate), '', 'error-rate');
 
     // Update system performance
-    this.updateMetricCard('cpu-utilization', `${operational_health.cpu_utilization.toFixed(1)}%`, '', 'cpu');
-    this.updateMetricCard('memory-usage', `${operational_health.memory_usage.toFixed(1)}%`, '', 'memory');
-    this.updateMetricCard('storage-utilization', `${operational_health.storage_utilization.toFixed(1)}%`, '', 'storage');
-    this.updateMetricCard('network-latency', `${operational_health.network_latency.toFixed(0)} ms`, '', 'latency');
+    this.updateMetricCard('cpu-utilization', this.formatPercent(cpuUtil), '', 'cpu');
+    this.updateMetricCard('memory-usage', this.formatPercent(memUtil), '', 'memory');
+    this.updateMetricCard('storage-utilization', this.formatPercent(storageUtil), '', 'storage');
+    this.updateMetricCard('network-latency', this.formatNumber(networkLatency, 0, ' ms'), '', 'latency');
 
     // Update progress bars
-    this.updateProgressBar('cpu-utilization', operational_health.cpu_utilization);
-    this.updateProgressBar('memory-usage', operational_health.memory_usage);
-    this.updateProgressBar('storage-utilization', operational_health.storage_utilization);
+    this.updateProgressBar('cpu-utilization', cpuUtil);
+    this.updateProgressBar('memory-usage', memUtil);
+    this.updateProgressBar('storage-utilization', storageUtil);
   }
 
   /**
@@ -333,12 +337,20 @@ class BIDashboardController {
   updateEconomicsDisplay(data) {
     if (!data) return;
 
-    this.updateMetricCard('monthly-cost', `$${data.total_monthly_cost.toFixed(2)}`, `$${data.cost_per_request.toFixed(4)} per request`, 'cost');
+    const monthlyCost = Number.isFinite(data.total_monthly_cost) ? `$${Number(data.total_monthly_cost).toFixed(2)}` : 'N/A';
+    const costPerRequest = Number.isFinite(data.cost_per_request)
+      ? `$${Number(data.cost_per_request).toFixed(4)} per request`
+      : 'N/A per request';
 
-    // Update efficiency score
-    this.updateMetricCard('efficiency-score', data.cost_efficiency_score.toFixed(1), '', 'efficiency');
+    this.updateMetricCard('monthly-cost', monthlyCost, costPerRequest, 'cost');
 
-    // Create cost breakdown chart
+    // Update efficiency score (may be null when cost data is unavailable)
+    const efficiency = Number.isFinite(data.cost_efficiency_score)
+      ? data.cost_efficiency_score.toFixed(1)
+      : 'N/A';
+    this.updateMetricCard('efficiency-score', efficiency, data.notes || '', 'efficiency');
+
+    // Create cost breakdown chart (only when real data is available)
     this.createCostBreakdownChart(data);
   }
 
@@ -348,12 +360,17 @@ class BIDashboardController {
   updateGuardViolationsDisplay(data) {
     if (!data) return;
 
-    const { violations, summary } = data;
+    const violations = data.violations || [];
+    const summary = data.summary || {
+      total_violations: 0,
+      active_violations: 0,
+      critical_violations: 0
+    };
 
     // Update summary
-    document.getElementById('total-violations').textContent = summary.total_violations;
-    document.getElementById('active-violations').textContent = summary.active_violations;
-    document.getElementById('critical-alerts').textContent = summary.critical_violations;
+    document.getElementById('total-violations').textContent = summary.total_violations ?? 0;
+    document.getElementById('active-violations').textContent = summary.active_violations ?? 0;
+    document.getElementById('critical-alerts').textContent = summary.critical_violations ?? 0;
 
     // Update violations list
     const violationsList = document.getElementById('violations-list');
@@ -408,6 +425,10 @@ class BIDashboardController {
     const card = document.getElementById(cardId);
     if (!card) return;
 
+    if (percentage === null || percentage === undefined || !Number.isFinite(percentage)) {
+      return;
+    }
+
     const progressFill = card.querySelector('.progress-fill');
     if (progressFill) {
       progressFill.style.width = `${Math.min(percentage, 100)}%`;
@@ -435,6 +456,14 @@ class BIDashboardController {
 
     // Simple pie chart implementation
     const total = data.total_monthly_cost;
+    if (!Number.isFinite(total) || !data.storage_costs || !data.compute_costs || !data.bandwidth_costs) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#6c757d';
+      ctx.fillText('Cost data unavailable', 40, canvas.height / 2);
+      return;
+    }
+
     const segments = [
       { label: 'Compute', value: data.compute_costs.total_compute, color: '#007bff' },
       { label: 'Storage', value: data.storage_costs.total_storage, color: '#28a745' },
@@ -463,6 +492,27 @@ class BIDashboardController {
 
     // Store chart reference
     this.charts.set('cost-breakdown', { ctx, canvas, data });
+  }
+
+  /**
+   * Format a numeric value with optional suffix
+   */
+  formatNumber(value, decimals = 1, suffix = '') {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+      return 'N/A';
+    }
+    return `${Number(value).toFixed(decimals)}${suffix}`;
+  }
+
+  /**
+   * Format percentage values, accepting 0-1 or 0-100 inputs
+   */
+  formatPercent(value) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+      return 'N/A';
+    }
+    const num = Number(value) <= 1 ? Number(value) * 100 : Number(value);
+    return `${num.toFixed(1)}%`;
   }
 
   /**

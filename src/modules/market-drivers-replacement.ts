@@ -262,8 +262,8 @@ export class ProductionMarketDrivers {
     this.yahooCircuitBreaker = new CircuitBreaker();
     this.cache = new CacheManager();
 
-    // Setup periodic cache cleanup
-    setInterval(() => this.cache.cleanup(), 300000); // Every 5 minutes
+    // Note: setInterval not allowed in global scope in Cloudflare Workers
+    // Cache cleanup should be triggered per-request or via scheduled handler
   }
 
   /**

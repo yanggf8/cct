@@ -152,6 +152,27 @@ export class DOCacheAdapter {
   }
 
   /**
+   * Simplified cache statistics for monitoring dashboards
+   */
+  getCacheStats(): { enabled: boolean; totalEntries: number; overallHitRate: number; evictions: number } {
+    if (!this.doCache) {
+      return {
+        enabled: false,
+        totalEntries: 0,
+        overallHitRate: 0,
+        evictions: 0
+      };
+    }
+
+    return {
+      enabled: true,
+      totalEntries: (this as any).doCache?.cache?.size || 0,
+      overallHitRate: (this as any).doCache?.stats?.hitRate || 0,
+      evictions: (this as any).doCache?.stats?.evictions || 0
+    };
+  }
+
+  /**
    * Health check
    */
   async healthCheck(): Promise<boolean> {

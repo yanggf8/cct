@@ -20,7 +20,7 @@ import { createLogger } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import { KeyHelpers } from './kv-key-factory.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { FRED_SERIES, FredSeries } from './market-drivers.js';
+import { FRED_SERIES, FredSeries } from './market-drivers.legacy.js';
 
 const logger = createLogger('fred-api-client');
 

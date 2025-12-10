@@ -461,21 +461,36 @@ export const mockGuard = ProductionMockGuard.getInstance();
 
 /**
  * Decorator for functions that must return real data
+ * Supports both legacy (3-arg) and modern (2-arg) decorator syntax
  */
 export function requireRealData(location: string) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
-    const method = descriptor.value;
+  return function (target: any, propertyNameOrContext: string | { kind: string; name: string }, descriptor?: PropertyDescriptor): any {
+    // Modern decorator syntax (2 args)
+    if (typeof propertyNameOrContext === 'object' && propertyNameOrContext.kind === 'method') {
+      const methodName = propertyNameOrContext.name;
+      return function (this: any, ...args: any[]) {
+        const result = (target as Function).apply(this, args);
+        if (result && typeof result === 'object') {
+          mockGuard.validateData(result, `${location || methodName}`);
+        }
+        return result;
+      };
+    }
 
-    descriptor.value = function (...args: any[]) {
-      const result = method.apply(this, args);
+    // Legacy decorator syntax (3 args)
+    if (descriptor && descriptor.value) {
+      const method = descriptor.value;
+      descriptor.value = function (...args: any[]) {
+        const result = method.apply(this, args);
+        if (result && typeof result === 'object') {
+          mockGuard.validateData(result, `${target.constructor?.name || 'Unknown'}.${propertyNameOrContext}`);
+        }
+        return result;
+      };
+      return descriptor;
+    }
 
-      // Validate the result if it's an object
-      if (result && typeof result === 'object') {
-        mockGuard.validateData(result, `${target.constructor.name}.${propertyName}`);
-      }
-
-      return result;
-    };
+    return target;
   };
 }
 

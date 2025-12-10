@@ -1,21 +1,20 @@
 /**
  * Business Intelligence Dashboard Routes
  * Provides endpoints for real-time BI dashboards and cost-to-serve intelligence
- * Phase 3 Implementation: Scaffolding foundation for operational health monitoring
+ * Phase 3 Implementation: Live data wired to monitoring systems (no fake samples)
  */
 
 import { createLogger } from '../../modules/logging.js';
 import { ApiResponseFactory, HttpStatus } from '../../modules/api-v1-responses.js';
 import { createCacheInstance } from '../../modules/dual-cache-do.js';
-import { getMetricsConfig } from '../../modules/config.js';
-import { StorageGuards, type GuardConfig } from '../../modules/storage-guards.js';
+import { initializeRealTimeMonitoring, type Alert } from '../../modules/real-time-monitoring.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('dashboard-routes');
 
-// Cache configuration for dashboard data
-const DASHBOARD_CACHE_TTL = 300; // 5 minutes for real-time dashboard data
-const ECONOMICS_CACHE_TTL = 3600; // 1 hour for cost-to-serve data
+// Cache TTL hints (responses are generated live, TTL is advisory for clients)
+const DASHBOARD_CACHE_TTL = 300; // 5 minutes
+const ECONOMICS_CACHE_TTL = 3600; // 1 hour
 
 interface DashboardMetrics {
   operational_health: {
@@ -24,18 +23,23 @@ interface DashboardMetrics {
     cache_hit_rate: number;
     error_rate: number;
     throughput: number;
+    real_data_available?: boolean;
+    cpu_utilization?: number | null;
+    memory_usage?: number | null;
+    storage_utilization?: number | null;
+    network_latency?: number | null;
   };
-  system_performance: {
-    cpu_utilization: number;
-    memory_usage: number;
-    storage_utilization: number;
-    network_latency: number;
+  system_performance?: {
+    cpu_utilization?: number | null;
+    memory_usage?: number | null;
+    storage_utilization?: number | null;
+    network_latency?: number | null;
   };
   business_metrics: {
     daily_requests: number;
-    cost_per_request: number;
-    data_volume_processed: number;
-    active_users: number;
+    cost_per_request: number | null;
+    data_volume_processed: number | null;
+    active_users: number | null;
   };
   guard_status: {
     violations_total: number;
@@ -44,31 +48,23 @@ interface DashboardMetrics {
     last_violation_time: string | null;
   };
   last_updated: string;
+  source?: 'live' | 'fallback';
 }
 
 interface CostToServeMetrics {
-  storage_costs: {
-    durable_objects: number;
-    kv_storage: number;
-    d1_database: number;
-    total_storage: number;
-  };
-  compute_costs: {
-    api_requests: number;
-    ai_processing: number;
-    data_processing: number;
-    total_compute: number;
-  };
-  bandwidth_costs: {
-    data_transfer: number;
-    cdn_usage: number;
-    total_bandwidth: number;
-  };
-  total_monthly_cost: number;
-  cost_per_request: number;
-  cost_efficiency_score: number;
-  projected_monthly_cost: number;
+  storage_costs: Record<string, number | null> | null;
+  compute_costs: Record<string, number | null> | null;
+  bandwidth_costs: Record<string, number | null> | null;
+  total_monthly_cost: number | null;
+  cost_per_request: number | null;
+  cost_efficiency_score: number | null;
+  projected_monthly_cost: number | null;
   last_updated: string;
+  data_available: boolean;
+  notes?: string;
+  usage_sample?: {
+    requests_per_minute: number;
+  };
 }
 
 interface GuardViolationData {
@@ -77,8 +73,8 @@ interface GuardViolationData {
     type: 'storage' | 'rate_limit' | 'performance' | 'security';
     severity: 'low' | 'medium' | 'high' | 'critical';
     description: string;
-    metric_value: number;
-    threshold_value: number;
+    metric_value: number | null;
+    threshold_value: number | null;
     timestamp: string;
     resolved: boolean;
     resolution_time?: string;
@@ -87,129 +83,195 @@ interface GuardViolationData {
     total_violations: number;
     active_violations: number;
     critical_violations: number;
-    violation_rate: number;
-    mttr: number; // Mean Time To Resolution in minutes
+    violation_rate: number | null;
+    mttr: number | null; // Mean Time To Resolution in minutes
+  };
+  pagination: {
+    total_count: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
   };
   last_updated: string;
+  data_source?: string;
 }
 
-/**
- * Generate sample dashboard metrics for demonstration
- */
-function generateSampleDashboardMetrics(): DashboardMetrics {
-  const now = new Date().toISOString();
+function normalizeHitRate(value?: number | null): number {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return 0;
+  }
+
+  return value > 1 ? value : value * 100;
+}
+
+function mapAlertSeverity(alert: Alert): GuardViolationData['violations'][number]['severity'] {
+  switch (alert.type) {
+    case 'critical':
+      return 'critical';
+    case 'warning':
+      return 'high';
+    default:
+      return 'medium';
+  }
+}
+
+function mapAlertCategory(alert: Alert): GuardViolationData['violations'][number]['type'] {
+  switch (alert.category) {
+    case 'performance':
+      return 'performance';
+    case 'data_quality':
+      return 'storage';
+    case 'system':
+      return 'security';
+    default:
+      return 'rate_limit';
+  }
+}
+
+async function getMonitoringSnapshot(env: CloudflareEnvironment) {
+  const monitoring = initializeRealTimeMonitoring(env, {
+    alertingEnabled: true,
+    performanceTrackingEnabled: true,
+    metricsRetentionHours: 6
+  });
+
+  const dashboard = await monitoring.getDashboardData();
+  const cache = createCacheInstance(env);
+  const cacheStats = cache ? await cache.getStats() : null;
+
+  return { dashboard, cacheStats };
+}
+
+function buildGuardSummary(alerts: Alert[]): DashboardMetrics['guard_status'] {
+  const latestViolationTime = alerts.length > 0
+    ? alerts
+      .map(alert => alert.timestamp)
+      .sort()
+      .reverse()[0]
+    : null;
 
   return {
+    violations_total: alerts.length,
+    active_violations: alerts.filter(alert => !alert.resolved).length,
+    critical_alerts: alerts.filter(alert => alert.type === 'critical').length,
+    last_violation_time: latestViolationTime || null
+  };
+}
+
+function buildGuardViolations(
+  alerts: Alert[],
+  options: { activeOnly: boolean; severity?: string; limit: number; offset: number }
+): GuardViolationData {
+  let violations = alerts.map(alert => ({
+    id: alert.id,
+    type: mapAlertCategory(alert),
+    severity: mapAlertSeverity(alert),
+    description: alert.message,
+    metric_value: alert.metadata?.value ?? null,
+    threshold_value: alert.metadata?.threshold ?? null,
+    timestamp: alert.timestamp,
+    resolved: alert.resolved,
+    resolution_time: alert.resolved_at
+  }));
+
+  if (options.activeOnly) {
+    violations = violations.filter(v => !v.resolved);
+  }
+
+  if (options.severity) {
+    violations = violations.filter(v => v.severity === options.severity);
+  }
+
+  const totalCount = violations.length;
+  const paginated = violations.slice(options.offset, options.offset + options.limit);
+
+  return {
+    violations: paginated,
+    summary: {
+      total_violations: violations.length,
+      active_violations: violations.filter(v => !v.resolved).length,
+      critical_violations: violations.filter(v => v.severity === 'critical').length,
+      violation_rate: null,
+      mttr: null
+    },
+    pagination: {
+      total_count: totalCount,
+      limit: options.limit,
+      offset: options.offset,
+      has_more: options.offset + options.limit < totalCount
+    },
+    last_updated: new Date().toISOString(),
+    data_source: 'live'
+  };
+}
+
+async function buildDashboardMetrics(env: CloudflareEnvironment): Promise<DashboardMetrics> {
+  const { dashboard, cacheStats } = await getMonitoringSnapshot(env);
+  const systemMetrics = dashboard.system_metrics;
+
+  const cacheHitRate = normalizeHitRate(cacheStats?.hitRate ?? systemMetrics.data_quality.cache_hit_rate);
+  const dailyRequests = systemMetrics.performance.requests_per_minute * 60 * 24;
+
+  const metrics: DashboardMetrics = {
     operational_health: {
-      overall_score: 92.5,
-      api_response_time: 145, // ms
-      cache_hit_rate: 94.2, // %
-      error_rate: 0.8, // %
-      throughput: 1250 // requests/minute
+      overall_score: systemMetrics.system_health.overall_score,
+      api_response_time: systemMetrics.performance.average_response_time_ms,
+      cache_hit_rate: cacheHitRate,
+      error_rate: systemMetrics.performance.error_rate,
+      throughput: systemMetrics.performance.requests_per_minute,
+      real_data_available: systemMetrics.data_quality.real_data_available,
+      cpu_utilization: null,
+      memory_usage: null,
+      storage_utilization: cacheStats?.totalEntries ?? null,
+      network_latency: null
     },
     system_performance: {
-      cpu_utilization: 65.3, // %
-      memory_usage: 71.8, // %
-      storage_utilization: 58.9, // %
-      network_latency: 28 // ms
+      cpu_utilization: null,
+      memory_usage: null,
+      storage_utilization: cacheStats?.totalEntries ?? null,
+      network_latency: null
     },
     business_metrics: {
-      daily_requests: 125000,
-      cost_per_request: 0.0008, // $0.0008 per request
-      data_volume_processed: 2.8, // GB
-      active_users: 342
+      daily_requests: dailyRequests,
+      cost_per_request: env.COST_PER_REQUEST ? Number(env.COST_PER_REQUEST) : null,
+      data_volume_processed: null,
+      active_users: null
     },
-    guard_status: {
-      violations_total: 15,
-      active_violations: 2,
-      critical_alerts: 0,
-      last_violation_time: '2025-01-15T14:32:00Z'
-    },
-    last_updated: now
+    guard_status: buildGuardSummary(dashboard.active_alerts),
+    last_updated: dashboard.timestamp,
+    source: 'live'
   };
+
+  return metrics;
 }
 
-/**
- * Generate sample cost-to-serve metrics for demonstration
- */
-function generateSampleCostToServeMetrics(): CostToServeMetrics {
-  const now = new Date().toISOString();
+async function buildCostToServeMetrics(env: CloudflareEnvironment): Promise<CostToServeMetrics> {
+  const { dashboard } = await getMonitoringSnapshot(env);
+  const requestsPerMinute = dashboard.system_metrics.performance.requests_per_minute || 0;
+  const costPerRequestEnv = env.COST_PER_REQUEST || env.DASHBOARD_COST_PER_REQUEST;
+  const costPerRequest = costPerRequestEnv ? Number(costPerRequestEnv) : null;
+
+  const monthlyRequests = requestsPerMinute * 60 * 24 * 30;
+  const totalMonthlyCost = costPerRequest !== null
+    ? Number((monthlyRequests * costPerRequest).toFixed(4))
+    : null;
 
   return {
-    storage_costs: {
-      durable_objects: 12.50,
-      kv_storage: 8.75,
-      d1_database: 15.20,
-      total_storage: 36.45
-    },
-    compute_costs: {
-      api_requests: 24.80,
-      ai_processing: 67.30,
-      data_processing: 18.90,
-      total_compute: 111.00
-    },
-    bandwidth_costs: {
-      data_transfer: 14.60,
-      cdn_usage: 9.25,
-      total_bandwidth: 23.85
-    },
-    total_monthly_cost: 171.30,
-    cost_per_request: 0.0008,
-    cost_efficiency_score: 87.5,
-    projected_monthly_cost: 178.90,
-    last_updated: now
-  };
-}
-
-/**
- * Generate sample guard violation data for demonstration
- */
-function generateSampleGuardViolationData(): GuardViolationData {
-  const now = new Date().toISOString();
-
-  return {
-    violations: [
-      {
-        id: 'guard-001',
-        type: 'performance',
-        severity: 'medium',
-        description: 'API response time exceeded 200ms threshold',
-        metric_value: 245,
-        threshold_value: 200,
-        timestamp: '2025-01-27T10:15:00Z',
-        resolved: true,
-        resolution_time: '2025-01-27T10:22:00Z'
-      },
-      {
-        id: 'guard-002',
-        type: 'storage',
-        severity: 'low',
-        description: 'Cache hit rate below 90% threshold',
-        metric_value: 87.3,
-        threshold_value: 90,
-        timestamp: '2025-01-27T09:45:00Z',
-        resolved: true,
-        resolution_time: '2025-01-27T10:30:00Z'
-      },
-      {
-        id: 'guard-003',
-        type: 'rate_limit',
-        severity: 'high',
-        description: 'Rate limit violations detected from IP range',
-        metric_value: 125,
-        threshold_value: 100,
-        timestamp: '2025-01-27T08:20:00Z',
-        resolved: false
-      }
-    ],
-    summary: {
-      total_violations: 15,
-      active_violations: 2,
-      critical_violations: 0,
-      violation_rate: 0.12, // violations per hour
-      mttr: 18.5 // minutes
-    },
-    last_updated: now
+    storage_costs: null,
+    compute_costs: null,
+    bandwidth_costs: null,
+    total_monthly_cost: totalMonthlyCost,
+    cost_per_request: costPerRequest,
+    cost_efficiency_score: null,
+    projected_monthly_cost: totalMonthlyCost,
+    last_updated: dashboard.timestamp,
+    data_available: costPerRequest !== null,
+    notes: costPerRequest
+      ? 'Calculated from live request volume and COST_PER_REQUEST'
+      : 'COST_PER_REQUEST not configured; returning live volume without cost breakdown',
+    usage_sample: {
+      requests_per_minute: requestsPerMinute
+    }
   };
 }
 
@@ -225,30 +287,7 @@ export async function getDashboardMetrics(
   try {
     logger.info('Fetching dashboard metrics');
 
-    const cache = createCacheInstance(env);
-    const cacheKey = 'dashboard:metrics:overall';
-
-    // Try to get from cache first
-    const cachedMetrics = await cache.get(cacheKey);
-    if (cachedMetrics) {
-      logger.debug('Dashboard metrics retrieved from cache', { cacheKey });
-      const body = ApiResponseFactory.success(cachedMetrics, {
-        requestId: headers['X-Request-ID'],
-        cached: true
-      });
-      return new Response(JSON.stringify(body), {
-        status: HttpStatus.OK,
-        headers
-      });
-    }
-
-    // Generate fresh metrics
-    const metrics = generateSampleDashboardMetrics();
-
-    // Cache the results
-    await cache.set(cacheKey, metrics, DASHBOARD_CACHE_TTL);
-
-    logger.info('Dashboard metrics generated and cached', { cacheKey });
+    const metrics = await buildDashboardMetrics(env);
 
     const body = ApiResponseFactory.success(metrics, {
       requestId: headers['X-Request-ID'],
@@ -295,30 +334,7 @@ export async function getCostToServeMetrics(
   try {
     logger.info('Fetching cost-to-serve metrics');
 
-    const cache = createCacheInstance(env);
-    const cacheKey = 'dashboard:economics:cost_to_serve';
-
-    // Try to get from cache first
-    const cachedEconomics = await cache.get(cacheKey);
-    if (cachedEconomics) {
-      logger.debug('Cost-to-serve metrics retrieved from cache', { cacheKey });
-      const body = ApiResponseFactory.success(cachedEconomics, {
-        requestId: headers['X-Request-ID'],
-        cached: true
-      });
-      return new Response(JSON.stringify(body), {
-        status: HttpStatus.OK,
-        headers
-      });
-    }
-
-    // Generate fresh cost-to-serve data
-    const economics = generateSampleCostToServeMetrics();
-
-    // Cache the results
-    await cache.set(cacheKey, economics, ECONOMICS_CACHE_TTL);
-
-    logger.info('Cost-to-serve metrics generated and cached', { cacheKey });
+    const economics = await buildCostToServeMetrics(env);
 
     const body = ApiResponseFactory.success(economics, {
       requestId: headers['X-Request-ID'],
@@ -368,61 +384,20 @@ export async function getGuardViolationData(
     const url = new URL(request.url);
     const queryParams = Object.fromEntries(url.searchParams.entries());
 
-    // Parse query parameters
     const activeOnly = queryParams.active_only === 'true';
-    const severity = queryParams.severity as string; // low, medium, high, critical
-    const limit = parseInt(queryParams.limit || '50');
-    const offset = parseInt(queryParams.offset || '0');
+    const severity = queryParams.severity as string;
+    const limit = parseInt(queryParams.limit || '50', 10);
+    const offset = parseInt(queryParams.offset || '0', 10);
 
-    const cache = createCacheInstance(env);
-    const cacheKey = `dashboard:guards:violations:${activeOnly}:${severity}:${limit}:${offset}`;
+    const { dashboard } = await getMonitoringSnapshot(env);
+    const guardData = buildGuardViolations(dashboard.active_alerts, {
+      activeOnly,
+      severity,
+      limit,
+      offset
+    });
 
-    // Try to get from cache first
-    const cachedViolations = await cache.get(cacheKey);
-    if (cachedViolations) {
-      logger.debug('Guard violation data retrieved from cache', { cacheKey });
-      const body = ApiResponseFactory.success(cachedViolations, {
-        requestId: headers['X-Request-ID'],
-        cached: true
-      });
-      return new Response(JSON.stringify(body), {
-        status: HttpStatus.OK,
-        headers
-      });
-    }
-
-    // Generate fresh guard violation data
-    let violationData = generateSampleGuardViolationData();
-
-    // Apply filters
-    if (activeOnly) {
-      violationData.violations = violationData.violations.filter(v => !v.resolved);
-    }
-
-    if (severity) {
-      violationData.violations = violationData.violations.filter(v => v.severity === severity);
-    }
-
-    // Apply pagination
-    const totalCount = violationData.violations.length;
-    violationData.violations = violationData.violations.slice(offset, offset + limit);
-
-    const paginatedData = {
-      ...violationData,
-      pagination: {
-        total_count: totalCount,
-        limit,
-        offset,
-        has_more: offset + limit < totalCount
-      }
-    };
-
-    // Cache the filtered results
-    await cache.set(cacheKey, paginatedData, DASHBOARD_CACHE_TTL);
-
-    logger.info('Guard violation data generated and cached', { cacheKey });
-
-    const body = ApiResponseFactory.success(paginatedData, {
+    const body = ApiResponseFactory.success(guardData, {
       requestId: headers['X-Request-ID'],
       cached: false,
       ttl: DASHBOARD_CACHE_TTL
@@ -467,22 +442,25 @@ export async function getDashboardHealth(
   try {
     logger.info('Checking dashboard system health');
 
+    const { dashboard, cacheStats } = await getMonitoringSnapshot(env);
+    const systemMetrics = dashboard.system_metrics;
+
     const health = {
-      status: 'healthy',
+      status: systemMetrics.system_health.status,
       version: '3.0.0',
-      uptime: process.uptime ? Math.floor(process.uptime()) : 0,
+      uptime: Math.floor((systemMetrics.uptime_ms || 0) / 1000),
       timestamp: new Date().toISOString(),
       components: {
-        api: { status: 'healthy', response_time: 45 },
-        cache: { status: 'healthy', hit_rate: 94.2 },
-        database: { status: 'healthy', connection_time: 12 },
-        ai_models: { status: 'healthy', response_time: 850 }
+        api: { status: systemMetrics.api_health.fred_api, response_time: systemMetrics.performance.average_response_time_ms },
+        cache: { status: systemMetrics.api_health.cache_system, hit_rate: normalizeHitRate(cacheStats?.hitRate ?? systemMetrics.data_quality.cache_hit_rate) },
+        database: { status: 'unknown', connection_time: null },
+        ai_models: { status: systemMetrics.api_health.ai_models, response_time: systemMetrics.performance.average_response_time_ms }
       },
       metrics: {
-        requests_per_minute: 1250,
-        error_rate: 0.8,
-        memory_usage: 71.8,
-        disk_usage: 58.9
+        requests_per_minute: systemMetrics.performance.requests_per_minute,
+        error_rate: systemMetrics.performance.error_rate,
+        memory_usage: null,
+        disk_usage: cacheStats?.memoryUsage ?? null
       }
     };
 
@@ -527,60 +505,17 @@ export async function refreshDashboardData(
   headers: Record<string, string>
 ): Promise<Response> {
   try {
-    logger.info('Force refreshing dashboard data');
-
     const url = new URL(request.url);
     const queryParams = Object.fromEntries(url.searchParams.entries());
-
-    // Parse refresh targets
     const targets = (queryParams.targets || 'all').split(',').map(t => t.trim());
 
-    const cache = createCacheInstance(env);
-    const refreshResults: Array<{ target: string; success: boolean; message: string }> = [];
+    logger.info('Dashboard refresh requested', { targets });
 
-    for (const target of targets) {
-      try {
-        let cacheKey: string;
-        switch (target) {
-          case 'metrics':
-            cacheKey = 'dashboard:metrics:overall';
-            await cache.delete(cacheKey);
-            refreshResults.push({ target, success: true, message: 'Metrics cache cleared' });
-            break;
-          case 'economics':
-            cacheKey = 'dashboard:economics:cost_to_serve';
-            await cache.delete(cacheKey);
-            refreshResults.push({ target, success: true, message: 'Economics cache cleared' });
-            break;
-          case 'guards':
-            // Clear all guard-related cache keys
-            const guardKeys = await cache.getKeys('dashboard:guards:*');
-            for (const key of guardKeys) {
-              await cache.delete(key);
-            }
-            refreshResults.push({ target, success: true, message: `${guardKeys.length} guard cache entries cleared` });
-            break;
-          case 'all':
-            const allKeys = await cache.getKeys('dashboard:*');
-            for (const key of allKeys) {
-              await cache.delete(key);
-            }
-            refreshResults.push({ target, success: true, message: `${allKeys.length} dashboard cache entries cleared` });
-            break;
-          default:
-            refreshResults.push({ target, success: false, message: `Unknown target: ${target}` });
-        }
-      } catch (error: any) {
-        refreshResults.push({ target, success: false, message: error.message });
-      }
-    }
-
-    logger.info('Dashboard refresh completed', { targets, refreshResults });
-
+    // No server-side cache is used for dashboard responses, so nothing to clear.
     const body = ApiResponseFactory.success({
       refreshed_at: new Date().toISOString(),
       targets_requested: targets,
-      results: refreshResults
+      message: 'Dashboard responses are generated live; no cached entries were cleared.'
     }, {
       requestId: headers['X-Request-ID']
     });

@@ -45,51 +45,24 @@ export class FREDDataIntegration {
   private readonly circuitBreaker;
 
   constructor(config: Partial<DataSourceConfig> = {}) {
-    const apiKey = process.env.FRED_API_KEY || '';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const allowGracefulDegradation = process.env.FRED_ALLOW_DEGRADATION === 'true';
-
-    if (!apiKey) {
-      if (isDevelopment || allowGracefulDegradation) {
-        logger.warn('FRED_API_KEY not configured - using graceful degradation mode');
-        this.config = {
-          name: 'FRED',
-          baseUrl: 'https://api.stlouisfed.org/fred',
-          apiKey: '',
-          timeoutMs: 30000,
-          retryAttempts: 1, // Reduce retries in degradation mode
-          cacheTtlMs: 3600000,
-          ...config
-        };
-        return;
-      }
-
-      throw new Error('FRED_API_KEY environment variable is required for real economic data in production');
-    }
-
-    // Validate API key is not a mock/test key
-    try {
-      mockGuard.validateConfig({ apiKey }, 'FREDDataIntegration');
-    } catch (error) {
-      if (allowGracefulDegradation) {
-        logger.warn('FRED API key validation failed - proceeding with degraded mode', { error });
-      } else {
-        throw error;
-      }
-    }
-
+    // In Cloudflare Workers, env vars are passed at runtime, not available at module init
+    // Default to graceful degradation mode - actual API key can be passed via config
+    const apiKey = config.apiKey || '';
+    
+    // Always allow graceful degradation in constructor - validation happens at request time
+    logger.info('FREDDataIntegration initialized in lazy mode - API key validated at request time');
     this.config = {
       name: 'FRED',
       baseUrl: 'https://api.stlouisfed.org/fred',
       apiKey,
       timeoutMs: 30000,
       retryAttempts: 3,
-      cacheTtlMs: 3600000, // 1 hour
+      cacheTtlMs: 3600000,
       ...config
     };
 
     // Initialize circuit breaker for FRED API calls
-    this.circuitBreaker = CircuitBreakerFactory.create('fred-api', {
+    this.circuitBreaker = CircuitBreakerFactory.getInstance('fred-api', {
       failureThreshold: 5,
       successThreshold: 3,
       openTimeout: 60000, // 1 minute
@@ -272,7 +245,7 @@ export class YahooFinanceIntegration {
 
   constructor() {
     // Initialize circuit breaker for Yahoo Finance API calls
-    this.circuitBreaker = CircuitBreakerFactory.create('yahoo-finance', {
+    this.circuitBreaker = CircuitBreakerFactory.getInstance('yahoo-finance', {
       failureThreshold: 3,
       successThreshold: 2,
       openTimeout: 30000, // 30 seconds
@@ -348,7 +321,7 @@ export class YahooFinanceIntegration {
           volume: currentData.volume[currentData.volume.length - 1] || 0
         }, `YahooFinance.${symbol}`);
 
-        const marketData: MarketData = {
+        const result: MarketData = {
           symbol,
           price,
           change,
@@ -358,8 +331,8 @@ export class YahooFinanceIntegration {
         };
 
         // Cache the result
-        this.cache.set(cacheKey, { data: marketData, timestamp: Date.now() });
-        results.push(marketData);
+        this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
+        results.push(result);
 
         logger.debug(`Successfully fetched ${symbol}: ${price}`, { symbol, price, change });
 
