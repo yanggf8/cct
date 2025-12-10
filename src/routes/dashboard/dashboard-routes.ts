@@ -128,12 +128,22 @@ function mapAlertCategory(alert: Alert): GuardViolationData['violations'][number
   }
 }
 
+// Singleton monitoring instance per isolate to accumulate alerts/history
+let monitoringInstance: ReturnType<typeof initializeRealTimeMonitoring> | null = null;
+
+function getMonitoringInstance(env: CloudflareEnvironment) {
+  if (!monitoringInstance) {
+    monitoringInstance = initializeRealTimeMonitoring(env, {
+      alertingEnabled: true,
+      performanceTrackingEnabled: true,
+      metricsRetentionHours: 6
+    });
+  }
+  return monitoringInstance;
+}
+
 async function getMonitoringSnapshot(env: CloudflareEnvironment) {
-  const monitoring = initializeRealTimeMonitoring(env, {
-    alertingEnabled: true,
-    performanceTrackingEnabled: true,
-    metricsRetentionHours: 6
-  });
+  const monitoring = getMonitoringInstance(env);
 
   const dashboard = await monitoring.getDashboardData();
   const cache = createCacheInstance(env);
@@ -249,7 +259,8 @@ async function buildCostToServeMetrics(env: CloudflareEnvironment): Promise<Cost
   const { dashboard } = await getMonitoringSnapshot(env);
   const requestsPerMinute = dashboard.system_metrics.performance.requests_per_minute || 0;
   const costPerRequestEnv = env.COST_PER_REQUEST || env.DASHBOARD_COST_PER_REQUEST;
-  const costPerRequest = costPerRequestEnv ? Number(costPerRequestEnv) : null;
+  const costPerRequestRaw = costPerRequestEnv ? Number(costPerRequestEnv) : null;
+  const costPerRequest = costPerRequestRaw !== null && Number.isFinite(costPerRequestRaw) ? costPerRequestRaw : null;
 
   const monthlyRequests = requestsPerMinute * 60 * 24 * 30;
   const totalMonthlyCost = costPerRequest !== null
@@ -268,7 +279,7 @@ async function buildCostToServeMetrics(env: CloudflareEnvironment): Promise<Cost
     data_available: costPerRequest !== null,
     notes: costPerRequest
       ? 'Calculated from live request volume and COST_PER_REQUEST'
-      : 'COST_PER_REQUEST not configured; returning live volume without cost breakdown',
+      : 'COST_PER_REQUEST not configured or invalid; returning live volume without cost breakdown',
     usage_sample: {
       requests_per_minute: requestsPerMinute
     }
