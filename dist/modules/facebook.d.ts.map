@@ -1,1 +1,0 @@
-{"version":3,"file":"facebook.d.ts","sourceRoot":"","sources":["../../src/modules/facebook.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,MAAM,WAAW,qBAAqB;IACpC,EAAE,EAAE,OAAO,CAAC;IACZ,IAAI,EAAE,MAAM,CAAC;IACb,OAAO,EAAE,MAAM,CAAC;CACjB;AAED,wBAAsB,mBAAmB,CACvC,IAAI,EAAE,MAAM,EACZ,OAAO,EAAE,MAAM,GACd,OAAO,CAAC,qBAAqB,CAAC,CAGhC"}
