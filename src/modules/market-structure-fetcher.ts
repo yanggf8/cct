@@ -948,6 +948,7 @@ export class MarketStructureFetcher {
         apiCallCount: 10,
       },
     };
+    }
   }
 
   /**
