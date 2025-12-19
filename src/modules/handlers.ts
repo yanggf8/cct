@@ -166,7 +166,7 @@ export async function handleManualAnalysis(request: Request, env: CloudflareEnvi
 export async function handleGetResults(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const date = (url as any).searchParamsget('date') || new Date().toISOString().split('T')[0];
+    const date = (url as any).searchParams.get('date') || new Date().toISOString().split('T')[0];
 
     // Try to get stored results from KV
     const resultKey = `analysis_${date}`;
@@ -738,7 +738,7 @@ export async function handleDebugWeekendMessage(request: Request, env: Cloudflar
 export async function handleKVGet(request: Request, env: CloudflareEnvironment): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const key = (url as any).searchParamsget('key');
+    const key = (url as any).searchParams.get('key');
 
     if (!key) {
       return new Response(JSON.stringify({
@@ -893,7 +893,7 @@ export async function handleKVReadTest(request: Request, env: CloudflareEnvironm
     console.log('🧪 [KV-READ-TEST] Starting KV read test...');
 
     const url = new URL(request.url);
-    const key = (url as any).searchParamsget('key');
+    const key = (url as any).searchParams.get('key');
 
     if (!key) {
       return new Response(JSON.stringify({
@@ -1016,7 +1016,7 @@ export async function handleTestLlama(request: Request, env: CloudflareEnvironme
     }
 
     const url = new URL(request.url);
-    const model = (url as any).searchParamsget('model') || '@cf/meta/llama-3.1-8b-instruct';
+    const model = (url as any).searchParams.get('model') || '@cf/meta/llama-3.1-8b-instruct';
 
     console.log(`🦙 Testing Cloudflare AI model: ${model}`);
 
@@ -1154,7 +1154,7 @@ export async function handleModelScopeTest(request: Request, env: CloudflareEnvi
       }
     } else {
       const url = new URL(request.url);
-      apiKey = (url as any).searchParamsget('key') || undefined;
+      apiKey = (url as any).searchParams.get('key') || undefined;
     }
 
     if (!apiKey) {
@@ -1870,7 +1870,7 @@ export async function handlePerSymbolAnalysis(request: Request, env: CloudflareE
 
     // Get symbol from URL query parameters
     const url = new URL(request.url);
-    const symbol = (url as any).searchParamsget('symbol');
+    const symbol = (url as any).searchParams.get('symbol');
 
     console.log('🔍 [TROUBLESHOOT] Extracted symbol:', symbol);
     console.log('🔍 [TROUBLESHOOT] All query params:', Object.fromEntries((url as any).searchParamsentries()));
@@ -1903,9 +1903,9 @@ export async function handlePerSymbolAnalysis(request: Request, env: CloudflareE
 
     // Get optional analysis parameters
     const options: AnalysisOptions = {
-      includeTechnical: (url as any).searchParamsget('include-technical') === 'true',
-      timeHorizon: (url as any).searchParamsget('time-horizon') || 'short',
-      confidenceThreshold: parseFloat((url as any).searchParamsget('confidence-threshold')) || 0.6
+      includeTechnical: (url as any).searchParams.get('include-technical') === 'true',
+      timeHorizon: (url as any).searchParams.get('time-horizon') || 'short',
+      confidenceThreshold: parseFloat((url as any).searchParams.get('confidence-threshold')) || 0.6
     };
 
     console.log(`🎯 [TROUBLESHOOT] Analyzing symbol: ${symbol.toUpperCase()} with options:`, options);
@@ -1959,7 +1959,7 @@ export async function handleDailySummaryAPI(request: Request, env: CloudflareEnv
     console.log('📊 [DAILY-SUMMARY-API] Daily summary API requested');
 
     const url = new URL(request.url);
-    const dateParam = (url as any).searchParamsget('date');
+    const dateParam = (url as any).searchParams.get('date');
 
     console.log('📅 [DAILY-SUMMARY-API] Date parameter:', dateParam);
 
@@ -2026,9 +2026,9 @@ export async function handleBackfillDailySummaries(request: Request, env: Cloudf
     console.log('🔄 [BACKFILL] Historical backfill requested');
 
     const url = new URL(request.url);
-    const days = parseInt((url as any).searchParamsget('days')) || 30;
-    const skipExisting = (url as any).searchParamsget('skip-existing') !== 'false';
-    const tradingDaysOnly = (url as any).searchParamsget('trading-days-only') === 'true';
+    const days = parseInt((url as any).searchParams.get('days')) || 30;
+    const skipExisting = (url as any).searchParams.get('skip-existing') !== 'false';
+    const tradingDaysOnly = (url as any).searchParams.get('trading-days-only') === 'true';
 
     console.log(`🔄 [BACKFILL] Parameters: days=${days}, skipExisting=${skipExisting}, tradingDaysOnly=${tradingDaysOnly}`);
 
@@ -2084,7 +2084,7 @@ export async function handleVerifyBackfill(request: Request, env: CloudflareEnvi
     console.log('🔍 [BACKFILL-VERIFY] Backfill verification requested');
 
     const url = new URL(request.url);
-    const days = parseInt((url as any).searchParamsget('days')) || 10;
+    const days = parseInt((url as any).searchParams.get('days')) || 10;
 
     console.log(`🔍 [BACKFILL-VERIFY] Verifying last ${days} days`);
 

@@ -8,6 +8,7 @@
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { getMigrationManager, migrationMiddleware } from '../routes/migration-manager.js';
 import { legacyCompatibilityMiddleware } from '../routes/legacy-compatibility.js';
+import { validateApiKey } from '../routes/api-v1.js';
 import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
 import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
@@ -144,6 +145,18 @@ export class EnhancedRequestHandler {
     });
 
     try {
+      // API-key validation for protected endpoints
+      const protectedPaths = ['/api/v1/data/dal-status', '/api/v1/data/migration-status', '/api/v1/data/performance-test', '/api/v1/data/cache-clear'];
+      if (protectedPaths.includes(url.pathname)) {
+        const auth = validateApiKey(request, this.env);
+        if (!auth.valid) {
+          return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
       // Route to enhanced handlers
       let response: Response;
 
@@ -159,6 +172,7 @@ export class EnhancedRequestHandler {
           break;
 
         case '/api/v1/data/health':
+          // Health check - public access
           response = await this.handleEnhancedHealthCheck();
           break;
 
@@ -463,8 +477,8 @@ export class EnhancedRequestHandler {
    * Enhanced health check with DAL and migration status
    */
   private async handleEnhancedHealthCheck(): Promise<Response> {
-    const dalStats = (this as any).dalgetPerformanceStats();
-    const migrationConfig = (this as any).migrationManagergetConfig();
+    const dalStats = (this as any).dal.getPerformanceStats();
+    const migrationConfig = (this as any).migrationManager.getConfig();
 
     // Create DO cache instance to get comprehensive cache metrics
     let cacheData = null;
@@ -542,15 +556,15 @@ export class EnhancedRequestHandler {
         namespaces: cacheHealthStatus.namespaces,
         metricsHealth: cacheHealthStatus.metricsHealth,
         detailedMetrics: {
-          overallHitRate: (cacheMetricsStats as any).overallhitRate,
-          totalRequests: (cacheMetricsStats as any).overalltotalRequests,
-          l1HitRate: (cacheMetricsStats as any).layersl1.hitRate,
-          l1Hits: (cacheMetricsStats as any).layersl1.hits,
-          l1Misses: (cacheMetricsStats as any).layersl1.misses,
-          l2HitRate: (cacheMetricsStats as any).layersl2.hitRate,
-          l2Hits: (cacheMetricsStats as any).layersl2.hits,
-          l2Misses: (cacheMetricsStats as any).layersl2.misses,
-          issues: (cacheMetricsStats as any).healthissues,
+          overallHitRate: (cacheMetricsStats as any).overall.hitRate,
+          totalRequests: (cacheMetricsStats as any).overall.totalRequests,
+          l1HitRate: (cacheMetricsStats as any).layers.l1.hitRate,
+          l1Hits: (cacheMetricsStats as any).layers.l1.hits,
+          l1Misses: (cacheMetricsStats as any).layers.l1.misses,
+          l2HitRate: (cacheMetricsStats as any).layers.l2.hitRate,
+          l2Hits: (cacheMetricsStats as any).layers.l2.hits,
+          l2Misses: (cacheMetricsStats as any).layers.l2.misses,
+          issues: (cacheMetricsStats as any).health.issues,
           namespaces: cacheMetricsStats.namespaces
         }
       };
@@ -598,7 +612,7 @@ export class EnhancedRequestHandler {
    * DAL status endpoint
    */
   private async handleDALStatus(): Promise<Response> {
-    const stats = (this as any).dalgetPerformanceStats();
+    const stats = (this as any).dal.getPerformanceStats();
 
     return new Response(JSON.stringify({
       success: true,
@@ -609,9 +623,9 @@ export class EnhancedRequestHandler {
         performance: stats
       },
       cache: {
-        hit_rate: `${Math.round((stats as any).cachehitRate * 100)}%`,
-        total_operations: (stats as any).cachehits + (stats as any).cachemisses,
-        cache_size: (stats as any).performancecacheSize
+        hit_rate: `${Math.round((stats as any).cache.hitRate * 100)}%`,
+        total_operations: (stats as any).cache.hits + (stats as any).cache.misses,
+        cache_size: (stats as any).performance.cacheSize
       }
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
@@ -622,13 +636,13 @@ export class EnhancedRequestHandler {
    * Migration status endpoint
    */
   private async handleMigrationStatus(): Promise<Response> {
-    const stats = await (this as any).migrationManagergetMigrationStatistics();
+    const stats = await (this as any).migrationManager.getMigrationStatistics();
 
     return new Response(JSON.stringify({
       success: true,
       timestamp: new Date().toISOString(),
       migration: stats,
-      config: (this as any).migrationManagergetConfig()
+      config: (this as any).migrationManager.getConfig()
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
@@ -652,18 +666,18 @@ export class EnhancedRequestHandler {
 
     // Test read performance
     const readStart = Date.now();
-    const readResult = await (this as any).dalread(testKey);
+    const readResult = await (this as any).dal.read(testKey);
     const readTime = Date.now() - readStart;
 
     // Test cache performance
     const cacheStart = Date.now();
-    const cacheResult = await (this as any).dalread(testKey);
+    const cacheResult = await (this as any).dal.read(testKey);
     const cacheTime = Date.now() - cacheStart;
 
     // Cleanup
-    await (this as any).daldeleteKey(testKey);
+    await (this as any).dal.deleteKey(testKey);
 
-    const dalStats = (this as any).dalgetPerformanceStats();
+    const dalStats = (this as any).dal.getPerformanceStats();
 
     return new Response(JSON.stringify({
       success: true,
@@ -697,17 +711,17 @@ export class EnhancedRequestHandler {
    */
   private async handleCacheClear(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const namespace = (url as any).searchParamsget('namespace');
+    const namespace = (url as any).searchParams.get('namespace');
 
     if (namespace) {
-      (this as any).dalclearCache();
+      (this as any).dal.clearCache();
       // Note: In simplified DAL, clearCache clears all cache
       // For namespace-specific clearing, would need enhanced implementation
     } else {
-      (this as any).dalclearCache();
+      (this as any).dal.clearCache();
     }
 
-    const stats = (this as any).dalgetPerformanceStats();
+    const stats = (this as any).dal.getPerformanceStats();
 
     return new Response(JSON.stringify({
       success: true,
@@ -725,14 +739,14 @@ export class EnhancedRequestHandler {
    * Expose DAL performance stats for external diagnostics.
    */
   public getDalPerformanceStats(): any {
-    return (this as any).dalgetPerformanceStats();
+    return (this as any).dal.getPerformanceStats();
   }
 
   /**
    * Expose migration statistics for external diagnostics.
    */
   public async getMigrationStatistics(): Promise<any> {
-    return await (this as any).migrationManagergetMigrationStatistics();
+    return await (this as any).migrationManager.getMigrationStatistics();
   }
 }
 

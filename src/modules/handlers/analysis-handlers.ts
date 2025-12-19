@@ -305,7 +305,7 @@ export async function handleIndependentTechnicalAnalysis(request: Request, env: 
 export async function handlePerSymbolAnalysis(request: Request, env: CloudflareEnvironment): Promise<Response> {
   const requestId = crypto.randomUUID();
   const url = new URL(request.url);
-  const symbol = (url as any).searchParamsget('symbol');
+  const symbol = (url as any).searchParams.get('symbol');
 
   try {
     if (!symbol) {

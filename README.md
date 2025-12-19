@@ -10,6 +10,12 @@
 
 ## 🚀 Revolutionary Features (Latest Achievements)
 
+### **🐛 Critical Bug Fixes (2025-12-19)**
+- ✅ **Runtime TypeError Fix**: Fixed `searchParamsget` → `searchParams.get` (16 occurrences)
+- ✅ **DAL Method Calls Fix**: Fixed missing dots in `dal.read`, `dal.getPerformanceStats`, etc.
+- ✅ **API Auth Protection**: Added API-key validation for `/api/v1/data/*` protected endpoints
+- ✅ **Multi-Key Auth Support**: Uses `validateApiKey` for comma-separated key support
+
 ### **📊 Phase 3 BI Dashboard Scaffolding Complete (2025-11-28)**
 - ✅ **Business Intelligence Dashboard**: Real-time operational health monitoring with cost-to-serve intelligence
 - ✅ **Cost-to-Serve Analytics**: Storage, compute, bandwidth cost analysis with efficiency scoring
