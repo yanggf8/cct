@@ -50,7 +50,7 @@ jobs:
 
           # Phase 1: Mock prevention
           echo "Phase 1: Mock Prevention Scan"
-          ./test-mock-prevention-scan.sh strict
+          ./tests/feature/mock-elimination/test-mock-prevention-scan.sh strict
 
           # Phase 2: Build verification
           echo "Phase 2: Build Verification"
@@ -400,7 +400,7 @@ jobs:
           - ✅ Synthetic monitoring
 
           ## 🚨 Rollback Information
-          - **Rollback Script**: \`./rollback-production.sh emergency\`
+          - **Rollback Script**: \`./scripts/deployment/rollback-production.sh emergency\`
           - **Previous Version**: Use git checkout to previous tag
           - **Support**: Check SLO dashboard and alerting
 
@@ -469,7 +469,7 @@ jobs:
           fi
 
           # Run synthetic monitoring to validate deployment
-          ./test-synthetic-monitoring-html.sh || echo "Synthetic monitoring completed"
+          ./tests/validation/test-synthetic-monitoring-html.sh || echo "Synthetic monitoring completed"
 
       - name: Update Deployment Status
         run: |

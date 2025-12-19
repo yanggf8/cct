@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Phase 3 BI Dashboard Scaffolding Complete
-- **Current Version**: Latest (2025-11-28 - Phase 3 Business Intelligence Dashboard Implementation + Critical Issues Resolution)
+**Status**: ✅ **PRODUCTION READY** - Phase 3 BI Dashboard + Test Organization Complete
+- **Current Version**: Latest (2025-12-19 - Test & Script Organization + Phase 3 BI Dashboard)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -18,11 +18,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Market Clock**: Real-time with unified logic ✅
 - **Integration**: All components properly connected ✅
 - **Code Quality**: Enhanced with refactored metrics and cleanup ✅
+- **Test Organization**: 54 scripts organized into logical structure ✅
 
 ### ✅ **Revolutionary Achievements (Latest)**
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Test & Script Organization** | ✅ Complete | 54 scripts reorganized into logical structure - 38 tests + 16 scripts, improved maintainability |
 | **Phase 3 BI Dashboard Scaffolding** | ✅ Complete | Business Intelligence dashboard with cost-to-serve intelligence, real-time guard monitoring |
 | **BI Dashboard API Infrastructure** | ✅ Complete | 5 new endpoints for operational health, cost economics, guard violation tracking |
 | **Cost-to-Serve Intelligence** | ✅ Complete | Real-time cost analysis across storage, compute, bandwidth with efficiency scoring |
@@ -244,12 +246,52 @@ Sunday (10:00 AM):  Weekly Review        → Pattern analysis
 - `public/bi-dashboard.html` - **NEW** BI Dashboard frontend interface
 - `public/js/dashboard/` - **NEW** Dashboard client-side modules
 
-**Test Scripts:**
-- `test-do-cache.sh` - DO cache validation (9 scenarios)
-- `test-pre-market-data-bridge.sh` - Pre-market solution testing
-- `test-working-cache-endpoints.sh` - Cache endpoint coverage (80%)
-- `scripts/test-cache-economics.sh` - **NEW** Cost-to-serve validation (Phase 3)
-- `scripts/test-d1-rollups.sh` - **NEW** Aggregation query testing (Phase 3)
+### **Test & Script Organization** ⭐ **REORGANIZED 2025-12-19**
+
+**54 scripts organized** into logical directories for better maintainability:
+
+**Test Scripts** (`tests/` - 38 scripts)
+```
+tests/
+├── integration/        # Integration & system tests (8)
+│   ├── dac/           # DO cache integration (4)
+│   ├── frontend/      # Frontend integration (2)
+│   ├── data-bridge/   # Data bridge tests (1)
+│   └── *.sh           # General integration (1)
+├── security/          # Security & auth tests (6)
+├── performance/       # Performance & load tests (2)
+├── validation/        # Data & schema validation (6)
+├── e2e/               # End-to-end workflows (2)
+├── regression/        # Regression suites (4)
+├── feature/           # Feature-specific tests (9)
+│   ├── ai-models/     # AI model tests (2)
+│   ├── portfolio/     # Portfolio tests (3)
+│   ├── sector/        # Sector tests (1)
+│   └── mock-elimination/ # Mock prevention (3)
+└── chaos/             # Chaos engineering (1)
+```
+
+**Operational Scripts** (`scripts/` - 16 scripts)
+```
+scripts/
+├── deployment/        # Deploy, rollback, warmup (4)
+├── test-runners/      # Test orchestration (3)
+├── utilities/         # Helper scripts (3)
+├── setup/             # Setup & initialization (2)
+└── monitoring/        # Production monitoring (4)
+```
+
+**Key Scripts:**
+- `tests/integration/dac/test-dac-integration.sh` - DO cache validation (9 scenarios)
+- `tests/integration/data-bridge/test-pre-market-data-bridge.sh` - Pre-market testing
+- `scripts/deployment/deploy-production.sh` - Production deployment
+- `scripts/monitoring/test-cache-economics.sh` - Cost-to-serve validation (Phase 3)
+- `scripts/monitoring/test-d1-rollups.sh` - Aggregation query testing (Phase 3)
+
+**Documentation:**
+- `tests/README.md` - Comprehensive test suite guide
+- `scripts/README.md` - Operational scripts documentation
+- `TEST_AND_SCRIPT_INDEX.md` - Master index with migration details
 
 ---
 
@@ -308,11 +350,11 @@ Sunday (10:00 AM):  Weekly Review        → Pattern analysis
 ```bash
 npm run test:performance    # Playwright performance tests
 npm run test:workflows      # End-to-end workflows
-./test-do-cache.sh         # DO cache validation
-./test-pre-market-data-bridge.sh  # Pre-market testing
-./test-working-cache-endpoints.sh # Cache endpoint coverage
-./scripts/test-cache-economics.sh  # Phase 3: Cost-to-serve validation
-./scripts/test-d1-rollups.sh         # Phase 3: Aggregation query testing
+./tests/integration/dac/test-dac-integration.sh         # DO cache validation
+./tests/integration/data-bridge/test-pre-market-data-bridge.sh  # Pre-market testing
+./scripts/utilities/validate-enhanced-cache.sh       # Cache endpoint coverage
+./scripts/monitoring/test-cache-economics.sh  # Phase 3: Cost-to-serve validation
+./scripts/monitoring/test-d1-rollups.sh         # Phase 3: Aggregation query testing
 ```
 
 ---
@@ -329,14 +371,14 @@ wrangler secret put FEATURE_FLAG_DO_CACHE
 # Enter: true
 
 # Validate deployment
-./test-do-cache.sh
-./test-working-cache-endpoints.sh
+./tests/integration/dac/test-dac-integration.sh
+./tests/integration/test-working-cache-endpoints.sh
 ```
 
 ### **Validate Pre-Market Fix**
 ```bash
 # Test pre-market data bridge
-./test-pre-market-data-bridge.sh
+./tests/integration/data-bridge/test-pre-market-data-bridge.sh
 
 # Verify fix
 curl -s "https://tft-trading-system.yanggf.workers.dev/pre-market-briefing"
@@ -410,6 +452,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2025-11-28
-**Current Version**: Production Ready with Phase 3 Business Intelligence Dashboard Implementation
-**Major Updates**: Phase 3 BI Dashboard Scaffolding - Cost-to-serve intelligence, guard violation monitoring, 5 new dashboard endpoints, comprehensive testing framework, 65+ total API endpoints, real-time operational health monitoring
+**Last Updated**: 2025-12-19
+**Current Version**: Production Ready with Test Organization + Phase 3 BI Dashboard
+**Major Updates**:
+- **Test & Script Organization**: 54 scripts reorganized (38 tests + 16 operational scripts) into logical structure with comprehensive documentation
+- **Phase 3 BI Dashboard**: Cost-to-serve intelligence, guard violation monitoring, 5 new dashboard endpoints
+- **Documentation**: tests/README.md, scripts/README.md, TEST_AND_SCRIPT_INDEX.md
+- **CI/CD Updates**: All GitHub Actions workflows and npm scripts updated with new paths

@@ -9,7 +9,7 @@ on:
       - 'src/routes/enhanced-sentiment-routes.ts'
       - 'src/types/cloudflare.ts'
       - 'wrangler.toml'
-      - 'test-dac-*.sh'
+      - 'tests/integration/dac/test-dac-*.sh'
   pull_request:
     branches: [ main, master ]
     paths:
@@ -18,7 +18,7 @@ on:
       - 'src/routes/enhanced-sentiment-routes.ts'
       - 'src/types/cloudflare.ts'
       - 'wrangler.toml'
-      - 'test-dac-*.sh'
+      - 'tests/integration/dac/test-dac-*.sh'
   schedule:
     # Run regression tests daily at 6 AM UTC
     - cron: '0 6 * * *'
@@ -110,7 +110,7 @@ jobs:
           X_API_KEY: ${{ secrets.X_API_KEY }}
         run: |
           echo "🔍 Running quick DAC integration tests..."
-          ./test-dac-service-binding-comprehensive.sh quick
+          ./tests/integration/dac/test-dac-service-binding-comprehensive.sh quick
 
       - name: Run full DAC integration tests
         env:
@@ -118,7 +118,7 @@ jobs:
         if: github.event.inputs.test_type == 'full' || github.event.inputs.test_type == ''
         run: |
           echo "🧪 Running full DAC integration test suite..."
-          ./test-dac-service-binding-comprehensive.sh run
+          ./tests/integration/dac/test-dac-service-binding-comprehensive.sh run
 
       - name: Update regression baseline
         env:
@@ -126,7 +126,7 @@ jobs:
         if: github.event.inputs.test_type == 'baseline'
         run: |
           echo "📊 Updating regression baseline..."
-          ./test-dac-service-binding-comprehensive.sh baseline
+          ./tests/integration/dac/test-dac-service-binding-comprehensive.sh baseline
 
       - name: Upload test artifacts
         if: ${{ false }}
@@ -315,7 +315,7 @@ jobs:
           CCT_URL: "https://tft-trading-system.yanggf.workers.dev"
         run: |
           echo "🔍 Running synthetic monitoring for HTML endpoints..."
-          ./test-synthetic-monitoring-html.sh
+          ./tests/validation/test-synthetic-monitoring-html.sh
 
     - name: Validate production deployment
         env:

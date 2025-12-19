@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEST_SCRIPT="$SCRIPT_DIR/test-dac-service-binding-comprehensive.sh"
+TEST_SCRIPT="$SCRIPT_DIR/../integration/dac/test-dac-service-binding-comprehensive.sh"
 BASELINE_DIR="$SCRIPT_DIR/baselines"
 CURRENT_DATE=$(date +%Y%m%d)
 REPORT_DIR="$SCRIPT_DIR/test-reports"

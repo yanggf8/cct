@@ -7,9 +7,9 @@ on:
       - 'src/modules/enhanced-*.ts'
       - 'src/routes/enhanced-*.ts'
       - 'src/modules/cache-manager.ts'
-      - 'test-enhanced-*.sh'
-      - 'run-regression-tests.sh'
-      - 'test-playwright-*.sh'
+      - 'tests/integration/test-enhanced-*.sh'
+      - 'tests/regression/run-regression-tests.sh'
+      - 'tests/performance/test-playwright-*.sh'
       - 'tests/**/*.spec.js'
       - 'playwright.config.js'
   pull_request:
@@ -18,9 +18,9 @@ on:
       - 'src/modules/enhanced-*.ts'
       - 'src/routes/enhanced-*.ts'
       - 'src/modules/cache-manager.ts'
-      - 'test-enhanced-*.sh'
-      - 'run-regression-tests.sh'
-      - 'test-playwright-*.sh'
+      - 'tests/integration/test-enhanced-*.sh'
+      - 'tests/regression/run-regression-tests.sh'
+      - 'tests/performance/test-playwright-*.sh'
       - 'tests/**/*.spec.js'
       - 'playwright.config.js'
   schedule:
@@ -64,8 +64,8 @@ jobs:
 
     - name: Make test scripts executable
       run: |
-        chmod +x test-enhanced-cache-integration.sh
-        chmod +x run-regression-tests.sh
+        chmod +x scripts/utilities/validate-enhanced-cache.sh
+        chmod +x tests/regression/run-regression-tests.sh
 
     - name: Wait for deployment (if needed)
       run: |
@@ -87,7 +87,7 @@ jobs:
     - name: Run integration tests
       run: |
         echo "Running enhanced cache integration tests..."
-        ./test-enhanced-cache-integration.sh
+        ./scripts/utilities/validate-enhanced-cache.sh
 
     - name: Parse test results
       if: always()
@@ -182,7 +182,7 @@ jobs:
       if: github.event.inputs.test_type == 'baseline' || ! contains(github.ref, 'refs/heads/')
       run: |
         echo "Creating baseline..."
-        ./run-regression-tests.sh baseline "ci-$(date +%Y%m%d-%H%M%S)"
+        ./tests/regression/run-regression-tests.sh baseline "ci-$(date +%Y%m%d-%H%M%S)"
 
     - name: Run regression tests
       run: |
@@ -192,10 +192,10 @@ jobs:
 
         if [ -n "$LATEST_BASELINE" ]; then
           echo "Comparing with baseline: $LATEST_BASELINE"
-          ./run-regression-tests.sh compare "$LATEST_BASELINE"
+          ./tests/regression/run-regression-tests.sh compare "$LATEST_BASELINE"
         else
           echo "No baseline found, creating one..."
-          ./run-regression-tests.sh baseline "ci-$(date +%Y%m%d-%H%M%S)"
+          ./tests/regression/run-regression-tests.sh baseline "ci-$(date +%Y%m%d-%H%M%S)"
         fi
 
     - name: Upload regression reports
@@ -260,15 +260,15 @@ jobs:
           "$API_URL/cache-warmup" | jq .
 
         # Run Playwright performance tests (if available)
-        if [ -f "test-playwright-performance.sh" ] && [ -d "tests" ]; then
+        if [ -f "tests/performance/test-playwright-performance.sh" ] && [ -d "tests" ]; then
           echo "Running Playwright performance tests..."
-          chmod +x test-playwright-performance.sh
+          chmod +x tests/performance/test-playwright-performance.sh
 
           # Install Playwright dependencies
           npm install @playwright/test || echo "Playwright dependencies installation skipped"
 
           # Run performance tests
-          ./test-playwright-performance.sh || echo "⚠️ Playwright tests completed with some issues"
+          ./tests/performance/test-playwright-performance.sh || echo "⚠️ Playwright tests completed with some issues"
         else
           echo "⚠️ Playwright tests not available - skipping"
 

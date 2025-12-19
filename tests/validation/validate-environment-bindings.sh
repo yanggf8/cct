@@ -176,13 +176,13 @@ else
 fi
 
 # Check for deployment scripts
-if [ -f "deploy-production.sh" ]; then
+if [ -f "scripts/deployment/deploy-production.sh" ]; then
     success "Production deployment script found"
 else
     warning "Production deployment script not found"
 fi
 
-if [ -f "quick-deploy.sh" ]; then
+if [ -f "scripts/deployment/quick-deploy.sh" ]; then
     success "Quick deployment script found"
 else
     warning "Quick deployment script not found"

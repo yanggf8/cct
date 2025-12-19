@@ -53,7 +53,7 @@ jobs:
           echo ""
 
           # Run the warmup script
-          ./scripts/warmup-cache-after-deployment.sh
+          ./scripts/deployment/warmup-cache-after-deployment.sh
 
           echo ""
           echo "✅ Cache warmup completed!"

@@ -44,7 +44,7 @@ jobs:
         echo "🔍 Running comprehensive mock elimination audit..."
 
         # Run the audit script
-        if timeout 120 ./mock-elimination-audit.sh; then
+        if timeout 120 ./tests/feature/mock-elimination/mock-elimination-audit.sh; then
           echo "✅ Mock elimination audit passed"
           echo "audit_status=passed" >> $GITHUB_OUTPUT
         else
@@ -278,7 +278,7 @@ jobs:
             commentBody += `### 🔧 Required Actions\n`;
             commentBody += `1. **Run mock elimination audit locally:**\n`;
             commentBody += `   \`\`\`bash\n`;
-            commentBody += `   ./mock-elimination-audit.sh\n`;
+            commentBody += `   ./tests/feature/mock-elimination/mock-elimination-audit.sh\n`;
             commentBody += `   \`\`\`\n\n`;
             commentBody += `2. **Replace mock functions** with real data integration:\n`;
             commentBody += `   - Use \`RealEconomicIndicators\` from \`src/modules/real-data-integration.ts\`\n`;
