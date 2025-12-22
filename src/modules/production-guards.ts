@@ -215,7 +215,7 @@ export class ProductionGuards {
     const checkForPlaceholders = (obj: any) => {
       if (obj && typeof obj === 'object') {
         Object.values(obj).forEach(value => {
-          if (placeholderPatterns.includes(value) ||
+          if (placeholderPatterns.includes(value as any) ||
               (typeof value === 'string' && placeholderPatterns.includes(value.toUpperCase()))) {
             issues.push('placeholder_values_detected');
             isMockLike = true;

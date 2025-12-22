@@ -2,6 +2,9 @@
  * Enhanced Cache API Routes
  * Provides 6 endpoints for testing and monitoring enhanced cache features
  * (Load testing removed - dual cache functionality covered by integration tests)
+ * 
+ * NOTE: Cache warmup functions are for TESTING ONLY and should not be used
+ * to populate production caches. Production data must come from real sources.
  */
 
 import { createLogger } from '../modules/logging.js';
@@ -10,6 +13,16 @@ import { getMetricsConfig } from '../modules/config.js';
 import { StorageGuards, type GuardConfig } from '../modules/storage-guards.js';
 
 const logger = createLogger('enhanced-cache-routes');
+
+// Helper to check if cache warmup is allowed
+// Production requires explicit ALLOW_CACHE_WARMUP=true override
+function isWarmupAllowed(env: any): boolean {
+  const allowFlag = env?.ALLOW_CACHE_WARMUP === 'true' || env?.ALLOW_CACHE_WARMUP === true;
+  if (env?.ENVIRONMENT === 'production') {
+    return allowFlag; // Production requires explicit opt-in
+  }
+  return allowFlag || env?.ENVIRONMENT !== 'production'; // Non-production allows by default or with flag
+}
 
 /**
  * Helper functions for timestamp formatting
@@ -53,57 +66,76 @@ function getFreshnessStatus(timestampInfo: any): string {
 
 /**
  * Cache warmup data generators
- * These functions create realistic test data for different cache namespaces
+ * WARNING: These functions generate TEST DATA ONLY for development/testing.
+ * They are blocked in production environments.
  */
 
-function generateMarketDataWarmup(symbols: string[]): Array<{namespace: string, key: string, data: any, ttl?: number}> {
+function generateMarketDataWarmup(symbols: string[], env: any): Array<{namespace: string, key: string, data: any, ttl?: number}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   return symbols.map(symbol => ({
     namespace: 'market_data',
     key: `${symbol}_quote`,
     data: {
       symbol,
-      price: 100 + Math.random() * 200,
-      volume: Math.floor(Math.random() * 10000000),
-      change: (Math.random() - 0.5) * 10,
-      changePercent: (Math.random() - 0.5) * 5,
-      timestamp: new Date().toISOString(),
-      marketCap: Math.floor(Math.random() * 1000000000000),
-      pe: Math.random() * 30 + 5
+      _testData: true,
+      _warning: 'TEST_DATA_ONLY - Not for production use',
+      price: null,
+      volume: null,
+      change: null,
+      changePercent: null,
+      timestamp: new Date().toISOString()
     },
-    ttl: 300 // 5 minutes for market data
+    ttl: 60 // Short TTL for test data
   }));
 }
 
-function generateSentimentAnalysisWarmup(symbols: string[]): Array<{namespace: string, key: string, data: any}> {
+function generateSentimentAnalysisWarmup(symbols: string[], env: any): Array<{namespace: string, key: string, data: any}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   return symbols.map(symbol => ({
     namespace: 'sentiment_analysis',
     key: `${symbol}_sentiment`,
     data: {
       symbol,
-      sentiment: Math.random() > 0.5 ? 'bullish' : 'bearish',
-      confidence: Math.random() * 0.4 + 0.6, // 0.6-1.0
-      score: (Math.random() - 0.5) * 2,
+      _testData: true,
+      sentiment: null,
+      confidence: null,
+      score: null,
       analysisDate: new Date().toISOString(),
-      sources: ['news', 'social', 'technical'],
-      modelVersion: 'enhanced-v2'
+      sources: [],
+      modelVersion: 'test-only'
     }
   }));
 }
 
-function generateBasicSentimentWarmup(symbols: string[]): Array<{namespace: string, key: string, data: any}> {
+function generateBasicSentimentWarmup(symbols: string[], env: any): Array<{namespace: string, key: string, data: any}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   return symbols.map(symbol => ({
     namespace: 'sentiment_analysis',
     key: `${symbol}_basic_sentiment`,
     data: {
       symbol,
-      sentiment: Math.random() > 0.5 ? 'bullish' : 'bearish',
-      confidence: Math.random() * 0.3 + 0.5, // 0.5-0.8
+      _testData: true,
+      sentiment: null,
+      confidence: null,
       timestamp: new Date().toISOString()
     }
   }));
 }
 
-function generateSectorDataWarmup(): Array<{namespace: string, key: string, data: any}> {
+function generateSectorDataWarmup(env: any): Array<{namespace: string, key: string, data: any}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   const sectors = [
     'Technology', 'Healthcare', 'Financials', 'Energy', 'Consumer Discretionary',
     'Industrials', 'Materials', 'Utilities', 'Real Estate', 'Communication Services'
@@ -114,51 +146,54 @@ function generateSectorDataWarmup(): Array<{namespace: string, key: string, data
     key: `${sector.toLowerCase().replace(' ', '_')}_snapshot`,
     data: {
       sector,
-      performance: (Math.random() - 0.5) * 10,
-      volume: Math.floor(Math.random() * 100000000),
-      marketCap: Math.floor(Math.random() * 500000000000),
-      topStocks: generateRandomStockSymbols(3),
-      trend: Math.random() > 0.5 ? 'upward' : 'downward',
-      momentum: Math.random() * 2 - 1,
+      _testData: true,
+      performance: null,
+      volume: null,
+      marketCap: null,
+      topStocks: [],
+      trend: null,
+      momentum: null,
       timestamp: new Date().toISOString()
     }
   }));
 }
 
-function generatePredictiveModelsWarmup(): Array<{namespace: string, key: string, data: any}> {
+function generatePredictiveModelsWarmup(env: any): Array<{namespace: string, key: string, data: any}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   return [
     {
       namespace: 'ai_results',
       key: 'market_predictions',
       data: {
-        shortTerm: {
-          direction: Math.random() > 0.5 ? 'bullish' : 'bearish',
-          confidence: Math.random() * 0.3 + 0.6,
-          timeframe: '1-2 weeks'
-        },
-        longTerm: {
-          direction: Math.random() > 0.4 ? 'bullish' : 'bearish',
-          confidence: Math.random() * 0.4 + 0.5,
-          timeframe: '3-6 months'
-        },
-        modelVersion: 'predictive-v3',
-        lastTrained: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+        _testData: true,
+        shortTerm: { direction: null, confidence: null, timeframe: '1-2 weeks' },
+        longTerm: { direction: null, confidence: null, timeframe: '3-6 months' },
+        modelVersion: 'test-only',
+        lastTrained: null
       }
     },
     {
       namespace: 'ai_results',
       key: 'sector_rotation_predictions',
       data: {
-        trendingSectors: ['Technology', 'Healthcare', 'Energy'],
-        decliningSectors: ['Utilities', 'Real Estate'],
-        confidence: Math.random() * 0.3 + 0.6,
-        nextRebalance: new Date(Date.now() + 604800000).toISOString() // 1 week from now
+        _testData: true,
+        trendingSectors: [],
+        decliningSectors: [],
+        confidence: null,
+        nextRebalance: null
       }
     }
   ];
 }
 
-function generateReportsWarmup(): Array<{namespace: string, key: string, data: any}> {
+function generateReportsWarmup(env: any): Array<{namespace: string, key: string, data: any}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   const today = new Date();
   const yesterday = new Date(today.getTime() - 86400000);
 
@@ -167,17 +202,14 @@ function generateReportsWarmup(): Array<{namespace: string, key: string, data: a
       namespace: 'reports',
       key: 'daily_summary',
       data: {
+        _testData: true,
         date: yesterday.toISOString().split('T')[0],
-        marketStatus: 'closed',
-        summary: 'Market showed mixed performance with technology stocks leading gains.',
-        keyHighlights: [
-          'S&P 500: +0.8%',
-          'NASDAQ: +1.2%',
-          'Dow Jones: -0.3%'
-        ],
-        topPerformers: generateRandomStockSymbols(5),
-        worstPerformers: generateRandomStockSymbols(3),
-        sentiment: 'neutral',
+        marketStatus: null,
+        summary: 'TEST DATA - Not for production use',
+        keyHighlights: [],
+        topPerformers: [],
+        worstPerformers: [],
+        sentiment: null,
         reportType: 'daily'
       }
     },
@@ -185,21 +217,23 @@ function generateReportsWarmup(): Array<{namespace: string, key: string, data: a
       namespace: 'reports',
       key: 'pre_market_briefing',
       data: {
+        _testData: true,
         date: today.toISOString().split('T')[0],
-        marketStatus: 'pre-market',
-        expectedMoves: ['Technology stocks to open higher', 'Energy sector facing pressure'],
-        keyEvents: ['Fed minutes release', 'Earnings reports from major tech companies'],
-        globalMarkets: {
-          'Asia': 'Mixed',
-          'Europe': 'Slightly positive'
-        },
+        marketStatus: null,
+        expectedMoves: [],
+        keyEvents: [],
+        globalMarkets: {},
         reportType: 'pre_market'
       }
     }
   ];
 }
 
-function generateWeeklyReportsWarmup(): Array<{namespace: string, key: string, data: any}> {
+function generateWeeklyReportsWarmup(env: any): Array<{namespace: string, key: string, data: any}> {
+  if (!isWarmupAllowed(env)) {
+    return [];
+  }
+  
   const lastWeek = new Date(Date.now() - 7 * 86400000);
 
   return [
@@ -207,34 +241,24 @@ function generateWeeklyReportsWarmup(): Array<{namespace: string, key: string, d
       namespace: 'reports',
       key: 'weekly_market_review',
       data: {
+        _testData: true,
         weekEnding: lastWeek.toISOString().split('T')[0],
-        weeklyPerformance: {
-          'S&P 500': Math.random() * 4 - 2,
-          'NASDAQ': Math.random() * 5 - 2.5,
-          'Dow Jones': Math.random() * 3 - 1.5
-        },
-        sectorAnalysis: {
-          best: 'Technology',
-          worst: 'Utilities'
-        },
-        marketThemes: [
-          'AI-driven growth continued',
-          'Interest rate concerns eased',
-          'Energy prices stabilized'
-        ],
-        outlook: 'cautiously optimistic',
+        weeklyPerformance: {},
+        sectorAnalysis: { best: null, worst: null },
+        marketThemes: [],
+        outlook: 'unknown',
         reportType: 'weekly'
       }
     }
   ];
 }
 
-function generateComprehensiveDataWarmup(symbols: string[]): Array<{namespace: string, key: string, data: any}> {
+function generateComprehensiveDataWarmup(symbols: string[], env: any): Array<{namespace: string, key: string, data: any}> {
   return [
-    ...generateMarketDataWarmup(symbols),
-    ...generateBasicSentimentWarmup(symbols),
-    ...generateSectorDataWarmup(),
-    ...generateReportsWarmup()
+    ...generateMarketDataWarmup(symbols, env),
+    ...generateBasicSentimentWarmup(symbols, env),
+    ...generateSectorDataWarmup(env),
+    ...generateReportsWarmup(env)
   ];
 }
 
@@ -553,6 +577,27 @@ export function createEnhancedCacheRoutes(env: any) {
       path: '/cache-warmup',
       method: 'POST',
       handler: async (request: Request, env: any, ctx: ExecutionContext) => {
+        // Block warmup in production - allow in dev/staging with explicit env flag
+        // Deployment scripts should set ALLOW_CACHE_WARMUP=true temporarily or skip warmup in production
+        if (!isWarmupAllowed(env)) {
+          logger.warn('Cache warmup blocked', { 
+            environment: env?.ENVIRONMENT,
+            allowCacheWarmup: env?.ALLOW_CACHE_WARMUP 
+          });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Cache warmup is disabled',
+            message: env?.ENVIRONMENT === 'production' 
+              ? 'Cache warmup is blocked in production. Set ALLOW_CACHE_WARMUP=true in wrangler.toml [vars] or via wrangler secret to enable.'
+              : 'Set ALLOW_CACHE_WARMUP=true in wrangler.toml [vars] to enable warmup',
+            hint: 'For deployment scripts, either: (1) set env var before deploy, (2) skip warmup in production, or (3) use scheduled warmup instead',
+            timestamp: new Date().toISOString(),
+          }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        
         try {
           const body = (await request.json().catch(() => ({}))) as any;
           const {
@@ -572,57 +617,58 @@ export function createEnhancedCacheRoutes(env: any) {
           const results = [];
           const warmup_start = Date.now();
 
-          // Enhanced warmup strategies
+          // Enhanced warmup strategies - all data marked with _testData flag
           let warmup_datasets: Array<{namespace: string, key: string, data: any, ttl?: number}> = [];
 
           switch (strategy) {
             case 'comprehensive':
             case 'deep_refresh':
               warmup_datasets = [
-                ...generateMarketDataWarmup(preload_symbols),
-                ...generateSentimentAnalysisWarmup(preload_symbols),
-                ...generateSectorDataWarmup(),
-                ...generatePredictiveModelsWarmup(),
-                ...generateReportsWarmup()
+                ...generateMarketDataWarmup(preload_symbols, env),
+                ...generateSentimentAnalysisWarmup(preload_symbols, env),
+                ...generateSectorDataWarmup(env),
+                ...generatePredictiveModelsWarmup(env),
+                ...generateReportsWarmup(env)
               ];
               break;
 
             case 'pre_market':
               warmup_datasets = [
-                ...generateMarketDataWarmup(['SPY', 'QQQ', 'DIA', 'IWM']),
-                ...generateSectorDataWarmup(),
-                ...generateBasicSentimentWarmup(['SPY', 'QQQ'])
+                ...generateMarketDataWarmup(['SPY', 'QQQ', 'DIA', 'IWM'], env),
+                ...generateSectorDataWarmup(env),
+                ...generateBasicSentimentWarmup(['SPY', 'QQQ'], env)
               ];
               break;
 
             case 'midday_refresh':
               warmup_datasets = [
-                ...generateMarketDataWarmup(preload_symbols.slice(0, 5)),
-                ...generateSentimentAnalysisWarmup(preload_symbols.slice(0, 3))
+                ...generateMarketDataWarmup(preload_symbols.slice(0, 5), env),
+                ...generateSentimentAnalysisWarmup(preload_symbols.slice(0, 3), env)
               ];
               break;
 
             case 'evening_refresh':
               warmup_datasets = [
-                ...generateSentimentAnalysisWarmup(['SPY', 'QQQ', 'VTI']),
-                ...generateSectorDataWarmup(),
-                ...generateReportsWarmup()
+                ...generateSentimentAnalysisWarmup(['SPY', 'QQQ', 'VTI'], env),
+                ...generateSectorDataWarmup(env),
+                ...generateReportsWarmup(env)
               ];
               break;
 
             case 'weekend_maintenance':
               warmup_datasets = [
-                ...generateComprehensiveDataWarmup(['SPY', 'QQQ', 'VTI', 'VOO']),
-                ...generateSectorDataWarmup(),
-                ...generateWeeklyReportsWarmup()
+                ...generateComprehensiveDataWarmup(['SPY', 'QQQ', 'VTI', 'VOO'], env),
+                ...generateSectorDataWarmup(env),
+                ...generateWeeklyReportsWarmup(env)
               ];
               break;
 
             default:
+              // Default case also uses test-flagged data
               warmup_datasets = [
-                { namespace: 'sentiment_analysis', key: 'warmup_test', data: { sentiment: 'bullish', confidence: 0.8 } },
-                { namespace: 'market_data', key: 'AAPL_warmup', data: { price: 150.0, volume: 1000000 } },
-                { namespace: 'ai_results', key: 'model_warmup', data: { prediction: 'uptrend', confidence: 0.9 } },
+                { namespace: 'sentiment_analysis', key: 'warmup_test', data: { _testData: true, sentiment: null, confidence: null } },
+                { namespace: 'market_data', key: 'AAPL_warmup', data: { _testData: true, price: null, volume: null } },
+                { namespace: 'ai_results', key: 'model_warmup', data: { _testData: true, prediction: null, confidence: null } },
               ];
           }
 
@@ -667,20 +713,20 @@ export function createEnhancedCacheRoutes(env: any) {
             successful: successful_warmups,
             total: total_warmups,
             duration_ms: warmup_duration,
-            success_rate: `${Math.round(successful_warmups / total_warmups * 100)}%`
+            success_rate: total_warmups > 0 ? `${Math.round(successful_warmups / total_warmups * 100)}%` : 'N/A'
           });
 
           return new Response(JSON.stringify({
-            success: true,
+            success: total_warmups > 0,
             timestamp: new Date().toISOString(),
-            message: 'Enhanced cache warmup completed',
+            message: total_warmups > 0 ? 'Enhanced cache warmup completed' : 'No datasets to warm - test warmup may be disabled',
             strategy: strategy,
             results: {
               successful: successful_warmups,
               total: total_warmups,
-              success_rate: Math.round(successful_warmups / total_warmups * 100),
+              success_rate: total_warmups > 0 ? Math.round(successful_warmups / total_warmups * 100) : 0,
               duration_ms: warmup_duration,
-              entries: results.slice(0, 10), // Return first 10 for brevity
+              entries: results.slice(0, 10),
               namespaces_warmed: [...new Set(results.map(r => r.namespace))]
             },
             cacheStats: cacheManager.getStats(),
@@ -1731,9 +1777,9 @@ export function createEnhancedCacheRoutes(env: any) {
           router.setStorageGuards(guards);
 
           // Route the request to determine storage class
-          const route = router.routeRequest(key);
+          const route = router.resolveRoute(key);
 
-          let result = {
+          let result: any = {
             key,
             storageClass: route.storageClass,
             adapter: route.adapter.name,
@@ -1745,7 +1791,7 @@ export function createEnhancedCacheRoutes(env: any) {
 
           try {
             // Attempt to retrieve the data
-            const getResult = await route.adapter.get(key, { includeMetadata });
+            const getResult = await route.adapter.get(key);
             result.found = getResult.success;
             result.data = getResult.data;
             result.metadata = getResult.metadata;
@@ -1829,7 +1875,7 @@ export function createEnhancedCacheRoutes(env: any) {
           router.setStorageGuards(guards);
 
           // Route the request to determine storage class
-          const route = router.routeRequest(key);
+          const route = router.resolveRoute(key);
 
           // Check guard permissions first
           const guardCheck = await guards.checkKvOperation('delete', key, route.storageClass);

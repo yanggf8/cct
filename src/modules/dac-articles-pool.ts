@@ -1,8 +1,10 @@
 // DAC Articles Pool Client
 // Integration module for accessing DAC's article pool via Cloudflare service bindings
 
-import { createLogger } from '../logging.js';
+import { createLogger } from './logging.js';
 import type { NewsArticle } from '../types.js';
+
+const logger = createLogger('dac-articles-pool');
 
 // DAC Articles Pool Types (based on DAC implementation)
 export interface DACArticlePoolEntry {
@@ -50,7 +52,7 @@ export class DACArticlesPoolClient {
   async getArticles(symbol: string): Promise<DACArticlePoolEntry | null> {
     try {
       if (!this.dacBackend) {
-        logger.warn('DAC_ARTICLES_POOL', 'DAC backend service binding not available');
+        logger.warn('DAC backend service binding not available');
         return null;
       }
 
@@ -68,7 +70,7 @@ export class DACArticlesPoolClient {
 
       if (!response.ok) {
         if (response.status === 404) {
-          logger.info('DAC_ARTICLES_POOL', `No articles found for ${symbol}`);
+          logger.info(`No articles found for ${symbol}`);
           return null;
         }
         throw new Error(`DAC API error: ${response.status} ${response.statusText}`);
@@ -76,7 +78,7 @@ export class DACArticlesPoolClient {
 
       const poolEntry = await response.json() as DACArticlePoolEntry;
 
-      logger.info('DAC_ARTICLES_POOL', `Retrieved articles from DAC pool via service binding`, {
+      logger.info(`Retrieved articles from DAC pool via service binding`, {
         symbol,
         articleCount: poolEntry.articles.length,
         source: poolEntry.metadata.source,
@@ -88,7 +90,7 @@ export class DACArticlesPoolClient {
       return poolEntry;
 
     } catch (error) {
-      logger.error('DAC_ARTICLES_POOL', `Failed to get articles for ${symbol} via service binding`, {
+      logger.error(`Failed to get articles for ${symbol} via service binding`, {
         error: error instanceof Error ? error.message : 'Unknown'
       });
       return null;
@@ -124,7 +126,7 @@ export class DACArticlesPoolClient {
       return await response.json() as DACArticlePoolEntry;
 
     } catch (error) {
-      logger.error('DAC_ARTICLES_POOL', `Failed to get latest articles for ${symbol}`, {
+      logger.error(`Failed to get latest articles for ${symbol}`, {
         error: error instanceof Error ? error.message : 'Unknown'
       });
       return null;
@@ -162,7 +164,7 @@ export class DACArticlesPoolClient {
       return await response.json();
 
     } catch (error) {
-      logger.error('DAC_ARTICLES_POOL', 'Failed to get pool metrics', {
+      logger.error('Failed to get pool metrics', {
         error: error instanceof Error ? error.message : 'Unknown'
       });
       return null;
@@ -171,21 +173,24 @@ export class DACArticlesPoolClient {
 
   /**
    * Convert DAC articles to CCT format
+   * Preserves DAC metadata (sentiment, relevanceScore, symbols, id) as extra properties
    */
   convertToCCTArticles(dacArticles: DACNewsArticle[]): NewsArticle[] {
     return dacArticles.map(article => ({
+      // Required NewsArticle fields
       title: article.headline,
+      content: article.summary || article.headline,
       source: article.source,
       url: article.url,
-      published_date: article.publishedAt,
+      publishedAt: article.publishedAt,
       summary: article.summary || '',
-      sentiment: article.sentiment || 'neutral',
-      // Additional fields for CCT
-      id: article.id,
-      relevance_score: article.relevanceScore || 0,
+      // Preserve DAC metadata for downstream processing (both casing conventions)
+      sentiment: article.sentiment,
+      relevanceScore: article.relevanceScore,
+      relevance_score: article.relevanceScore, // snake_case for per_symbol_analysis compatibility
       symbols: article.symbols,
-      content_length: article.summary?.length || 0
-    }));
+      id: article.id
+    } as NewsArticle));
   }
 
   /**
@@ -194,7 +199,7 @@ export class DACArticlesPoolClient {
   async checkHealth(): Promise<boolean> {
     try {
       if (!this.dacBackend) {
-        logger.warn('DAC_ARTICLES_POOL', 'DAC backend service binding not available for health check');
+        logger.warn('DAC backend service binding not available for health check');
         return false;
       }
 
@@ -209,7 +214,7 @@ export class DACArticlesPoolClient {
       const response = await this.dacBackend.fetch(request);
       return response.ok;
     } catch (error) {
-      logger.error('DAC_ARTICLES_POOL', 'Health check failed', {
+      logger.error('Health check failed', {
         error: error instanceof Error ? error.message : 'Unknown'
       });
       return false;
@@ -235,11 +240,11 @@ export class DACArticlesPoolClient {
       const batchResults = await Promise.allSettled(promises);
 
       batchResults.forEach((promiseResult, index) => {
-        const { symbol } = batch[index];
+        const symbol = batch[index];
         if (promiseResult.status === 'fulfilled') {
           results.set(symbol, promiseResult.value.result);
         } else {
-          logger.error('DAC_ARTICLES_POOL', `Batch fetch failed for ${symbol}`, {
+          logger.error(`Batch fetch failed for ${symbol}`, {
             error: promiseResult.reason
           });
           results.set(symbol, null);
@@ -263,7 +268,7 @@ export function createDACArticlesPoolClient(env: {
   const apiKey = env.DAC_ARTICLES_POOL_API_KEY || 'yanggf';
 
   if (!dacBackend) {
-    logger.warn('DAC_ARTICLES_POOL', 'DAC backend service binding not available');
+    logger.warn('DAC backend service binding not available');
     return null;
   }
 

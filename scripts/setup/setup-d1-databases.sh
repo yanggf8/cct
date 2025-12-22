@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS cache_rollups (
 CREATE INDEX IF NOT EXISTS idx_cache_rollups_day_keyspace ON cache_rollups(day, keyspace);
 CREATE INDEX IF NOT EXISTS idx_cache_rollups_day_storage_class ON cache_rollups(day, storage_class);
 CREATE INDEX IF NOT EXISTS idx_cache_rollups_keyspace ON cache_rollups(keyspace);
-" --env=production; then
+" ; then
     print_success "Production database schema initialized successfully"
 else
     print_error "Failed to initialize production database schema"
@@ -174,7 +174,7 @@ echo ""
 echo "🔧 Next steps:"
 echo "  1. Deploy to staging: wrangler deploy --env=staging"
 echo "  2. Test D1 integration with: curl 'https://your-staging-url/api/v1/ops/cache-rollups'"
-echo "  3. Deploy to production: wrangler deploy --env=production"
+echo "  3. Deploy to production: wrangler deploy  (or npm run deploy)"
 echo ""
 echo "📊 Available endpoints:"
 echo "  • GET /api/v1/ops/cache-rollups - Retrieve analytics rollups"

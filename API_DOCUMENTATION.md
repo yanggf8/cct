@@ -127,6 +127,27 @@ POST /api/v1/cache/warmup           # Automated cache warming with strategies
 }
 ```
 
+### **🛠️ Admin Operations (Canary & Exemptions)**
+
+#### **Canary Management**
+```bash
+GET /api/v1/canary/status             # Canary rollout status 🔒 PROTECTED
+POST /api/v1/canary/update            # Update canary config 🔒 PROTECTED
+POST /api/v1/canary/enable            # Enable canary for route 🔒 PROTECTED
+POST /api/v1/canary/disable           # Disable canary for route 🔒 PROTECTED
+POST /api/v1/canary/simulate          # Simulate canary traffic 🔒 PROTECTED
+```
+
+#### **Exemption Management**
+```bash
+GET /api/v1/exemptions/report         # Exemption report 🔒 PROTECTED
+POST /api/v1/exemptions/validate      # Validate exemptions 🔒 PROTECTED
+POST /api/v1/exemptions/create        # Create exemption 🔒 PROTECTED
+DELETE /api/v1/exemptions/revoke      # Revoke exemption 🔒 PROTECTED
+POST /api/v1/exemptions/maintenance   # Maintenance tasks 🔒 PROTECTED
+GET /api/v1/exemptions/weekly-report  # Weekly exemption report 🔒 PROTECTED
+```
+
 ### **🔄 Sector Rotation System**
 
 #### **Sector Health & Testing**
@@ -766,5 +787,5 @@ For technical support and system monitoring:
 
 ---
 
-*Last Updated: 2025-10-25 | Version: Production v2.0-Enhanced with Complete System Debug & Local Development Environment*
+*Last Updated: 2025-12-22 | Version: Production v2.0-Enhanced with Complete System Debug & Local Development Environment*
 *🚀 NEW: Enterprise-grade AI model reliability with 95% error reduction*

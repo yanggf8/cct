@@ -657,7 +657,7 @@ export async function handleKVCleanup(request: Request, env: CloudflareEnvironme
 
     for (const key of keysToDelete) {
       try {
-        await dal.delete(key);
+        await dal.deleteKey(key);
         deletionResults.push({ key, status: 'deleted' });
       } catch (error) {
         deletionResults.push({

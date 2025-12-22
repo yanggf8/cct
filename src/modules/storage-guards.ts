@@ -169,7 +169,7 @@ export class StorageGuards {
         violationType: 'latency_exceeded',
         key,
         severity: 'medium',
-        action: this.config.mode === 'block' ? 'blocked' : this.config.mode,
+        action: this.config.mode === 'block' ? 'blocked' : this.config.mode === 'warn' ? 'logged' : 'error',
         metadata: {
           latencyMs: metadata.latencyMs,
           reason: `Latency ${metadata.latencyMs}ms exceeds threshold ${this.config.thresholds.maxKvReadLatencyMs}ms`,
@@ -233,7 +233,7 @@ export class StorageGuards {
         violationType: 'kv_forbidden',
         key,
         severity: storageClass === 'hot_cache' || storageClass === 'warm_cache' ? 'high' : 'medium',
-        action: this.config.mode === 'block' ? 'blocked' : this.config.mode,
+        action: this.config.mode === 'block' ? 'blocked' : this.config.mode === 'warn' ? 'logged' : 'error',
         metadata: { reason, caller: metadata?.caller }
       };
     }
@@ -268,7 +268,7 @@ export class StorageGuards {
         violationType: 'rate_limit_exceeded',
         key,
         severity: 'medium',
-        action: this.config.mode === 'block' ? 'blocked' : this.config.mode,
+        action: this.config.mode === 'block' ? 'blocked' : this.config.mode === 'warn' ? 'logged' : 'error',
         metadata: {
           reason: `Rate limit exceeded: ${validTimestamps.length} operations/min > ${this.config.thresholds.maxKvOperationsPerMinute}`
         }
@@ -357,13 +357,14 @@ export class StorageGuards {
 
     this.stats.lastViolation = violation;
 
-    // Emit metrics
-    this.metrics.recordOperation('guard_violation', {
+    // Emit metrics - map 'delete' to 'del' for dashboard compatibility
+    const opLabel = violation.operation === 'delete' ? 'del' : violation.operation as 'get' | 'put' | 'del' | 'list';
+    this.metrics.recordOperation(opLabel, {
       system: 'CCT',
       layer: 'edge',
       storage_class: violation.storageClass,
       keyspace: this.extractKeyspace(violation.key),
-      op: violation.operation,
+      op: opLabel,
       result: 'violation'
     }, 0, false);
 
@@ -530,6 +531,13 @@ export class StorageGuards {
         maintenanceMode: env.GUARD_MAINTENANCE_MODE === 'true'
       }
     };
+  }
+
+  /**
+   * Get current configuration
+   */
+  getConfiguration(): GuardConfig {
+    return this.config;
   }
 }
 

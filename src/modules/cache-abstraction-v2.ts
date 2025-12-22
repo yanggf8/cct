@@ -40,6 +40,7 @@ export interface EnhancedCacheListOptions {
   prefix?: string;
   limit?: number;
   storageClass?: 'hot_cache' | 'warm_cache' | 'cold_storage' | 'ephemeral';
+  forceLegacy?: boolean;
 }
 
 export interface EnhancedCacheListResult {

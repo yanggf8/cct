@@ -160,8 +160,8 @@ async function handleUnifiedDashboard(
         regime: driversSnapshot.regime.currentRegime,
         riskLevel: driversSnapshot.regime.riskLevel,
         confidence: driversSnapshot.regime.confidence,
-        riskOnRiskOff: driversSnapshot.riskOnRiskOff,
-        marketHealth: driversSnapshot.marketHealth
+        riskOnRiskOff: driversSnapshot.regime.riskLevel === 'low' ? 'risk-on' : 'risk-off',
+        marketHealth: driversSnapshot.realDataCompliance ? 'healthy' : 'degraded'
       },
       sector_analysis: sectorRotation ? {
         leadingSector: sectorRotation.rotationSignals.leadingSector,
@@ -172,17 +172,17 @@ async function handleUnifiedDashboard(
         underperformers: getUnderperformers(sectorRotation)
       } : null,
       macro_environment: {
-        fedFundsRate: driversSnapshot.macro.fedFundsRate,
-        inflationRate: driversSnapshot.macro.inflationRate,
-        unemploymentRate: driversSnapshot.macro.unemploymentRate,
-        yieldCurveSpread: driversSnapshot.macro.yieldCurveSpread,
-        economicMomentum: driversSnapshot.economicMomentum
+        fedFundsRate: driversSnapshot.macro.fedFundsRate.value,
+        inflationRate: driversSnapshot.macro.inflationRate.value,
+        unemploymentRate: driversSnapshot.macro.unemploymentRate.value,
+        yieldCurveSpread: driversSnapshot.macro.yieldCurveSpread.value,
+        economicMomentum: driversSnapshot.regime.currentRegime
       },
       market_structure: {
-        vix: driversSnapshot.marketStructure.vix,
+        vix: driversSnapshot.marketStructure.vix.value,
         dollarStrength: driversSnapshot.marketStructure.dollarTrend,
         marketBreadth: driversSnapshot.marketStructure.spyTrend,
-        volatilityRegime: getVolatilityRegime(driversSnapshot.marketStructure.vix)
+        volatilityRegime: getVolatilityRegime(driversSnapshot.marketStructure.vix.value)
       },
       unified_insights: unifiedInsights,
       data_quality: {
@@ -260,12 +260,13 @@ async function handleMarketSynopsis(
     const sectorRotation = await getCachedSectorRotationResults(env);
 
     // Generate concise synopsis
+    const riskAppetite = driversSnapshot.regime.riskLevel === 'low' ? 'risk-on' : 'risk-off';
     const synopsis = {
       timestamp: new Date().toISOString(),
       market_regime: {
         current: driversSnapshot.regime.currentRegime,
         outlook: driversSnapshot.regime.confidence > 70 ? 'stable' : 'transitioning',
-        risk_appetite: driversSnapshot.riskOnRiskOff
+        risk_appetite: riskAppetite
       },
       key_themes: identifyMarketThemes(driversSnapshot, sectorRotation),
       sector_focus: {
@@ -276,14 +277,14 @@ async function handleMarketSynopsis(
       },
       macro_watchlist: {
         critical_levels: [
-          `VIX: ${driversSnapshot.marketStructure.vix.toFixed(1)}`,
-          `Fed Funds Rate: ${driversSnapshot.macro.fedFundsRate.toFixed(2)}%`,
-          `Yield Curve Spread: ${driversSnapshot.macro.yieldCurveSpread.toFixed(2)}%`
+          `VIX: ${driversSnapshot.marketStructure.vix.value.toFixed(1)}`,
+          `Fed Funds Rate: ${driversSnapshot.macro.fedFundsRate.value.toFixed(2)}%`,
+          `Yield Curve Spread: ${driversSnapshot.macro.yieldCurveSpread.value.toFixed(2)}%`
         ],
         trend_signals: [
           `Dollar: ${driversSnapshot.marketStructure.dollarTrend}`,
           `Market Momentum: ${driversSnapshot.marketStructure.spyTrend}`,
-          `Volatility: ${getVolatilityRegime(driversSnapshot.marketStructure.vix)}`
+          `Volatility: ${getVolatilityRegime(driversSnapshot.marketStructure.vix.value)}`
         ]
       },
       investment_strategy: generateInvestmentStrategy(driversSnapshot, sectorRotation),
@@ -293,7 +294,7 @@ async function handleMarketSynopsis(
     logger.info('Market synopsis generated', {
       requestId,
       regime: driversSnapshot.regime.currentRegime,
-      riskAppetite: driversSnapshot.riskOnRiskOff,
+      riskAppetite,
       processingTime: timer.getElapsedMs()
     });
 
@@ -443,19 +444,19 @@ async function handleRiskReport(
         outlook: driversSnapshot.regime.confidence > 70 ? 'stable' : 'elevated_uncertainty'
       },
       macro_risks: {
-        recession_risk: driversSnapshot.macro.yieldCurveSpread < -0.5 ? 'high' : 'moderate',
-        inflation_risk: driversSnapshot.macro.inflationRate > 3 ? 'elevated' : 'moderate',
-        monetary_policy_risk: driversSnapshot.macro.fedFundsRate > 4.5 ? 'tight' : 'accommodative'
+        recession_risk: driversSnapshot.macro.yieldCurveSpread.value < -0.5 ? 'high' : 'moderate',
+        inflation_risk: driversSnapshot.macro.inflationRate.value > 3 ? 'elevated' : 'moderate',
+        monetary_policy_risk: driversSnapshot.macro.fedFundsRate.value > 4.5 ? 'tight' : 'accommodative'
       },
       market_risks: {
-        volatility_risk: getVolatilityRiskLevel(driversSnapshot.marketStructure.vix),
-        systemic_risk: driversSnapshot.geopolitical.overallRiskScore > 0.7 ? 'elevated' : 'moderate',
+        volatility_risk: getVolatilityRiskLevel(driversSnapshot.marketStructure.vix.value),
+        systemic_risk: driversSnapshot.geopolitical.overallRiskScore.value > 0.7 ? 'elevated' : 'moderate',
         liquidity_risk: 'normal' // Would need additional analysis
       },
       sector_risks: sectorRotation ? analyzeSectorRisks(sectorRotation, driversSnapshot) : null,
       risk_mitigation: generateRiskMitigationStrategies(driversSnapshot, sectorRotation),
       key_watch_items: [
-        ...driversSnapshot.watchItems.map(item => ({ type: 'market_driver', item })),
+        ...driversSnapshot.regime.avoidedSectors.map(item => ({ type: 'market_driver', item })),
         ...(sectorRotation?.rotationSignals?.decliningSectors || []).map(sector => ({ type: 'sector_weakness', item: sector }))
       ]
     };
@@ -651,10 +652,11 @@ function generateMarketNarrative(driversSnapshot: MarketDriversSnapshot, sectorR
   const regime = driversSnapshot.regime.currentRegime;
   const riskLevel = driversSnapshot.regime.riskLevel;
   const leadingSector = sectorRotation.rotationSignals.leadingSector;
+  const riskAppetite = driversSnapshot.regime.riskLevel === 'low' ? 'risk-on' : 'risk-off';
 
   return `Market is in a ${regime} regime with ${riskLevel} risk levels. ` +
     `${leadingSector} is showing relative strength with ${sectorRotation.etfAnalyses.find(etf => etf.symbol === leadingSector)?.performanceMetrics.daily.toFixed(2) || 'minimal'}% daily performance. ` +
-    `Risk appetite is ${driversSnapshot.riskOnRiskOff} with VIX at ${driversSnapshot.marketStructure.vix.toFixed(1)}.`;
+    `Risk appetite is ${riskAppetite} with VIX at ${driversSnapshot.marketStructure.vix.value.toFixed(1)}.`;
 }
 
 function getTopPerformers(sectorRotation: SectorRotationResult): Array<{symbol: string, name: string, performance: number}> {
@@ -687,18 +689,19 @@ function getVolatilityRegime(vix: number): string {
 
 function identifyMarketThemes(driversSnapshot: MarketDriversSnapshot, sectorRotation: SectorRotationResult | null): string[] {
   const themes = [];
+  const riskAppetite = driversSnapshot.regime.riskLevel === 'low' ? 'risk_on' : 'risk_off';
 
-  if (driversSnapshot.riskOnRiskOff === 'risk_on') {
+  if (riskAppetite === 'risk_on') {
     themes.push('Risk-on sentiment dominant');
-  } else if (driversSnapshot.riskOnRiskOff === 'risk_off') {
+  } else if (riskAppetite === 'risk_off') {
     themes.push('Risk aversion prevailing');
   }
 
-  if (driversSnapshot.marketStructure.vix > 25) {
+  if (driversSnapshot.marketStructure.vix.value > 25) {
     themes.push('Elevated volatility environment');
   }
 
-  if (driversSnapshot.macro.yieldCurveSpread < 0) {
+  if (driversSnapshot.macro.yieldCurveSpread.value < 0) {
     themes.push('Inverted yield curve concerns');
   }
 
@@ -715,10 +718,11 @@ function identifyMarketThemes(driversSnapshot: MarketDriversSnapshot, sectorRota
 function generateInvestmentStrategy(driversSnapshot: MarketDriversSnapshot, sectorRotation: SectorRotationResult | null): string {
   const regime = driversSnapshot.regime.currentRegime;
   const riskLevel = driversSnapshot.regime.riskLevel;
+  const riskAppetite = riskLevel === 'low' ? 'risk_on' : riskLevel === 'high' ? 'risk_off' : 'neutral';
 
   if (riskLevel === 'high' || regime.includes('contraction')) {
     return 'Defensive positioning with focus on quality and dividend stability';
-  } else if (riskLevel === 'medium' && driversSnapshot.riskOnRiskOff === 'neutral') {
+  } else if (riskLevel === 'medium' && riskAppetite === 'neutral') {
     return 'Balanced approach with selective growth exposure';
   } else {
     return 'Growth-oriented with emphasis on sector leaders and innovation';
@@ -755,15 +759,15 @@ function generateTopPicks(sectorRotation: SectorRotationResult | null, driversSn
 function generateRiskConsiderations(driversSnapshot: MarketDriversSnapshot): string[] {
   const considerations = [];
 
-  if (driversSnapshot.marketStructure.vix > 25) {
+  if (driversSnapshot.marketStructure.vix.value > 25) {
     considerations.push('Elevated volatility requires position sizing discipline');
   }
 
-  if (driversSnapshot.macro.yieldCurveSpread < -0.5) {
+  if (driversSnapshot.macro.yieldCurveSpread.value < -0.5) {
     considerations.push('Recession risk from inverted yield curve');
   }
 
-  if (driversSnapshot.geopolitical.overallRiskScore > 0.6) {
+  if (driversSnapshot.geopolitical.overallRiskScore.value > 0.6) {
     considerations.push('Geopolitical tensions may impact market stability');
   }
 
@@ -795,15 +799,15 @@ function calculateRiskScore(driversSnapshot: MarketDriversSnapshot): number {
   let score = 0.5; // Base score
 
   // VIX contribution
-  if (driversSnapshot.marketStructure.vix > 30) score += 0.2;
-  else if (driversSnapshot.marketStructure.vix > 20) score += 0.1;
+  if (driversSnapshot.marketStructure.vix.value > 30) score += 0.2;
+  else if (driversSnapshot.marketStructure.vix.value > 20) score += 0.1;
 
   // Yield curve contribution
-  if (driversSnapshot.macro.yieldCurveSpread < -1) score += 0.2;
-  else if (driversSnapshot.macro.yieldCurveSpread < 0) score += 0.1;
+  if (driversSnapshot.macro.yieldCurveSpread.value < -1) score += 0.2;
+  else if (driversSnapshot.macro.yieldCurveSpread.value < 0) score += 0.1;
 
   // Geopolitical risk contribution
-  score += driversSnapshot.geopolitical.overallRiskScore * 0.3;
+  score += driversSnapshot.geopolitical.overallRiskScore.value * 0.3;
 
   return Math.min(1.0, score);
 }
@@ -836,7 +840,7 @@ function generateRiskMitigationStrategies(driversSnapshot: MarketDriversSnapshot
     strategies.push('Reduce position sizes and increase cash');
   }
 
-  if (driversSnapshot.marketStructure.vix > 25) {
+  if (driversSnapshot.marketStructure.vix.value > 25) {
     strategies.push('Use options for hedges when appropriate');
     strategies.push('Focus on quality and low-beta names');
   }
@@ -898,7 +902,7 @@ function calculateDataCompleteness(sectorRotation: SectorRotationResult, drivers
     completeness += 0.4; // Full sector coverage
   }
 
-  if (driversSnapshot.macro.fedFundsRate > 0) {
+  if (driversSnapshot.macro.fedFundsRate.value > 0) {
     completeness += 0.1; // Macro data available
   }
 

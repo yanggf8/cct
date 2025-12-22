@@ -30,6 +30,7 @@ export interface RealDataRequirement {
  */
 export function detectMockData<T>(value: T, fieldName: keyof T, location: string): MockDataDetection {
   const stringValue = String(value).toLowerCase();
+  const fieldNameStr = String(fieldName);
 
   // Critical mock patterns - immediately fail
   const criticalPatterns = [
@@ -42,7 +43,7 @@ export function detectMockData<T>(value: T, fieldName: keyof T, location: string
       return {
         isMock: true,
         detectionReason: `Contains critical mock pattern: "${pattern}"`,
-        location: `${location}.${fieldName}`,
+        location: `${location}.${fieldNameStr}`,
         severity: 'critical',
         recommendedAction: 'Immediately replace with real data source'
       };
@@ -52,7 +53,7 @@ export function detectMockData<T>(value: T, fieldName: keyof T, location: string
   // Hardcoded value patterns that suggest mock data - refined to reduce false positives
   if (typeof value === 'number') {
     // Suspicious price patterns - refined to avoid false positives on legitimate whole dollar prices
-    if (fieldName.toLowerCase().includes('price')) {
+    if (fieldNameStr.toLowerCase().includes('price')) {
       const fieldNameStr = String(fieldName).toLowerCase();
 
       // Only flag obviously fake price patterns, not legitimate market prices
@@ -75,7 +76,7 @@ export function detectMockData<T>(value: T, fieldName: keyof T, location: string
     }
 
     // Suspicious rate patterns - refined to avoid false positives on legitimate round rates
-    if (fieldName.toLowerCase().includes('rate')) {
+    if (fieldNameStr.toLowerCase().includes('rate')) {
       const fieldNameStr = String(fieldName).toLowerCase();
 
       // Only flag obviously fake rates, not legitimate round percentages
@@ -98,11 +99,11 @@ export function detectMockData<T>(value: T, fieldName: keyof T, location: string
     }
 
     // Fake stock prices under $1 (unless it's actually a penny stock)
-    if (fieldName.toLowerCase().includes('price') && value > 0 && value < 1 && !fieldName.toLowerCase().includes('penny')) {
+    if (fieldNameStr.toLowerCase().includes('price') && value > 0 && value < 1 && !fieldNameStr.toLowerCase().includes('penny')) {
       return {
         isMock: true,
         detectionReason: `Suspiciously low stock price: $${value}`,
-        location: `${location}.${fieldName}`,
+        location: `${location}.${fieldNameStr}`,
         severity: 'medium',
         recommendedAction: 'Verify this is correct or replace with real data'
       };
@@ -119,7 +120,7 @@ export function detectMockData<T>(value: T, fieldName: keyof T, location: string
         return {
           isMock: true,
           detectionReason: `Future date detected: ${value} (likely test data)`,
-          location: `${location}.${fieldName}`,
+          location: `${location}.${fieldNameStr}`,
           severity: 'medium',
           recommendedAction: 'Use current or historical dates'
         };
@@ -130,7 +131,7 @@ export function detectMockData<T>(value: T, fieldName: keyof T, location: string
   return {
     isMock: false,
     detectionReason: 'No mock patterns detected',
-    location: `${location}.${fieldName}`,
+    location: `${location}.${fieldNameStr}`,
     severity: 'low',
     recommendedAction: 'Data appears legitimate'
   };
@@ -339,7 +340,8 @@ export class ProductionMockGuard {
   validateData(data: any, location: string): void {
     if (!this.enabled) return;
 
-    const violations = validateRealDataUsage(data, location);
+    const result = validateRealDataUsage(data, location);
+    const violations = result.violations;
 
     if (violations.length > 0) {
       this.violations.push(...violations);

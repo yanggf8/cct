@@ -1107,44 +1107,43 @@ async function handleSymbolPrediction(
     }
 
     // Generate symbol-specific prediction
+    // NOTE: Real predictions require model execution - returning status indicating this
     const prediction = {
       timestamp: new Date().toISOString(),
       symbol: symbol,
       request_parameters: { predictionType, timeframe, includeIndicators },
+      status: 'requires_model_execution',
+      notice: 'Real-time predictions require AI model execution. This endpoint returns the prediction framework.',
       prediction: {
-        direction: Math.random() > 0.5 ? 'bullish' : Math.random() > 0.3 ? 'bearish' : 'neutral',
-        confidence: 0.6 + Math.random() * 0.3,
+        direction: null,
+        confidence: null,
         timeframe: timeframe,
-        expected_return: (Math.random() - 0.5) * 10, // -5% to +5%
-        probability_distribution: {
-          bullish: 0.35,
-          bearish: 0.35,
-          neutral: 0.30
-        }
+        expected_return: null,
+        probability_distribution: null,
+        data_requirements: [
+          'Real-time market data feed',
+          'AI model inference endpoint',
+          'Historical price data for technical analysis'
+        ]
       },
       technical_analysis: includeIndicators.includes('technical') ? {
-        rsi: 45 + Math.random() * 20,
-        macd_signal: Math.random() > 0.5 ? 'bullish' : 'bearish',
-        moving_average_alignment: Math.random() > 0.5 ? 'bullish' : 'bearish',
-        support_resistance: {
-          support: 100 - Math.random() * 10,
-          resistance: 100 + Math.random() * 10
-        }
+        status: 'requires_market_data',
+        indicators_requested: ['rsi', 'macd', 'moving_averages', 'support_resistance'],
+        notice: 'Technical indicators require real-time price data'
       } : undefined,
       sentiment_analysis: includeIndicators.includes('sentiment') ? {
-        sentiment_score: -0.2 + Math.random() * 0.4,
-        news_sentiment: Math.random() > 0.5 ? 'positive' : 'negative',
-        social_sentiment: Math.random() > 0.5 ? 'bullish' : 'bearish'
+        status: 'requires_sentiment_pipeline',
+        sources_configured: ['news', 'social'],
+        notice: 'Sentiment analysis requires running the sentiment pipeline'
       } : undefined,
       volume_analysis: includeIndicators.includes('volume') ? {
-        volume_trend: Math.random() > 0.5 ? 'increasing' : 'decreasing',
-        relative_volume: 0.8 + Math.random() * 0.8,
-        volume_pattern: 'normal'
+        status: 'requires_market_data',
+        notice: 'Volume analysis requires real-time market data'
       } : undefined,
       risk_assessment: {
-        volatility_level: 'moderate',
-        beta: 0.8 + Math.random() * 0.8,
-        max_drawdown_risk: 'moderate'
+        status: 'requires_historical_data',
+        metrics_available: ['volatility', 'beta', 'max_drawdown'],
+        notice: 'Risk metrics require historical price data'
       }
     };
 

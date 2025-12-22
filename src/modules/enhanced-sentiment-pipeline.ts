@@ -8,7 +8,9 @@ import type { CloudflareEnvironment, NewsArticle } from '../types.js';
 import { DACArticlesAdapter } from './dac-articles-pool.js';
 import { createCacheInstance } from './dual-cache-do.js';
 import { DUAL_CACHE_CONFIGS } from './cache-config.js';
-import { logger } from './logger.js';
+import { createLogger } from './logging.js';
+
+const logger = createLogger('enhanced-sentiment-pipeline');
 
 // Enhanced sentiment configuration
 interface EnhancedSentimentConfig {
@@ -96,7 +98,7 @@ export class EnhancedSentimentPipeline {
    */
   async analyzeSentiment(symbol: string): Promise<EnhancedSentimentResult> {
     const startTime = Date.now();
-    logger.info('ENHANCED_SENTIMENT', `Starting sentiment analysis for ${symbol}`);
+    logger.info(`Starting sentiment analysis for ${symbol}`);
 
     try {
       // Check cache first
@@ -105,7 +107,7 @@ export class EnhancedSentimentPipeline {
         const cached = await this.cache.get(cacheKey, DUAL_CACHE_CONFIGS.STOCK_SENTIMENT);
         if (cached) {
           const result = JSON.parse(cached) as EnhancedSentimentResult;
-          logger.info('ENHANCED_SENTIMENT', `Cache hit for ${symbol}`, {
+          logger.info(`Cache hit for ${symbol}`, {
             age: Date.now() - new Date(result.timestamp).getTime()
           });
           return result;
@@ -158,7 +160,7 @@ export class EnhancedSentimentPipeline {
       await this.cacheResult(cacheKey, result);
 
       const duration = Date.now() - startTime;
-      logger.info('ENHANCED_SENTIMENT', `Analysis complete for ${symbol}`, {
+      logger.info(`Analysis complete for ${symbol}`, {
         duration: `${duration}ms`,
         articleCount: articles.length,
         sources: result.sources_used,
@@ -169,7 +171,7 @@ export class EnhancedSentimentPipeline {
 
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error('ENHANCED_SENTIMENT', `Analysis failed for ${symbol}`, {
+      logger.error(`Analysis failed for ${symbol}`, {
         error: error instanceof Error ? error.message : 'Unknown',
         duration: `${duration}ms`
       });
@@ -216,14 +218,14 @@ export class EnhancedSentimentPipeline {
           }));
 
           allArticles.push(...enhancedArticles);
-          logger.info('ENHANCED_SENTIMENT', `Retrieved ${enhancedArticles.length} articles from DAC pool`, {
+          logger.info(`Retrieved ${enhancedArticles.length} articles from DAC pool`, {
             symbol,
             source: 'dac_pool',
             penalty: dacResult.confidencePenalty
           });
         }
       } catch (error) {
-        logger.warn('ENHANCED_SENTIMENT', `DAC pool failed for ${symbol}`, {
+        logger.warn(`DAC pool failed for ${symbol}`, {
           error: error instanceof Error ? error.message : 'Unknown'
         });
       }
@@ -235,10 +237,10 @@ export class EnhancedSentimentPipeline {
         const fmpArticles = await this.getFMPArticles(symbol);
         if (fmpArticles.length > 0) {
           allArticles.push(...fmpArticles);
-          logger.info('ENHANCED_SENTIMENT', `Retrieved ${fmpArticles.length} articles from FMP`, { symbol });
+          logger.info(`Retrieved ${fmpArticles.length} articles from FMP`, { symbol });
         }
       } catch (error) {
-        logger.warn('ENHANCED_SENTIMENT', `FMP failed for ${symbol}`, {
+        logger.warn(`FMP failed for ${symbol}`, {
           error: error instanceof Error ? error.message : 'Unknown'
         });
       }
@@ -250,10 +252,10 @@ export class EnhancedSentimentPipeline {
         const newsApiArticles = await this.getNewsAPIArticles(symbol);
         if (newsApiArticles.length > 0) {
           allArticles.push(...newsApiArticles);
-          logger.info('ENHANCED_SENTIMENT', `Retrieved ${newsApiArticles.length} articles from NewsAPI`, { symbol });
+          logger.info(`Retrieved ${newsApiArticles.length} articles from NewsAPI`, { symbol });
         }
       } catch (error) {
-        logger.warn('ENHANCED_SENTIMENT', `NewsAPI failed for ${symbol}`, {
+        logger.warn(`NewsAPI failed for ${symbol}`, {
           error: error instanceof Error ? error.message : 'Unknown'
         });
       }
@@ -265,10 +267,10 @@ export class EnhancedSentimentPipeline {
         const yahooArticles = await this.getYahooArticles(symbol);
         if (yahooArticles.length > 0) {
           allArticles.push(...yahooArticles);
-          logger.info('ENHANCED_SENTIMENT', `Retrieved ${yahooArticles.length} articles from Yahoo`, { symbol });
+          logger.info(`Retrieved ${yahooArticles.length} articles from Yahoo`, { symbol });
         }
       } catch (error) {
-        logger.warn('ENHANCED_SENTIMENT', `Yahoo failed for ${symbol}`, {
+        logger.warn(`Yahoo failed for ${symbol}`, {
           error: error instanceof Error ? error.message : 'Unknown'
         });
       }
@@ -303,18 +305,19 @@ export class EnhancedSentimentPipeline {
 
     const articles = data.map(item => ({
       title: item.title,
+      content: item.text || item.title,
       summary: item.text?.substring(0, 500) || item.title,
       source: item.site,
       url: item.url,
       published_date: item.publishedDate,
-      sentiment: this.analyzeSentiment(item.title + ' ' + (item.text || '')),
+      sentiment: this.analyzeTextSentiment(item.title + ' ' + (item.text || '')),
       id: `fmp_${Date.now()}_${Math.random()}`,
       relevance_score: 0.8,
       symbols: [symbol],
       content_length: item.text?.length || 0,
       source_priority: ENHANCED_SENTIMENT_CONFIG.sources.fmp.priority,
       source_weight: ENHANCED_SENTIMENT_CONFIG.sources.fmp.weight
-    } as EnhancedNewsArticle));
+    } as unknown as EnhancedNewsArticle));
 
     await this.cache?.set(cacheKey, JSON.stringify(articles), DUAL_CACHE_CONFIGS.NEWS_ARTICLES);
     return articles;
@@ -339,22 +342,23 @@ export class EnhancedSentimentPipeline {
     const response = await fetch(url);
     const data = await response.json();
 
-    if (data.status === 'error') return [];
+    if ((data as any).status === 'error') return [];
 
-    const articles = (data.articles || []).map((article: any) => ({
+    const articles = ((data as any).articles || []).map((article: any) => ({
       title: article.title,
+      content: article.description || article.title,
       summary: article.description || article.title,
       source: article.source.name,
       url: article.url,
       published_date: article.publishedAt,
-      sentiment: this.analyzeSentiment(article.title + ' ' + (article.description || '')),
+      sentiment: this.analyzeTextSentiment(article.title + ' ' + (article.description || '')),
       id: `newsapi_${Date.now()}_${Math.random()}`,
       relevance_score: 0.7,
       symbols: [symbol],
       content_length: article.description?.length || 0,
       source_priority: ENHANCED_SENTIMENT_CONFIG.sources.newsapi.priority,
       source_weight: ENHANCED_SENTIMENT_CONFIG.sources.newsapi.weight
-    } as EnhancedNewsArticle));
+    } as unknown as EnhancedNewsArticle));
 
     await this.cache?.set(cacheKey, JSON.stringify(articles), DUAL_CACHE_CONFIGS.NEWS_ARTICLES);
     return articles;
@@ -382,18 +386,19 @@ export class EnhancedSentimentPipeline {
 
       const articles = news.map((item: any) => ({
         title: item.title,
+        content: item.summary || item.title,
         summary: item.summary || item.title,
         source: item.publisher,
         url: item.link,
         published_date: new Date(item.providerPublishTime * 1000).toISOString(),
-        sentiment: this.analyzeSentiment(item.title + ' ' + (item.summary || '')),
+        sentiment: this.analyzeTextSentiment(item.title + ' ' + (item.summary || '')),
         id: `yahoo_${Date.now()}_${Math.random()}`,
         relevance_score: 0.6,
         symbols: [symbol],
         content_length: item.summary?.length || 0,
         source_priority: ENHANCED_SENTIMENT_CONFIG.sources.yahoo.priority,
         source_weight: ENHANCED_SENTIMENT_CONFIG.sources.yahoo.weight
-      } as EnhancedNewsArticle));
+      } as unknown as EnhancedNewsArticle));
 
       await this.cache?.set(cacheKey, JSON.stringify(articles), DUAL_CACHE_CONFIGS.NEWS_ARTICLES);
       return articles;
@@ -419,7 +424,7 @@ export class EnhancedSentimentPipeline {
       // Prepare news summary for AI analysis
       const newsSummary = articles
         .slice(0, 10) // Limit to top 10 for AI processing
-        .map(article => `${article.title}: ${article.substring?.substring(0, 200) || article.summary}`)
+        .map(article => `${article.title}: ${(article as any).summary?.substring(0, 200) || ''}`)
         .join('\n\n');
 
       // Use Cloudflare AI for sentiment analysis
@@ -450,7 +455,7 @@ Respond with JSON only:
         };
       }
     } catch (error) {
-      logger.warn('ENHANCED_SENTIMENT', 'AI analysis failed, using rule-based fallback', {
+      logger.warn('AI analysis failed, using rule-based fallback', {
         error: error instanceof Error ? error.message : 'Unknown'
       });
     }
@@ -471,8 +476,8 @@ Respond with JSON only:
     let totalWeight = 0;
 
     articles.forEach(article => {
-      const sentimentScore = this.getSentimentScore(article.sentiment || 'neutral');
-      const weight = article.source_weight || 1.0;
+      const sentimentScore = this.getSentimentScore((article as any).sentiment || 'neutral');
+      const weight = (article as any).source_weight || 1.0;
 
       totalScore += sentimentScore * weight;
       totalWeight += weight;
@@ -507,7 +512,7 @@ Respond with JSON only:
   /**
    * Simple sentiment analysis for headlines
    */
-  private analyzeSentiment(text: string): 'bullish' | 'bearish' | 'neutral' {
+  private analyzeTextSentiment(text: string): 'bullish' | 'bearish' | 'neutral' {
     const content = text.toLowerCase();
 
     const bullishWords = ['beat', 'beats', 'strong', 'growth', 'profit', 'surge', 'rally', 'upgrade', 'buy', 'bullish', 'positive', 'gains', 'rises', 'jumps'];
@@ -536,15 +541,15 @@ Respond with JSON only:
 
     articles.forEach(article => {
       // Calculate freshness
-      const publishedTime = new Date(article.published_date || article.publishedAt).getTime();
+      const publishedTime = new Date((article as any).published_date || article.publishedAt || Date.now()).getTime();
       const ageHours = (now - publishedTime) / (1000 * 60 * 60);
       totalFreshnessHours += ageHours;
 
       // Accumulate penalties
-      totalPenalty += article.dac_confidence_penalty || 0;
+      totalPenalty += (article as any).dac_confidence_penalty || 0;
 
       // Track source diversity
-      sources.add(article.source);
+      sources.add(article.source || 'unknown');
     });
 
     return {
@@ -581,7 +586,7 @@ Respond with JSON only:
       try {
         await this.cache.set(cacheKey, JSON.stringify(result), DUAL_CACHE_CONFIGS.STOCK_SENTIMENT);
       } catch (error) {
-        logger.warn('ENHANCED_SENTIMENT', 'Failed to cache result', {
+        logger.warn('Failed to cache result', {
           error: error instanceof Error ? error.message : 'Unknown'
         });
       }

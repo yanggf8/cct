@@ -17,3 +17,6 @@ Mirror the current history format: `type: short imperative summary`, emoji optio
 
 ## Environment & Configuration
 Deployment targets are defined in `wrangler.toml` (production) and `wrangler-enhanced.toml` (staging). Manage secrets through `wrangler secret put`; never check them into source control. Durable Object behavior is centralized in `src/modules/cache-durable-object.ts`, so coordinate script updates such as `validate-enhanced-cache.sh` when modifying it. When adding KV namespaces or bindings, update the corresponding entry in `docs/` and capture migration steps in your PR notes.
+
+## Skills
+Codex skills live under `/home/yanggf/.codex/skills/`, with each skill in its own folder containing a `SKILL.md` file (for example `/home/yanggf/.codex/skills/notion-knowledge-capture/SKILL.md`).

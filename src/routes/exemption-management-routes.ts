@@ -7,6 +7,9 @@ import { ExemptionManager } from '../modules/exemption-manager.js';
 import { ApiResponseFactory } from '../modules/api-v1-responses.js';
 import type { CloudflareEnvironment } from '../types.js';
 
+const jsonHeaders = { 'Content-Type': 'application/json' };
+const toResponse = (body: any, status = 200) => new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+
 /**
  * Handle exemption report request
  */
@@ -15,19 +18,15 @@ export async function handleExemptionReport(request: Request, env: CloudflareEnv
     const exemptionManager = new ExemptionManager(env);
     const report = await exemptionManager.getExemptionReport();
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'exemption-management',
       timestamp: new Date().toISOString(),
       data: report
-    });
+    }));
 
   } catch (error) {
     console.error('Exemption report request failed:', error);
-    return ApiResponseFactory.error(
-      'Failed to retrieve exemption report',
-      'EXEMPTION_REPORT_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Failed to retrieve exemption report', 'EXEMPTION_REPORT_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }
 
@@ -52,7 +51,7 @@ export async function handleExemptionValidation(request: Request, env: Cloudflar
 
     const validationResult = await exemptionManager.parseExemptions(sourceFiles);
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'exemption-management',
       timestamp: new Date().toISOString(),
       data: {
@@ -70,15 +69,11 @@ export async function handleExemptionValidation(request: Request, env: Cloudflar
           status: e.status
         }))
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Exemption validation request failed:', error);
-    return ApiResponseFactory.error(
-      'Failed to validate exemptions',
-      'EXEMPTION_VALIDATION_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Failed to validate exemptions', 'EXEMPTION_VALIDATION_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }
 
@@ -102,16 +97,16 @@ export async function handleExemptionCreate(request: Request, env: CloudflareEnv
 
     // Validate required fields
     if (!pattern || !file || !line || !jiraReference || !owner) {
-      return ApiResponseFactory.error('Missing required fields', 'MISSING_FIELDS', {
+      return toResponse(ApiResponseFactory.error('Missing required fields', 'MISSING_FIELDS', {
         required: ['pattern', 'file', 'line', 'jiraReference', 'owner']
-      });
+      }), 400);
     }
 
     // Validate JIRA reference format
     if (!/^[A-Z]+-\d+$/.test(jiraReference)) {
-      return ApiResponseFactory.error('Invalid JIRA reference format', 'INVALID_JIRA_FORMAT', {
+      return toResponse(ApiResponseFactory.error('Invalid JIRA reference format', 'INVALID_JIRA_FORMAT', {
         expected: 'PROJECT-123'
-      });
+      }), 400);
     }
 
     const exemptionManager = new ExemptionManager(env);
@@ -128,20 +123,16 @@ export async function handleExemptionCreate(request: Request, env: CloudflareEnv
       status: 'active'
     });
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'exemption-management',
       message: 'Exemption created successfully',
       timestamp: new Date().toISOString(),
       data: exemption
-    });
+    }));
 
   } catch (error) {
     console.error('Exemption creation request failed:', error);
-    return ApiResponseFactory.error(
-      'Failed to create exemption',
-      'EXEMPTION_CREATION_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Failed to create exemption', 'EXEMPTION_CREATION_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }
 
@@ -154,25 +145,21 @@ export async function handleExemptionRevoke(request: Request, env: CloudflareEnv
     const exemptionId = url.searchParams.get('id');
 
     if (!exemptionId) {
-      return ApiResponseFactory.error('Exemption ID is required', 'MISSING_EXEMPTION_ID');
+      return toResponse(ApiResponseFactory.error('Exemption ID is required', 'MISSING_EXEMPTION_ID'), 400);
     }
 
     const exemptionManager = new ExemptionManager(env);
     await exemptionManager.revokeExemption(exemptionId);
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'exemption-management',
       message: `Exemption ${exemptionId} revoked successfully`,
       timestamp: new Date().toISOString()
-    });
+    }));
 
   } catch (error) {
     console.error('Exemption revocation request failed:', error);
-    return ApiResponseFactory.error(
-      'Failed to revoke exemption',
-      'EXEMPTION_REVOCATION_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Failed to revoke exemption', 'EXEMPTION_REVOCATION_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }
 
@@ -199,7 +186,7 @@ export async function handleExemptionMaintenance(request: Request, env: Cloudfla
       results.cleanup = 'completed';
     }
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'exemption-management',
       message: 'Exemption maintenance tasks completed',
       timestamp: new Date().toISOString(),
@@ -208,15 +195,11 @@ export async function handleExemptionMaintenance(request: Request, env: Cloudfla
         results,
         report: await exemptionManager.getExemptionReport()
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Exemption maintenance request failed:', error);
-    return ApiResponseFactory.error(
-      'Failed to perform exemption maintenance',
-      'EXEMPTION_MAINTENANCE_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Failed to perform exemption maintenance', 'EXEMPTION_MAINTENANCE_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }
 
@@ -253,20 +236,16 @@ export async function handleWeeklyReport(request: Request, env: CloudflareEnviro
       recommendations: generateRecommendations(report)
     };
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'exemption-management',
       message: 'Weekly exemption report generated',
       timestamp: new Date().toISOString(),
       data: weeklyReport
-    });
+    }));
 
   } catch (error) {
     console.error('Weekly report generation failed:', error);
-    return ApiResponseFactory.error(
-      'Failed to generate weekly report',
-      'WEEKLY_REPORT_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Failed to generate weekly report', 'WEEKLY_REPORT_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }
 
@@ -329,7 +308,7 @@ export async function handleExemptionManagementRequest(request: Request, env: Cl
     } else if (path === '/api/v1/exemptions/weekly-report') {
       return await handleWeeklyReport(request, env);
     } else {
-      return ApiResponseFactory.error('Exemption management endpoint not found', 'ENDPOINT_NOT_FOUND', {
+      return toResponse(ApiResponseFactory.error('Exemption management endpoint not found', 'ENDPOINT_NOT_FOUND', {
         available_endpoints: [
           'GET /api/v1/exemptions/report',
           'POST /api/v1/exemptions/validate',
@@ -338,15 +317,11 @@ export async function handleExemptionManagementRequest(request: Request, env: Cl
           'POST /api/v1/exemptions/maintenance',
           'GET /api/v1/exemptions/weekly-report'
         ]
-      });
+      }), 500);
     }
 
   } catch (error) {
     console.error('Exemption management request failed:', error);
-    return ApiResponseFactory.error(
-      'Exemption management request failed',
-      'EXEMPTION_MANAGEMENT_ERROR',
-      { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    return toResponse(ApiResponseFactory.error('Exemption management request failed', 'EXEMPTION_MANAGEMENT_ERROR', { error: error instanceof Error ? error.message : 'Unknown error' }), 500);
   }
 }

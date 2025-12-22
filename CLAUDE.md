@@ -129,36 +129,135 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🎯 API v1 - RESTful Architecture
 
-### **Core Endpoints (65+ Total)**
+### **Core Endpoints (120+ Total)**
 
-#### Sentiment Analysis (8 endpoints)
+#### Sentiment Analysis (4 endpoints)
 ```bash
 GET /api/v1/sentiment/analysis        # Multi-symbol analysis
 GET /api/v1/sentiment/symbols/:symbol # Single symbol
 GET /api/v1/sentiment/market          # Market-wide sentiment
 GET /api/v1/sentiment/sectors         # Sector sentiment
-# + 4 additional
 ```
 
-#### Reports (6 endpoints)
+#### Reports (7 endpoints)
 ```bash
 GET /api/v1/reports/daily/:date       # Daily reports
+GET /api/v1/reports/daily             # Latest daily report
 GET /api/v1/reports/weekly/:week      # Weekly reports
-GET /api/v1/reports/pre-market        # Pre-market briefing ⭐ FIXED
+GET /api/v1/reports/weekly            # Latest weekly report
+GET /api/v1/reports/pre-market        # Pre-market briefing
+POST /api/v1/reports/pre-market/generate # Force generate pre-market data 🔒 PROTECTED
 GET /api/v1/reports/intraday          # Intraday check
 GET /api/v1/reports/end-of-day        # End-of-day summary
-GET /api/v1/reports/latest            # Latest reports
+```
+
+#### Market Intelligence (5 endpoints)
+```bash
+GET /api/v1/market-intelligence/dashboard # Complete unified dashboard
+GET /api/v1/market-intelligence/synopsis  # Market synopsis with key insights
+GET /api/v1/market-intelligence/top-picks # Investment recommendations
+GET /api/v1/market-intelligence/risk-report # Comprehensive risk analysis
+POST /api/v1/market-intelligence/comprehensive-analysis # Run complete analysis
+```
+
+#### Market Drivers (9 endpoints)
+```bash
+GET /api/v1/market-drivers/snapshot   # Complete market drivers snapshot
+GET /api/v1/market-drivers/snapshot/enhanced # Enhanced snapshot with full analysis
+GET /api/v1/market-drivers/macro      # Macroeconomic drivers only
+GET /api/v1/market-drivers/market-structure # Market structure indicators
+GET /api/v1/market-drivers/regime     # Market regime analysis
+GET /api/v1/market-drivers/regime/details # Enhanced regime analysis
+GET /api/v1/market-drivers/geopolitical # Geopolitical risk analysis
+GET /api/v1/market-drivers/history    # Historical market drivers data
+GET /api/v1/market-drivers/health     # System health
+```
+
+#### Sector Analysis (7 endpoints)
+```bash
+GET /api/v1/sectors/snapshot          # Sector snapshot
+GET /api/v1/sectors/health            # Sector health
+GET /api/v1/sectors/symbols           # Sector symbols
+POST /api/v1/sector-rotation/analysis # Run sector rotation analysis
+GET /api/v1/sector-rotation/results   # Get cached analysis results
+GET /api/v1/sector-rotation/sectors   # Get sector information
+GET /api/v1/sector-rotation/etf/:symbol # Individual ETF analysis
+```
+
+#### Risk Management (10 endpoints)
+```bash
+POST /api/v1/risk/assessment          # Portfolio risk assessment
+POST /api/v1/risk/market              # Market risk analysis
+POST /api/v1/risk/concentration       # Concentration risk
+POST /api/v1/risk/liquidity           # Liquidity risk assessment
+POST /api/v1/risk/stress-test         # Stress testing
+POST /api/v1/risk/compliance          # Compliance checks
+POST /api/v1/risk/regulatory-report   # Regulatory reporting
+POST /api/v1/risk/limits              # Risk limit monitoring
+POST /api/v1/risk/analytics           # Advanced risk analytics
+GET /api/v1/risk/health               # Risk system health
+```
+
+#### Advanced Analytics (8 endpoints)
+```bash
+POST /api/v1/analytics/model-comparison # Compare prediction models
+GET /api/v1/analytics/confidence-intervals # Confidence intervals
+POST /api/v1/analytics/ensemble-prediction # Ensemble predictions
+GET /api/v1/analytics/prediction-accuracy # Prediction accuracy metrics
+POST /api/v1/analytics/risk-assessment # Comprehensive risk assessment
+GET /api/v1/analytics/model-performance # Model performance metrics
+POST /api/v1/analytics/backtest       # Backtesting analysis
+GET /api/v1/analytics/health          # Analytics system health
+```
+
+#### Predictive Analytics (7 endpoints)
+```bash
+GET /api/v1/predictive/signals        # Generate predictive signals
+GET /api/v1/predictive/patterns       # Analyze market patterns
+GET /api/v1/predictive/insights       # Comprehensive predictive insights
+GET /api/v1/predictive/forecast       # Market forecast
+GET /api/v1/predictive/health         # System health
+POST /api/v1/predictive/generate      # Generate market prediction
+POST /api/v1/predictive/forecast      # Market forecast with parameters
+```
+
+#### Backtesting (11 endpoints)
+```bash
+POST /api/v1/backtesting/run          # Execute backtesting simulation
+GET /api/v1/backtesting/status/:id    # Get backtest status
+GET /api/v1/backtesting/results/:id   # Retrieve backtesting results
+GET /api/v1/backtesting/performance/:id # Detailed performance metrics
+POST /api/v1/backtesting/compare      # Compare multiple strategies
+GET /api/v1/backtesting/history       # List backtesting runs
+GET /api/v1/backtesting/validate/:id  # Get validation results
+POST /api/v1/backtesting/walk-forward/:id # Walk-forward optimization
+POST /api/v1/backtesting/monte-carlo/:id # Monte Carlo simulation
+POST /api/v1/backtesting/validation   # Model validation
+POST /api/v1/backtesting/monte-carlo  # Monte Carlo simulation
+```
+
+#### Technical Analysis (2 endpoints)
+```bash
+GET /api/v1/technical/symbols/:symbol # Technical indicators for symbol
+POST /api/v1/technical/analysis      # Technical analysis
+```
+
+#### Realtime Data (3 endpoints)
+```bash
+GET /api/v1/realtime/stream           # Realtime data stream
+GET /api/v1/realtime/status           # Stream status
+POST /api/v1/realtime/refresh         # Refresh realtime data
 ```
 
 #### Data Access (12 endpoints)
 ```bash
 GET /api/v1/data/symbols              # Available symbols
 GET /api/v1/data/history/:symbol      # Historical data
-GET /api/v1/data/health               # System health ⭐ NEW
+GET /api/v1/data/health               # System health
 # + 9 additional
 ```
 
-#### Business Intelligence Dashboard (5 endpoints) ⭐ **PHASE 3**
+#### Business Intelligence Dashboard (5 endpoints)
 ```bash
 GET /api/v1/dashboard/metrics         # Operational health & KPIs
 GET /api/v1/dashboard/economics       # Cost-to-serve intelligence
@@ -182,6 +281,28 @@ GET /api/v1/cache/warmup              # Cache warming
 GET /api/v1/security/status           # Security system status 🔒 PROTECTED
 POST /api/v1/security/test-auth       # Test authentication 🔒 PROTECTED
 GET /api/v1/security/config           # Security configuration (admin only)
+```
+
+#### Admin Operations (11 endpoints)
+```bash
+GET /api/v1/canary/status             # Canary rollout status 🔒 PROTECTED
+POST /api/v1/canary/update            # Update canary config 🔒 PROTECTED
+POST /api/v1/canary/enable            # Enable canary for route 🔒 PROTECTED
+POST /api/v1/canary/disable           # Disable canary for route 🔒 PROTECTED
+POST /api/v1/canary/simulate          # Simulate canary traffic 🔒 PROTECTED
+GET /api/v1/exemptions/report         # Exemption report 🔒 PROTECTED
+POST /api/v1/exemptions/validate      # Validate exemptions 🔒 PROTECTED
+POST /api/v1/exemptions/create        # Create exemption 🔒 PROTECTED
+DELETE /api/v1/exemptions/revoke      # Revoke exemption 🔒 PROTECTED
+POST /api/v1/exemptions/maintenance   # Maintenance tasks 🔒 PROTECTED
+GET /api/v1/exemptions/weekly-report  # Weekly exemption report 🔒 PROTECTED
+```
+
+#### Integration Testing (3 endpoints)
+```bash
+POST /api/v1/integration-tests/run-full # Run complete test suite 🔒 PROTECTED
+GET /api/v1/integration-tests/health-check # Quick health check 🔒 PROTECTED
+GET /api/v1/integration-tests/status  # Get test status 🔒 PROTECTED
 ```
 
 ### **Frontend API Client**
@@ -452,9 +573,11 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2025-12-19
-**Current Version**: Production Ready with Test Organization + Phase 3 BI Dashboard
+**Last Updated**: 2025-12-22
+**Current Version**: Production Ready with Test Organization + Phase 3 BI Dashboard + Complete API Documentation
 **Major Updates**:
+- **API Documentation Update**: Comprehensive endpoint catalog (65 → 120+ endpoints) across 17 categories
+- **New Documented Categories**: Market Intelligence, Market Drivers, Sector Analysis, Risk Management, Advanced Analytics, Predictive Analytics, Backtesting, Technical Analysis, Realtime Data, Integration Testing
 - **Test & Script Organization**: 54 scripts reorganized (38 tests + 16 operational scripts) into logical structure with comprehensive documentation
 - **Phase 3 BI Dashboard**: Cost-to-serve intelligence, guard violation monitoring, 5 new dashboard endpoints
 - **Documentation**: tests/README.md, scripts/README.md, TEST_AND_SCRIPT_INDEX.md

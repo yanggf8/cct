@@ -1,4 +1,7 @@
 
+// Node.js compatibility shim for process.env references
+import './types/node-shim.js';
+
 // Enhanced Cloudflare type imports
 import type {
   KVNamespace,
@@ -69,7 +72,8 @@ export {
   SingleModelAnalysis,
   isGPTAnalysisResult,
   isDistilBERTAnalysisResult,
-  isDualAIAnalysisResult
+  isDualAIAnalysisResult,
+  NewsArticle
 } from './types/ai-analysis';
 
 // Cloudflare types

@@ -408,11 +408,18 @@ export class RouterStorageAdapter implements StorageAdapter {
     }
   }
 
+  /**
+   * Get adapter statistics
+   */
+  getAdapterStats(): typeof this.stats {
+    return this.stats;
+  }
+
   // ============================================================================
   // Router-Specific Methods
   // ============================================================================
 
-  private resolveRoute(key: string): { adapter: StorageAdapter | undefined; storageClass: StorageClass; pattern: KeyPattern } {
+  resolveRoute(key: string): { adapter: StorageAdapter | undefined; storageClass: StorageClass; pattern: KeyPattern } {
     // Find matching pattern
     const pattern = this.config.keyPatterns.find(p => p.regex.test(key));
 
@@ -571,7 +578,7 @@ export class RouterStorageAdapter implements StorageAdapter {
 
     try {
       // Get current data from DO (hot cache)
-      const currentRoute = this.routeRequest(key);
+      const currentRoute = this.resolveRoute(key);
       if (currentRoute.storageClass !== 'hot_cache') {
         return {
           success: false,
@@ -623,8 +630,11 @@ export class RouterStorageAdapter implements StorageAdapter {
           data: getResult.data,
           latency: Date.now() - start,
           metadata: {
+            timestamp: new Date().toISOString(),
+            storageClass: targetStorageClass,
+            backend: targetAdapter.name,
             promoted: true,
-            fromClass: 'hot_cache',
+            fromClass: 'hot_cache' as const,
             toClass: targetStorageClass,
             originalSize: getResult.metadata?.size || 0
           }
@@ -707,9 +717,12 @@ export class RouterStorageAdapter implements StorageAdapter {
           data: getResult.data,
           latency: Date.now() - start,
           metadata: {
+            timestamp: new Date().toISOString(),
+            storageClass: 'hot_cache' as const,
+            backend: this.config.adapters.hot?.name || 'hot_cache',
             demoted: true,
             fromClass: sourceStorageClass,
-            toClass: 'hot_cache',
+            toClass: 'hot_cache' as const,
             originalSize: getResult.metadata?.size || 0
           }
         };
@@ -973,3 +986,7 @@ export function createDefaultRouterConfig(env: CloudflareEnvironment): RouterCon
     }
   };
 }
+
+
+// Alias for backward compatibility
+export const RouterAdapter = RouterStorageAdapter;

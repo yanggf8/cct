@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_SCRIPT="$SCRIPT_DIR/../integration/dac/test-dac-service-binding-comprehensive.sh"
 BASELINE_DIR="$SCRIPT_DIR/baselines"
 CURRENT_DATE=$(date +%Y%m%d)
-REPORT_DIR="$SCRIPT_DIR/test-reports"
+REPORT_DIR="$SCRIPT_DIR/../integration/dac/test-reports"
 CURRENT_REPORT="$REPORT_DIR/dac-regression-report-$CURRENT_DATE.html"
 API_URL="https://tft-trading-system.yanggf.workers.dev"
 # Use unified X_API_KEY; no insecure defaults

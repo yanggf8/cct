@@ -220,7 +220,7 @@ export class RealTimeDataManager {
       const snapshot = await drivers.getMarketDriversSnapshot();
       const ns = getCacheNamespace('market_data');
       await this.cache.set(ns.name, 'market_drivers:snapshot', snapshot, { l1: CACHE_TTL.MEDIUM, l2: CACHE_TTL.EXTENDED } as any);
-      const record: FreshnessRecord = { source: 'market_drivers', status: 'healthy', updated_at: new Date().toISOString(), details: { timestamp: snapshot.timestamp, marketHealth: snapshot.marketHealth } };
+      const record: FreshnessRecord = { source: 'market_drivers', status: 'healthy', updated_at: new Date().toISOString(), details: { timestamp: snapshot.timestamp } };
       await this.recordFreshness(record);
       return record;
     } catch (e: any) {

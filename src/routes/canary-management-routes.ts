@@ -7,6 +7,9 @@ import { CanaryToggleManager } from '../modules/canary-toggle.js';
 import { ApiResponseFactory } from '../modules/api-v1-responses.js';
 import type { CloudflareEnvironment } from '../types.js';
 
+const jsonHeaders = { 'Content-Type': 'application/json' };
+const toResponse = (body: any, status = 200) => new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+
 /**
  * Handle canary status request
  */
@@ -15,7 +18,7 @@ export async function handleCanaryStatus(request: Request, env: CloudflareEnviro
     const canaryManager = new CanaryToggleManager(env);
     const statuses = await canaryManager.getAllCanaryStatuses();
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'canary-management',
       timestamp: new Date().toISOString(),
       data: {
@@ -26,15 +29,15 @@ export async function handleCanaryStatus(request: Request, env: CloudflareEnviro
           total_rollout_percentage: Object.values(statuses).reduce((sum, config) => sum + config.percentage, 0)
         }
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Canary status request failed:', error);
-    return ApiResponseFactory.error(
+    return toResponse(ApiResponseFactory.error(
       'Failed to retrieve canary status',
       'CANARY_STATUS_ERROR',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    ), 500);
   }
 }
 
@@ -55,11 +58,11 @@ export async function handleCanaryUpdate(request: Request, env: CloudflareEnviro
 
     // Validate request
     if (!route) {
-      return ApiResponseFactory.error('Route is required', 'MISSING_ROUTE');
+      return toResponse(ApiResponseFactory.error('Route is required', 'MISSING_ROUTE'), 400);
     }
 
     if (typeof percentage !== 'number' || percentage < 0 || percentage > 100) {
-      return ApiResponseFactory.error('Percentage must be between 0 and 100', 'INVALID_PERCENTAGE');
+      return toResponse(ApiResponseFactory.error('Percentage must be between 0 and 100', 'INVALID_PERCENTAGE'), 400);
     }
 
     const canaryManager = new CanaryToggleManager(env);
@@ -72,7 +75,7 @@ export async function handleCanaryUpdate(request: Request, env: CloudflareEnviro
 
     const updatedConfig = await canaryManager.getCanaryConfig(route);
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'canary-management',
       message: `Canary configuration updated for ${route}`,
       timestamp: new Date().toISOString(),
@@ -80,15 +83,15 @@ export async function handleCanaryUpdate(request: Request, env: CloudflareEnviro
         route,
         config: updatedConfig
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Canary update request failed:', error);
-    return ApiResponseFactory.error(
+    return toResponse(ApiResponseFactory.error(
       'Failed to update canary configuration',
       'CANARY_UPDATE_ERROR',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    ), 500);
   }
 }
 
@@ -103,7 +106,7 @@ export async function handleCanaryEnable(request: Request, env: CloudflareEnviro
     const percentage = percentageParam ? parseInt(percentageParam, 10) : 10;
 
     if (!route) {
-      return ApiResponseFactory.error('Route parameter is required', 'MISSING_ROUTE');
+      return toResponse(ApiResponseFactory.error('Route parameter is required', 'MISSING_ROUTE'), 400);
     }
 
     const canaryManager = new CanaryToggleManager(env);
@@ -111,7 +114,7 @@ export async function handleCanaryEnable(request: Request, env: CloudflareEnviro
 
     const config = await canaryManager.getCanaryConfig(route);
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'canary-management',
       message: `Canary enabled for ${route} at ${percentage}% rollout`,
       timestamp: new Date().toISOString(),
@@ -119,15 +122,15 @@ export async function handleCanaryEnable(request: Request, env: CloudflareEnviro
         route,
         config
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Canary enable request failed:', error);
-    return ApiResponseFactory.error(
+    return toResponse(ApiResponseFactory.error(
       'Failed to enable canary',
       'CANARY_ENABLE_ERROR',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    ), 500);
   }
 }
 
@@ -140,7 +143,7 @@ export async function handleCanaryDisable(request: Request, env: CloudflareEnvir
     const route = url.searchParams.get('route');
 
     if (!route) {
-      return ApiResponseFactory.error('Route parameter is required', 'MISSING_ROUTE');
+      return toResponse(ApiResponseFactory.error('Route parameter is required', 'MISSING_ROUTE'), 400);
     }
 
     const canaryManager = new CanaryToggleManager(env);
@@ -148,7 +151,7 @@ export async function handleCanaryDisable(request: Request, env: CloudflareEnvir
 
     const config = await canaryManager.getCanaryConfig(route);
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'canary-management',
       message: `Canary disabled for ${route}`,
       timestamp: new Date().toISOString(),
@@ -156,15 +159,15 @@ export async function handleCanaryDisable(request: Request, env: CloudflareEnvir
         route,
         config
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Canary disable request failed:', error);
-    return ApiResponseFactory.error(
+    return toResponse(ApiResponseFactory.error(
       'Failed to disable canary',
       'CANARY_DISABLE_ERROR',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    ), 500);
   }
 }
 
@@ -181,7 +184,7 @@ export async function handleCanarySimulate(request: Request, env: CloudflareEnvi
     const { route, user_count = 100 } = body;
 
     if (!route) {
-      return ApiResponseFactory.error('Route is required', 'MISSING_ROUTE');
+      return toResponse(ApiResponseFactory.error('Route is required', 'MISSING_ROUTE'), 400);
     }
 
     const canaryManager = new CanaryToggleManager(env);
@@ -225,7 +228,7 @@ export async function handleCanarySimulate(request: Request, env: CloudflareEnvi
       });
     }
 
-    return ApiResponseFactory.success({
+    return toResponse(ApiResponseFactory.success({
       service: 'canary-management',
       message: `Traffic simulation completed for ${route}`,
       timestamp: new Date().toISOString(),
@@ -234,15 +237,15 @@ export async function handleCanarySimulate(request: Request, env: CloudflareEnvi
         config,
         simulation
       }
-    });
+    }));
 
   } catch (error) {
     console.error('Canary simulation request failed:', error);
-    return ApiResponseFactory.error(
+    return toResponse(ApiResponseFactory.error(
       'Failed to simulate canary traffic',
       'CANARY_SIMULATION_ERROR',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    ), 500);
   }
 }
 
@@ -266,7 +269,7 @@ export async function handleCanaryManagementRequest(request: Request, env: Cloud
     } else if (path === '/api/v1/canary/simulate') {
       return await handleCanarySimulate(request, env);
     } else {
-      return ApiResponseFactory.error('Canary management endpoint not found', 'ENDPOINT_NOT_FOUND', {
+      return toResponse(ApiResponseFactory.error('Canary management endpoint not found', 'ENDPOINT_NOT_FOUND', {
         available_endpoints: [
           'GET /api/v1/canary/status',
           'POST /api/v1/canary/update',
@@ -274,15 +277,15 @@ export async function handleCanaryManagementRequest(request: Request, env: Cloud
           'POST /api/v1/canary/disable',
           'POST /api/v1/canary/simulate'
         ]
-      });
+      }), 404);
     }
 
   } catch (error) {
     console.error('Canary management request failed:', error);
-    return ApiResponseFactory.error(
+    return toResponse(ApiResponseFactory.error(
       'Canary management request failed',
       'CANARY_MANAGEMENT_ERROR',
       { error: error instanceof Error ? error.message : 'Unknown error' }
-    );
+    ), 500);
   }
 }

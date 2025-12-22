@@ -84,5 +84,5 @@ export function createMoneyFlowAdapter(env: CloudflareEnvironment): DACMoneyFlow
     return null;
   }
 
-  return new DACMoneyFlowAdapter(env.DAC_BACKEND);
+  return new DACMoneyFlowAdapter(env.DAC_BACKEND as any);
 }

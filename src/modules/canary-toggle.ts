@@ -101,7 +101,7 @@ export class CanaryToggleManager {
   /**
    * Get canary configuration for a specific route
    */
-  private async getCanaryConfig(route: string): Promise<CanaryConfig> {
+  async getCanaryConfig(route: string): Promise<CanaryConfig> {
     try {
       // Try to get from KV first
       const configKey = `canary:${route}`;
@@ -230,7 +230,7 @@ export class CanaryToggleManager {
     const apiKey = request.headers.get('X-API-Key');
     if (apiKey) {
       // Hash the API key for privacy
-      return this.hashString(apiKey);
+      return String(this.hashString(apiKey));
     }
 
     // 2. Client IP address
@@ -242,11 +242,11 @@ export class CanaryToggleManager {
     // 3. User-Agent header (as fallback)
     const userAgent = request.headers.get('User-Agent');
     if (userAgent) {
-      return this.hashString(userAgent);
+      return String(this.hashString(userAgent));
     }
 
     // 4. Random ID (last resort)
-    return this.hashString(this.getRequestId(request));
+    return String(this.hashString(this.getRequestId(request)));
   }
 
   /**
@@ -317,14 +317,14 @@ export class CanaryToggleManager {
   /**
    * Simple string hashing for consistent hashing
    */
-  private hashString(str: string): string {
+  private hashString(str: string): number {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
-    return Math.abs(hash).toString();
+    return Math.abs(hash);
   }
 
   /**

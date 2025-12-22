@@ -226,7 +226,7 @@ export class MarketRegimeClassifier {
    * Analyze VIX factor (market fear/volatility)
    */
   private async analyzeVIXFactor(marketStructure: MarketStructure): Promise<{ score: number; weight: number; description: string }> {
-    const vix = marketStructure.vix;
+    const vix = marketStructure.vix.value;
     const vixPercentile = marketStructure.vixPercentile;
 
     let score = 50; // Neutral score
@@ -250,10 +250,10 @@ export class MarketRegimeClassifier {
     }
 
     // Adjust based on VIX trend
-    if (marketStructure.vixTrend === 'rising') {
+    if (marketStructure.vixTrend === 'bullish') {
       score += 10;
       description += ' (rising trend increases bearish bias)';
-    } else if (marketStructure.vixTrend === 'falling') {
+    } else if (marketStructure.vixTrend === 'bearish') {
       score -= 10;
       description += ' (falling trend reduces bearish bias)';
     }
@@ -269,7 +269,7 @@ export class MarketRegimeClassifier {
    * Analyze yield curve factor
    */
   private async analyzeYieldCurveFactor(macro: MacroDrivers, marketStructure: MarketStructure): Promise<{ score: number; weight: number; description: string }> {
-    const yieldSpread = macro.yieldCurveSpread;
+    const yieldSpread = macro.yieldCurveSpread.value;
     const curveStatus = marketStructure.yieldCurveStatus;
 
     let score = 50;
@@ -283,7 +283,7 @@ export class MarketRegimeClassifier {
         score = 70; // Mildly inverted = warning signal
         description = `Mildly inverted yield curve (${yieldSpread}%) suggests economic slowing`;
       }
-    } else if (curveStatus === 'flat') {
+    } else if (curveStatus === 'flattening') {
       score = 60; // Flat = uncertain/transitioning
       description = `Flat yield curve indicates uncertain economic transition period`;
     } else { // Normal
@@ -307,9 +307,9 @@ export class MarketRegimeClassifier {
    * Analyze economic growth factor
    */
   private async analyzeEconomicGrowthFactor(macro: MacroDrivers): Promise<{ score: number; weight: number; description: string }> {
-    const gdpGrowth = macro.gdpGrowthRate;
-    const unemployment = macro.unemploymentRate;
-    const consumerConfidence = macro.consumerConfidence;
+    const gdpGrowth = macro.gdpGrowthRate.value;
+    const unemployment = macro.unemploymentRate.value;
+    const consumerConfidence = macro.consumerConfidence.value;
 
     let score = 50;
     let description = 'Economic growth indicators are mixed';
@@ -368,8 +368,8 @@ export class MarketRegimeClassifier {
    * Analyze inflation factor
    */
   private async analyzeInflationFactor(macro: MacroDrivers): Promise<{ score: number; weight: number; description: string }> {
-    const inflationRate = macro.inflationRate;
-    const fedFundsRate = macro.fedFundsRate;
+    const inflationRate = macro.inflationRate.value;
+    const fedFundsRate = macro.fedFundsRate.value;
 
     let score = 50;
     let description = 'Inflation levels are moderate';
@@ -413,8 +413,7 @@ export class MarketRegimeClassifier {
    * Analyze geopolitical risk factor
    */
   private async analyzeGeopoliticalFactor(geopolitical: GeopoliticalRisk): Promise<{ score: number; weight: number; description: string }> {
-    const overallRisk = geopolitical.overallRiskScore;
-    const trend = geopolitical.riskTrend;
+    const overallRisk = geopolitical.overallRiskScore.value;
     const events = geopolitical.highImpactEvents;
 
     let score = 50;
@@ -432,15 +431,6 @@ export class MarketRegimeClassifier {
     } else {
       score = 85; // High risk = bearish
       description = `High geopolitical risk (${overallRisk}) creates significant market headwinds`;
-    }
-
-    // Adjust for trend
-    if (trend === 'increasing') {
-      score += 10;
-      description += ' (increasing trend adds to bearish bias)';
-    } else if (trend === 'decreasing') {
-      score -= 10;
-      description += ' (decreasing trend reduces bearish bias)';
     }
 
     // Adjust for high-impact events
@@ -483,10 +473,10 @@ export class MarketRegimeClassifier {
     }
 
     // Dollar strength impact (inverse correlation with equities)
-    if (dollarTrend === 'strengthening') {
+    if (dollarTrend === 'bullish') {
       momentumScore += 10;
       description += '; strengthening dollar adds headwinds';
-    } else if (dollarTrend === 'weakening') {
+    } else if (dollarTrend === 'bearish') {
       momentumScore -= 10;
       description += '; weakening dollar provides tailwinds';
     }

@@ -4,16 +4,8 @@ compatibility_date = "2025-01-10"
 compatibility_flags = ["nodejs_compat"]
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 
-[env.production]
-name = "tft-trading-system"
-main = "src/index.ts"
-
-[[env.production.durable_objects.bindings]]
-name = "CACHE_DO"
-class_name = "CacheDurableObject"
-
-# D1 Database for analytics and cold storage (production)
-[[env.production.d1_databases]]
+# D1 Database for analytics and cold storage (production - top-level)
+[[d1_databases]]
 binding = "ANALYTICS_DB"
 database_name = "tft-trading-system-analytics"
 database_id = "your-production-database-id"  # To be created with: wrangler d1 create tft-trading-system-analytics

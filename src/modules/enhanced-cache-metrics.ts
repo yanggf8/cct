@@ -21,6 +21,8 @@ export interface PerformanceThresholds {
   maxMemoryUsage: number;   // Maximum memory usage (MB)
   errorRate: number;        // Maximum error rate (0-1)
   promotionRate: number;    // Minimum promotion rate (0-1)
+  sampleRate?: number;      // Optional sampling rate for metrics
+  maxRecentOperations?: number; // Max recent operations to track
 }
 
 /**
@@ -41,6 +43,8 @@ export interface MetricsLabels {
   keyspace: string;         // 'market_analysis_cache' | 'sector_cache' | 'fred' | 'yahoo' | 'analysis' | 'report'
   op: string;               // 'get' | 'put' | 'del' | 'list'
   result?: string;          // 'hit' | 'miss' | 'ok' | 'error'
+  from_class?: string;      // For promotion tracking
+  to_class?: string;        // For demotion tracking
 }
 
 export interface OperationMetrics {
@@ -105,6 +109,11 @@ export interface LayerMetrics {
   avgResponseTime: number;
   currentSize: number;
   maxMemoryMB: number;
+  // Extended properties used by health assessment
+  errorRate?: number;
+  evictions?: number;
+  currentMemoryMB?: number;
+  errors?: number;
 }
 
 /**
@@ -1120,9 +1129,9 @@ export class EnhancedCacheMetricsManager {
     const latencies = d1Operations.map(op => op.durationMs).sort((a, b) => a - b);
     const latency = {
       avg: latencies.length > 0 ? latencies.reduce((sum, l) => sum + l, 0) / latencies.length : 0,
-      p50: this.percentile(latencies, 0.5),
-      p95: this.percentile(latencies, 0.95),
-      p99: this.percentile(latencies, 0.99)
+      p50: this.calculatePercentile(latencies, 0.5),
+      p95: this.calculatePercentile(latencies, 0.95),
+      p99: this.calculatePercentile(latencies, 0.99)
     };
 
     // Get storage stats from gauges
@@ -1313,7 +1322,7 @@ export class EnhancedCacheMetricsManager {
         .map(([key, value]) => `${key}="${value}"`)
         .join(',');
 
-      lines.push(`cache_${histogram.name}_ms_bucket{system="${histogram.labels.system}",${labelsStr},le="${this.latencyBuckets[0].le}"} 0`);
+      lines.push(`cache_${histogram.name}_ms_bucket{system="${histogram.labels.system}",${labelsStr},le="${this.latencyBuckets[0]}"} 0`);
 
       // Add all buckets except the first one (already added as 0)
       for (let i = 1; i < histogram.buckets.length; i++) {

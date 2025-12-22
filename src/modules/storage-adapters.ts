@@ -32,11 +32,27 @@ export interface StorageResult<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+  latency?: number;
+  deleted?: boolean;
   metadata?: {
     timestamp: string;
     storageClass: StorageClass;
     backend: string;
     ttl?: number;
+    // Extended properties for routing
+    adapterErrors?: string[];
+    dualMode?: boolean;
+    promoted?: boolean;
+    demoted?: boolean;
+    routedClass?: StorageClass;
+    routedAdapter?: string;
+    size?: number;
+    fallbackWrite?: boolean;
+    fallbackDelete?: boolean;
+    fromClass?: StorageClass;
+    toClass?: StorageClass;
+    originalSize?: number;
+    compressedSize?: number;
   };
 }
 
@@ -118,13 +134,14 @@ export class DOAdapter implements StorageAdapter {
   async get(key: string): Promise<StorageResult> {
     const startTime = Date.now();
     this.stats.totalOperations++;
+    let duration = 0;
 
     try {
       const doId = this.config.doNamespace.idFromName('cache');
       const stub = this.config.doNamespace.get(doId);
 
       const value = await stub.get(key);
-      const duration = Date.now() - startTime;
+      duration = Date.now() - startTime;
       this.stats.hits++;
 
       // Record metrics if collector is available
@@ -164,7 +181,7 @@ export class DOAdapter implements StorageAdapter {
     } catch (error) {
       this.stats.misses++;
       this.stats.errors++;
-      const duration = Date.now() - startTime;
+      duration = Date.now() - startTime;
 
       // Record error metrics if collector is available
       if (this.metricsCollector) {
@@ -796,7 +813,7 @@ export class MemoryAdapter implements StorageAdapter {
   readonly enabled = true;
   private cache = new Map<string, { value: any; expiry: number; metadata: any }>();
   private stats: StorageStats;
-  private cleanupInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private metricsCollector: any; // Will be injected for metrics
 
   constructor() {

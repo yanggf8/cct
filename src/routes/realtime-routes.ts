@@ -5,6 +5,10 @@
 
 import { ApiResponseFactory, HttpStatus, generateRequestId } from '../modules/api-v1-responses.js';
 import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { fetchRealMarketIndices, fetchRealSectorData } from '../modules/real-analytics-data.js';
+import { createLogger } from '../modules/logging.js';
+
+const logger = createLogger('realtime-routes');
 
 interface RealtimeConnection {
     id: string;
@@ -278,39 +282,66 @@ class RealtimeManager {
                 return cached.data;
             }
 
-            // Generate mock market data
-            const marketData = {
-                indices: {
-                    sp500: {
-                        value: 4567.18 + (Math.random() - 0.5) * 50,
-                        change: (Math.random() - 0.5) * 2
-                    },
-                    nasdaq: {
-                        value: 14234.56 + (Math.random() - 0.5) * 200,
-                        change: (Math.random() - 0.5) * 3
-                    },
-                    dow: {
-                        value: 35678.90 + (Math.random() - 0.5) * 300,
-                        change: (Math.random() - 0.5) * 1.5
-                    }
-                },
-                vix: 18.47 + (Math.random() - 0.5) * 4,
-                regime: this.getRandomRegime(),
-                timestamp: new Date().toISOString()
-            };
+            // Fetch real market data from Yahoo Finance
+            try {
+                const realData = await fetchRealMarketIndices();
+                
+                const marketData = {
+                    indices: realData.indices,
+                    vix: realData.vix,
+                    regime: this.determineMarketRegime(realData.vix, realData.indices.sp500.change),
+                    timestamp: realData.timestamp,
+                    dataSource: 'yahoo_finance',
+                    status: 'live'
+                };
 
-            // Cache for 30 seconds
-            this.cache.set(cacheKey, {
-                data: marketData,
-                timestamp: Date.now(),
-                ttl: 30000
-            });
+                // Cache for 30 seconds
+                this.cache.set(cacheKey, {
+                    data: marketData,
+                    timestamp: Date.now(),
+                    ttl: 30000
+                });
 
-            return marketData;
+                return marketData;
+            } catch (fetchError) {
+                logger.warn('Yahoo Finance fetch failed, returning unavailable status', { error: fetchError });
+                return {
+                    indices: {
+                        sp500: { value: null, change: null },
+                        nasdaq: { value: null, change: null },
+                        dow: { value: null, change: null }
+                    },
+                    vix: null,
+                    regime: 'unknown',
+                    timestamp: new Date().toISOString(),
+                    dataSource: 'unavailable',
+                    status: 'data_fetch_failed',
+                    error: 'Unable to fetch real-time market data'
+                };
+            }
         } catch (error: unknown) {
-            console.error('Failed to get market overview:', error);
-            return this.getDefaultMarketData();
+            logger.error('Failed to get market overview:', { error });
+            return {
+                indices: { sp500: { value: null, change: null }, nasdaq: { value: null, change: null }, dow: { value: null, change: null } },
+                vix: null,
+                regime: 'unknown',
+                timestamp: new Date().toISOString(),
+                dataSource: 'unavailable',
+                status: 'error'
+            };
         }
+    }
+
+    /**
+     * Determine market regime based on VIX and market change
+     */
+    private determineMarketRegime(vix: number | null, spChange: number | null): string {
+        if (vix === null || spChange === null) return 'unknown';
+        if (vix > 30) return 'high-volatility';
+        if (vix > 20) return 'elevated-volatility';
+        if (spChange > 1) return 'bullish';
+        if (spChange < -1) return 'bearish';
+        return 'neutral';
     }
 
     /**
@@ -369,36 +400,49 @@ class RealtimeManager {
                 return cached.data;
             }
 
-            const sectors = [
-                { symbol: 'XLK', name: 'Technology', price: 200 + Math.random() * 20, change: (Math.random() - 0.5) * 4 },
-                { symbol: 'XLF', name: 'Financial', price: 80 + Math.random() * 8, change: (Math.random() - 0.5) * 3 },
-                { symbol: 'XLV', name: 'Health Care', price: 150 + Math.random() * 15, change: (Math.random() - 0.5) * 2 },
-                { symbol: 'XLY', name: 'Consumer Discretionary', price: 180 + Math.random() * 18, change: (Math.random() - 0.5) * 3 },
-                { symbol: 'XLP', name: 'Consumer Staples', price: 75 + Math.random() * 7, change: (Math.random() - 0.5) * 1.5 },
-                { symbol: 'XLE', name: 'Energy', price: 90 + Math.random() * 9, change: (Math.random() - 0.5) * 5 },
-                { symbol: 'XLB', name: 'Materials', price: 100 + Math.random() * 10, change: (Math.random() - 0.5) * 3 },
-                { symbol: 'XLRE', name: 'Real Estate', price: 120 + Math.random() * 12, change: (Math.random() - 0.5) * 2.5 },
-                { symbol: 'XLU', name: 'Utilities', price: 70 + Math.random() * 7, change: (Math.random() - 0.5) * 2 },
-                { symbol: 'XLI', name: 'Industrial', price: 110 + Math.random() * 11, change: (Math.random() - 0.5) * 3 },
-                { symbol: 'XLG', name: 'Large Cap Growth', price: 160 + Math.random() * 16, change: (Math.random() - 0.5) * 2.5 }
-            ];
+            // Fetch real sector ETF data with graceful degradation
+            try {
+                const realSectors = await fetchRealSectorData();
+                
+                const sectorData = {
+                    sectors: realSectors.map(s => ({
+                        symbol: s.symbol,
+                        name: s.name,
+                        price: s.price,
+                        change: s.change,
+                        changePercent: s.changePercent
+                    })),
+                    timestamp: new Date().toISOString(),
+                    dataSource: 'yahoo_finance',
+                    status: 'live'
+                };
 
-            const sectorData = {
-                sectors,
-                timestamp: new Date().toISOString()
-            };
+                // Cache for 90 seconds
+                this.cache.set(cacheKey, {
+                    data: sectorData,
+                    timestamp: Date.now(),
+                    ttl: 90000
+                });
 
-            // Cache for 90 seconds
-            this.cache.set(cacheKey, {
-                data: sectorData,
-                timestamp: Date.now(),
-                ttl: 90000
-            });
-
-            return sectorData;
+                return sectorData;
+            } catch (fetchError) {
+                logger.warn('Yahoo Finance sector fetch failed, returning unavailable status', { error: fetchError });
+                return {
+                    sectors: [],
+                    timestamp: new Date().toISOString(),
+                    dataSource: 'unavailable',
+                    status: 'data_fetch_failed',
+                    error: 'Unable to fetch real-time sector data'
+                };
+            }
         } catch (error: unknown) {
-            console.error('Failed to get sector data:', error);
-            return this.getDefaultSectorData();
+            logger.error('Failed to get sector data:', { error });
+            return {
+                sectors: [],
+                timestamp: new Date().toISOString(),
+                dataSource: 'unavailable',
+                status: 'error'
+            };
         }
     }
 

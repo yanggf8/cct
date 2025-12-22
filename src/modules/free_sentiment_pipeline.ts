@@ -150,7 +150,7 @@ const FREE_SENTIMENT_CONFIG: FreeSentimentConfig = {
 /**
  * Get free stock news with sentiment analysis
  */
-export async function getFreeStockNews(symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
+export async function getFreeStockNews(symbol: string, env: any): Promise<NewsArticle[]> {
   const newsData: NewsArticle[] = [];
 
   // 0. Try DAC Articles Pool (Highest Priority)
@@ -165,7 +165,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
         return dacResult.articles.map(article => ({
           ...article,
           source_type: 'dac_pool'
-        }));
+        })) as unknown as NewsArticle[];
       }
     }
   } catch (error: any) {
@@ -208,7 +208,7 @@ export async function getFreeStockNews(symbol: string, env: CloudflareEnvironmen
 /**
  * Financial Modeling Prep - FREE with built-in sentiment
  */
-async function getFMPNews(symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
+async function getFMPNews(symbol: string, env: any): Promise<NewsArticle[]> {
   const API_KEY = env.FMP_API_KEY; // Free at financialmodelingprep.com
 
   if (!API_KEY) {
@@ -300,7 +300,7 @@ function analyzeFMPSentiment(title: string, text?: string): { label: string; sco
 /**
  * NewsAPI.org - FREE development tier
  */
-async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
+async function getNewsAPIData(symbol: string, env: any): Promise<NewsArticle[]> {
   const API_KEY = env.NEWSAPI_KEY; // Free at newsapi.org
 
   if (!API_KEY) {
@@ -355,7 +355,7 @@ async function getNewsAPIData(symbol: string, env: CloudflareEnvironment): Promi
 /**
  * Yahoo Finance news (free but limited)
  */
-async function getYahooNews(symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
+async function getYahooNews(symbol: string, env: any): Promise<NewsArticle[]> {
   try {
     // Yahoo Finance search endpoint (unofficial)
     const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&lang=en-US&region=US&quotesCount=1&newsCount=10`;
@@ -441,7 +441,7 @@ export function analyzeTextSentiment(text: string): { label: string; score: numb
 /**
  * FREE LLM sentiment analysis using Gemini
  */
-async function getFreeLLMSentiment(newsData: NewsArticle[], symbol: string, env: CloudflareEnvironment): Promise<NewsArticle[]> {
+async function getFreeLLMSentiment(newsData: NewsArticle[], symbol: string, env: any): Promise<NewsArticle[]> {
   // Use Gemini free tier (15 requests/minute)
   if (!env.GEMINI_API_KEY) {
     console.log('No Gemini API key, using rule-based sentiment');
@@ -525,7 +525,7 @@ Respond with JSON only:
 /**
  * Main free sentiment analysis function
  */
-export async function getFreeSentimentSignal(symbol: string, env: CloudflareEnvironment): Promise<SentimentSignal> {
+export async function getFreeSentimentSignal(symbol: string, env: any): Promise<SentimentSignal> {
   try {
     // 1. Gather free news data
     const newsData = await getFreeStockNews(symbol, env);
@@ -624,7 +624,7 @@ function getSourceWeight(sourceType: string): number {
 /**
  * Integrate free sentiment with existing technical analysis
  */
-export async function generateFreeSentimentHybrid(symbol: string, technicalSignal: TechnicalSignal, env: CloudflareEnvironment): Promise<HybridSignal> {
+export async function generateFreeSentimentHybrid(symbol: string, technicalSignal: TechnicalSignal, env: any): Promise<HybridSignal> {
   // Get free sentiment
   const sentimentSignal = await getFreeSentimentSignal(symbol, env);
 

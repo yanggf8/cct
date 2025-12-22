@@ -172,9 +172,9 @@ export class AdminRateLimiter {
     }
 
     /**
-     * Check rate limit using token bucket algorithm
+     * Check rate limit using token bucket algorithm (public API)
      */
-    public checkTokenBucket(request: Request): RateLimitResult {
+    public checkTokenBucketLimit(request: Request): RateLimitResult {
         const key = this.generateKey(request);
         const result = this.checkTokenBucket(key);
 
@@ -194,9 +194,9 @@ export class AdminRateLimiter {
     }
 
     /**
-     * Check rate limit using sliding window algorithm
+     * Check rate limit using sliding window algorithm (public API)
      */
-    public checkSlidingWindow(request: Request): RateLimitResult {
+    public checkSlidingWindowLimit(request: Request): RateLimitResult {
         const key = this.generateKey(request);
         const result = this.checkSlidingWindow(key);
 
@@ -350,8 +350,8 @@ export function createRateLimitMiddleware(
 ) {
     return (request: Request): Response | null => {
         const result = algorithm === 'token-bucket'
-            ? rateLimiter.checkTokenBucket(request)
-            : rateLimiter.checkSlidingWindow(request);
+            ? rateLimiter.checkTokenBucketLimit(request)
+            : rateLimiter.checkSlidingWindowLimit(request);
 
         if (!result.allowed) {
             return rateLimiter.createRateLimitResponse(result);
@@ -366,13 +366,15 @@ export function createRateLimitMiddleware(
  */
 export function applyRateLimitHeaders(
     response: Response,
-    result: RateLimitResult
+    result: RateLimitResult,
+    rateLimiterInstance?: AdminRateLimiter
 ): Response {
-    const headers = rateLimiter.createRateLimitHeaders(result);
+    const limiter = rateLimiterInstance || adminApiRateLimits.canaryManagement;
+    const headers = limiter.createRateLimitHeaders(result);
 
     // Add headers to response
     Object.entries(headers).forEach(([key, value]) => {
-        response.headers.set(key, value);
+        response.headers.set(key, String(value));
     });
 
     return response;

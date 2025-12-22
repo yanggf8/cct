@@ -13,6 +13,7 @@ import { SectorDataFetcher } from '../modules/sector-data-fetcher.js';
 import { SectorIndicators } from '../modules/sector-indicators.js';
 import { ApiResponseFactory } from '../modules/api-v1-responses.js';
 import { CircuitBreakerFactory } from '../modules/circuit-breaker.js';
+import { fetchRealSectorData } from '../modules/real-analytics-data.js';
 
 const logger = createLogger('sector-routes');
 
@@ -494,51 +495,88 @@ export async function getSectorSymbols(request: any, env: any): Promise<Response
 
 /**
  * Generate simple sector snapshot fallback when complex system fails
+ * Uses real ETF data instead of random values, with graceful degradation
  */
 async function generateSimpleSectorSnapshot(): Promise<SectorSnapshotResponse> {
   const timestamp = Date.now();
 
-  // Generate basic sector data with mock but realistic values
-  const sectors = SECTOR_SYMBOLS.map(symbol => ({
-    symbol,
-    name: getSectorName(symbol),
-    price: Math.random() * 200 + 50, // Random price between 50-250
-    change: (Math.random() - 0.5) * 10, // Random change between -5 and +5
-    changePercent: (Math.random() - 0.5) * 5, // Random change % between -2.5% and +2.5%
-    volume: Math.floor(Math.random() * 10000000) + 1000000, // Random volume
-    indicators: undefined
-  }));
+  try {
+    // Fetch real sector ETF data
+    const realSectors = await fetchRealSectorData();
+    
+    // Filter out sectors with missing data and normalize nulls to 0
+    const sectors = realSectors
+      .filter(s => s.price !== null)
+      .map(s => ({
+        symbol: s.symbol,
+        name: s.name,
+        price: s.price ?? 0,
+        change: s.change ?? 0,
+        changePercent: s.changePercent ?? 0,
+        volume: s.volume ?? 0,
+        indicators: undefined
+      }));
 
-  // Calculate summary statistics
-  const averageChange = sectors.reduce((sum: any, s: any) => sum + s.changePercent, 0) / sectors.length;
-  const topPerformer = sectors.reduce((best: any, current: any) =>
-    current.changePercent > best.changePercent ? current : best
-  );
-  const worstPerformer = sectors.reduce((worst: any, current: any) =>
-    current.changePercent < worst.changePercent ? current : worst
-  );
-
-  return {
-    timestamp,
-    date: new Date().toISOString().split('T')[0],
-    sectors,
-    summary: {
-      totalSectors: sectors.length,
-      bullishSectors: sectors.filter(s => s.changePercent > 0.5).length,
-      bearishSectors: sectors.filter(s => s.changePercent < -0.5).length,
-      neutralSectors: sectors.filter(s => Math.abs(s.changePercent) <= 0.5).length,
-      topPerformer: topPerformer.symbol,
-      worstPerformer: worstPerformer.symbol,
-      averageChange: Math.round(averageChange * 100) / 100
-    },
-    metadata: {
-      cacheHit: false,
-      responseTime: 50, // Fast response time for fallback
-      dataFreshness: 0,
-      l1CacheHitRate: 0,
-      l2CacheHitRate: 0
+    if (sectors.length === 0) {
+      throw new Error('No valid sector data available');
     }
-  };
+
+    // Calculate summary statistics from real data
+    const averageChange = sectors.reduce((sum, s) => sum + s.changePercent, 0) / sectors.length;
+    const topPerformer = sectors.reduce((best, current) =>
+      current.changePercent > best.changePercent ? current : best
+    );
+    const worstPerformer = sectors.reduce((worst, current) =>
+      current.changePercent < worst.changePercent ? current : worst
+    );
+
+    return {
+      timestamp,
+      date: new Date().toISOString().split('T')[0],
+      sectors,
+      summary: {
+        totalSectors: sectors.length,
+        bullishSectors: sectors.filter(s => s.changePercent > 0.5).length,
+        bearishSectors: sectors.filter(s => s.changePercent < -0.5).length,
+        neutralSectors: sectors.filter(s => Math.abs(s.changePercent) <= 0.5).length,
+        topPerformer: topPerformer.symbol,
+        worstPerformer: worstPerformer.symbol,
+        averageChange: Math.round(averageChange * 100) / 100
+      },
+      metadata: {
+        cacheHit: false,
+        responseTime: 50,
+        dataFreshness: 1,
+        l1CacheHitRate: 0,
+        l2CacheHitRate: 0
+      }
+    };
+  } catch (error) {
+    logger.warn('Failed to fetch real sector data, returning unavailable status', { error });
+    
+    // Return empty response with unavailable status instead of fake data
+    return {
+      timestamp,
+      date: new Date().toISOString().split('T')[0],
+      sectors: [],
+      summary: {
+        totalSectors: 0,
+        bullishSectors: 0,
+        bearishSectors: 0,
+        neutralSectors: 0,
+        topPerformer: 'N/A',
+        worstPerformer: 'N/A',
+        averageChange: 0
+      },
+      metadata: {
+        cacheHit: false,
+        responseTime: 0,
+        dataFreshness: 0,
+        l1CacheHitRate: 0,
+        l2CacheHitRate: 0
+      }
+    };
+  }
 }
 
 /**

@@ -14,7 +14,7 @@
     "predeploy": "npm run build",
     "deploy": "./scripts/deployment/deploy-production.sh",
     "deploy:only": "wrangler deploy",
-    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:staging": "wrangler deploy --env=staging",
     "deploy:build-only": "./scripts/deployment/deploy-production.sh build-only",
     "deploy:verify": "./scripts/deployment/deploy-production.sh verify",
     "deploy:quick": "./scripts/deployment/quick-deploy.sh",
@@ -78,6 +78,6 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "typescript": "^5.9.2",
-    "wrangler": "^4.37.1"
+    "wrangler": "^4.56.0"
   }
 }

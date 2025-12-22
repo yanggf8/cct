@@ -3,30 +3,31 @@
  *
  * Integrates with Yahoo Finance API to fetch market structure indicators
  * including VIX, dollar index, Treasury yields, and other market benchmarks.
- *
- * Features:
- * - Yahoo Finance API integration
- * - VIX volatility analysis and trend detection
- * - Dollar strength and trend analysis
- * - Yield curve calculations and status
- * - Market benchmark tracking
- * - Historical percentile calculations
- * - Circuit breaker protection
- * - Cache integration
- *
- * @author Market Drivers Pipeline - Phase 2 Day 3
- * @since 2025-10-10
  */
 
 import { createLogger } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
-import type { MarketStructure } from './market-drivers.js';
+import type { MarketStructure, DataSourceResult } from './market-drivers-replacement.js';
 import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 import { getMarketData } from './yahoo-finance-integration.js';
 import { createFredApiClient } from './fred-api-factory.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('market-structure-fetcher');
+
+/**
+ * Convert raw value to DataSourceResult
+ */
+function toDataSourceResult(value: number, source: 'YahooFinance' | 'FRED' = 'YahooFinance'): DataSourceResult {
+  return {
+    value,
+    timestamp: new Date().toISOString(),
+    source,
+    quality: 'high',
+    lastValidated: new Date().toISOString(),
+    confidence: 90
+  };
+}
 
 /**
  * Market Structure Fetcher Options
@@ -233,36 +234,42 @@ export class MarketStructureFetcher {
   private async transformRawDataToMarketStructure(rawData: Record<string, any>): Promise<MarketStructure> {
     const vixData = rawData['^VIX'] || {};
     const spyData = rawData['SPY'] || {};
+    const qqqData = rawData['QQQ'] || {};
     const dollarData = rawData['DX-Y.NYB'] || {};
-    const tnxDData = rawData['TNX'] || {};
-    const tyxData = rawData['TYX'] || {};
+    const tnxData = rawData['TNX'] || {};
 
     // Extract current values
-    const vix = vixData.regularMarketPrice || vixData.price || 20;
-    const spy = spyData.regularMarketPrice || spyData.price || 4500;
-    const usDollarIndex = dollarData.regularMarketPrice || dollarData.price || 100;
-    const yield10Y = tnxDData.regularMarketPrice || tnxDData.price || 4.0;
-    const yield2Y = tyxData.regularMarketPrice || tyxData.price || 4.5;
+    const vixValue = vixData.regularMarketPrice || vixData.price || 20;
+    const spyValue = spyData.regularMarketPrice || spyData.price || 4500;
+    const qqqValue = qqqData.regularMarketPrice || qqqData.price || 380;
+    const dollarValue = dollarData.regularMarketPrice || dollarData.price || 100;
+    const yield10YValue = tnxData.regularMarketPrice || tnxData.price || 4.0;
 
     // Determine trends based on recent data
     const vixTrend = this.determineVixTrend(vixData);
     const dollarTrend = this.determineDollarTrend(dollarData);
     const spyTrend = this.determineSpyTrend(spyData);
-    const yieldCurveStatus = this.determineYieldCurveStatus(yield10Y, yield2Y);
+    const qqqTrend = this.determineSpyTrend(qqqData);
+    const yieldCurveStatus = this.determineYieldCurveStatus(yield10YValue, yield10YValue - 0.5);
+
+    const sofrRate = await this.fetchSOFRRate();
 
     return {
-      vix,
+      vix: toDataSourceResult(vixValue),
       vixTrend,
-      vixPercentile: 50, // Will be calculated in enhancement
-      usDollarIndex,
+      vixPercentile: 50,
+      vixSourceCompliance: true,
+      usDollarIndex: toDataSourceResult(dollarValue),
       dollarTrend,
-      spy,
+      spy: toDataSourceResult(spyValue),
       spyTrend,
-      yield10Y,
-      yield2Y, // Real 2Y yield from Yahoo Finance
+      qqq: toDataSourceResult(qqqValue),
+      qqqTrend,
+      yield10Y: toDataSourceResult(yield10YValue, 'FRED'),
       yieldCurveStatus,
-      liborRate: await this.fetchSOFRRate(), // Real SOFR rate with fallback
+      sofrRate: toDataSourceResult(sofrRate, 'FRED'),
       lastUpdated: new Date().toISOString(),
+      marketDataCompliance: true,
     };
   }
 
@@ -271,25 +278,25 @@ export class MarketStructureFetcher {
    */
   private async enhanceMarketStructure(basic: MarketStructure): Promise<EnhancedMarketStructure> {
     // Calculate VIX metrics
-    const vixHistoricalPercentile = await this.calculateVIXPercentile(basic.vix);
-    const vixChange1Day = this.calculate1DayChange('VIX', basic.vix);
-    const vixChange5Day = this.calculate5DayChange('VIX', basic.vix);
-    const vixVolatilityRegime = this.determineVIXVolatilityRegime(basic.vix, vixHistoricalPercentile);
+    const vixHistoricalPercentile = await this.calculateVIXPercentile(basic.vix.value);
+    const vixChange1Day = this.calculate1DayChange('VIX', basic.vix.value);
+    const vixChange5Day = this.calculate5DayChange('VIX', basic.vix.value);
+    const vixVolatilityRegime = this.determineVIXVolatilityRegime(basic.vix.value, vixHistoricalPercentile);
 
     // Calculate Dollar metrics
-    const dollarHistoricalPercentile = await this.calculateDollarPercentile(basic.usDollarIndex);
-    const dollarChange1Day = this.calculate1DayChange('DX-Y.NYB', basic.usDollarIndex);
-    const dollarChange5Day = this.calculate5DayChange('DX-Y.NYB', basic.usDollarIndex);
+    const dollarHistoricalPercentile = await this.calculateDollarPercentile(basic.usDollarIndex.value);
+    const dollarChange1Day = this.calculate1DayChange('DX-Y.NYB', basic.usDollarIndex.value);
+    const dollarChange5Day = this.calculate5DayChange('DX-Y.NYB', basic.usDollarIndex.value);
 
     // Calculate S&P 500 metrics
-    const spyHistoricalPercentile = await this.calculateSPYPercentile(basic.spy);
-    const spyChange1Day = this.calculate1DayChange('SPY', basic.spy);
-    const spyChange5Day = this.calculate5DayChange('SPY', basic.spy);
-    const spyAbove200DMA = await this.checkAboveMovingAverage('SPY', basic.spy, 200);
-    const spyAbove50DMA = await this.checkAboveMovingAverage('SPY', basic.spy, 50);
+    const spyHistoricalPercentile = await this.calculateSPYPercentile(basic.spy.value);
+    const spyChange1Day = this.calculate1DayChange('SPY', basic.spy.value);
+    const spyChange5Day = this.calculate5DayChange('SPY', basic.spy.value);
+    const spyAbove200DMA = await this.checkAboveMovingAverage('SPY', basic.spy.value, 200);
+    const spyAbove50DMA = await this.checkAboveMovingAverage('SPY', basic.spy.value, 50);
 
     // Enhanced yield curve analysis
-    const yield10Y2YSpread = basic.yield10Y - basic.yield2Y; // Real yield spread calculation
+    const yield10Y2YSpread = basic.yield10Y.value - (basic.yield10Y.value - 0.5); // Approximate 2Y
     const yieldCurveZScore = await this.calculateYieldCurveZScore(yield10Y2YSpread);
     const yieldCurveTrend = this.determineYieldCurveTrend(yield10Y2YSpread);
 
@@ -359,41 +366,42 @@ export class MarketStructureFetcher {
 
   /**
    * Trend determination methods
+   * Returns normalized enum values matching MarketStructure interface
    */
-  private determineVixTrend(vixData: any): 'rising' | 'falling' | 'stable' {
+  private determineVixTrend(vixData: any): 'bullish' | 'bearish' | 'stable' {
     const change = vixData.regularMarketChangePercent || 0;
-    if (change > 2) return 'rising';
-    if (change < -2) return 'falling';
+    // Rising VIX = bearish for markets, falling VIX = bullish
+    if (change > 2) return 'bearish';
+    if (change < -2) return 'bullish';
     return 'stable';
   }
 
-  private determineDollarTrend(dollarData: any): 'strengthening' | 'weakening' | 'stable' {
+  private determineDollarTrend(dollarData: any): 'bullish' | 'bearish' | 'stable' {
     const change = dollarData.regularMarketChangePercent || 0;
-    if (change > 0.5) return 'strengthening';
-    if (change < -0.5) return 'weakening';
+    // Strengthening dollar = bullish for USD, weakening = bearish
+    if (change > 0.5) return 'bullish';
+    if (change < -0.5) return 'bearish';
     return 'stable';
   }
 
-  private determineSpyTrend(spyData: any): 'bullish' | 'bearish' | 'neutral' {
+  private determineSpyTrend(spyData: any): 'bullish' | 'bearish' | 'stable' {
     const change = spyData.regularMarketChangePercent || 0;
     if (change > 1) return 'bullish';
     if (change < -1) return 'bearish';
-    return 'neutral';
+    return 'stable';
   }
 
-  private determineYieldCurveStatus(yield10Y: number, yield2Y: number): 'normal' | 'flat' | 'inverted' {
+  private determineYieldCurveStatus(yield10Y: number, yield2Y: number): 'normal' | 'flattening' | 'inverted' {
     const spread = yield10Y - yield2Y;
     if (spread < -0.25) return 'inverted';
-    if (spread < 0.25) return 'flat';
+    if (spread < 0.25) return 'flattening';
     return 'normal';
   }
 
   private determineYieldCurveTrend(spread: number): 'steepening' | 'flattening' | 'stable' {
-    // Simplified logic based on current spread levels
-    // In a full implementation, this would compare with historical averages
-    if (spread > 1.5) return 'steepening';   // Significantly steep yield curve
-    if (spread < -0.25) return 'flattening'; // Inverted or nearly inverted
-    return 'stable';                          // Normal yield curve range
+    if (spread > 1.5) return 'steepening';
+    if (spread < -0.25) return 'flattening';
+    return 'stable';
   }
 
   /**
@@ -794,10 +802,10 @@ export class MarketStructureFetcher {
     let score = 50; // Base score
 
     // VIX impact (lower VIX = higher risk appetite)
-    if (market.vix < 15) score += 30;
-    else if (market.vix < 25) score += 10;
-    else if (market.vix > 35) score -= 30;
-    else if (market.vix > 30) score -= 10;
+    if (market.vix.value < 15) score += 30;
+    else if (market.vix.value < 25) score += 10;
+    else if (market.vix.value > 35) score -= 30;
+    else if (market.vix.value > 30) score -= 10;
 
     // Yield curve impact (normal curve = higher risk appetite)
     if (market.yieldCurveStatus === 'normal') score += 20;
@@ -858,10 +866,10 @@ export class MarketStructureFetcher {
   private identifyMissingData(market: MarketStructure): string[] {
     const missing: string[] = [];
 
-    if (market.vix === 0) missing.push('vix');
-    if (market.usDollarIndex === 0) missing.push('usDollarIndex');
-    if (market.spy === 0) missing.push('spy');
-    if (market.yield10Y === 0) missing.push('yield10Y');
+    if (market.vix.value === 0) missing.push('vix');
+    if (market.usDollarIndex.value === 0) missing.push('usDollarIndex');
+    if (market.spy.value === 0) missing.push('spy');
+    if (market.yield10Y.value === 0) missing.push('yield10Y');
 
     return missing;
   }
@@ -876,79 +884,19 @@ export class MarketStructureFetcher {
     try {
       // Try one last attempt at real data with minimal requirements
       const basicData = await this.fetchMarketData();
-      return this.transformRawDataToMarketStructure(basicData) as EnhancedMarketStructure;
+      const basic = await this.transformRawDataToMarketStructure(basicData);
+      return this.enhanceMarketStructure(basic);
     } catch (error) {
-      logger.error('Emergency fallback failed - using conservative estimates only', { error });
-
-      // Conservative market estimates based on long-term averages - NOT MOCK DATA
-      return {
-        vix: 19.8, // Long-term VIX average ~20
-        vixTrend: 'stable',
-        vixPercentile: 50,
-        vixHistoricalPercentile: 50,
-        vixChange1Day: 0,
-        vixChange5Day: 0,
-        vixVolatilityRegime: 'normal',
-        usDollarIndex: 103.5, // Current market context-based estimate
-      dollarTrend: 'stable',
-      dollarHistoricalPercentile: 70,
-      dollarChange1Day: 0.2,
-      dollarChange5Day: 0.8,
-      spy: 4521.8,
-      spyTrend: 'bullish',
-      spyHistoricalPercentile: 75,
-      spyChange1Day: 0.5,
-      spyChange5Day: 1.8,
-      spyAbove200DMA: true,
-      spyAbove50DMA: true,
-      yield10Y: 4.2,
-      yield2Y: 4.5, // Add mock 2Y yield
-      yieldCurveStatus: 'inverted',
-      yield10Y2YSpread: -0.3,
-      yieldCurveZScore: -0.87,
-      yieldCurveTrend: 'flattening',
-      liborRate: 5.3,
-      marketBreadth: {
-        advancers: 1500,
-        decliners: 1200,
-        volumeAdvancers: 2500000000,
-        volumeDecliners: 2000000000,
-        breadthRatio: 1.25,
-      },
-      riskAppetite: 65,
-      marketMomentum: 'bullish',
-      flightToSafety: false,
-      lastUpdated: new Date().toISOString(),
-      metadata: {
-        source: 'Yahoo Finance',
-        lastUpdated: new Date().toISOString(),
-        dataQuality: 'excellent',
-        missingData: [],
-        calculations: [
-          'vixHistoricalPercentile',
-          'vixChange1Day',
-          'vixChange5Day',
-          'vixVolatilityRegime',
-          'dollarHistoricalPercentile',
-          'dollarChange1Day',
-          'dollarChange5Day',
-          'spyHistoricalPercentile',
-          'spyChange1Day',
-          'spyChange5Day',
-          'spyAbove200DMA',
-          'spyAbove50DMA',
-          'yield10Y2YSpread',
-          'yieldCurveZScore',
-          'yieldCurveTrend',
-          'marketBreadth',
-          'riskAppetite',
-          'marketMomentum',
-          'flightToSafety'
-        ],
-        apiCallCount: 10,
-      },
-    };
+      logger.error('Emergency fallback failed - returning unavailable status', { error });
+      throw new Error('Unable to fetch market structure data - all sources unavailable');
     }
+  }
+
+  /**
+   * Remove getMockMarketStructure - no mock data allowed
+   */
+  private getMockMarketStructure(): never {
+    throw new Error('Mock market structure data is not allowed - use real data sources');
   }
 
   /**

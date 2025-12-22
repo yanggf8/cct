@@ -28,7 +28,7 @@ export ENVIRONMENT="production"
 
 log "Deploying with OAuth authentication (unsetting API tokens)..."
 
-# Deploy using OAuth approach (unset both tokens to force browser auth)
+# Deploy using OAuth approach (unset both tokens to force browser auth, target top-level environment)
 if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy; then
     success "Deployment completed successfully!"
 else

@@ -21,7 +21,7 @@ const logger = createLogger('market-drivers-replacement');
 export interface DataSourceResult {
   value: number;
   timestamp: string;
-  source: 'FRED' | 'YahooFinance' | 'AlphaVantage';
+  source: 'FRED' | 'YahooFinance' | 'AlphaVantage' | 'NewsAPI';
   seriesId?: string;
   quality: 'high' | 'medium' | 'low';
   lastValidated: string;
@@ -645,13 +645,5 @@ export class ProductionMarketDrivers {
 
 // Export singleton instance
 export const productionMarketDrivers = new ProductionMarketDrivers();
-
-// Export types for external use
-export type {
-  DataSourceResult,
-  MacroDrivers,
-  MarketStructure,
-  GeopoliticalRisk
-};
 
 export default ProductionMarketDrivers;

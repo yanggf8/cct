@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/dist"
 DEPLOYMENT_URL="https://tft-trading-system.yanggf.workers.dev"
 
@@ -141,14 +141,11 @@ deploy_to_production() {
 
     cd "$PROJECT_ROOT"
 
-    # Deploy with unset API token to use browser auth (like DAC)
+    # Deploy without API token to use browser auth (per DEPLOYMENT_GUIDE.md)
     log "Starting Cloudflare deployment..."
 
-    # Set environment for production deployment
-    export ENVIRONMENT="production"
-
-    # Deploy using OAuth approach (unset both tokens to force browser auth)
-    if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy; then
+    # Deploy using browser authentication (explicitly target top-level/production environment)
+    if env -u CLOUDFLARE_API_TOKEN npx wrangler deploy; then
         success "Deployment completed successfully"
     else
         error "Deployment failed"

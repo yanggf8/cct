@@ -456,6 +456,18 @@ export const CACHE_MONITORING = {
   }
 } as const;
 
+/**
+ * Dual cache configurations for specific data types
+ * Used by enhanced-sentiment-pipeline and other modules
+ */
+export const DUAL_CACHE_CONFIGS = {
+  STOCK_SENTIMENT: { ttl: CACHE_TTL.MEDIUM, namespace: 'sentiment' },
+  MARKET_DATA: { ttl: CACHE_TTL.SHORT, namespace: 'market' },
+  NEWS_ARTICLES: { ttl: CACHE_TTL.MEDIUM, namespace: 'news' },
+  AI_RESULTS: { ttl: CACHE_TTL.LONG, namespace: 'ai' },
+  REPORTS: { ttl: CACHE_TTL.EXTENDED, namespace: 'reports' }
+} as const;
+
 export default {
   CACHE_TTL,
   CACHE_LEVELS,
@@ -463,6 +475,7 @@ export default {
   CACHE_STRATEGIES,
   CACHE_INVALIDATION,
   CACHE_TAGS,
+  DUAL_CACHE_CONFIGS,
   getCacheConfigForEnvironment,
   getCacheNamespace,
   getCacheNamespaceNames,

@@ -103,7 +103,7 @@ export class FREDDataIntegration {
         const url = `${this.config.baseUrl}/series/observations?series_id=${seriesId}&api_key=${this.config.apiKey}&file_type=json&observation_start=2024-01-01&sort_order=desc&limit=1`;
 
         const response = await this.fetchWithRetry(url);
-        const data = await response.json();
+        const data = await response.json() as { observations?: Array<{ value: string }> };
 
       if (!data.observations || data.observations.length === 0) {
         throw new Error(`No observations found for FRED series: ${seriesId}`);
@@ -191,7 +191,7 @@ export class FREDDataIntegration {
     const url = `${this.config.baseUrl}/series?series_id=${seriesId}&api_key=${this.config.apiKey}&file_type=json`;
 
     const response = await this.fetchWithRetry(url);
-    const data = await response.json();
+    const data = await response.json() as { seriess?: Array<{ id: string; title: string; units: string; frequency_short: string; last_updated: string }> };
 
     if (!data.seriess || data.seriess.length === 0) {
       throw new Error(`Series not found: ${seriesId}`);
@@ -288,7 +288,7 @@ export class YahooFinanceIntegration {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
 
-          const data = await response.json();
+          const data = await response.json() as { chart?: { result?: Array<{ meta: any; indicators: { quote: Array<{ close: number[] }> } }> } };
 
           if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
             throw new Error(`No data found for symbol: ${symbol}`);
@@ -473,38 +473,33 @@ export class RealEconomicIndicators {
 
   /**
    * Get real geopolitical risk indicators
+   * Note: Returns unavailable status when real data sources not configured
    */
   async getGeopoliticalRisk() {
-    logger.info('Assessing real geopolitical risk indicators');
+    logger.info('Assessing geopolitical risk indicators');
 
-    // This would integrate with real news sources, geopolitical risk APIs
-    // For now, providing a framework that can be extended
-
-    try {
-      const result = {
-        tradePolicy: 0.3, // TODO: Integrate with real trade policy news APIs
-        elections: 0.1,    // TODO: Integrate with election monitoring services
-        conflicts: 0.2,    // TODO: Integrate with geopolitical risk APIs
-        overallRiskScore: 0.6,
-        highImpactEvents: 5,
-        articlesAnalyzed: 150,
-        lastUpdated: new Date().toISOString()
-      };
-
-      // Validate all data is real
-      mockGuard.validateData(result, 'RealEconomicIndicators.getGeopoliticalRisk');
-
-      logger.info('Successfully assessed geopolitical risk', {
-        overallRiskScore: result.overallRiskScore,
-        highImpactEvents: result.highImpactEvents
-      });
-
-      return result;
-
-    } catch (error) {
-      logger.error('Failed to assess geopolitical risk', { error });
-      throw error;
-    }
+    // Return explicit unavailable status rather than hardcoded fake values
+    // Real implementation requires integration with:
+    // - Trade policy news APIs (e.g., Reuters, Bloomberg)
+    // - Election monitoring services
+    // - Geopolitical risk APIs (e.g., GeoQuant, ACLED)
+    
+    return {
+      status: 'unavailable',
+      reason: 'Geopolitical risk APIs not configured',
+      tradePolicy: null,
+      elections: null,
+      conflicts: null,
+      overallRiskScore: null,
+      highImpactEvents: null,
+      articlesAnalyzed: 0,
+      lastUpdated: new Date().toISOString(),
+      requiredIntegrations: [
+        'Trade policy news API',
+        'Election monitoring service', 
+        'Geopolitical risk API'
+      ]
+    };
   }
 
   private calculateVIXPercentile(vix: number): number {

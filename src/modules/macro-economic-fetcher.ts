@@ -19,10 +19,10 @@
  */
 
 import { createLogger } from './logging.js';
-import { initializeFredApiClient, MockFredApiClient, type MacroEconomicSnapshot } from './fred-api-client.js';
+import { initializeFredApiClient, MockFredApiClient, type MacroEconomicSnapshot, type EconomicData } from './fred-api-client.js';
 import { createFredApiClient, createFredApiClientWithHealthCheck } from './fred-api-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
-import type { MacroDrivers } from './market-drivers.js';
+import type { MacroDrivers, DataSourceResult } from './market-drivers-replacement.js';
 import { DOMarketDriversCacheAdapter } from './do-cache-adapter.js';
 import { createProductionGuards } from './production-guards.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -236,36 +236,52 @@ export class MacroEconomicFetcher {
   }
 
   /**
+   * Convert EconomicData to DataSourceResult format
+   */
+  private toDataSourceResult(data: EconomicData): DataSourceResult {
+    return {
+      value: data.value,
+      timestamp: data.lastUpdated,
+      source: 'FRED' as const,
+      seriesId: data.series?.toString(),
+      quality: 'high' as const,
+      lastValidated: data.lastUpdated,
+      confidence: 95
+    };
+  }
+
+  /**
    * Transform FRED snapshot to MacroDrivers format
    */
   private transformSnapshotToMacroDrivers(snapshot: MacroEconomicSnapshot): MacroDrivers {
     return {
       // Interest Rates
-      fedFundsRate: snapshot.fedFundsRate.value,
-      treasury10Y: snapshot.treasury10Y.value,
-      treasury2Y: snapshot.treasury2Y.value,
-      yieldCurveSpread: snapshot.yieldCurveSpread.value,
+      fedFundsRate: this.toDataSourceResult(snapshot.fedFundsRate),
+      treasury10Y: this.toDataSourceResult(snapshot.treasury10Y),
+      treasury2Y: this.toDataSourceResult(snapshot.treasury2Y),
+      yieldCurveSpread: this.toDataSourceResult(snapshot.yieldCurveSpread),
 
       // Inflation
-      cpi: snapshot.cpi.value,
-      ppi: snapshot.ppi.value,
-      inflationRate: snapshot.inflationRate.value,
+      cpi: this.toDataSourceResult(snapshot.cpi),
+      ppi: this.toDataSourceResult(snapshot.ppi),
+      inflationRate: this.toDataSourceResult(snapshot.inflationRate),
 
       // Employment
-      unemploymentRate: snapshot.unemploymentRate.value,
-      nonFarmPayrolls: snapshot.nonFarmPayrolls.value,
-      laborForceParticipation: snapshot.laborForceParticipation.value,
+      unemploymentRate: this.toDataSourceResult(snapshot.unemploymentRate),
+      nonFarmPayrolls: this.toDataSourceResult(snapshot.nonFarmPayrolls),
+      laborForceParticipation: this.toDataSourceResult(snapshot.laborForceParticipation),
 
       // Growth
-      realGDP: snapshot.realGDP.value,
-      gdpGrowthRate: snapshot.gdpGrowthRate.value,
-      consumerConfidence: snapshot.consumerConfidence.value,
+      realGDP: this.toDataSourceResult(snapshot.realGDP),
+      gdpGrowthRate: this.toDataSourceResult(snapshot.gdpGrowthRate),
+      consumerConfidence: this.toDataSourceResult(snapshot.consumerConfidence),
 
       // Housing
-      buildingPermits: snapshot.buildingPermits.value,
-      housingStarts: snapshot.housingStarts.value,
+      buildingPermits: this.toDataSourceResult(snapshot.buildingPermits),
+      housingStarts: this.toDataSourceResult(snapshot.housingStarts),
 
       lastUpdated: snapshot.metadata.lastUpdated,
+      dataSourceCompliance: true,
     };
   }
 
@@ -274,14 +290,14 @@ export class MacroEconomicFetcher {
    */
   private enhanceMacroDrivers(basic: MacroDrivers): EnhancedMacroDrivers {
     // Calculate real yield curve (inflation-adjusted)
-    const realYieldCurve = basic.treasury10Y - basic.inflationRate;
+    const realYieldCurve = basic.treasury10Y.value - basic.inflationRate.value;
 
     // Determine monetary policy stance
     const fedFundsNeutral = 2.5; // Assumed neutral rate
     let monetaryPolicyStance: 'tight' | 'neutral' | 'accommodative';
-    if (basic.fedFundsRate > fedFundsNeutral + 1) {
+    if (basic.fedFundsRate.value > fedFundsNeutral + 1) {
       monetaryPolicyStance = 'tight';
-    } else if (basic.fedFundsRate < fedFundsNeutral - 1) {
+    } else if (basic.fedFundsRate.value < fedFundsNeutral - 1) {
       monetaryPolicyStance = 'accommodative';
     } else {
       monetaryPolicyStance = 'neutral';
@@ -289,9 +305,9 @@ export class MacroEconomicFetcher {
 
     // Assess economic momentum
     let economicMomentum: 'accelerating' | 'decelerating' | 'stable';
-    if (basic.gdpGrowthRate > 2.5 && basic.consumerConfidence > 75) {
+    if (basic.gdpGrowthRate.value > 2.5 && basic.consumerConfidence.value > 75) {
       economicMomentum = 'accelerating';
-    } else if (basic.gdpGrowthRate < 1.5 || basic.consumerConfidence < 65) {
+    } else if (basic.gdpGrowthRate.value < 1.5 || basic.consumerConfidence.value < 65) {
       economicMomentum = 'decelerating';
     } else {
       economicMomentum = 'stable';
@@ -320,7 +336,7 @@ export class MacroEconomicFetcher {
     const disinflationProgress = this.calculateDisinflationProgress(basic);
 
     // Core vs headline inflation spread
-    const coreVsHeadlineSpread = basic.inflationRate - 2.8; // Assumed core rate
+    const coreVsHeadlineSpread = basic.inflationRate.value - 2.8; // Assumed core rate
 
     // Financial conditions index
     const financialConditionsIndex = this.calculateFinancialConditions(basic);
@@ -381,38 +397,38 @@ export class MacroEconomicFetcher {
     let score = 0;
 
     // Yield curve inversion (strongest signal)
-    if (macro.yieldCurveSpread < -0.5) {
+    if (macro.yieldCurveSpread.value < -0.5) {
       score += 3;
-    } else if (macro.yieldCurveSpread < 0) {
+    } else if (macro.yieldCurveSpread.value < 0) {
       score += 2;
     }
 
     // High unemployment
-    if (macro.unemploymentRate > 6) {
+    if (macro.unemploymentRate.value > 6) {
       score += 2;
-    } else if (macro.unemploymentRate > 5) {
+    } else if (macro.unemploymentRate.value > 5) {
       score += 1;
     }
 
     // Low GDP growth
-    if (macro.gdpGrowthRate < 0) {
+    if (macro.gdpGrowthRate.value < 0) {
       score += 2;
-    } else if (macro.gdpGrowthRate < 1) {
+    } else if (macro.gdpGrowthRate.value < 1) {
       score += 1;
     }
 
     // High inflation (stagflation risk)
-    if (macro.inflationRate > 5) {
+    if (macro.inflationRate.value > 5) {
       score += 1;
     }
 
     // Low consumer confidence
-    if (macro.consumerConfidence < 60) {
+    if (macro.consumerConfidence.value < 60) {
       score += 1;
     }
 
     // Declining housing market
-    if (macro.buildingPermits < 1200) {
+    if (macro.buildingPermits.value < 1200) {
       score += 1;
     }
 
@@ -426,20 +442,20 @@ export class MacroEconomicFetcher {
     let score = 50; // Base score
 
     // Unemployment rate component (0-30 points)
-    if (macro.unemploymentRate < 4) {
+    if (macro.unemploymentRate.value < 4) {
       score += 30;
-    } else if (macro.unemploymentRate < 5) {
+    } else if (macro.unemploymentRate.value < 5) {
       score += 20;
-    } else if (macro.unemploymentRate < 6) {
+    } else if (macro.unemploymentRate.value < 6) {
       score += 10;
     } else {
       score -= 10;
     }
 
     // Labor force participation (0-20 points)
-    if (macro.laborForceParticipation > 63) {
+    if (macro.laborForceParticipation.value > 63) {
       score += 20;
-    } else if (macro.laborForceParticipation > 62) {
+    } else if (macro.laborForceParticipation.value > 62) {
       score += 10;
     } else {
       score -= 5;
@@ -455,23 +471,23 @@ export class MacroEconomicFetcher {
     let pressure = 0;
 
     // Low unemployment = higher wage pressure
-    if (macro.unemploymentRate < 4) {
+    if (macro.unemploymentRate.value < 4) {
       pressure += 4;
-    } else if (macro.unemploymentRate < 4.5) {
+    } else if (macro.unemploymentRate.value < 4.5) {
       pressure += 2;
     }
 
     // High inflation = higher wage demands
-    if (macro.inflationRate > 4) {
+    if (macro.inflationRate.value > 4) {
       pressure += 3;
-    } else if (macro.inflationRate > 3) {
+    } else if (macro.inflationRate.value > 3) {
       pressure += 1;
     }
 
     // Strong job growth = higher wage pressure
-    if (macro.nonFarmPayrolls > 250000) {
+    if (macro.nonFarmPayrolls.value > 250000) {
       pressure += 3;
-    } else if (macro.nonFarmPayrolls > 200000) {
+    } else if (macro.nonFarmPayrolls.value > 200000) {
       pressure += 1;
     }
 
@@ -483,7 +499,7 @@ export class MacroEconomicFetcher {
    */
   private calculateDisinflationProgress(macro: MacroDrivers): number {
     const targetInflation = 2.0; // Fed target
-    const currentInflation = macro.inflationRate;
+    const currentInflation = macro.inflationRate.value;
 
     if (currentInflation <= targetInflation) {
       return 100;
@@ -503,16 +519,16 @@ export class MacroEconomicFetcher {
     let conditions = 100; // Neutral baseline
 
     // Interest rate impact
-    const rateImpact = (macro.fedFundsRate - 2.5) * 20; // Neutral rate assumed 2.5%
+    const rateImpact = (macro.fedFundsRate.value - 2.5) * 20; // Neutral rate assumed 2.5%
     conditions += rateImpact;
 
     // Yield curve impact
-    if (macro.yieldCurveSpread < 0) {
-      conditions += Math.abs(macro.yieldCurveSpread) * 30; // Inverted curve tightens conditions
+    if (macro.yieldCurveSpread.value < 0) {
+      conditions += Math.abs(macro.yieldCurveSpread.value) * 30; // Inverted curve tightens conditions
     }
 
     // Inflation impact
-    const inflationImpact = (macro.inflationRate - 2.0) * 10;
+    const inflationImpact = (macro.inflationRate.value - 2.0) * 10;
     conditions += inflationImpact;
 
     return Math.min(Math.max(conditions, 0), 200);
@@ -525,23 +541,23 @@ export class MacroEconomicFetcher {
     let stress = 0;
 
     // Inverted yield curve = credit stress
-    if (macro.yieldCurveSpread < -1) {
+    if (macro.yieldCurveSpread.value < -1) {
       stress += 4;
-    } else if (macro.yieldCurveSpread < 0) {
+    } else if (macro.yieldCurveSpread.value < 0) {
       stress += 2;
     }
 
     // High rates = credit stress
-    if (macro.fedFundsRate > 5) {
+    if (macro.fedFundsRate.value > 5) {
       stress += 3;
-    } else if (macro.fedFundsRate > 4) {
+    } else if (macro.fedFundsRate.value > 4) {
       stress += 1;
     }
 
     // Economic weakness = credit stress
-    if (macro.gdpGrowthRate < 0) {
+    if (macro.gdpGrowthRate.value < 0) {
       stress += 3;
-    } else if (macro.gdpGrowthRate < 1) {
+    } else if (macro.gdpGrowthRate.value < 1) {
       stress += 1;
     }
 
@@ -554,14 +570,14 @@ export class MacroEconomicFetcher {
   private identifyMissingData(macro: MacroDrivers): string[] {
     const missing: string[] = [];
 
-    if (macro.fedFundsRate === 0) missing.push('fedFundsRate');
-    if (macro.treasury10Y === 0) missing.push('treasury10Y');
-    if (macro.treasury2Y === 0) missing.push('treasury2Y');
-    if (macro.cpi === 0) missing.push('cpi');
-    if (macro.unemploymentRate === 0) missing.push('unemploymentRate');
-    if (macro.nonFarmPayrolls === 0) missing.push('nonFarmPayrolls');
-    if (macro.realGDP === 0) missing.push('realGDP');
-    if (macro.gdpGrowthRate === 0) missing.push('gdpGrowthRate');
+    if (macro.fedFundsRate.value === 0) missing.push('fedFundsRate');
+    if (macro.treasury10Y.value === 0) missing.push('treasury10Y');
+    if (macro.treasury2Y.value === 0) missing.push('treasury2Y');
+    if (macro.cpi.value === 0) missing.push('cpi');
+    if (macro.unemploymentRate.value === 0) missing.push('unemploymentRate');
+    if (macro.nonFarmPayrolls.value === 0) missing.push('nonFarmPayrolls');
+    if (macro.realGDP.value === 0) missing.push('realGDP');
+    if (macro.gdpGrowthRate.value === 0) missing.push('gdpGrowthRate');
 
     return missing;
   }

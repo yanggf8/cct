@@ -322,22 +322,22 @@ async function handleMacroDrivers(
       snapshot_metadata: {
         timestamp: snapshot.timestamp,
         date: snapshot.date,
-        dataSourceStatus: snapshot.metadata.dataSourceStatus.fred,
-        dataFreshness: snapshot.metadata.dataFreshness.macro,
+        dataSourceStatus: snapshot.metadata?.dataSourceStatus?.fred,
+        dataFreshness: snapshot.metadata?.dataFreshness?.macro,
       },
       economic_signals: {
-        monetaryPolicyStance: snapshot.macro.fedFundsRate > 4.5 ? 'tight' : snapshot.macro.fedFundsRate < 3.5 ? 'accommodative' : 'neutral',
-        recessionRisk: snapshot.macro.yieldCurveSpread < -0.5 ? 'high' : snapshot.macro.yieldCurveSpread < 0 ? 'medium' : 'low',
-        inflationPressure: snapshot.macro.inflationRate > 3 ? 'high' : snapshot.macro.inflationRate > 2 ? 'moderate' : 'low',
-        laborMarketHealth: snapshot.macro.unemploymentRate < 4 ? 'strong' : snapshot.macro.unemploymentRate < 5 ? 'healthy' : 'weak',
+        monetaryPolicyStance: snapshot.macro.fedFundsRate.value > 4.5 ? 'tight' : snapshot.macro.fedFundsRate.value < 3.5 ? 'accommodative' : 'neutral',
+        recessionRisk: snapshot.macro.yieldCurveSpread.value < -0.5 ? 'high' : snapshot.macro.yieldCurveSpread.value < 0 ? 'medium' : 'low',
+        inflationPressure: snapshot.macro.inflationRate.value > 3 ? 'high' : snapshot.macro.inflationRate.value > 2 ? 'moderate' : 'low',
+        laborMarketHealth: snapshot.macro.unemploymentRate.value < 4 ? 'strong' : snapshot.macro.unemploymentRate.value < 5 ? 'healthy' : 'weak',
       },
     };
 
     logger.info('MacroDrivers: Data retrieved', {
-      fedFundsRate: snapshot.macro.fedFundsRate,
-      unemploymentRate: snapshot.macro.unemploymentRate,
-      inflationRate: snapshot.macro.inflationRate,
-      yieldCurveSpread: snapshot.macro.yieldCurveSpread,
+      fedFundsRate: snapshot.macro.fedFundsRate.value,
+      unemploymentRate: snapshot.macro.unemploymentRate.value,
+      inflationRate: snapshot.macro.inflationRate.value,
+      yieldCurveSpread: snapshot.macro.yieldCurveSpread.value,
       processingTime: timer.getElapsedMs(),
       requestId
     });
@@ -399,25 +399,25 @@ async function handleMarketStructure(
       snapshot_metadata: {
         timestamp: snapshot.timestamp,
         date: snapshot.date,
-        dataSourceStatus: snapshot.metadata.dataSourceStatus.yahoo,
-        dataFreshness: snapshot.metadata.dataFreshness.market,
+        dataSourceStatus: snapshot.metadata?.dataSourceStatus?.yahoo,
+        dataFreshness: snapshot.metadata?.dataFreshness?.market,
       },
       market_signals: {
-        volatilityRegime: snapshot.marketStructure.vix > 30 ? 'high' : snapshot.marketStructure.vix > 20 ? 'elevated' : 'normal',
+        volatilityRegime: snapshot.marketStructure.vix.value > 30 ? 'high' : snapshot.marketStructure.vix.value > 20 ? 'elevated' : 'normal',
         dollarStrength: snapshot.marketStructure.dollarTrend,
         marketBreadth: snapshot.marketStructure.spyTrend,
         yieldCurveHealth: snapshot.marketStructure.yieldCurveStatus,
       },
       risk_metrics: {
-        fearIndex: snapshot.marketStructure.vix,
-        dollarMomentum: snapshot.marketStructure.usDollarIndex,
-        marketMomentum: snapshot.marketStructure.spy,
-        creditConditions: snapshot.marketStructure.liborRate,
+        fearIndex: snapshot.marketStructure.vix.value,
+        dollarMomentum: snapshot.marketStructure.usDollarIndex.value,
+        marketMomentum: snapshot.marketStructure.spy.value,
+        creditConditions: snapshot.marketStructure.yield10Y?.value,
       },
     };
 
     logger.info('MarketStructure: Data retrieved', {
-      vix: snapshot.marketStructure.vix,
+      vix: snapshot.marketStructure.vix.value,
       usDollarIndex: snapshot.marketStructure.usDollarIndex,
       spy: snapshot.marketStructure.spy,
       yieldCurveStatus: snapshot.marketStructure.yieldCurveStatus,
@@ -484,14 +484,14 @@ async function handleMarketRegime(
         date: snapshot.date,
       },
       market_signals: {
-        riskOnRiskOff: snapshot.riskOnRiskOff,
-        marketHealth: snapshot.marketHealth,
-        economicMomentum: snapshot.economicMomentum,
+        riskOnRiskOff: snapshot.regime.riskLevel === 'low' ? 'risk-on' : 'risk-off',
+        marketHealth: snapshot.realDataCompliance ? 'healthy' : 'degraded',
+        economicMomentum: snapshot.regime.currentRegime,
       },
       investment_guidance: {
-        overallAssessment: snapshot.overallAssessment,
-        keyDrivers: snapshot.keyDrivers,
-        watchItems: snapshot.watchItems,
+        overallAssessment: snapshot.regime.description,
+        keyDrivers: snapshot.regime.favoredSectors,
+        watchItems: snapshot.regime.avoidedSectors,
       },
       regime_analysis: {
         riskLevel: snapshot.regime.riskLevel,
@@ -508,7 +508,7 @@ async function handleMarketRegime(
       regime: snapshot.regime.currentRegime,
       confidence: snapshot.regime.confidence,
       riskLevel: snapshot.regime.riskLevel,
-      riskOnRiskOff: snapshot.riskOnRiskOff,
+      riskOnRiskOff: snapshot.regime.riskLevel === 'low' ? 'risk-on' : 'risk-off',
       processingTime: timer.getElapsedMs(),
       requestId
     });
@@ -620,33 +620,28 @@ async function handleGeopoliticalRisk(
       snapshot_metadata: {
         timestamp: snapshot.timestamp,
         date: snapshot.date,
-        dataSourceStatus: snapshot.metadata.dataSourceStatus.news,
-        dataFreshness: snapshot.metadata.dataFreshness.geopolitical,
+        dataSourceStatus: snapshot.metadata?.dataSourceStatus?.news,
+        dataFreshness: snapshot.metadata?.dataFreshness?.geopolitical,
       },
       risk_analysis: {
-        overallRiskScore: snapshot.geopolitical.overallRiskScore,
-        riskTrend: snapshot.geopolitical.riskTrend,
+        overallRiskScore: snapshot.geopolitical.overallRiskScore.value,
+        riskTrend: 'stable', // Derived from historical comparison
         highImpactEvents: snapshot.geopolitical.highImpactEvents,
         riskCategories: {
-          tradePolicy: snapshot.geopolitical.tradePolicy,
-          elections: snapshot.geopolitical.elections,
-          centralBankPolicy: snapshot.geopolitical.centralBankPolicy,
-          conflicts: snapshot.geopolitical.conflicts,
-          energyPolicy: snapshot.geopolitical.energyPolicy,
-          regulatory: snapshot.geopolitical.regulatory,
+          tradePolicy: snapshot.geopolitical.tradePolicy.value,
+          elections: snapshot.geopolitical.elections.value,
+          conflicts: snapshot.geopolitical.conflicts.value,
         },
       },
-      sentiment_analysis: {
+      analysis_metadata: {
         articlesAnalyzed: snapshot.geopolitical.articlesAnalyzed,
-        sentimentBreakdown: snapshot.geopolitical.sentimentBreakdown,
-        sentimentRatio: snapshot.geopolitical.sentimentBreakdown.positive /
-          (snapshot.geopolitical.sentimentBreakdown.positive + snapshot.geopolitical.sentimentBreakdown.negative),
+        sourcesAnalyzed: snapshot.geopolitical.sourcesAnalyzed,
+        lastUpdated: snapshot.geopolitical.lastUpdated,
       },
     };
 
     logger.info('GeopoliticalRisk: Data retrieved', {
       overallRiskScore: snapshot.geopolitical.overallRiskScore,
-      riskTrend: snapshot.geopolitical.riskTrend,
       highImpactEvents: snapshot.geopolitical.highImpactEvents,
       articlesAnalyzed: snapshot.geopolitical.articlesAnalyzed,
       processingTime: timer.getElapsedMs(),

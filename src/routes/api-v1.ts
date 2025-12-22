@@ -174,7 +174,7 @@ export async function handleApiV1Request(
       return await handleRiskManagementRequest(request, env, {} as ExecutionContext);
     } else if (path.startsWith('/api/v1/guards/')) {
       // Route to production guards API - requires authentication
-      if (!securityCheck.authenticated) {
+      if (!apiKey) {
         const errorResponse = ApiResponseFactory.error(
           'Authentication required for production guards endpoints',
           'AUTHENTICATION_REQUIRED',

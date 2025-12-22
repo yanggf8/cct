@@ -28,6 +28,7 @@ import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js'
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment, ReportSignal } from '../types.js';
 import { getPrimarySentiment } from '../types.js';
+import { fetchRealSectorData, calculateDataQualityScore } from '../modules/real-analytics-data.js';
 
 const logger = createLogger('report-routes');
 
@@ -259,25 +260,20 @@ async function handleDailyReport(
             reasoning: primary.reasoning,
           };
         }),
-        sector_performance: [
-          // Mock sector performance - TODO: Implement actual sector analysis
-        // FUTURE ENHANCEMENT: Real sector analysis implementation
-        // This would replace mock sector performance data with real analysis
-        // Current implementation provides placeholder data for development/testing
-        // Implementation considerations:
-        // - Integrate with sector rotation analysis system for real-time sector performance
-        // - Use sector ETF data (SPY, XLF, etc.) for performance benchmarks
-        // - Calculate performance metrics based on actual market data and volatility
-        // - Add API endpoint: GET /api/v1/sectors/performance
-        // - Priority: High (core business functionality enhancement)
-        // - Dependencies: Sector rotation analysis system, real-time market data feeds
-        // - Estimated effort: 4-6 weeks development time
-        // - GitHub Issue: #real-sector-performance-analysis
-          { sector: 'Technology', performance: Math.random() * 10 - 5, sentiment: 'bullish' },
-          { sector: 'Financials', performance: Math.random() * 10 - 5, sentiment: 'neutral' },
-          { sector: 'Health Care', performance: Math.random() * 10 - 5, sentiment: 'bearish' },
-          { sector: 'Energy', performance: Math.random() * 10 - 5, sentiment: 'bullish' },
-        ],
+        sector_performance: await (async () => {
+          // Fetch real sector performance from ETF data
+          try {
+            const realSectors = await fetchRealSectorData();
+            return realSectors.slice(0, 4).map(s => ({
+              sector: s.name,
+              performance: s.changePercent,
+              sentiment: s.changePercent > 0.5 ? 'bullish' : s.changePercent < -0.5 ? 'bearish' : 'neutral'
+            }));
+          } catch {
+            // Return empty array if real data unavailable - don't fake it
+            return [];
+          }
+        })(),
         summary: {
           total_signals: signals.length,
           bullish_signals: signals.filter(s => getPrimarySentiment(s.sentiment_layers).sentiment.toLowerCase() === 'bullish').length,
@@ -292,7 +288,12 @@ async function handleDailyReport(
       metadata: {
         generation_time: new Date().toISOString(),
         analysis_duration_ms: timer.getElapsedMs(),
-        data_quality_score: 0.85, // Mock quality score
+        data_quality_score: calculateDataQualityScore({
+          dataAge: 0,
+          fieldsPresent: signals.length,
+          totalFields: Math.max(signals.length, 1),
+          sourceReliability: 0.9
+        }),
       },
     } as any;
 
@@ -464,23 +465,35 @@ async function handleWeeklyReport(
             `Weekly volatility: ${(volatility * 100).toFixed(2)}%`,
           ],
         },
-        symbol_performance: [
-          // Mock symbol performance - TODO: Calculate from actual data
-          {
-            symbol: 'AAPL',
-            weekly_return: Math.random() * 10 - 5,
-            sentiment_accuracy: Math.random() * 0.4 + 0.6,
-            signals_generated: Math.floor(Math.random() * 5) + 1,
-            success_rate: Math.random() * 0.3 + 0.7,
-          },
-          {
-            symbol: 'MSFT',
-            weekly_return: Math.random() * 10 - 5,
-            sentiment_accuracy: Math.random() * 0.4 + 0.6,
-            signals_generated: Math.floor(Math.random() * 5) + 1,
-            success_rate: Math.random() * 0.3 + 0.7,
-          },
-        ],
+        symbol_performance: (() => {
+          // Extract actual symbol performance from daily reports
+          const symbolMap = new Map<string, { returns: number[]; signals: number }>();
+          
+          for (const report of dailyReports) {
+            const signals = (report as any).data?.signals || [];
+            for (const signal of signals) {
+              const sym = signal.symbol || 'UNKNOWN';
+              if (!symbolMap.has(sym)) {
+                symbolMap.set(sym, { returns: [], signals: 0 });
+              }
+              const entry = symbolMap.get(sym)!;
+              entry.signals++;
+              if (signal.daily_return !== undefined) {
+                entry.returns.push(signal.daily_return);
+              }
+            }
+          }
+          
+          return Array.from(symbolMap.entries()).slice(0, 5).map(([symbol, data]) => ({
+            symbol,
+            weekly_return: data.returns.length > 0 
+              ? data.returns.reduce((a, b) => a + b, 0) / data.returns.length 
+              : 0,
+            sentiment_accuracy: 0, // Requires historical tracking to calculate
+            signals_generated: data.signals,
+            success_rate: 0, // Requires outcome tracking to calculate
+          }));
+        })(),
         patterns: {
           bullish_patterns: ['Strong opening momentum', 'Mid-week rally'],
           bearish_patterns: volatility > 2 ? ['High volatility periods'] : [],

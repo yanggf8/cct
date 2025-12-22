@@ -180,13 +180,13 @@ interface ComplianceCheck {
 }
 
 // Simple KV functions using DAL
-async function getKVStore(env: CloudflareEnvironment, key: string): Promise<any> {
+async function getKVStore(env: any, key: string): Promise<any> {
   const dal = createDAL(env);
   const result = await dal.read(key);
   return result.success ? result.data : null;
 }
 
-async function setKVStore(env: CloudflareEnvironment, key: string, data: any, ttl?: number): Promise<boolean> {
+async function setKVStore(env: any, key: string, data: any, ttl?: number): Promise<boolean> {
   const dal = createDAL(env);
   const result = await dal.write(key, data, { expirationTtl: ttl });
   return result.success;
@@ -241,7 +241,7 @@ export class AdvancedRiskManagementEngine {
   private complianceFrameworks: ComplianceFrameworks;
   private alertThresholds: AlertThresholds;
 
-  constructor(env: CloudflareEnvironment) {
+  constructor(env: any) {
     this.env = env;
     this.riskLimits = this.initializeRiskLimits();
     this.complianceFrameworks = this.initializeComplianceFrameworks();

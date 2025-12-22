@@ -215,7 +215,7 @@ curl -H "X-API-KEY: your-key" \
 
 ```bash
 # 1. Deploy to production environment
-wrangler deploy --config wrangler-enhanced.toml --env production
+wrangler deploy --config wrangler-enhanced.toml 
 
 # 2. Verify deployment
 ./scripts/test-kv-bindings.sh

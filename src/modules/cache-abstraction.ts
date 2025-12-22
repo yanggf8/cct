@@ -66,7 +66,7 @@ export class CacheAbstraction {
     this.useDO = isDOCacheEnabled(env);
 
     if (this.useDO) {
-      this.doCache = new DualCacheDO(env.CACHE_DO!);
+      this.doCache = new DualCacheDO(env.CACHE_DO as any);
       logger.info('CACHE_ABSTRACTION_INIT', { source: 'DO cache (primary)' });
     } else {
       this.doCache = null;
@@ -246,6 +246,13 @@ export class CacheAbstraction {
       return { healthy: false, source: this.useDO ? 'do' : 'kv' };
     }
   }
+
+  /**
+   * Close cache connections (no-op for this implementation)
+   */
+  async close(): Promise<void> {
+    // No-op - KV and DO don't require explicit close
+  }
 }
 
 /**
@@ -263,3 +270,8 @@ export function createCache(env: CloudflareEnvironment): CacheAbstraction {
 export function shouldUseDOCache(env: CloudflareEnvironment): boolean {
   return isDOCacheEnabled(env);
 }
+
+/**
+ * Legacy adapter alias for backward compatibility with cache-abstraction-v2
+ */
+export { CacheAbstraction as LegacyCacheAdapter };

@@ -386,7 +386,7 @@ curl -H "X-API-KEY: staging_key" https://tft-trading-system-staging.your-subdoma
 #### **Production Environment**
 ```bash
 # Deploy to production
-wrangler deploy --env production
+wrangler deploy
 
 # Test production
 curl -H "X-API-KEY: production_key" https://tft-trading-system.your-subdomain.workers.dev/health
@@ -559,7 +559,7 @@ wrangler tail --format=pretty --search="cache_hit|cache_miss"
 #### **Multiple Workers**
 ```bash
 # Deploy multiple instances for load balancing
-wrangler deploy --env production
+wrangler deploy
 # Cloudflare automatically handles scaling
 
 # Monitor performance across instances

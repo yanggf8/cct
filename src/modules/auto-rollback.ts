@@ -85,7 +85,7 @@ export class AutoRollbackManager {
   private env: CloudflareEnvironment;
   private sloManager: SLOMonitoringManager;
   private canaryManager: CanaryToggleManager;
-  private activeEvaluations: Map<string, NodeJS.Timeout> = new Map();
+  private activeEvaluations: Map<string, ReturnType<typeof setInterval>> = new Map();
   private lastKnownGoodStates: Map<string, LastKnownGoodState> = new Map();
   private rollbackHistory: Map<string, RollbackEvent[]> = new Map();
 

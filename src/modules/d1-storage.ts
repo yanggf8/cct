@@ -283,12 +283,12 @@ export class D1ColdStorage {
       const deleteSql = `DELETE FROM cold_storage WHERE key = ?`;
       const result = await this.db.prepare(deleteSql).bind(key).run();
 
-      const deleted = result.changes > 0;
+      const deleted = (result.meta?.changes ?? 0) > 0;
 
       logger.debug('Cold storage delete result', {
         key,
         deleted,
-        changes: result.changes
+        changes: result.meta?.changes ?? 0
       });
 
       return { success: true, deleted };
@@ -340,7 +340,7 @@ export class D1ColdStorage {
       }
 
       const result = await this.db.prepare(listSql).bind(...params).all();
-      const keys = result.map((row: any) => row.key);
+      const keys = (result.results || []).map((row: any) => row.key);
 
       logger.debug('Cold storage list result', {
         options,
@@ -470,7 +470,7 @@ export class D1ColdStorage {
       querySql += ' ORDER BY day DESC, keyspace, storage_class';
 
       const result = await this.db.prepare(querySql).bind(...params).all();
-      const rollups = result.map((row: any): CacheRollupRecord => ({
+      const rollups = (result.results || []).map((row: any): CacheRollupRecord => ({
         day: row.day,
         keyspace: row.keyspace,
         storage_class: row.storage_class as any,
@@ -554,7 +554,7 @@ export class D1ColdStorage {
         GROUP BY storage_class
       `).all();
 
-      const entriesByClass = classResult.reduce((acc: Record<string, number>, row: any) => {
+      const entriesByClass = (classResult.results || []).reduce((acc: Record<string, number>, row: any) => {
         acc[row.storage_class] = row.count;
         return acc;
       }, {});
@@ -608,8 +608,9 @@ export class D1ColdStorage {
         WHERE type='table' AND name IN ('cold_storage', 'cache_rollups')
       `).all();
 
-      if (tableCheck.length !== 2) {
-        issues.push(`Missing tables: ${2 - tableCheck.length}/2`);
+      const tableCount = tableCheck.results?.length ?? 0;
+      if (tableCount !== 2) {
+        issues.push(`Missing tables: ${2 - tableCount}/2`);
       }
 
       return { healthy: issues.length === 0, issues };

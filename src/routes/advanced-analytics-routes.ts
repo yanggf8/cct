@@ -1,7 +1,9 @@
 /**
  * Advanced Analytics Routes (API v1)
  * Multiple model comparison, confidence intervals, and advanced prediction features
- * Institutional-grade analytics with comprehensive model performance tracking
+ * 
+ * NOTE: These endpoints return model performance metrics that should be populated
+ * from actual model validation runs, not generated randomly.
  */
 
 import {
@@ -21,6 +23,7 @@ import {
 } from '../modules/validation.js';
 import { createLogger } from '../modules/logging.js';
 import { createCache } from '../modules/cache-abstraction.js';
+import { getStoredModelMetrics } from '../modules/real-analytics-data.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('advanced-analytics-routes');
@@ -164,44 +167,53 @@ async function handleModelComparison(request, env, headers, requestId) {
       ? validatedBody.timeRange
       : '1M';
 
-    // Simulate model comparison data
+    // Fetch stored model metrics instead of generating random values
+    const modelMetricsPromises = models.map(async (modelName: string) => {
+      const metrics = await getStoredModelMetrics(modelName, env);
+      return {
+        model_name: modelName,
+        accuracy: metrics.accuracy,
+        precision: metrics.precision,
+        recall: metrics.recall,
+        f1_score: metrics.f1_score,
+        confidence_level: metrics.confidence_level,
+        prediction_count: metrics.prediction_count,
+        last_updated: metrics.last_updated,
+        data_status: metrics.prediction_count > 0 ? 'historical_data' : 'no_historical_data'
+      };
+    });
+
+    const modelMetrics = await Promise.all(modelMetricsPromises);
+    
+    // Check if any model has historical data
+    const hasAnyHistoricalData = modelMetrics.some((m: any) => m.data_status !== 'no_historical_data');
+
     const comparisonData = {
       comparison_timestamp: new Date().toISOString(),
       symbols_analyzed: symbols,
       models_compared: models,
       time_range: timeRange,
+      
+      notice: hasAnyHistoricalData 
+        ? 'Model metrics are based on stored validation results where available.'
+        : 'No historical validation data available. Metrics require model validation runs to be implemented.',
 
-      models: models.map(modelName => ({
-        model_name: modelName,
-        accuracy: 0.65 + Math.random() * 0.30,
-        precision: 0.60 + Math.random() * 0.35,
-        recall: 0.55 + Math.random() * 0.40,
-        f1_score: 0.60 + Math.random() * 0.35,
-        confidence_level: 0.70 + Math.random() * 0.25,
-        prediction_count: Math.floor(50 + Math.random() * 200),
-        last_updated: new Date().toISOString(),
-        performance_metrics: {
-          bull_market_accuracy: 0.70 + Math.random() * 0.25,
-          bear_market_accuracy: 0.55 + Math.random() * 0.35,
-          sideways_market_accuracy: 0.45 + Math.random() * 0.40,
-          high_volatility_performance: 0.50 + Math.random() * 0.40,
-          low_volatility_performance: 0.75 + Math.random() * 0.20
-        }
-      })),
+      models: modelMetrics,
 
       comparison_matrix: {
-        accuracy_matrix: models.reduce((acc, model1, i) => {
-          acc[model1] = models.reduce((inner, model2, j) => {
-            inner[model2] = i === j ? 1.0 : 0.3 + Math.random() * 0.6;
+        accuracy_matrix: models.reduce((acc: any, model1: string, i: number) => {
+          acc[model1] = models.reduce((inner: any, model2: string, j: number) => {
+            // Correlation requires historical data - return null if unavailable
+            inner[model2] = i === j ? 1.0 : null;
             return inner;
           }, {});
           return acc;
         }, {}),
-        agreement_rates: models.reduce((acc: any, model: any) => {
-          acc[model] = 0.40 + Math.random() * 0.50;
+        agreement_rates: models.reduce((acc: any, model: string) => {
+          acc[model] = null; // Requires historical prediction comparison
           return acc;
         }, {}),
-        complementary_analysis: models.reduce((acc: any, model: any) => {
+        complementary_analysis: models.reduce((acc: any, model: string) => {
           acc[model] = {
             strengths: generateModelStrengths(model),
             weaknesses: generateModelWeaknesses(model),
@@ -212,29 +224,24 @@ async function handleModelComparison(request, env, headers, requestId) {
       },
 
       ensemble_prediction: {
-        combined_signal: Math.random() > 0.5 ? 'BULLISH' : 'BEARISH',
-        confidence: 0.75 + Math.random() * 0.20,
-        agreement_level: 0.60 + Math.random() * 0.35,
-        model_weights: models.reduce((acc: any, model: any) => {
-          acc[model] = 0.2 + Math.random() * 0.6;
+        status: 'requires_real_time_analysis',
+        combined_signal: null,
+        confidence: null,
+        agreement_level: null,
+        model_weights: models.reduce((acc: any, model: string, i: number) => {
+          acc[model] = 1 / models.length; // Equal weights as default
           return acc;
         }, {}),
-        ensemble_accuracy: 0.70 + Math.random() * 0.25
+        notice: 'Ensemble predictions require real-time model execution'
       },
 
-      confidence_intervals: symbols.reduce((acc: any, symbol: any) => {
+      confidence_intervals: symbols.reduce((acc: any, symbol: string) => {
         acc[symbol] = {
-          prediction: Math.random() > 0.5 ? 'UP' : 'DOWN',
-          confidence_interval: {
-            lower_bound: -0.15 + Math.random() * 0.10,
-            upper_bound: 0.05 + Math.random() * 0.15,
-            confidence_level: 0.95
-          },
-          price_targets: {
-            bear_case: (100 + Math.random() * 200).toFixed(2),
-            base_case: (120 + Math.random() * 180).toFixed(2),
-            bull_case: (140 + Math.random() * 160).toFixed(2)
-          }
+          status: 'requires_real_time_analysis',
+          prediction: null,
+          confidence_interval: null,
+          price_targets: null,
+          notice: 'Price predictions require real-time market data and model execution'
         };
         return acc;
       }, {})
@@ -245,7 +252,9 @@ async function handleModelComparison(request, env, headers, requestId) {
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(comparisonData, {
-    message: 'Model comparison completed', 
+    message: hasAnyHistoricalData 
+      ? 'Model comparison completed with available metrics' 
+      : 'Model comparison completed - no historical validation data available', 
           processingTime,
           symbolsCount: symbols.length,
           modelsCount: models.length,

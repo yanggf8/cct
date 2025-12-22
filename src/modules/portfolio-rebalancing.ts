@@ -6,6 +6,9 @@
 
 import { createDAL } from './dal.js';
 import { createCorrelationAnalysisEngine } from './correlation-analysis.js';
+import { createLogger } from './logging.js';
+
+const logger = createLogger('portfolio-rebalancing');
 
 // Type definitions
 interface PortfolioStrategy {
@@ -653,36 +656,34 @@ export class PortfolioRebalancingEngine {
   }
 
   async executeTrade(trade: any, executionConfig: any): Promise<any> {
-    // Mock trade execution
+    // Note: This is a simulation endpoint - real trade execution requires broker integration
+    // Returns structured response indicating simulation mode
     return {
-      id: `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `sim_trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       ...trade,
-      status: 'executed',
+      status: 'simulated',
       executedAt: new Date().toISOString(),
-      executedPrice: 100 + (Math.random() - 0.5) * 10, // Mock price
+      executedPrice: trade.targetPrice || trade.estimatedPrice || 0,
       executedShares: trade.shares,
-      actualCost: trade.estimatedCost * (0.9 + Math.random() * 0.2), // +/- 10% variance
-      settlementDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() // T+2
+      actualCost: trade.estimatedCost,
+      settlementDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      warning: 'SIMULATION_MODE: Real trade execution requires broker API integration'
     };
   }
 
   async calculatePortfolioValue(portfolioId: string, trades: any[]): Promise<number> {
-    // Mock calculation
-    return 1000000 + trades.reduce((sum: any, trade: any) => {
+    // Calculate from actual trade data provided
+    const baseValue = 1000000; // Default starting value - should come from portfolio storage
+    return baseValue + trades.reduce((sum: any, trade: any) => {
       return sum + (trade.direction === 'buy' ? -trade.actualCost : trade.actualCost);
     }, 0);
   }
 
   async getCurrentPortfolioWeights(portfolioId: string): Promise<Record<string, number>> {
-    // Mock current weights
-    return {
-      'AAPL': 0.25,
-      'MSFT': 0.20,
-      'GOOGL': 0.15,
-      'TSLA': 0.10,
-      'NVDA': 0.20,
-      'AMZN': 0.10
-    };
+    // Note: Real implementation should fetch from portfolio storage
+    // Returning empty object to indicate no data available rather than fake weights
+    logger.warn('getCurrentPortfolioWeights: No portfolio storage configured - returning empty weights');
+    return {};
   }
 
   calculateDriftMetrics(currentWeights: Record<string, number>, targetWeights: Record<string, number>): any {

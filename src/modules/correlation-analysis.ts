@@ -387,7 +387,7 @@ export class CorrelationAnalysisEngine {
       for (const symbol of symbols) {
         try {
           // Fetch real historical data for each symbol
-          const marketData = await getMarketData(symbol);
+          const marketData = await getMarketData(symbol) as any;
 
           if (marketData && marketData.historicalData) {
             historicalData[symbol] = marketData.historicalData
