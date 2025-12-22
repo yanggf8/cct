@@ -135,7 +135,8 @@ jobs:
           name: dac-test-results-${{ matrix.node-version }}
           path: |
             test-reports/
-            baselines/
+            tests/integration/dac/test-reports/
+            tests/integration/dac/baselines/
           retention-days: 0
 
       - name: Performance regression check
@@ -178,10 +179,10 @@ jobs:
             echo "✅ Performance checks passed"
 
             # Run baseline regression check if baseline exists
-            if [[ -f "baselines/dac-service-binding-baseline.json" ]]; then
+            if [[ -f "tests/integration/dac/baselines/dac-service-binding-baseline.json" ]]; then
               echo "🔍 Running baseline regression check..."
 
-              BASELINE_SUCCESS_RATE=$(jq -r '.summary.success_rate // 0' baselines/dac-service-binding-baseline.json)
+              BASELINE_SUCCESS_RATE=$(jq -r '.summary.success_rate // 0' tests/integration/dac/baselines/dac-service-binding-baseline.json)
               SUCCESS_RATE_CHANGE=$(echo "scale=2; $SUCCESS_RATE - $BASELINE_SUCCESS_RATE" | bc -l)
 
               echo "Baseline Success Rate: ${BASELINE_SUCCESS_RATE}%"

@@ -187,7 +187,7 @@ jobs:
       run: |
         echo "Running regression tests..."
         # Get the latest baseline
-        LATEST_BASELINE=$(ls -t baselines/baseline-*.metrics 2>/dev/null | head -1 | xargs basename -s .metrics | sed 's/baseline-//' || echo "")
+        LATEST_BASELINE=$(ls -t tests/regression/baselines/dac-service-binding-baseline-*.json 2>/dev/null | head -1 | xargs basename -s .json | sed 's/dac-service-binding-baseline-//' || echo "")
 
         if [ -n "$LATEST_BASELINE" ]; then
           echo "Comparing with baseline: $LATEST_BASELINE"
@@ -202,7 +202,11 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: regression-reports
-        path: reports/
+        path: |
+          test-reports/
+          tests/integration/dac/test-reports/
+          tests/regression/test-reports/
+          tests/regression/baselines/
         retention-days: 0
 
   deploy-validation:
