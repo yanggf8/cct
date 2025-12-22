@@ -578,17 +578,17 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             <div class="at-a-glance" role="status" aria-live="polite" aria-label="Market metrics at a glance">
                 <div class="metric-card" role="status" aria-label="S&P 500 Index">
                     <div class="metric-label">SPY</div>
-                    <div class="metric-value" id="spy-value" aria-label="S&P 500 value: 452.34 points">452.34</div>
+                    <div class="metric-value" id="spy-value" aria-label="S&P 500 value">--</div>
                     <div class="metric-change" aria-label="Positive change of 1.23 percent">+1.23%</div>
                 </div>
                 <div class="metric-card" role="status" aria-label="VIX Volatility Index">
                     <div class="metric-label">VIX</div>
-                    <div class="metric-value" id="vix-value" aria-label="VIX value: 16.82 points">16.82</div>
+                    <div class="metric-value" id="vix-value" aria-label="VIX value">--</div>
                     <div class="metric-change negative" aria-label="Negative change of 0.45 percent">-0.45%</div>
                 </div>
                 <div class="metric-card" role="status" aria-label="Apple Inc Stock">
                     <div class="metric-label">AAPL</div>
-                    <div class="metric-value" id="aapl-value" aria-label="Apple stock value: $178.45">178.45</div>
+                    <div class="metric-value" id="aapl-value" aria-label="Apple stock value">--</div>
                     <div class="metric-change" aria-label="Positive change of 2.15 percent">+2.15%</div>
                 </div>
                 <div class="metric-card" role="timer" aria-label="Current market time">
@@ -862,14 +862,16 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         let marketChart = null;
 
         function initializeMarketChart() {
-            const ctx = document.getElementById('marketChart').getContext('2d');
+            const canvas = document.getElementById('marketChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
             marketChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: ['9:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '1:00', '1:30', '2:00', '2:30', '3:00'],
+                    labels: [],
                     datasets: [{
                         label: 'SPY',
-                        data: [450.12, 451.23, 450.89, 452.34, 451.78, 452.89, 453.12, 452.67, 453.45, 452.90, 453.78, 452.34],
+                        data: [],
                         borderColor: '#4facfe',
                         backgroundColor: 'rgba(79, 172, 254, 0.1)',
                         borderWidth: 2,
@@ -916,6 +918,79 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     }
                 }
             });
+        }
+
+        async function fetchJson(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to fetch:', url, error);
+                return null;
+            }
+        }
+
+        function setMetricValue(id, value, decimals = 2) {
+            const element = document.getElementById(id);
+            if (!element) return;
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                element.textContent = 'N/A';
+                return;
+            }
+            element.textContent = Number(value).toFixed(decimals);
+        }
+
+        async function loadSymbolHistory(symbol, days) {
+            const response = await fetchJson('/api/v1/data/history/' + symbol + '?days=' + days);
+            if (!response || !response.success || !response.data) return null;
+            return response.data;
+        }
+
+        function showMarketChartUnavailable(message) {
+            if (!marketChart) return;
+            marketChart.data.labels = [];
+            marketChart.data.datasets[0].data = [];
+            marketChart.options.plugins = marketChart.options.plugins || {};
+            marketChart.options.plugins.title = { display: true, text: message, color: '#888' };
+            marketChart.update();
+        }
+
+        function updateMarketChart(history) {
+            if (!marketChart) return;
+            if (!history || history.metadata?.real_data !== true) {
+                showMarketChartUnavailable('Market data unavailable');
+                return;
+            }
+
+            const labels = history.data.map(point => point.date);
+            const prices = history.data.map(point => point.close);
+
+            marketChart.data.labels = labels;
+            marketChart.data.datasets[0].data = prices;
+            marketChart.options.plugins = marketChart.options.plugins || {};
+            marketChart.options.plugins.title = { display: false };
+            marketChart.update('none');
+        }
+
+        async function updateMarketData() {
+            const overview = await fetchJson('/api/v1/realtime/market-overview');
+            if (overview?.success && overview.data?.indices) {
+                setMetricValue('spy-value', overview.data.indices.sp500?.value);
+                setMetricValue('vix-value', overview.data.vix);
+            } else {
+                setMetricValue('spy-value', null);
+                setMetricValue('vix-value', null);
+            }
+
+            const spyHistory = await loadSymbolHistory('SPY', 30);
+            updateMarketChart(spyHistory);
+
+            const aaplHistory = await loadSymbolHistory('AAPL', 5);
+            const aaplPrice = aaplHistory?.metadata?.real_data === true
+                ? aaplHistory.summary?.current_price
+                : null;
+            setMetricValue('aapl-value', aaplPrice);
         }
 
         // Toggle sidebar sections
@@ -976,40 +1051,13 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             }
         }
 
-        // Simulate market data updates
-        function updateMarketData() {
-            // Update SPY
-            const spyElement = document.getElementById('spy-value');
-            const currentSPY = parseFloat(spyElement.textContent);
-            const newSPY = (currentSPY + (Math.random() - 0.5) * 2).toFixed(2);
-            spyElement.textContent = newSPY;
-
-            // Update VIX
-            const vixElement = document.getElementById('vix-value');
-            const currentVIX = parseFloat(vixElement.textContent);
-            const newVIX = (currentVIX + (Math.random() - 0.5) * 0.5).toFixed(2);
-            vixElement.textContent = newVIX;
-
-            // Update AAPL
-            const aaplElement = document.getElementById('aapl-value');
-            const currentAAPL = parseFloat(aaplElement.textContent);
-            const newAAPL = (currentAAPL + (Math.random() - 0.5) * 3).toFixed(2);
-            aaplElement.textContent = newAAPL;
-
-            // Update chart with new data point
-            if (marketChart && marketChart.data.datasets[0].data.length > 12) {
-                marketChart.data.datasets[0].data.shift();
-                marketChart.data.datasets[0].data.push(parseFloat(newSPY));
-                marketChart.update('none');
-            }
-        }
-
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             initializeMarketChart();
             checkSystemHealth();
             checkAIModels();
             updateTime();
+            updateMarketData();
 
             // Initialize market clock immediately
             updateMarketClock();
@@ -1022,8 +1070,8 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
             console.log('Market clock initialized');
 
-            // Update market data every 5 seconds
-            setInterval(updateMarketData, 5000);
+            // Update market data every 60 seconds
+            setInterval(updateMarketData, 60000);
         });
 
         // Fallback initialization - run immediately if DOM already loaded
