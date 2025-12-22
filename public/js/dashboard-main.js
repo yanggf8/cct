@@ -139,14 +139,22 @@ function initializeMarketStatusMonitoring() {
                 updateRegimeIndicator(regimeResponse.data);
             }
 
-            // Update VIX (mock data for now)
-            updateVIXIndicator(18.47 + Math.random() * 4 - 2);
+            // VIX is updated by refreshMarketOverview()
 
-            // Update overall sentiment (mock data for now)
-            const sentiments = ['Bullish', 'Neutral', 'Bearish'];
-            const sentimentClasses = ['positive', 'neutral', 'negative'];
-            const randomIndex = Math.floor(Math.random() * sentiments.length);
-            updateSentimentIndicator(sentiments[randomIndex], sentimentClasses[randomIndex]);
+            // Update overall sentiment from real API
+            try {
+                const sentimentResponse = await window.dashboard.apiClient.request('/sentiment/market');
+                if (sentimentResponse.success && sentimentResponse.data) {
+                    const score = sentimentResponse.data.overallSentiment || sentimentResponse.data.score || 0;
+                    const sentiment = score > 0.2 ? 'Bullish' : score < -0.2 ? 'Bearish' : 'Neutral';
+                    const sentimentClass = score > 0.2 ? 'positive' : score < -0.2 ? 'negative' : 'neutral';
+                    updateSentimentIndicator(sentiment, sentimentClass);
+                } else {
+                    updateSentimentIndicator('N/A', 'neutral');
+                }
+            } catch {
+                updateSentimentIndicator('N/A', 'neutral');
+            }
 
         } catch (error) {
             console.error('Failed to update market indicators:', error);
@@ -184,7 +192,19 @@ function updateVIXIndicator(value) {
     const vixValue = document.getElementById('vix-value');
     if (!vixValue) return;
 
+    if (value === null || value === undefined) {
+        vixValue.textContent = 'N/A';
+        vixValue.className = 'value volatility-indicator';
+        if (window.dashboard?.setDataAvailability) {
+            window.dashboard.setDataAvailability('vix', false);
+        }
+        return;
+    }
+
     vixValue.textContent = value.toFixed(2);
+    if (window.dashboard?.setDataAvailability) {
+        window.dashboard.setDataAvailability('vix', true);
+    }
 
     // Update color based on VIX level
     vixValue.className = 'value volatility-indicator';
@@ -204,6 +224,9 @@ function updateSentimentIndicator(sentiment, sentimentClass) {
 
     overallSentiment.textContent = sentiment;
     overallSentiment.className = `value sentiment-indicator ${sentimentClass}`;
+    if (window.dashboard?.setDataAvailability) {
+        window.dashboard.setDataAvailability('sentiment', sentiment !== 'N/A');
+    }
 }
 
 /**

@@ -5,10 +5,11 @@ compatibility_flags = ["nodejs_compat"]
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 
 # D1 Database for analytics and cold storage (production - top-level)
-[[d1_databases]]
-binding = "ANALYTICS_DB"
-database_name = "tft-trading-system-analytics"
-database_id = "your-production-database-id"  # To be created with: wrangler d1 create tft-trading-system-analytics
+# Uncomment when D1 database is created: wrangler d1 create tft-trading-system-analytics
+# [[d1_databases]]
+# binding = "ANALYTICS_DB"
+# database_name = "tft-trading-system-analytics"
+# database_id = "your-production-database-id"
 
 [env.staging]
 name = "tft-trading-system-staging"
@@ -19,10 +20,11 @@ name = "CACHE_DO"
 class_name = "CacheDurableObject"
 
 # D1 Database for analytics and cold storage (staging)
-[[env.staging.d1_databases]]
-binding = "ANALYTICS_DB"
-database_name = "tft-trading-system-analytics-staging"
-database_id = "your-staging-database-id"  # To be created with: wrangler d1 create tft-trading-system-analytics-staging
+# Uncomment when D1 database is created: wrangler d1 create tft-trading-system-analytics-staging
+# [[env.staging.d1_databases]]
+# binding = "ANALYTICS_DB"
+# database_name = "tft-trading-system-analytics-staging"
+# database_id = "your-staging-database-id"
 
 # KV bindings - Market Analysis & Operations Cache (stores analysis results, market data, job status)
 [[kv_namespaces]]

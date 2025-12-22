@@ -685,6 +685,15 @@ export async function handleRealtimeRoutes(request: Request, env: any, path: str
             });
         }
 
+        if (path === '/api/v1/realtime/market-overview') {
+            const marketData = await manager.getMarketOverview(env);
+            const body = ApiResponseFactory.success(marketData, { requestId: headers['X-Request-ID'] });
+            return new Response(JSON.stringify(body), {
+                status: HttpStatus.OK,
+                headers
+            });
+        }
+
         if (path === '/api/v1/realtime/refresh') {
             // Trigger immediate data refresh for all clients
             const marketData = await manager.getMarketOverview(env);

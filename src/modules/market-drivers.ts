@@ -144,7 +144,7 @@ export class MarketDriversManager {
     this.env = env;
     this.dal = createSimplifiedEnhancedDAL(env);
     this.cache = new DOMarketDriversCacheAdapter(env);
-    this.productionDrivers = new ProductionMarketDrivers();
+    this.productionDrivers = new ProductionMarketDrivers(env);
 
     // Legacy mode for staging/development if needed
     this.legacyMode = process.env.USE_LEGACY_MARKET_DRIVERS === 'true' || process.env.NODE_ENV !== 'production';

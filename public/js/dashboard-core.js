@@ -15,6 +15,11 @@ class DashboardCore {
         this.theme = this.settings.theme || 'light';
         this.alerts = [];
         this.maxAlerts = 50;
+        this.dataAvailability = {
+            indices: null,
+            vix: null,
+            sentiment: null
+        };
 
         // Initialize dashboard
         this.init();
@@ -306,19 +311,25 @@ class DashboardCore {
      */
     async refreshMarketOverview() {
         try {
-            // Get market indices
-            const response = await this.apiClient.getSystemHealth();
+            const response = await this.apiClient.request('/realtime/market-overview');
 
-            if (response.success) {
-                // Update indices (mock data for now)
-                this.updateIndices({
-                    sp500: { value: 4567.18, change: +1.23 },
-                    nasdaq: { value: 14234.56, change: +2.45 },
-                    dow: { value: 35678.90, change: -0.67 }
-                });
+            if (response.success && response.data?.indices) {
+                this.updateIndices(response.data.indices);
+                if (typeof updateVIXIndicator === 'function') {
+                    updateVIXIndicator(response.data.vix ?? null);
+                }
+            } else {
+                this.updateIndices(null);
+                if (typeof updateVIXIndicator === 'function') {
+                    updateVIXIndicator(null);
+                }
             }
         } catch (error) {
             console.error('Failed to refresh market overview:', error);
+            this.updateIndices(null);
+            if (typeof updateVIXIndicator === 'function') {
+                updateVIXIndicator(null);
+            }
         }
     }
 
@@ -403,13 +414,31 @@ class DashboardCore {
             const valueEl = document.getElementById(id + '-value');
             const changeEl = document.getElementById(id + '-change');
 
+            if (!data) {
+                if (valueEl) valueEl.textContent = 'N/A';
+                if (changeEl) {
+                    changeEl.textContent = 'unavailable';
+                    changeEl.className = 'index-change neutral';
+                }
+                return;
+            }
+
             if (valueEl) valueEl.textContent = data.value.toLocaleString();
             if (changeEl) {
                 changeEl.textContent = `${data.change >= 0 ? '+' : ''}${data.change}%`;
-                changeEl.className = `index-change ${data.change >= 0 ? 'positive' : data.change <= 0 ? 'negative' : 'neutral'}`;
+                changeEl.className = `index-change ${data.change >= 0 ? 'positive' : data.change < 0 ? 'negative' : 'neutral'}`;
             }
         };
 
+        if (!indices) {
+            this.setDataAvailability('indices', false);
+            updateIndex('sp500', null);
+            updateIndex('nasdaq', null);
+            updateIndex('dow', null);
+            return;
+        }
+
+        this.setDataAvailability('indices', true);
         updateIndex('sp500', indices.sp500);
         updateIndex('nasdaq', indices.nasdaq);
         updateIndex('dow', indices.dow);
@@ -419,6 +448,7 @@ class DashboardCore {
      * Update sentiment data display
      */
     updateSentimentData(data) {
+        this.setDataAvailability('sentiment', Boolean(data?.overallSentiment));
         // Update overall sentiment indicator
         const overallSentiment = document.getElementById('overall-sentiment');
         if (overallSentiment && data.overallSentiment) {
@@ -431,6 +461,44 @@ class DashboardCore {
 
         // Trigger widget refresh
         this.refreshWidget('sentiment-chart');
+    }
+
+    /**
+     * Update data availability state
+     */
+    setDataAvailability(source, available) {
+        if (!(source in this.dataAvailability)) return;
+        this.dataAvailability[source] = available;
+        this.updateDataStatusBadge();
+    }
+
+    /**
+     * Update data status badge based on current availability
+     */
+    updateDataStatusBadge() {
+        const badge = document.getElementById('data-status-badge');
+        if (!badge) return;
+
+        const values = Object.values(this.dataAvailability);
+        const known = values.filter(value => value !== null);
+        let state = 'loading';
+        let label = 'Loading';
+
+        if (known.length > 0) {
+            if (known.every(value => value === true)) {
+                state = 'live';
+                label = 'Live';
+            } else if (known.every(value => value === false)) {
+                state = 'unavailable';
+                label = 'Unavailable';
+            } else {
+                state = 'partial';
+                label = 'Partial';
+            }
+        }
+
+        badge.textContent = label;
+        badge.className = `data-status-badge ${state}`;
     }
 
     /**

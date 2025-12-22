@@ -402,13 +402,12 @@ class DashboardCharts {
             if (response.success && response.data) {
                 this.updateSentimentChart(response.data);
             } else {
-                // Load mock data for demonstration
-                this.loadSentimentChartMockData();
+                this.showChartUnavailable('sentiment', 'Sentiment data unavailable');
             }
 
         } catch (error) {
             console.error('Failed to load initial sentiment data:', error);
-            this.loadSentimentChartMockData();
+            this.showChartUnavailable('sentiment', 'Sentiment data unavailable');
         }
     }
 
@@ -427,13 +426,26 @@ class DashboardCharts {
             if (response.success && response.data) {
                 this.updateTechnicalChart(response.data);
             } else {
-                // Load mock data for demonstration
-                this.loadTechnicalChartMockData();
+                this.showChartUnavailable('technical', 'Technical data unavailable');
             }
 
         } catch (error) {
             console.error('Failed to load initial technical data:', error);
-            this.loadTechnicalChartMockData();
+            this.showChartUnavailable('technical', 'Technical data unavailable');
+        }
+    }
+
+    /**
+     * Show unavailable state for a chart
+     */
+    showChartUnavailable(chartKey, message) {
+        const chart = this.charts.get(chartKey);
+        if (chart) {
+            chart.data.labels = [];
+            chart.data.datasets.forEach(ds => ds.data = []);
+            chart.options.plugins = chart.options.plugins || {};
+            chart.options.plugins.title = { display: true, text: message, color: '#888' };
+            chart.update();
         }
     }
 

@@ -254,16 +254,13 @@ export class ProductionMarketDrivers {
   private readonly yahooCircuitBreaker: CircuitBreaker;
   private readonly cache: CacheManager;
 
-  constructor() {
-    this.fredIntegration = new FREDDataIntegration();
+  constructor(env?: { FRED_API_KEY?: string }) {
+    this.fredIntegration = new FREDDataIntegration({ apiKey: env?.FRED_API_KEY || '' });
     this.yahooFinance = new YahooFinanceIntegration();
     this.deduplicator = new RequestDeduplicator();
     this.fredCircuitBreaker = new CircuitBreaker();
     this.yahooCircuitBreaker = new CircuitBreaker();
     this.cache = new CacheManager();
-
-    // Note: setInterval not allowed in global scope in Cloudflare Workers
-    // Cache cleanup should be triggered per-request or via scheduled handler
   }
 
   /**

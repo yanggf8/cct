@@ -333,6 +333,36 @@ body {
     gap: 0.5rem;
 }
 
+.data-status-badge {
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.2rem 0.6rem;
+    text-transform: uppercase;
+}
+
+.data-status-badge.live {
+    background: var(--accent-success);
+    color: var(--text-inverse);
+}
+
+.data-status-badge.partial {
+    background: var(--accent-warning);
+    color: var(--text-inverse);
+}
+
+.data-status-badge.unavailable {
+    background: var(--accent-danger);
+    color: var(--text-inverse);
+}
+
+.data-status-badge.loading {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
 .status-dot {
     width: 8px;
     height: 8px;

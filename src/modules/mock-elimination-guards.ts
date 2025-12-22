@@ -276,7 +276,10 @@ function validateDataQuality(
 ): MockDataDetection[] {
   const violations: MockDataDetection[] = [];
 
-  if (typeof value !== 'number') {
+  // Handle DataSourceResult wrapper - extract .value if present
+  const actualValue = value?.value !== undefined ? value.value : value;
+
+  if (typeof actualValue !== 'number') {
     violations.push({
       isMock: true,
       detectionReason: `Expected numeric value for ${requirement.dataSource} data`,
@@ -286,7 +289,7 @@ function validateDataQuality(
     });
   } else {
     // Check for obviously invalid values
-    if (requirement.dataSource === 'FRED' && value === 0) {
+    if (requirement.dataSource === 'FRED' && actualValue === 0) {
       violations.push({
         isMock: true,
         detectionReason: `FRED series cannot be 0 (likely mock/default value)`,
@@ -297,10 +300,10 @@ function validateDataQuality(
     }
 
     // Check for reasonable ranges
-    if (fieldName.includes('Rate') && (value < 0 || value > 100)) {
+    if (fieldName.includes('Rate') && (actualValue < 0 || actualValue > 100)) {
       violations.push({
         isMock: true,
-        detectionReason: `Rate ${value}% outside reasonable range (0-100%)`,
+        detectionReason: `Rate ${actualValue}% outside reasonable range (0-100%)`,
         location: `${location}.${fieldName}`,
         severity: 'medium',
         recommendedAction: 'Verify data source and calculation logic'
