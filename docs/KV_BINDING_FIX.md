@@ -215,13 +215,13 @@ curl -H "X-API-KEY: your-key" \
 
 ```bash
 # 1. Deploy to production environment
-wrangler deploy --config wrangler-enhanced.toml 
+wrangler deploy --config wrangler-enhanced.toml
 
 # 2. Verify deployment
 ./scripts/test-kv-bindings.sh
 
 # For staging
-wrangler deploy --config wrangler-enhanced.toml --env staging
+wrangler deploy --config wrangler-enhanced.toml--env staging
 BASE_URL="https://tft-trading-system-staging.yanggf.workers.dev" \
   ./scripts/test-kv-bindings.sh
 ```
