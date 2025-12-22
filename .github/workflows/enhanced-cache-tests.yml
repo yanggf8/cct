@@ -175,8 +175,7 @@ jobs:
 
     - name: Make test scripts executable
       run: |
-        chmod +x test-enhanced-cache-integration.sh
-        chmod +x run-regression-tests.sh
+        chmod +x tests/regression/run-regression-tests.sh
 
     - name: Create baseline if needed
       if: github.event.inputs.test_type == 'baseline' || ! contains(github.ref, 'refs/heads/')
