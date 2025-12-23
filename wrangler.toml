@@ -4,6 +4,10 @@ compatibility_date = "2025-01-10"
 compatibility_flags = ["nodejs_compat"]
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 
+# Static assets from public folder
+[assets]
+directory = "public"
+
 # D1 Database for analytics and cold storage (production - top-level)
 # Uncomment when D1 database is created: wrangler d1 create tft-trading-system-analytics
 # [[d1_databases]]

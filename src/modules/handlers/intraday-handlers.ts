@@ -13,6 +13,7 @@ import {
   validateDependencies,
   getJobStatus
 } from '../kv-utils.js';
+import { SHARED_NAV_CSS, getSharedNavHTML } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
 
@@ -331,6 +332,7 @@ async function generateIntradayCheckHTML(
     <title>🎯 Intraday Performance Check - ${date}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;
@@ -343,6 +345,7 @@ async function generateIntradayCheckHTML(
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+            padding-top: 80px;
         }
 
         .container {
@@ -353,88 +356,6 @@ async function generateIntradayCheckHTML(
             padding: 30px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        /* 4 Moment Navigation Styles */
-        .report-navigation {
-            margin: 20px 0;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: center;
-            flex-wrap: wrap;
-            background: rgba(79, 172, 254, 0.1);
-            padding: 15px;
-            border-radius: 12px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .nav-report-btn {
-            background: linear-gradient(135deg, rgba(79, 172, 254, 0.8), rgba(40, 144, 252, 0.8));
-            color: white;
-            text-decoration: none;
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .nav-report-btn:before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .nav-report-btn:hover:before {
-            left: 100%;
-        }
-
-        .nav-report-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);
-            background: linear-gradient(135deg, rgba(79, 172, 254, 1), rgba(40, 144, 252, 1));
-        }
-
-        .nav-report-btn.active {
-            background: linear-gradient(135deg, #4facfe, #00f2fe);
-            color: #0f1419;
-            box-shadow: 0 6px 25px rgba(79, 172, 254, 0.5);
-            transform: translateY(-1px);
-        }
-
-        .nav-report-btn span {
-            font-size: 1rem;
-        }
-
-        @media (max-width: 768px) {
-            .report-navigation {
-                gap: 8px;
-                padding: 12px;
-            }
-
-            .nav-report-btn {
-                padding: 8px 12px;
-                font-size: 0.8rem;
-            }
-
-            .nav-report-btn span {
-                font-size: 0.9rem;
-            }
         }
 
         .header {
@@ -688,17 +609,8 @@ async function generateIntradayCheckHTML(
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('intraday')}
     <div class="container">
-        <!-- 4 Moment Navigation -->
-        <div class="report-navigation">
-            <span style="color: #4facfe; font-weight: 600; margin-right: 10px;">📈 Navigate Reports:</span>
-            <a href="/pre-market-briefing" class="nav-report-btn">📅 Pre-Market</a>
-            <a href="/intraday-check" class="nav-report-btn active">📊 Intraday</a>
-            <a href="/end-of-day-summary" class="nav-report-btn">📈 End-of-Day</a>
-            <a href="/weekly-review" class="nav-report-btn">📋 Weekly Review</a>
-            <a href="/weekly-analysis" class="nav-report-btn">📊 Weekly Dashboard</a>
-        </div>
-
         <div class="header">
             <h1>🎯 Intraday Performance Check</h1>
             <div class="date">${new Date(date).toLocaleDateString('en-US', {
@@ -842,6 +754,7 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📊 Intraday Performance Check - Waiting for Dependencies</title>
     <style>
+        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;
@@ -854,6 +767,7 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+            padding-top: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1032,6 +946,7 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('intraday')}
     <div class="container">
         <div class="header">
             <h1>📊 Intraday Performance Check</h1>

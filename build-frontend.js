@@ -13,6 +13,7 @@ const { execSync } = require('child_process');
 const BUILD_DIR = 'dist';
 const PUBLIC_DIR = 'public';
 const STATIC_DIR = 'src/static';
+const SKIP_TYPECHECK = process.argv.includes('--skip-typecheck');
 
 console.log('🏗️  Building Frontend Assets...');
 
@@ -54,13 +55,17 @@ try {
   }
 
   // Compile TypeScript files (without emit for checking)
-  console.log('🔍 Running TypeScript compilation check...');
-  try {
-    execSync('npx tsc --noEmit', { stdio: 'inherit' });
-    console.log('✅ TypeScript compilation successful');
-  } catch (error) {
-    console.error('❌ TypeScript compilation failed');
-    process.exit(1);
+  if (!SKIP_TYPECHECK) {
+    console.log('🔍 Running TypeScript compilation check...');
+    try {
+      execSync('npx tsc --noEmit', { stdio: 'inherit' });
+      console.log('✅ TypeScript compilation successful');
+    } catch (error) {
+      console.error('❌ TypeScript compilation failed');
+      process.exit(1);
+    }
+  } else {
+    console.log('⏭️  Skipping TypeScript check (--skip-typecheck)');
   }
 
   // Generate build info

@@ -13,8 +13,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
 
     <!-- Dashboard Core -->
+    <link rel="stylesheet" href="/css/nav.css?v=20251223">
     <link rel="stylesheet" href="/css/dashboard.css?v=20251018-2">
     <link rel="stylesheet" href="/css/dashboard-animations.css?v=20251018-2">
+    <script src="/js/nav.js?v=20251223"></script>
     <script src="/js/api-client.js?v=20251018-2"></script>
     <script src="/js/api-cache.js?v=20251018-2"></script>
     <script src="/js/cache-monitor.js?v=20251028"></script>
@@ -41,16 +43,7 @@
                 </div>
             </div>
 
-            <div class="header-center">
-                <div class="market-clock" id="market-clock">
-                    <div class="clock-time">--:--:--</div>
-                    <div class="clock-date">----/--/--</div>
-                    <div class="market-status">
-                        <span class="status-indicator"></span>
-                        <span class="status-text">Market Closed</span>
-                    </div>
-                </div>
-            </div>
+
 
             <div class="header-right">
                 <div class="header-controls">
@@ -76,10 +69,7 @@
                 <span class="label">Market Regime:</span>
                 <span class="value regime-indicator" id="regime-indicator">Bullish</span>
             </div>
-            <div class="status-item">
-                <span class="label">VIX:</span>
-                <span class="value volatility-indicator" id="vix-value">--.--</span>
-            </div>
+
             <div class="status-item">
                 <span class="label">Sentiment:</span>
                 <span class="value sentiment-indicator" id="overall-sentiment">Neutral</span>
@@ -107,35 +97,7 @@
         <main class="dashboard-grid">
             <!-- Top Row: Key Metrics -->
             <section class="grid-section metrics-row">
-                <!-- Market Overview Widget -->
-                <div class="widget market-overview-widget" data-widget-id="market-overview">
-                    <div class="widget-header">
-                        <h3>Market Overview</h3>
-                        <div class="widget-controls">
-                            <button class="widget-refresh" onclick="refreshWidget('market-overview')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="indices-grid">
-                            <div class="index-item">
-                                <div class="index-name">S&P 500</div>
-                                <div class="index-value" id="sp500-value">--,---</div>
-                                <div class="index-change" id="sp500-change">--</div>
-                            </div>
-                            <div class="index-item">
-                                <div class="index-name">NASDAQ</div>
-                                <div class="index-value" id="nasdaq-value">--,---</div>
-                                <div class="index-change" id="nasdaq-change">--</div>
-                            </div>
-                            <div class="index-item">
-                                <div class="index-name">DOW</div>
-                                <div class="index-value" id="dow-value">--,---</div>
-                                <div class="index-change" id="dow-change">--</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+
 
                 <!-- Predictive Analytics Widget -->
                 <div class="widget predictive-widget" data-widget-id="predictive-analytics">

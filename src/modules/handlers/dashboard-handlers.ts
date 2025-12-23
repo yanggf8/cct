@@ -622,44 +622,6 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
       border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
-    .market-indices {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 1rem;
-    }
-
-    .index-item {
-      text-align: center;
-      padding: 1rem;
-      background: rgba(51, 65, 85, 0.5);
-      border-radius: 8px;
-      border: 1px solid var(--card-border-color);
-    }
-
-    .index-symbol {
-      font-weight: 700;
-      color: var(--h3-color);
-      font-size: 0.9rem;
-    }
-
-    .index-name {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      margin: 0.25rem 0;
-    }
-
-    .index-price {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: var(--h2-color);
-      margin: 0.5rem 0;
-    }
-
-    .index-change {
-      font-size: 0.9rem;
-      font-weight: 600;
-    }
-
     .change-positive {
       color: #22c55e;
     }
@@ -716,46 +678,6 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
       height: 8px;
       border-radius: 50%;
       background: #22c55e;
-    }
-
-    .market-clock {
-      text-align: center;
-      padding: 2rem 1rem;
-    }
-
-    .clock-time {
-      font-size: 2.5rem;
-      font-weight: 700;
-      color: var(--h1-color);
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
-      margin-bottom: 0.5rem;
-    }
-
-    .clock-date {
-      font-size: 1rem;
-      color: #94a3b8;
-      margin-bottom: 1rem;
-    }
-
-    .market-status {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.9rem;
-    }
-
-    .market-open {
-      background: rgba(34, 197, 94, 0.2);
-      color: #22c55e;
-      border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-
-    .market-closed {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-      border: 1px solid rgba(239, 68, 68, 0.3);
     }
 
     .sector-list {
@@ -851,14 +773,6 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
         font-size: 1.5rem;
       }
 
-      .clock-time {
-        font-size: 2rem;
-      }
-
-      .market-indices {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
       .nav-buttons {
         grid-template-columns: 1fr;
       }
@@ -928,30 +842,7 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
 
   <main class="container">
     <div class="widget-grid">
-      <!-- Market Indices Widget -->
-      <div class="widget">
-        <div class="widget-header">
-          <h2 class="widget-title">
-            <i class="fas fa-chart-area widget-icon"></i>
-            Market Indices
-          </h2>
-          <span class="status-badge status-healthy">LIVE</span>
-        </div>
-        <div class="widget-content">
-          <div class="market-indices">
-            ${data.marketData.indices.map(index => `
-              <div class="index-item">
-                <div class="index-symbol">${index.symbol}</div>
-                <div class="index-name">${index.name}</div>
-                <div class="index-price">${formatCurrency(index.price)}</div>
-                <div class="index-change ${getChangeClass(index.changePercent)}">
-                  ${index.change >= 0 ? '+' : ''}${formatCurrency(index.change)} (${index.changePercent >= 0 ? '+' : ''}${formatPercentage(index.changePercent)})
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
+
 
       <!-- Latest Report Status Widget -->
       <div class="widget">
@@ -1009,28 +900,7 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
         </div>
       </div>
 
-      <!-- Market Clock Widget -->
-      <div class="widget">
-        <div class="widget-header">
-          <h2 class="widget-title">
-            <i class="fas fa-clock widget-icon"></i>
-            Market Clock
-          </h2>
-        </div>
-        <div class="widget-content">
-          <div class="market-clock">
-            <div class="clock-time" id="clock-time">${new Date().toLocaleTimeString()}</div>
-            <div class="clock-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
-            <div class="market-status ${marketStatus.isOpen ? 'market-open' : 'market-closed'}">
-              <i class="fas fa-circle" style="font-size: 0.5rem; margin-right: 0.5rem;"></i>
-              Market ${marketStatus.isOpen ? 'Open' : 'Closed'}
-            </div>
-            <div style="margin-top: 1rem; font-size: 0.85rem; color: #94a3b8;">
-              ${marketStatus.nextEvent}
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       <!-- Sector Performance Widget -->
       <div class="widget">
@@ -1138,15 +1008,6 @@ export function generateDashboardHTML(data: DashboardWidgetData, env: Cloudflare
   </div>
 
   <script>
-    // Update clock every second
-    function updateClock() {
-      const now = new Date();
-      document.getElementById('clock-time').textContent = now.toLocaleTimeString();
-    }
-
-    setInterval(updateClock, 1000);
-    updateClock();
-
     // Auto-refresh every 60 seconds
     let refreshInterval = setInterval(() => {
       location.reload();

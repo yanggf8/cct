@@ -540,11 +540,26 @@ wrangler secret put FEATURE_FLAG_DO_CACHE
 
 ### **Deploy Command** ⚠️ **DO NOT REMOVE - CRITICAL INSTRUCTION**
 ```bash
+# Full deployment (frontend + backend)
+npm run deploy
+
 # Deploy without API token (uses browser auth) - REQUIRED DEPLOYMENT METHOD
 env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
 
 # Alternative (both variables unset):
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy
+```
+
+### **Frontend-Only Deployment**
+```bash
+# Build and deploy frontend only (skips backend build) - fastest for UI changes
+npm run deploy:frontend:only
+
+# Build frontend + backend, then deploy
+npm run deploy:frontend
+
+# Build frontend assets only (no deploy, no typecheck)
+npm run build:frontend:only
 ```
 
 ### **Related Documentation**

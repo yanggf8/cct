@@ -271,6 +271,7 @@ class RealtimeManager {
 
     /**
      * Get market overview data
+     * TODO: DEAD CODE - widgets removed 2025-12-23. Remove after 2025-12-30 if unused.
      */
     async getMarketOverview(env?: any): Promise<any> {
         try {
@@ -685,6 +686,7 @@ export async function handleRealtimeRoutes(request: Request, env: any, path: str
             });
         }
 
+        // TODO: DEAD CODE - widgets removed 2025-12-23. Remove after 2025-12-30 if unused.
         if (path === '/api/v1/realtime/market-overview') {
             const marketData = await manager.getMarketOverview(env);
             const body = ApiResponseFactory.success(marketData, { requestId: headers['X-Request-ID'] });

@@ -15,8 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Make dashboard globally available
         window.dashboard = dashboard;
 
-        // Initialize market clock
-        initializeMarketClock();
+
 
         // Initialize market status monitoring
         initializeMarketStatusMonitoring();
@@ -41,88 +40,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-/**
- * Initialize market clock
- */
-function initializeMarketClock() {
-    const clockTime = document.querySelector('.clock-time');
-    const clockDate = document.querySelector('.clock-date');
-    const statusIndicator = document.querySelector('.status-indicator');
-    const statusText = document.querySelector('.status-text');
 
-    function updateClock() {
-        // Convert to EST/EDT timezone
-        const now = new Date();
-        const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
 
-        if (clockTime) {
-            clockTime.textContent = estTime.toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-        }
 
-        if (clockDate) {
-            clockDate.textContent = estTime.toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric'
-            });
-        }
-
-        // Update market status
-        updateMarketStatus(estTime, statusIndicator, statusText);
-    }
-
-    // Update immediately and then every second
-    updateClock();
-    setInterval(updateClock, 1000);
-}
-
-/**
- * Update market status based on current time
- */
-function updateMarketStatus(now, indicator, text) {
-    if (!indicator || !text) return;
-
-    const day = now.getDay();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    // Weekend
-    if (day === 0 || day === 6) {
-        indicator.className = 'status-indicator closed';
-        text.textContent = 'Weekend';
-        return;
-    }
-
-    // Pre-market (4:00 AM - 9:30 AM ET)
-    if (hours >= 4 && (hours < 9 || (hours === 9 && minutes < 30))) {
-        indicator.className = 'status-indicator pre-market';
-        text.textContent = 'Pre-Market';
-        return;
-    }
-
-    // Market hours (9:30 AM - 4:00 PM ET)
-    if ((hours > 9 || (hours === 9 && minutes >= 30)) && hours < 16) {
-        indicator.className = 'status-indicator open';
-        text.textContent = 'Market Open';
-        return;
-    }
-
-    // After-hours (4:00 PM - 8:00 PM ET)
-    if (hours >= 16 && hours < 20) {
-        indicator.className = 'status-indicator pre-market';
-        text.textContent = 'After Hours';
-        return;
-    }
-
-    // Closed
-    indicator.className = 'status-indicator closed';
-    text.textContent = 'Market Closed';
-}
 
 /**
  * Initialize market status monitoring
@@ -185,35 +105,7 @@ function updateRegimeIndicator(data) {
     }
 }
 
-/**
- * Update VIX indicator
- */
-function updateVIXIndicator(value) {
-    const vixValue = document.getElementById('vix-value');
-    if (!vixValue) return;
 
-    if (value === null || value === undefined) {
-        vixValue.textContent = 'N/A';
-        vixValue.className = 'value volatility-indicator';
-        if (window.dashboard?.setDataAvailability) {
-            window.dashboard.setDataAvailability('vix', false);
-        }
-        return;
-    }
-
-    vixValue.textContent = value.toFixed(2);
-    if (window.dashboard?.setDataAvailability) {
-        window.dashboard.setDataAvailability('vix', true);
-    }
-
-    // Update color based on VIX level
-    vixValue.className = 'value volatility-indicator';
-    if (value > 30) {
-        vixValue.classList.add('high');
-    } else if (value < 15) {
-        vixValue.classList.add('low');
-    }
-}
 
 /**
  * Update sentiment indicator

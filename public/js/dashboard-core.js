@@ -308,6 +308,7 @@ class DashboardCore {
 
     /**
      * Refresh market overview data
+     * TODO: DEAD CODE - widgets removed 2025-12-23. Remove after 2025-12-30 if unused.
      */
     async refreshMarketOverview() {
         try {

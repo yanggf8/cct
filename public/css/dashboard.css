@@ -173,61 +173,6 @@ body {
     color: var(--text-secondary);
 }
 
-/* Market Clock */
-.market-clock {
-    text-align: center;
-    background: var(--bg-widget);
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--border-radius-lg);
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-sm);
-}
-
-.clock-time {
-    font-size: 1.25rem;
-    font-weight: 700;
-    font-family: var(--font-mono);
-    color: var(--text-primary);
-}
-
-.clock-date {
-    font-size: 0.875rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.25rem;
-}
-
-.market-status {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-secondary);
-}
-
-.status-indicator.open {
-    background: var(--accent-success);
-    animation: pulse 2s infinite;
-}
-
-.status-indicator.closed {
-    background: var(--accent-danger);
-}
-
-.status-indicator.pre-market {
-    background: var(--accent-warning);
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
 /* Header Controls */
 .header-controls {
     display: flex;
@@ -376,6 +321,11 @@ body {
 
 .status-dot.disconnected {
     background: var(--accent-danger);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 /* Alert Banner */

@@ -229,11 +229,26 @@ wrangler custom-domains list
 
 #### **Step 4: Deploy to Production**
 ```bash
-# Deploy without API token (uses browser auth)
+# Full deployment (frontend + backend)
+npm run deploy
+
+# Or deploy without API token (uses browser auth)
 env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
 
 # Verify deployment
 curl -H "X-API-KEY: your_api_key" https://your-subdomain.your-accounts-domain.workers.dev/health
+```
+
+#### **Frontend-Only Deployment**
+```bash
+# Build and deploy frontend only (skips backend build)
+npm run deploy:frontend:only
+
+# Build frontend + backend, then deploy
+npm run deploy:frontend
+
+# Build frontend assets only (no deploy)
+npm run build:frontend:only
 ```
 
 ### **🔄 Update Deployment**

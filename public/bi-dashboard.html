@@ -12,65 +12,18 @@
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
 
     <!-- Dashboard Core -->
+    <link rel="stylesheet" href="/css/nav.css?v=20251223">
     <link rel="stylesheet" href="/css/dashboard.css?v=20251128-3">
     <link rel="stylesheet" href="/css/dashboard-animations.css?v=20251128-3">
     <link rel="stylesheet" href="/css/bi-dashboard.css?v=20251128-3">
+    <script src="/js/nav.js?v=20251223"></script>
     <script src="/js/api-client.js?v=20251128-3"></script>
     <script src="/js/api-cache.js?v=20251128-3"></script>
     <script src="/js/dashboard/dashboard-client.js?v=20251128-3" type="module"></script>
     <script src="/js/dashboard/dashboard-controller.js?v=20251128-3" type="module"></script>
     <script src="/js/dashboard/index.js?v=20251128-3" type="module"></script>
 </head>
-<body class="bi-dashboard-page">
-    <!-- Navigation Header -->
-    <nav class="dashboard-navigation">
-        <div class="nav-brand">
-            <h1>CCT Trading System</h1>
-            <span class="nav-subtitle">Business Intelligence</span>
-        </div>
-
-        <div class="nav-menu">
-            <a href="/dashboard.html" class="nav-item">
-                <span class="nav-icon">📈</span>
-                <span class="nav-text">Market Dashboard</span>
-            </a>
-            <a href="/bi-dashboard.html" class="nav-item active">
-                <span class="nav-icon">📊</span>
-                <span class="nav-text">BI Dashboard</span>
-            </a>
-            <a href="/predictive-analytics.html" class="nav-item">
-                <span class="nav-icon">🔮</span>
-                <span class="nav-text">Predictive Analytics</span>
-            </a>
-            <a href="/backtesting-dashboard.html" class="nav-item">
-                <span class="nav-icon">📉</span>
-                <span class="nav-text">Backtesting</span>
-            </a>
-            <a href="/portfolio-optimization-dashboard.html" class="nav-item">
-                <span class="nav-icon">💼</span>
-                <span class="nav-text">Portfolio</span>
-            </a>
-            <a href="/risk-dashboard.html" class="nav-item">
-                <span class="nav-icon">⚠️</span>
-                <span class="nav-text">Risk Management</span>
-            </a>
-            <a href="/test-api.html" class="nav-item">
-                <span class="nav-icon">🧪</span>
-                <span class="nav-text">API Testing</span>
-            </a>
-        </div>
-
-        <div class="nav-controls">
-            <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
-                <span class="icon">🌙</span>
-            </button>
-            <button class="api-status" id="api-status" title="API Status">
-                <span class="status-dot"></span>
-                <span class="status-text">Connected</span>
-            </button>
-        </div>
-    </nav>
-
+<body class="bi-dashboard-page has-nav">
     <!-- BI Dashboard Container -->
     <div class="bi-dashboard-wrapper">
         <!-- Dashboard Header -->

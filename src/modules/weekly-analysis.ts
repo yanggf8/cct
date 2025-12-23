@@ -4,6 +4,7 @@
  */
 
 import { getFactTableData, getFactTableDataWithRange } from './data.js';
+import { SHARED_NAV_CSS, getSharedNavHTML } from '../utils/html-templates.js';
 
 /**
  * Serve the Weekly Analysis HTML page
@@ -18,11 +19,12 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
   <script src="js/api-client.js?v=20251018-2"></script>
     <style>
+        ${SHARED_NAV_CSS}
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #ffffff; min-height: 100vh; padding: 20px;
+            color: #ffffff; min-height: 100vh; padding: 20px; padding-top: 80px;
         }
         .container { max-width: 1400px; margin: 0 auto; }
         .header {
@@ -36,55 +38,6 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px; }
-
-        /* 4 Moment Navigation Styles */
-        .nav-report-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-            text-decoration: none;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-
-        .nav-report-btn:hover {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(79, 172, 254, 0.3);
-            text-decoration: none;
-            color: #ffffff;
-        }
-
-        .nav-report-btn.active {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
-            border-color: #00f2fe;
-            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
-            color: #ffffff;
-        }
-
-        .nav-report-btn.active:hover {
-            background: linear-gradient(45deg, #00f2fe, #4facfe);
-            transform: translateY(-1px);
-        }
-
-        @media (max-width: 768px) {
-            .report-navigation {
-                flex-direction: column !important;
-                gap: 8px !important;
-            }
-
-            .nav-report-btn {
-                justify-content: center;
-                min-width: 200px;
-            }
-        }
         .stat-card {
             background: rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 25px;
             backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);
@@ -129,20 +82,11 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('weekly')}
     <div class="container">
         <div class="header">
             <h1>📊 Dual AI Comparison Dashboard</h1>
             <p>Comprehensive prediction accuracy and model performance review</p>
-
-            <!-- 4 Moment Navigation -->
-            <div class="report-navigation" style="margin: 20px 0; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; background: rgba(79, 172, 254, 0.1); padding: 15px; border-radius: 12px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);">
-                <span style="color: #4facfe; font-weight: 600; margin-right: 10px;">📈 Navigate Reports:</span>
-                <a href="/pre-market-briefing" class="nav-report-btn">📅 Pre-Market</a>
-                <a href="/intraday-check" class="nav-report-btn">📊 Intraday</a>
-                <a href="/end-of-day-summary" class="nav-report-btn">📈 End-of-Day</a>
-                <a href="/weekly-review" class="nav-report-btn active">📋 Weekly Review</a>
-                <a href="/weekly-analysis" class="nav-report-btn">📊 Weekly Dashboard</a>
-            </div>
 
             <!-- Date Selection Controls -->
             <div style="margin: 20px 0; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap;">

@@ -5,6 +5,7 @@
  */
 
 import type { CloudflareAI } from '../types';
+import { SHARED_NAV_CSS, getSharedNavHTML } from '../utils/html-templates.js';
 
 interface Env {
   MARKET_ANALYSIS_CACHE: KVNamespace;
@@ -65,6 +66,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
     <title>Trading Dashboard - Market Intelligence Platform</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <style>
+        ${SHARED_NAV_CSS}
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
@@ -73,96 +75,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             color: #ffffff;
             min-height: 100vh;
             overflow-x: hidden;
-        }
-
-        /* Top Navigation Bar */
-        .top-nav {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-bottom: 1px solid rgba(79, 172, 254, 0.3);
-            padding: 12px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
-        }
-
-        .nav-left {
-            display: flex;
-            align-items: center;
-            gap: 30px;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #4facfe;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .logo:hover {
-            color: #00f2fe;
-            text-decoration: none;
-        }
-
-        .global-search {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            padding: 8px 16px;
-            color: #ffffff;
-            width: 250px;
-            font-size: 0.9rem;
-        }
-
-        .global-search::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .nav-right {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .health-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #00ff88;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .health-indicator:hover {
-            box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-        }
-
-        .notification-bell {
-            font-size: 1.2rem;
-            color: #ffffff;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .notification-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #ff4757;
-            color: #ffffff;
-            border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            font-size: 0.7rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            padding-top: 60px;
         }
 
         /* Main Layout */
@@ -234,52 +147,6 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             flex: 1;
             padding: 20px;
             background: #0a0a0a;
-        }
-
-        /* At-a-Glance Top Row */
-        .at-a-glance {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .metric-card {
-            background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(15, 52, 96, 0.8) 100%);
-            border: 1px solid rgba(79, 172, 254, 0.3);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s ease;
-        }
-
-        .metric-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(79, 172, 254, 0.2);
-        }
-
-        .metric-label {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .metric-value {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #4facfe;
-            margin-bottom: 5px;
-        }
-
-        .metric-change {
-            font-size: 0.8rem;
-            color: #00ff88;
-        }
-
-        .metric-change.negative {
-            color: #ff4757;
         }
 
         /* Main Dashboard Grid */
@@ -357,29 +224,6 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         .widget-action:hover {
             background: rgba(79, 172, 254, 0.3);
             color: #00f2fe;
-        }
-
-        .market-status-badge {
-            font-size: 1.2rem;
-            animation: pulse 2s infinite;
-        }
-
-        .market-status-badge.open {
-            color: #00ff88;
-        }
-
-        .market-status-badge.closed {
-            color: #ff4757;
-        }
-
-        .market-status-badge.pre-market,
-        .market-status-badge.after-hours {
-            color: #ffa502;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
         }
 
         .widget-content {
@@ -499,25 +343,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
     </style>
 </head>
 <body>
-    <!-- Top Navigation Bar -->
-    <nav class="top-nav">
-        <div class="nav-left">
-            <a href="/" class="logo">
-                🏆 Trading Dashboard
-            </a>
-            <input type="text" class="global-search" placeholder="Search symbols, reports...">
-        </div>
-        <div class="nav-right">
-            <div class="health-indicator" title="System Healthy"></div>
-            <div class="notification-bell" id="notification-widget-container">
-                🔔
-                <span class="notification-badge" id="notification-badge">0</span>
-            </div>
-            <div class="user-profile">
-                👤 Admin
-            </div>
-        </div>
-    </nav>
+    ${getSharedNavHTML('dashboard')}
 
     <!-- Main Container -->
     <div class="main-container">
@@ -574,29 +400,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <!-- At-a-Glance Top Row -->
-            <div class="at-a-glance" role="status" aria-live="polite" aria-label="Market metrics at a glance">
-                <div class="metric-card" role="status" aria-label="S&P 500 Index">
-                    <div class="metric-label">SPY</div>
-                    <div class="metric-value" id="spy-value" aria-label="S&P 500 value">--</div>
-                    <div class="metric-change" aria-label="Positive change of 1.23 percent">+1.23%</div>
-                </div>
-                <div class="metric-card" role="status" aria-label="VIX Volatility Index">
-                    <div class="metric-label">VIX</div>
-                    <div class="metric-value" id="vix-value" aria-label="VIX value">--</div>
-                    <div class="metric-change negative" aria-label="Negative change of 0.45 percent">-0.45%</div>
-                </div>
-                <div class="metric-card" role="status" aria-label="Apple Inc Stock">
-                    <div class="metric-label">AAPL</div>
-                    <div class="metric-value" id="aapl-value" aria-label="Apple stock value">--</div>
-                    <div class="metric-change" aria-label="Positive change of 2.15 percent">+2.15%</div>
-                </div>
-                <div class="metric-card" role="timer" aria-label="Current market time">
-                    <div class="metric-label">Time</div>
-                    <div class="metric-value" id="time-value" aria-label="Current time: 09:30">09:30</div>
-                    <div class="metric-change" aria-label="Market status: Open">Market Open</div>
-                </div>
-            </div>
+
 
             <!-- Main Dashboard Grid -->
             <div class="dashboard-grid">
@@ -656,24 +460,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     </div>
                 </div>
 
-                <!-- Market Performance Widget -->
-                <div class="widget">
-                    <div class="widget-header">
-                        <div class="widget-title">
-                            📈 Market Performance
-                        </div>
-                        <div class="widget-actions">
-                            <button class="widget-action">1D</button>
-                            <button class="widget-action">1W</button>
-                            <button class="widget-action">1M</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="chart-container">
-                            <canvas id="marketChart"></canvas>
-                        </div>
-                    </div>
-                </div>
+
 
                 <!-- System Status Widget -->
                 <div class="widget">
@@ -812,187 +599,12 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     </div>
                 </div>
 
-                <!-- Market Clock Widget -->
-                <div class="widget">
-                    <div class="widget-header">
-                        <div class="widget-title">
-                            🕐 Market Clock
-                        </div>
-                        <div class="widget-actions">
-                            <span class="market-status-badge" id="market-status-badge">●</span>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div style="text-align: center; padding: 20px 0;">
-                            <div style="font-size: 2.5rem; font-weight: bold; color: #4facfe; margin-bottom: 10px;" id="market-clock-time">09:30:00</div>
-                            <div style="font-size: 1rem; color: rgba(255, 255, 255, 0.8); margin-bottom: 20px;" id="market-session">Market Open</div>
 
-                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
-                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">Pre-Market</div>
-                                    <div style="color: #4facfe; font-size: 0.9rem; font-weight: 600;">4:00 - 9:30</div>
-                                </div>
-                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">Regular</div>
-                                    <div style="color: #00ff88; font-size: 0.9rem; font-weight: 600;" id="regular-session">9:30 - 16:00</div>
-                                </div>
-                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">After-Hours</div>
-                                    <div style="color: #4facfe; font-size: 0.9rem; font-weight: 600;">16:00 - 20:00</div>
-                                </div>
-                                <div style="text-align: center; padding: 10px; background: rgba(79, 172, 254, 0.1); border-radius: 8px;">
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; margin-bottom: 5px;">Market Closed</div>
-                                    <div style="color: rgba(255, 255, 255, 0.4); font-size: 0.9rem; font-weight: 600;">20:00 - 4:00</div>
-                                </div>
-                            </div>
-
-                            <div style="margin-top: 20px; padding: 10px; background: rgba(79, 172, 254, 0.05); border-radius: 8px; border-left: 3px solid #4facfe;">
-                                <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.6);">Next Event</div>
-                                <div style="font-size: 0.9rem; color: #ffffff; font-weight: 600; margin-top: 5px;" id="next-event">Market Close in 6h 30m</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </main>
     </div>
 
     <script>
-        // Market Chart
-        let marketChart = null;
-
-        function initializeMarketChart() {
-            const canvas = document.getElementById('marketChart');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            marketChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'SPY',
-                        data: [],
-                        borderColor: '#4facfe',
-                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleColor: '#ffffff',
-                            bodyColor: '#ffffff',
-                            borderColor: '#4facfe',
-                            borderWidth: 1
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)',
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: 'rgba(255, 255, 255, 0.6)',
-                                font: { size: 10 }
-                            }
-                        },
-                        y: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.05)',
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: 'rgba(255, 255, 255, 0.6)',
-                                font: { size: 10 }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        async function fetchJson(url) {
-            try {
-                const response = await fetch(url);
-                if (!response.ok) return null;
-                return await response.json();
-            } catch (error) {
-                console.error('Failed to fetch:', url, error);
-                return null;
-            }
-        }
-
-        function setMetricValue(id, value, decimals = 2) {
-            const element = document.getElementById(id);
-            if (!element) return;
-            if (value === null || value === undefined || Number.isNaN(value)) {
-                element.textContent = 'N/A';
-                return;
-            }
-            element.textContent = Number(value).toFixed(decimals);
-        }
-
-        async function loadSymbolHistory(symbol, days) {
-            const response = await fetchJson('/api/v1/data/history/' + symbol + '?days=' + days);
-            if (!response || !response.success || !response.data) return null;
-            return response.data;
-        }
-
-        function showMarketChartUnavailable(message) {
-            if (!marketChart) return;
-            marketChart.data.labels = [];
-            marketChart.data.datasets[0].data = [];
-            marketChart.options.plugins = marketChart.options.plugins || {};
-            marketChart.options.plugins.title = { display: true, text: message, color: '#888' };
-            marketChart.update();
-        }
-
-        function updateMarketChart(history) {
-            if (!marketChart) return;
-            if (!history || history.metadata?.real_data !== true) {
-                showMarketChartUnavailable('Market data unavailable');
-                return;
-            }
-
-            const labels = history.data.map(point => point.date);
-            const prices = history.data.map(point => point.close);
-
-            marketChart.data.labels = labels;
-            marketChart.data.datasets[0].data = prices;
-            marketChart.options.plugins = marketChart.options.plugins || {};
-            marketChart.options.plugins.title = { display: false };
-            marketChart.update('none');
-        }
-
-        async function updateMarketData() {
-            const overview = await fetchJson('/api/v1/realtime/market-overview');
-            if (overview?.success && overview.data?.indices) {
-                setMetricValue('spy-value', overview.data.indices.sp500?.value);
-                setMetricValue('vix-value', overview.data.vix);
-            } else {
-                setMetricValue('spy-value', null);
-                setMetricValue('vix-value', null);
-            }
-
-            const spyHistory = await loadSymbolHistory('SPY', 30);
-            updateMarketChart(spyHistory);
-
-            const aaplHistory = await loadSymbolHistory('AAPL', 5);
-            const aaplPrice = aaplHistory?.metadata?.real_data === true
-                ? aaplHistory.summary?.current_price
-                : null;
-            setMetricValue('aapl-value', aaplPrice);
-        }
-
         // Toggle sidebar sections
         function toggleSection(sectionId) {
             const items = document.getElementById(sectionId + '-items');
@@ -1003,16 +615,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             }
         }
 
-        // Update time
-        function updateTime() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            });
-            document.getElementById('time-value').textContent = timeString;
-        }
+
 
         // System health check
         async function checkSystemHealth() {
@@ -1053,37 +656,13 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
-            initializeMarketChart();
             checkSystemHealth();
             checkAIModels();
-            updateTime();
-            updateMarketData();
-
-            // Initialize market clock immediately
-            updateMarketClock();
-
-            // Update time every minute
-            setInterval(updateTime, 60000);
-
-            // Update market clock every second
-            setInterval(updateMarketClock, 1000);
-
-            console.log('Market clock initialized');
-
-            // Update market data every 60 seconds
-            setInterval(updateMarketData, 60000);
         });
 
         // Fallback initialization - run immediately if DOM already loaded
-        if (document.readyState === 'loading') {
-            // DOM is still loading, wait for it
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(updateMarketClock, 100);
-            });
-        } else {
-            // DOM is already loaded, run immediately
-            updateMarketClock();
-            console.log('Market clock fallback initialization completed');
+        if (document.readyState !== 'loading') {
+            console.log('Dashboard fallback initialization completed');
         }
 
         // Check system health every 30 seconds
@@ -1184,80 +763,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             }
         }
 
-        // Market Clock Widget Functions
-        function updateMarketClock() {
-            try {
-                const now = new Date();
 
-                // Convert to EST/EDT
-                const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-                const hours = estTime.getHours();
-                const minutes = estTime.getMinutes();
-                const seconds = estTime.getSeconds();
-
-                // Update clock display
-                const clockElement = document.getElementById('market-clock-time');
-                if (clockElement) {
-                    clockElement.textContent =
-                        String(hours).padStart(2, '0') + ':' +
-                        String(minutes).padStart(2, '0') + ':' +
-                        String(seconds).padStart(2, '0');
-                }
-
-            // Determine market session
-            const currentTime = hours * 60 + minutes;
-            const badge = document.getElementById('market-status-badge');
-            const sessionElement = document.getElementById('market-session');
-            const nextEventElement = document.getElementById('next-event');
-
-            let session = '';
-            let badgeClass = '';
-            let nextEvent = '';
-
-            if (currentTime >= 240 && currentTime < 570) {
-                // Pre-Market (4:00 AM - 9:30 AM)
-                session = 'Pre-Market Session';
-                badgeClass = 'pre-market';
-                const minutesUntilOpen = 570 - currentTime;
-                nextEvent = 'Market Opens in ' + Math.floor(minutesUntilOpen / 60) + 'h ' + (minutesUntilOpen % 60) + 'm';
-            } else if (currentTime >= 570 && currentTime < 960) {
-                // Regular Market (9:30 AM - 4:00 PM)
-                session = 'Market Open';
-                badgeClass = 'open';
-                const minutesUntilClose = 960 - currentTime;
-                nextEvent = 'Market Closes in ' + Math.floor(minutesUntilClose / 60) + 'h ' + (minutesUntilClose % 60) + 'm';
-            } else if (currentTime >= 960 && currentTime < 1200) {
-                // After-Hours (4:00 PM - 8:00 PM)
-                session = 'After-Hours Trading';
-                badgeClass = 'after-hours';
-                const minutesUntilClose = 1200 - currentTime;
-                nextEvent = 'After-Hours Closes in ' + Math.floor(minutesUntilClose / 60) + 'h ' + (minutesUntilClose % 60) + 'm';
-            } else {
-                // Market Closed
-                session = 'Market Closed';
-                badgeClass = 'closed';
-                if (currentTime >= 1200) {
-                    const minutesUntilPreMarket = (1440 - currentTime) + 240;
-                    nextEvent = 'Pre-Market Opens in ' + Math.floor(minutesUntilPreMarket / 60) + 'h ' + (minutesUntilPreMarket % 60) + 'm';
-                } else {
-                    const minutesUntilPreMarket = 240 - currentTime;
-                    nextEvent = 'Pre-Market Opens in ' + Math.floor(minutesUntilPreMarket / 60) + 'h ' + (minutesUntilPreMarket % 60) + 'm';
-                }
-            }
-
-            if (badge) {
-                badge.className = 'market-status-badge ' + badgeClass;
-            }
-            if (sessionElement) {
-                sessionElement.textContent = session;
-            }
-            if (nextEventElement) {
-                nextEventElement.textContent = nextEvent;
-            }
-            } catch (error) {
-                console.error('Error updating market clock:', error);
-            }
-        }
 
         // Mobile sidebar toggle
         function toggleMobileSidebar() {

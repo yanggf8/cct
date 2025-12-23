@@ -10,6 +10,7 @@ import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
 import { getPreMarketBriefingData } from '../report-data-retrieval.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
 import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
+import { SHARED_NAV_CSS, getSharedNavHTML } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('briefing-handlers');
@@ -139,6 +140,7 @@ function generatePreMarketHTML(
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/api-client.js?v=20251018-2"></script>
     <style>
+        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;
@@ -151,6 +153,7 @@ function generatePreMarketHTML(
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+            padding-top: 80px;
             line-height: 1.6;
         }
 
@@ -467,6 +470,7 @@ function generatePreMarketHTML(
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('pre-market')}
     <div class="container">
         <div class="header">
             <h1>🚀 Pre-Market Briefing</h1>
@@ -565,12 +569,14 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pre-Market Briefing - ${dateStr}</title>
     <style>
+        ${SHARED_NAV_CSS}
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+            padding-top: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -623,6 +629,7 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('pre-market')}
     <div class="partial-content">
         <h2>⏳ Pre-Market Briefing in Progress</h2>
         <p>Market analysis is currently being prepared. Data completion: ${Math.round(completionRate * 100)}%</p>
@@ -651,12 +658,14 @@ function generateErrorHTML(error: any, requestId: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pre-Market Briefing Error</title>
     <style>
+        ${SHARED_NAV_CSS}
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+            padding-top: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -705,6 +714,7 @@ function generateErrorHTML(error: any, requestId: string): string {
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('pre-market')}
     <div class="error-content">
         <h2>❌ Pre-Market Briefing Error</h2>
         <p>Sorry, we encountered an error while generating the pre-market briefing.</p>

@@ -7,6 +7,7 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateEndOfDayAnalysis } from '../report/end-of-day-analysis.js';
 import { getEndOfDaySummaryData } from '../report-data-retrieval.js';
+import { SHARED_NAV_CSS, getSharedNavHTML } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('end-of-day-handlers');
@@ -95,6 +96,7 @@ function generateEndOfDayHTML(
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/api-client.js?v=20251018-2"></script>
     <style>
+        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;
@@ -107,6 +109,7 @@ function generateEndOfDayHTML(
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
+            padding-top: 80px;
             line-height: 1.6;
         }
 
@@ -402,6 +405,7 @@ function generateEndOfDayHTML(
     </style>
 </head>
 <body>
+    ${getSharedNavHTML('end-of-day')}
     <div class="container">
         <div class="header">
             <h1>🏁 End-of-Day Trading Summary</h1>
