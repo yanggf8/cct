@@ -1,5 +1,20 @@
 # Changelog
 
+## 2025-12-24 - Version 3.1.0 - Cache Reliability & Legacy Cleanup ✅
+
+### ♻️ Legacy Removal
+- **Removed**: Deprecated cache managers, backtesting cache, and legacy route handlers (≈2k LOC trimmed)
+- **Removed**: Obsolete debug scripts and original worker entrypoint
+- **Cleaned**: R2 bindings purged from `wrangler.toml` and `wrangler-enhanced.toml`, unused R2 types removed
+
+### ⚙️ Cache Metrics & Routing
+- **Fixed**: DO cache metrics now guard null stats and report ages correctly (ms → seconds) for `/api/v1/cache/metrics`
+- **Fixed**: `/api/v1/cache/debug` mirrors the same null-safety to avoid runtime failures
+- **Verified**: Routing chain `index.ts → enhanced-request-handler → handleDirectRequest → handleApiV1Request → enhanced-cache-routes` serves cache endpoints
+
+### ✅ Build Status
+- TypeScript compilation, frontend build, and backend build all passing (no errors)
+
 ## 2025-11-28 - Version 3.0.0 - Phase 3 BI Dashboard Scaffolding ✅ **COMPLETE**
 
 ### 🚀 Major Features - Business Intelligence Dashboard
