@@ -1,5 +1,32 @@
 # Changelog
 
+## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
+
+### 🔄 Cache Architecture Migration
+- **Migrated**: All KV cache operations to Durable Objects (DO) cache
+  - `auto-rollback.ts` - rollback history, policies, last known good states
+  - `slo-monitoring.ts` - alerts, metrics persistence (in-memory buffer retained for performance)
+  - `canary-toggle.ts` - canary context and config storage
+- **Renamed**: `DualCacheDO` → `CacheDO`, `dual-cache-do.ts` → `cache-do.ts`
+- **Retained**: KV only for rate limiting and feature flags (as designed)
+
+### 🛠️ Bug Fixes
+- **Fixed**: Auth bypass vulnerability - `/api/v1` prefix no longer makes all `/api/v1/*` routes public (exact match only)
+- **Fixed**: DO stub communication - stubs only expose `fetch()`, not direct method calls
+- **Fixed**: Cache metrics `formatAge()` - now correctly converts ms to seconds
+- **Fixed**: Null stats handling - `/cache-metrics` and `/cache-debug` return 503 instead of `success: true` with null
+- **Fixed**: Routing chain - `handleDirectRequest` now routes to `handleApiV1Request`
+
+### 🎨 UI Changes
+- **Removed**: Top header bars from `backtesting-dashboard.html` and `predictive-analytics.html`
+- **Unified**: Left sidebar navigation (nav.js) is now the only navigation
+- **Disabled**: GitHub Actions fetch in dashboard (was causing DNS errors)
+
+### 📝 Code Cleanup
+- **Removed**: Legacy KV fallback code and example files
+- **Updated**: Log prefixes from `DUAL_CACHE_DO` → `CACHE_DO`
+- **Added**: Backwards compatibility alias `export { CacheDO as DualCacheDO }`
+
 ## 2025-12-24 - Version 3.1.0 - Cache Reliability & Legacy Cleanup ✅
 
 ### ♻️ Legacy Removal
@@ -11,6 +38,9 @@
 - **Fixed**: DO cache metrics now guard null stats and report ages correctly (ms → seconds) for `/api/v1/cache/metrics`
 - **Fixed**: `/api/v1/cache/debug` mirrors the same null-safety to avoid runtime failures
 - **Verified**: Routing chain `index.ts → enhanced-request-handler → handleDirectRequest → handleApiV1Request → enhanced-cache-routes` serves cache endpoints
+
+### 🧭 Navigation Unification
+- **Unified**: Single left sidebar (`nav.js`/`nav.css`) across static and worker-rendered pages; top headers removed
 
 ### ✅ Build Status
 - TypeScript compilation, frontend build, and backend build all passing (no errors)

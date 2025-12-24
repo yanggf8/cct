@@ -19,7 +19,7 @@ import { createLogger } from './logging.js';
 import { createDAL } from './dal.js';
 import { KeyHelpers } from './kv-key-factory.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
-import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type CacheDO } from './cache-do.js';
 import type { MarketDriversSnapshot, MacroDrivers, MarketStructure, GeopoliticalRisk, MarketRegime } from './market-drivers.js';
 
 const logger = createLogger('market-drivers-cache-manager');
@@ -55,7 +55,7 @@ interface CacheStats {
 export class MarketDriversCacheManager {
   private dal;
   private circuitBreaker;
-  private cacheManager: DualCacheDO | null;
+  private cacheManager: CacheDO | null;
 
   // Cache TTLs
   private readonly DEFAULT_TTL = 10 * 60; // 10 minutes

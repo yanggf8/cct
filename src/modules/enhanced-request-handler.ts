@@ -8,10 +8,11 @@
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { getMigrationManager, migrationMiddleware } from '../routes/migration-manager.js';
 import { legacyCompatibilityMiddleware } from '../routes/legacy-compatibility.js';
-import { validateApiKey } from '../routes/api-v1.js';
+import { authenticateRequest, unauthorizedResponse } from './api-auth-middleware.js';
 import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
-import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type CacheDO } from './cache-do.js';
+import { handleApiV1Request } from '../routes/api-v1.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-request-handler');
@@ -80,6 +81,14 @@ export class EnhancedRequestHandler {
     const monitor = PerformanceMonitor.monitorRequest(request);
 
     try {
+      // Centralized authentication check
+      const auth = authenticateRequest(request, this.env);
+      if (!auth.authenticated) {
+        const response = unauthorizedResponse(auth.reason || 'unauthorized');
+        monitor.complete(response);
+        return response;
+      }
+
       // Check for legacy endpoint compatibility
       const legacyResponse = await legacyCompatibilityMiddleware(request, this.env);
       if (legacyResponse) {
@@ -145,18 +154,8 @@ export class EnhancedRequestHandler {
     });
 
     try {
-      // API-key validation for protected endpoints
-      const protectedPaths = ['/api/v1/data/dal-status', '/api/v1/data/migration-status', '/api/v1/data/performance-test', '/api/v1/data/cache-clear'];
-      if (protectedPaths.includes(url.pathname)) {
-        const auth = validateApiKey(request, this.env);
-        if (!auth.valid) {
-          return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-      }
-
+      // Auth already checked centrally in handleRequest()
+      
       // Route to enhanced handlers
       let response: Response;
 
@@ -408,11 +407,9 @@ export class EnhancedRequestHandler {
       reason
     });
 
-    // Import original handler dynamically
-    const { handleHttpRequest } = await import('./routes.js');
-
-    try {
-      const response = await handleHttpRequest(request, this.env, ctx);
+try {
+      // Handle request directly with enhanced logic
+      const response = await this.handleDirectRequest(request, ctx);
 
       // Add migration headers while preserving existing Content-Type
       (response as any).headers.set('X-Enhanced-System', 'true');
@@ -457,20 +454,30 @@ export class EnhancedRequestHandler {
   }
 
   /**
+   * Handle request directly with enhanced logic
+   */
+  private async handleDirectRequest(request: Request, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Route /api/v1/* to api-v1 router
+    if (path.startsWith('/api/v1')) {
+      return handleApiV1Request(request, this.env, path);
+    }
+
+    // Default 404
+    return new Response(JSON.stringify({ error: 'Not found', path }), { 
+      status: 404, 
+      headers: { 'Content-Type': 'application/json' } 
+    });
+  }
+
+  /**
    * Handle fallback requests for endpoints not yet in new API
    */
   private async handleFallbackRequest(request: Request, ctx: ExecutionContext, reason: string): Promise<Response> {
-    // Import original handler and enhance it with DAL injection
-    const { handleHttpRequest } = await import('./routes.js');
-
-    // Temporarily inject enhanced DAL into environment for handlers
-    const enhancedEnv = {
-      ...this.env,
-      enhancedDAL: this.dal,
-      migrationManager: this.migrationManager
-    };
-
-    return await handleHttpRequest(request, enhancedEnv, ctx);
+    // Handle request directly with enhanced logic
+    return await this.handleDirectRequest(request, ctx);
   }
 
   /**

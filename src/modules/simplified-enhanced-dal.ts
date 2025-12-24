@@ -11,7 +11,7 @@
 
 import { KVKeyFactory, KeyTypes, KeyHelpers } from './kv-key-factory.js';
 import { createLogger } from './logging.js';
-import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type CacheDO } from './cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 import type {
   AnalysisData,
@@ -64,7 +64,7 @@ export class SimplifiedEnhancedDAL {
   private env: CloudflareEnvironment;
   private config: SimplifiedDALConfig;
   private cache: Map<string, { data: any; timestamp: number; ttl: number }>;
-  private doCacheManager: DualCacheDO | null;
+  private doCacheManager: CacheDO | null;
 
   // Cache statistics
   private stats = {
@@ -221,11 +221,11 @@ export class SimplifiedEnhancedDAL {
   }
 
   /**
-   * Generic KV get operation with cache
+   * Generic read operation - DO Cache only (no KV for cache)
    */
   private async get<T>(key: string, ttl?: number): Promise<CacheAwareResult<T>> {
     const { result, time } = await this.measureOperation(async () => {
-      // Try DO cache first (persistent in-memory cache)
+      // Use DO cache only
       if (this.doCacheManager && this.config.enableCache) {
         try {
           const cachedData = await this.doCacheManager.get(key, {
@@ -239,16 +239,16 @@ export class SimplifiedEnhancedDAL {
               success: true,
               data: cachedData as T,
               cached: true,
-              cacheSource: 'l1' as 'l1' | 'l2' | 'kv',
+              cacheSource: 'l1' as const,
               error: undefined
             };
           }
         } catch (error: unknown) {
-          logger.warn('DO cache read failed, falling back to basic cache:', error);
+          logger.warn('DO cache read failed:', error);
         }
       }
 
-      // Check basic cache first
+      // Check in-memory cache
       const cached = this.checkCache<T>(key);
       if (cached) {
         return {
@@ -261,40 +261,11 @@ export class SimplifiedEnhancedDAL {
       }
 
       this.stats.misses++;
-
-      // Fetch from KV
-      try {
-        const data = await this.retry(
-          () => this.env.MARKET_ANALYSIS_CACHE.get(key, 'json'),
-          `KV get ${key}`
-        );
-
-        if (data !== null && data !== undefined) {
-          // Cache the result
-          this.setCache(key, data, ttl);
-
-          return {
-            success: true,
-            data: data as T,
-            cached: false,
-            cacheSource: 'kv',
-            error: undefined
-          };
-        }
-
-        return {
-          success: false,
-          cached: false,
-          error: 'Data not found'
-        };
-
-      } catch (error: any) {
-        return {
-          success: false,
-          cached: false,
-          error: (error instanceof Error ? error.message : String(error))
-        };
-      }
+      return {
+        success: false,
+        cached: false,
+        error: 'Data not found in DO cache'
+      };
     });
 
     return {
@@ -305,7 +276,7 @@ export class SimplifiedEnhancedDAL {
   }
 
   /**
-   * Generic KV put operation with cache invalidation
+   * Generic write operation - DO Cache only (no KV for cache)
    */
   private async put<T>(
     key: string,
@@ -313,52 +284,41 @@ export class SimplifiedEnhancedDAL {
     options?: KVWriteOptions
   ): Promise<CacheAwareResult<void>> {
     const { result, time } = await this.measureOperation(async () => {
-      try {
-        const writeOptions = options || { expirationTtl: this.config.defaultTTL };
+      const ttl = options?.expirationTtl || this.config.defaultTTL;
 
-        // Try DO cache first for write operations
-        if (this.doCacheManager && this.config.enableCache) {
-          try {
-            await this.doCacheManager.set(key, data, {
-              ttl: writeOptions.expirationTtl || this.config.defaultTTL,
-              namespace: 'SIMPLIFIED_DAL'
-            });
+      // Use DO cache only
+      if (this.doCacheManager && this.config.enableCache) {
+        try {
+          await this.doCacheManager.set(key, data, {
+            ttl,
+            namespace: 'SIMPLIFIED_DAL'
+          });
 
-            // Invalidate basic cache entry
-            this.cache.delete(key);
+          // Update in-memory cache too
+          this.setCache(key, data, ttl);
 
-            return {
-              success: true,
-              cached: true,
-              error: undefined
-            };
-          } catch (error: unknown) {
-            logger.warn('DO cache write failed, falling back to standard KV:', error);
-          }
+          return {
+            success: true,
+            cached: true,
+            error: undefined
+          };
+        } catch (error: unknown) {
+          logger.error('DO cache write failed:', error);
+          return {
+            success: false,
+            cached: false,
+            error: (error as Error).message
+          };
         }
-
-        // Fallback to standard KV write
-        await this.retry(
-          () => this.env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(data), writeOptions),
-          `KV put ${key}`
-        );
-
-        // Invalidate cache entry
-        this.cache.delete(key);
-
-        return {
-          success: true,
-          cached: false,
-          error: undefined
-        };
-
-      } catch (error: any) {
-        return {
-          success: false,
-          cached: false,
-          error: (error instanceof Error ? error.message : String(error))
-        };
       }
+
+      // Fallback to in-memory only if DO not available
+      this.setCache(key, data, ttl);
+      return {
+        success: true,
+        cached: true,
+        error: undefined
+      };
     });
 
     return {
@@ -369,43 +329,33 @@ export class SimplifiedEnhancedDAL {
   }
 
   /**
-   * Generic KV delete operation
+   * Generic delete operation - DO Cache only
    */
   private async delete(key: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.delete(key),
-        `KV delete ${key}`
-      );
-
-      // Remove from cache
+      if (this.doCacheManager) {
+        await this.doCacheManager.delete(key, { ttl: 0, namespace: 'SIMPLIFIED_DAL' });
+      }
       this.cache.delete(key);
-
       return { success: true };
-
     } catch (error: any) {
-      logger.error('Delete operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
+      logger.error('Delete operation failed', { key, error: error.message });
       return { success: false, error: error.message };
     }
   }
 
   /**
-   * Generic KV list operation
+   * List keys - DO Cache only
    */
   private async list(prefix: string, limit?: number): Promise<{ keys: string[]; cursor?: string }> {
     try {
-      const result = await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.list({ prefix, limit }),
-        `KV list ${prefix}`
-      );
-
-      return {
-        keys: result.keys.map((k: any) => k.name),
-        cursor: result.cursor
-      };
-
+      if (this.doCacheManager) {
+        const keys = await this.doCacheManager.list({ prefix, namespace: 'SIMPLIFIED_DAL' });
+        return { keys: keys.slice(0, limit || 1000) };
+      }
+      return { keys: [] };
     } catch (error: any) {
-      logger.error('List operation failed', { prefix, error: (error instanceof Error ? error.message : String(error)) });
+      logger.error('List operation failed', { prefix, error: error.message });
       return { keys: [] };
     }
   }

@@ -6,9 +6,9 @@
  * Provides backward compatibility while eliminating KV operations
  */
 
-import { DualCacheDO, type DualCacheConfig } from './dual-cache-do.js';
+import { CacheDO, type DualCacheConfig } from './cache-do.js';
 import { createLogger } from './logging.js';
-import type { CacheNamespace, CacheLevelConfig } from './cache-manager.js';
+
 
 // Type definitions for compatibility
 export interface SectorData {
@@ -28,12 +28,12 @@ const logger = createLogger('do-cache-adapter');
  * Maintains API compatibility while using DO cache internally
  */
 export class DOCacheAdapter {
-  private doCache: DualCacheDO | null = null;
+  private doCache: CacheDO | null = null;
   private enabled: boolean = false;
 
   constructor(env: any, options?: { enabled?: boolean }) {
     if (options?.enabled !== false && env?.CACHE_DO) {
-      this.doCache = new DualCacheDO(env.CACHE_DO);
+      this.doCache = new CacheDO(env.CACHE_DO);
       this.enabled = true;
       logger.info('DO_CACHE_ADAPTER: Initialized with Durable Objects cache');
     } else {

@@ -9,7 +9,7 @@
  * - Type-safe interface matching KV API
  */
 
-import { DualCacheDO, isDOCacheEnabled } from './dual-cache-do.js';
+import { CacheDO, isDOCacheEnabled } from './cache-do.js';
 import { createLogger } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -57,7 +57,7 @@ export interface CacheListResult {
  * - Graceful degradation
  */
 export class CacheAbstraction {
-  private doCache: DualCacheDO | null;
+  private doCache: CacheDO | null;
   private env: CloudflareEnvironment;
   private useDO: boolean;
 
@@ -66,7 +66,7 @@ export class CacheAbstraction {
     this.useDO = isDOCacheEnabled(env);
 
     if (this.useDO) {
-      this.doCache = new DualCacheDO(env.CACHE_DO as any);
+      this.doCache = new CacheDO(env.CACHE_DO as any);
       logger.info('CACHE_ABSTRACTION_INIT', { source: 'DO cache (primary)' });
     } else {
       this.doCache = null;
@@ -83,14 +83,10 @@ export class CacheAbstraction {
 
     try {
       if (this.doCache) {
-        // Primary: Use DO cache
         await this.doCache.set(key, value, { ttl });
-        logger.debug('CACHE_PUT_DO', { key, ttl, source: 'do' });
+        logger.debug('CACHE_PUT_DO', { key, ttl });
       } else {
-        // Fallback: Use KV
-        const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-        await this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options);
-        logger.debug('CACHE_PUT_KV', { key, ttl, source: 'kv' });
+        logger.warn('CACHE_PUT_SKIP', { key, reason: 'DO cache not available' });
       }
     } catch (error) {
       logger.error('CACHE_PUT_ERROR', { key, error: String(error) });
@@ -99,31 +95,16 @@ export class CacheAbstraction {
   }
 
   /**
-   * Read value from cache
-   * Routes to DO cache if enabled, otherwise KV
+   * Read value from cache - DO Cache only
    */
   async get(key: string): Promise<any | null> {
     try {
       if (this.doCache) {
-        // Primary: Use DO cache
         const value = await this.doCache.get(key, { ttl: 3600 });
-        logger.debug('CACHE_GET_DO', { key, hit: value !== null, source: 'do' });
+        logger.debug('CACHE_GET_DO', { key, hit: value !== null });
         return value;
-      } else {
-        // Fallback: Use KV
-        const value = await this.env.MARKET_ANALYSIS_CACHE.get(key);
-        logger.debug('CACHE_GET_KV', { key, hit: value !== null, source: 'kv' });
-
-        // Try to parse JSON, return as-is if not JSON
-        if (value) {
-          try {
-            return JSON.parse(value);
-          } catch {
-            return value;
-          }
-        }
-        return null;
       }
+      return null;
     } catch (error) {
       logger.error('CACHE_GET_ERROR', { key, error: String(error) });
       return null;
@@ -131,19 +112,13 @@ export class CacheAbstraction {
   }
 
   /**
-   * Delete value from cache
-   * Routes to DO cache if enabled, otherwise KV
+   * Delete value from cache - DO Cache only
    */
   async delete(key: string): Promise<void> {
     try {
       if (this.doCache) {
-        // Primary: Use DO cache
         await this.doCache.delete(key, { ttl: 0 });
-        logger.debug('CACHE_DELETE_DO', { key, source: 'do' });
-      } else {
-        // Fallback: Use KV
-        await this.env.MARKET_ANALYSIS_CACHE.delete(key);
-        logger.debug('CACHE_DELETE_KV', { key, source: 'kv' });
+        logger.debug('CACHE_DELETE_DO', { key });
       }
     } catch (error) {
       logger.error('CACHE_DELETE_ERROR', { key, error: String(error) });
@@ -152,25 +127,15 @@ export class CacheAbstraction {
   }
 
   /**
-   * List keys in cache
-   * Note: Only available for KV (DO cache doesn't support list operation)
+   * List keys in cache - DO Cache only
    */
   async list(options?: CacheListOptions): Promise<CacheListResult> {
     try {
       if (this.doCache) {
-        // DO cache doesn't support list - use KV fallback for this operation
-        logger.warn('CACHE_LIST_WARNING', { message: 'List operation not supported in DO cache, falling back to KV' });
+        const keys = await this.doCache.list({ prefix: options?.prefix });
+        return { keys: keys.map((k: string) => ({ name: k })), list_complete: true };
       }
-
-      // Always use KV for list operations
-      const result = await this.env.MARKET_ANALYSIS_CACHE.list(options);
-      logger.debug('CACHE_LIST_KV', {
-        prefix: options?.prefix,
-        count: result.keys.length,
-        source: 'kv'
-      });
-
-      return result as CacheListResult;
+      return { keys: [], list_complete: true };
     } catch (error) {
       logger.error('CACHE_LIST_ERROR', { error: String(error) });
       return { keys: [], list_complete: true };
@@ -225,25 +190,18 @@ export class CacheAbstraction {
   }
 
   /**
-   * Health check
+   * Health check - DO only
    */
-  async healthCheck(): Promise<{ healthy: boolean; source: 'do' | 'kv' }> {
+  async healthCheck(): Promise<{ healthy: boolean; source: 'do' }> {
     try {
       if (this.doCache) {
         const healthy = await this.doCache.healthCheck();
         return { healthy, source: 'do' };
-      } else {
-        // KV health check - try a simple get
-        const testKey = '_health_check_' + Date.now();
-        await this.env.MARKET_ANALYSIS_CACHE.put(testKey, 'test', { expirationTtl: 60 });
-        const value = await this.env.MARKET_ANALYSIS_CACHE.get(testKey);
-        await this.env.MARKET_ANALYSIS_CACHE.delete(testKey);
-
-        return { healthy: value === 'test', source: 'kv' };
       }
+      return { healthy: false, source: 'do' };
     } catch (error) {
       logger.error('CACHE_HEALTH_ERROR', { error: String(error) });
-      return { healthy: false, source: this.useDO ? 'do' : 'kv' };
+      return { healthy: false, source: 'do' };
     }
   }
 
@@ -270,8 +228,3 @@ export function createCache(env: CloudflareEnvironment): CacheAbstraction {
 export function shouldUseDOCache(env: CloudflareEnvironment): boolean {
   return isDOCacheEnabled(env);
 }
-
-/**
- * Legacy adapter alias for backward compatibility with cache-abstraction-v2
- */
-export { CacheAbstraction as LegacyCacheAdapter };

@@ -8,7 +8,7 @@
  */
 
 import { createDAL, DataAccessLayer, type KVReadResult, type KVWriteResult, type AnalysisData, type TradingSignal, type HighConfidenceSignalsData, type SignalTrackingRecord, type MarketPriceData, type DailyReport } from './dal.js';
-import { createCacheInstance, type DualCacheDO } from './dual-cache-do.js';
+import { createCacheInstance, type CacheDO } from './cache-do.js';
 import { getCacheNamespace, getCacheConfigForEnvironment } from './cache-config.js';
 import { createLogger } from './logging.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -49,7 +49,7 @@ export interface EnhancedKVWriteResult extends KVWriteResult {
  */
 export class EnhancedDataAccessLayer {
   private dal: DataAccessLayer;
-  private cacheManager: DualCacheDO | null;
+  private cacheManager: CacheDO | null;
   private config: EnhancedDALConfig;
   private enabled: boolean;
 
@@ -528,7 +528,7 @@ export class EnhancedDataAccessLayer {
    */
   async clearCache(namespace?: string): Promise<void> {
     if (this.enabled && this.cacheManager) {
-      // DualCacheDO.clear() clears all; namespace ignored for compatibility
+    // CacheDO.clear() clears all; namespace ignored for compatibility
       await this.cacheManager.clear();
       logger.info(`Cache cleared${namespace ? ` for namespace: ${namespace}` : ' completely'}`);
     }
@@ -538,7 +538,7 @@ export class EnhancedDataAccessLayer {
    * Get cache statistics
    */
   getCacheStats(): any {
-    // DualCacheDO.getStats() returns a Promise; return as-is for compatibility
+    // CacheDO.getStats() returns a Promise; return as-is for compatibility
     return this.cacheManager ? this.cacheManager.getStats() : {};
   }
 
@@ -588,7 +588,7 @@ export class EnhancedDataAccessLayer {
    * Reset cache statistics
    */
   resetCacheStats(): void {
-    // No-op for DualCacheDO; stats reset not supported
+    // No-op for CacheDO; stats reset not supported
     logger.info('Cache statistics reset (no-op)');
   }
 }
