@@ -86,24 +86,12 @@ jobs:
           echo "📍 Endpoint: $ENDPOINT"
           echo "🌐 Worker URL: $WORKER_URL"
 
-          # Execute analysis request with timeout
-          if [[ "$ENDPOINT" == "/analyze" ]]; then
-            # For manual analysis, use POST request with symbols
-            response=$(curl -s -X POST \
-              -H "Content-Type: application/json" \
-              -H "X-API-KEY: $API_KEY" \
-              -d '{"symbols":["AAPL","MSFT","GOOGL","TSLA","NVDA"]}' \
-              --connect-timeout 300 \
-              --max-time 600 \
-              "$WORKER_URL$ENDPOINT")
-          else
-            # For scheduled analyses, use GET request
-            response=$(curl -s \
-              -H "X-API-KEY: $API_KEY" \
-              --connect-timeout 300 \
-              --max-time 600 \
-              "$WORKER_URL$ENDPOINT")
-          fi
+          # Execute analysis request with timeout (all endpoints use GET)
+          response=$(curl -s \
+            -H "X-API-KEY: $API_KEY" \
+            --connect-timeout 300 \
+            --max-time 600 \
+            "$WORKER_URL$ENDPOINT")
 
           echo "📊 Analysis Response:"
           echo "$response" | jq '.' 2>/dev/null || echo "$response"
