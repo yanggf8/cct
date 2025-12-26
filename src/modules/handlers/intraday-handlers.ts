@@ -13,7 +13,7 @@ import {
   validateDependencies,
   getJobStatus
 } from '../kv-utils.js';
-import { SHARED_NAV_CSS, getSharedNavHTML } from '../../utils/html-templates.js';
+import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
 
@@ -330,9 +330,9 @@ async function generateIntradayCheckHTML(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎯 Intraday Performance Check - ${date}</title>
+    ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;
@@ -753,8 +753,8 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📊 Intraday Performance Check - Waiting for Dependencies</title>
+    ${getNavScripts()}
     <style>
-        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;

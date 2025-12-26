@@ -5,6 +5,7 @@
 
 import { CanaryToggleManager } from './canary-toggle.js';
 import { SLOMonitoringManager } from './slo-monitoring.js';
+import { createCache } from './cache-abstraction.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 export interface AutoRollbackPolicy {
@@ -360,12 +361,9 @@ export class AutoRollbackManager {
         this.lastKnownGoodStates.set(endpoint, state);
 
         // Persist to storage
-        if (this.env.CACHE) {
-          const key = `last_known_good:${endpoint}`;
-          await (this.env as any).CACHE.put(key, JSON.stringify(state), {
-            expirationTtl: 7 * 24 * 60 * 60 // 7 days
-          });
-        }
+        const cache = createCache(this.env);
+        const key = `last_known_good:${endpoint}`;
+        await cache.put(key, state, { expirationTtl: 7 * 24 * 60 * 60 });
       }
     } catch (error) {
       console.error(`Error recording last known good state for ${endpoint}:`, error);
@@ -386,17 +384,13 @@ export class AutoRollbackManager {
    */
   private async getRollbackPolicy(endpoint: string): Promise<AutoRollbackPolicy> {
     try {
-      if (this.env.CACHE) {
-        const key = `rollback_policy:${endpoint}`;
-        const stored = await (this.env as any).CACHE.get(key, 'json');
-        if (stored) {
-          return stored;
-        }
-      }
+      const cache = createCache(this.env);
+      const key = `rollback_policy:${endpoint}`;
+      const stored = await cache.get(key);
+      if (stored) return stored as AutoRollbackPolicy;
     } catch (error) {
       console.error('Error getting rollback policy:', error);
     }
-
     return this.defaultPolicy;
   }
 
@@ -430,12 +424,9 @@ export class AutoRollbackManager {
     this.rollbackHistory.set(event.endpoint, history);
 
     // Persist to storage
-    if (this.env.CACHE) {
-      const key = `rollback_history:${event.endpoint}`;
-      await (this.env as any).CACHE.put(key, JSON.stringify(history), {
-        expirationTtl: 30 * 24 * 60 * 60 // 30 days
-      });
-    }
+    const cache = createCache(this.env);
+    const key = `rollback_history:${event.endpoint}`;
+    await cache.put(key, history, { expirationTtl: 30 * 24 * 60 * 60 });
   }
 
   /**
@@ -521,12 +512,9 @@ export class AutoRollbackManager {
     const currentPolicy = await this.getRollbackPolicy(endpoint);
     const updatedPolicy = { ...currentPolicy, ...policy };
 
-    if (this.env.CACHE) {
-      const key = `rollback_policy:${endpoint}`;
-      await (this.env as any).CACHE.put(key, JSON.stringify(updatedPolicy), {
-        expirationTtl: 24 * 60 * 60 // 24 hours
-      });
-    }
+    const cache = createCache(this.env);
+    const key = `rollback_policy:${endpoint}`;
+    await cache.put(key, updatedPolicy, { expirationTtl: 24 * 60 * 60 });
 
     console.log(`Updated rollback policy for ${endpoint}:`, updatedPolicy);
   }

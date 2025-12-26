@@ -28,7 +28,7 @@ import { createLogger } from '../modules/logging.js';
 import { KVKeyFactory, KeyTypes } from '../modules/kv-key-factory.js';
 import { MemoryStaticDAL } from '../modules/memory-static-data.js';
 import type { CloudflareEnvironment } from '../types.js';
-import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/cache-do.js';
 import { createCache } from '../modules/cache-abstraction.js';
 
 const logger = createLogger('data-routes');
@@ -57,29 +57,6 @@ export async function handleDataRoutes(
   const method = request.method;
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Note: Some data endpoints may not require API key for public access
-  const publicEndpoints = ['/api/v1/data/symbols', '/api/v1/data/health'];
-  const isPublicEndpoint = publicEndpoints.some(endpoint => path.startsWith(endpoint));
-
-  if (!isPublicEndpoint) {
-    const auth = validateApiKey(request, env);
-    if (!auth.valid) {
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.error(
-            'Invalid or missing API key',
-            'UNAUTHORIZED',
-            { requestId }
-          )
-        ),
-        {
-          status: HttpStatus.UNAUTHORIZED,
-          headers,
-        }
-      );
-    }
-  }
-
   try {
     // GET /api/v1/data/symbols - Available trading symbols
     if (path === '/api/v1/data/symbols' && method === 'GET') {
@@ -91,6 +68,12 @@ export async function handleDataRoutes(
     if (historyMatch && method === 'GET') {
       const symbol = historyMatch[1];
       return await handleSymbolHistory(symbol, request, env, headers, requestId);
+    }
+
+    // GET /api/v1/data/predict-jobs/:date - Daily prediction job history
+    const predictJobsMatch = path.match(/^\/api\/v1\/data\/predict-jobs\/(\d{4}-\d{2}-\d{2})$/);
+    if (predictJobsMatch && method === 'GET') {
+      return await handleDailyPredictJobs(predictJobsMatch[1], env, headers, requestId);
     }
 
     // GET /api/v1/data/health - System health check
@@ -658,6 +641,57 @@ async function handleCronHealth(
         status: HttpStatus.INTERNAL_SERVER_ERROR,
         headers,
       }
+    );
+  }
+}
+
+/**
+ * Handle daily prediction job history
+ * GET /api/v1/data/predict-jobs/:date
+ */
+async function handleDailyPredictJobs(
+  dateStr: string,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+
+  try {
+    if (!env.PREDICT_JOBS_DB) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('D1 not configured', 'SERVICE_UNAVAILABLE', { requestId })),
+        { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+      );
+    }
+
+    const { getPredictJobsDB } = await import('../modules/predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('D1 init failed', 'SERVICE_UNAVAILABLE', { requestId })),
+        { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+      );
+    }
+
+    const executions = await db.getExecutionsByDate(dateStr);
+    const predictions = await db.getPredictionsByDate(dateStr);
+
+    if (executions.length === 0 && predictions.length === 0) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('No prediction job data for this date', 'NOT_FOUND', { date: dateStr, requestId })),
+        { status: HttpStatus.NOT_FOUND, headers }
+      );
+    }
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({ executions, predictions }, { requestId, processingTime: timer.finish() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error: unknown) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Failed to fetch prediction jobs', 'INTERNAL_ERROR', { requestId, error: (error as Error).message })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
     );
   }
 }

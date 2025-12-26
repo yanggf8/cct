@@ -4,19 +4,10 @@
  * Role-based hybrid architecture: Dashboard for traders, Console for admins
  */
 
-import type { CloudflareAI } from '../types';
-import { SHARED_NAV_CSS, getSharedNavHTML } from '../utils/html-templates.js';
+import type { CloudflareEnvironment } from '../types.js';
+import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../utils/html-templates.js';
 
-interface Env {
-  MARKET_ANALYSIS_CACHE: KVNamespace;
-  TRAINED_MODELS: R2Bucket;
-  ENHANCED_MODELS: R2Bucket;
-  AI: CloudflareAI;
-  WORKER_VERSION?: string;
-  TRADING_SYMBOLS?: string;
-  LOG_LEVEL?: string;
-  TIMEZONE?: string;
-}
+type Env = CloudflareEnvironment;
 
 interface DashboardData {
   marketMetrics: {
@@ -64,9 +55,9 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trading Dashboard - Market Intelligence Platform</title>
+    ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <style>
-        ${SHARED_NAV_CSS}
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
@@ -550,54 +541,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
                     </div>
                 </div>
 
-                <!-- Top Movers Widget -->
-                <div class="widget">
-                    <div class="widget-header">
-                        <div class="widget-title">
-                            🚀 Top Movers
-                        </div>
-                        <div class="widget-actions">
-                            <button class="widget-action" onclick="refreshTopMovers()">Refresh</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div id="top-movers">
-                            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                                <div>
-                                    <div style="font-weight: 600;">NVDA</div>
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">NVIDIA Corp</div>
-                                    <div style="color: #4facfe; font-size: 0.7rem;">🟢 Strong Buy</div>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="color: #00ff88; font-weight: 600;">+3.45%</div>
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">$462.89</div>
-                                </div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-                                <div>
-                                    <div style="font-weight: 600;">TSLA</div>
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Tesla Inc</div>
-                                    <div style="color: #4facfe; font-size: 0.7rem;">🟡 Moderate Buy</div>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="color: #00ff88; font-weight: 600;">+2.78%</div>
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">$242.64</div>
-                                </div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-                                <div>
-                                    <div style="font-weight: 600;">MSFT</div>
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">Microsoft Corp</div>
-                                    <div style="color: #4facfe; font-size: 0.7rem;">🟢 Strong Buy</div>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="color: #ff4757; font-weight: 600;">-0.92%</div>
-                                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.8rem;">$378.85</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+
 
 
             </div>
@@ -668,9 +612,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
         // Check system health every 30 seconds
         setInterval(checkSystemHealth, 30000);
 
-        // Initialize sector data
-        refreshSectorData();
-        refreshTopMovers();
+
 
         // Sector Performance Widget Functions - Live Data Integration
         async function refreshSectorData() {
@@ -751,17 +693,7 @@ export async function handleHomeDashboardPage(request: Request, env: Env): Promi
             });
         }
 
-        // Top Movers Widget Functions
-        function refreshTopMovers() {
-            // Add visual feedback for refresh
-            const moversContainer = document.getElementById('top-movers');
-            if (moversContainer) {
-                moversContainer.style.opacity = '0.6';
-                setTimeout(() => {
-                    moversContainer.style.opacity = '1';
-                }, 500);
-            }
-        }
+
 
 
 

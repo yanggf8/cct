@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/cache-do.js';
 import { getMetricsConfig } from '../modules/config.js';
 import { StorageGuards, type GuardConfig } from '../modules/storage-guards.js';
 
@@ -420,17 +420,24 @@ export function createEnhancedCacheRoutes(env: any) {
             });
           }
 
-          const stats = cacheManager.getStats();
-          const l1Stats = cacheManager.getL1Stats();
-          const l1DetailedInfo = cacheManager.getL1DetailedInfo();
+          const stats = await cacheManager.getStats();
+          if (!stats) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Failed to retrieve cache statistics',
+              timestamp: new Date().toISOString()
+            }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+          }
+          const l1Stats = await cacheManager.getL1Stats();
+          const l1DetailedInfo = await cacheManager.getL1DetailedInfo();
           const promotionStats = cacheManager.getPromotionStats();
           const trends = cacheManager.getPerformanceTrends();
 
           // Calculate timestamp statistics
           const timestampStats = {
             totalEntries: l1Stats.currentSize,
-            oldestEntry: l1Stats.oldestEntry ? formatAge(l1Stats.oldestEntry) : 'N/A',
-            newestEntry: l1Stats.newestEntry ? formatAge(l1Stats.newestEntry) : 'N/A',
+            oldestEntry: l1Stats.oldestEntry ? formatAge(Math.floor(l1Stats.oldestEntry / 1000)) : 'N/A',
+            newestEntry: l1Stats.newestEntry ? formatAge(Math.floor(l1Stats.newestEntry / 1000)) : 'N/A',
             averageAge: l1DetailedInfo.averageAge ? formatAge(Math.floor(l1DetailedInfo.averageAge)) : 'N/A',
             memoryUsage: l1DetailedInfo.currentMemoryMB.toFixed(2) + ' MB',
             hitRate: Math.round(l1Stats.hitRate * 100) + '%',
@@ -729,7 +736,7 @@ export function createEnhancedCacheRoutes(env: any) {
               entries: results.slice(0, 10),
               namespaces_warmed: [...new Set(results.map(r => r.namespace))]
             },
-            cacheStats: cacheManager.getStats(),
+            cacheStats: await cacheManager.getStats(),
             l2CacheInfo: {
               ttl_hours: 24,
               total_entries: results.length,
@@ -797,8 +804,8 @@ export function createEnhancedCacheRoutes(env: any) {
           }
 
           // Get L1 cache stats for additional context
-          const l1Stats = cacheManager.getL1Stats();
-          const l1DetailedInfo = cacheManager.getL1DetailedInfo();
+          const l1Stats = await cacheManager.getL1Stats();
+          const l1DetailedInfo = await cacheManager.getL1DetailedInfo();
 
           return new Response(JSON.stringify({
             success: true,
@@ -870,9 +877,16 @@ export function createEnhancedCacheRoutes(env: any) {
           // Get comprehensive cache debug information
           const timestampInfo = cacheManager.getTimestampInfo(namespace, key);
           // @ts-ignore - Cache stats from external adapter
-          const cacheStats = cacheManager.getStats();
+          const cacheStats = await cacheManager.getStats();
+          if (!cacheStats) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Failed to retrieve cache statistics',
+              timestamp: new Date().toISOString()
+            }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+          }
           // @ts-ignore - L1 stats from external adapter
-          const l1Stats = cacheManager.getL1Stats();
+          const l1Stats = await cacheManager.getL1Stats();
           // @ts-ignore - Health assessment from external adapter
           const healthAssessment = await cacheManager.performHealthAssessment();
 

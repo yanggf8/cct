@@ -12,6 +12,20 @@ import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('predictive-analytics');
 
+/**
+ * Helper function to safely extract VIX value
+ * VIX can be a number or an object with { value: number }
+ */
+function extractVixValue(vixData: any): number {
+  if (typeof vixData === 'number') {
+    return vixData;
+  }
+  if (vixData && typeof vixData === 'object' && typeof vixData.value === 'number') {
+    return vixData.value;
+  }
+  return 20; // Default fallback
+}
+
 export interface PredictiveSignals {
   timestamp: string;
   short_term_outlook: {
@@ -455,7 +469,7 @@ export class PredictiveAnalyticsEngine {
    * Analyze short-term market outlook with enhanced confidence and probability distributions
    */
   private analyzeShortTermOutlook(driversSnapshot: any, sectorRotation: any): PredictiveSignals['short_term_outlook'] {
-    const vix = driversSnapshot.marketStructure.vix;
+    const vix = extractVixValue(driversSnapshot.marketStructure.vix);
     const riskOnRiskOff = driversSnapshot.riskOnRiskOff;
     const confidence = driversSnapshot.regime.confidence;
     const geopoliticalRisk = driversSnapshot.geopolitical.overallRiskScore;
@@ -1006,7 +1020,7 @@ export class PredictiveAnalyticsEngine {
     const currentRegime = driversSnapshot.regime.currentRegime;
     const confidence = driversSnapshot.regime.confidence;
     const riskLevel = driversSnapshot.regime.riskLevel;
-    const vix = driversSnapshot.marketStructure.vix;
+    const vix = extractVixValue(driversSnapshot.marketStructure.vix);
 
     // Calculate stability score
     let stabilityScore = confidence / 100;
@@ -1058,7 +1072,7 @@ export class PredictiveAnalyticsEngine {
    * Assess risk indicators with stress testing and VaR metrics
    */
   private assessRiskIndicators(driversSnapshot: any, sectorRotation: any): PredictiveSignals['risk_indicators'] {
-    const vix = driversSnapshot.marketStructure.vix;
+    const vix = extractVixValue(driversSnapshot.marketStructure.vix);
     const geopoliticalRisk = driversSnapshot.geopolitical.overallRiskScore;
     const yieldCurveSpread = driversSnapshot.macro.yieldCurveSpread;
     const regimeStability = driversSnapshot.regime.confidence / 100;
@@ -1458,7 +1472,7 @@ export class PredictiveAnalyticsEngine {
     const patterns = [];
 
     const riskOnRiskOff = driversSnapshot.riskOnRiskOff;
-    const vix = driversSnapshot.marketStructure.vix;
+    const vix = extractVixValue(driversSnapshot.marketStructure.vix);
 
     if (riskOnRiskOff === 'risk_on' && vix < 20) {
       patterns.push({
@@ -1499,7 +1513,7 @@ export class PredictiveAnalyticsEngine {
     const correlations = [];
 
     // VIX vs S&P correlation
-    const vix = driversSnapshot.marketStructure.vix;
+    const vix = extractVixValue(driversSnapshot.marketStructure.vix);
     const spy = driversSnapshot.marketStructure.spy;
     let vixSpyCorrelation = -0.7; // Typical negative correlation
 

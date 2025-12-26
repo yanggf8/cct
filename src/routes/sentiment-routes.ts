@@ -28,7 +28,7 @@ import {
 import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
-import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('sentiment-routes');
@@ -76,24 +76,6 @@ export async function handleSentimentRoutes(
   const method = request.method;
   const url = new URL(request.url);
   const requestId = headers['X-Request-ID'] || generateRequestId();
-
-  // Validate API key for protected endpoints
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
 
   try {
     // GET /api/v1/sentiment/analysis - Multi-symbol analysis
@@ -536,16 +518,29 @@ async function handleMarketSentiment(
     const analysisData = analysisResult.success ? analysisResult.data : null;
 
     if (!analysisData || !analysisData.trading_signals) {
+      // Return neutral sentiment instead of error when no data available
+      const defaultSentiment = {
+        overallSentiment: 0,
+        sentiment: 'Neutral',
+        label: 'N/A',
+        confidence: 0,
+        marketCondition: 'No recent analysis data',
+        timestamp: new Date().toISOString(),
+        dataAvailable: false
+      };
+
+      await setCache(cacheKey, { success: true, data: defaultSentiment }, cacheInstance, 'sentiment_analysis', 300); // Cache for 5 minutes
+
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.error(
-            'No market data available',
-            'NO_DATA',
-            { requestId }
-          )
+          ApiResponseFactory.success(defaultSentiment, {
+            requestId,
+            processingTime: timer.getElapsedMs(),
+            note: 'No recent analysis data, showing default neutral sentiment'
+          })
         ),
         {
-          status: HttpStatus.NOT_FOUND,
+          status: HttpStatus.OK,
           headers,
         }
       );

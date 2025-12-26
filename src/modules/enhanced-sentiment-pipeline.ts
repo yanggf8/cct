@@ -6,7 +6,7 @@
 
 import type { CloudflareEnvironment, NewsArticle } from '../types.js';
 import { DACArticlesAdapter } from './dac-articles-pool.js';
-import { createCacheInstance } from './dual-cache-do.js';
+import { createCacheInstance } from './cache-do.js';
 import { DUAL_CACHE_CONFIGS } from './cache-config.js';
 import { createLogger } from './logging.js';
 

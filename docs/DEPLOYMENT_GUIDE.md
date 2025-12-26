@@ -448,6 +448,47 @@ jobs:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 ```
 
+### **🔄 GitHub Actions Scheduling System**
+
+#### **Current Architecture**
+All prediction scheduling jobs run via GitHub Actions, **NOT** Cloudflare cron:
+
+**Primary Workflow**: `.github/workflows/trading-system.yml`
+- **🌅 Pre-Market**: Mon-Fri 8:30 AM ET (12:30 UTC) - Morning predictions
+- **🔄 Intraday**: Mon-Fri 12:00 PM ET (16:00 UTC) - Performance validation  
+- **🌆 End-of-Day**: Mon-Fri 4:05 PM ET (20:05 UTC) - Market close analysis
+- **📊 Weekly**: Sunday 10:00 AM ET (14:00 UTC) - Pattern analysis
+
+#### **Workflow Configuration**
+```yaml
+# Key secrets required:
+# - X_API_KEY: API key for trading system authentication
+# - TEAMS_WEBHOOK_URL: Microsoft Teams notification webhook (optional)
+
+# Manual triggers supported:
+# - workflow_dispatch: On-demand analysis execution
+```
+
+#### **Migration Benefits**
+- ✅ **Unlimited Schedules**: No 3-cron restriction (Cloudflare free tier)
+- ✅ **100% Free**: Uses 175/2000 monthly GitHub Actions minutes
+- ✅ **Enhanced Monitoring**: Full execution logging + Teams notifications
+- ✅ **No Timeout**: Unlimited execution time vs 30-second Cloudflare limit
+- ✅ **Cost Elimination**: Removed $0.20/month Durable Object requirement
+
+#### **Cloudflare Cron Status: DISABLED**
+- **wrangler.toml**: Lines 68-69 commented out (scheduled triggers disabled)
+- **Legacy Code**: `scheduler.ts` maintained for reference only
+- **All Scheduling**: Managed exclusively through GitHub Actions
+
+#### **Monitoring & Alerts**
+- **GitHub Actions Console**: Full execution logs and debugging
+- **Teams Notifications**: Success/failure alerts with analysis details
+- **Health Checks**: Multi-system monitoring (core + predictive + market intelligence)
+- **Performance Tracking**: Execution time and success rate metrics
+
+**Note**: Deployment and scheduling are now decoupled - deploy via Wrangler, schedule via GitHub Actions.
+
 ## 🔐 Security Best Practices
 
 ### **🛡️ Production Security**

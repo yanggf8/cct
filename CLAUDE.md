@@ -129,7 +129,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🎯 API v1 - RESTful Architecture
 
-### **Core Endpoints (120+ Total)**
+### **Core Endpoints (100+ Total)**
 
 #### Sentiment Analysis (4 endpoints)
 ```bash
@@ -283,27 +283,6 @@ POST /api/v1/security/test-auth       # Test authentication 🔒 PROTECTED
 GET /api/v1/security/config           # Security configuration (admin only)
 ```
 
-#### Admin Operations (11 endpoints)
-```bash
-GET /api/v1/canary/status             # Canary rollout status 🔒 PROTECTED
-POST /api/v1/canary/update            # Update canary config 🔒 PROTECTED
-POST /api/v1/canary/enable            # Enable canary for route 🔒 PROTECTED
-POST /api/v1/canary/disable           # Disable canary for route 🔒 PROTECTED
-POST /api/v1/canary/simulate          # Simulate canary traffic 🔒 PROTECTED
-GET /api/v1/exemptions/report         # Exemption report 🔒 PROTECTED
-POST /api/v1/exemptions/validate      # Validate exemptions 🔒 PROTECTED
-POST /api/v1/exemptions/create        # Create exemption 🔒 PROTECTED
-DELETE /api/v1/exemptions/revoke      # Revoke exemption 🔒 PROTECTED
-POST /api/v1/exemptions/maintenance   # Maintenance tasks 🔒 PROTECTED
-GET /api/v1/exemptions/weekly-report  # Weekly exemption report 🔒 PROTECTED
-```
-
-#### Integration Testing (3 endpoints)
-```bash
-POST /api/v1/integration-tests/run-full # Run complete test suite 🔒 PROTECTED
-GET /api/v1/integration-tests/health-check # Quick health check 🔒 PROTECTED
-GET /api/v1/integration-tests/status  # Get test status 🔒 PROTECTED
-```
 
 ### **Frontend API Client**
 - **Location**: `public/js/api-client.js`
@@ -588,11 +567,12 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2025-12-22
+**Last Updated**: 2025-12-24
 **Current Version**: Production Ready with Test Organization + Phase 3 BI Dashboard + Complete API Documentation
 **Major Updates**:
-- **API Documentation Update**: Comprehensive endpoint catalog (65 → 120+ endpoints) across 17 categories
-- **New Documented Categories**: Market Intelligence, Market Drivers, Sector Analysis, Risk Management, Advanced Analytics, Predictive Analytics, Backtesting, Technical Analysis, Realtime Data, Integration Testing
+- **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories
+- **Dead Code Cleanup**: Removed orphaned route files (canary-management, exemption-management, integration-test, sector-routes-simple)
+- **New Documented Categories**: Market Intelligence, Market Drivers, Sector Analysis, Risk Management, Advanced Analytics, Predictive Analytics, Backtesting, Technical Analysis, Realtime Data
 - **Test & Script Organization**: 54 scripts reorganized (38 tests + 16 operational scripts) into logical structure with comprehensive documentation
 - **Phase 3 BI Dashboard**: Cost-to-serve intelligence, guard violation monitoring, 5 new dashboard endpoints
 - **Documentation**: tests/README.md, scripts/README.md, TEST_AND_SCRIPT_INDEX.md

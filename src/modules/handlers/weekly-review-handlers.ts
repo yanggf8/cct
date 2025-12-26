@@ -7,7 +7,7 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
-import { SHARED_NAV_CSS, getSharedNavHTML } from '../../utils/html-templates.js';
+import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('weekly-review-handlers');
@@ -98,10 +98,10 @@ function generateWeeklyReviewHTML(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weekly Trading Review - ${weekRange}</title>
+    ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/api-client.js?v=20251018-2"></script>
     <style>
-        ${SHARED_NAV_CSS}
         * {
             margin: 0;
             padding: 0;

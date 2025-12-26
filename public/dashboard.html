@@ -1,352 +1,233 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TFT Trading System - Real-Time Market Dashboard</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
-
-    <!-- External Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/index.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
-
-    <!-- Dashboard Core -->
+    <title>CCT - Prediction Jobs</title>
     <link rel="stylesheet" href="/css/nav.css?v=20251223">
-    <link rel="stylesheet" href="/css/dashboard.css?v=20251018-2">
-    <link rel="stylesheet" href="/css/dashboard-animations.css?v=20251018-2">
     <script src="/js/nav.js?v=20251223"></script>
-    <script src="/js/api-client.js?v=20251018-2"></script>
-    <script src="/js/api-cache.js?v=20251018-2"></script>
-    <script src="/js/cache-monitor.js?v=20251028"></script>
-    <script src="/js/dashboard-core.js?v=20251018-2"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        h1 { font-size: 1.4rem; }
+        .refresh-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .refresh-btn:hover { background: var(--border); }
+
+        .section { margin-bottom: 28px; }
+        .section-header { font-size: 1.1rem; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+        .section-header .label { color: var(--text-muted); font-weight: normal; font-size: 0.9rem; }
+
+        .row-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
+        .daily-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+
+        .job-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; position: relative; }
+        .job-card.success { border-top: 3px solid var(--green); }
+        .job-card.failure { border-top: 3px solid var(--red); }
+        .job-card.scheduled { border-top: 3px solid var(--text-muted); }
+        .job-card.skipped { border-top: 3px solid var(--border); opacity: 0.6; }
+        .job-card.in_progress { border-top: 3px solid var(--yellow); }
+
+        .job-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .job-icon { font-size: 1.3rem; }
+        .job-time { font-size: 0.8rem; color: var(--text-muted); }
+        .job-name { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+        .job-status { font-size: 0.8rem; color: var(--text-muted); }
+        .job-link { position: absolute; bottom: 10px; right: 12px; color: var(--blue); text-decoration: none; font-size: 0.75rem; }
+        .job-link:hover { text-decoration: underline; }
+
+        .weekly-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .weekly-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+        .weekly-card.success { border-left: 4px solid var(--green); }
+        .weekly-card.failure { border-left: 4px solid var(--red); }
+        .weekly-card.scheduled { border-left: 4px solid var(--text-muted); }
+        .weekly-card.skipped { border-left: 4px solid var(--border); opacity: 0.6; }
+        .weekly-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
+        .weekly-date { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+        .weekly-status { font-size: 0.85rem; }
+
+        .loading { text-align: center; padding: 30px; color: var(--text-muted); }
+        @media (max-width: 600px) { .daily-grid { grid-template-columns: 1fr; } .weekly-grid { grid-template-columns: 1fr; } }
+    </style>
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loading-screen" class="loading-screen">
-        <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <h2>Initializing Market Dashboard</h2>
-            <p>Connecting to real-time data streams...</p>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Prediction Jobs</h1>
+            <button class="refresh-btn" onclick="loadAll()">🔄 Refresh</button>
+        </div>
+
+        <div class="section">
+            <div class="section-header">🌅 Daily Jobs <span class="label">(Mon-Fri)</span></div>
+            <div id="daily-section"><div class="loading">Loading...</div></div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">📋 Weekly Review <span class="label">(Sunday 10:00 AM EST)</span></div>
+            <div id="weekly-section"><div class="loading">Loading...</div></div>
         </div>
     </div>
 
-    <!-- Main Dashboard Container -->
-    <div id="dashboard" class="dashboard-container">
-        <!-- Header Bar -->
-        <header class="dashboard-header">
-            <div class="header-left">
-                <div class="logo">
-                    <h1>TFT Trading System</h1>
-                    <span class="subtitle">Real-Time Market Intelligence</span>
-                </div>
-            </div>
-
-
-
-            <div class="header-right">
-                <div class="header-controls">
-                    <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
-                        <span class="icon">🌙</span>
-                    </button>
-                    <button class="refresh-btn" id="refresh-btn" title="Refresh data">
-                        <span class="icon">🔄</span>
-                    </button>
-                    <button class="settings-btn" id="settings-btn" title="Dashboard settings">
-                        <span class="icon">⚙️</span>
-                    </button>
-                    <button class="fullscreen-btn" id="fullscreen-btn" title="Toggle fullscreen">
-                        <span class="icon">⛶</span>
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        <!-- Market Status Bar -->
-        <div class="market-status-bar">
-            <div class="status-item">
-                <span class="label">Market Regime:</span>
-                <span class="value regime-indicator" id="regime-indicator">Bullish</span>
-            </div>
-
-            <div class="status-item">
-                <span class="label">Sentiment:</span>
-                <span class="value sentiment-indicator" id="overall-sentiment">Neutral</span>
-            </div>
-            <div class="status-item">
-                <span class="label">Data Status:</span>
-                <span class="value connection-status" id="connection-status">
-                    <span class="status-dot connected"></span>
-                    Connected
-                </span>
-                <span class="data-status-badge loading" id="data-status-badge">Loading</span>
-            </div>
-        </div>
-
-        <!-- Alert Banner -->
-        <div class="alert-banner" id="alert-banner" style="display: none;">
-            <div class="alert-content">
-                <span class="alert-icon">⚠️</span>
-                <span class="alert-message" id="alert-message"></span>
-                <button class="alert-close" onclick="dismissAlert()">×</button>
-            </div>
-        </div>
-
-        <!-- Main Dashboard Grid -->
-        <main class="dashboard-grid">
-            <!-- Top Row: Key Metrics -->
-            <section class="grid-section metrics-row">
-
-
-                <!-- Predictive Analytics Widget -->
-                <div class="widget predictive-widget" data-widget-id="predictive-analytics">
-                    <div class="widget-header">
-                        <h3>Predictive Analytics</h3>
-                        <div class="widget-controls">
-                            <button class="widget-refresh" onclick="refreshWidget('predictive-analytics')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="predictive-metrics">
-                            <div class="metric-item">
-                                <div class="metric-label">Confidence Score</div>
-                                <div class="metric-value">
-                                    <div class="confidence-gauge" id="confidence-gauge">
-                                        <div class="gauge-fill" style="width: 0%"></div>
-                                        <span class="gauge-text">0%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-label">Market Direction</div>
-                                <div class="direction-indicator" id="market-direction">
-                                    <span class="direction-icon">➡️</span>
-                                    <span class="direction-text">Neutral</span>
-                                </div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-label">Risk Level</div>
-                                <div class="risk-indicator" id="risk-level">
-                                    <span class="risk-text">Moderate</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Real-Time Alerts Widget -->
-                <div class="widget alerts-widget" data-widget-id="real-time-alerts">
-                    <div class="widget-header">
-                        <h3>Real-Time Alerts</h3>
-                        <div class="widget-controls">
-                            <button class="widget-refresh" onclick="refreshWidget('real-time-alerts')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="alerts-list" id="alerts-list">
-                            <div class="no-alerts">No active alerts</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Middle Row: Charts and Visualizations -->
-            <section class="grid-section charts-row">
-                <!-- Sentiment Analysis Chart -->
-                <div class="widget chart-widget sentiment-chart-widget" data-widget-id="sentiment-chart">
-                    <div class="widget-header">
-                        <h3>Sentiment Analysis</h3>
-                        <div class="widget-controls">
-                            <select class="timeframe-selector" id="sentiment-timeframe">
-                                <option value="1D">1 Day</option>
-                                <option value="1W">1 Week</option>
-                                <option value="1M">1 Month</option>
-                            </select>
-                            <button class="widget-refresh" onclick="refreshWidget('sentiment-chart')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <canvas id="sentiment-chart" width="400" height="200"></canvas>
-                    </div>
-                </div>
-
-                <!-- Sector Rotation Heat Map -->
-                <div class="widget chart-widget sector-heatmap-widget" data-widget-id="sector-heatmap">
-                    <div class="widget-header">
-                        <h3>Sector Rotation Heat Map</h3>
-                        <div class="widget-controls">
-                            <button class="widget-refresh" onclick="refreshWidget('sector-heatmap')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="sector-heatmap" id="sector-heatmap">
-                            <!-- Sectors will be dynamically populated -->
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Bottom Row: Detailed Analysis -->
-            <section class="grid-section analysis-row">
-                <!-- Market Drivers Widget -->
-                <div class="widget market-drivers-widget" data-widget-id="market-drivers">
-                    <div class="widget-header">
-                        <h3>Market Drivers</h3>
-                        <div class="widget-controls">
-                            <button class="widget-refresh" onclick="refreshWidget('market-drivers')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="drivers-grid" id="drivers-grid">
-                            <div class="driver-item">
-                                <div class="driver-label">Economic Growth</div>
-                                <div class="driver-value positive">+2.3%</div>
-                            </div>
-                            <div class="driver-item">
-                                <div class="driver-label">Inflation</div>
-                                <div class="driver-value neutral">+0.1%</div>
-                            </div>
-                            <div class="driver-item">
-                                <div class="driver-label">Interest Rates</div>
-                                <div class="driver-value negative">-0.25%</div>
-                            </div>
-                            <div class="driver-item">
-                                <div class="driver-label">Geopolitical Risk</div>
-                                <div class="driver-value moderate">Moderate</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Technical Analysis Widget -->
-                <div class="widget technical-widget" data-widget-id="technical-analysis">
-                    <div class="widget-header">
-                        <h3>Technical Analysis</h3>
-                        <div class="widget-controls">
-                            <select class="symbol-selector" id="technical-symbol">
-                                <option value="SPY">SPY</option>
-                                <option value="QQQ">QQQ</option>
-                                <option value="AAPL">AAPL</option>
-                                <option value="MSFT">MSFT</option>
-                                <option value="GOOGL">GOOGL</option>
-                            </select>
-                            <button class="widget-refresh" onclick="refreshWidget('technical-analysis')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <canvas id="technical-chart" width="400" height="200"></canvas>
-                    </div>
-                </div>
-
-                <!-- News & Events Widget -->
-                <div class="widget news-widget" data-widget-id="news-events">
-                    <div class="widget-header">
-                        <h3>Market News & Events</h3>
-                        <div class="widget-controls">
-                            <button class="widget-refresh" onclick="refreshWidget('news-events')">🔄</button>
-                            <button class="widget-settings">⚙️</button>
-                        </div>
-                    </div>
-                    <div class="widget-content">
-                        <div class="news-list" id="news-list">
-                            <div class="no-news">Loading market news...</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal" id="settings-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Dashboard Settings</h2>
-                <button class="modal-close" onclick="closeModal('settings-modal')">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="setting-group">
-                    <h3>Refresh Settings</h3>
-                    <label>
-                        Auto-refresh interval:
-                        <select id="refresh-interval">
-                            <option value="30">30 seconds</option>
-                            <option value="60" selected>1 minute</option>
-                            <option value="300">5 minutes</option>
-                            <option value="0">Disabled</option>
-                        </select>
-                    </label>
-                </div>
-
-                <div class="setting-group">
-                    <h3>Alert Settings</h3>
-                    <label>
-                        <input type="checkbox" id="enable-alerts" checked>
-                        Enable real-time alerts
-                    </label>
-                    <label>
-                        Alert threshold:
-                        <input type="number" id="alert-threshold" min="1" max="100" value="70">
-                    </label>
-                </div>
-
-                <div class="setting-group">
-                    <h3>Data Sources</h3>
-                    <label>
-                        <input type="checkbox" id="use-cache" checked>
-                        Use cached data when available
-                    </label>
-                    <label>
-                        <input type="checkbox" id="enable-realtime" checked>
-                        Enable real-time streaming
-                    </label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
-                <button class="btn-secondary" onclick="closeModal('settings-modal')">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Dashboard JavaScript -->
-    <script src="/js/dashboard-main.js?v=20251018-2"></script>
-
-    <!-- Secure Authentication Module -->
-    <script src="/js/secure-auth.js?v=20251109"></script>
-
-    <!-- API Client Initialization -->
     <script>
-        // Initialize CCT API Client (session-based)
-        window.cctApi = new CCTApiClient({
-            baseUrl: window.location.origin,
-            apiKey: null, // Session-based - no localStorage
-            timeout: 30000,
-            enableCache: true,
-            cacheTimeout: 300000 // 5 minutes
-        });
+        const DAILY_JOBS = [
+            { id: 'pre-market', name: 'Pre-Market', icon: '🌅', hour: 12, min: 30 },
+            { id: 'intraday', name: 'Intraday', icon: '📊', hour: 16, min: 0 },
+            { id: 'end-of-day', name: 'End-of-Day', icon: '🌆', hour: 20, min: 5 }
+        ];
 
-        // Check authentication status and prompt if needed
-        if (!window.cctApi.apiKey) {
-            console.warn('No API key found - some features may require authentication');
+        let ghRuns = [];
 
-            // Show authentication dialog after a short delay to allow page to load
-            setTimeout(() => {
-                if (window.showAuthenticationDialog) {
-                    window.showAuthenticationDialog();
-                }
-            }, 2000);
+        async function fetchGitHubRuns() {
+            // GitHub Actions integration disabled - remove or configure if needed
+            return [];
         }
 
-        // Make API client available globally
-        console.log('CCT API Client initialized:', window.cctApi);
+        function normalizeStatus(run) {
+            const c = run.conclusion, s = run.status;
+            if (c === 'success') return 'success';
+            if (c === 'failure' || c === 'timed_out') return 'failure';
+            if (c === 'cancelled' || c === 'skipped') return 'skipped';
+            if (s === 'queued' || s === 'in_progress' || s === 'pending') return 'in_progress';
+            return c || 'in_progress';
+        }
+
+        function statusText(status) {
+            return { success: '✅ Completed', failure: '❌ Failed', in_progress: '🔄 Running', skipped: '⚪ Skipped' }[status] || '⚪ Unknown';
+        }
+
+        function getJobForRun(run) {
+            if (run.event === 'workflow_dispatch') return null;
+            const t = new Date(run.created_at);
+            const h = t.getUTCHours(), m = t.getUTCMinutes();
+            if (h === 14 && m <= 10 && t.getUTCDay() === 0) return { id: 'weekly-review' };
+            for (const job of DAILY_JOBS) {
+                if (h === job.hour && Math.abs(m - job.min) <= 10) return job;
+            }
+            return null;
+        }
+
+        function formatTime(h, m) {
+            const estH = (h - 5 + 24) % 24;
+            return `${estH % 12 || 12}:${m.toString().padStart(2, '0')} ${estH >= 12 ? 'PM' : 'AM'}`;
+        }
+
+        function getDateStr(d) { return d.toISOString().slice(0, 10); }
+
+        function renderDailySection() {
+            const container = document.getElementById('daily-section');
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+
+            const renderRow = (date, label) => {
+                const dateStr = getDateStr(date);
+                const isToday = getDateStr(now) === dateStr;
+                const dayRuns = ghRuns.filter(r => getDateStr(new Date(r.created_at)) === dateStr);
+
+                const cards = DAILY_JOBS.map(job => {
+                    const run = dayRuns.find(r => {
+                        const j = getJobForRun(r);
+                        return j && j.id === job.id;
+                    });
+                    const scheduledTime = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), job.hour, job.min));
+                    const isPast = scheduledTime < now;
+
+                    let status, sText;
+                    if (run) {
+                        status = normalizeStatus(run);
+                        sText = statusText(status);
+                    } else if (!isToday || isPast) {
+                        status = 'skipped';
+                        sText = '⚪ No run';
+                    } else {
+                        status = 'scheduled';
+                        sText = '⏳ Scheduled';
+                    }
+
+                    return `
+                        <div class="job-card ${status}">
+                            <div class="job-header">
+                                <span class="job-icon">${job.icon}</span>
+                                <span class="job-time">${formatTime(job.hour, job.min)}</span>
+                            </div>
+                            <div class="job-name">${job.name}</div>
+                            <div class="job-status">${sText}</div>
+                            ${run ? `<a class="job-link" href="${run.html_url}" target="_blank">View →</a>` : ''}
+                        </div>
+                    `;
+                });
+
+                return `
+                    <div class="row-label">${label} — ${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                    <div class="daily-grid">${cards.join('')}</div>
+                `;
+            };
+
+            container.innerHTML = renderRow(today, '📍 Today') + renderRow(yesterday, '📆 Yesterday');
+        }
+
+        function renderWeeklySection() {
+            const container = document.getElementById('weekly-section');
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            // Find this Sunday and last Sunday
+            const thisSunday = new Date(today);
+            thisSunday.setDate(today.getDate() - today.getDay());
+            const lastSunday = new Date(thisSunday);
+            lastSunday.setDate(thisSunday.getDate() - 7);
+
+            const renderWeeklyCard = (sunday, label) => {
+                const dateStr = getDateStr(sunday);
+                const isFuture = sunday > today;
+                const run = ghRuns.find(r => {
+                    const j = getJobForRun(r);
+                    return j && j.id === 'weekly-review' && getDateStr(new Date(r.created_at)) === dateStr;
+                });
+
+                let status, sText;
+                if (run) {
+                    status = normalizeStatus(run);
+                    sText = statusText(status);
+                } else if (isFuture) {
+                    status = 'scheduled';
+                    sText = '⏳ Scheduled';
+                } else {
+                    status = 'skipped';
+                    sText = '⚪ No run';
+                }
+
+                return `
+                    <div class="weekly-card ${status}">
+                        <div class="weekly-label">${label}</div>
+                        <div class="weekly-date">📋 ${sunday.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                        <div class="weekly-status">${sText}</div>
+                        ${run ? `<a class="job-link" href="${run.html_url}" target="_blank">View →</a>` : ''}
+                    </div>
+                `;
+            };
+
+            container.innerHTML = `
+                <div class="weekly-grid">
+                    ${renderWeeklyCard(thisSunday, 'This Week')}
+                    ${renderWeeklyCard(lastSunday, 'Last Week')}
+                </div>
+            `;
+        }
+
+        async function loadAll() {
+            document.getElementById('daily-section').innerHTML = '<div class="loading">Loading...</div>';
+            document.getElementById('weekly-section').innerHTML = '<div class="loading">Loading...</div>';
+
+            ghRuns = await fetchGitHubRuns();
+            renderDailySection();
+            renderWeeklySection();
+        }
+
+        loadAll();
+        setInterval(loadAll, 300000);
     </script>
 </body>
 </html>

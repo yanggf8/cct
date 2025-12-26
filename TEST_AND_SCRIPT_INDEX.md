@@ -94,11 +94,10 @@ All 54 shell scripts have been organized into logical directories:
 - ✅ `test-pre-market-data-bridge.sh` → `tests/integration/data-bridge/`
 - ✅ `test-comprehensive-optimization.sh` → `tests/integration/`
 
-**Security Tests (6)**
+**Security Tests (5)**
 - ✅ `test-*-security.sh` (3) → `tests/security/`
 - ✅ `run-all-security-tests.sh` → `tests/security/`
 - ✅ `validate-complete-security-implementation.sh` → `tests/security/`
-- ✅ `test-admin-apis-negative.sh` → `tests/security/`
 
 **Performance Tests (2)**
 - ✅ `test-playwright-performance.sh` → `tests/performance/`

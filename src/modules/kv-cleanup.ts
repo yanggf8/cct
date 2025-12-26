@@ -1,5 +1,6 @@
 import { type CloudflareEnvironment } from '../types.js';
 import { createLogger } from './logging.js';
+import { createCache } from './cache-abstraction.js';
 
 export interface KVCleanupRequest {
   prefixes?: string[]; // e.g., ["analysis_", "news_fmp_"]
@@ -51,8 +52,13 @@ function daysBetween(a: Date, b: Date): number {
   return Math.floor(ms / (24 * 60 * 60 * 1000));
 }
 
+/**
+ * Cleanup old cache entries
+ * MIGRATED: Uses DO Cache via CacheAbstraction
+ */
 export async function cleanupKVCache(env: CloudflareEnvironment, req: KVCleanupRequest = {}): Promise<KVCleanupResult> {
   const logger = createLogger('kv-cleanup');
+  const cache = createCache(env);
   const prefixes = (req.prefixes && req.prefixes.length > 0) ? req.prefixes : DEFAULT_PREFIXES;
   const retentionDays = req.retentionDays ?? 14;
   const dryRun = req.dryRun ?? true;
@@ -72,55 +78,44 @@ export async function cleanupKVCache(env: CloudflareEnvironment, req: KVCleanupR
   };
 
   for (const prefix of prefixes) {
-    let cursor: string | undefined = undefined;
     let examinedThisPrefix = 0;
     let toDeleteThisPrefix = 0;
     let deletedThisPrefix = 0;
 
     try {
-      do {
-        const list = await env.MARKET_ANALYSIS_CACHE.list({ prefix, cursor });
-        cursor = list.list_complete ? undefined : list.cursor;
-        for (const entry of list.keys) {
-          if (limitPerPrefix && examinedThisPrefix >= limitPerPrefix) {
-            cursor = undefined; // stop listing this prefix
-            break;
-          }
-          examinedThisPrefix++;
-          result.examined++;
-          if (result.samples.examined.length < 20) result.samples.examined.push(entry.name);
+      const listResult = await cache.list({ prefix });
+      for (const entry of listResult.keys) {
+        if (limitPerPrefix && examinedThisPrefix >= limitPerPrefix) break;
+        
+        examinedThisPrefix++;
+        result.examined++;
+        if (result.samples.examined.length < 20) result.samples.examined.push(entry.name);
 
-          const d = parseDateFromKey(entry.name);
-          if (!d) {
-            continue; // keep non-dated keys unless explicit prefix matches future criteria
-          }
-          const ageDays = daysBetween(now, d);
-          if (ageDays > retentionDays) {
-            toDeleteThisPrefix++;
-            result.toDelete++;
-            if (result.samples.toDelete.length < 20) result.samples.toDelete.push(entry.name);
-            if (!dryRun) {
-              try {
-                await env.MARKET_ANALYSIS_CACHE.delete(entry.name);
-                deletedThisPrefix++;
-                result.deleted++;
-                if (result.samples.deleted.length < 20) result.samples.deleted.push(entry.name);
-              } catch (err) {
-                logger.error('Failed to delete KV key', { key: entry.name, err: err instanceof Error ? err.message : String(err) });
-                result.errors.push({ key: entry.name, error: err instanceof Error ? err.message : String(err) });
-              }
+        const d = parseDateFromKey(entry.name);
+        if (!d) continue;
+        
+        const ageDays = daysBetween(now, d);
+        if (ageDays > retentionDays) {
+          toDeleteThisPrefix++;
+          result.toDelete++;
+          if (result.samples.toDelete.length < 20) result.samples.toDelete.push(entry.name);
+          if (!dryRun) {
+            try {
+              await cache.delete(entry.name);
+              deletedThisPrefix++;
+              result.deleted++;
+              if (result.samples.deleted.length < 20) result.samples.deleted.push(entry.name);
+            } catch (err) {
+              logger.error('Failed to delete cache key', { key: entry.name, err: err instanceof Error ? err.message : String(err) });
+              result.errors.push({ key: entry.name, error: err instanceof Error ? err.message : String(err) });
             }
           }
         }
-      } while (cursor);
+      }
 
-      result.details[prefix] = {
-        examined: examinedThisPrefix,
-        toDelete: toDeleteThisPrefix,
-        deleted: deletedThisPrefix,
-      };
+      result.details[prefix] = { examined: examinedThisPrefix, toDelete: toDeleteThisPrefix, deleted: deletedThisPrefix };
     } catch (err) {
-      logger.error('KV list failed for prefix', { prefix, err: err instanceof Error ? err.message : String(err) });
+      logger.error('Cache list failed for prefix', { prefix, err: err instanceof Error ? err.message : String(err) });
       result.errors.push({ key: `${prefix}*`, error: err instanceof Error ? err.message : String(err) });
       result.success = false;
     }

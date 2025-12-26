@@ -19,9 +19,10 @@ import { runBacktest } from '../modules/backtesting-engine.js';
 import { createModelValidator } from '../modules/model-validator.js';
 import { createWalkForwardOptimizer } from '../modules/advanced-validation.js';
 import { createMonteCarloSimulator } from '../modules/advanced-validation.js';
+import { DOBacktestingCacheAdapter } from '../modules/do-cache-adapter.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createBacktestingStorage } from '../modules/backtesting-storage.js';
-import { createBacktestingCache } from '../modules/backtesting-cache.js';
+
 import { createLogger } from '../modules/logging.js';
 import { getBacktestFixture, hasBacktestFixture } from '../modules/backtesting-test-fixtures.js';
 import type {
@@ -51,24 +52,6 @@ export async function handleBacktestingRoutes(
   const method = request.method;
   const url = new URL(request.url);
   const requestId = headers['X-Request-ID'] || generateApiRequestId();
-
-  // Validate API key for protected endpoints
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
 
   try {
     // POST /api/v1/backtesting/run - Execute backtesting simulation
@@ -224,7 +207,7 @@ async function handleRunBacktest(
 
     // Initialize storage systems
     const storage = createBacktestingStorage(env);
-    const cache = createBacktestingCache(env);
+    const cache = env?.CACHE_DO ? new DOBacktestingCacheAdapter(env) : null;
 
     // Store initial backtest run using storage manager
     await storage.storeBacktestRun(backtestId, requestBody.config, 'queued');
@@ -1287,7 +1270,7 @@ async function runValidationInBackground(
 ): Promise<void> {
   try {
     const storage = createBacktestingStorage(env);
-    const cache = createBacktestingCache(env);
+    const cache = env?.CACHE_DO ? new DOBacktestingCacheAdapter(env) : null;
 
     const validator = createModelValidator(
       result.config,
@@ -1303,7 +1286,9 @@ async function runValidationInBackground(
     await storage.storeValidationResults(backtestId, validation);
 
     // Cache validation results for faster retrieval
-    await cache.cacheValidationResults(`validation_${backtestId}`, validation);
+    if (cache) {
+      await cache.set('validation', `validation_${backtestId}`, validation, 3600);
+    }
 
     logger.info('Validation completed', { backtestId, overallScore: validation.overallScore });
 
@@ -1322,7 +1307,7 @@ async function runWalkForwardInBackground(
 ): Promise<void> {
   try {
     const storage = createBacktestingStorage(env);
-    const cache = createBacktestingCache(env);
+    const cache = env?.CACHE_DO ? new DOBacktestingCacheAdapter(env) : null;
 
     const optimizer = createWalkForwardOptimizer(
       result.config,
@@ -1338,7 +1323,9 @@ async function runWalkForwardInBackground(
     await storage.storeValidationResults(`walkforward_${backtestId}`, walkForwardResult);
 
     // Cache walk-forward results for faster retrieval
-    await cache.cacheValidationResults(`walkforward_${backtestId}`, walkForwardResult);
+    if (cache) {
+      await cache.set('walkforward', `walkforward_${backtestId}`, walkForwardResult, 3600);
+    }
 
     logger.info('Walk-forward optimization completed', { backtestId });
 
@@ -1358,7 +1345,7 @@ async function runMonteCarloInBackground(
 ): Promise<void> {
   try {
     const storage = createBacktestingStorage(env);
-    const cache = createBacktestingCache(env);
+    const cache = env?.CACHE_DO ? new DOBacktestingCacheAdapter(env) : null;
 
     const simulator = createMonteCarloSimulator(
       result.config,
@@ -1374,7 +1361,9 @@ async function runMonteCarloInBackground(
     await storage.storeValidationResults(`montecarlo_${backtestId}`, monteCarloResult);
 
     // Cache Monte Carlo results for faster retrieval
-    await cache.cacheValidationResults(`montecarlo_${backtestId}`, monteCarloResult);
+    if (cache) {
+      await cache.set('montecarlo', `montecarlo_${backtestId}`, monteCarloResult, 3600);
+    }
 
     logger.info('Monte Carlo simulation completed', {
       backtestId,

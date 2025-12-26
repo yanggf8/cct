@@ -33,24 +33,6 @@ export async function handleSectorRotationRoutes(
   const url = new URL(request.url);
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Validate API key for protected endpoints
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
-
   try {
     // POST /api/v1/sector-rotation/analysis - Run complete sector rotation analysis
     if (path === '/api/v1/sector-rotation/analysis' && method === 'POST') {

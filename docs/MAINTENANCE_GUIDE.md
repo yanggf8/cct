@@ -223,6 +223,28 @@ timeout 60 curl -s -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="memory|cache" --since=1h
 ```
 
+#### **GitHub Actions Monitoring**
+```bash
+# Check GitHub Actions workflow status
+# 1. Navigate to: https://github.com/yanggf8/cct/actions
+# 2. Look for "Enhanced Trading System Automated Analysis" workflow
+# 3. Check for successful runs with green checkmarks
+
+# Verify workflow schedules
+# - Pre-Market: Mon-Fri 12:30 UTC (8:30 AM ET)
+# - Intraday: Mon-Fri 16:00 UTC (12:00 PM ET)  
+# - End-of-Day: Mon-Fri 20:05 UTC (4:05 PM ET)
+# - Weekly Review: Sunday 14:00 UTC (10:00 AM ET)
+
+# Check workflow logs for issues
+# In GitHub Actions console, click on failed run → Expand "Execute Trading Analysis" step
+# Look for error messages or timeout issues
+
+# Manual trigger for testing
+# GitHub Actions tab → "Enhanced Trading System..." → "Run workflow" → Select branch → "Run workflow"
+```
+```
+
 ## 🔄 Weekly Maintenance
 
 ### **📅 Weekly Review Tasks (Sunday 10:00 AM ET)**
@@ -235,8 +257,9 @@ curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/we
 # Review 7-day performance trends
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=7d | grep -E "(ERROR|WARN|performance|timeout)"
 
-# Verify cron job execution
-env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="CRON-START" --since=7d
+# Verify GitHub Actions execution
+# Check GitHub Actions tab for trading-system.yml workflow runs
+# Look for successful completions with "Analysis completed successfully" logs
 ```
 
 #### **2. Data Cleanup**

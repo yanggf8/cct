@@ -3,6 +3,7 @@
  * Service Level Objectives monitoring with alerting for HTML endpoints
  */
 
+import { createCache } from './cache-abstraction.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 export interface SLOMetrics {
@@ -160,7 +161,7 @@ export class SLOMonitoringManager {
   async recordMetrics(metrics: SLOMetrics): Promise<void> {
     const endpoint = metrics.endpoint;
 
-    // Add to buffer
+    // Add to in-memory buffer
     if (!this.metricsBuffer.has(endpoint)) {
       this.metricsBuffer.set(endpoint, []);
     }
@@ -173,7 +174,7 @@ export class SLOMonitoringManager {
       buffer.splice(0, buffer.length - 1000);
     }
 
-    // Persist to KV periodically
+    // Persist to DO periodically
     if (buffer.length % 10 === 0) {
       await this.persistMetrics(endpoint, buffer);
     }
@@ -330,11 +331,8 @@ export class SLOMonitoringManager {
     // Store alert in KV
     try {
       const alertKey = `alert:${alert.id}`;
-      if (this.env.CACHE) {
-        await (this.env as any).CACHE.put(alertKey, JSON.stringify(alert), {
-          expirationTtl: 24 * 60 * 60 // 24 hours
-        });
-      }
+      const cache = createCache(this.env);
+      await cache.put(alertKey, alert, { expirationTtl: 24 * 60 * 60 });
     } catch (error) {
       console.error('Failed to store alert:', error);
     }
@@ -354,7 +352,7 @@ export class SLOMonitoringManager {
    */
   private async getMetrics(endpoint: string, timeWindowMinutes: number): Promise<SLOMetrics[]> {
     try {
-      // Try memory buffer first
+      // Try in-memory buffer first
       const buffer = this.metricsBuffer.get(endpoint) || [];
       const cutoffTime = new Date(Date.now() - timeWindowMinutes * 60 * 1000);
 
@@ -365,14 +363,12 @@ export class SLOMonitoringManager {
         return recentBuffer;
       }
 
-      // Otherwise, try to get from KV
-      const storageKey = `slo_metrics:${endpoint}:${Math.floor(Date.now() / (60 * 1000))}`; // Per-minute buckets
-
-      if (this.env.CACHE) {
-        const stored = await (this.env as any).CACHE.get(storageKey, 'json');
-        if (stored) {
-          return [...recentBuffer, ...stored].filter(m => new Date(m.timestamp) > cutoffTime);
-        }
+      // Otherwise, try to get from DO
+      const storageKey = `slo_metrics:${endpoint}:${Math.floor(Date.now() / (60 * 1000))}`;
+      const cache = createCache(this.env);
+      const stored = await cache.get(storageKey);
+      if (stored) {
+        return [...recentBuffer, ...(stored as SLOMetrics[])].filter(m => new Date(m.timestamp) > cutoffTime);
       }
 
       return recentBuffer;
@@ -388,12 +384,8 @@ export class SLOMonitoringManager {
   private async persistMetrics(endpoint: string, metrics: SLOMetrics[]): Promise<void> {
     try {
       const storageKey = `slo_metrics:${endpoint}:${Math.floor(Date.now() / (60 * 1000))}`;
-
-      if (this.env.CACHE) {
-        await (this.env as any).CACHE.put(storageKey, JSON.stringify(metrics), {
-          expirationTtl: 7 * 24 * 60 * 60 // 7 days
-        });
-      }
+      const cache = createCache(this.env);
+      await cache.put(storageKey, metrics, { expirationTtl: 7 * 24 * 60 * 60 });
     } catch (error) {
       console.error('Error persisting SLO metrics:', error);
     }

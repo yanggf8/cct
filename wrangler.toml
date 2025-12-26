@@ -8,12 +8,11 @@ account_id = "ed01ccea0b8ee7138058c4378cc83e54"
 [assets]
 directory = "public"
 
-# D1 Database for analytics and cold storage (production - top-level)
-# Uncomment when D1 database is created: wrangler d1 create tft-trading-system-analytics
-# [[d1_databases]]
-# binding = "ANALYTICS_DB"
-# database_name = "tft-trading-system-analytics"
-# database_id = "your-production-database-id"
+# D1 Database for prediction job results
+[[d1_databases]]
+binding = "PREDICT_JOBS_DB"
+database_name = "cct-predict-jobs"
+database_id = "dbcb468d-ec04-4e3b-87c5-748d5a30ff40"
 
 [env.staging]
 name = "tft-trading-system-staging"
@@ -23,12 +22,10 @@ main = "src/index.ts"
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
 
-# D1 Database for analytics and cold storage (staging)
-# Uncomment when D1 database is created: wrangler d1 create tft-trading-system-analytics-staging
-# [[env.staging.d1_databases]]
-# binding = "ANALYTICS_DB"
-# database_name = "tft-trading-system-analytics-staging"
-# database_id = "your-staging-database-id"
+[[env.staging.d1_databases]]
+binding = "PREDICT_JOBS_DB"
+database_name = "cct-predict-jobs-staging"
+database_id = "6e50380f-4b98-4ed9-a766-446d0bcedee4"
 
 # KV bindings - Market Analysis & Operations Cache (stores analysis results, market data, job status)
 [[kv_namespaces]]
@@ -64,9 +61,12 @@ class_name = "CacheDurableObject"
 tag = "v1"
 new_sqlite_classes = ["CacheDurableObject"]
 
-# Scheduled events (temporarily disabled)
+# Scheduled events (DISABLED - Migrated to GitHub Actions)
+# All prediction scheduling now handled by .github/workflows/trading-system.yml
+# Migration Benefits: Unlimited schedules, 100% free, better observability
+# Cloudflare cron had 3-schedule limit and $0.20/month DO cost
 # [[triggers.crons]]
-# cron = "0 9 * * 1-5"  # 9 AM weekdays
+# cron = "0 9 * * 1-5"  # 9 AM weekdays - NOW HANDLED BY GITHUB ACTIONS
 
 # Variables
 [vars]

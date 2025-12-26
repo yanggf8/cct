@@ -1,11 +1,14 @@
 /**
  * KV Utility Functions for Hybrid Data Pipeline
  * Handles eventual consistency, atomic status updates, and dependency validation
+ * 
+ * MIGRATED: Now uses DO Cache via CacheAbstraction instead of direct KV
  */
 
 import { createLogger } from './logging.js';
 import { verifyWriteConsistency, verifyStatusConsistency } from './kv-consistency.js';
 import { toAppError, isNetworkError, isDatabaseError } from '../types/errors.js';
+import { createCache, CacheAbstraction } from './cache-abstraction.js';
 import type { CloudflareEnvironment, DatabaseError, NetworkError } from '../types.js';
 
 const logger = createLogger('kv-utils');
@@ -33,6 +36,7 @@ interface DependencyValidationResult {
 
 /**
  * Get KV value with retry logic for eventual consistency
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export async function getWithRetry(
   key: string,
@@ -40,45 +44,38 @@ export async function getWithRetry(
   maxRetries: number = 3,
   delay: number = 1000
 ): Promise<string> {
-  logger.debug('KV GET operation started', { key, maxRetries, delay });
+  logger.debug('Cache GET operation started', { key, maxRetries, delay });
+  const cache = createCache(env);
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const result = await env.MARKET_ANALYSIS_CACHE.get(key);
+      const result = await cache.get(key);
       if (result) {
-        if (i > 0) {
-          logger.info('KV retry successful', { key, attempt: i + 1 });
-        } else {
-          logger.info('KV GET successful', { key, bytes: result.length });
-        }
-        return result;
-      } else {
-        logger.debug('KV GET returned null', { key, attempt: i + 1 });
+        const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+        logger.info('Cache GET successful', { key, bytes: resultStr.length, source: cache.getSource() });
+        return resultStr;
       }
+      logger.debug('Cache GET returned null', { key, attempt: i + 1 });
     } catch (error: unknown) {
       const appError = toAppError(error, { key, attempt: i + 1, operation: 'get' });
-      logger.warn('KV operation failed, retrying', {
-        key,
-        attempt: i + 1,
-        error: appError.message,
-        category: appError.category,
-        retryable: appError.retryable
+      logger.warn('Cache operation failed, retrying', {
+        key, attempt: i + 1, error: appError.message, category: appError.category
       });
     }
 
     if (i < maxRetries - 1) {
-      const retryDelay = delay * Math.pow(2, i); // Exponential backoff
-      logger.debug('Waiting before retry', { key, delay: retryDelay });
+      const retryDelay = delay * Math.pow(2, i);
       await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
   }
 
-  logger.error('KV GET failed after all retries', { key, maxRetries });
-  throw new Error(`KV key ${key} not found after ${maxRetries} retries`);
+  logger.error('Cache GET failed after all retries', { key, maxRetries });
+  throw new Error(`Cache key ${key} not found after ${maxRetries} retries`);
 }
 
 /**
  * Put KV value with success verification
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export async function putWithVerification(
   key: string,
@@ -86,78 +83,57 @@ export async function putWithVerification(
   env: CloudflareEnvironment,
   options: KVOperationOptions = {}
 ): Promise<boolean> {
-  logger.info('KV PUT operation started', {
-    key,
-    bytes: value.length,
-    options: Object.keys(options),
-    hasExpirationTtl: !!options.expirationTtl
-  });
+  logger.info('Cache PUT operation started', { key, bytes: value.length, hasExpirationTtl: !!options.expirationTtl });
+  const cache = createCache(env);
 
   try {
-    // First attempt to put the value
-    await env.MARKET_ANALYSIS_CACHE.put(key, value, options);
+    await cache.put(key, value, { expirationTtl: options.expirationTtl });
+    
+    // Verify the put was successful
+    const verifyResult = await cache.get(key);
+    const verifyStr = typeof verifyResult === 'string' ? verifyResult : JSON.stringify(verifyResult);
 
-    // Verify the put was successful by reading it back
-    const verifyKey = await getWithRetry(key, env, 2, 500);
-
-    if (verifyKey === value) {
-      logger.info('KV PUT successful and verified', {
-        key,
-        bytes: value.length,
-        verification: 'passed'
-      });
+    if (verifyStr === value) {
+      logger.info('Cache PUT successful and verified', { key, bytes: value.length, source: cache.getSource() });
       return true;
-    } else {
-      logger.error('KV PUT verification failed - value mismatch', {
-        key,
-        originalBytes: value.length,
-        retrievedBytes: verifyKey?.length || 0
-      });
-      return false;
     }
+    logger.error('Cache PUT verification failed - value mismatch', { key });
+    return false;
   } catch (error: unknown) {
-    logger.error('KV PUT operation failed', {
-      key,
-      error: (error instanceof Error ? error.message : String(error)),
-      bytes: value.length
-    });
+    logger.error('Cache PUT operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
     throw error;
   }
 }
 
 /**
  * Delete KV value with success verification
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export async function deleteWithVerification(
   key: string,
   env: CloudflareEnvironment
 ): Promise<boolean> {
-  logger.info('KV DELETE operation started', { key });
+  logger.info('Cache DELETE operation started', { key });
+  const cache = createCache(env);
 
   try {
-    // First verify the key exists
-    const exists = await env.MARKET_ANALYSIS_CACHE.get(key);
-
+    const exists = await cache.get(key);
     if (!exists) {
-      logger.warn('KV DELETE - key does not exist', { key });
-      return true; // Key doesn't exist, consider it "deleted"
+      logger.warn('Cache DELETE - key does not exist', { key });
+      return true;
     }
 
-    // Delete the key
-    await env.MARKET_ANALYSIS_CACHE.delete(key);
-
-    // Verify deletion by trying to read it
-    const verify = await env.MARKET_ANALYSIS_CACHE.get(key);
+    await cache.delete(key);
+    const verify = await cache.get(key);
 
     if (verify === null) {
-      logger.info('KV DELETE successful and verified', { key });
+      logger.info('Cache DELETE successful and verified', { key, source: cache.getSource() });
       return true;
-    } else {
-      logger.error('KV DELETE verification failed - key still exists', { key });
-      return false;
     }
+    logger.error('Cache DELETE verification failed - key still exists', { key });
+    return false;
   } catch (error: unknown) {
-    logger.error('KV DELETE operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
+    logger.error('Cache DELETE operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
     throw error;
   }
 }

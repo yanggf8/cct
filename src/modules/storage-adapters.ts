@@ -131,6 +131,18 @@ export class DOAdapter implements StorageAdapter {
     this.metricsCollector = metricsCollector;
   }
 
+  /**
+   * Call DO via fetch (DO stubs only expose fetch, not direct methods)
+   */
+  private async callDO(stub: any, action: string, body?: any): Promise<any> {
+    const response = await stub.fetch(`https://do/${action}`, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return response.json();
+  }
+
   async get(key: string): Promise<StorageResult> {
     const startTime = Date.now();
     this.stats.totalOperations++;
@@ -140,9 +152,15 @@ export class DOAdapter implements StorageAdapter {
       const doId = this.config.doNamespace.idFromName('cache');
       const stub = this.config.doNamespace.get(doId);
 
-      const value = await stub.get(key);
+      const result = await this.callDO(stub, 'get', { key });
+      const value = result?.value;
       duration = Date.now() - startTime;
-      this.stats.hits++;
+      
+      if (value !== null && value !== undefined) {
+        this.stats.hits++;
+      } else {
+        this.stats.misses++;
+      }
 
       // Record metrics if collector is available
       if (this.metricsCollector) {
@@ -150,22 +168,7 @@ export class DOAdapter implements StorageAdapter {
           layer: 'do',
           storage_class: this.storageClass,
           keyspace: this.extractKeyspace(key)
-        }, duration, true, true);
-
-        // Update gauges periodically
-        if (this.stats.totalOperations % 100 === 0) {
-          const cacheStats = await stub.getStats();
-          if (cacheStats) {
-            this.metricsCollector.setGauge('cache_entries', {
-              storage_class: this.storageClass,
-              keyspace: this.extractKeyspace(key)
-            }, cacheStats.totalEntries || 0);
-            this.metricsCollector.setGauge('cache_bytes', {
-              storage_class: this.storageClass,
-              keyspace: this.extractKeyspace(key)
-            }, cacheStats.memoryUsage || 0);
-          }
-        }
+        }, duration, true, value !== null);
       }
 
       return {
@@ -183,7 +186,6 @@ export class DOAdapter implements StorageAdapter {
       this.stats.errors++;
       duration = Date.now() - startTime;
 
-      // Record error metrics if collector is available
       if (this.metricsCollector) {
         this.metricsCollector.recordOperation('get', {
           layer: 'do',
@@ -215,31 +217,15 @@ export class DOAdapter implements StorageAdapter {
       const doId = this.config.doNamespace.idFromName('cache');
       const stub = this.config.doNamespace.get(doId);
 
-      await stub.set(key, value, { ttl });
+      await this.callDO(stub, 'set', { key, value, ttl });
       const duration = Date.now() - startTime;
 
-      // Record metrics if collector is available
       if (this.metricsCollector) {
         this.metricsCollector.recordOperation('put', {
           layer: 'do',
           storage_class: this.storageClass,
           keyspace: this.extractKeyspace(key)
         }, duration, true);
-
-        // Update gauges periodically
-        if (this.stats.totalOperations % 100 === 0) {
-          const cacheStats = await stub.getStats();
-          if (cacheStats) {
-            this.metricsCollector.setGauge('cache_entries', {
-              storage_class: this.storageClass,
-              keyspace: this.extractKeyspace(key)
-            }, cacheStats.totalEntries || 0);
-            this.metricsCollector.setGauge('cache_bytes', {
-              storage_class: this.storageClass,
-              keyspace: this.extractKeyspace(key)
-            }, cacheStats.memoryUsage || 0);
-          }
-        }
       }
 
       return {
@@ -255,7 +241,6 @@ export class DOAdapter implements StorageAdapter {
       this.stats.errors++;
       const duration = Date.now() - startTime;
 
-      // Record error metrics if collector is available
       if (this.metricsCollector) {
         this.metricsCollector.recordOperation('put', {
           layer: 'do',
@@ -286,10 +271,9 @@ export class DOAdapter implements StorageAdapter {
       const doId = this.config.doNamespace.idFromName('cache');
       const stub = this.config.doNamespace.get(doId);
 
-      await stub.delete(key);
+      await this.callDO(stub, 'delete', { key });
       const duration = Date.now() - startTime;
 
-      // Record metrics if collector is available
       if (this.metricsCollector) {
         this.metricsCollector.recordOperation('del', {
           layer: 'do',
@@ -310,7 +294,6 @@ export class DOAdapter implements StorageAdapter {
       this.stats.errors++;
       const duration = Date.now() - startTime;
 
-      // Record error metrics if collector is available
       if (this.metricsCollector) {
         this.metricsCollector.recordOperation('del', {
           layer: 'do',

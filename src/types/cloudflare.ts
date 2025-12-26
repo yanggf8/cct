@@ -382,19 +382,13 @@ export interface D1ExecResult {
 // ============================================================================
 
 export interface CloudflareEnvironment {
-  // KV Namespaces
-  MARKET_ANALYSIS_CACHE: KVNamespace;
-  CACHE_DO_KV?: KVNamespace;
-  ANALYSIS_CACHE?: KVNamespace;
-  USER_SESSIONS?: KVNamespace;
+  // KV Namespaces (rate limit and feature flags only - all cache uses DO)
+  MARKET_ANALYSIS_CACHE?: KVNamespace;  // Legacy - kept for health checks only
   RATE_LIMIT?: KVNamespace;
-  SYSTEM_CONFIG?: KVNamespace;
+  FEATURE_FLAGS?: KVNamespace;
 
   // R2 Buckets
   TRADING_MODELS?: R2Bucket;
-  TRAINED_MODELS?: R2Bucket;
-  DATA_EXPORTS?: R2Bucket;
-  USER_FILES?: R2Bucket;
 
   // D1 Databases
   DATABASE?: D1Database;
@@ -403,8 +397,6 @@ export interface CloudflareEnvironment {
 
   // Durable Objects
   CACHE_DO?: DurableObjectNamespace;
-  USER_SESSIONS_DO?: DurableObjectNamespace;
-  RATE_LIMIT_DO?: DurableObjectNamespace;
   ANALYTICS_DO?: DurableObjectNamespace;
 
   // AI Binding

@@ -7,7 +7,7 @@
 
 class PortfolioOptimizationClient {
     constructor() {
-        this.apiClient = new CCTApiClient({
+        this.apiClient = new CCTApi({
             enableCache: true,
             timeout: 30000
         });

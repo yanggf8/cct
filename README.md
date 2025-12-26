@@ -2,31 +2,25 @@
 
 ## 🎯 Project Overview
 
-**Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (GPT-OSS-120B + DistilBERT-SST-2), revolutionary Durable Objects caching architecture with 100% KV elimination, predictive analytics dashboard, and real-time sector rotation analysis.
+**Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (GPT-OSS-120B + DistilBERT-SST-2), Durable Objects-only caching architecture, predictive analytics dashboard, and real-time sector rotation analysis.
 
-**Current Status**: ✅ **PRODUCTION READY** - **TypeScript Error-Free** (2025-12-22)
+**Current Status**: ✅ **PRODUCTION READY** - **TypeScript Error-Free** (2025-12-24)
 
 **Live System**: https://tft-trading-system.yanggf.workers.dev
 
-## 🚀 Revolutionary Features (Latest Achievements)
+## 🚀 Latest Updates
 
-### **🔧 TypeScript Error Resolution (2025-12-22)**
-- ✅ **0 TypeScript Errors**: Complete type safety achieved (476 → 0 errors)
-- ✅ **Interface Fixes**: Extended `StorageResult`, `MarketDriversSnapshot`, `EnhancedCacheListOptions`
-- ✅ **Method Corrections**: Fixed `dal.deleteKey`, `hashString` returns, `get()` signatures
-- ✅ **Type Casts**: Proper handling of `CloudflareEnvironment` mismatches across modules
-- ✅ **Metadata Properties**: Added `originalSize`, `compressedSize` to storage results
-- ✅ **Deployment Fix**: Corrected regression test report directory path
-- ✅ **Dashboard Fix**: Replaced mock data with real API calls, added "N/A" states for unavailable data
-- ✅ **FRED Integration**: Fixed API key passthrough to ProductionMarketDrivers
-- ✅ **Mock Guards**: Fixed DataSourceResult wrapper handling in validation
-- ✅ **Homepage Chart**: Real SPY history data with unavailable state guard
+### **🔄 KV→DO Migration Complete (2025-12-24)**
+- ✅ **DO-Only Cache**: All cache operations migrated to Durable Objects
+- ✅ **Renamed**: `DualCacheDO` → `CacheDO`, file renamed to `cache-do.ts`
+- ✅ **Auth Fix**: API auth bypass vulnerability fixed (exact match only)
+- ✅ **UI Unified**: Top headers removed, left sidebar is sole navigation
 
-### **🧭 Unified Navigation (2025-12-23)**
-- ✅ **Shared Navigation Component**: All worker-rendered pages now use unified top navigation bar
-- ✅ **Consistent UX**: Same navigation style across static HTML and worker-rendered pages
-- ✅ **Code Cleanup**: Removed legacy `report-navigation` and `top-nav` CSS/HTML
-- ✅ **Frontend Deployment Scripts**: Added `deploy:frontend:only` and `deploy:frontend` npm scripts
+### **🔧 Dashboard Fixes (2025-12-24)**
+- ✅ **SSE Cleanup**: Removed dead SSE code, dashboard now shows "Polling" status
+- ✅ **Initial Data Load**: `connectRealtime()` triggers immediate data refresh on init
+- ✅ **API Path Fix**: Fixed baseUrl to use `/api/v1` instead of full origin
+- ✅ **date-fns CDN**: Switched to browser-compatible UMD build
 
 ### **📁 Test & Script Organization (2025-12-19)**
 - ✅ **54 Scripts Reorganized**: All test and operational scripts organized into logical structure
@@ -355,6 +349,37 @@ Reduction:     100%
   - KV/R2 storage (free tier)
 - **Total System Cost**: **$0/month** ✅
 
+## 🔄 Automated Scheduling System
+
+### **📅 GitHub Actions Scheduling (Primary System)**
+All prediction and analysis jobs run via GitHub Actions for unlimited scheduling and 100% free operation:
+
+#### **Core Analysis Schedules**
+- **🌅 Pre-Market Briefing**: Mon-Fri 8:30 AM ET (12:30 UTC) - High-confidence predictions with 1h/24h forecasts
+- **🔄 Intraday Check**: Mon-Fri 12:00 PM ET (16:00 UTC) - Performance validation with 8h/next-day forecasts  
+- **🌆 End-of-Day Summary**: Mon-Fri 4:05 PM ET (20:05 UTC) - Market close analysis + tomorrow outlook
+- **📊 Weekly Review**: Sunday 10:00 AM ET (14:00 UTC) - Comprehensive pattern analysis & recommendations
+
+#### **Workflow Features**
+- ✅ **Unlimited Schedules** - No 3-cron restriction (Cloudflare free tier limitation eliminated)
+- ✅ **100% Free** - Uses 175/2000 monthly GitHub Actions minutes (~8% usage)
+- ✅ **Enhanced Monitoring** - Full execution logging, Teams notifications, health checks
+- ✅ **Predictive Intelligence** - Integration with signals, patterns, and forecasting APIs
+- ✅ **Manual Triggers** - On-demand analysis via workflow_dispatch
+
+**Workflow File**: `.github/workflows/trading-system.yml`
+
+#### **Migration Benefits**
+- ✅ **Cost Elimination** - Removed $0.20/month Durable Object requirement
+- ✅ **Performance** - No 30-second timeout limitations
+- ✅ **Observability** - Complete GitHub Actions console logging
+- ✅ **Reliability** - Better error handling and retry logic
+
+### **☁️ Cloudflare Cron (Legacy - Disabled)**
+- **Status**: Disabled in `wrangler.toml` (lines 68-69 commented out)
+- **Legacy Code**: `scheduler.ts` and cron triggers maintained for reference
+- **Future**: All scheduling managed through GitHub Actions exclusively
+
 ## 🔐 Security
 
 - **Authentication**: X-API-KEY header validation
@@ -416,6 +441,6 @@ Reduction:     100%
 
 ---
 
-**Last Updated**: 2025-12-23
+**Last Updated**: 2025-12-24
 **Version**: Production Ready - TypeScript Error-Free
 **Status**: ✅ **FULLY OPERATIONAL** - Enterprise-grade AI trading intelligence system with complete type safety

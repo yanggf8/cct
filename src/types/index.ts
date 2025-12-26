@@ -10,6 +10,12 @@ export interface MarketData {
 
 export interface SectorData extends MarketData {
   name: string;
+  timestamp?: number;
+  marketCap?: number;
+  dayHigh?: number;
+  dayLow?: number;
+  fiftyDayAverage?: number;
+  twoHundredDayAverage?: number;
 }
 
 export interface RiskAssessment {

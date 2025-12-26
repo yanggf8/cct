@@ -138,24 +138,19 @@ declare global {
  * Replaces all `env: any` usage with properly typed environment bindings
  */
 export interface CloudflareEnvironment extends CfEnvironment {
-  // KV Namespaces
-  MARKET_ANALYSIS_CACHE: KVNamespace;
-  CACHE_DO_KV?: KVNamespace;  // KV namespace for DO cache persistence
-  ANALYSIS_CACHE?: KVNamespace;
-  USER_SESSIONS?: KVNamespace;
+  // KV Namespaces (rate limit and feature flags only - all cache uses DO)
+  MARKET_ANALYSIS_CACHE?: KVNamespace;  // Legacy - kept for health checks only
   RATE_LIMIT?: KVNamespace;
-  SYSTEM_CONFIG?: KVNamespace;
+  FEATURE_FLAGS?: KVNamespace;
 
   // R2 Buckets
   TRADING_MODELS?: R2Bucket;
-  TRAINED_MODELS?: R2Bucket;
-  DATA_EXPORTS?: R2Bucket;
-  USER_FILES?: R2Bucket;
 
   // D1 Databases
   DATABASE?: D1Database;
   ANALYTICS_DB?: D1Database;
   USER_DB?: D1Database;
+  PREDICT_JOBS_DB?: D1Database;
 
   // Durable Objects
   CACHE_DO?: DurableObjectNamespace;

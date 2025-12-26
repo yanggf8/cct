@@ -312,54 +312,26 @@ export function generateErrorStateHTML(options: {
 
 /**
  * Shared navigation CSS for worker-rendered pages
+ * Now handled by /css/nav.css
  */
-export const SHARED_NAV_CSS = `
-    .shared-nav {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 60px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 20px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        z-index: 1000;
-    }
-    .shared-nav .nav-brand h1 { margin: 0; font-size: 1.5rem; font-weight: 600; }
-    .shared-nav .nav-menu { display: flex; gap: 5px; }
-    .shared-nav .nav-item {
-        display: flex; align-items: center; gap: 8px; padding: 8px 16px;
-        color: rgba(255, 255, 255, 0.8); text-decoration: none;
-        border-radius: 6px; transition: all 0.2s ease; font-size: 0.9rem;
-    }
-    .shared-nav .nav-item:hover { background-color: rgba(255, 255, 255, 0.1); color: white; }
-    .shared-nav .nav-item.active { background-color: rgba(255, 255, 255, 0.2); color: white; font-weight: 500; }
-    body.has-shared-nav { padding-top: 70px; }
-`;
+export const SHARED_NAV_CSS = ``;
 
 /**
- * Shared navigation HTML for worker-rendered pages
+ * Shared navigation - uses the same left sidebar as static pages
+ * Worker-rendered pages include nav.js which injects the sidebar
  */
 export function getSharedNavHTML(activePage: string = ''): string {
-  const navItems = [
-    { href: '/dashboard.html', icon: '📈', text: 'Dashboard', page: 'dashboard' },
-    { href: '/pre-market-briefing', icon: '🌅', text: 'Pre-Market', page: 'pre-market' },
-    { href: '/intraday-check', icon: '📊', text: 'Intraday', page: 'intraday' },
-    { href: '/end-of-day-summary', icon: '🌆', text: 'End-of-Day', page: 'end-of-day' },
-    { href: '/weekly-review', icon: '📋', text: 'Weekly', page: 'weekly' },
-    { href: '/predictive-analytics.html', icon: '🔮', text: 'Predictive', page: 'predictive' },
-    { href: '/bi-dashboard.html', icon: '📊', text: 'BI', page: 'bi' },
-  ];
-  return `<nav class="shared-nav">
-    <div class="nav-brand"><h1>CCT Trading System</h1></div>
-    <div class="nav-menu">
-      ${navItems.map(i => `<a href="${i.href}" class="nav-item${activePage === i.page ? ' active' : ''}"><span>${i.icon}</span><span>${i.text}</span></a>`).join('')}
-    </div>
-  </nav>`;
+  // Return empty - nav.js handles the sidebar injection
+  // The activePage is set via data attribute on body for nav.js to read
+  return '';
+}
+
+/**
+ * Get nav script tags for worker-rendered pages
+ */
+export function getNavScripts(): string {
+  return `<link rel="stylesheet" href="/css/nav.css?v=20251224">
+<script src="/js/nav.js?v=20251224"></script>`;
 }
 
 /**

@@ -1,11 +1,10 @@
 /**
  * Data Access Module - TypeScript
- * Handles data retrieval from KV storage and fact table operations with real market validation
+ * Handles data retrieval from DO Cache and D1 storage
  */
 
 import { initLogging, logKVDebug, logError, logInfo } from './logging.js';
 import { validateKVKey, validateEnvironment, validateDate } from './validation.js';
-import { KVUtils } from './shared-utilities.js';
 import { KVKeyFactory, KeyHelpers, KeyTypes } from './kv-key-factory.js';
 import { createSimplifiedEnhancedDAL, type CacheAwareResult } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -344,21 +343,16 @@ export async function getFactTableDataWithRange(
 }
 
 /**
- * Store fact table data to KV storage
+ * Store fact table data to DO Cache
  */
 export async function storeFactTableData(env: CloudflareEnvironment, factTableData: FactTableRecord[]): Promise<boolean> {
   try {
-    const factTableKey = 'fact_table_data';
-    await KVUtils.putWithTTL(
-      env.MARKET_ANALYSIS_CACHE,
-      factTableKey,
-      JSON.stringify(factTableData),
-      'analysis'
-    );
-
-    logKVDebug(`Stored ${factTableData.length} fact table records to KV`);
-    return true;
-
+    const dal = createSimplifiedEnhancedDAL(env, { enableCache: true, environment: env.ENVIRONMENT || 'production' });
+    const result = await dal.write('fact_table_data', factTableData);
+    if (result.success) {
+      logInfo(`Stored ${factTableData.length} fact table records to DO Cache`);
+    }
+    return result.success;
   } catch (error: any) {
     logError('Error storing fact table data:', error);
     return false;
@@ -366,123 +360,110 @@ export async function storeFactTableData(env: CloudflareEnvironment, factTableDa
 }
 
 /**
- * Store granular analysis for a single symbol
+ * Store granular analysis for a single symbol - uses D1 only
  */
 export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: string, analysisData: any): Promise<boolean> {
   try {
-    console.log(`💾 [KV DEBUG] Starting KV storage for ${symbol}`);
     ensureLoggingInitialized(env);
-    logKVDebug('KV WRITE START: Storing analysis for', symbol);
-
     const dateStr = new Date().toISOString().split('T')[0];
-    const key = `analysis_${dateStr}_${symbol}`;
 
-    const dataString = JSON.stringify(analysisData);
+    if (!env.PREDICT_JOBS_DB) {
+      logError('PREDICT_JOBS_DB not configured');
+      return false;
+    }
 
-    await KVUtils.putWithTTL(
-      env.MARKET_ANALYSIS_CACHE,
-      key,
-      dataString,
-      'granular'
-    );
+    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) {
+      logError('Failed to get PredictJobsDB instance');
+      return false;
+    }
 
-    console.log(`✅ [KV DEBUG] KV put() completed successfully for key: ${key}`);
+    await db.savePrediction({
+      symbol,
+      prediction_date: dateStr,
+      sentiment: analysisData.sentiment_layers?.[0]?.sentiment || 'neutral',
+      confidence: analysisData.confidence_metrics?.overall_confidence || 0.5,
+      direction: analysisData.trading_signals?.primary_direction || 'NEUTRAL',
+      model: analysisData.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
+      analysis_type: analysisData.analysis_type || 'fine_grained_sentiment',
+      trading_signals: analysisData.trading_signals
+    });
+
+    // Ensure a daily summary exists so /results does not return 404 for single-symbol writes
+    const existingDaily = await db.getDailyAnalysis(dateStr);
+    if (!existingDaily) {
+      const predictions = await db.getPredictionsByDate(dateStr);
+      await db.saveDailyAnalysis({
+        analysis_date: dateStr,
+        total_symbols: predictions.length,
+        execution_time: 0,
+        summary: { symbols: predictions.map(p => p.symbol) }
+      });
+    }
+    logInfo(`Symbol prediction stored in D1: ${symbol}`);
     return true;
   } catch (error: any) {
-    logError('KV WRITE ERROR: Failed to store granular analysis for', symbol + ':', error);
+    logError('Failed to store symbol analysis:', error);
     return false;
   }
 }
 
 /**
- * Batch store multiple analysis results with optimized parallel operations
+ * Batch store multiple analysis results - uses D1 only
  */
 export async function batchStoreAnalysisResults(env: CloudflareEnvironment, analysisResults: any[]): Promise<BatchStoreResult> {
   try {
     ensureLoggingInitialized(env);
     const startTime = Date.now();
     const date = new Date().toISOString().split('T')[0];
-    const kvOperations: Promise<void>[] = [];
 
-    logInfo(`Starting batch KV storage for ${analysisResults.length} symbols...`);
-
-    // Create main daily analysis
-    const dailyAnalysis: DailyAnalysis = {
-      date,
-      symbols: analysisResults.map(result => ({
-        symbol: result.symbol,
-        sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
-        confidence: result.confidence_metrics?.overall_confidence || 0.5,
-        direction: result.trading_signals?.primary_direction || 'NEUTRAL',
-        model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
-        layer_consistency: result.confidence_metrics?.consistency_bonus || 0,
-        analysis_type: result.analysis_type || 'fine_grained_sentiment'
-      })),
-      execution_time: Date.now(),
-      batch_stored: true,
-      total_symbols: analysisResults.length
-    };
-
-    // Add main daily analysis to batch
-    kvOperations.push(
-      KVUtils.putWithTTL(
-        env.MARKET_ANALYSIS_CACHE,
-        `analysis_${date}`,
-        JSON.stringify(dailyAnalysis),
-        'analysis'
-      )
-    );
-
-    // Add individual symbol analyses to batch
-    for (const result of analysisResults) {
-      if (result && result.symbol) {
-        const compactResult = createCompactAnalysisData(result);
-
-        kvOperations.push(
-          KVUtils.putWithTTL(
-            env.MARKET_ANALYSIS_CACHE,
-            `analysis_${date}_${result.symbol}`,
-            JSON.stringify(compactResult),
-            'granular'
-          )
-        );
-      }
+    if (!env.PREDICT_JOBS_DB) {
+      logError('PREDICT_JOBS_DB not configured');
+      return { success: false, error: 'D1 not configured', total_operations: 0, successful_operations: 0, failed_operations: 0 };
     }
 
-    // Execute all KV operations in parallel
-    logInfo(`Executing ${kvOperations.length} KV operations in parallel...`);
-    const kvResults = await Promise.allSettled(kvOperations);
+    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) {
+      logError('Failed to get PredictJobsDB instance');
+      return { success: false, error: 'D1 init failed', total_operations: 0, successful_operations: 0, failed_operations: 0 };
+    }
 
-    // Count successful operations
-    const successful = kvResults.filter(r => r.status === 'fulfilled').length;
-    const failed = kvResults.filter(r => r.status === 'rejected').length;
+    const predictions = analysisResults.filter(r => r?.symbol).map(result => ({
+      symbol: result.symbol,
+      prediction_date: date,
+      sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
+      confidence: result.confidence_metrics?.overall_confidence || 0.5,
+      direction: result.trading_signals?.primary_direction || 'NEUTRAL',
+      model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
+      analysis_type: result.analysis_type || 'fine_grained_sentiment',
+      trading_signals: result.trading_signals
+    }));
+
+    await db.savePredictionsBatch(predictions);
+    await db.saveDailyAnalysis({
+      analysis_date: date,
+      total_symbols: predictions.length,
+      execution_time: Date.now() - startTime,
+      summary: { symbols: predictions.map(p => p.symbol) }
+    });
 
     const totalTime = Date.now() - startTime;
-    logInfo(`Batch KV storage completed: ${successful}/${kvOperations.length} operations successful in ${totalTime}ms`);
-
-    if (failed > 0) {
-      logError(`${failed} KV operations failed during batch storage`);
-    }
+    logInfo(`Batch D1 storage completed: ${predictions.length} predictions in ${totalTime}ms`);
 
     return {
-      success: successful > 0,
-      total_operations: kvOperations.length,
-      successful_operations: successful,
-      failed_operations: failed,
+      success: true,
+      total_operations: predictions.length + 1,
+      successful_operations: predictions.length + 1,
+      failed_operations: 0,
       execution_time_ms: totalTime,
-      daily_analysis_stored: kvResults[0]?.status === 'fulfilled',
-      symbol_analyses_stored: successful - 1
+      daily_analysis_stored: true,
+      symbol_analyses_stored: predictions.length
     };
-
   } catch (error: any) {
-    logError('Batch KV storage failed:', error);
-    return {
-      success: false,
-      error: (error instanceof Error ? error.message : String(error)),
-      total_operations: 0,
-      successful_operations: 0,
-      failed_operations: 0
-    };
+    logError('Batch storage failed:', error);
+    return { success: false, error: error.message, total_operations: 0, successful_operations: 0, failed_operations: 0 };
   }
 }
 
@@ -532,56 +513,38 @@ function createCompactAnalysisData(analysisData: any): CompactAnalysisData {
 }
 
 /**
- * Track cron execution health for monitoring and debugging
+ * Track cron execution health - uses D1 only
  */
 export async function trackCronHealth(env: CloudflareEnvironment, status: 'success' | 'partial' | 'failed', executionData: any = {}): Promise<boolean> {
   try {
     ensureLoggingInitialized(env);
-    const healthData: CronHealthData = {
-      timestamp: Date.now(),
-      date: new Date().toISOString(),
-      status: status,
+
+    if (!env.PREDICT_JOBS_DB) {
+      logError('PREDICT_JOBS_DB not configured');
+      return false;
+    }
+
+    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) {
+      logError('Failed to get PredictJobsDB instance');
+      return false;
+    }
+
+    await db.saveExecution({
+      job_type: executionData.jobType || 'analysis',
+      status,
+      executed_at: new Date().toISOString(),
       execution_time_ms: executionData.totalTime || 0,
       symbols_processed: executionData.symbolsProcessed || 0,
       symbols_successful: executionData.symbolsSuccessful || 0,
       symbols_fallback: executionData.symbolsFallback || 0,
       symbols_failed: executionData.symbolsFailed || 0,
-      analysis_success_rate: executionData.successRate || 0,
-      storage_operations: executionData.storageOperations || 0,
+      success_rate: executionData.successRate || 0,
       errors: executionData.errors || []
-    };
-
-    const dal = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
     });
-
-    // Store latest health status using Enhanced DAL
-    const latestResult = await dal.write('cron_health_latest', healthData);
-    if (!latestResult.success) {
-      logError(`Failed to store latest cron health: ${latestResult.error}`);
-    }
-
-    // Also store in daily health log for history
-    const dateKey = `cron_health_${new Date().toISOString().slice(0, 10)}`;
-    const existingResult = await dal.read(dateKey);
-    const dailyData: any = (existingResult.success && existingResult.data) ? existingResult.data : { executions: [] };
-
-    dailyData.executions.push(healthData);
-
-    // Keep only last 10 executions per day to avoid bloat
-    if (dailyData.executions.length > 10) {
-      dailyData.executions = dailyData.executions.slice(-10);
-    }
-
-    const dailyResult = await dal.write(dateKey, dailyData, KVUtils.getOptions('metadata'));
-    if (!dailyResult.success) {
-      logError(`Failed to store daily cron health: ${dailyResult.error}`);
-    }
-
-    logInfo(`Cron health tracked: ${status} - ${executionData.symbolsProcessed || 0} symbols processed`);
+    logInfo(`Job execution tracked in D1: ${status} - ${executionData.symbolsProcessed || 0} symbols processed`);
     return true;
-
   } catch (error: any) {
     logError('Failed to track cron health:', error);
     return false;
@@ -589,104 +552,106 @@ export async function trackCronHealth(env: CloudflareEnvironment, status: 'succe
 }
 
 /**
- * Get latest cron health status for monitoring
+ * Get latest cron health status - reads from D1
  */
 export async function getCronHealthStatus(env: CloudflareEnvironment): Promise<CronHealthStatus> {
   try {
     ensureLoggingInitialized(env);
-    const dal = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-    const healthResult = await dal.read('cron_health_latest');
 
-    if (!healthResult.success || !healthResult.data) {
-      return {
-        healthy: false,
-        message: 'No cron health data found',
-        last_execution: null
-      };
+    if (!env.PREDICT_JOBS_DB) {
+      return { healthy: false, message: 'D1 not configured', last_execution: null };
     }
 
-    const healthData = healthResult.data as CronHealthData;
-    const hoursSinceLastRun = (Date.now() - healthData.timestamp) / (1000 * 60 * 60);
+    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) {
+      return { healthy: false, message: 'D1 init failed', last_execution: null };
+    }
+
+    const executions = await db.getRecentExecutions(1);
+    if (executions.length === 0) {
+      return { healthy: false, message: 'No job executions found', last_execution: null };
+    }
+
+    const latest = executions[0];
+    const hoursSinceLastRun = (Date.now() - new Date(latest.executed_at).getTime()) / (1000 * 60 * 60);
 
     return {
-      healthy: hoursSinceLastRun < 6 && healthData.status !== 'failed',
-      last_execution: new Date(healthData.timestamp).toISOString(),
+      healthy: hoursSinceLastRun < 6 && latest.status !== 'failed',
+      last_execution: latest.executed_at,
       hours_since_last_run: hoursSinceLastRun,
-      last_status: healthData.status,
-      symbols_processed: healthData.symbols_processed,
-      success_rate: healthData.analysis_success_rate,
-      execution_time_ms: healthData.execution_time_ms,
-      full_health_data: healthData
+      last_status: latest.status,
+      symbols_processed: latest.symbols_processed,
+      success_rate: latest.success_rate,
+      execution_time_ms: latest.execution_time_ms,
+      full_health_data: latest as any
     };
-
   } catch (error: any) {
     logError('Failed to get cron health status:', error);
-    return {
-      healthy: false,
-      message: 'Error reading cron health data',
-      error: (error instanceof Error ? error.message : String(error))
-    };
+    return { healthy: false, message: 'Error reading D1', error: error.message };
   }
 }
 
 /**
- * Get analysis results for all symbols on a specific date
+ * Get analysis results for all symbols on a specific date - reads from D1
  */
 export async function getSymbolAnalysisByDate(env: CloudflareEnvironment, dateString: string, symbols: string[] | null = null): Promise<any[]> {
   try {
-    const dal = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-
-    // Use centralized symbol configuration if none provided
-    if (!symbols) {
-      symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map((s: string) => s.trim());
+    if (!env.PREDICT_JOBS_DB) {
+      logError('PREDICT_JOBS_DB not configured');
+      return [];
     }
 
-    const keys = symbols.map(symbol => `analysis_${dateString}_${symbol}`);
-    const promises = keys.map(key => dal.read(key));
-    const results = await Promise.all(promises);
+    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) return [];
 
-    const parsedResults = results
-      .map((result: any, index: any) =>
-        (result.success && result.data) ? { ...result.data, symbol: symbols![index] } : null
-      )
-      .filter(res => res !== null);
-
-    logInfo(`Retrieved ${parsedResults.length}/${symbols.length} granular analysis records for ${dateString}`);
-    return parsedResults;
+    const predictions = await db.getPredictionsByDate(dateString);
+    
+    // Filter by symbols if provided
+    if (symbols && symbols.length > 0) {
+      return predictions.filter(p => symbols.includes(p.symbol));
+    }
+    
+    return predictions;
   } catch (error: any) {
-    logError(`Error retrieving granular analysis for ${dateString}:`, error);
+    logError(`Error retrieving analysis for ${dateString}:`, error);
     return [];
   }
 }
 
 /**
- * Get analysis results by date
+ * Get analysis results by date - reads from D1
  */
 export async function getAnalysisResultsByDate(env: CloudflareEnvironment, dateString: string): Promise<any | null> {
   try {
-    validateEnvironment(env);
-    const validatedDate = validateDate(dateString);
-    const dateString_clean = validatedDate.toISOString().split('T')[0];
-
-    const dal = createSimplifiedEnhancedDAL(env, {
-      enableCache: true,
-      environment: env.ENVIRONMENT || 'production'
-    });
-    const dailyKey = validateKVKey(`analysis_${dateString_clean}`);
-    const result = await dal.read(dailyKey);
-
-    if (!result.success || !result.data) {
+    if (!env.PREDICT_JOBS_DB) {
+      logError('PREDICT_JOBS_DB not configured');
       return null;
     }
 
-    return result.data;
+    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) return null;
 
+    const daily = await db.getDailyAnalysis(dateString);
+    const predictions = await db.getPredictionsByDate(dateString);
+
+    if (!daily && predictions.length === 0) {
+      return null;
+    }
+
+    // Fallback summary when daily row is absent (e.g., single-symbol writes)
+    const summaryDate = daily?.analysis_date || dateString;
+    const totalSymbols = daily?.total_symbols ?? predictions.length;
+    const executionTime = daily?.execution_time ?? 0;
+
+    return {
+      date: summaryDate,
+      total_symbols: totalSymbols,
+      execution_time: executionTime,
+      symbols: predictions
+    };
   } catch (error: any) {
     logError(`Error retrieving analysis for ${dateString}:`, error);
     return null;

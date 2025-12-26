@@ -15,7 +15,7 @@ id = "321593c6717448dfb24ea2bd48cde1fa"
 
 # Production R2 bindings
 [[env.production.r2_buckets]]
-binding = "TRAINED_MODELS"
+binding = "TFT_TRADING_MODELS"
 bucket_name = "tft-trading-models"
 
 # Production AI binding
@@ -48,7 +48,7 @@ id = "220ca67255ed4bfeada7eb6816ce6413"
 
 # Staging R2 bindings
 [[env.staging.r2_buckets]]
-binding = "TRAINED_MODELS"
+binding = "TFT_TRADING_MODELS"
 bucket_name = "tft-trading-models"
 
 # Staging AI binding

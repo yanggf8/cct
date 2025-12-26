@@ -34,9 +34,6 @@ export async function handleMarketDriversRoutes(
   const method = request.method;
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Market Drivers endpoints require API key authentication
-  const auth = validateApiKey(request, env);
-
   // Configure rate limiter from config for market data endpoints
   try {
     const { getMarketDataConfig } = await import('../modules/config.js');
@@ -44,21 +41,6 @@ export async function handleMarketDriversRoutes(
     const cfg = getMarketDataConfig();
     configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 60, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
   } catch {}
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
 
   try {
     // GET /api/v1/market-drivers/snapshot - Complete market drivers snapshot

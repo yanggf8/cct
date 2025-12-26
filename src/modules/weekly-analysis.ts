@@ -4,7 +4,7 @@
  */
 
 import { getFactTableData, getFactTableDataWithRange } from './data.js';
-import { SHARED_NAV_CSS, getSharedNavHTML } from '../utils/html-templates.js';
+import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../utils/html-templates.js';
 
 /**
  * Serve the Weekly Analysis HTML page
@@ -16,10 +16,10 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dual AI Comparison Dashboard - TFT Trading System</title>
+    ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
   <script src="js/api-client.js?v=20251018-2"></script>
     <style>
-        ${SHARED_NAV_CSS}
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

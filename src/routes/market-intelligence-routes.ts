@@ -35,24 +35,6 @@ export async function handleMarketIntelligenceRoutes(
   const url = new URL(request.url);
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Market Intelligence endpoints require API key authentication
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
-
   try {
     // GET /api/v1/market-intelligence/dashboard - Complete unified dashboard
     if (path === '/api/v1/market-intelligence/dashboard' && method === 'GET') {

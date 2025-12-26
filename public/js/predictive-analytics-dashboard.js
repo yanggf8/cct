@@ -20,7 +20,7 @@ class PredictiveAnalyticsDashboard {
     async init() {
         try {
             // Initialize API client
-            this.apiClient = new CCTApiClient({
+            this.apiClient = new CCTApi({
                 enableCache: true,
                 timeout: 30000
             });
@@ -125,9 +125,10 @@ class PredictiveAnalyticsDashboard {
 
     async loadSentimentAnalysis() {
         try {
-            const response = await this.apiClient.getFineGrainedSentiment(
+            // Use available sentiment/analysis endpoint instead of fine-grained
+            const response = await this.apiClient.getSentimentAnalysis(
                 this.currentSymbols,
-                { timeRange: this.currentTimeRange }
+                { cache: true }
             );
 
             if (response.success) {
@@ -165,9 +166,8 @@ class PredictiveAnalyticsDashboard {
 
     async loadSectorIndicators() {
         try {
-            const response = await this.apiClient.getSectorIndicators(
-                ['XLF', 'XLK', 'XLE', 'XLV', 'XLI', 'XLU', 'XLP', 'XLY', 'XLB', 'REIT', 'GLD']
-            );
+            // Use sector/snapshot endpoint instead of individual sector indicators
+            const response = await this.apiClient.request('/sectors/snapshot');
 
             if (response.success) {
                 this.updateSectorWidget(response.data);
@@ -919,9 +919,9 @@ function toggleAutoRefresh() {
     }
 }
 
-// Extend CCTApiClient with new methods
-if (typeof CCTApiClient !== 'undefined') {
-    CCTApiClient.prototype.getFineGrainedSentiment = async function(symbols, options = {}) {
+// Extend CCTApi with new methods
+if (typeof CCTApi !== 'undefined') {
+    CCTApi.prototype.getFineGrainedSentiment = async function(symbols, options = {}) {
         const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
 
         if (symbolsArray.length === 1) {
@@ -934,7 +934,7 @@ if (typeof CCTApiClient !== 'undefined') {
         }
     };
 
-    CCTApiClient.prototype.getTechnicalAnalysis = async function(symbols, options = {}) {
+    CCTApi.prototype.getTechnicalAnalysis = async function(symbols, options = {}) {
         const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
 
         if (symbolsArray.length === 1) {
@@ -947,7 +947,7 @@ if (typeof CCTApiClient !== 'undefined') {
         }
     };
 
-    CCTApiClient.prototype.getSectorIndicators = async function(symbols, options = {}) {
+    CCTApi.prototype.getSectorIndicators = async function(symbols, options = {}) {
         const symbolsArray = Array.isArray(symbols) ? symbols : [symbols];
         const results = [];
 
@@ -961,11 +961,11 @@ if (typeof CCTApiClient !== 'undefined') {
         return { success: true, data: results };
     };
 
-    CCTApiClient.prototype.getPredictiveSignals = async function(options = {}) {
+    CCTApi.prototype.getPredictiveSignals = async function(options = {}) {
         return this.request('/predictive/signals', { params: options });
     };
 
-    CCTApiClient.prototype.getRealtimeStatus = async function(options = {}) {
+    CCTApi.prototype.getRealtimeStatus = async function(options = {}) {
         return this.request('/realtime/status', { params: options });
     };
 }

@@ -4,6 +4,7 @@
  */
 
 import type { CloudflareEnvironment } from '../types.js';
+import { createCache } from './cache-abstraction.js';
 
 export interface Exemption {
   id: string;
@@ -299,17 +300,10 @@ export class ExemptionManager {
    */
   private async getAllExemptions(): Promise<Exemption[]> {
     try {
-      if (this.env.CACHE) {
-        // Try to get from cache first
-        const cached = await (this.env as any).CACHE.get('exemptions:all', 'json');
-        if (cached) {
-          return cached;
-        }
-      }
-
-      // Default to empty array if no storage available
+      const cache = createCache(this.env);
+      const cached = await cache.get('exemptions:all');
+      if (cached) return cached as Exemption[];
       return [];
-
     } catch (error) {
       console.error('Error getting exemptions:', error);
       return [];
@@ -321,23 +315,12 @@ export class ExemptionManager {
    */
   private async storeExemption(exemption: Exemption): Promise<void> {
     try {
-      if (this.env.CACHE) {
-        const storageKey = `exemption:${exemption.id}`;
-        await (this.env as any).CACHE.put(storageKey, JSON.stringify(exemption), {
-          expirationTtl: 365 * 24 * 60 * 60 // 1 year
-        });
+      const cache = createCache(this.env);
+      await cache.put(`exemption:${exemption.id}`, exemption, { expirationTtl: 365 * 24 * 60 * 60 });
 
-        // Also update the all exemptions cache
-        const allExemptions = await this.getAllExemptions();
-        const updatedExemptions = [
-          ...allExemptions.filter(e => e.id !== exemption.id),
-          exemption
-        ];
-
-        await (this.env as any).CACHE.put('exemptions:all', JSON.stringify(updatedExemptions), {
-          expirationTtl: 24 * 60 * 60 // 24 hours
-        });
-      }
+      const allExemptions = await this.getAllExemptions();
+      const updatedExemptions = [...allExemptions.filter(e => e.id !== exemption.id), exemption];
+      await cache.put('exemptions:all', updatedExemptions, { expirationTtl: 24 * 60 * 60 });
     } catch (error) {
       console.error('Error storing exemption:', error);
     }
@@ -348,11 +331,8 @@ export class ExemptionManager {
    */
   private async getExemption(exemptionId: string): Promise<Exemption | null> {
     try {
-      if (this.env.CACHE) {
-        const stored = await (this.env as any).CACHE.get(`exemption:${exemptionId}`, 'json');
-        return stored;
-      }
-      return null;
+      const cache = createCache(this.env);
+      return await cache.get(`exemption:${exemptionId}`) as Exemption | null;
     } catch (error) {
       console.error('Error getting exemption:', error);
       return null;

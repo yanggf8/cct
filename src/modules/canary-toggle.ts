@@ -3,6 +3,7 @@
  * Provides per-route feature flags for safe, gradual feature rollout
  */
 
+import { createCache } from './cache-abstraction.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 export interface CanaryConfig {
@@ -32,7 +33,6 @@ export interface RouteCanaryConfig {
  */
 export class CanaryToggleManager {
   private env: CloudflareEnvironment;
-  private cache: Map<string, CanaryContext> = new Map();
 
   constructor(env: CloudflareEnvironment) {
     this.env = env;
@@ -44,11 +44,13 @@ export class CanaryToggleManager {
   async isInCanary(request: Request, route: string): Promise<CanaryContext> {
     const requestId = this.getRequestId(request);
     const userId = await this.getUserId(request);
-    const cacheKey = `${requestId}:${route}`;
+    const cacheKey = `canary_ctx:${requestId}:${route}`;
+    const doCache = createCache(this.env);
 
-    // Check cache first
-    if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey)!;
+    // Check DO cache first
+    const cached = await doCache.get(cacheKey);
+    if (cached) {
+      return cached as CanaryContext;
     }
 
     // Get canary configuration for this route
@@ -65,7 +67,7 @@ export class CanaryToggleManager {
     // Check if canary is globally enabled
     if (!config.enabled) {
       context.reason = 'feature_disabled';
-      this.cache.set(cacheKey, context);
+      await doCache.put(cacheKey, context, { expirationTtl: 60 });
       return context;
     }
 
@@ -73,14 +75,14 @@ export class CanaryToggleManager {
     if (this.isInWhitelist(userId, request, config.whitelist)) {
       context.isInCanary = true;
       context.reason = 'whitelisted';
-      this.cache.set(cacheKey, context);
+      await doCache.put(cacheKey, context, { expirationTtl: 60 });
       return context;
     }
 
     // Check blacklist (never in canary)
     if (this.isInBlacklist(userId, request, config.blacklist)) {
       context.reason = 'blacklisted';
-      this.cache.set(cacheKey, context);
+      await doCache.put(cacheKey, context, { expirationTtl: 60 });
       return context;
     }
 
@@ -94,7 +96,7 @@ export class CanaryToggleManager {
     }
 
     // Cache the result
-    this.cache.set(cacheKey, context);
+    await doCache.put(cacheKey, context, { expirationTtl: 60 });
     return context;
   }
 
@@ -103,13 +105,12 @@ export class CanaryToggleManager {
    */
   async getCanaryConfig(route: string): Promise<CanaryConfig> {
     try {
-      // Try to get from KV first
+      // Try to get from cache first
       const configKey = `canary:${route}`;
-      if (this.env.CACHE) {
-        const cached = await (this.env as any).CACHE.get(configKey, 'json');
-        if (cached) {
-          return cached;
-        }
+      const doCache = createCache(this.env);
+      const cached = await doCache.get(configKey);
+      if (cached) {
+        return cached as CanaryConfig;
       }
 
       // Default configuration if not found
@@ -166,11 +167,7 @@ export class CanaryToggleManager {
       };
 
       // Cache the config
-      if (this.env.CACHE) {
-        await (this.env as any).CACHE.put(configKey, JSON.stringify(config), {
-          expirationTtl: 300 // 5 minutes
-        });
-      }
+      await doCache.put(configKey, config, { expirationTtl: 300 });
 
       return config;
 
@@ -198,19 +195,11 @@ export class CanaryToggleManager {
         throw new Error('Canary percentage must be between 0 and 100');
       }
 
-      // Store in KV
-      if (this.env.CACHE) {
-        await (this.env as any).CACHE.put(configKey, JSON.stringify(config), {
-          expirationTtl: 3600 // 1 hour
-        });
-      }
+      // Store in cache
+      const doCache = createCache(this.env);
+      await doCache.put(configKey, config, { expirationTtl: 3600 });
 
-      // Clear cache for this route
-      for (const [key, value] of this.cache.entries()) {
-        if (key.endsWith(`:${route}`)) {
-          this.cache.delete(key);
-        }
-      }
+      // Note: Context cache entries will expire naturally (60s TTL)
 
       console.log(`Updated canary config for ${route}:`, config);
 
@@ -403,10 +392,10 @@ export class CanaryToggleManager {
   }
 
   /**
-   * Clear canary cache
+   * Clear canary cache (no-op, DO cache entries expire via TTL)
    */
   clearCache(): void {
-    this.cache.clear();
+    // DO cache entries expire naturally via TTL
   }
 }
 

@@ -9,7 +9,7 @@ class WebNotificationClient {
         this.subscription = null;
         this.isSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
         this.publicKey = 'BMv2ZtjLzBB6CjN_2Lz5n2r7n1s1p1Q3W9r8s1w1t1y2u3i4o5p6a7s8d9f0g1h2j'; // Your VAPID public key
-        this.apiUrl = window.location.origin;
+        this.apiUrl = '/api/v1';
         this.subscriptionId = this.getStoredSubscriptionId();
 
         this.init();
@@ -88,7 +88,7 @@ class WebNotificationClient {
 
     async sendSubscriptionToServer(subscription) {
         try {
-            const response = await fetch(`${this.apiUrl}/api/v1/notifications/subscribe`, {
+            const response = await fetch(`${this.apiUrl}/notifications/subscribe`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

@@ -65,15 +65,6 @@ export async function handleTechnicalRoutes(
   const method = request.method;
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Require API key
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(ApiResponseFactory.error('Invalid or missing API key','UNAUTHORIZED',{ requestId })),
-      { status: HttpStatus.UNAUTHORIZED, headers }
-    );
-  }
-
   try {
     // GET /api/v1/technical/symbols/:symbol
     const singleMatch = path.match(/^\/api\/v1\/technical\/symbols\/([A-Z0-9]{1,10})$/);

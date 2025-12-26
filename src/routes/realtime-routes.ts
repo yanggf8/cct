@@ -4,7 +4,7 @@
  */
 
 import { ApiResponseFactory, HttpStatus, generateRequestId } from '../modules/api-v1-responses.js';
-import { createCacheInstance } from '../modules/dual-cache-do.js';
+import { createCacheInstance } from '../modules/cache-do.js';
 import { fetchRealMarketIndices, fetchRealSectorData } from '../modules/real-analytics-data.js';
 import { createLogger } from '../modules/logging.js';
 
@@ -21,7 +21,7 @@ interface RealtimeConnection {
 class RealtimeManager {
     private connections: Map<string, RealtimeConnection> = new Map();
     private intervals: Map<string, number> = new Map();
-    private cacheManager: any = null;
+    
 
     constructor() {
         // Clean up inactive connections every 30 seconds
@@ -36,9 +36,7 @@ class RealtimeManager {
     /**
      * Get cache instance (DO cache if enabled, otherwise null)
      */
-    private async getCacheManager(env: any) {
-        return createCacheInstance(env, true); // Returns null if DO not available
-    }
+
 
     /**
      * Simple cache for real-time data

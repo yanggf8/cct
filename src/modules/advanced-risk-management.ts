@@ -5,13 +5,7 @@
  */
 
 import { createDAL } from './dal.js';
-
-// TypeScript type definitions
-interface CloudflareEnvironment {
-  AI: any;
-  MARKET_ANALYSIS_CACHE: KVNamespace;
-  [key: string]: any;
-}
+import type { CloudflareEnvironment } from '../types.js';
 
 interface PortfolioData {
   portfolioId: string;

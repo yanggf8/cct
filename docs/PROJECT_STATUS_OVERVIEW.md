@@ -152,9 +152,10 @@ Reduction:     100% ✅
 
 - **Infrastructure**: **$0.00/month** (100% free)
   - Cloudflare Workers (free tier)
-  - GitHub Actions (unlimited schedules)
+  - GitHub Actions (4 prediction schedules, 175/2000 monthly minutes)
   - KV/R2 storage (free tier)
   - **No Durable Objects costs** (using free tier)
+  - **Migration Complete**: GitHub Actions replaced Cloudflare cron (saved $0.20/month)
 - **Total System Cost**: **$0/month** ✅
 
 ---

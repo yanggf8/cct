@@ -15,8 +15,22 @@ Extend Playwright coverage inside `tests/*.spec.js`, grouping scenarios by workf
 ## Commit & Pull Request Guidelines
 Mirror the current history format: `type: short imperative summary`, emoji optional (e.g., `feat: Improve cache hydration`). Keep commits focused, separate formatting-only edits, and reference related issues in the body. Pull requests should outline scope, list affected subsystems, and enumerate verification commands. Attach UI screenshots or trace snippets when applicable, and call out Wrangler binding or secret changes explicitly.
 
+## Review Expectations
+When asked to perform a review, examine the relevant code changes thoroughly (not just summaries) and highlight concrete risks, regressions, or gaps with file references.
+
+## Frontend & Auth Defaults
+- All dashboards now load `public/js/cct-api.js` (not `api-client.js`) and expect `X-API-Key` when `X_API_KEY` is configured. `cct-api.js` looks for the key in `sessionStorage.cct_api_key`, then `localStorage.cct_api_key`, then `window.CCT_API_KEY`.
+- SSE is disabled on the dashboards; data refresh is polling-based.
+- If a review is requested, verify code diffs directly (not just reported summaries) and call out any endpoints/pages that may lack auth or load failures.
+- Prediction job storage moved to D1 (`PREDICT_JOBS_DB`, table `job_executions`/`symbol_predictions`/`daily_analysis`) with KV fallback. Make sure the D1 schema is applied and staging/prod use distinct DB IDs.
+
 ## Environment & Configuration
 Deployment targets are defined in `wrangler.toml` (production) and `wrangler-enhanced.toml` (staging). Manage secrets through `wrangler secret put`; never check them into source control. Durable Object behavior is centralized in `src/modules/cache-durable-object.ts`, so coordinate script updates such as `validate-enhanced-cache.sh` when modifying it. When adding KV namespaces or bindings, update the corresponding entry in `docs/` and capture migration steps in your PR notes.
+
+**Wrangler Authentication**: Always unset `CLOUDFLARE_API_TOKEN` before running wrangler commands to use OAuth login instead:
+```bash
+unset CLOUDFLARE_API_TOKEN && npx wrangler <command>
+```
 
 ## Skills
 Codex skills live under `/home/yanggf/.codex/skills/`, with each skill in its own folder containing a `SKILL.md` file (for example `/home/yanggf/.codex/skills/notion-knowledge-capture/SKILL.md`).

@@ -1,5 +1,5 @@
-// Durable Object Cache - Persistent In-Memory Cache with KV Backup
-// Uses DO's persistent memory + KV namespace for maximum durability
+// Durable Object Cache - Persistent In-Memory Cache
+// Uses DO's persistent memory for maximum durability
 // Survives worker restarts, provides <1ms latency, shared across workers
 
 import { DurableObject } from 'cloudflare:workers';
@@ -27,8 +27,10 @@ export interface CacheStats {
   misses: number;
   evictions: number;
   hitRate: number;
-  oldestEntry?: string; // Key of oldest entry
-  newestEntry?: string; // Key of newest entry
+  oldestEntry?: string;
+  newestEntry?: string;
+  oldestTimestamp?: number;
+  newestTimestamp?: number;
 }
 
 /**
@@ -90,35 +92,18 @@ export class CacheDurableObject extends DurableObject {
 
   /**
    * Initialize from persistent storage (cold start)
-   * Tries KV first (shared across workers), then falls back to DO storage
+   * Uses DO storage only (no KV backup)
    */
   private async initializeFromStorage(): Promise<void> {
     try {
-      // Try KV first (shared across workers)
-      if (this.env.CACHE_DO_KV) {
-        const kvStored = await this.env.CACHE_DO_KV.get('do_cache_entries');
-        if (kvStored) {
-          const data = JSON.parse(kvStored);
-          this.cache = new Map(data.entries || []);
-          const kvStatsStr = await this.env.CACHE_DO_KV.get('do_cache_stats');
-          if (kvStatsStr) {
-            this.stats = JSON.parse(kvStatsStr);
-          }
-          logger.info('CACHE_DO_INIT', { source: 'kv', entries: this.cache.size });
+      const stored = await this.state.storage.get<any>('cache');
+      if (stored) {
+        this.cache = new Map(stored.entries || []);
+        const storedStats = await this.state.storage.get<CacheStats>('stats');
+        if (storedStats) {
+          this.stats = storedStats;
         }
-      }
-
-      // If KV empty, try DO storage
-      if (this.cache.size === 0) {
-        const stored = await this.state.storage.get<any>('cache');
-        if (stored) {
-          this.cache = new Map(stored.entries || []);
-          const storedStats = await this.state.storage.get<CacheStats>('stats');
-          if (storedStats) {
-            this.stats = storedStats;
-          }
-          logger.info('CACHE_DO_INIT', { source: 'do_storage', entries: this.cache.size });
-        }
+        logger.info('CACHE_DO_INIT', { source: 'do_storage', entries: this.cache.size });
       }
 
       // Schedule cleanup alarm if not already scheduled
@@ -197,7 +182,7 @@ export class CacheDurableObject extends DurableObject {
 
   /**
    * Clear all cache entries
-   * Clears both DO storage and KV namespace
+   * Clears DO storage only
    */
   async clear(): Promise<void> {
     this.cache.clear();
@@ -209,14 +194,7 @@ export class CacheDurableObject extends DurableObject {
       hitRate: 0
     };
     await this.state.storage.deleteAll();
-
-    // Also clear KV namespace
-    if (this.env.CACHE_DO_KV) {
-      await this.env.CACHE_DO_KV.delete('do_cache_entries');
-      await this.env.CACHE_DO_KV.delete('do_cache_stats');
-    }
-
-    logger.info('CACHE_DO_CLEAR', { message: 'Cache cleared from DO storage + KV' });
+    logger.info('CACHE_DO_CLEAR', { message: 'Cache cleared from DO storage' });
   }
 
   /**
@@ -247,6 +225,8 @@ export class CacheDurableObject extends DurableObject {
 
     this.stats.oldestEntry = oldestKey || undefined;
     this.stats.newestEntry = newestKey || undefined;
+    this.stats.oldestTimestamp = oldestTime !== Infinity ? oldestTime : undefined;
+    this.stats.newestTimestamp = newestTime !== 0 ? newestTime : undefined;
 
     return { ...this.stats };
   }
@@ -299,25 +279,15 @@ export class CacheDurableObject extends DurableObject {
   }
 
   /**
-   * Persist cache to storage (DO storage + KV for redundancy)
-   * Writes to both DO's built-in storage and main KV namespace
-   * This ensures cache survives DO restarts AND is shared across workers
+   * Persist cache to storage (DO storage only)
    */
   private async persistToStorage(): Promise<void> {
     try {
       const entries = Array.from(this.cache.entries());
       const data = { entries };
-
-      // Persist to DO storage (for DO instance recovery)
       await this.state.storage.put('cache', data);
       await this.updateStats();
-
-      // Also persist to KV namespace (for sharing across workers)
-      if (this.env.CACHE_DO_KV) {
-        await this.env.CACHE_DO_KV.put('do_cache_entries', JSON.stringify(data));
-        await this.env.CACHE_DO_KV.put('do_cache_stats', JSON.stringify(this.stats));
-        logger.debug('CACHE_DO_PERSIST', { synced_entries: entries.length });
-      }
+      logger.debug('CACHE_DO_PERSIST', { entries: entries.length });
     } catch (error: unknown) {
       logger.error('CACHE_DO_PERSIST_ERROR', { error: error instanceof Error ? error.message : 'Failed to persist cache' });
     }
@@ -362,6 +332,62 @@ export class CacheDurableObject extends DurableObject {
     if (cleaned > 0) {
       await this.persistToStorage();
       logger.info('CACHE_DO_CLEANUP', { cleaned });
+    }
+  }
+
+  /**
+   * HTTP fetch handler - required for DO stub communication
+   */
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const action = url.pathname.slice(1); // Remove leading /
+
+    try {
+      if (request.method === 'POST') {
+        const body = await request.json() as any;
+
+        switch (action) {
+          case 'get': {
+            const value = await this.get(body.key);
+            return Response.json({ value });
+          }
+          case 'set': {
+            await this.set(body.key, body.value, body.ttl || 3600);
+            return Response.json({ success: true });
+          }
+          case 'delete': {
+            const deleted = await this.delete(body.key);
+            return Response.json({ deleted });
+          }
+          case 'clear': {
+            await this.clear();
+            return Response.json({ success: true });
+          }
+          case 'list': {
+            const keys = Array.from(this.cache.keys())
+              .filter(k => !body.prefix || k.startsWith(body.prefix));
+            return Response.json({ keys });
+          }
+          default:
+            return Response.json({ error: 'Unknown action' }, { status: 400 });
+        }
+      }
+
+      if (request.method === 'GET') {
+        switch (action) {
+          case 'stats':
+            return Response.json(await this.getStats());
+          case 'health':
+            return Response.json({ healthy: true, size: this.cache.size });
+          default:
+            return Response.json({ error: 'Unknown action' }, { status: 400 });
+        }
+      }
+
+      return Response.json({ error: 'Method not allowed' }, { status: 405 });
+    } catch (error: unknown) {
+      logger.error('CACHE_DO_FETCH_ERROR', { action, error: error instanceof Error ? error.message : String(error) });
+      return Response.json({ error: String(error) }, { status: 500 });
     }
   }
 }

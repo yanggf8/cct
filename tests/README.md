@@ -48,7 +48,6 @@ tests/
 
 - `test-api-security.sh` - API security validation
 - `test-auth-security.sh` - Authentication security tests
-- `test-admin-apis-negative.sh` - Admin API negative testing
 - `test-comprehensive-security-integration.sh` - Full security integration suite
 - `run-all-security-tests.sh` - Run all security tests
 - `validate-complete-security-implementation.sh` - Security implementation validation

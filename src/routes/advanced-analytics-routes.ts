@@ -42,20 +42,6 @@ export async function handleAdvancedAnalyticsRoutes(request: Request, env: Cloud
   const requestId = generateRequestId();
 
   try {
-    // Validate API key
-    const auth = validateApiKey(request, env);
-    if (!auth.valid) {
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.error('Invalid or missing API key', 'UNAUTHORIZED', { requestId })
-        ),
-        {
-          status: HttpStatus.UNAUTHORIZED,
-          headers
-        }
-      );
-    }
-
     logger.info('Advanced analytics request', { path, method, requestId });
 
     // POST /api/v1/analytics/model-comparison - Compare multiple prediction models

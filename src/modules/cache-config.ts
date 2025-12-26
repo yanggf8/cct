@@ -4,7 +4,29 @@
  * Phase 2: Enhanced Caching System - Data Access Improvement Plan
  */
 
-import type { CacheNamespace, CacheLevelConfig } from './cache-manager.js';
+
+
+// Type definitions for cache configuration
+export interface CacheLevelConfig {
+  name: string;
+  ttl: number;
+  maxSize?: number;
+  enabled: boolean;
+  ttlSeconds?: number;
+  enableMetrics?: boolean;
+  enablePromotion?: boolean;
+}
+
+export interface CacheNamespace {
+  name: string;
+  ttl?: number;
+  maxSize?: number;
+  enabled?: boolean;
+  prefix?: string;
+  version?: string;
+  l1Config?: CacheLevelConfig;
+  l2Config?: CacheLevelConfig;
+}
 
 /**
  * Default cache TTL configurations (in seconds)

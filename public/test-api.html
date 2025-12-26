@@ -92,9 +92,7 @@
         </div>
     </div>
 
-    <script src="/js/api-cache.js"></script>
-    <script src="/js/api-types.js"></script>
-    <script src="/js/api-client.js"></script>
+    <script src="/js/cct-api.js"></script>
 
     <script>
         let testCount = 0;
@@ -129,135 +127,100 @@
 
         async function testSystemHealth() {
             try {
-                const result = await cctApi.getSystemHealth();
-                addResult('basicResults', 'System Health', result.success, {
-                    success: result.success,
-                    status: result.data?.status,
-                    timestamp: result.timestamp,
-                    cached: result.cached
+                const result = await cctApi.health();
+                addResult('basicResults', 'System Health', result.success !== false, {
+                    status: result.status || result.data?.status,
+                    timestamp: result.timestamp
                 });
             } catch (error) {
-                addResult('basicResults', 'System Health', false, {
-                    error: error.message
-                });
+                addResult('basicResults', 'System Health', false, { error: error.message });
             }
         }
 
         async function testApiDocs() {
             try {
-                const result = await cctApi.getApiDocumentation();
-                addResult('basicResults', 'API Documentation', result.success, {
-                    success: result.success,
-                    title: result.data?.title,
-                    version: result.data?.version,
-                    status: result.data?.status
+                const response = await fetch('/api/v1');
+                const result = await response.json();
+                addResult('basicResults', 'API Documentation', response.ok, {
+                    title: result.title,
+                    version: result.version
                 });
             } catch (error) {
-                addResult('basicResults', 'API Documentation', false, {
-                    error: error.message
-                });
+                addResult('basicResults', 'API Documentation', false, { error: error.message });
             }
         }
 
-        function testCacheStats() {
+        async function testCacheStats() {
             try {
-                const stats = cctApi.getCacheStats();
-                addResult('basicResults', 'Cache Statistics', true, stats);
+                const result = await cctApi.cacheHealth();
+                addResult('basicResults', 'Cache Health', result.healthy !== undefined, result);
             } catch (error) {
-                addResult('basicResults', 'Cache Statistics', false, {
-                    error: error.message
-                });
+                addResult('basicResults', 'Cache Health', false, { error: error.message });
             }
         }
 
         async function testSentimentAnalysis() {
             try {
-                const result = await cctApi.getSentimentAnalysis(['AAPL', 'MSFT']);
-                addResult('sentimentResults', 'Sentiment Analysis', result.success, {
-                    success: result.success,
-                    analysis_date: result.data?.analysis_date,
-                    symbols_analyzed: result.data?.symbols_analyzed?.length || 0,
-                    cached: result.cached
+                const result = await cctApi.sentiment(['AAPL', 'MSFT']);
+                addResult('sentimentResults', 'Sentiment Analysis', result.success !== false, {
+                    symbols: result.symbols_analyzed || result.data?.symbols_analyzed
                 });
             } catch (error) {
-                addResult('sentimentResults', 'Sentiment Analysis', false, {
-                    error: error.message
-                });
+                addResult('sentimentResults', 'Sentiment Analysis', false, { error: error.message });
             }
         }
 
         async function testMarketSentiment() {
             try {
-                const result = await cctApi.getMarketSentiment();
-                addResult('sentimentResults', 'Market Sentiment', result.success, {
-                    success: result.success,
-                    sentiment_index: result.data?.market_overview?.sentiment_index,
-                    market_bias: result.data?.market_overview?.market_bias,
-                    cached: result.cached
+                const result = await cctApi.marketSentiment();
+                addResult('sentimentResults', 'Market Sentiment', result.success !== false, {
+                    sentiment: result.market_overview || result.data?.market_overview
                 });
             } catch (error) {
-                addResult('sentimentResults', 'Market Sentiment', false, {
-                    error: error.message
-                });
+                addResult('sentimentResults', 'Market Sentiment', false, { error: error.message });
             }
         }
 
         async function testCachePerformance() {
             try {
-                const results = [];
-
-                // First request
                 const start1 = Date.now();
-                const result1 = await cctApi.getSystemHealth();
+                await cctApi.health();
                 const time1 = Date.now() - start1;
-                results.push({ request: 1, time: time1, cached: result1.cached });
 
-                // Second request (should be cached)
                 const start2 = Date.now();
-                const result2 = await cctApi.getSystemHealth();
+                await cctApi.health();
                 const time2 = Date.now() - start2;
-                results.push({ request: 2, time: time2, cached: result2.cached });
-
-                const speedup = time1 / time2;
 
                 addResult('performanceResults', 'Cache Performance', true, {
                     first_request: time1 + 'ms',
                     second_request: time2 + 'ms',
-                    speedup: speedup.toFixed(1) + 'x',
-                    cache_working: result2.cached
+                    speedup: (time1 / Math.max(time2, 1)).toFixed(1) + 'x'
                 });
             } catch (error) {
-                addResult('performanceResults', 'Cache Performance', false, {
-                    error: error.message
-                });
+                addResult('performanceResults', 'Cache Performance', false, { error: error.message });
             }
         }
 
         async function testBatchRequests() {
             try {
                 const startTime = Date.now();
-                const results = await cctApi.batchRequests([
-                    () => cctApi.getSystemHealth(),
-                    () => cctApi.getMarketSentiment()
+                const results = await Promise.all([
+                    cctApi.health(),
+                    cctApi.symbols()
                 ]);
                 const duration = Date.now() - startTime;
 
                 addResult('performanceResults', 'Batch Requests', results.length === 2, {
-                    completed_requests: results.length,
-                    total_time: duration + 'ms',
-                    avg_time: Math.round(duration / results.length) + 'ms',
-                    all_successful: results.every(r => r.success)
+                    completed: results.length,
+                    total_time: duration + 'ms'
                 });
             } catch (error) {
-                addResult('performanceResults', 'Batch Requests', false, {
-                    error: error.message
-                });
+                addResult('performanceResults', 'Batch Requests', false, { error: error.message });
             }
         }
 
-        // Initialize with cache stats
         window.addEventListener('load', () => {
-            testCacheStats();
+            testSystemHealth();
         });
     </script>
 </body>

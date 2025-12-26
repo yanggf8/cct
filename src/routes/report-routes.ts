@@ -51,24 +51,6 @@ export async function handleReportRoutes(
   const method = request.method;
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Validate API key for protected endpoints
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
-
   try {
     // GET /api/v1/reports/daily/:date - Daily report
     const dailyMatch = path.match(/^\/api\/v1\/reports\/daily\/(\d{4}-\d{2}-\d{2})$/);

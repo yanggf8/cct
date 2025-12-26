@@ -1,9 +1,13 @@
 /**
  * Weekly Review Analysis Module
  * Comprehensive pattern analysis and weekly performance review
+ * 
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 
 import { createLogger } from '../logging.js';
+import { createCache } from '../cache-abstraction.js';
+import type { CloudflareEnvironment as BaseEnv } from '../../types.js';
 
 const logger = createLogger('weekly-review-analysis');
 
@@ -12,11 +16,9 @@ const logger = createLogger('weekly-review-analysis');
 // ============================================================================
 
 /**
- * Cloudflare Environment interface
+ * Cloudflare Environment interface (uses base type)
  */
-export interface CloudflareEnvironment {
-  MARKET_ANALYSIS_CACHE: KVNamespace;
-}
+export type CloudflareEnvironment = BaseEnv;
 
 /**
  * Performance level for weekly analysis
@@ -298,16 +300,17 @@ async function getWeeklyPerformanceData(
     underperformers: []
   };
 
-  // Get last 5 trading days data from KV
+  // Get last 5 trading days data from cache
   const dates = getLastTradingDays(currentTime, 5);
+  const cache = createCache(env);
 
   for (const date of dates) {
     try {
       const dateStr = date.toISOString().split('T')[0];
-      const dailyData = await env.MARKET_ANALYSIS_CACHE.get(`analysis_${dateStr}`);
+      const dailyData = await cache.get(`analysis_${dateStr}`);
 
       if (dailyData) {
-        const parsed: AnalysisData = JSON.parse(dailyData);
+        const parsed: AnalysisData = typeof dailyData === 'string' ? JSON.parse(dailyData) : dailyData;
         weeklyData.totalSignals += parsed.symbols_analyzed?.length || 0;
         weeklyData.dailyResults.push({
           date: dateStr,

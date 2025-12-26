@@ -40,24 +40,6 @@ export async function handlePredictiveAnalyticsRoutes(
   const url = new URL(request.url);
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
-  // Predictive Analytics endpoints require API key authentication
-  const auth = validateApiKey(request, env);
-  if (!auth.valid) {
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Invalid or missing API key',
-          'UNAUTHORIZED',
-          { requestId }
-        )
-      ),
-      {
-        status: HttpStatus.UNAUTHORIZED,
-        headers,
-      }
-    );
-  }
-
   try {
     // GET /api/v1/predictive/signals - Generate predictive signals
     if (path === '/api/v1/predictive/signals' && method === 'GET') {

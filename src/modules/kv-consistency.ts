@@ -1,9 +1,12 @@
 /**
  * Enhanced KV Consistency Handler
  * Addresses eventual consistency with read-after-write consistency patterns
+ * 
+ * MIGRATED: Now uses DO Cache via CacheAbstraction instead of direct KV
  */
 
 import { createLogger } from './logging.js';
+import { createCache } from './cache-abstraction.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -177,6 +180,7 @@ export async function waitForConsistency(
 
 /**
  * Read-after-write consistency pattern for critical operations
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export async function verifyWriteConsistency(
   key: string,
@@ -187,8 +191,10 @@ export async function verifyWriteConsistency(
   return waitForConsistency(
     key,
     async (env: CloudflareEnvironment, key: string) => {
-      const actualValue = await env.MARKET_ANALYSIS_CACHE.get(key);
-      return actualValue === expectedValue;
+      const cache = createCache(env);
+      const actualValue = await cache.get(key);
+      const actualStr = typeof actualValue === 'string' ? actualValue : JSON.stringify(actualValue);
+      return actualStr === expectedValue;
     },
     env,
     {
@@ -201,6 +207,7 @@ export async function verifyWriteConsistency(
 
 /**
  * Status consistency pattern for job status updates
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export async function verifyStatusConsistency(
   date: string,
@@ -213,10 +220,10 @@ export async function verifyStatusConsistency(
   return waitForConsistency(
     statusKey,
     async (env: CloudflareEnvironment, key: string) => {
-      const statusData = await env.MARKET_ANALYSIS_CACHE.get(key);
+      const cache = createCache(env);
+      const statusData = await cache.get(key);
       if (!statusData) return false;
-
-      const status = JSON.parse(statusData);
+      const status = typeof statusData === 'string' ? JSON.parse(statusData) : statusData;
       return status[jobType] === expectedStatus;
     },
     env,
@@ -229,6 +236,7 @@ export async function verifyStatusConsistency(
 
 /**
  * Dependency consistency pattern for multi-job pipelines
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export async function verifyDependencyConsistency(
   date: string,
@@ -246,10 +254,11 @@ export async function verifyDependencyConsistency(
     statusKey,
     async (env: CloudflareEnvironment, key: string) => {
       try {
-        const statusData = await env.MARKET_ANALYSIS_CACHE.get(key);
+        const cache = createCache(env);
+        const statusData = await cache.get(key);
         if (!statusData) return false;
 
-        const status = JSON.parse(statusData);
+        const status = typeof statusData === 'string' ? JSON.parse(statusData) : statusData;
         let allConsistent = true;
 
         for (const jobType of dependencies) {
@@ -412,13 +421,16 @@ export function getConsistencyConfig(operationType: string): RetryStrategy {
 
 /**
  * Helper function to create a consistency check function for KV existence
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export function createExistenceCheck(expectedValue?: string): ConsistencyCondition {
   return async (env: CloudflareEnvironment, key: string): Promise<boolean> => {
     try {
-      const value = await env.MARKET_ANALYSIS_CACHE.get(key);
+      const cache = createCache(env);
+      const value = await cache.get(key);
       if (expectedValue !== undefined) {
-        return value === expectedValue;
+        const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+        return valueStr === expectedValue;
       }
       return value !== null && value !== undefined;
     } catch (error: unknown) {
@@ -430,16 +442,17 @@ export function createExistenceCheck(expectedValue?: string): ConsistencyConditi
 
 /**
  * Helper function to create a consistency check function for JSON data
+ * MIGRATED: Uses DO Cache via CacheAbstraction
  */
 export function createJsonCheck<T = any>(
   validator: (data: T) => boolean
 ): ConsistencyCondition {
   return async (env: CloudflareEnvironment, key: string): Promise<boolean> => {
     try {
-      const value = await env.MARKET_ANALYSIS_CACHE.get(key);
+      const cache = createCache(env);
+      const value = await cache.get(key);
       if (!value) return false;
-
-      const data = JSON.parse(value) as T;
+      const data = (typeof value === 'string' ? JSON.parse(value) : value) as T;
       return validator(data);
     } catch (error: unknown) {
       logger.debug('JSON consistency check failed', { key, error: (error as Error).message });

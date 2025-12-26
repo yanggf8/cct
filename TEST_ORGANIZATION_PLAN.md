@@ -25,7 +25,6 @@ tests/
 ├── security/
 │   ├── test-api-security.sh
 │   ├── test-auth-security.sh
-│   ├── test-admin-apis-negative.sh
 │   ├── test-comprehensive-security-integration.sh
 │   ├── run-all-security-tests.sh
 │   └── validate-complete-security-implementation.sh

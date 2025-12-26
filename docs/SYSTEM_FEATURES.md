@@ -184,28 +184,43 @@ Modern push notification system replacing Facebook Messenger integration with na
 
 ## 🔄 GitHub Actions Scheduling
 
-### **🔄 Migration Complete (2025-10-02)**
-**Status**: ✅ **MIGRATED FROM CLOUDFLARE CRON**
+### **🔄 Migration Complete (2025-10-02) - Active System**
+**Status**: ✅ **MIGRATED FROM CLOUDFLARE CRON** - **ALL SCHEDULING NOW VIA GITHUB ACTIONS**
 
-All automated sentiment analyses now run via GitHub Actions:
-- **Unlimited Schedules**: No 3-cron limit (Cloudflare Workers free tier restriction)
-- **100% FREE**: GitHub Actions provides 2000 minutes/month (we use ~175 minutes)
-- **Better Observability**: Full logging, monitoring, and debugging in GitHub console
-- **Centralized Management**: All schedules in `.github/workflows/sentiment-analysis-system.yml`
+All automated trading analyses and predictions now run via GitHub Actions:
+- **Unlimited Schedules**: No 3-cron limit (Cloudflare Workers free tier restriction eliminated)
+- **100% FREE**: GitHub Actions provides 2000 minutes/month (we use ~175 minutes ~8% usage)
+- **Enhanced Observability**: Full logging, monitoring, debugging in GitHub console + Teams notifications
+- **Centralized Management**: All schedules in `.github/workflows/trading-system.yml`
 
-#### **Migration Benefits**
-- ✅ Eliminated need for Durable Objects (saves $0.20/month)
-- ✅ Unlimited execution time (no 30-second timeout)
-- ✅ Better error handling and retry logic
-- ✅ Detailed audit trails and monitoring
+#### **✅ Current Active Workflow Features**
+- **🧠 Predictive Analytics Integration**: Signals, patterns, insights, forecasting
+- **📊 Market Intelligence Automation**: Sector rotation, market drivers
+- **🔔 Enhanced Notifications**: Teams integration with predictive insights
+- **🏥 Multi-System Health Monitoring**: Core + predictive + market intelligence
+- **🎯 Pattern Recognition**: Seasonal, technical, sentiment analysis
+- **💡 Investment Thesis Generation**: With tactical recommendations
+- **⚠️ Risk Assessment**: Tail probability analysis and volatility outlook
 
-#### **⏰ Analysis Schedule**
-- **Pre-Market Briefing**: 8:30 AM ET (high-confidence sentiment insights ≥70%)
-- **Intraday Check**: 12:00 PM ET (sentiment performance tracking)
-- **End-of-Day Summary**: 4:05 PM ET (market close sentiment + tomorrow outlook)
-- **Weekly Review**: Sunday 10:00 AM ET (comprehensive sentiment analysis)
+#### **⏰ Active Analysis Schedule** (via GitHub Actions)
+- **🌅 Pre-Market Briefing**: Mon-Fri 8:30 AM ET (12:30 UTC) - High-confidence predictions ≥70%
+- **🔄 Intraday Check**: Mon-Fri 12:00 PM ET (16:00 UTC) - Real-time performance tracking
+- **🌆 End-of-Day Summary**: Mon-Fri 4:05 PM ET (20:05 UTC) - Market close + tomorrow outlook
+- **📊 Weekly Review**: Sunday 10:00 AM ET (14:00 UTC) - Comprehensive pattern analysis
 
-**See**: [CRON_OPTIMIZATION.md](docs/CRON_OPTIMIZATION.md) for complete migration details
+#### **🚀 Migration Benefits Achieved**
+- ✅ **Cost Elimination**: Removed $0.20/month Durable Object requirement
+- ✅ **Unlimited Execution**: No 30-second timeout limitations
+- ✅ **Enhanced Reliability**: Better error handling, retry logic, circuit breakers
+- ✅ **Complete Audit Trails**: Full GitHub Actions logging and monitoring
+- ✅ **Zero Breaking Changes**: All existing functionality preserved and enhanced
+
+#### **☁️ Cloudflare Cron Status: LEGACY/DISABLED**
+- **Status**: Disabled in `wrangler.toml` (lines 68-69 commented out)
+- **Legacy Code**: `scheduler.ts` maintained for reference only
+- **Future**: All scheduling exclusively via GitHub Actions
+
+**Workflow File**: `.github/workflows/trading-system.yml`
 
 ---
 

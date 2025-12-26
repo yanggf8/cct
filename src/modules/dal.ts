@@ -280,93 +280,68 @@ export class DataAccessLayer {
   }
 
   /**
-   * Generic read helper with cache support
-   * Reduces code duplication across all read methods
+   * Get DO Cache stub
+   */
+  private getDOStub(): DurableObjectStub | null {
+    if (!this.env.CACHE_DO) return null;
+    const id = (this.env.CACHE_DO as any).idFromName('global-cache');
+    return (this.env.CACHE_DO as any).get(id);
+  }
+
+  /**
+   * Call DO via fetch (DO stubs only expose fetch, not direct methods)
+   */
+  private async callDO(action: string, body?: any): Promise<any> {
+    const stub = this.getDOStub();
+    if (!stub) {
+      throw new Error('CACHE_DO binding is missing');
+    }
+    const response = await stub.fetch(`https://do/${action}`, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return response.json();
+  }
+
+  /**
+   * Generic read helper - DO Cache only
    */
   private async _genericRead<T>(
     key: string,
     operationName: string,
     useCache: boolean = false
   ): Promise<KVReadResult<T>> {
-    // Check cache first if enabled
+    // Check in-memory cache first
     if (useCache && this.cache.has(key)) {
       const entry = this.cache.get(key)!;
       entry.accessCount++;
       this.hitCount++;
-      logger.debug(`Cache hit for ${operationName}`, { key });
-      return {
-        success: true,
-        data: entry.data as T,
-        key,
-        source: 'cache',
-      };
+      return { success: true, data: entry.data as T, key, source: 'cache' };
     }
 
     try {
-      const data = await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.get(key),
-        operationName
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<T>(data as string, operationName);
-
-        // Update cache if enabled
+      const result = await this.callDO('get', { key });
+      if (result?.value !== null && result?.value !== undefined) {
         if (useCache) {
           this.cleanupCache();
           this.evictLRU();
-          this.cache.set(key, {
-            data: parsed,
-            timestamp: Date.now(),
-            accessCount: 1
-          });
-          this.missCount++;
+          this.cache.set(key, { data: result.value, timestamp: Date.now(), accessCount: 1 });
         }
-
-        logger.debug(`${operationName} successful`, { key });
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv',
-        };
+        return { success: true, data: result.value as T, key, source: 'cache' };
       }
 
-      if (useCache) {
-        this.missCount++;
-      }
-
-      logger.warn(`${operationName}: Data not found`, { key });
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'Data not found',
-      };
-
+      if (useCache) this.missCount++;
+      return { success: false, key, source: 'error', error: 'Data not found in DO cache' };
     } catch (error: any) {
-      if (useCache) {
-        this.missCount++;
-      }
-
-      logger.error(`${operationName} failed`, {
-        key,
-        error: error.message,
-        stack: error.stack,
-      });
-
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message,
-      };
+      if (useCache) this.missCount++;
+      logger.error(`${operationName} failed`, { key, error: error.message });
+      return { success: false, key, source: 'error', error: error.message };
     }
   }
 
   /**
-   * Generic write helper with automatic TTL management
-   * Reduces code duplication across all write methods
+   * Generic write helper - DO Cache only
    */
   private async _genericWrite<T>(
     key: string,
@@ -375,42 +350,15 @@ export class DataAccessLayer {
     options?: KVWriteOptions
   ): Promise<KVWriteResult> {
     try {
-      const serialized = JSON.stringify(data);
-
-      await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.put(key, serialized, options),
-        operationName
-      );
-
-      // Invalidate cache on write
-      if (this.cache.has(key)) {
-        this.cache.delete(key);
+      const result = await this.callDO('set', { key, value: data, ttl: options?.expirationTtl || 3600 });
+      if (!result || result.success !== true) {
+        throw new Error('DO cache write failed');
       }
-
-      logger.info(`${operationName} successful`, {
-        key,
-        ttl: options?.expirationTtl,
-        dataSize: serialized.length,
-      });
-
-      return {
-        success: true,
-        key,
-        ttl: options?.expirationTtl,
-      };
-
+      this.cache.delete(key);
+      return { success: true, key, ttl: options?.expirationTtl };
     } catch (error: any) {
-      logger.error(`${operationName} failed`, {
-        key,
-        error: error.message,
-        stack: error.stack,
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message,
-      };
+      logger.error(`${operationName} failed`, { key, error: error.message });
+      return { success: false, key, error: error.message };
     }
   }
 
@@ -483,146 +431,62 @@ export class DataAccessLayer {
   }
 
   /**
-   * List all keys with a given prefix
+   * List all keys with a given prefix - uses DO Cache
    */
   async listKeys(prefix: string, limit?: number): Promise<{ keys: string[], cursor?: string }> {
     try {
-      logger.info('Listing KV keys', { prefix, limit });
-
-      const result: any = await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.list({ prefix, limit }),
-        'listKeys'
-      );
-
-      const keys = result.keys.map((k: any) => k.name);
-
-      logger.info('Keys listed successfully', {
-        prefix,
-        count: keys.length,
-        cursor: result.cursor,
-      });
-
-      return {
-        keys,
-        cursor: result.cursor,
-      };
-
+      logger.info('Listing keys from DO Cache', { prefix, limit });
+      const result = await this.callDO('list', { prefix });
+      const keys = result?.keys || [];
+      logger.info('Keys listed successfully', { prefix, count: keys.length });
+      return { keys: limit ? keys.slice(0, limit) : keys };
     } catch (error: any) {
-      logger.error('Failed to list keys', {
-        prefix,
-        error: (error instanceof Error ? error.message : String(error)),
-      });
-
+      logger.error('Failed to list keys', { prefix, error: error.message });
       return { keys: [] };
     }
   }
 
   /**
-   * Delete a key from KV
+   * Delete a key from DO Cache
    */
   async deleteKey(key: string): Promise<boolean> {
     try {
-      logger.info('Deleting KV key', { key });
-
-      await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.delete(key),
-        'deleteKey'
-      );
-
-      logger.info('Key deleted successfully', { key });
+      await this.callDO('delete', { key });
+      this.cache.delete(key);
       return true;
-
     } catch (error: any) {
-      logger.error('Failed to delete key', {
-        key,
-        error: (error instanceof Error ? error.message : String(error)),
-      });
-
+      logger.error('Failed to delete key', { key, error: error.message });
       return false;
     }
   }
 
   /**
-   * Generic read operation for any key type
+   * Generic read operation - DO Cache only
    */
   async read<T = any>(key: string): Promise<KVReadResult<T>> {
     try {
-      logger.info('Reading from KV', { key });
-
-      const data = await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.get(key),
-        'read'
-      );
-
-      if (data) {
-        const parsed = this.safeJsonParse<T>(data as string, 'read');
-        return {
-          success: true,
-          data: parsed,
-          key,
-          source: 'kv',
-        };
+      const result = await this.callDO('get', { key });
+      if (result?.value !== null && result?.value !== undefined) {
+        return { success: true, data: result.value as T, key, source: 'cache' };
       }
-
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: 'Data not found',
-      };
-
+      return { success: false, key, source: 'error', error: 'Data not found' };
     } catch (error: any) {
-      logger.error('Failed to read from KV', {
-        key,
-        error: (error instanceof Error ? error.message : String(error)),
-      });
-
-      return {
-        success: false,
-        key,
-        source: 'error',
-        error: error.message,
-      };
+      logger.error('Failed to read', { key, error: error.message });
+      return { success: false, key, source: 'error', error: error.message };
     }
   }
 
   /**
-   * Generic write operation for any key type
+   * Generic write operation - DO Cache only
    */
-  async write(
-    key: string,
-    data: any,
-    options?: KVWriteOptions
-  ): Promise<KVWriteResult> {
+  async write(key: string, data: any, options?: KVWriteOptions): Promise<KVWriteResult> {
     try {
-      logger.info('Writing to KV', { key });
-
-      const writeOptions: any = options ?? {};
-
-      await this.retry(
-        () => this.env.MARKET_ANALYSIS_CACHE.put(key, JSON.stringify(data), writeOptions),
-        'write'
-      );
-
-      logger.info('Write successful', { key, ttl: options?.expirationTtl });
-
-      return {
-        success: true,
-        key,
-        ttl: options?.expirationTtl,
-      };
-
+      await this.callDO('set', { key, value: data, ttl: options?.expirationTtl || 3600 });
+      this.cache.delete(key);
+      return { success: true, key, ttl: options?.expirationTtl };
     } catch (error: any) {
-      logger.error('Failed to write to KV', {
-        key,
-        error: (error instanceof Error ? error.message : String(error)),
-      });
-
-      return {
-        success: false,
-        key,
-        error: error.message,
-      };
+      logger.error('Failed to write', { key, error: error.message });
+      return { success: false, key, error: error.message };
     }
   }
 
