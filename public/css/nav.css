@@ -50,7 +50,7 @@
 
 .nav-group {
     padding: 0 12px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .nav-group-title {
@@ -66,13 +66,13 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 12px;
+    padding: 8px 12px;
     color: var(--nav-text);
     text-decoration: none;
     border-radius: 6px;
     transition: all 0.2s ease;
     font-size: 0.9rem;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
 }
 
 .nav-item:hover {

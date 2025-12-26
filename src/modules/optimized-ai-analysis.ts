@@ -9,7 +9,7 @@
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
-import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils';
+import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils.js';
 import { logInfo, logError, logAIDebug } from './logging.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types';

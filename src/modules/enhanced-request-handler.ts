@@ -13,6 +13,10 @@ import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
 import { createCacheInstance, type CacheDO } from './cache-do.js';
 import { handleApiV1Request } from '../routes/api-v1.js';
+import { handlePreMarketBriefing } from './handlers/briefing-handlers.js';
+import { handleIntradayCheck } from './handlers/intraday-handlers.js';
+import { handleEndOfDaySummary } from './handlers/end-of-day-handlers.js';
+import { handleWeeklyReview } from './handlers/weekly-review-handlers.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('enhanced-request-handler');
@@ -463,6 +467,18 @@ try {
     // Route /api/v1/* to api-v1 router
     if (path.startsWith('/api/v1')) {
       return handleApiV1Request(request, this.env, path);
+    }
+
+    // Route report pages to their handlers
+    switch (path) {
+      case '/pre-market-briefing':
+        return handlePreMarketBriefing(request, this.env, ctx);
+      case '/intraday-check':
+        return handleIntradayCheck(request, this.env, ctx);
+      case '/end-of-day-summary':
+        return handleEndOfDaySummary(request, this.env, ctx);
+      case '/weekly-review':
+        return handleWeeklyReview(request, this.env, ctx);
     }
 
     // Default 404

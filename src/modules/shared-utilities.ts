@@ -6,6 +6,7 @@
 import { createLogger } from './logging.js';
 import { getTimeout, getRetryCount, getEnvConfig, getErrorMessage } from './config.js';
 import { KVKeyFactory, KeyTypes, KeyHelpers, type KeyType } from './kv-key-factory.js';
+import { generateRequestId } from './api-v1-responses.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('shared-utilities');
@@ -45,12 +46,7 @@ export interface KVOptions {
   metadata?: Record<string, any>;
 }
 
-/**
- * Request ID Generation
- */
-export function generateRequestId(): string {
-  return crypto.randomUUID();
-}
+
 
 /**
  * Date Utilities
@@ -104,59 +100,6 @@ export const DateUtils = {
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  }
-};
-
-/**
- * Array Utilities
- */
-export const ArrayUtils = {
-  /**
-   * Chunk array into smaller arrays
-   */
-  chunk<T>(array: T[], size: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < array.length; i += size) {
-      chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
-  },
-
-  /**
-   * Remove duplicates from array
-   */
-  unique<T>(array: T[]): T[] {
-    return Array.from(new Set(array));
-  },
-
-  /**
-   * Group array by key
-   */
-  groupBy<T extends Record<string, any>>(array: T[], key: keyof T): Record<string, T[]> {
-    return array.reduce((groups: any, item: any) => {
-      const group = String(item[key]);
-      if (!groups[group]) {
-        groups[group] = [];
-      }
-      groups[group].push(item);
-      return groups;
-    }, {} as Record<string, T[]>);
-  },
-
-  /**
-   * Sort array by key
-   */
-  sortBy<T extends Record<string, any>>(
-    array: T[],
-    key: keyof T,
-    direction: 'asc' | 'desc' = 'asc'
-  ): T[] {
-    return [...array].sort((a: any, b: any) => {
-      const aVal = a[key];
-      const bVal = b[key];
-      const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      return direction === 'asc' ? comparison : -comparison;
-    });
   }
 };
 
@@ -223,32 +166,6 @@ export const StringUtils = {
   truncate(str: string, maxLength: number): string {
     if (str.length <= maxLength) return str;
     return str.slice(0, maxLength - 3) + '...';
-  },
-
-  /**
-   * Sanitize string for HTML (Note: Only works in browser, returns original in worker)
-   */
-  sanitizeHTML(str: string): string {
-    // In Cloudflare Workers, document is not available
-    // Return escaped version instead
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;');
-  },
-
-  /**
-   * Generate slug from string
-   */
-  slugify(str: string): string {
-    return str
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
   }
 };
 
@@ -256,26 +173,6 @@ export const StringUtils = {
  * Validation Utilities
  */
 export const ValidationUtils = {
-  /**
-   * Validate email format
-   */
-  isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  },
-
-  /**
-   * Validate URL format
-   */
-  isValidURL(url: string): boolean {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-
   /**
    * Validate symbol format
    */
@@ -759,7 +656,6 @@ export const ObjectUtils = {
 
 export default {
   DateUtils,
-  ArrayUtils,
   NumberUtils,
   StringUtils,
   ValidationUtils,

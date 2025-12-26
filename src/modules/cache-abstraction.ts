@@ -145,8 +145,8 @@ export class CacheAbstraction {
   /**
    * Get cache source being used
    */
-  getSource(): 'do' | 'kv' {
-    return this.useDO ? 'do' : 'kv';
+  getSource(): 'do' | 'none' {
+    return this.useDO ? 'do' : 'none';
   }
 
   /**
@@ -192,13 +192,13 @@ export class CacheAbstraction {
   /**
    * Health check - DO only
    */
-  async healthCheck(): Promise<{ healthy: boolean; source: 'do' }> {
+  async healthCheck(): Promise<{ healthy: boolean; source: 'do' | 'none' }> {
+    if (!this.doCache) {
+      return { healthy: false, source: 'none' };
+    }
     try {
-      if (this.doCache) {
-        const healthy = await this.doCache.healthCheck();
-        return { healthy, source: 'do' };
-      }
-      return { healthy: false, source: 'do' };
+      const healthy = await this.doCache.healthCheck();
+      return { healthy, source: 'do' };
     } catch (error) {
       logger.error('CACHE_HEALTH_ERROR', { error: String(error) });
       return { healthy: false, source: 'do' };

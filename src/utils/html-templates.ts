@@ -330,8 +330,8 @@ export function getSharedNavHTML(activePage: string = ''): string {
  * Get nav script tags for worker-rendered pages
  */
 export function getNavScripts(): string {
-  return `<link rel="stylesheet" href="/css/nav.css?v=20251224">
-<script src="/js/nav.js?v=20251224"></script>`;
+  return `<link rel="stylesheet" href="/css/nav.css?v=20251226">
+<script src="/js/nav.js?v=20251226"></script>`;
 }
 
 /**

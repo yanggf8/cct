@@ -71,7 +71,7 @@ export function createHandler<T = Response>(
   serviceName: string,
   handlerFn: HandlerFunction<T>,
   options: HandlerOptions = {}
-): HandlerFunction<T | Response> {
+): (request: Request, env: CloudflareEnvironment, ctx: ExecutionContext) => Promise<T | Response> {
   const logger = createLogger(serviceName);
   const {
     timeout = (CONFIG as any).TIMEOUTS?.API_REQUEST || 30000,
@@ -85,14 +85,13 @@ export function createHandler<T = Response>(
     const startTime = Date.now();
     const userAgent = request.headers.get('User-Agent') || 'unknown';
 
-    // Create enhanced context
-    const enhancedCtx: EnhancedContext = {
-      ...ctx,
+    // Create enhanced context preserving ExecutionContext prototype methods
+    const enhancedCtx: EnhancedContext = Object.assign(Object.create(ctx), {
       requestId,
       logger,
       startTime,
       userAgent
-    };
+    });
 
     try {
       // Log request start

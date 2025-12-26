@@ -149,7 +149,7 @@ export interface ResponseHeaders {
 /**
  * Generate Intraday Performance Check Page
  */
-export const handleIntradayCheck: HandlerFunction = createHandler(
+export const handleIntradayCheck = createHandler(
   'intraday-check',
   async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
     const requestId: string = crypto.randomUUID();

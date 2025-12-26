@@ -11,6 +11,13 @@
 
         <div class="nav-menu">
             <div class="nav-group">
+                <a href="/dashboard.html" class="nav-item" data-page="dashboard">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+            </div>
+
+            <div class="nav-group">
                 <div class="nav-group-title">Reports</div>
                 <a href="/pre-market-briefing" class="nav-item" data-page="pre-market">
                     <span class="nav-icon">🌅</span>
@@ -31,27 +38,11 @@
             </div>
 
             <div class="nav-group">
-                <div class="nav-group-title">Dashboards</div>
-                <a href="/dashboard.html" class="nav-item" data-page="dashboard">
-                    <span class="nav-icon">📈</span>
-                    <span class="nav-text">Overview</span>
-                </a>
-                <a href="/backtesting-dashboard.html" class="nav-item" data-page="backtesting">
-                    <span class="nav-icon">📉</span>
-                    <span class="nav-text">Backtesting</span>
-                </a>
+                <div class="nav-group-title">System</div>
                 <a href="/portfolio-optimization-dashboard.html" class="nav-item" data-page="portfolio">
                     <span class="nav-icon">💼</span>
                     <span class="nav-text">Portfolio</span>
                 </a>
-                <a href="/predictive-analytics.html" class="nav-item" data-page="predictive">
-                    <span class="nav-icon">🔮</span>
-                    <span class="nav-text">Predictive</span>
-                </a>
-            </div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">System</div>
                 <a href="/test-api.html" class="nav-item" data-page="api">
                     <span class="nav-icon">🧪</span>
                     <span class="nav-text">API Test</span>

@@ -145,7 +145,8 @@ deploy_to_production() {
     log "Starting Cloudflare deployment..."
 
     # Deploy using browser authentication (explicitly target top-level/production environment)
-    if env -u CLOUDFLARE_API_TOKEN npx wrangler deploy; then
+    # We unset CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to ensure we use the local OAuth credentials (wrangler login)
+    if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy; then
         success "Deployment completed successfully"
     else
         error "Deployment failed"

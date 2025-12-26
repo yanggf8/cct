@@ -3,16 +3,6 @@
  * Centralized exports for all domain-specific handlers
  */
 
-// Common handler patterns and utilities
-export {
-  createReportHandler,
-  createAPIHandler,
-  createDataRetrievalHandler,
-  createStandardMetrics,
-  createDashboardLayout,
-  validateRequestEnvironment
-} from './common-handlers.js';
-
 // Analysis handlers
 export {
   handleManualAnalysis,
@@ -65,16 +55,6 @@ export {
   handleEndOfDaySummary
 } from './end-of-day-handlers.js';
 
-// Web notification handlers (replaces Facebook integration)
-export {
-  handleNotificationSubscription,
-  handleNotificationUnsubscription,
-  handleNotificationPreferences,
-  handleNotificationHistory,
-  handleTestNotification,
-  handleNotificationStatus
-} from './web-notification-handlers.js';
-
 // Daily summary and backfill handlers
 export {
   handleDailySummaryAPI,
@@ -82,18 +62,3 @@ export {
   handleBackfillDailySummaries,
   handleVerifyBackfill
 } from './summary-handlers.js';
-
-// Refactored handler examples
-export {
-  handleIntradayCheckRefactored
-} from './intraday-refactored.js';
-
-// Decomposed handler examples (replaces 932-line monolithic file)
-export {
-  handleIntradayCheckDecomposed
-} from './intraday-decomposed.js';
-
-// Professional dashboard handlers
-export {
-  handleProfessionalDashboard
-} from './dashboard-handlers.js';

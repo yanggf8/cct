@@ -16,6 +16,7 @@
 - **Fixed**: Cache metrics `formatAge()` - now correctly converts ms to seconds
 - **Fixed**: Null stats handling - `/cache-metrics` and `/cache-debug` return 503 instead of `success: true` with null
 - **Fixed**: Routing chain - `handleDirectRequest` now routes to `handleApiV1Request`
+- **Fixed**: Report handlers receive the original `ExecutionContext` (no cloning), preserving `waitUntil`/`passThroughOnException` background work
 
 ### 🎨 UI Changes
 - **Removed**: Top header bars from `backtesting-dashboard.html` and `predictive-analytics.html`
@@ -26,6 +27,8 @@
 - **Removed**: Legacy KV fallback code and example files
 - **Updated**: Log prefixes from `DUAL_CACHE_DO` → `CACHE_DO`
 - **Added**: Backwards compatibility alias `export { CacheDO as DualCacheDO }`
+- **Removed**: Orphaned handler bundles (`handlers.ts`, `legacy-handlers.ts`, dashboard/intraday/web-notification variants) and unused utilities (`input-validation.ts`, `teams.ts`)
+- **Cleaned**: `.wrangler/tmp` artifacts removed and ignored to keep the repo tidy
 
 ## 2025-12-24 - Version 3.1.0 - Cache Reliability & Legacy Cleanup ✅
 
