@@ -172,6 +172,12 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       requestId: ctx.requestId
     });
 
+    // Store analysis results in KV for report generation
+    const dal = createSimplifiedEnhancedDAL(env);
+    const analysisKey = `analysis_${dateStr}`;
+    await dal.write(analysisKey, analysis, { expirationTtl: 86400 }); // 24 hours
+    logger.info('✅ Analysis data stored in KV', { key: analysisKey, dateStr });
+
     // Update job status after successful analysis
     const { updateJobStatus } = await import('../kv-utils.js');
     await updateJobStatus('analysis', dateStr, 'done', env, {
@@ -203,6 +209,12 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       } as any);
 
       (basicAnalysis as any).fallback_reason = error.message;
+
+      // Store fallback analysis in KV
+      const dal = createSimplifiedEnhancedDAL(env);
+      const analysisKey = `analysis_${dateStr}`;
+      await dal.write(analysisKey, basicAnalysis, { expirationTtl: 86400 });
+      logger.info('✅ Fallback analysis data stored in KV', { key: analysisKey, dateStr });
 
       // Update job status even for fallback
       const { updateJobStatus } = await import('../kv-utils.js');
