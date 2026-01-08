@@ -44,20 +44,42 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     const validation = await validateDependencies(dateStr, ['analysis', 'morning_predictions'], env);
 
     if (!validation.isValid) {
-      logger.warn('⚠️ [PRE-MARKET] Dependencies not satisfied', {
+      logger.warn('⚠️ [PRE-MARKET] Dependencies not satisfied, attempting auto-generation', {
         requestId,
         missing: validation.missing,
         completionRate: validation.completionRate
       });
 
-      // Generate partial briefing with available data
-      const partialBriefing = generatePartialBriefing(dateStr, validation.completionRate);
-      return new Response(partialBriefing, {
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=300'
+      // Try to trigger analysis generation
+      try {
+        logger.info('🔄 [PRE-MARKET] Triggering analysis generation', { requestId });
+        const { handleManualAnalysis } = await import('./analysis-handlers.js');
+        const analysisReq = new Request(request.url, { method: 'GET', headers: request.headers });
+        await handleManualAnalysis(analysisReq, env, ctx);
+        logger.info('✅ [PRE-MARKET] Analysis generation completed', { requestId });
+        
+        // Re-validate after generation
+        const revalidation = await validateDependencies(dateStr, ['analysis', 'morning_predictions'], env);
+        if (!revalidation.isValid) {
+          logger.warn('⚠️ [PRE-MARKET] Still missing data after generation', { requestId });
+          const partialBriefing = generatePartialBriefing(dateStr, revalidation.completionRate);
+          return new Response(partialBriefing, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'public, max-age=300'
+            }
+          });
         }
-      });
+      } catch (genError) {
+        logger.error('❌ [PRE-MARKET] Auto-generation failed', { requestId, error: String(genError) });
+        const partialBriefing = generatePartialBriefing(dateStr, validation.completionRate);
+        return new Response(partialBriefing, {
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+          }
+        });
+      }
     }
 
     logger.debug('✅ [PRE-MARKET] Dependencies validated', { requestId });
@@ -562,6 +584,10 @@ function generatePreMarketHTML(
  * Generate partial briefing HTML
  */
 function generatePartialBriefing(dateStr: string, completionRate: number): string {
+  // Note: This is a synchronous function, so we show a message about checking for recent data
+  // The actual data fetching happens in the handler before calling this function
+  const showProgress = completionRate === 0;
+  
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -626,17 +652,33 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(79, 172, 254, 0.3);
         }
+        .info-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid #4facfe;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
     ${getSharedNavHTML('pre-market')}
     <div class="partial-content">
-        <h2>⏳ Pre-Market Briefing in Progress</h2>
+        <h2>${showProgress ? '⏳ Pre-Market Briefing in Progress' : '📊 Generating Fresh Analysis'}</h2>
         <p>Market analysis is currently being prepared. Data completion: ${Math.round(completionRate * 100)}%</p>
+        ${showProgress ? `
         <div class="progress-bar">
             <div class="progress-fill" style="width: ${completionRate * 100}%"></div>
         </div>
         <p>This typically takes 2-3 minutes to complete. The page will refresh automatically when ready.</p>
+        ` : `
+        <div class="info-box">
+            <strong>🔄 Auto-generation triggered</strong><br>
+            The system is generating fresh analysis data. This page will automatically refresh when complete.
+        </div>
+        <p><strong>Tip:</strong> You can also check the <a href="/api/v1/reports/pre-market" style="color: #4facfe;">API endpoint</a> for the latest data.</p>
+        `}
         <button class="refresh-button" onclick="location.reload()">Check Status</button>
     </div>
     <script>

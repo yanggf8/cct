@@ -37,6 +37,7 @@ tests/
 **Frontend Integration (`integration/frontend/`)**
 - `test-frontend-integration.sh` - Frontend API integration tests
 - `test-html-structure-validation.sh` - HTML structure and content validation
+- `test-routing-regressions.sh` - Guard rails for static assets and HTML routing
 
 **Data Bridge (`integration/data-bridge/`)**
 - `test-pre-market-data-bridge.sh` - Pre-market data integration testing

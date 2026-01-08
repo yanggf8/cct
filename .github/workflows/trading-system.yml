@@ -86,7 +86,24 @@ jobs:
           echo "📍 Endpoint: $ENDPOINT"
           echo "🌐 Worker URL: $WORKER_URL"
 
-          # Execute analysis request with timeout (all endpoints use GET)
+          # Step 1: Generate analysis data first (except for manual analyze)
+          if [[ "$ENDPOINT" != "/analyze" ]]; then
+            echo "📊 Step 1: Generating analysis data..."
+            analyze_response=$(curl -s \
+              -H "X-API-KEY: $API_KEY" \
+              --connect-timeout 300 \
+              --max-time 600 \
+              "$WORKER_URL/api/v1/sentiment/analysis")
+            
+            echo "Analysis generation response:"
+            echo "$analyze_response" | jq '.' 2>/dev/null || echo "$analyze_response"
+            
+            # Wait a moment for data to be stored
+            sleep 2
+          fi
+
+          # Step 2: Execute report endpoint
+          echo "📋 Step 2: Generating report..."
           response=$(curl -s \
             -H "X-API-KEY: $API_KEY" \
             --connect-timeout 300 \
