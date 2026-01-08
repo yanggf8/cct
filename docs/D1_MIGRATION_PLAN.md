@@ -169,30 +169,41 @@ PREDICT_JOBS_DB
 
 ### Task 1: Create Non-Destructive Migration Script
 
+**Rules**
+- Do **not** modify or drop existing production tables in `PREDICT_JOBS_DB` (`job_executions`, `symbol_predictions`, `daily_analysis`).
+- Create parallel `_v2` tables, backfill, then cut over via feature flags or views once validated.
+
 **File**: `schema/scheduled-jobs-migration.sql`
 
 ```sql
 -- ============================================
--- NON-DESTRUCTIVE MIGRATION
--- Extends existing PREDICT_JOBS_DB schema
--- DOES NOT drop or recreate existing tables
+-- NON-DESTRUCTIVE MIGRATION (SIDE-BY-SIDE)
+-- Adds *_v2 tables without touching existing prod tables
 -- ============================================
 
--- Step 1: Backup existing data (manual step before running)
--- Run: npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "SELECT * FROM job_executions" > backup_job_executions.json
+-- Step 1: Create new execution table
+CREATE TABLE IF NOT EXISTS job_executions_v2 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_type TEXT NOT NULL,
+  execution_date TEXT NOT NULL,
+  execution_time TEXT NOT NULL,
+  status TEXT NOT NULL,
+  duration_ms INTEGER,
+  symbols_processed INTEGER,
+  symbols_successful INTEGER,
+  symbols_failed INTEGER,
+  error_message TEXT,
+  metadata TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  CHECK (status IN ('success','failure','partial')),
+  CHECK (job_type IN ('analysis','pre-market','intraday','end-of-day','weekly'))
+);
+CREATE INDEX IF NOT EXISTS idx_job_executions_v2_type_date ON job_executions_v2(job_type, execution_date DESC);
+CREATE INDEX IF NOT EXISTS idx_job_executions_v2_date ON job_executions_v2(execution_date DESC);
+CREATE INDEX IF NOT EXISTS idx_job_executions_v2_status ON job_executions_v2(status);
 
--- Step 2: Add new columns to existing job_executions table
-ALTER TABLE job_executions ADD COLUMN execution_date TEXT;
-ALTER TABLE job_executions ADD COLUMN report_type TEXT;
-ALTER TABLE job_executions ADD COLUMN metadata TEXT;
-
--- Step 3: Backfill execution_date from executed_at for existing rows
-UPDATE job_executions 
-SET execution_date = date(executed_at)
-WHERE execution_date IS NULL;
-
--- Step 4: Create new table for scheduled job results
-CREATE TABLE IF NOT EXISTS scheduled_job_results (
+-- Step 2: Create new table for scheduled job results
+CREATE TABLE IF NOT EXISTS scheduled_job_results_v2 (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   job_execution_id INTEGER NOT NULL,
   result_type TEXT NOT NULL,
@@ -205,30 +216,44 @@ CREATE TABLE IF NOT EXISTS scheduled_job_results (
   report_content TEXT,
   html_snapshot TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  
-  FOREIGN KEY (job_execution_id) REFERENCES job_executions(id) ON DELETE CASCADE
+  FOREIGN KEY (job_execution_id) REFERENCES job_executions_v2(id) ON DELETE CASCADE
 );
 
--- Step 5: Create indexes
-CREATE INDEX IF NOT EXISTS idx_job_executions_execution_date ON job_executions(execution_date DESC);
-CREATE INDEX IF NOT EXISTS idx_job_executions_report_type ON job_executions(report_type);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_job ON scheduled_job_results(job_execution_id);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_type ON scheduled_job_results(result_type);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_symbol ON scheduled_job_results(symbol);
+-- Step 3: Create report snapshots table
+CREATE TABLE IF NOT EXISTS report_snapshots_v2 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  execution_id INTEGER NOT NULL,
+  report_type TEXT NOT NULL,
+  report_date TEXT NOT NULL,
+  content TEXT,
+  html_snapshot TEXT,
+  summary TEXT,
+  high_confidence_count INTEGER,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (execution_id) REFERENCES job_executions_v2(id) ON DELETE CASCADE
+);
 
--- Step 6: Verify migration
+-- Step 4: Indexes
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_v2_job ON scheduled_job_results_v2(job_execution_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_v2_type ON scheduled_job_results_v2(result_type);
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_v2_symbol ON scheduled_job_results_v2(symbol);
+CREATE INDEX IF NOT EXISTS idx_report_snapshots_v2_type_date ON report_snapshots_v2(report_type, report_date DESC);
+CREATE INDEX IF NOT EXISTS idx_report_snapshots_v2_execution ON report_snapshots_v2(execution_id);
+
+-- Step 5: Verify migration
 SELECT 'Migration complete. Existing tables preserved:' AS status;
 SELECT COUNT(*) AS job_executions_count FROM job_executions;
 SELECT COUNT(*) AS symbol_predictions_count FROM symbol_predictions;
 SELECT COUNT(*) AS daily_analysis_count FROM daily_analysis;
-SELECT COUNT(*) AS scheduled_job_results_count FROM scheduled_job_results;
+SELECT COUNT(*) AS job_executions_v2_count FROM job_executions_v2;
+SELECT COUNT(*) AS scheduled_job_results_v2_count FROM scheduled_job_results_v2;
+SELECT COUNT(*) AS report_snapshots_v2_count FROM report_snapshots_v2;
 ```
 
 **Apply Migration (with safety checks)**:
 ```bash
 # 1. BACKUP FIRST (critical!)
-npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "SELECT * FROM job_executions" > backup_job_executions_$(date +%Y%m%d).json
-npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "SELECT * FROM symbol_predictions" > backup_symbol_predictions_$(date +%Y%m%d).json
+npx wrangler d1 export PREDICT_JOBS_DB --remote --output=/tmp/predict_jobs_backup_$(date +%Y%m%d).sql
 
 # 2. Test on local first
 npx wrangler d1 execute PREDICT_JOBS_DB --local --file=schema/scheduled-jobs-migration.sql
@@ -236,12 +261,19 @@ npx wrangler d1 execute PREDICT_JOBS_DB --local --file=schema/scheduled-jobs-mig
 # 3. Verify local migration
 npx wrangler d1 execute PREDICT_JOBS_DB --local --command "SELECT name FROM sqlite_master WHERE type='table'"
 
-# 4. Apply to production (only after local verification)
+# 4. Apply to staging (wrangler-enhanced.toml) then production
+npx wrangler d1 execute PREDICT_JOBS_DB --config wrangler-enhanced.toml --remote --file=schema/scheduled-jobs-migration.sql
 npx wrangler d1 execute PREDICT_JOBS_DB --remote --file=schema/scheduled-jobs-migration.sql
 
 # 5. Verify production migration
-npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "SELECT COUNT(*) FROM job_executions"
+npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "SELECT COUNT(*) FROM job_executions_v2"
 ```
+
+**Backfill & Cutover Plan**
+1) Dual-write: update worker to write both KV and `_v2` tables.
+2) Backfill: replay last 30–90 days of KV data into `_v2` tables via one-time script.
+3) Read switch: feature-flag reads to `_v2` once parity checks (row counts + spot checks) pass.
+4) Cleanup: after 30 days of stable dual-write, retire KV writes and, if desired, rename `_v2` tables in a separate controlled migration.
 
 ### Task 2: Create D1 Storage Adapter
 
@@ -286,8 +318,8 @@ export class D1ScheduledJobStorage {
    */
   async storeJobExecution(data: ScheduledJobExecutionData): Promise<number> {
     const result = await this.db.prepare(`
-      INSERT INTO job_executions (
-        job_type, execution_date, report_type, executed_at, status,
+      INSERT INTO job_executions_v2 (
+        job_type, execution_date, report_type, execution_time, status,
         execution_time_ms, symbols_processed, symbols_successful, symbols_failed,
         errors, metadata
       ) VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)
@@ -318,7 +350,7 @@ export class D1ScheduledJobStorage {
    */
   async storeJobResults(executionId: number, results: ScheduledJobResultData[]): Promise<void> {
     const stmt = this.db.prepare(`
-      INSERT INTO scheduled_job_results (
+      INSERT INTO scheduled_job_results_v2 (
         job_execution_id, result_type, symbol, sentiment, confidence,
         direction, reasoning, signals, report_content, html_snapshot
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
