@@ -164,10 +164,19 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
   // Track business metrics
   BusinessMetrics.analysisRequested('manual_enhanced', 5);
 
+  const dateStr = new Date().toISOString().split('T')[0];
+
   try {
     const analysis: EnhancedAnalysisResults = await runEnhancedAnalysis(env, {
       triggerMode: 'manual_analysis_enhanced',
       requestId: ctx.requestId
+    });
+
+    // Update job status after successful analysis
+    const { updateJobStatus } = await import('../kv-utils.js');
+    await updateJobStatus('analysis', dateStr, 'done', env, {
+      symbols_processed: analysis.symbols_analyzed?.length || 0,
+      execution_time_ms: analysis.execution_metrics?.total_time_ms || 0
     });
 
     // Track successful completion
@@ -194,6 +203,14 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       } as any);
 
       (basicAnalysis as any).fallback_reason = error.message;
+
+      // Update job status even for fallback
+      const { updateJobStatus } = await import('../kv-utils.js');
+      await updateJobStatus('analysis', dateStr, 'done', env, {
+        symbols_processed: (basicAnalysis as any).symbols_analyzed?.length || 0,
+        execution_time_ms: (basicAnalysis as any).execution_metrics?.total_time_ms || 0,
+        fallback: true
+      });
 
       BusinessMetrics.analysisCompleted('manual_fallback',
         (basicAnalysis as any).symbols_analyzed?.length || 0,

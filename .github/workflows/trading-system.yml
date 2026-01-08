@@ -68,7 +68,7 @@ jobs:
           else
             # Default for manual triggers
             echo "analysis_type=manual" >> $GITHUB_OUTPUT
-            echo "endpoint=/analyze" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/sentiment/analysis" >> $GITHUB_OUTPUT
             echo "description=Manual Analysis - On-demand trading analysis"
           fi
 
@@ -86,8 +86,8 @@ jobs:
           echo "📍 Endpoint: $ENDPOINT"
           echo "🌐 Worker URL: $WORKER_URL"
 
-          # Step 1: Generate analysis data first (except for manual analyze)
-          if [[ "$ENDPOINT" != "/analyze" ]]; then
+          # Step 1: Generate analysis data first (except for manual analyze or API calls)
+          if [[ "$ENDPOINT" != "/api/v1/sentiment/analysis" ]]; then
             echo "📊 Step 1: Generating analysis data..."
             analyze_response=$(curl -s \
               -H "X-API-KEY: $API_KEY" \

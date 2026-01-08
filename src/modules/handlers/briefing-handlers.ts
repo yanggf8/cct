@@ -37,18 +37,31 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 
   logger.debug('✅ [PRE-MARKET] Input validation passed', { requestId });
 
-  // Check dependencies using new status system
-  logger.debug('🔗 [PRE-MARKET] Checking dependencies', { requestId });
+  // Check if data exists instead of relying on job status
+  logger.debug('🔗 [PRE-MARKET] Checking for existing data', { requestId });
 
   try {
-    const validation = await validateDependencies(dateStr, ['analysis', 'morning_predictions'], env);
+    // Try to get pre-market briefing data first
+    let briefingData: any = null;
 
-    if (!validation.isValid) {
-      logger.warn('⚠️ [PRE-MARKET] Dependencies not satisfied, attempting auto-generation', {
-        requestId,
-        missing: validation.missing,
-        completionRate: validation.completionRate
-      });
+    try {
+      briefingData = await getPreMarketBriefingData(env, today);
+
+      if (briefingData) {
+        logger.info('✅ [PRE-MARKET] Pre-market data found', {
+          requestId,
+          signalsCount: briefingData.signals?.length || 0,
+          hasMarketData: !!briefingData.marketData,
+          hasAnalysis: !!briefingData.analysis
+        });
+      }
+    } catch (dataError) {
+      logger.warn('⚠️ [PRE-MARKET] No existing data found', { requestId, error: String(dataError) });
+    }
+
+    // If no data exists, try to generate it
+    if (!briefingData) {
+      logger.warn('⚠️ [PRE-MARKET] No data available, attempting auto-generation', { requestId });
 
       // Try to trigger analysis generation
       try {
@@ -58,11 +71,22 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
         await handleManualAnalysis(analysisReq, env, ctx);
         logger.info('✅ [PRE-MARKET] Analysis generation completed', { requestId });
         
-        // Re-validate after generation
-        const revalidation = await validateDependencies(dateStr, ['analysis', 'morning_predictions'], env);
-        if (!revalidation.isValid) {
-          logger.warn('⚠️ [PRE-MARKET] Still missing data after generation', { requestId });
-          const partialBriefing = generatePartialBriefing(dateStr, revalidation.completionRate);
+        // Try to fetch data again after generation
+        try {
+          briefingData = await getPreMarketBriefingData(env, today);
+          if (!briefingData) {
+            logger.warn('⚠️ [PRE-MARKET] Still no data after generation', { requestId });
+            const partialBriefing = generatePartialBriefing(dateStr, 0);
+            return new Response(partialBriefing, {
+              headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Cache-Control': 'public, max-age=300'
+              }
+            });
+          }
+        } catch (refetchError) {
+          logger.error('❌ [PRE-MARKET] Failed to fetch data after generation', { requestId, error: String(refetchError) });
+          const partialBriefing = generatePartialBriefing(dateStr, 0);
           return new Response(partialBriefing, {
             headers: {
               'Content-Type': 'text/html; charset=utf-8',
@@ -72,7 +96,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
         }
       } catch (genError) {
         logger.error('❌ [PRE-MARKET] Auto-generation failed', { requestId, error: String(genError) });
-        const partialBriefing = generatePartialBriefing(dateStr, validation.completionRate);
+        const partialBriefing = generatePartialBriefing(dateStr, 0);
         return new Response(partialBriefing, {
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
@@ -82,34 +106,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
       }
     }
 
-    logger.debug('✅ [PRE-MARKET] Dependencies validated', { requestId });
-
-    // Get pre-market briefing data
-    logger.debug('📊 [PRE-MARKET] Retrieving pre-market briefing data', { requestId });
-
-    let briefingData: any = null;
-
-    try {
-      briefingData = await getPreMarketBriefingData(env, today);
-
-      if (briefingData) {
-        logger.info('✅ [PRE-MARKET] Pre-market data retrieved successfully', {
-          requestId,
-          signalsCount: briefingData.signals?.length || 0,
-          hasMarketData: !!briefingData.marketData,
-          hasAnalysis: !!briefingData.analysis
-        });
-      } else {
-        logger.warn('⚠️ [PRE-MARKET] No pre-market data found', { requestId });
-      }
-
-    } catch (error: any) {
-      logger.error('❌ [PRE-MARKET] Failed to retrieve pre-market data', {
-        requestId,
-        error: (error instanceof Error ? error.message : String(error)),
-        stack: error.stack
-      });
-    }
+    logger.debug('✅ [PRE-MARKET] Data available, generating briefing', { requestId });
 
     // Generate comprehensive pre-market HTML
     const htmlContent = generatePreMarketHTML(briefingData, requestId, today);
