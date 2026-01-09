@@ -2,19 +2,19 @@
 
 ## 📋 Executive Summary
 
-**Objective**: Migrate scheduled job results storage from Cloudflare KV to D1 database for better querying, historical tracking, and data relationships.
+**Objective**: Finalize D1 as the source of truth for scheduled job results and make dashboards resilient to DO cache evictions by falling back to D1 and re-hydrating cache automatically.
 
-**Current State**: Job results stored in KV with key-based access (`analysis_YYYY-MM-DD`)
-**Target State**: Job results stored in D1 with SQL querying and relational structure
+**Current State**: D1 holds `job_executions`, `symbol_predictions`, `daily_analysis`; DO cache is still primary for dashboards. A new `scheduled_job_results` table + snapshot writes/fallbacks are coded but **not deployed**; migration must be applied. KV is not used for job storage (guards remain).
+**Target State**: Dashboards read from DO cache with D1 fallback and cache rehydration; report snapshots persisted in D1 (`scheduled_job_results`). KV remains unused for jobs.
 
-**Timeline**: 5 weeks (phased rollout with dual-write safety period)
-**Risk Level**: Low (dual-write strategy ensures zero data loss)
+**Timeline**: Pending deployment (apply migration + deploy code)
+**Risk Level**: Low (additive changes; ensure migration runs before code deploy)
 
 ---
 
 ## 🎯 Motivation
 
-### Current Limitations with KV
+### Current Limitations with KV (legacy)
 
 | Issue | Impact | D1 Solution |
 |-------|--------|-------------|
@@ -24,7 +24,7 @@
 | **Key-Only Access** | Must know exact key to retrieve data | Query by any field combination |
 | **No Transactions** | Can't ensure data consistency | ACID transactions |
 
-### Benefits of D1
+### Benefits of D1 (already in use)
 
 ✅ **Better Querying**: SQL queries for complex filters and aggregations
 ✅ **Historical Tracking**: Easy to query job history and trends
@@ -34,246 +34,56 @@
 
 ---
 
-## 🗄️ Phase 1: Schema Design
+## 🗄️ Phase 1: Schema (minimal snapshot storage)
 
-### ⚠️ CRITICAL: Existing Schema Compatibility
+**What already exists**: `job_executions`, `symbol_predictions`, `daily_analysis` (unchanged).
 
-**PREDICT_JOBS_DB already contains**:
-- `job_executions` (prediction jobs)
-- `symbol_predictions` (prediction results)
-- `daily_analysis` (daily summaries)
-
-**Strategy**: **Extend existing tables** with new columns, **do not drop or recreate**.
-
-### Schema Changes (Non-Destructive)
-
-#### 1. Extend `job_executions` - Add columns for scheduled job tracking
-
-**Existing columns** (keep as-is):
-- `id`, `job_type`, `status`, `executed_at`, `execution_time_ms`
-- `symbols_processed`, `symbols_successful`, `symbols_fallback`, `symbols_failed`
-- `success_rate`, `errors`, `created_at`
-
-**New columns to add**:
-```sql
--- Add new columns to existing table (non-destructive)
-ALTER TABLE job_executions ADD COLUMN execution_date TEXT;
-ALTER TABLE job_executions ADD COLUMN report_type TEXT;  -- 'pre-market', 'intraday', 'end-of-day', 'weekly'
-ALTER TABLE job_executions ADD COLUMN metadata TEXT;     -- JSON blob for flexible data
-
--- Add new indexes
-CREATE INDEX IF NOT EXISTS idx_job_executions_execution_date ON job_executions(execution_date DESC);
-CREATE INDEX IF NOT EXISTS idx_job_executions_report_type ON job_executions(report_type);
-```
-
-**Column mapping**:
-- `executed_at` → ISO timestamp (already exists)
-- `execution_date` → YYYY-MM-DD (new, extracted from executed_at)
-- `report_type` → Job type for reports (new)
-- `metadata` → Flexible JSON storage (new)
-
-**Example Data**:
-```json
-{
-  "id": 1,
-  "job_type": "pre-market",
-  "execution_date": "2026-01-08",
-  "execution_time": "2026-01-08T12:46:00Z",
-  "status": "success",
-  "duration_ms": 45000,
-  "symbols_processed": 5,
-  "symbols_successful": 5,
-  "symbols_failed": 0,
-  "metadata": "{\"trigger\":\"scheduled\",\"workflow_run_id\":\"20795135155\"}"
-}
-```
-
-#### 2. Create `scheduled_job_results` - New table for report snapshots
-
-**Why a new table**: Avoid conflicts with existing `symbol_predictions` structure.
-
+**Current migration**: `schema/scheduled-jobs-migration.sql` (idempotent)
 ```sql
 CREATE TABLE IF NOT EXISTS scheduled_job_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  job_execution_id INTEGER NOT NULL,
-  result_type TEXT NOT NULL,        -- 'analysis_detail', 'report_snapshot'
-  symbol TEXT,                      -- NULL for report snapshots
-  sentiment TEXT,
-  confidence REAL,
-  direction TEXT,
-  reasoning TEXT,
-  signals TEXT,                     -- JSON array
-  report_content TEXT,              -- Full report JSON (for snapshots)
-  html_snapshot TEXT,               -- HTML archive (optional)
-  created_at TEXT DEFAULT (datetime('now')),
-  
-  FOREIGN KEY (job_execution_id) REFERENCES job_executions(id) ON DELETE CASCADE
+  execution_date TEXT NOT NULL,
+  report_type TEXT NOT NULL,
+  report_content TEXT,
+  metadata TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_job ON scheduled_job_results(job_execution_id);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_type ON scheduled_job_results(result_type);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_symbol ON scheduled_job_results(symbol);
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_date ON scheduled_job_results(execution_date DESC);
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_type ON scheduled_job_results(report_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_results_date_type ON scheduled_job_results(execution_date, report_type);
 ```
 
-**Relationship to existing tables**:
-- `symbol_predictions` → Keep for prediction-specific data
-- `daily_analysis` → Keep for daily summaries
-- `scheduled_job_results` → New, for scheduled job outputs
-
-**Example Data**:
-```json
-{
-  "id": 1,
-  "execution_id": 1,
-  "symbol": "AAPL",
-  "sentiment": "bullish",
-  "confidence": 0.85,
-  "direction": "buy",
-  "reasoning": "Strong earnings beat with positive guidance",
-  "signals": "[{\"type\":\"momentum\",\"strength\":0.8}]",
-  "news_count": 12
-}
-```
-
-#### 3. Keep existing tables unchanged
-
-**No changes to**:
-- `symbol_predictions` - Prediction job results (existing)
-- `daily_analysis` - Daily summaries (existing)
-
-**Schema coexistence**:
-```
-PREDICT_JOBS_DB
-├── job_executions (extended with new columns)
-├── symbol_predictions (unchanged - prediction jobs)
-├── daily_analysis (unchanged - daily summaries)
-└── scheduled_job_results (new - scheduled job outputs)
-```
-
-**Example Data**:
-```json
-{
-  "id": 1,
-  "execution_id": 1,
-  "report_type": "pre-market",
-  "report_date": "2026-01-08",
-  "summary": "5 high-confidence signals, bullish market outlook",
-  "high_confidence_count": 5,
-  "content": "{\"signals\":[...],\"market_overview\":{...}}"
-}
-```
+**Deferred**: Adding columns/FKs on `job_executions` (not required for snapshot storage).
 
 ---
 
-## 💻 Phase 2: Implementation
+## 💻 Phase 2: Implementation (code done, pending deploy)
 
-### Task 1: Create Non-Destructive Migration Script
+### Task 1: Migration Script (ready to run)
 
-**Rules**
-- Do **not** modify or drop existing production tables in `PREDICT_JOBS_DB` (`job_executions`, `symbol_predictions`, `daily_analysis`).
-- Create parallel `_v2` tables, backfill, then cut over via feature flags or views once validated.
+- **File**: `schema/scheduled-jobs-migration.sql`
+- Creates `scheduled_job_results` (execution_date, report_type, report_content, metadata, created_at) with indexes; no FK to job_executions by design.
+- Does **not** alter `job_executions` (deferred).
 
-**File**: `schema/scheduled-jobs-migration.sql`
-
-```sql
--- ============================================
--- NON-DESTRUCTIVE MIGRATION (SIDE-BY-SIDE)
--- Adds *_v2 tables without touching existing prod tables
--- ============================================
-
--- Step 1: Create new execution table
-CREATE TABLE IF NOT EXISTS job_executions_v2 (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  job_type TEXT NOT NULL,
-  execution_date TEXT NOT NULL,
-  execution_time TEXT NOT NULL,
-  status TEXT NOT NULL,
-  duration_ms INTEGER,
-  symbols_processed INTEGER,
-  symbols_successful INTEGER,
-  symbols_failed INTEGER,
-  error_message TEXT,
-  metadata TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  CHECK (status IN ('success','failure','partial')),
-  CHECK (job_type IN ('analysis','pre-market','intraday','end-of-day','weekly'))
-);
-CREATE INDEX IF NOT EXISTS idx_job_executions_v2_type_date ON job_executions_v2(job_type, execution_date DESC);
-CREATE INDEX IF NOT EXISTS idx_job_executions_v2_date ON job_executions_v2(execution_date DESC);
-CREATE INDEX IF NOT EXISTS idx_job_executions_v2_status ON job_executions_v2(status);
-
--- Step 2: Create new table for scheduled job results
-CREATE TABLE IF NOT EXISTS scheduled_job_results_v2 (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  job_execution_id INTEGER NOT NULL,
-  result_type TEXT NOT NULL,
-  symbol TEXT,
-  sentiment TEXT,
-  confidence REAL,
-  direction TEXT,
-  reasoning TEXT,
-  signals TEXT,
-  report_content TEXT,
-  html_snapshot TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (job_execution_id) REFERENCES job_executions_v2(id) ON DELETE CASCADE
-);
-
--- Step 3: Create report snapshots table
-CREATE TABLE IF NOT EXISTS report_snapshots_v2 (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  execution_id INTEGER NOT NULL,
-  report_type TEXT NOT NULL,
-  report_date TEXT NOT NULL,
-  content TEXT,
-  html_snapshot TEXT,
-  summary TEXT,
-  high_confidence_count INTEGER,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (execution_id) REFERENCES job_executions_v2(id) ON DELETE CASCADE
-);
-
--- Step 4: Indexes
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_v2_job ON scheduled_job_results_v2(job_execution_id);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_v2_type ON scheduled_job_results_v2(result_type);
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_v2_symbol ON scheduled_job_results_v2(symbol);
-CREATE INDEX IF NOT EXISTS idx_report_snapshots_v2_type_date ON report_snapshots_v2(report_type, report_date DESC);
-CREATE INDEX IF NOT EXISTS idx_report_snapshots_v2_execution ON report_snapshots_v2(execution_id);
-
--- Step 5: Verify migration
-SELECT 'Migration complete. Existing tables preserved:' AS status;
-SELECT COUNT(*) AS job_executions_count FROM job_executions;
-SELECT COUNT(*) AS symbol_predictions_count FROM symbol_predictions;
-SELECT COUNT(*) AS daily_analysis_count FROM daily_analysis;
-SELECT COUNT(*) AS job_executions_v2_count FROM job_executions_v2;
-SELECT COUNT(*) AS scheduled_job_results_v2_count FROM scheduled_job_results_v2;
-SELECT COUNT(*) AS report_snapshots_v2_count FROM report_snapshots_v2;
-```
-
-**Apply Migration (with safety checks)**:
+**Apply migration**
 ```bash
-# 1. BACKUP FIRST (critical!)
-npx wrangler d1 export PREDICT_JOBS_DB --remote --output=/tmp/predict_jobs_backup_$(date +%Y%m%d).sql
-
-# 2. Test on local first
-npx wrangler d1 execute PREDICT_JOBS_DB --local --file=schema/scheduled-jobs-migration.sql
-
-# 3. Verify local migration
-npx wrangler d1 execute PREDICT_JOBS_DB --local --command "SELECT name FROM sqlite_master WHERE type='table'"
-
-# 4. Apply to staging (wrangler-enhanced.toml) then production
-npx wrangler d1 execute PREDICT_JOBS_DB --config wrangler-enhanced.toml --remote --file=schema/scheduled-jobs-migration.sql
-npx wrangler d1 execute PREDICT_JOBS_DB --remote --file=schema/scheduled-jobs-migration.sql
-
-# 5. Verify production migration
-npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "SELECT COUNT(*) FROM job_executions_v2"
+unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=schema/scheduled-jobs-migration.sql
 ```
 
-**Backfill & Cutover Plan**
-1) Dual-write: update worker to write both KV and `_v2` tables.
-2) Backfill: replay last 30–90 days of KV data into `_v2` tables via one-time script.
-3) Read switch: feature-flag reads to `_v2` once parity checks (row counts + spot checks) pass.
-4) Cleanup: after 30 days of stable dual-write, retire KV writes and, if desired, rename `_v2` tables in a separate controlled migration.
+**Verify**
+```bash
+npx wrangler d1 execute cct-predict-jobs --remote --command "SELECT COUNT(*) FROM scheduled_job_results"
+```
+
+**Backfill & Cutover Plan (revised)**
+1) Snapshots: write all report snapshots into `scheduled_job_results`; DO cache remains hot path.
+2) Reads: on cache miss, read from D1 snapshot/predictions and optionally warm cache if fresh.
+3) KV: unused for jobs; cleanup deferred until post-deploy validation.
+
+### Known Caveats (post-migration)
+- `scheduled_job_results` is standalone; we do **not** write per-report executions into `job_executions`. The Jobs history endpoint will only show whatever is already in `job_executions` (cron/health) until we add execution writes.
+- Intraday/End-of-day fallbacks use predictions-shaped data with `performance.accuracy = 0` and `status = 'tracking'`; dashboards should treat these as partial/stale (accuracy will look zero until real performance data exists).
 
 ### Task 2: Create D1 Storage Adapter
 
@@ -318,8 +128,8 @@ export class D1ScheduledJobStorage {
    */
   async storeJobExecution(data: ScheduledJobExecutionData): Promise<number> {
     const result = await this.db.prepare(`
-      INSERT INTO job_executions_v2 (
-        job_type, execution_date, report_type, execution_time, status,
+      INSERT INTO job_executions (
+        job_type, execution_date, report_type, executed_at, status,
         execution_time_ms, symbols_processed, symbols_successful, symbols_failed,
         errors, metadata
       ) VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)
@@ -336,7 +146,7 @@ export class D1ScheduledJobStorage {
       data.metadata ? JSON.stringify(data.metadata) : null
     ).run();
 
-    logger.info('Scheduled job execution stored', { 
+    logger.info('Scheduled job execution stored', {
       executionId: result.meta.last_row_id,
       jobType: data.job_type,
       reportType: data.report_type
@@ -350,7 +160,7 @@ export class D1ScheduledJobStorage {
    */
   async storeJobResults(executionId: number, results: ScheduledJobResultData[]): Promise<void> {
     const stmt = this.db.prepare(`
-      INSERT INTO scheduled_job_results_v2 (
+      INSERT INTO scheduled_job_results (
         job_execution_id, result_type, symbol, sentiment, confidence,
         direction, reasoning, signals, report_content, html_snapshot
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -425,76 +235,46 @@ export function createD1ScheduledJobStorage(env: CloudflareEnvironment): D1Sched
 **File**: `src/modules/handlers/analysis-handlers.ts`
 
 ```typescript
-// Add D1 storage after KV write
+// Persist to D1 first (source of truth)
+const d1Storage = createD1JobStorage(env);
+const executionId = await d1Storage.storeJobExecution({
+  job_type: 'analysis',
+  execution_date: dateStr,
+  report_type: 'pre-market',
+  status: 'success',
+  execution_time_ms: analysis.execution_metrics?.total_time_ms,
+  symbols_processed: analysis.symbols_analyzed?.length || 0,
+  symbols_successful: analysis.symbols_analyzed?.length || 0,
+  symbols_failed: 0
+});
+
+// Store analysis results
+if (analysis.symbols_analyzed?.length) {
+  const results = analysis.symbols_analyzed.map(symbol => ({
+    result_type: 'analysis_detail' as const,
+    symbol,
+    sentiment: (analysis as any)[symbol]?.sentiment,
+    confidence: (analysis as any)[symbol]?.confidence,
+    direction: (analysis as any)[symbol]?.direction,
+    reasoning: (analysis as any)[symbol]?.reasoning
+  }));
+  await d1Storage.storeJobResults(executionId, results);
+}
+
+// Warm DO cache for fast reads
 const dal = createSimplifiedEnhancedDAL(env);
 const analysisKey = `analysis_${dateStr}`;
 await dal.write(analysisKey, analysis, { expirationTtl: 86400 });
-
-// NEW: Store in D1
-try {
-  const d1Storage = createD1JobStorage(env);
-  
-  // Store job execution
-  const executionId = await d1Storage.storeJobExecution({
-    job_type: 'analysis',
-    execution_date: dateStr,
-    execution_time: new Date().toISOString(),
-    status: 'success',
-    duration_ms: analysis.execution_metrics?.total_time_ms,
-    symbols_processed: analysis.symbols_analyzed?.length || 0,
-    symbols_successful: analysis.symbols_analyzed?.length || 0,
-    symbols_failed: 0
-  });
-
-  // Store analysis results
-  if (analysis.symbols_analyzed && analysis.symbols_analyzed.length > 0) {
-    const results = analysis.symbols_analyzed.map(symbol => ({
-      symbol,
-      sentiment: (analysis as any)[symbol]?.sentiment,
-      confidence: (analysis as any)[symbol]?.confidence,
-      direction: (analysis as any)[symbol]?.direction,
-      reasoning: (analysis as any)[symbol]?.reasoning
-    }));
-    await d1Storage.storeAnalysisResults(executionId, results);
-  }
-
-  logger.info('✅ Analysis stored in D1', { executionId, dateStr });
-} catch (d1Error) {
-  logger.error('❌ Failed to store in D1 (non-fatal)', { error: String(d1Error) });
-  // Continue - KV storage is primary during migration
-}
+logger.info('✅ Analysis stored in D1 and DO cache', { executionId, dateStr });
 ```
 
-### Task 4: Update Report Handlers
+### Task 4: Update Report Handlers (D1-first with DO cache rehydration)
 
-**File**: `src/modules/handlers/briefing-handlers.ts`
-
-```typescript
-// Try D1 first, fallback to KV
-let briefingData: any = null;
-
-try {
-  const d1Storage = createD1JobStorage(env);
-  const latestJob = await d1Storage.getLatestJob('analysis');
-  
-  if (latestJob && latestJob.execution_date === dateStr) {
-    const results = await d1Storage.getAnalysisResults(latestJob.id);
-    briefingData = {
-      date: dateStr,
-      analysis: { symbols_analyzed: results.map(r => r.symbol) },
-      // Transform D1 data to expected format
-    };
-    logger.info('✅ Data retrieved from D1', { executionId: latestJob.id });
-  }
-} catch (d1Error) {
-  logger.warn('⚠️ D1 read failed, falling back to KV', { error: String(d1Error) });
-}
-
-// Fallback to KV if D1 fails or has no data
-if (!briefingData) {
-  briefingData = await getPreMarketBriefingData(env, today);
-}
-```
+**Files**: `src/modules/handlers/briefing-handlers.ts`, `intraday-handlers.ts`, `end-of-day-handlers.ts`, `weekly-review-handlers.ts`
+- On cache miss, use generic `getD1FallbackData`:
+  - Order: D1 snapshot (today) → latest snapshot → D1 predictions (today) → D1 predictions (yesterday, marked `is_stale`, not cached).
+  - Cache warm only when fresh (not stale).
+- Each handler writes a snapshot to D1 (`scheduled_job_results`) after generating the report.
 
 ---
 
@@ -625,127 +405,53 @@ fetchJobHistory().then(renderJobHistory);
 
 ---
 
-## 🔄 Phase 4: KV→D1 Data Backfill
+## 🔄 Phase 4: D1 Validation & DO Cache Rehydration
 
-### Critical: Backfill Existing KV Data
+### Goals
+- Confirm D1 completeness for recent jobs.
+- Ensure DO cache warms from D1 on misses to prevent blank dashboards.
 
-**Problem**: KV currently holds analysis data with keys like `analysis_2026-01-08`. This data must be migrated to D1.
-
-### Backfill Strategy
-
-#### Step 1: Identify KV Keys to Migrate
-
+### Steps
+1) **Validate recent data in D1**
 ```bash
-# List all analysis keys in KV
-npx wrangler kv:key list --namespace-id=321593c6717448dfb24ea2bd48cde1fa --prefix="analysis_"
-```
-
-#### Step 2: Create Backfill Script
-
-**File**: `scripts/backfill-kv-to-d1.ts`
-
-```typescript
-import { createSimplifiedEnhancedDAL } from '../src/modules/simplified-enhanced-dal.js';
-import { createD1ScheduledJobStorage } from '../src/modules/d1-scheduled-job-storage.js';
-
-async function backfillKVToD1(env: any) {
-  const dal = createSimplifiedEnhancedDAL(env);
-  const d1Storage = createD1ScheduledJobStorage(env);
-  
-  // Get last 30 days of analysis data from KV
-  const today = new Date();
-  const backfillDays = 30;
-  
-  for (let i = 0; i < backfillDays; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    const analysisKey = `analysis_${dateStr}`;
-    const result = await dal.read(analysisKey);
-    
-    if (result.success && result.data) {
-      console.log(`Backfilling ${dateStr}...`);
-      
-      // Store in D1
-      const executionId = await d1Storage.storeJobExecution({
-        job_type: 'analysis',
-        execution_date: dateStr,
-        report_type: 'backfill',
-        status: 'success',
-        symbols_processed: result.data.symbols_analyzed?.length || 0,
-        metadata: { source: 'kv_backfill', original_key: analysisKey }
-      });
-      
-      // Store results if available
-      if (result.data.symbols_analyzed) {
-        const results = result.data.symbols_analyzed.map((symbol: string) => ({
-          result_type: 'analysis_detail' as const,
-          symbol,
-          sentiment: (result.data as any)[symbol]?.sentiment,
-          confidence: (result.data as any)[symbol]?.confidence
-        }));
-        
-        await d1Storage.storeJobResults(executionId, results);
-      }
-      
-      console.log(`✅ Backfilled ${dateStr} (execution_id: ${executionId})`);
-    } else {
-      console.log(`⏭️  No data for ${dateStr}`);
-    }
-  }
-  
-  console.log('Backfill complete!');
-}
-
-// Run backfill
-backfillKVToD1(process.env).catch(console.error);
-```
-
-#### Step 3: Run Backfill
-
-```bash
-# Dry run (local D1)
-npx tsx scripts/backfill-kv-to-d1.ts --dry-run
-
-# Production backfill
-npx tsx scripts/backfill-kv-to-d1.ts --production
-
-# Verify backfill
 npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
-  SELECT execution_date, COUNT(*) as count 
-  FROM job_executions 
-  WHERE metadata LIKE '%kv_backfill%' 
-  GROUP BY execution_date 
-  ORDER BY execution_date DESC
+  SELECT report_type, execution_date, COUNT(*) AS cnt
+  FROM job_executions
+  WHERE execution_date >= date('now','-14 days')
+  GROUP BY report_type, execution_date
+  ORDER BY execution_date DESC, report_type;
 "
 ```
 
-### Backfill Validation
-
-```sql
--- Check backfilled data
-SELECT 
-  execution_date,
-  job_type,
-  report_type,
-  symbols_processed,
-  status
-FROM job_executions
-WHERE metadata LIKE '%kv_backfill%'
-ORDER BY execution_date DESC
-LIMIT 10;
-
--- Verify results were stored
-SELECT 
-  je.execution_date,
-  COUNT(sjr.id) as result_count
-FROM job_executions je
-LEFT JOIN scheduled_job_results sjr ON je.id = sjr.job_execution_id
-WHERE je.metadata LIKE '%kv_backfill%'
-GROUP BY je.execution_date
-ORDER BY je.execution_date DESC;
+2) **Spot-check a specific date**
+```bash
+TARGET_DATE=2026-01-08
+npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
+  SELECT * FROM job_executions 
+  WHERE execution_date = '$TARGET_DATE' AND report_type = 'pre-market'
+  ORDER BY executed_at DESC
+  LIMIT 1;
+"
 ```
+
+3) **Rehydrate DO cache for a date (manual)**
+```bash
+# Fetch from D1
+npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
+  SELECT id, execution_date FROM job_executions 
+  WHERE execution_date = '$TARGET_DATE' 
+    AND report_type = 'pre-market' 
+  ORDER BY executed_at DESC LIMIT 1;
+"
+
+# Call API to rebuild cache (preferred)
+curl -X POST -H "X-API-KEY: $X_API_KEY" \
+  https://tft-trading-system.yanggf.workers.dev/api/v1/sentiment/analysis
+```
+
+4) **Automate warm-after-write**
+- After storing to D1, immediately write the same payload to DO cache (`analysis_<date>`) with 24h TTL.
+- On read, if DO cache misses, fetch from D1 and re-write the cache.
 
 ## 🧪 Phase 5: Testing & Validation
 
@@ -795,39 +501,40 @@ ORDER BY je.execution_date DESC;
 ### Week 1: Foundation & Backup
 - ✅ **CRITICAL**: Backup existing D1 data
 - ✅ Design and review non-destructive schema changes
-- ✅ Create migration script (ALTER TABLE, not DROP)
-- ✅ Test migration on local D1
-- ✅ Apply to staging environment
-- ✅ Create D1 storage adapter module
+- ❌ Create migration script (ALTER-only + `scheduled_job_results`) - **NOT DONE**: `schema/scheduled-jobs-migration.sql` does not exist
+- ❌ Test migration on local D1 - **NOT DONE**
+- ❌ Apply to staging environment - **NOT DONE**
+- ⚠️ Create D1 storage adapter module - **PARTIAL**: `src/modules/d1-job-storage.ts` created for reads only
 
-### Week 2: Backfill & Dual-Write
-- ✅ Create and test KV→D1 backfill script
-- ✅ Run backfill for last 30 days of data
-- ✅ Verify backfilled data integrity
-- ✅ Update `handleManualAnalysis` to write to D1
-- ✅ Update report handlers to read from D1 (with KV fallback)
-- ✅ Deploy to staging
+### Week 2: Cache Resilience & API
+- ❌ Update `handleManualAnalysis` to write to D1 then warm DO cache - **NOT DONE**: still writes to DAL/DO cache only
+- ⚠️ Update report handlers to read D1 on DO miss and rehydrate cache - **PARTIAL**: pre-market only, code not deployed
+- ❌ Create D1 query API endpoints - **NOT DONE**
+- ❌ Deploy to staging and run UAT - **NOT DONE**
 
-### Week 3: API & Dashboard
-- ✅ Create D1 query API endpoints
-- ✅ Update dashboard to use D1 APIs
-- ✅ Deploy to staging
-- ✅ User acceptance testing
+### Week 3: Production Deployment
+- ❌ **CRITICAL**: Backup production D1 before deployment - **NOT DONE**
+- ❌ Apply migration to production D1 - **NOT DONE**: no `scheduled_job_results` table
+- ❌ Deploy code with D1-first + DO cache warm paths - **NOT DONE**
+- ❌ Monitor D1 performance and cache eviction alerts - **NOT DONE**
+- ❌ Spot-check 14-day history in D1 - **NOT DONE**
 
-### Week 4: Production Deployment
-- ✅ **CRITICAL**: Backup production D1 before deployment
-- ✅ Apply migration to production D1
-- ✅ Run production backfill
-- ✅ Deploy code with dual-write enabled
-- ✅ Monitor D1 performance and reliability
-- ✅ Verify data consistency between D1 and KV
+### Week 4: Cleanup
+- ❌ Remove any remaining KV references for scheduled jobs - **NOT DONE**
+- ❌ Keep DO cache warming in place; tune TTL/capacity as needed - **NOT DONE**
+- ❌ Document operational runbook for cache eviction recovery - **NOT DONE**
 
-### Week 5: Cutover & Cleanup
-- ✅ Verify D1 has complete data for past 7 days
-- ✅ Switch to D1-only writes (remove KV writes)
-- ✅ Keep KV reads as fallback for 30 days
-- ✅ Monitor for issues
-- ✅ Remove KV code after validation period
+---
+
+## 📊 Current State (2026-01-09)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| D1 tables | ⚠️ Partial | `job_executions`, `symbol_predictions`, `daily_analysis` exist; NO `scheduled_job_results` |
+| D1 writes | ⚠️ Partial | Cron health + predictions only; NO report snapshots |
+| D1 reads | ⚠️ Partial | Pre-market fallback code ready (not deployed); other reports NO |
+| Cache warm-after-write | ❌ Missing | Not implemented |
+| KV cleanup | ❌ Pending | Guards still in code |
 
 ---
 
@@ -838,7 +545,7 @@ ORDER BY je.execution_date DESC;
 | **Data Completeness** | 100% | All jobs stored in D1 |
 | **Query Performance** | <50ms | P95 latency for history queries |
 | **Reliability** | 99.9% | D1 write success rate |
-| **Cost Reduction** | 30% | Reduced KV read operations |
+| **Cache Resilience** | 0 blank dashboards | DO cache auto-rehydrated from D1 on miss |
 | **Dashboard Load Time** | <2s | Time to display job history |
 
 ---
@@ -846,7 +553,7 @@ ORDER BY je.execution_date DESC;
 ## ⚠️ Risk Mitigation
 
 ### Risk 1: D1 Unavailability
-**Mitigation**: Dual-write to both D1 and KV during migration period. KV serves as backup.
+**Mitigation**: DO cache contains the most recent run; on D1 outage serve last cached payload and surface warning. Keep D1 writes queued/retried with backoff.
 
 ### Risk 2: Schema Changes Needed
 **Mitigation**: Use `metadata` JSON column for flexible data. Can add columns later without breaking changes.
@@ -855,7 +562,7 @@ ORDER BY je.execution_date DESC;
 **Mitigation**: Indexes on all query paths. Monitor P95 latency. Rollback plan ready.
 
 ### Risk 4: Data Loss
-**Mitigation**: D1 has automatic backups. KV data retained for 30 days post-cutover.
+**Mitigation**: D1 has automatic backups. Daily exports before deployments; DO cache warming ensures user-visible data persists for the latest run even if D1 is recovering.
 
 ---
 
@@ -877,9 +584,9 @@ ORDER BY je.execution_date DESC;
    const ENABLE_D1_WRITES = false;  // Set to false
    ```
 
-2. **Switch to KV-Only Reads** (5 minutes)
+2. **Serve from DO Cache / Last Known Good** (5 minutes)
    ```typescript
-   // Skip D1 reads, go straight to KV
+   // Skip D1 reads, rely on cached payloads
    const USE_D1_READS = false;  // Set to false
    ```
 
@@ -891,9 +598,6 @@ ORDER BY je.execution_date DESC;
 
 4. **Verify System Health**
    ```bash
-   # Check KV is working
-   curl https://tft-trading-system.yanggf.workers.dev/api/v1/reports/pre-market
-   
    # Verify existing tables intact
    npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
      SELECT COUNT(*) FROM symbol_predictions;
@@ -945,18 +649,9 @@ SELECT COUNT(*) FROM daily_analysis;
 
 ## 📊 Cost Analysis
 
-### Current KV Costs (Estimated)
-- **Writes**: ~100/day × $0.50/million = $0.0015/day
-- **Reads**: ~500/day × $0.50/million = $0.0075/day
-- **Total**: ~$0.27/month
-
-### Projected D1 Costs
-- **Writes**: ~100/day × $0.00/million = $0.00/day (free tier)
-- **Reads**: ~500/day × $0.00/million = $0.00/day (free tier)
-- **Storage**: <1MB = $0.00/month (free tier)
-- **Total**: ~$0.00/month (within free tier limits)
-
-**Savings**: ~$0.27/month (100% reduction)
+- KV is no longer in use for scheduled jobs; DO cache + D1 stay within current free-tier limits.
+- D1 writes/reads for scheduled jobs remain negligible (<1MB storage, low query volume).
+- Monitor for D1 tier changes; if growth increases, add monthly report using `wrangler d1 analytics`.
 
 ---
 
@@ -971,7 +666,7 @@ SELECT COUNT(*) FROM daily_analysis;
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-01-08
+**Document Version**: 1.1
+**Last Updated**: 2026-01-08 (cache eviction resilience update)
 **Author**: AI Assistant
 **Status**: Draft - Pending Review
