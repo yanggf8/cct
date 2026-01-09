@@ -760,7 +760,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
             grid.innerHTML = \`<div class="error">\${message}</div>\`;
         }
     </script>
-    <script src="/js/api-client.js?v=20251018-2"></script>
+    <script src="/js/cct-api.js"></script>
     <script src="/js/api-cache.js?v=20251018-2"></script>
 </body>
 </html>`;

@@ -10,6 +10,7 @@ import { createLogger } from '../modules/logging.js';
 import { handleSentimentRoutes } from './sentiment-routes.js';
 import { handleReportRoutes } from './report-routes.js';
 import { handleDataRoutes } from './data-routes.js';
+import { handleJobsRoutes } from './jobs-routes.js';
 import { handleSectorRotationRoutes } from './sector-rotation-routes.js';
 import { sectorRoutes } from './sector-routes.js';
 import { handleMarketDriversRoutes } from './market-drivers-routes.js';
@@ -126,6 +127,8 @@ export async function handleApiV1Request(
       return await handleReportRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/data/')) {
       return await handleDataRoutes(request, env, path, headers);
+    } else if (path.startsWith('/api/v1/jobs/')) {
+      return await handleJobsRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/sector-rotation/')) {
       // Route to sector rotation API
       return await handleSectorRotationRoutes(request, env, path, headers);

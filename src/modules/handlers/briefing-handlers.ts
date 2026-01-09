@@ -45,14 +45,33 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     let briefingData: any = null;
 
     try {
-      briefingData = await getPreMarketBriefingData(env, today);
+      const rawData = await getPreMarketBriefingData(env, today);
 
-      if (briefingData) {
+      // Transform data structure: extract signals from analysis
+      if (rawData && rawData.analysis) {
+        const isPartialFallback = rawData.analysis.source === 'd1_fallback';
+        const isStale = rawData.analysis.is_stale === true;
+        const sourceDate = rawData.analysis.source_date || dateStr;
+        
+        briefingData = {
+          ...rawData,
+          signals: rawData.analysis.signals || [],
+          totalSignals: rawData.analysis.signals?.length || 0,
+          avgConfidence: rawData.analysis.overall_confidence || 0,
+          marketSentiment: rawData.analysis.market_sentiment?.overall_sentiment || 'NEUTRAL',
+          // Mark as partial fallback instead of synthetic defaults
+          isPartialFallback,
+          isStale,
+          sourceDate,
+          dataQuality: isStale ? 'stale' : (isPartialFallback ? 'partial' : 'full')
+        };
         logger.info('✅ [PRE-MARKET] Pre-market data found', {
           requestId,
           signalsCount: briefingData.signals?.length || 0,
-          hasMarketData: !!briefingData.marketData,
-          hasAnalysis: !!briefingData.analysis
+          hasAnalysis: true,
+          isPartialFallback,
+          isStale,
+          sourceDate
         });
       }
     } catch (dataError) {
@@ -158,7 +177,7 @@ function generatePreMarketHTML(
     <title>Pre-Market Briefing - ${today}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
-    <script src="js/api-client.js?v=20251018-2"></script>
+    <script src="js/cct-api.js"></script>
     <style>
         * {
             margin: 0;
@@ -210,6 +229,26 @@ function generatePreMarketHTML(
             font-size: 1.1rem;
             color: #00f2fe;
             font-weight: 600;
+        }
+
+        .stale-warning {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid rgba(255, 193, 7, 0.5);
+            color: #ffc107;
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+
+        .partial-warning {
+            background: rgba(23, 162, 184, 0.2);
+            border: 1px solid rgba(23, 162, 184, 0.5);
+            color: #17a2b8;
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 0.9rem;
         }
 
         .market-status {
@@ -495,6 +534,8 @@ function generatePreMarketHTML(
             <h1>🚀 Pre-Market Briefing</h1>
             <p>Comprehensive trading battle plan for today's market session</p>
             <div class="date-display">${today}</div>
+            ${briefingData?.isStale ? `<div class="stale-warning">⚠️ Showing data from ${briefingData.sourceDate} (latest available)</div>` : ''}
+            ${briefingData?.isPartialFallback && !briefingData?.isStale ? `<div class="partial-warning">ℹ️ Partial data from D1 fallback</div>` : ''}
             <div class="market-status">
                 <span class="status-dot"></span>
                 <span>Pre-Market Active</span>

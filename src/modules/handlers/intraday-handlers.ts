@@ -7,6 +7,8 @@ import { createLogger, type Logger } from '../logging.js';
 import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
+import { writeD1ReportSnapshot } from '../d1-job-storage.js';
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import {
   getWithRetry,
   updateJobStatus,
@@ -281,6 +283,17 @@ export const handleIntradayCheck = createHandler(
 
     const totalTime: number = Date.now() - startTime;
     const generationTime: number = Date.now() - generationStartTime;
+
+    // Write snapshot to D1 and warm DO cache
+    if (intradayData) {
+      await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData, {
+        processingTimeMs: totalTime,
+        signalCount: (intradayData as any)?.signals?.length || 0
+      });
+      // Warm DO cache
+      const dal = createSimplifiedEnhancedDAL(env);
+      await dal.write(`intraday_${dateStr}`, intradayData, { expirationTtl: 86400 });
+    }
 
     logger.info('✅ [INTRADAY] Intraday performance check generated successfully', {
       requestId,

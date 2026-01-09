@@ -22,7 +22,7 @@ export async function handleDailySummaryPage(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Analysis Summary - TFT Trading System</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
-  <script src="js/api-client.js?v=20251018-2"></script>
+  <script src="js/cct-api.js"></script>
     <style>
         * {
             margin: 0;

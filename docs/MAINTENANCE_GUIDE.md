@@ -200,6 +200,20 @@ curl -s "https://query1.finance.yahoo.com/v8/finance/chart/AAPL"
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
 ```
 
+#### **Issue 5: Pre-Market Briefing Empty (DO Cache Eviction)**
+**Symptoms**: `/pre-market-briefing` renders no data; logs show `NOT_FOUND` for `analysis_<date>`; high DO cache eviction count (e.g., 4k+ evictions) with ~500 entries remaining.
+**Causes**: Durable Object cache evicted recent analysis key before the next scheduled pre-market run (12:30 UTC); KV is unused for storage; latest job results still live in D1 tables.
+**Solutions**:
+```bash
+# Option A (recommended): Manually rehydrate cache now
+curl -X POST -H "X-API-KEY: $X_API_KEY" \
+  https://tft-trading-system.yanggf.workers.dev/api/v1/sentiment/analysis
+
+# Option B: If non-urgent, wait for scheduled pre-market job (12:30 UTC / 8:30 AM ET)
+# Monitor evictions
+env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="eviction|NOT_FOUND|analysis_" --since=2h
+```
+
 ### **🔍 Debugging Procedures**
 
 #### **Enhanced Debugging Mode**

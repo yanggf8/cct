@@ -16,6 +16,7 @@ import { createAnalysisResponse, type AnalysisResponseOptions } from '../respons
 import { BusinessMetrics } from '../monitoring.js';
 import { getJobStatus, validateDependencies } from '../kv-utils.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
+import { writeD1ReportSnapshot } from '../d1-job-storage.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('analysis-handlers');
@@ -172,11 +173,19 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       requestId: ctx.requestId
     });
 
-    // Store analysis results in KV for report generation
+    // 1. Write to D1 first (persistent storage)
+    const d1Written = await writeD1ReportSnapshot(env, dateStr, 'analysis', analysis, {
+      symbols_processed: analysis.symbols_analyzed?.length || 0,
+      execution_time_ms: analysis.execution_metrics?.total_time_ms || 0,
+      trigger: 'manual_analysis'
+    });
+    logger.info('D1 report snapshot write', { success: d1Written, dateStr, reportType: 'analysis' });
+
+    // 2. Warm DO cache from the analysis (cache-after-write)
     const dal = createSimplifiedEnhancedDAL(env);
     const analysisKey = `analysis_${dateStr}`;
     await dal.write(analysisKey, analysis, { expirationTtl: 86400 }); // 24 hours
-    logger.info('✅ Analysis data stored in KV', { key: analysisKey, dateStr });
+    logger.info('✅ DO cache warmed after D1 write', { key: analysisKey, dateStr });
 
     // Update job status after successful analysis
     const { updateJobStatus } = await import('../kv-utils.js');

@@ -518,6 +518,33 @@ npm run build:frontend:only
 
 ---
 
+## 📊 D1 Migration Status (2026-01-09)
+
+### Current State
+| Component | Status | Details |
+|-----------|--------|---------|
+| **D1 Schema** | ⚠️ Partial | `job_executions`, `symbol_predictions`, `daily_analysis` exist; no `scheduled_job_results` table |
+| **D1 Writes** | ⚠️ Partial | Cron health → `job_executions`; predictions → `symbol_predictions`/`daily_analysis` |
+| **D1 Reads** | ⚠️ Partial | Pre-market has D1 fallback; other reports (intraday/end-of-day/weekly) do not |
+| **DO Cache** | ✅ Primary | All reports read DO cache first |
+| **Cache Warm-after-write** | ❌ Missing | No automatic DO cache population after D1 writes |
+| **KV Usage** | ✅ Eliminated | KV unused for job storage; validation guards remain in code |
+
+### What Works Now
+- Pre-market briefing: DO cache → D1 fallback (today, then yesterday) → write-back to DO
+- Job execution tracking in D1
+- Symbol predictions stored in D1
+
+### Remaining Tasks
+1. Create `scheduled_job_results` table migration (execution_date, report_type, metadata)
+2. Add report snapshot writes to D1
+3. Implement cache warm-after-write from D1
+4. Extend D1 fallback to intraday/end-of-day/weekly handlers
+5. Create D1 query API endpoints (`/api/v1/jobs/history`, `/api/v1/jobs/latest`)
+6. Remove unused KV validation guards
+
+---
+
 ## 🔮 Future Roadmap
 
 ### **Strategic Vision**

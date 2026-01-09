@@ -18,7 +18,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
     <title>Dual AI Comparison Dashboard - TFT Trading System</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
-  <script src="js/api-client.js?v=20251018-2"></script>
+  <script src="js/cct-api.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {

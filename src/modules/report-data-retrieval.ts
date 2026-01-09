@@ -1,12 +1,14 @@
 /**
  * Report Data Retrieval Module - TypeScript
  * KV data access functions for the 4-report workflow with comprehensive type safety
+ * D1 fallback: When DO cache misses, queries D1 snapshots first, then predictions
  */
 
 import { createLogger } from './logging.js';
 import { tomorrowOutlookTracker, type MarketBias, type ConfidenceLevel, type VolatilityLevel } from './tomorrow-outlook-tracker.js';
 import { runEnhancedAnalysis, type EnhancedAnalysisResults } from './enhanced_analysis.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
+import { getD1Predictions, transformD1ToAnalysis, readD1ReportSnapshot, getD1LatestReportSnapshot, getD1FallbackData } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 import type { KVReadResult } from './dal.js';
 
@@ -121,6 +123,8 @@ export interface IntradayCheckData {
   marketStatus: 'intraday';
   currentTime: string;
   generatedAt: string;
+  isStale?: boolean;
+  sourceDate?: string;
 }
 
 export interface EndOfDaySummaryData {
@@ -130,6 +134,8 @@ export interface EndOfDaySummaryData {
   marketStatus: 'closed';
   closingTime: string;
   generatedAt: string;
+  isStale?: boolean;
+  sourceDate?: string;
 }
 
 export interface SingleDayPerformance {
@@ -185,6 +191,8 @@ export interface WeeklyReviewData {
   weeklyAnalysis: WeeklyAnalysis;
   period: WeeklyPeriod;
   generatedAt: string;
+  isStale?: boolean;
+  sourceDate?: string;
 }
 
 /**
@@ -199,16 +207,32 @@ export class ReportDataRetrieval {
 
   /**
    * PRE-MARKET BRIEFING (8:30 AM) - Get morning predictions + evaluate yesterday's outlook
+   * Falls back to D1 snapshots first, then predictions. Does NOT write stale data to today's cache key.
    */
   async getPreMarketBriefingData(env: CloudflareEnvironment, date: Date): Promise<PreMarketBriefingData> {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
       const dal = createSimplifiedEnhancedDAL(env);
-
-      // Get today's analysis
       const analysisKey = `analysis_${dateStr}`;
-      const analysisResult = await dal.read(analysisKey);
+      let analysisResult = await dal.read(analysisKey);
+
+      // D1 fallback chain if cache miss
+      if (!analysisResult.data) {
+        logger.info('DO cache miss, trying D1 fallback', { key: analysisKey, date: dateStr });
+        const fallback = await getD1FallbackData(env, dateStr, 'analysis');
+        
+        if (fallback) {
+          // Only cache to today's key if data is fresh (not stale)
+          if (!fallback.isStale) {
+            await dal.write(analysisKey, fallback.data, { expirationTtl: 86400 });
+            logger.info('D1 fallback success, warmed DO cache', { source: fallback.source, date: dateStr });
+          } else {
+            logger.info('D1 fallback using stale data (not cached)', { source: fallback.source, sourceDate: fallback.sourceDate });
+          }
+          analysisResult = { success: true, data: fallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+        }
+      }
 
       // Get morning predictions (if available)
       const predictionsKey = `morning_predictions_${dateStr}`;
@@ -283,16 +307,27 @@ export class ReportDataRetrieval {
 
   /**
    * INTRADAY CHECK (12:00 PM) - Get updated morning predictions with current performance
+   * Falls back to D1 when DO cache misses
    */
   async getIntradayCheckData(env: CloudflareEnvironment, date: Date): Promise<IntradayCheckData> {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
       const dal = createSimplifiedEnhancedDAL(env);
-
-      // Get morning predictions with performance updates
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult = await dal.read(predictionsKey);
+      let predictionsResult = await dal.read(predictionsKey);
+
+      // D1 fallback if cache miss
+      if (!predictionsResult.data) {
+        logger.info('DO cache miss for intraday, trying D1 fallback', { date: dateStr });
+        const fallback = await getD1FallbackData(env, dateStr, 'intraday');
+        if (fallback && !fallback.isStale) {
+          await dal.write(predictionsKey, fallback.data, { expirationTtl: 86400 });
+          predictionsResult = { success: true, data: fallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+        } else if (fallback) {
+          predictionsResult = { success: true, data: fallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+        }
+      }
 
       let predictions: PredictionsData | null = null;
       let performanceSummary: IntradayPerformanceSummary | null = null;
@@ -312,30 +347,14 @@ export class ReportDataRetrieval {
           hour: '2-digit',
           minute: '2-digit'
         }) + ' EDT',
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        isStale: predictionsResult.data?.is_stale || false,
+        sourceDate: predictionsResult.data?.source_date || dateStr
       };
 
-      // Log ERROR level for missing critical data
       if (!predictions) {
-        logger.error('⚠️ [INTRADAY] CRITICAL: Missing morning predictions for performance tracking', {
-          date: dateStr,
-          key: `morning_predictions_${dateStr}`,
-          impact: 'Cannot track real-time signal performance - using default tracking data',
-          action: 'Check morning prediction generation and KV storage'
-        });
-
-        // Send Facebook error notification
-        // Facebook error notification disabled to prevent spam
-        // this.sendDataErrorNotification('Intraday Performance Check', 'Missing morning predictions', dateStr, env);
-        console.log(`[DISABLED] Would have sent Facebook error notification for Intraday Performance Check - Missing morning predictions`);
+        logger.warn('⚠️ [INTRADAY] Missing predictions after D1 fallback', { date: dateStr });
       }
-
-      logger.info('Retrieved intraday check data', {
-        date: dateStr,
-        hasPredictions: !!predictions,
-        signalCount: predictions?.predictions?.length || 0,
-        usingFallback: !predictions
-      });
 
       return result;
 
@@ -350,16 +369,27 @@ export class ReportDataRetrieval {
 
   /**
    * END-OF-DAY SUMMARY (4:05 PM) - Get complete day performance + store tomorrow outlook
+   * Falls back to D1 when DO cache misses
    */
   async getEndOfDaySummaryData(env: CloudflareEnvironment, date: Date): Promise<EndOfDaySummaryData> {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
       const dal = createSimplifiedEnhancedDAL(env);
-
-      // Get morning predictions with final performance
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult = await dal.read(predictionsKey);
+      let predictionsResult = await dal.read(predictionsKey);
+
+      // D1 fallback if cache miss
+      if (!predictionsResult.data) {
+        logger.info('DO cache miss for end-of-day, trying D1 fallback', { date: dateStr });
+        const fallback = await getD1FallbackData(env, dateStr, 'end-of-day');
+        if (fallback && !fallback.isStale) {
+          await dal.write(predictionsKey, fallback.data, { expirationTtl: 86400 });
+          predictionsResult = { success: true, data: fallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+        } else if (fallback) {
+          predictionsResult = { success: true, data: fallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+        }
+      }
 
       // Get end-of-day summary if available
       const summaryKey = `end_of_day_summary_${dateStr}`;
@@ -414,7 +444,9 @@ export class ReportDataRetrieval {
         tomorrowOutlook,
         marketStatus: 'closed',
         closingTime: '4:00 PM EDT',
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        isStale: predictionsResult.data?.is_stale || false,
+        sourceDate: predictionsResult.data?.source_date || dateStr
       };
 
       // Log ERROR level for missing critical data
@@ -473,13 +505,27 @@ export class ReportDataRetrieval {
 
   /**
    * WEEKLY REVIEW (Sunday) - Get weekly performance patterns
+   * Falls back to D1 when DO cache misses
    */
   async getWeeklyReviewData(env: CloudflareEnvironment, date: Date): Promise<WeeklyReviewData> {
     const dateStr = date.toISOString().split('T')[0];
 
     try {
       // Get last 5 trading days of data
-      const weeklyData: WeeklyDayPerformance[] = await this.getWeeklyPerformanceData(env, date);
+      let weeklyData: WeeklyDayPerformance[] = await this.getWeeklyPerformanceData(env, date);
+
+      // D1 fallback if no weekly data
+      let isStale = false;
+      let sourceDate = dateStr;
+      if (weeklyData.length === 0) {
+        logger.info('DO cache miss for weekly, trying D1 fallback', { date: dateStr });
+        const fallback = await getD1FallbackData(env, dateStr, 'weekly');
+        if (fallback?.data?.weeklyData) {
+          weeklyData = fallback.data.weeklyData;
+          isStale = fallback.isStale;
+          sourceDate = fallback.sourceDate;
+        }
+      }
 
       // Generate weekly analysis
       const weeklyAnalysis: WeeklyAnalysis = this.generateWeeklyAnalysis(weeklyData);
@@ -489,54 +535,22 @@ export class ReportDataRetrieval {
         weeklyData,
         weeklyAnalysis,
         period: this.getWeeklyPeriod(date),
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        isStale,
+        sourceDate
       };
 
-      // Log ERROR level for missing critical weekly data
       if (weeklyData.length === 0) {
-        logger.error('⚠️ [WEEKLY-REVIEW] CRITICAL: No weekly performance data found in KV', {
-          date: dateStr,
-          expectedTradingDays: 5,
-          actualDaysFound: weeklyData.length,
-          impact: 'Using fallback default data - weekly review may not reflect actual market performance',
-          action: 'Manual investigation required for daily summary storage and weekly aggregation'
-        });
-
-        // Facebook error notification disabled to prevent spam
-        // await this.sendDataErrorNotification('Weekly Review', 'Missing weekly performance data', dateStr, env);
-        console.log(`[DISABLED] Would have sent Facebook error notification for Weekly Review - Missing weekly performance data`);
-      } else if (weeklyData.length < 3) {
-        logger.warn('⚠️ [WEEKLY-REVIEW] WARNING: Insufficient weekly data for comprehensive analysis', {
-          date: dateStr,
-          expectedTradingDays: 5,
-          actualDaysFound: weeklyData.length,
-          impact: 'Limited weekly analysis context - patterns may not be statistically significant',
-          action: 'Check daily summary generation for missing trading days'
-        });
+        logger.warn('⚠️ [WEEKLY-REVIEW] No data after D1 fallback', { date: dateStr });
       }
-
-      logger.info('Retrieved weekly review data', {
-        date: dateStr,
-        daysAnalyzed: weeklyData.length,
-        avgAccuracy: weeklyAnalysis.overview.averageAccuracy.toFixed(1),
-        usingFallback: weeklyData.length === 0
-      });
 
       return result;
 
     } catch (error: unknown) {
-      logger.error('❌ [WEEKLY-REVIEW] CRITICAL: Failed to retrieve weekly review data', {
+      logger.error('❌ [WEEKLY-REVIEW] Failed to retrieve weekly review data', {
         date: dateStr,
-        error: (error as Error).message,
-        impact: 'Weekly review failed - using fallback data only',
-        action: 'Investigate KV storage and weekly data aggregation systems'
+        error: (error as Error).message
       });
-
-      // Send Facebook error notification for system failure
-      // Facebook error notification disabled to prevent spam
-      // await this.sendDataErrorNotification('Weekly Review', `System error: ${(error as Error).message}`, dateStr, env);
-      console.log(`[DISABLED] Would have sent Facebook error notification for Weekly Review - System error: ${(error as Error).message}`);
-
       return this.getDefaultWeeklyData(dateStr);
     }
   }

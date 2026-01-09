@@ -7,6 +7,8 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
+import { writeD1ReportSnapshot } from '../d1-job-storage.js';
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 
@@ -59,6 +61,18 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
     });
   }
 
+  // Write snapshot to D1 and warm DO cache
+  const dateStr = today.toISOString().split('T')[0];
+  if (weeklyData) {
+    await writeD1ReportSnapshot(env, dateStr, 'weekly', weeklyData, {
+      processingTimeMs: Date.now() - startTime,
+      tradingDays: weeklyData.tradingDays || 0
+    });
+    // Warm DO cache
+    const dal = createSimplifiedEnhancedDAL(env);
+    await dal.write(`weekly_${dateStr}`, weeklyData, { expirationTtl: 86400 });
+  }
+
   // Generate comprehensive weekly review HTML
   const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, today);
 
@@ -100,7 +114,7 @@ function generateWeeklyReviewHTML(
     <title>Weekly Trading Review - ${weekRange}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
-    <script src="js/api-client.js?v=20251018-2"></script>
+    <script src="js/cct-api.js"></script>
     <style>
         * {
             margin: 0;
