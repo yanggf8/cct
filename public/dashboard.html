@@ -73,40 +73,29 @@
 
     <script>
         const DAILY_JOBS = [
-            { id: 'pre-market', name: 'Pre-Market', icon: '🌅', hour: 12, min: 30 },
-            { id: 'intraday', name: 'Intraday', icon: '📊', hour: 16, min: 0 },
-            { id: 'end-of-day', name: 'End-of-Day', icon: '🌆', hour: 20, min: 5 }
+            { id: 'pre-market', name: 'Pre-Market', icon: '🌅', hour: 12, min: 30, type: 'analysis' },
+            { id: 'intraday', name: 'Intraday', icon: '📊', hour: 16, min: 0, type: 'analysis' },
+            { id: 'end-of-day', name: 'End-of-Day', icon: '🌆', hour: 20, min: 5, type: 'analysis' }
         ];
 
-        let ghRuns = [];
+        let d1Jobs = [];
 
-        async function fetchGitHubRuns() {
-            // GitHub Actions integration disabled - remove or configure if needed
-            return [];
-        }
-
-        function normalizeStatus(run) {
-            const c = run.conclusion, s = run.status;
-            if (c === 'success') return 'success';
-            if (c === 'failure' || c === 'timed_out') return 'failure';
-            if (c === 'cancelled' || c === 'skipped') return 'skipped';
-            if (s === 'queued' || s === 'in_progress' || s === 'pending') return 'in_progress';
-            return c || 'in_progress';
+        async function fetchD1Jobs() {
+            try {
+                const apiKey = sessionStorage.getItem('cct_api_key') || localStorage.getItem('cct_api_key') || window.CCT_API_KEY || '';
+                const res = await fetch('/api/v1/jobs/history?limit=50', {
+                    headers: apiKey ? { 'X-API-KEY': apiKey } : {}
+                });
+                const data = await res.json();
+                return data.success ? (data.data.jobs || []) : [];
+            } catch (e) {
+                console.error('Failed to fetch D1 jobs:', e);
+                return [];
+            }
         }
 
         function statusText(status) {
-            return { success: '✅ Completed', failure: '❌ Failed', in_progress: '🔄 Running', skipped: '⚪ Skipped' }[status] || '⚪ Unknown';
-        }
-
-        function getJobForRun(run) {
-            if (run.event === 'workflow_dispatch') return null;
-            const t = new Date(run.created_at);
-            const h = t.getUTCHours(), m = t.getUTCMinutes();
-            if (h === 14 && m <= 10 && t.getUTCDay() === 0) return { id: 'weekly-review' };
-            for (const job of DAILY_JOBS) {
-                if (h === job.hour && Math.abs(m - job.min) <= 10) return job;
-            }
-            return null;
+            return { success: '✅ Completed', failure: '❌ Failed', in_progress: '🔄 Running', skipped: '⚪ Skipped' }[status] || '⚪ No run';
         }
 
         function formatTime(h, m) {
@@ -115,29 +104,48 @@
         }
 
         function getDateStr(d) { return d.toISOString().slice(0, 10); }
+        
+        function getUTCToday() {
+            const now = new Date();
+            return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        }
+
+        function getJobRunForDate(dateStr, jobId) {
+            // Find any analysis job on this date
+            // For now, all jobs are stored as 'analysis' type
+            // Match by date and approximate time window
+            const jobRuns = d1Jobs.filter(j => j.executed_at.slice(0, 10) === dateStr);
+            
+            if (jobRuns.length === 0) return null;
+            
+            // Sort by execution time
+            jobRuns.sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
+            
+            // Map job slots to runs by order (first run = pre-market, second = intraday, third = end-of-day)
+            const jobOrder = { 'pre-market': 0, 'intraday': 1, 'end-of-day': 2 };
+            const idx = jobOrder[jobId];
+            
+            return idx !== undefined && jobRuns[idx] ? jobRuns[idx] : null;
+        }
 
         function renderDailySection() {
             const container = document.getElementById('daily-section');
             const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+            const today = getUTCToday();
+            const yesterday = new Date(today); yesterday.setUTCDate(today.getUTCDate() - 1);
 
             const renderRow = (date, label) => {
                 const dateStr = getDateStr(date);
-                const isToday = getDateStr(now) === dateStr;
-                const dayRuns = ghRuns.filter(r => getDateStr(new Date(r.created_at)) === dateStr);
+                const isToday = getDateStr(today) === dateStr;
 
                 const cards = DAILY_JOBS.map(job => {
-                    const run = dayRuns.find(r => {
-                        const j = getJobForRun(r);
-                        return j && j.id === job.id;
-                    });
-                    const scheduledTime = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), job.hour, job.min));
+                    const run = getJobRunForDate(dateStr, job.id);
+                    const scheduledTime = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), job.hour, job.min));
                     const isPast = scheduledTime < now;
 
                     let status, sText;
                     if (run) {
-                        status = normalizeStatus(run);
+                        status = run.status === 'success' ? 'success' : 'failure';
                         sText = statusText(status);
                     } else if (!isToday || isPast) {
                         status = 'skipped';
@@ -147,16 +155,23 @@
                         sText = '⏳ Scheduled';
                     }
 
+                    const reportLinks = {
+                        'pre-market': '/pre-market-briefing',
+                        'intraday': '/intraday-check',
+                        'end-of-day': '/end-of-day-summary'
+                    };
+                    const reportLink = reportLinks[job.id];
+
                     return `
-                        <div class="job-card ${status}">
+                        <a href="${reportLink}" class="job-card ${status}" style="text-decoration:none;color:inherit;display:block;">
                             <div class="job-header">
                                 <span class="job-icon">${job.icon}</span>
                                 <span class="job-time">${formatTime(job.hour, job.min)}</span>
                             </div>
                             <div class="job-name">${job.name}</div>
                             <div class="job-status">${sText}</div>
-                            ${run ? `<a class="job-link" href="${run.html_url}" target="_blank">View →</a>` : ''}
-                        </div>
+                            ${run ? `<div class="job-meta">${run.symbols_processed || 0} symbols</div>` : ''}
+                        </a>
                     `;
                 });
 
@@ -172,25 +187,25 @@
         function renderWeeklySection() {
             const container = document.getElementById('weekly-section');
             const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const today = getUTCToday();
 
-            // Find this Sunday and last Sunday
             const thisSunday = new Date(today);
-            thisSunday.setDate(today.getDate() - today.getDay());
+            thisSunday.setUTCDate(today.getUTCDate() - today.getUTCDay());
             const lastSunday = new Date(thisSunday);
-            lastSunday.setDate(thisSunday.getDate() - 7);
+            lastSunday.setUTCDate(thisSunday.getUTCDate() - 7);
 
             const renderWeeklyCard = (sunday, label) => {
                 const dateStr = getDateStr(sunday);
                 const isFuture = sunday > today;
-                const run = ghRuns.find(r => {
-                    const j = getJobForRun(r);
-                    return j && j.id === 'weekly-review' && getDateStr(new Date(r.created_at)) === dateStr;
+                const run = d1Jobs.find(j => {
+                    const execDate = j.executed_at.slice(0, 10);
+                    const execHour = new Date(j.executed_at).getUTCHours();
+                    return execDate === dateStr && Math.abs(execHour - 14) <= 2;
                 });
 
                 let status, sText;
                 if (run) {
-                    status = normalizeStatus(run);
+                    status = run.status === 'success' ? 'success' : 'failure';
                     sText = statusText(status);
                 } else if (isFuture) {
                     status = 'scheduled';
@@ -201,12 +216,11 @@
                 }
 
                 return `
-                    <div class="weekly-card ${status}">
+                    <a href="/weekly-review" class="weekly-card ${status}" style="text-decoration:none;color:inherit;display:block;">
                         <div class="weekly-label">${label}</div>
                         <div class="weekly-date">📋 ${sunday.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
                         <div class="weekly-status">${sText}</div>
-                        ${run ? `<a class="job-link" href="${run.html_url}" target="_blank">View →</a>` : ''}
-                    </div>
+                    </a>
                 `;
             };
 
@@ -222,7 +236,7 @@
             document.getElementById('daily-section').innerHTML = '<div class="loading">Loading...</div>';
             document.getElementById('weekly-section').innerHTML = '<div class="loading">Loading...</div>';
 
-            ghRuns = await fetchGitHubRuns();
+            d1Jobs = await fetchD1Jobs();
             renderDailySection();
             renderWeeklySection();
         }

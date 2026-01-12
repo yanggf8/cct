@@ -20,6 +20,19 @@ const logger = createLogger('end-of-day-handlers');
 export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  // Fast path: check DO cache first
+  try {
+    const dal = createSimplifiedEnhancedDAL(env);
+    const cached = await dal.read(`end_of_day_html_${dateStr}`);
+    if (cached.success && cached.data) {
+      return new Response(cached.data, {
+        headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'HIT' }
+      });
+    }
+  } catch (e) { /* continue */ }
 
   logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', {
     requestId,
@@ -27,12 +40,9 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
   });
 
-  // Get today's end-of-day data using new data retrieval system
-  const today = new Date();
-
   logger.debug('📊 [END-OF-DAY] Retrieving end-of-day summary data', {
     requestId,
-    date: today.toISOString().split('T')[0]
+    date: dateStr
   });
 
   let endOfDayData: any = null;
@@ -61,20 +71,19 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     });
   }
 
-  // Write snapshot to D1 and warm DO cache
-  const dateStr = today.toISOString().split('T')[0];
+  // Generate HTML
+  const htmlContent = generateEndOfDayHTML(endOfDayData, requestId, today);
+
+  // Write snapshot to D1 and cache HTML
+  const dal = createSimplifiedEnhancedDAL(env);
   if (endOfDayData) {
     await writeD1ReportSnapshot(env, dateStr, 'end-of-day', endOfDayData, {
       processingTimeMs: Date.now() - startTime,
       hasTomorrowOutlook: !!endOfDayData.tomorrowOutlook
     });
-    // Warm DO cache
-    const dal = createSimplifiedEnhancedDAL(env);
     await dal.write(`end_of_day_${dateStr}`, endOfDayData, { expirationTtl: 86400 });
   }
-
-  // Generate comprehensive end-of-day HTML
-  const htmlContent = generateEndOfDayHTML(endOfDayData, requestId, today);
+  await dal.write(`end_of_day_html_${dateStr}`, htmlContent, { expirationTtl: 300 });
 
   logger.info('🎯 [END-OF-DAY] End-of-day summary completed', {
     requestId,

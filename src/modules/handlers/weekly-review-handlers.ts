@@ -20,6 +20,19 @@ const logger = createLogger('weekly-review-handlers');
 export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  // Fast path: check DO cache first
+  try {
+    const dal = createSimplifiedEnhancedDAL(env);
+    const cached = await dal.read(`weekly_html_${dateStr}`);
+    if (cached.success && cached.data) {
+      return new Response(cached.data, {
+        headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=600', 'X-Cache': 'HIT' }
+      });
+    }
+  } catch (e) { /* continue */ }
 
   logger.info('📈 [WEEKLY-REVIEW] Starting weekly review generation', {
     requestId,
@@ -27,12 +40,9 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
     userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
   });
 
-  // Get this week's review data using new data retrieval system
-  const today = new Date();
-
   logger.debug('📊 [WEEKLY-REVIEW] Retrieving weekly review data', {
     requestId,
-    date: today.toISOString().split('T')[0]
+    date: dateStr
   });
 
   let weeklyData: any = null;
@@ -61,20 +71,19 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
     });
   }
 
-  // Write snapshot to D1 and warm DO cache
-  const dateStr = today.toISOString().split('T')[0];
+  // Generate HTML
+  const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, today);
+
+  // Write snapshot to D1 and cache HTML
+  const dal = createSimplifiedEnhancedDAL(env);
   if (weeklyData) {
     await writeD1ReportSnapshot(env, dateStr, 'weekly', weeklyData, {
       processingTimeMs: Date.now() - startTime,
       tradingDays: weeklyData.tradingDays || 0
     });
-    // Warm DO cache
-    const dal = createSimplifiedEnhancedDAL(env);
     await dal.write(`weekly_${dateStr}`, weeklyData, { expirationTtl: 86400 });
   }
-
-  // Generate comprehensive weekly review HTML
-  const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, today);
+  await dal.write(`weekly_html_${dateStr}`, htmlContent, { expirationTtl: 600 });
 
   logger.info('🎯 [WEEKLY-REVIEW] Weekly review completed', {
     requestId,

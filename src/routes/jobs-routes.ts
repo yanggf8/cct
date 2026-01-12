@@ -25,22 +25,26 @@ export async function handleJobsRoutes(
   const requestId = generateRequestId();
   const url = new URL(request.url);
 
-  // Require API key
-  const authResult = validateApiKey(request, env);
-  if (!authResult.valid) {
-    return new Response(
-      JSON.stringify(ApiResponseFactory.error('API key required', 'UNAUTHORIZED', { requestId })),
-      { status: HttpStatus.UNAUTHORIZED, headers }
-    );
+  // Read-only endpoints are public, write endpoints require auth
+  const isWriteEndpoint = path === '/api/v1/jobs/trigger';
+  
+  if (isWriteEndpoint) {
+    const authResult = validateApiKey(request, env);
+    if (!authResult.valid) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('API key required', 'UNAUTHORIZED', { requestId })),
+        { status: HttpStatus.UNAUTHORIZED, headers }
+      );
+    }
   }
 
   try {
-    // POST /api/v1/jobs/trigger - Manually trigger a scheduled job
+    // POST /api/v1/jobs/trigger - Manually trigger a scheduled job (protected)
     if (path === '/api/v1/jobs/trigger' && request.method === 'POST') {
       return await handleJobTrigger(request, env, headers, requestId, timer);
     }
 
-    // GET /api/v1/jobs/history - Get job execution history
+    // GET /api/v1/jobs/history - Get job execution history (public)
     if (path === '/api/v1/jobs/history') {
       return await handleJobsHistory(env, url, headers, requestId, timer);
     }

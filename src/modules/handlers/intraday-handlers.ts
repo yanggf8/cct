@@ -159,6 +159,22 @@ export const handleIntradayCheck = createHandler(
     const today: Date = new Date();
     const dateStr: string = today.toISOString().split('T')[0];
 
+    // Fast path: check DO cache first
+    try {
+      const dal = createSimplifiedEnhancedDAL(env);
+      const cached = await dal.read(`intraday_html_${dateStr}`);
+      if (cached.success && cached.data) {
+        return new Response(cached.data, {
+          headers: {
+            'Content-Type': 'text/html',
+            'Cache-Control': 'public, max-age=180',
+            'X-Cache': 'HIT',
+            'X-Request-ID': requestId
+          }
+        });
+      }
+    } catch (e) { /* continue to generate */ }
+
     logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
       requestId,
       date: dateStr,
@@ -285,15 +301,16 @@ export const handleIntradayCheck = createHandler(
     const generationTime: number = Date.now() - generationStartTime;
 
     // Write snapshot to D1 and warm DO cache
+    const dal = createSimplifiedEnhancedDAL(env);
     if (intradayData) {
       await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData, {
         processingTimeMs: totalTime,
         signalCount: (intradayData as any)?.signals?.length || 0
       });
-      // Warm DO cache
-      const dal = createSimplifiedEnhancedDAL(env);
       await dal.write(`intraday_${dateStr}`, intradayData, { expirationTtl: 86400 });
     }
+    // Cache HTML for fast subsequent loads
+    await dal.write(`intraday_html_${dateStr}`, html, { expirationTtl: 180 });
 
     logger.info('✅ [INTRADAY] Intraday performance check generated successfully', {
       requestId,

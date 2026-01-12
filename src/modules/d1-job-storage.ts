@@ -310,13 +310,21 @@ export async function getD1FallbackData(
 ): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean } | null> {
   const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day' || reportType === 'predictions';
 
-  // 1. Try D1 snapshot for today
+  // 1. Try D1 snapshot for today with exact report type
   let snapshot = await readD1ReportSnapshot(env, dateStr, reportType);
   if (snapshot) {
     return { data: snapshot, source: 'd1_snapshot', sourceDate: dateStr, isStale: false };
   }
 
-  // 2. Try latest D1 snapshot (may be stale)
+  // 2. For intraday/end-of-day, fall back to analysis snapshot
+  if (reportType === 'intraday' || reportType === 'end-of-day') {
+    snapshot = await readD1ReportSnapshot(env, dateStr, 'analysis');
+    if (snapshot) {
+      return { data: snapshot, source: 'd1_snapshot_analysis', sourceDate: dateStr, isStale: false };
+    }
+  }
+
+  // 3. Try latest D1 snapshot (may be stale)
   const latestSnapshot = await getD1LatestReportSnapshot(env, reportType);
   if (latestSnapshot) {
     const isStale = latestSnapshot.executionDate !== dateStr;
@@ -325,14 +333,14 @@ export async function getD1FallbackData(
     return { data: latestSnapshot.data, source: 'd1_snapshot', sourceDate: latestSnapshot.executionDate, isStale };
   }
 
-  // 3. Try D1 predictions for today
+  // 4. Try D1 predictions for today
   let predictions = await getD1Predictions(env, dateStr);
   if (predictions && predictions.length > 0) {
     const data = usePredictionsShape ? transformD1ToPredictions(predictions) : transformD1ToAnalysis(predictions);
     return { data, source: 'd1_predictions', sourceDate: dateStr, isStale: false };
   }
 
-  // 4. Try D1 predictions for yesterday
+  // 5. Try D1 predictions for yesterday
   const yesterday = new Date(dateStr);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split('T')[0];

@@ -323,9 +323,18 @@ export class ReportDataRetrieval {
    */
   async getIntradayCheckData(env: CloudflareEnvironment, date: Date): Promise<IntradayCheckData> {
     const dateStr = date.toISOString().split('T')[0];
+    const cacheKey = `intraday_result_${dateStr}`;
 
     try {
       const dal = createSimplifiedEnhancedDAL(env);
+      
+      // Check for cached complete result first
+      const cachedResult = await dal.read(cacheKey);
+      if (cachedResult.success && cachedResult.data) {
+        logger.info('DO cache hit for intraday result', { date: dateStr });
+        return cachedResult.data as IntradayCheckData;
+      }
+
       const predictionsKey = `morning_predictions_${dateStr}`;
       let predictionsResult = await dal.read(predictionsKey);
 
@@ -364,6 +373,9 @@ export class ReportDataRetrieval {
         sourceDate: predictionsResult.data?.source_date || dateStr
       };
 
+      // Cache the complete result for 3 minutes
+      await dal.write(cacheKey, result, { expirationTtl: 180 });
+
       if (!predictions) {
         logger.warn('⚠️ [INTRADAY] Missing predictions after D1 fallback', { date: dateStr });
       }
@@ -385,9 +397,18 @@ export class ReportDataRetrieval {
    */
   async getEndOfDaySummaryData(env: CloudflareEnvironment, date: Date): Promise<EndOfDaySummaryData> {
     const dateStr = date.toISOString().split('T')[0];
+    const cacheKey = `end_of_day_result_${dateStr}`;
 
     try {
       const dal = createSimplifiedEnhancedDAL(env);
+      
+      // Check for cached complete result first (skip expensive AI call)
+      const cachedResult = await dal.read(cacheKey);
+      if (cachedResult.success && cachedResult.data) {
+        logger.info('DO cache hit for end-of-day result', { date: dateStr });
+        return cachedResult.data as EndOfDaySummaryData;
+      }
+
       const predictionsKey = `morning_predictions_${dateStr}`;
       let predictionsResult = await dal.read(predictionsKey);
 
@@ -414,7 +435,7 @@ export class ReportDataRetrieval {
         const predictions: PredictionsData = predictionsResult.data;
         finalSummary = this.generateEndOfDaySummary(predictions);
 
-        // Generate AI-powered tomorrow outlook
+        // Generate AI-powered tomorrow outlook (expensive - only if not cached)
         try {
           logger.info('🤖 [END-OF-DAY] Running AI analysis for tomorrow outlook', { date: dateStr });
           const aiAnalysis: EnhancedAnalysisResults = await runEnhancedAnalysis(env, {
@@ -433,11 +454,9 @@ export class ReportDataRetrieval {
             date: dateStr,
             error: (error as Error).message
           });
-          // Fallback to simple pattern analysis
           tomorrowOutlook = this.generateTomorrowOutlook(predictions);
         }
 
-        // Store tomorrow outlook for next day evaluation
         if (tomorrowOutlook) {
           await tomorrowOutlookTracker.storeTomorrowOutlook(env, date, tomorrowOutlook as any);
         }
@@ -460,6 +479,9 @@ export class ReportDataRetrieval {
         isStale: predictionsResult.data?.is_stale || false,
         sourceDate: predictionsResult.data?.source_date || dateStr
       };
+
+      // Cache the complete result for 5 minutes
+      await dal.write(cacheKey, result, { expirationTtl: 300 });
 
       // Log ERROR level for missing critical data
       if (!predictionsResult.success || !predictionsResult.data) {

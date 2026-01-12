@@ -164,6 +164,12 @@ Not scheduled:
 | End-of-Day  | ✅ Yes      | Uses prediction-shaped data; no sentiment transform needed. |
 | Weekly      | ✅ Yes      | Aggregates daily data; no sentiment transform needed. |
 
+### D1 Storage Policy (Reports)
+- All report results (pre-market, intraday, end-of-day, weekly) must be written to D1 and treated as the history record of truth.
+- Report retrieval should read from D1, then warm Durable Object cache (DO) for fast subsequent reads.
+- DO cache acts as the hot layer; D1 remains authoritative for historical replay and recovery.
+- All DO-backed endpoints should expose a cache-bypass option (e.g., `?bypass_cache=1` or header) to fetch fresh data directly for testing/debugging without relying on cached payloads.
+
 ## 🔧 Troubleshooting Guide
 
 ### **🚨 Common Issues and Solutions**

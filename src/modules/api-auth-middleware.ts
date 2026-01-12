@@ -14,8 +14,15 @@ export interface AuthResult {
 const PUBLIC_ENDPOINTS = [
   '/api/v1',              // API documentation root only
   '/api/v1/data/health',  // Health check
+  '/api/v1/jobs/history', // Job history (read-only)
+  '/api/v1/jobs/latest',  // Latest job (read-only)
   '/health',
   '/model-health',
+];
+
+// Public endpoint prefixes (for dynamic paths)
+const PUBLIC_PREFIXES = [
+  '/api/v1/jobs/snapshots/', // Job snapshots (read-only)
 ];
 
 // Endpoints that serve HTML pages (no auth required)
@@ -38,6 +45,10 @@ export function requiresAuth(path: string): boolean {
   }
   // Public API endpoints - exact match only (not prefix)
   if (PUBLIC_ENDPOINTS.some(e => path === e || path === e + '/')) {
+    return false;
+  }
+  // Public prefixes (for dynamic paths like /api/v1/jobs/snapshots/:date/:type)
+  if (PUBLIC_PREFIXES.some(p => path.startsWith(p))) {
     return false;
   }
   // Static assets don't require auth
