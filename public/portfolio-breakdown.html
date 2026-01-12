@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Breakdown - CCT Trading System</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/css/nav.css?v=20251226">
+    <script src="/js/nav.js?v=20251226"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --accent: #58a6ff; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .header { margin-bottom: 24px; }
+        h1 { font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        .breakdown-section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .breakdown-section h2 { font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .breakdown-section h2 .count { background: var(--accent); color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: normal; }
+        .symbol-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .symbol-tag { background: var(--bg); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 0.9rem; }
+        .symbol-tag.benchmark { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .usage-note { color: var(--text-muted); font-size: 0.85rem; border-left: 3px solid var(--accent); padding-left: 12px; }
+    </style>
+</head>
+<body>
+    <main class="main-content">
+        <div class="container">
+            <div class="header">
+                <h1>📊 Portfolio Breakdown</h1>
+            </div>
+
+            <div class="breakdown-section">
+                <h2>📈 Stock Symbols <span class="count">5</span></h2>
+                <div class="symbol-list">
+                    <span class="symbol-tag">AAPL</span>
+                    <span class="symbol-tag">MSFT</span>
+                    <span class="symbol-tag">GOOGL</span>
+                    <span class="symbol-tag">TSLA</span>
+                    <span class="symbol-tag">NVDA</span>
+                </div>
+                <div class="usage-note">Used by: Morning, Midday, End-of-Day, Weekly jobs</div>
+            </div>
+
+            <div class="breakdown-section">
+                <h2>🏢 Sector ETFs <span class="count">11 + Benchmark</span></h2>
+                <div class="symbol-list">
+                    <span class="symbol-tag">XLK</span>
+                    <span class="symbol-tag">XLF</span>
+                    <span class="symbol-tag">XLV</span>
+                    <span class="symbol-tag">XLE</span>
+                    <span class="symbol-tag">XLY</span>
+                    <span class="symbol-tag">XLP</span>
+                    <span class="symbol-tag">XLI</span>
+                    <span class="symbol-tag">XLB</span>
+                    <span class="symbol-tag">XLU</span>
+                    <span class="symbol-tag">XLRE</span>
+                    <span class="symbol-tag">XLC</span>
+                    <span class="symbol-tag benchmark">SPY</span>
+                </div>
+                <div class="usage-note">Used by: Sector Rotation job</div>
+            </div>
+
+            <div class="breakdown-section">
+                <h2>📉 Market Indices <span class="count">7</span></h2>
+                <div class="symbol-list">
+                    <span class="symbol-tag">SPY</span>
+                    <span class="symbol-tag">QQQ</span>
+                    <span class="symbol-tag">DIA</span>
+                    <span class="symbol-tag">IWM</span>
+                    <span class="symbol-tag">VIX</span>
+                    <span class="symbol-tag">TLT</span>
+                    <span class="symbol-tag">GLD</span>
+                </div>
+                <div class="usage-note">Used by: Real-Time Data Manager for market context</div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

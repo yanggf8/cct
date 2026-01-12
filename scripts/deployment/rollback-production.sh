@@ -135,7 +135,7 @@ if [[ "$DRY_RUN" == "false" ]]; then
 
     echo "Deploying rollback version..."
     # Unset Cloudflare environment variables to force OAuth authentication (target top-level environment)
-    env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy
+    env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy 
 
     echo -e "✅ ${GREEN}Rollback deployment completed${NC}"
 

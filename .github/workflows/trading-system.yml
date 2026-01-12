@@ -51,19 +51,19 @@ jobs:
           # Determine analysis type based on schedule
           if [[ "$CURRENT_DAY" == "7" && "$CURRENT_TIME" == "14:00" ]]; then
             echo "analysis_type=weekly-review" >> $GITHUB_OUTPUT
-            echo "endpoint=/weekly-review" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/reports/weekly" >> $GITHUB_OUTPUT
             echo "description=Weekly Review - Comprehensive high-confidence signal analysis"
           elif [[ "$CURRENT_TIME" == "12:30" ]]; then
             echo "analysis_type=pre-market" >> $GITHUB_OUTPUT
-            echo "endpoint=/pre-market-briefing" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/reports/pre-market" >> $GITHUB_OUTPUT
             echo "description=Pre-Market Briefing - High-confidence signals (≥70%)"
           elif [[ "$CURRENT_TIME" == "16:00" ]]; then
             echo "analysis_type=intraday" >> $GITHUB_OUTPUT
-            echo "endpoint=/intraday-check" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/reports/intraday" >> $GITHUB_OUTPUT
             echo "description=Intraday Performance Check - Real-time tracking"
           elif [[ "$CURRENT_TIME" == "20:05" ]]; then
             echo "analysis_type=end-of-day" >> $GITHUB_OUTPUT
-            echo "endpoint=/end-of-day-summary" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/reports/end-of-day" >> $GITHUB_OUTPUT
             echo "description=End-of-Day Summary - Market close analysis"
           else
             # Default for manual triggers

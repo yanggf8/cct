@@ -308,7 +308,7 @@ export async function getD1FallbackData(
   dateStr: string,
   reportType: string
 ): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean } | null> {
-  const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day';
+  const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day' || reportType === 'predictions';
 
   // 1. Try D1 snapshot for today
   let snapshot = await readD1ReportSnapshot(env, dateStr, reportType);

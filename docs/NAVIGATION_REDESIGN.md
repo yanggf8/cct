@@ -29,13 +29,17 @@ This document outlines the transition from a top-bar navigation to a persistent 
     -   **Auto-Close**: Sidebar automatically closes on mobile after a link is clicked.
 -   **Grouping**: Organize the flat list into logical groups ("Dashboards", "Analytics", "System").
 
-### Proposed Menu Structure
-*   **Dashboards**
-    *   📈 Main Dashboard (`/dashboard.html`)
-    *   📉 Backtesting (`/backtesting-dashboard.html`)
-    *   💼 Portfolio (`/portfolio-optimization-dashboard.html`)
-*   **Analytics**
-    *   🔮 Predictive (`/predictive-analytics.html`)
+### Current Menu Structure
+*   **Dashboard**
+    *   📈 Dashboard (`/dashboard.html`)
+*   **Reports**
+    *   🌅 Pre-Market (`/pre-market-briefing`)
+    *   📊 Intraday (`/intraday-check`)
+    *   🌆 End-of-Day (`/end-of-day-summary`)
+    *   📋 Weekly (`/weekly-review`)
+*   **Portfolio**
+    *   📊 Breakdown (`/portfolio-breakdown.html`)
+    *   💼 Optimization (`/portfolio-optimization-dashboard.html`)
 *   **System**
     *   🧪 API Test (`/test-api.html`)
 

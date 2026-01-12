@@ -55,58 +55,90 @@ export interface SlackAlert {
   }>;
 }
 
+// Valid trigger modes for manual invocation
+const VALID_TRIGGER_MODES = [
+  'morning_prediction_alerts',
+  'midday_validation_prediction', 
+  'next_day_market_prediction',
+  'weekly_review_analysis',
+  'sector_rotation_refresh'
+] as const;
+
+const TRIGGER_MODE_HORIZONS: Record<string, number[]> = {
+  'morning_prediction_alerts': [1, 24],
+  'midday_validation_prediction': [8, 24],
+  'next_day_market_prediction': [17, 24],
+  'weekly_review_analysis': [],
+  'sector_rotation_refresh': []
+};
+
 /**
  * Handle scheduled cron events
+ * @param controller - Cron controller with scheduledTime
+ * @param env - Cloudflare environment
+ * @param ctx - Execution context
+ * @param overrideTriggerMode - Optional: bypass time detection and run specific job
  */
 export async function handleScheduledEvent(
   controller: ScheduledController,
   env: CloudflareEnvironment,
-  ctx: ExecutionContext
+  ctx: ExecutionContext,
+  overrideTriggerMode?: string
 ): Promise<Response> {
   const scheduledTime = new Date(controller.scheduledTime);
-
-  // Get the scheduled time in UTC for cron matching
-  const utcHour = scheduledTime.getUTCHours();
-  const utcMinute = scheduledTime.getUTCMinutes();
-  const utcDay = scheduledTime.getUTCDay(); // 0=Sunday, 1=Monday, ..., 5=Friday
-
-  // Get EST/EDT time for logging and business logic
-  const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const estHour = estTime.getHours();
-  const estMinute = estTime.getMinutes();
-  const estDay = estTime.getDay();
-
-  console.log(`🕐 [PRODUCTION-CRON] UTC: ${utcHour}:${utcMinute.toString().padStart(2, '0')} (Day ${utcDay}) | EST/EDT: ${estHour}:${estMinute.toString().padStart(2, '0')} (Day ${estDay}) | Scheduled: ${scheduledTime.toISOString()}`);
-
   const cronExecutionId = `cron_${Date.now()}`;
   let triggerMode: string;
   let predictionHorizons: number[];
 
-  // Determine trigger mode based on UTC schedule (matching wrangler.toml cron expressions)
-  if (utcHour === 12 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
-    // 30 12 * * 1-5 = 12:30 PM UTC = 8:30 AM EST/7:30 AM EDT - Morning predictions
-    triggerMode = 'morning_prediction_alerts';
-    predictionHorizons = [1, 24]; // 1-hour and 24-hour forecasts
-  } else if (utcHour === 16 && utcMinute === 0 && utcDay >= 1 && utcDay <= 5) {
-    // 0 16 * * 1-5 = 4:00 PM UTC = 12:00 PM EST/11:00 AM EDT - Midday validation
-    triggerMode = 'midday_validation_prediction';
-    predictionHorizons = [8, 24]; // 8-hour (market close) + next-day
-  } else if (utcHour === 20 && utcMinute === 5 && utcDay >= 1 && utcDay <= 5) {
-    // 5 20 * * 1-5 = 8:05 PM UTC = 4:05 PM EST/3:05 PM EDT - Daily validation
-    triggerMode = 'next_day_market_prediction';
-    predictionHorizons = [17, 24]; // Market close + next trading day
-  } else if (utcHour === 14 && utcMinute === 0 && utcDay === 0) {
-    // 0 14 * * SUN = 2:00 PM UTC = 10:00 AM EST/9:00 AM EDT Sunday - Weekly Review
-    triggerMode = 'weekly_review_analysis';
-    predictionHorizons = []; // No predictions, just pattern analysis
-  } else if (utcHour === 13 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
-    // 30 13 * * 1-5 = 1:30 PM UTC = 9:30 AM EST/8:30 AM EDT - Sector Rotation Refresh
-    triggerMode = 'sector_rotation_refresh';
-    predictionHorizons = []; // No predictions, just sector data refresh
+  // Use override if provided and valid
+  if (overrideTriggerMode) {
+    if (!VALID_TRIGGER_MODES.includes(overrideTriggerMode as any)) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid trigger mode', 
+        valid_modes: VALID_TRIGGER_MODES 
+      }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    triggerMode = overrideTriggerMode;
+    predictionHorizons = TRIGGER_MODE_HORIZONS[triggerMode] || [];
+    console.log(`🔧 [MANUAL-CRON] ${cronExecutionId} Running manual trigger: ${triggerMode}`);
   } else {
-    console.log(`⚠️ [CRON] Unrecognized schedule: UTC ${utcHour}:${utcMinute} (Day ${utcDay}) | EST/EDT ${estHour}:${estMinute} (Day ${estDay})`);
-    return new Response('Unrecognized cron schedule', { status: 400 });
+    // Get the scheduled time in UTC for cron matching
+    const utcHour = scheduledTime.getUTCHours();
+    const utcMinute = scheduledTime.getUTCMinutes();
+    const utcDay = scheduledTime.getUTCDay();
+
+    // Get EST/EDT time for logging
+    const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const estHour = estTime.getHours();
+    const estMinute = estTime.getMinutes();
+    const estDay = estTime.getDay();
+
+    console.log(`🕐 [PRODUCTION-CRON] UTC: ${utcHour}:${utcMinute.toString().padStart(2, '0')} (Day ${utcDay}) | EST/EDT: ${estHour}:${estMinute.toString().padStart(2, '0')} (Day ${estDay}) | Scheduled: ${scheduledTime.toISOString()}`);
+
+    // Determine trigger mode based on UTC schedule
+    if (utcHour === 12 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
+      triggerMode = 'morning_prediction_alerts';
+      predictionHorizons = [1, 24];
+    } else if (utcHour === 16 && utcMinute === 0 && utcDay >= 1 && utcDay <= 5) {
+      triggerMode = 'midday_validation_prediction';
+      predictionHorizons = [8, 24];
+    } else if (utcHour === 20 && utcMinute === 5 && utcDay >= 1 && utcDay <= 5) {
+      triggerMode = 'next_day_market_prediction';
+      predictionHorizons = [17, 24];
+    } else if (utcHour === 14 && utcMinute === 0 && utcDay === 0) {
+      triggerMode = 'weekly_review_analysis';
+      predictionHorizons = [];
+    } else if (utcHour === 13 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
+      triggerMode = 'sector_rotation_refresh';
+      predictionHorizons = [];
+    } else {
+      console.log(`⚠️ [CRON] Unrecognized schedule: UTC ${utcHour}:${utcMinute} (Day ${utcDay}) | EST/EDT ${estHour}:${estMinute} (Day ${estDay})`);
+      return new Response('Unrecognized cron schedule', { status: 400 });
+    }
   }
+
+  // Get EST time for business logic
+  const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
 
   console.log(`✅ [CRON-START] ${cronExecutionId}`, {
     trigger_mode: triggerMode,

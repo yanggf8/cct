@@ -6,6 +6,7 @@
 import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-v1-responses.js';
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
+import { handleScheduledEvent } from '../modules/scheduler.js';
 import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot } from '../modules/d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -34,6 +35,11 @@ export async function handleJobsRoutes(
   }
 
   try {
+    // POST /api/v1/jobs/trigger - Manually trigger a scheduled job
+    if (path === '/api/v1/jobs/trigger' && request.method === 'POST') {
+      return await handleJobTrigger(request, env, headers, requestId, timer);
+    }
+
     // GET /api/v1/jobs/history - Get job execution history
     if (path === '/api/v1/jobs/history') {
       return await handleJobsHistory(env, url, headers, requestId, timer);
@@ -83,7 +89,8 @@ async function handleJobsHistory(
     );
   }
 
-  const limit = Math.min(parseInt(url.searchParams.get('limit') || '10'), 100);
+  const parsedLimit = parseInt(url.searchParams.get('limit') || '10');
+  const limit = Math.min(Number.isNaN(parsedLimit) ? 10 : parsedLimit, 100);
   const jobType = url.searchParams.get('type');
 
   try {
@@ -182,5 +189,68 @@ async function handleJobSnapshot(
   return new Response(
     JSON.stringify(ApiResponseFactory.error('Snapshot not found', 'NOT_FOUND', { date, reportType, requestId })),
     { status: HttpStatus.NOT_FOUND, headers }
+  );
+}
+
+
+/**
+ * POST /api/v1/jobs/trigger
+ * Body: { "triggerMode": "weekly_review_analysis" }
+ * Valid modes: morning_prediction_alerts, midday_validation_prediction, 
+ *              next_day_market_prediction, weekly_review_analysis, sector_rotation_refresh
+ */
+async function handleJobTrigger(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  let body: { triggerMode?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Invalid JSON body', 'BAD_REQUEST', { requestId })),
+      { status: HttpStatus.BAD_REQUEST, headers }
+    );
+  }
+
+  const { triggerMode } = body;
+  if (!triggerMode) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('triggerMode required', 'BAD_REQUEST', { 
+        requestId,
+        valid_modes: ['morning_prediction_alerts', 'midday_validation_prediction', 'next_day_market_prediction', 'weekly_review_analysis', 'sector_rotation_refresh']
+      })),
+      { status: HttpStatus.BAD_REQUEST, headers }
+    );
+  }
+
+  logger.info('Manual job trigger', { triggerMode, requestId });
+
+  const controller = { scheduledTime: new Date() };
+  const ctx = { waitUntil: (p: Promise<any>) => p, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
+
+  const result = await handleScheduledEvent(controller, env, ctx, triggerMode);
+  const resultBody = await result.text();
+
+  if (result.status !== 200) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error(resultBody || 'Job execution failed', 'JOB_FAILED', { 
+        triggerMode, 
+        requestId, 
+        processingTime: timer.getElapsedMs() 
+      })),
+      { status: result.status, headers }
+    );
+  }
+
+  return new Response(
+    JSON.stringify(ApiResponseFactory.success({
+      triggerMode,
+      result: resultBody
+    }, { requestId, processingTime: timer.getElapsedMs() })),
+    { status: HttpStatus.OK, headers }
   );
 }

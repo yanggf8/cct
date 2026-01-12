@@ -38,11 +38,19 @@
             </div>
 
             <div class="nav-group">
-                <div class="nav-group-title">System</div>
+                <div class="nav-group-title">Portfolio</div>
+                <a href="/portfolio-breakdown.html" class="nav-item" data-page="breakdown">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Breakdown</span>
+                </a>
                 <a href="/portfolio-optimization-dashboard.html" class="nav-item" data-page="portfolio">
                     <span class="nav-icon">💼</span>
-                    <span class="nav-text">Portfolio</span>
+                    <span class="nav-text">Optimization</span>
                 </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">System</div>
                 <a href="/test-api.html" class="nav-item" data-page="api">
                     <span class="nav-icon">🧪</span>
                     <span class="nav-text">API Test</span>

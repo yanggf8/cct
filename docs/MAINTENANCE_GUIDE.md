@@ -146,6 +146,16 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="rate_lim
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="cache" --since=24h
 ```
 
+## 🕒 Scheduled Jobs (GitHub Actions)
+Active schedules (.github/workflows/trading-system.yml):
+- 12:30 UTC Mon-Fri → Pre-Market Briefing
+- 16:00 UTC Mon-Fri → Intraday Check
+- 20:05 UTC Mon-Fri → End-of-Day Summary
+- 14:00 UTC Sun → Weekly Review
+
+Not scheduled:
+- `sector_rotation_refresh` exists in `src/modules/scheduler.ts` but is disabled in Wrangler and GitHub Actions. Run manually via `POST /api/v1/jobs/trigger` with `{"triggerMode": "sector_rotation_refresh"}` if needed.
+
 ## 🔧 Troubleshooting Guide
 
 ### **🚨 Common Issues and Solutions**

@@ -234,9 +234,21 @@ export class ReportDataRetrieval {
         }
       }
 
-      // Get morning predictions (if available)
+      // Get morning predictions (if available) with D1 fallback
       const predictionsKey = `morning_predictions_${dateStr}`;
-      const predictionsResult = await dal.read(predictionsKey);
+      let predictionsResult = await dal.read(predictionsKey);
+
+      if (!predictionsResult.data) {
+        logger.info('DO predictions cache miss, trying D1 fallback', { key: predictionsKey, date: dateStr });
+        const predictionsFallback = await getD1FallbackData(env, dateStr, 'predictions');
+        if (predictionsFallback) {
+          if (!predictionsFallback.isStale) {
+            await dal.write(predictionsKey, predictionsFallback.data, { expirationTtl: 86400 });
+            logger.info('D1 predictions fallback success, warmed DO cache', { source: predictionsFallback.source, date: dateStr });
+          }
+          predictionsResult = { success: true, data: predictionsFallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+        }
+      }
 
       // Evaluate yesterday's outlook accuracy
       let outlookEvaluation: OutlookEvaluation | null = null;
