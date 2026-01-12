@@ -110,10 +110,10 @@
                 </div>
                 <div class="status-card">
                     <h3>⏰ Today's Jobs</h3>
-                    <div class="status-item"><span>Pre-Market</span>${badge(d.jobs?.preMarket?.status)}</div>
-                    <div class="status-item"><span>Intraday</span>${badge(d.jobs?.intraday?.status)}</div>
-                    <div class="status-item"><span>End-of-Day</span>${badge(d.jobs?.endOfDay?.status)}</div>
-                    <div class="status-item"><span>Weekly</span>${badge(d.jobs?.weekly?.status)}</div>
+                    <div class="status-item"><span>Pre-Market</span><span>${badge(d.jobs?.preMarket?.status)} ${d.jobs?.preMarket?.lastRun || ''}</span></div>
+                    <div class="status-item"><span>Intraday</span><span>${badge(d.jobs?.intraday?.status)} ${d.jobs?.intraday?.lastRun || ''}</span></div>
+                    <div class="status-item"><span>End-of-Day</span><span>${badge(d.jobs?.endOfDay?.status)} ${d.jobs?.endOfDay?.lastRun || ''}</span></div>
+                    <div class="status-item"><span>Weekly</span><span>${badge(d.jobs?.weekly?.status)} ${d.jobs?.weekly?.lastRun || ''}</span></div>
                 </div>
             `;
             document.getElementById('status-grid').innerHTML = html;
