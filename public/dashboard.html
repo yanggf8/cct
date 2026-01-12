@@ -100,7 +100,11 @@
 
         function formatTime(h, m) {
             const estH = (h - 5 + 24) % 24;
-            return `${estH % 12 || 12}:${m.toString().padStart(2, '0')} ${estH >= 12 ? 'PM' : 'AM'} ET`;
+            const etTime = `${estH % 12 || 12}:${m.toString().padStart(2, '0')} ${estH >= 12 ? 'PM' : 'AM'} ET`;
+            // Convert UTC to local time
+            const utcDate = new Date(Date.UTC(2024, 0, 1, h, m));
+            const localTime = utcDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            return `${etTime} (${localTime} local)`;
         }
 
         function getDateStr(d) { return d.toISOString().slice(0, 10); }

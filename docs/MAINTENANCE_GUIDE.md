@@ -184,6 +184,7 @@ Not scheduled:
 - Cache status on the system status page reads DO `/stats` directly; expect accurate L1/L2 metrics after deployment.
 - System status jobs now include `lastRun` execution time (requires deploy): backend (`data-routes.ts`) fetches `executed_at` and formats it; frontend (`system-status.html`) displays the time beside the status badge (e.g., `✅ completed 2:30 AM`).
 - Pending deployment: status page will show scheduled times for pending jobs (e.g., `⏰ pending 8:30 AM ET`), actual run times when completed, and favicon fix.
+- Pending deployment: dashboard job times will display both ET and local time (e.g., `8:30 AM ET (9:30 PM local)`).
 
 ## 🔧 Troubleshooting Guide
 
