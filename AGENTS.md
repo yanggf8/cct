@@ -18,6 +18,9 @@ Mirror the current history format: `type: short imperative summary`, emoji optio
 ## Review Expectations
 When asked to perform a review, examine the relevant code changes thoroughly (not just summaries) and highlight concrete risks, regressions, or gaps with file references.
 
+## Deployment Approval
+**Always ask for user approval before deploying to production.** Present a summary of changes and wait for explicit confirmation before running `npm run deploy` or any wrangler deploy command.
+
 ## Frontend & Auth Defaults
 - All dashboards now load `public/js/cct-api.js` (not `api-client.js`) and expect `X-API-Key` when `X_API_KEY` is configured. `cct-api.js` looks for the key in `sessionStorage.cct_api_key`, then `localStorage.cct_api_key`, then `window.CCT_API_KEY`.
 - SSE is disabled on the dashboards; data refresh is polling-based.

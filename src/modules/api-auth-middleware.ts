@@ -14,6 +14,7 @@ export interface AuthResult {
 const PUBLIC_ENDPOINTS = [
   '/api/v1',              // API documentation root only
   '/api/v1/data/health',  // Health check
+  '/api/v1/data/system-status', // System status for status page
   '/api/v1/jobs/history', // Job history (read-only)
   '/api/v1/jobs/latest',  // Latest job (read-only)
   '/health',

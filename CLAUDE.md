@@ -486,6 +486,9 @@ wrangler secret put FEATURE_FLAG_DO_CACHE
 - **Performance Focused**: Multi-level caching with intelligent management
 - **Type Safety**: TypeScript coverage for all modules
 
+### **Deployment Approval** ⚠️ **CRITICAL**
+**Always ask for user approval before deploying to production.** Present a summary of changes and wait for explicit confirmation before running `npm run deploy` or any wrangler deploy command.
+
 ### **Deploy Command** ⚠️ **DO NOT REMOVE - CRITICAL INSTRUCTION**
 ```bash
 # Full deployment (frontend + backend)

@@ -51,6 +51,10 @@
 
             <div class="nav-group">
                 <div class="nav-group-title">System</div>
+                <a href="/system-status" class="nav-item" data-page="status">
+                    <span class="nav-icon">🔍</span>
+                    <span class="nav-text">Status</span>
+                </a>
                 <a href="/test-api.html" class="nav-item" data-page="api">
                     <span class="nav-icon">🧪</span>
                     <span class="nav-text">API Test</span>

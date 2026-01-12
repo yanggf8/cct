@@ -1,6 +1,6 @@
 /**
  * Report Data Retrieval Module - TypeScript
- * KV data access functions for the 4-report workflow with comprehensive type safety
+ * DO/D1 data access functions for the 4-report workflow with comprehensive type safety
  * D1 fallback: When DO cache misses, queries D1 snapshots first, then predictions
  */
 
@@ -10,7 +10,6 @@ import { runEnhancedAnalysis, type EnhancedAnalysisResults } from './enhanced_an
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { getD1Predictions, transformD1ToAnalysis, readD1ReportSnapshot, getD1LatestReportSnapshot, getD1FallbackData } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
-import type { KVReadResult } from './dal.js';
 
 const logger = createLogger('report-data-retrieval');
 
@@ -276,11 +275,11 @@ export class ReportDataRetrieval {
 
       // Log ERROR level for missing critical data
       if (!result.analysis) {
-        logger.error('⚠️ [PRE-MARKET] CRITICAL: Missing analysis data from KV', {
+        logger.error('⚠️ [PRE-MARKET] CRITICAL: Missing analysis data from DO/D1', {
           date: dateStr,
           key: `analysis_${dateStr}`,
           impact: 'Using fallback default data - report may not reflect actual market analysis',
-          action: 'Manual investigation required for KV storage system'
+          action: 'Check D1 snapshots and DO cache'
         });
 
         // Send Facebook error notification
@@ -489,7 +488,7 @@ export class ReportDataRetrieval {
           date: dateStr,
           key: `predictions_${dateStr}`,
           impact: 'Cannot generate daily performance summary - using default data',
-          action: 'Check daily prediction generation and KV storage system'
+          action: 'Check daily prediction generation and D1/DO storage'
         });
 
         // Send Facebook error notification
@@ -1127,7 +1126,7 @@ export class ReportDataRetrieval {
         `⚠️ Issue: ${errorType}\n` +
         `📅 Date: ${dateStr}\n` +
         `🔧 Impact: Report using fallback data - may not reflect actual analysis\n` +
-        `🛠️  Action: Required - Check KV storage and cron job execution\n` +
+        `🛠️  Action: Required - Check D1/DO storage and job execution\n` +
         `⏰ Time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EDT`;
 
       // Import Facebook function dynamically

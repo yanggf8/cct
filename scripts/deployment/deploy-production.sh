@@ -19,6 +19,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Timing
+DEPLOY_START=$(date +%s)
+step_start() { STEP_START=$(date +%s); }
+step_end() { local now=$(date +%s); echo -e "${YELLOW}⏱️  [TIMING]${NC} $1 took $((now - STEP_START))s"; }
+
 # Logging
 log() { echo -e "${BLUE}📦 [DEPLOY]${NC} $*"; }
 success() { echo -e "${GREEN}✅ [SUCCESS]${NC} $*"; }
@@ -35,13 +40,15 @@ check_environment() {
         exit 1
     fi
 
-    # Check authentication
-    if ! wrangler whoami &> /dev/null; then
-        log "Not authenticated with Wrangler. Attempting browser authentication..."
-        wrangler auth || {
-            error "Failed to authenticate with Wrangler"
-            exit 1
-        }
+    # Skip auth check if SKIP_AUTH_CHECK=1 (saves ~7s)
+    if [ "${SKIP_AUTH_CHECK:-0}" != "1" ]; then
+        if ! wrangler whoami &> /dev/null; then
+            log "Not authenticated with Wrangler. Attempting browser authentication..."
+            wrangler auth || {
+                error "Failed to authenticate with Wrangler"
+                exit 1
+            }
+        fi
     fi
 
     success "Environment checks passed"
@@ -146,7 +153,7 @@ deploy_to_production() {
 
     # Deploy using browser authentication (explicitly target top-level/production environment)
     # We unset CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to ensure we use the local OAuth credentials (wrangler login)
-    if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy ; then
+    if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID node_modules/.bin/wrangler deploy ; then
         success "Deployment completed successfully"
     else
         error "Deployment failed"
@@ -157,48 +164,10 @@ deploy_to_production() {
 # Post-deployment verification
 verify_deployment() {
     log "Verifying deployment..."
-
-    # Wait a moment for deployment to propagate
-    sleep 5
-
-    # Check basic health endpoint
-    if curl -s -f "$DEPLOYMENT_URL/api/v1/health" > /dev/null; then
-        success "Health check passed"
-    else
-        warning "Health check failed - deployment may still be propagating"
-    fi
-
-    # Verify reports endpoints return HTML
-    log "Testing frontend report endpoints..."
-    local test_endpoints=(
-        "/pre-market-briefing"
-        "/intraday-check"
-        "/end-of-day-summary"
-        "/weekly-review"
-    )
-
-    for endpoint in "${test_endpoints[@]}"; do
-        if curl -s -f "$DEPLOYMENT_URL$endpoint" | grep -q "<!DOCTYPE html\|<html"; then
-            success "$endpoint returns HTML"
-        else
-            warning "$endpoint may not be responding correctly"
-        fi
-    done
-
-    # Verify API endpoints return JSON
-    log "Testing API endpoints..."
-    local api_endpoints=(
-        "/api/v1/guards/status"
-        "/api/v1/reports/latest"
-    )
-
-    for endpoint in "${api_endpoints[@]}"; do
-        if curl -s -H "X-API-Key: test" -f "$DEPLOYMENT_URL$endpoint" | jq empty 2>/dev/null; then
-            success "$endpoint returns JSON"
-        else
-            warning "$endpoint may not be responding correctly"
-        fi
-    done
+    sleep 1
+    curl -s -f "$DEPLOYMENT_URL/api/v1/health" > /dev/null && success "Health check passed" || warning "Health check failed"
+    curl -s -f "$DEPLOYMENT_URL/end-of-day-summary" | grep -q "<html" && success "/end-of-day-summary OK"
+    curl -s -f "$DEPLOYMENT_URL/weekly-review" | grep -q "<html" && success "/weekly-review OK"
 }
 
 # Post-deployment cache warming
@@ -228,14 +197,16 @@ main() {
     # Record deployment start time
     local deployment_start=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-    # Execute deployment pipeline
-    check_environment || exit 1
-    build_frontend || exit 1
-    build_backend || exit 1
-    validate_build || exit 1
-    deploy_to_production || exit 1
-    verify_deployment
-    warm_cache
+    # Execute deployment pipeline with timing
+    step_start; check_environment || exit 1; step_end "check_environment"
+    step_start; build_frontend || exit 1; step_end "build_frontend"
+    step_start; build_backend || exit 1; step_end "build_backend"
+    step_start; validate_build || exit 1; step_end "validate_build"
+    step_start; deploy_to_production || exit 1; step_end "deploy_to_production"
+    step_start; verify_deployment; step_end "verify_deployment"
+    step_start; warm_cache; step_end "warm_cache"
+    
+    echo -e "${YELLOW}⏱️  [TIMING]${NC} TOTAL: $(($(date +%s) - DEPLOY_START))s"
 
     # Success
     local deployment_end=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

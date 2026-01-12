@@ -169,9 +169,12 @@ Not scheduled:
 - Report retrieval should read from D1, then warm Durable Object cache (DO) for fast subsequent reads.
 - DO cache acts as the hot layer; D1 remains authoritative for historical replay and recovery.
 - All DO-backed endpoints should expose a cache-bypass option (e.g., `?bypass_cache=1` or header) to fetch fresh data directly for testing/debugging without relying on cached payloads.
+- All report endpoints must source results from D1 snapshots (scheduled_job_results/job_executions) — do not rely on GitHub Actions history, KV, or stale cache when D1 data is available.
 
 ### Build Validation
 - TypeScript compilation runs once via `npm run build:check` during deploy validation; frontend/backend build scripts skip additional `tsc` passes to avoid redundancy.
+- Worker bundle is minified; current size ~992KB (253KB gzipped) with ~12s upload during deploy. Further deploy time is dominated by Wrangler publish.
+- Intraday status messaging reflects true job state: before 12:00 PM ET shows scheduled (pending), after schedule with no data shows missing/failed; no fake accuracy defaults.
 
 ## 🔧 Troubleshooting Guide
 

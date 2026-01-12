@@ -3,6 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2025-01-10"
 compatibility_flags = ["nodejs_compat"]
 account_id = "ed01ccea0b8ee7138058c4378cc83e54"
+minify = true
 
 # Static assets from public folder
 [assets]

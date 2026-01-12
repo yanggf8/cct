@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Status - CCT Trading</title>
+    <link rel="stylesheet" href="/css/nav.css?v=20251226">
+    <script src="/js/nav.js?v=20251226"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+            padding-top: 80px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { margin-bottom: 30px; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .status-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .status-card h3 { margin-bottom: 15px; font-size: 1.1rem; }
+        .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .status-item:last-child { border-bottom: none; }
+        .status-badge { padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; }
+        .status-badge.healthy { background: #4CAF50; }
+        .status-badge.warning { background: #ff9800; }
+        .status-badge.error { background: #f44336; }
+        .status-badge.pending { background: #9e9e9e; }
+        .refresh-info { text-align: center; margin-top: 20px; color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 System Status</h1>
+        <div class="status-grid" id="status-grid">
+            <div class="status-card">
+                <h3>⏳ Loading...</h3>
+            </div>
+        </div>
+        <div class="refresh-info">Auto-refreshes every 30 seconds</div>
+    </div>
+    <script>
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/v1/data/system-status');
+                const data = await res.json();
+                renderStatus(data);
+            } catch (e) {
+                document.getElementById('status-grid').innerHTML = '<div class="status-card"><h3>❌ Failed to load status</h3></div>';
+            }
+        }
+
+        function badge(status) {
+            const s = String(status || 'unknown').toLowerCase();
+            const cls = ['healthy', 'operational', 'available', 'success', 'completed'].includes(s) ? 'healthy' 
+                : ['warning', 'degraded'].includes(s) ? 'warning' 
+                : ['pending', 'unknown', 'scheduled'].includes(s) ? 'pending' 
+                : 'error';
+            return `<span class="status-badge ${cls}">${status || 'unknown'}</span>`;
+        }
+
+        function renderStatus(d) {
+            const api = d.api || {};
+            const categories = api.categories || {};
+            const categoryList = Object.entries(categories).map(([name, info]) => 
+                `<div class="status-item"><span>${name}</span>${badge((info as any).status)} <small>(${(info as any).count})</small></div>`
+            ).join('');
+
+            const html = `
+                <div class="status-card">
+                    <h3>🌐 System Overview</h3>
+                    <div class="status-item"><span>Status</span>${badge(d.status)}</div>
+                    <div class="status-item"><span>Uptime</span><span>${d.uptime || 'N/A'}</span></div>
+                    <div class="status-item"><span>Response Time</span><span>${d.responseTime || 'N/A'}</span></div>
+                </div>
+                <div class="status-card">
+                    <h3>🔌 API Status</h3>
+                    <div class="status-item"><span>Overall</span>${badge(api.status)}</div>
+                    <div class="status-item"><span>Version</span><span>${api.version || 'v1'}</span></div>
+                    <div class="status-item"><span>Total Endpoints</span><span>${api.totalEndpoints || 'N/A'}</span></div>
+                    <div class="status-item"><span>Base URL</span><span>${api.baseUrl || '/api/v1'}</span></div>
+                </div>
+                <div class="status-card">
+                    <h3>📡 API Categories</h3>
+                    ${categoryList || '<div class="status-item"><span>No categories</span></div>'}
+                </div>
+                <div class="status-card">
+                    <h3>💾 Cache Status</h3>
+                    <div class="status-item"><span>L1 Cache</span>${badge(d.cache?.l1?.status)}</div>
+                    <div class="status-item"><span>L1 Hit Rate</span><span>${d.cache?.l1?.hitRate || 'N/A'}</span></div>
+                    <div class="status-item"><span>L2 Cache</span>${badge(d.cache?.l2?.status)}</div>
+                </div>
+                <div class="status-card">
+                    <h3>🗄️ Database Status</h3>
+                    <div class="status-item"><span>D1</span>${badge(d.database?.status)}</div>
+                    <div class="status-item"><span>Jobs Stored</span><span>${d.database?.jobCount || 0}</span></div>
+                    <div class="status-item"><span>Last Job</span><span>${d.database?.lastJob ? new Date(d.database.lastJob).toLocaleString() : 'N/A'}</span></div>
+                </div>
+                <div class="status-card">
+                    <h3>🤖 AI Models</h3>
+                    <div class="status-item"><span>GPT</span>${badge(d.models?.gpt?.status)}</div>
+                    <div class="status-item"><span>DistilBERT</span>${badge(d.models?.distilbert?.status)}</div>
+                </div>
+                <div class="status-card">
+                    <h3>⏰ Today's Jobs</h3>
+                    <div class="status-item"><span>Pre-Market</span>${badge(d.jobs?.preMarket?.status)}</div>
+                    <div class="status-item"><span>Intraday</span>${badge(d.jobs?.intraday?.status)}</div>
+                    <div class="status-item"><span>End-of-Day</span>${badge(d.jobs?.endOfDay?.status)}</div>
+                    <div class="status-item"><span>Weekly</span>${badge(d.jobs?.weekly?.status)}</div>
+                </div>
+            `;
+            document.getElementById('status-grid').innerHTML = html;
+        }
+
+        loadStatus();
+        setInterval(loadStatus, 30000);
+    </script>
+</body>
+</html>

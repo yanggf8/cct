@@ -51,7 +51,7 @@ export interface DivergenceData extends IntradaySignal {
  * Model health status information
  */
 export interface ModelHealthStatus {
-  status: 'on-track' | 'divergence' | 'off-track';
+  status: 'on-track' | 'divergence' | 'off-track' | 'pending' | 'scheduled';
   display: string;
   accuracy?: number;
   lastUpdated?: string;
@@ -73,7 +73,7 @@ export interface PerformanceTracking {
  * Recalibration alert information
  */
 export interface RecalibrationAlert {
-  status: 'yes' | 'no' | 'warning';
+  status: 'yes' | 'no' | 'warning' | 'pending';
   message: string;
   threshold: number;
   currentValue?: number;
@@ -158,183 +158,168 @@ export const handleIntradayCheck = createHandler(
     const startTime: number = Date.now();
     const today: Date = new Date();
     const dateStr: string = today.toISOString().split('T')[0];
+    const url = new URL(request.url);
+    const bypassCache = url.searchParams.get('bypass') === '1';
 
-    // Fast path: check DO cache first
-    try {
-      const dal = createSimplifiedEnhancedDAL(env);
-      const cached = await dal.read(`intraday_html_${dateStr}`);
-      if (cached.success && cached.data) {
-        return new Response(cached.data, {
-          headers: {
-            'Content-Type': 'text/html',
-            'Cache-Control': 'public, max-age=180',
-            'X-Cache': 'HIT',
-            'X-Request-ID': requestId
-          }
-        });
-      }
-    } catch (e) { /* continue to generate */ }
-
-    logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
-      requestId,
-      date: dateStr,
-      url: request.url,
-      userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
-    });
-
-    // Validate inputs
-    validateRequest(request);
-    validateEnvironment(env);
-
-    logger.debug('✅ [INTRADAY] Input validation passed', { requestId });
-
-    // Check dependencies using new status system
-    logger.debug('🔗 [INTRADAY] Checking dependencies', { requestId });
-
-    try {
-      const validation: DependencyValidation = await validateDependencies(
-        dateStr,
-        ['morning_predictions', 'pre_market_briefing'],
-        env
-      );
-
-      if (!validation.isValid) {
-        logger.warn('⚠️ [INTRADAY] Dependencies not satisfied', {
-          requestId,
-          missing: validation.missing,
-          completionRate: validation.completionRate
-        });
-
-        // Set job status to waiting
-        await updateJobStatus('intraday_check', dateStr, 'waiting', env, {
-          requestId,
-          missingDependencies: validation.missing,
-          reason: 'Dependencies not satisfied'
-        } as JobStatusMetadata);
-
-        // Return a helpful error response
-        const html: string = generateIntradayWaitingHTML(validation, today);
-        return new Response(html, {
-          headers: new Headers({
-            'Content-Type': 'text/html',
-            'Cache-Control': 'no-cache',
-            'X-Request-ID': requestId,
-            'X-Processing-Time': `${Date.now() - startTime}ms`
-          })
-        });
-      }
-
-      logger.info('✅ [INTRADAY] Dependencies validated', {
-        requestId,
-        completed: validation.completed,
-        completionRate: validation.completionRate
-      });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('❌ [INTRADAY] Dependency validation failed', {
-        requestId,
-        error: errorMessage
-      });
-
-      await updateJobStatus('intraday_check', dateStr, 'failed', env, {
-        requestId,
-        error: errorMessage,
-        phase: 'dependency_validation'
-      } as JobStatusMetadata);
-
-      throw error;
+    // Fast path: check DO cache first (unless bypass requested)
+    if (!bypassCache) {
+      try {
+        const dal = createSimplifiedEnhancedDAL(env);
+        const cached = await dal.read(`intraday_html_${dateStr}`);
+        if (cached.success && cached.data) {
+          return new Response(cached.data, {
+            headers: {
+              'Content-Type': 'text/html',
+              'Cache-Control': 'public, max-age=180',
+              'X-Cache': 'HIT',
+              'X-Request-ID': requestId
+            }
+          });
+        }
+      } catch (e) { /* continue to generate */ }
     }
 
-    // Set job status to running
-    await updateJobStatus('intraday_check', dateStr, 'running', env, {
-      requestId,
-      startTime: new Date().toISOString()
-    } as JobStatusMetadata);
-
-    // Get today's intraday data using new data retrieval system
-    logger.debug('🔍 [INTRADAY] Retrieving intraday check data', {
+    logger.info('📊 [INTRADAY] Starting intraday performance check generation', {
       requestId,
       date: dateStr
     });
 
+    // Skip dependency validation and job status for page views - just get data
     let intradayData: IntradayPerformanceData | null = null;
-
     try {
-      intradayData = await getIntradayCheckData(env, today) as unknown as IntradayPerformanceData | null;
+      const intradayCheckData = await getIntradayCheckData(env, today);
+      if (intradayCheckData) {
+        const ps = intradayCheckData.performanceSummary;
+        const rawAccuracy = ps?.averageAccuracy;
+        const hasAccuracy = typeof rawAccuracy === 'number' && rawAccuracy > 0;
+        const accuracy = hasAccuracy ? rawAccuracy : null;
+        const predictions = intradayCheckData.morningPredictions?.predictions || [];
+        
+        // Build divergences and onTrackSignals from actual predictions
+        const divergences: DivergenceData[] = predictions
+          .filter((p: any) => p.status === 'divergent')
+          .map((p: any) => ({
+            symbol: p.symbol,
+            predicted: p.prediction || 'unknown',
+            predictedDirection: (p.prediction === 'up' ? 'up' : p.prediction === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+            actual: p.performance?.actualDirection || 'unknown',
+            actualDirection: (p.performance?.actualDirection === 'up' ? 'up' : p.performance?.actualDirection === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+            performance: p.performance?.accuracy,
+            confidence: p.confidence,
+            level: (p.confidence || 0) >= 70 ? 'high' : (p.confidence || 0) >= 50 ? 'medium' : 'low' as 'high' | 'medium' | 'low',
+            reason: p.reasoning
+          }));
+        
+        const onTrackSignals: IntradaySignal[] = predictions
+          .filter((p: any) => p.status === 'validated' || p.status === 'tracking')
+          .map((p: any) => ({
+            symbol: p.symbol,
+            predicted: p.prediction || 'unknown',
+            predictedDirection: (p.prediction === 'up' ? 'up' : p.prediction === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+            actual: p.performance?.actualDirection || 'pending',
+            actualDirection: (p.performance?.actualDirection === 'up' ? 'up' : p.performance?.actualDirection === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+            performance: p.performance?.accuracy,
+            confidence: p.confidence,
+            reason: p.reasoning
+          }));
 
-      if (intradayData) {
-        logger.info('✅ [INTRADAY] Intraday data retrieved successfully', {
-          requestId,
-          signalCount: (intradayData as any).signals?.length || 0,
-          hasData: true
-        });
-      } else {
-        logger.warn('⚠️ [INTRADAY] No intraday data found for today', {
-          requestId
-        });
+        // Determine schedule info (ET)
+        const nowETDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const currentHourET = nowETDate.getHours();
+        const intradayScheduledHour = 12; // 12:00 PM ET
+        const beforeSchedule = currentHourET < intradayScheduledHour;
+        const scheduleInfo = beforeSchedule 
+          ? `Scheduled: 12:00 PM ET (in ${intradayScheduledHour - currentHourET}h)`
+          : 'Job should have run - check execution';
+
+        intradayData = {
+          modelHealth: {
+            status: !hasAccuracy ? 'pending' : accuracy! >= 60 ? 'on-track' : accuracy! >= 40 ? 'divergence' : 'off-track',
+            display: !hasAccuracy ? `⏳ ${scheduleInfo}` : accuracy! >= 60 ? '✅ On Track' : accuracy! >= 40 ? '⚠️ Divergence' : '❌ Off Track',
+            accuracy: hasAccuracy ? accuracy! : undefined
+          },
+          liveAccuracy: accuracy || 0,
+          totalSignals: ps?.totalSignals || 0,
+          correctCalls: ps?.validatedSignals || 0,
+          wrongCalls: ps?.divergentSignals || 0,
+          pendingCalls: ps?.trackingSignals || 0,
+          avgDivergence: accuracy ? 100 - accuracy : 0,
+          divergences,
+          onTrackSignals,
+          recalibrationAlert: {
+            status: !hasAccuracy ? 'pending' : accuracy! >= 60 ? 'no' : accuracy! >= 40 ? 'warning' : 'yes',
+            message: !hasAccuracy
+              ? 'Accuracy pending - waiting for validation data'
+              : accuracy! >= 60 
+                ? 'No recalibration needed - accuracy above 60%'
+                : accuracy! >= 40 
+                  ? 'Accuracy below 60% - monitor closely'
+                  : 'Accuracy below 40% - recalibration recommended',
+            threshold: 60,
+            currentValue: accuracy || 0
+          },
+          generatedAt: intradayCheckData.generatedAt,
+          lastUpdated: intradayCheckData.generatedAt
+        };
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('❌ [INTRADAY] Failed to retrieve intraday data', {
-        requestId,
-        error: errorMessage
-      });
-
-      await updateJobStatus('intraday_check', dateStr, 'failed', env, {
-        requestId,
-        error: errorMessage,
-        phase: 'data_retrieval'
-      } as JobStatusMetadata);
-
-      throw error;
+      logger.error('❌ [INTRADAY] Failed to retrieve data', { requestId, error: (error as Error).message });
     }
 
-    const generationStartTime: number = Date.now();
-    logger.debug('🎨 [INTRADAY] Generating HTML content', {
-      requestId,
-      hasIntradayData: !!intradayData
-    });
+    // If no data, reflect true job state (not run yet or failed)
+    if (!intradayData) {
+      const nowETDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const scheduledUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16, 0);
+      const beforeSchedule = Date.now() < scheduledUtc;
+
+      intradayData = {
+        modelHealth: {
+          status: beforeSchedule ? 'scheduled' : 'off-track',
+          display: beforeSchedule ? '⏳ Scheduled: 12:00 PM ET' : '❌ No data (job missing/failed)',
+          accuracy: undefined
+        },
+        liveAccuracy: 0,
+        totalSignals: 0,
+        correctCalls: 0,
+        wrongCalls: 0,
+        pendingCalls: 0,
+        avgDivergence: 0,
+        divergences: [],
+        onTrackSignals: [],
+        recalibrationAlert: {
+          status: beforeSchedule ? 'pending' : 'yes',
+          message: beforeSchedule ? 'Job has not run yet' : 'No intraday data available; job may have failed',
+          threshold: 60,
+          currentValue: 0
+        },
+        generatedAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
+      };
+    }
 
     const html: string = await generateIntradayCheckHTML(intradayData, today, env);
-
     const totalTime: number = Date.now() - startTime;
-    const generationTime: number = Date.now() - generationStartTime;
 
-    // Write snapshot to D1 and warm DO cache
-    const dal = createSimplifiedEnhancedDAL(env);
-    if (intradayData) {
-      await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData, {
-        processingTimeMs: totalTime,
-        signalCount: (intradayData as any)?.signals?.length || 0
-      });
-      await dal.write(`intraday_${dateStr}`, intradayData, { expirationTtl: 86400 });
-    }
     // Cache HTML for fast subsequent loads
-    await dal.write(`intraday_html_${dateStr}`, html, { expirationTtl: 180 });
+    try {
+      const dal = createSimplifiedEnhancedDAL(env);
+      await dal.write(`intraday_html_${dateStr}`, html, { expirationTtl: 180 });
+    } catch (e) { /* ignore cache write errors */ }
 
-    logger.info('✅ [INTRADAY] Intraday performance check generated successfully', {
-      requestId,
-      totalTimeMs: totalTime,
-      generationTimeMs: generationTime,
-      signalCount: (intradayData as any)?.signals?.length || 0,
-      htmlLength: html.length
-    });
-
-    // Update job status to done
-    await updateJobStatus('intraday_check', dateStr, 'done', env, {
-      requestId,
-      endTime: new Date().toISOString(),
-      processingTimeMs: totalTime,
-      signalCount: (intradayData as any)?.signals?.length || 0
-    } as JobStatusMetadata);
+    // Write to D1 as source of truth
+    if (intradayData) {
+      try {
+        await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData);
+      } catch (e) { /* ignore D1 write errors */ }
+    }
 
     return new Response(html, {
-      headers: new Headers({
+      headers: {
         'Content-Type': 'text/html',
-        'Cache-Control': 'public, max-age=180', // 3 minute cache for intraday
+        'Cache-Control': 'public, max-age=180',
         'X-Request-ID': requestId,
         'X-Processing-Time': `${totalTime}ms`
-      })
+      }
     });
   }
 );
@@ -353,6 +338,14 @@ async function generateIntradayCheckHTML(
 ): Promise<string> {
   // Process intraday data for HTML format
   const formattedData: IntradayPerformanceData = intradayData || getDefaultIntradayData();
+
+  // Ensure modelHealth exists
+  if (!formattedData.modelHealth) {
+    formattedData.modelHealth = {
+      status: 'on-track',
+      display: '✅ On Track'
+    };
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -436,6 +429,7 @@ async function generateIntradayCheckHTML(
         .health-status.on-track { color: #4CAF50; }
         .health-status.divergence { color: #ff9800; }
         .health-status.off-track { color: #f44336; }
+        .health-status.pending { color: #9e9e9e; }
 
         .accuracy-metric {
             font-size: 1.8rem;
@@ -1078,44 +1072,20 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
  */
 function getDefaultIntradayData(): IntradayPerformanceData {
   return {
-    modelHealth: { status: 'on-track', display: '✅ On Track' },
-    liveAccuracy: 68,
-    totalSignals: 6,
-    correctCalls: 4,
-    wrongCalls: 1,
-    pendingCalls: 1,
-    avgDivergence: 1.8,
-    divergences: [
-      {
-        symbol: 'TSLA',
-        predicted: '↑ Expected',
-        predictedDirection: 'up',
-        actual: '↓ -3.5%',
-        actualDirection: 'down',
-        level: 'high',
-        reason: 'Unexpected competitor news'
-      }
-    ],
-    onTrackSignals: [
-      {
-        symbol: 'AAPL',
-        predicted: '↑ +1.5%',
-        predictedDirection: 'up',
-        actual: '↑ +1.3%',
-        actualDirection: 'up'
-      },
-      {
-        symbol: 'MSFT',
-        predicted: '↑ +1.2%',
-        predictedDirection: 'up',
-        actual: '↑ +1.4%',
-        actualDirection: 'up'
-      }
-    ],
+    modelHealth: { status: 'pending', display: 'ℹ️ Pending' },
+    liveAccuracy: 0,
+    totalSignals: 0,
+    correctCalls: 0,
+    wrongCalls: 0,
+    pendingCalls: 0,
+    avgDivergence: 0,
+    divergences: [],
+    onTrackSignals: [],
     recalibrationAlert: {
-      status: 'no',
-      message: 'No recalibration needed - accuracy above 60% threshold',
-      threshold: 60
+      status: 'pending',
+      message: 'Awaiting intraday data',
+      threshold: 60,
+      currentValue: 0
     },
     generatedAt: new Date().toISOString(),
     lastUpdated: new Date().toISOString()

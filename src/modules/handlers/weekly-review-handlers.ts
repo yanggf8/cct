@@ -22,22 +22,25 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   const startTime = Date.now();
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
+  const url = new URL(request.url);
+  const bypassCache = url.searchParams.get('bypass') === '1';
 
-  // Fast path: check DO cache first
-  try {
-    const dal = createSimplifiedEnhancedDAL(env);
-    const cached = await dal.read(`weekly_html_${dateStr}`);
-    if (cached.success && cached.data) {
-      return new Response(cached.data, {
-        headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=600', 'X-Cache': 'HIT' }
-      });
-    }
-  } catch (e) { /* continue */ }
+  // Fast path: check DO cache first (unless bypass)
+  if (!bypassCache) {
+    try {
+      const dal = createSimplifiedEnhancedDAL(env);
+      const cached = await dal.read(`weekly_html_${dateStr}`);
+      if (cached.success && cached.data) {
+        return new Response(cached.data, {
+          headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=600', 'X-Cache': 'HIT', 'X-Request-ID': requestId }
+        });
+      }
+    } catch (e) { /* continue */ }
+  }
 
   logger.info('📈 [WEEKLY-REVIEW] Starting weekly review generation', {
     requestId,
-    url: request.url,
-    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+    bypassCache
   });
 
   logger.debug('📊 [WEEKLY-REVIEW] Retrieving weekly review data', {

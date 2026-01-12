@@ -9,9 +9,10 @@ import { createHandler } from '../handler-factory.js';
 import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
 import { getPreMarketBriefingData } from '../report-data-retrieval.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
-import { getWithRetry, updateJobStatus, validateDependencies, getJobStatus } from '../kv-utils.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
+
+import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 
 const logger = createLogger('briefing-handlers');
 
@@ -23,22 +24,39 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const startTime = Date.now();
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
+  const url = new URL(request.url);
+  const bypassCache = url.searchParams.get('bypass') === '1';
 
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', {
     requestId,
     date: dateStr,
-    url: request.url,
-    userAgent: request.headers.get('user-agent')?.substring(0, 100) || 'unknown'
+    bypassCache
   });
 
   // Validate inputs
   validateRequest(request);
   validateEnvironment(env);
 
-  logger.debug('✅ [PRE-MARKET] Input validation passed', { requestId });
+  const dal = createSimplifiedEnhancedDAL(env);
 
-  // Check if data exists instead of relying on job status
-  logger.debug('🔗 [PRE-MARKET] Checking for existing data', { requestId });
+  // Fast path: check DO HTML cache first (unless bypass)
+  if (!bypassCache) {
+    try {
+      const cached = await dal.read(`premarket_html_${dateStr}`);
+      if (cached.success && cached.data) {
+        return new Response(cached.data, {
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'public, max-age=300',
+            'X-Cache': 'HIT',
+            'X-Request-ID': requestId
+          }
+        });
+      }
+    } catch (e) { /* continue to generate */ }
+  }
+
+  logger.debug('✅ [PRE-MARKET] Input validation passed', { requestId });
 
   try {
     // Try to get pre-market briefing data first
@@ -145,6 +163,11 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     // Generate comprehensive pre-market HTML
     const htmlContent = generatePreMarketHTML(briefingData, requestId, today);
 
+    // Cache HTML for fast subsequent loads
+    try {
+      await dal.write(`premarket_html_${dateStr}`, htmlContent, { expirationTtl: 300 });
+    } catch (e) { /* ignore cache write errors */ }
+
     logger.info('🎯 [PRE-MARKET] Pre-market briefing completed', {
       requestId,
       duration: Date.now() - startTime,
@@ -154,7 +177,10 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     return new Response(htmlContent, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300' // 5 minute cache
+        'Cache-Control': 'public, max-age=300',
+        'X-Cache': 'MISS',
+        'X-Request-ID': requestId,
+        'X-Processing-Time': `${Date.now() - startTime}ms`
       }
     });
 
