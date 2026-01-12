@@ -652,13 +652,26 @@ async function generateIntradayCheckHTML(
         <div class="model-health ${formattedData.modelHealth.status}">
             <h2>Model Health Status</h2>
             <div class="health-status ${formattedData.modelHealth.status}">${formattedData.modelHealth.display}</div>
-            <div class="accuracy-metric">Live Accuracy: ${formattedData.liveAccuracy}%</div>
-            <div>Tracking ${formattedData.totalSignals} high-confidence signals from this morning</div>
+            <div class="accuracy-metric">${
+              formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
+                ? '⏳ Awaiting validation data'
+                : `Live Accuracy: ${formattedData.liveAccuracy}%`
+            }</div>
+            <div>${
+              formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
+                ? 'High-confidence signals will be tracked after job execution'
+                : `Tracking ${formattedData.totalSignals} high-confidence signals from this morning`
+            }</div>
         </div>
 
         <div class="tracking-summary">
             <h3>📊 High-Confidence Signal Tracking</h3>
-            <div class="summary-grid">
+            ${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
+              ? `<div style="text-align: center; padding: 20px; opacity: 0.7;">
+                  <div style="font-size: 1.2rem; margin-bottom: 10px;">⏳ Awaiting job execution</div>
+                  <div>Signal tracking data will appear after the scheduled job runs</div>
+                </div>`
+              : `<div class="summary-grid">
                 <div class="summary-metric">
                     <div class="value">${formattedData.correctCalls}</div>
                     <div class="label">Correct Calls</div>
@@ -675,7 +688,7 @@ async function generateIntradayCheckHTML(
                     <div class="value">${formattedData.avgDivergence}%</div>
                     <div class="label">Avg Divergence</div>
                 </div>
-            </div>
+            </div>`}
         </div>
 
         <div class="performance-grid">

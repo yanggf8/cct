@@ -84,7 +84,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 
 ### **Core System Features**
-- **Dual AI Analysis**: GPT-OSS-120B + DistilBERT-SST-2 with agreement logic
+- **Dual AI Analysis**: Gemma Sea Lion 27B + DistilBERT-SST-2 with agreement logic
 - **4-Moment Workflow**: Pre-Market → Intraday → End-of-Day → Weekly Review
 - **Real-Time Data**: Yahoo Finance + Federal Reserve (FRED) integration with rate limiting
 - **Production Market Indicators**: Real SOFR, VIX percentiles, Treasury yields
@@ -280,7 +280,7 @@ GET /api/v1/security/config           # Security configuration (admin only)
 ## 🧠 Core System Components
 
 ### **Dual AI Sentiment Analysis**
-- **Models**: GPT-OSS-120B (contextual) + DistilBERT-SST-2 (fast classification)
+- **Models**: Gemma Sea Lion 27B (contextual) + DistilBERT-SST-2 (fast classification)
 - **Agreement Logic**: AGREE/PARTIAL_AGREE/DISAGREE with transparent signals
 - **Processing**: Parallel analysis with Promise.all
 - **Stability**: Timeout protection (30s GPT, 20s DistilBERT), retry logic, circuit breaker

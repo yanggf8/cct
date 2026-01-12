@@ -177,7 +177,7 @@ Not scheduled:
 - Intraday status messaging reflects true job state: before 12:00 PM ET shows scheduled (pending), after schedule with no data shows missing/failed; no fake accuracy defaults.
 - Deploy pipeline: timing instrumentation in `deploy-production.sh`; use `SKIP_AUTH_CHECK=1` to skip `wrangler whoami` on trusted runners. Current end-to-end deploy is ~35s (after minify and verify optimizations).
 - System status: `/system-status` (HTML) backed by `/api/v1/data/system-status` returns API/cache/D1/jobs/model health; refreshes every 30s.
-- AI model policy: use `@cf/openai/gpt-oss-120b` for GPT-class inference; do not use deprecated `@cf/openchat/openchat-3.5-0106`.
+- AI model policy: use `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B) for GPT-class inference; do not use deprecated `@cf/openchat/openchat-3.5-0106`.
 - Reports should display real accuracy as soon as a job completes and data is available (no placeholders once D1/DO has results).
 - System status API responses are served with `Cache-Control: no-cache, no-store, must-revalidate`; treat status data as real-time.
 
