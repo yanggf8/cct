@@ -650,7 +650,6 @@ async function generateIntradayCheckHTML(
         </div>
 
         <div class="model-health ${formattedData.modelHealth.status}">
-            <h2>Model Health Status</h2>
             <div class="health-status ${formattedData.modelHealth.status}">${formattedData.modelHealth.display}</div>
             <div class="accuracy-metric">${
               formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'

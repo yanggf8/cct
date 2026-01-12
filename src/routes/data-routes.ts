@@ -522,22 +522,21 @@ async function handleSystemStatus(
   const today = new Date().toISOString().split('T')[0];
 
   try {
-    // Cache status from health endpoint
+    // Cache status - call internal health check
     let cacheStatus = { l1: { status: 'unknown', hitRate: 'N/A' }, l2: { status: 'unknown' } };
     try {
-      const healthRes = await fetch(new URL('/api/v1/data/health', request.url).toString(), {
-        headers: { 'X-API-Key': env.API_SECRET_KEY || '' }
-      });
-      if (healthRes.ok) {
-        const healthData = await healthRes.json() as any;
-        const l1HitRate = healthData.data?.cache?.l1HitRate || healthData.cache?.l1HitRate || 0;
-        const cacheHealthy = (healthData.data?.cache?.status || healthData.cache?.status) === 'healthy';
+      const cacheId = (env.CACHE_DO as any).idFromName('global-cache');
+      const cacheStub = (env.CACHE_DO as any).get(cacheId);
+      const statsRes = await cacheStub.fetch(new Request('https://cache/stats'));
+      if (statsRes.ok) {
+        const stats = await statsRes.json() as any;
+        const hitRate = stats.l1HitRate || stats.hitRate || 0;
         cacheStatus = {
-          l1: { status: cacheHealthy ? 'healthy' : 'unknown', hitRate: `${(l1HitRate * 100).toFixed(1)}%` },
-          l2: { status: cacheHealthy ? 'healthy' : 'unknown' }
+          l1: { status: 'healthy', hitRate: `${(hitRate * 100).toFixed(1)}%` },
+          l2: { status: 'healthy' }
         };
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { /* ignore - cache DO may not be available */ }
 
     // AI model status - real inference tests
     const models: { gpt: { status: string; responseTime?: number; error?: string }; distilbert: { status: string; responseTime?: number } } = {

@@ -181,6 +181,7 @@ Not scheduled:
 - AI model policy: use `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B) for GPT-class inference; do not use deprecated `@cf/openchat/openchat-3.5-0106`.
 - Reports should display real accuracy as soon as a job completes and data is available (no placeholders once D1/DO has results).
 - System status API responses are served with `Cache-Control: no-cache, no-store, must-revalidate`; treat status data as real-time.
+- Cache status on the system status page reads DO `/stats` directly; expect accurate L1/L2 metrics after deployment.
 
 ## 🔧 Troubleshooting Guide
 
