@@ -100,7 +100,7 @@
 
         function formatTime(h, m) {
             const estH = (h - 5 + 24) % 24;
-            return `${estH % 12 || 12}:${m.toString().padStart(2, '0')} ${estH >= 12 ? 'PM' : 'AM'}`;
+            return `${estH % 12 || 12}:${m.toString().padStart(2, '0')} ${estH >= 12 ? 'PM' : 'AM'} ET`;
         }
 
         function getDateStr(d) { return d.toISOString().slice(0, 10); }
