@@ -2,7 +2,7 @@
 
 ## 🎯 Project Overview
 
-**Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (GPT-OSS-120B + DistilBERT-SST-2), Durable Objects-only caching architecture, predictive analytics dashboard, and real-time sector rotation analysis.
+**Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (Gemma Sea Lion 27B + DistilBERT-SST-2), Durable Objects-only caching architecture, predictive analytics dashboard, and real-time sector rotation analysis.
 
 **Current Status**: ✅ **PRODUCTION READY** - **TypeScript Error-Free** (2025-12-24)
 
@@ -115,7 +115,7 @@
 │  • Legacy Migration in Progress                            │
 ├─────────────────────────────────────────────────────────────┤
 │                BUSINESS INTELLIGENCE LAYER                  │
-│  • Dual AI Analysis (GPT-OSS-120B + DistilBERT-SST-2)     │
+│  • Dual AI Analysis (Gemma Sea Lion 27B + DistilBERT-SST-2)     │
 │  • 4-Moment Workflow (Pre/Intraday/End-of-Day/Weekly)      │
 │  • BI Dashboard (Real-time Operational Health) ⭐ **NEW**  │
 │  • Cost-to-Serve Intelligence (Storage/Compute/Bandwidth) │

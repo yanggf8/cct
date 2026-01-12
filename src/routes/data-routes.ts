@@ -525,20 +525,54 @@ async function handleSystemStatus(
     // Cache status from health endpoint
     let cacheStatus = { l1: { status: 'unknown', hitRate: 'N/A' }, l2: { status: 'unknown' } };
     try {
-      const healthRes = await fetch(new URL('/api/v1/data/health?model=true', request.url).toString(), {
+      const healthRes = await fetch(new URL('/api/v1/data/health', request.url).toString(), {
         headers: { 'X-API-Key': env.API_SECRET_KEY || '' }
       });
       if (healthRes.ok) {
         const healthData = await healthRes.json() as any;
-        const l1HitRate = healthData.data?.cache?.l1HitRate || 0;
-        const l2HitRate = healthData.data?.cache?.l2HitRate || 0;
-        const cacheHealthy = healthData.data?.cache?.status === 'healthy';
+        const l1HitRate = healthData.data?.cache?.l1HitRate || healthData.cache?.l1HitRate || 0;
+        const cacheHealthy = (healthData.data?.cache?.status || healthData.cache?.status) === 'healthy';
         cacheStatus = {
           l1: { status: cacheHealthy ? 'healthy' : 'unknown', hitRate: `${(l1HitRate * 100).toFixed(1)}%` },
           l2: { status: cacheHealthy ? 'healthy' : 'unknown' }
         };
       }
     } catch (e) { /* ignore */ }
+
+    // AI model status - real inference tests
+    const models: { gpt: { status: string; responseTime?: number; error?: string }; distilbert: { status: string; responseTime?: number } } = {
+      gpt: { status: 'checking' },
+      distilbert: { status: 'checking' }
+    };
+    try {
+      if (env.AI) {
+        // Test GPT model (using Gemma Sea Lion)
+        try {
+          const gptStart = Date.now();
+          await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+            messages: [{ role: 'user', content: 'Hi' }],
+            max_tokens: 5
+          });
+          models.gpt = { status: 'healthy', responseTime: Date.now() - gptStart };
+        } catch (e: any) {
+          models.gpt = { status: 'unhealthy' };
+        }
+        // Test DistilBERT model
+        try {
+          const bertStart = Date.now();
+          await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', { text: 'test' });
+          models.distilbert = { status: 'healthy', responseTime: Date.now() - bertStart };
+        } catch (e) {
+          models.distilbert = { status: 'unhealthy' };
+        }
+      } else {
+        models.gpt = { status: 'unavailable' };
+        models.distilbert = { status: 'unavailable' };
+      }
+    } catch (e) {
+      models.gpt = { status: 'error' };
+      models.distilbert = { status: 'error' };
+    }
 
     // D1 status and job counts
     let dbStatus = { status: 'unknown', jobCount: 0, lastJob: null as string | null };
@@ -570,12 +604,6 @@ async function handleSystemStatus(
         weekly: { status: jobMap['weekly_review_analysis'] || 'pending' }
       };
     } catch (e) { /* ignore */ }
-
-    // AI model status (quick check)
-    const models = {
-      gpt: { status: env.AI ? 'available' : 'unavailable' },
-      distilbert: { status: env.AI ? 'available' : 'unavailable' }
-    };
 
     // API status with endpoint details
     const apiStatus = {
@@ -609,9 +637,18 @@ async function handleSystemStatus(
       timestamp: new Date().toISOString()
     };
 
-    return new Response(JSON.stringify(response), { status: 200, headers });
+    const respHeaders = {
+      ...headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    };
+
+    return new Response(JSON.stringify(response), { status: 200, headers: respHeaders });
   } catch (error) {
-    return new Response(JSON.stringify({ status: 'error', error: (error as Error).message }), { status: 500, headers });
+    const respHeaders = {
+      ...headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    };
+    return new Response(JSON.stringify({ status: 'error', error: (error as Error).message }), { status: 500, headers: respHeaders });
   }
 }
 
@@ -968,7 +1005,7 @@ async function handleSystemHealth(
 async function checkGPTModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
   try {
     const start = Date.now();
-    const result = await (env.AI as any).run('@cf/gpt-oss-120b', {
+    const result = await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
       messages: [{ role: 'user', content: 'Health check test message' }],
       temperature: 0.1,
       max_tokens: 50

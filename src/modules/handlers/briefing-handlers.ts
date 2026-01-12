@@ -574,7 +574,17 @@ function generatePreMarketHTML(
         <div class="header">
             <h1>🚀 Pre-Market Briefing</h1>
             <p>Comprehensive trading battle plan for today's market session</p>
-            <div class="date-display">${today}</div>
+            <div class="date-display">${currentDate.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}${hasData ? ` • Generated ${currentDate.toLocaleTimeString('en-US', {
+              timeZone: 'America/New_York',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            })} ET` : ' • ⏳ Scheduled: 8:30 AM ET'}</div>
             ${briefingData?.isStale ? `<div class="stale-warning">⚠️ Showing data from ${briefingData.sourceDate} (latest available)</div>` : ''}
             ${briefingData?.isPartialFallback && !briefingData?.isStale ? `<div class="partial-warning">ℹ️ Partial data from D1 fallback</div>` : ''}
             <div class="market-status">

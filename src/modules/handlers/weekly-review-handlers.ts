@@ -402,7 +402,12 @@ function generateWeeklyReviewHTML(
         <div class="header">
             <h1>📊 Weekly Trading Review</h1>
             <p>Comprehensive analysis of your trading performance and signal accuracy</p>
-            <div class="week-range">${weekRange}</div>
+            <div class="week-range">${weekRange}${hasData ? ` • Generated ${currentDate.toLocaleTimeString('en-US', {
+              timeZone: 'America/New_York',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            })} ET` : ' • ⏳ Scheduled: Sunday 10:00 AM ET'}</div>
         </div>
 
         ${!hasData ? `

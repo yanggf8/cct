@@ -70,7 +70,7 @@
             const api = d.api || {};
             const categories = api.categories || {};
             const categoryList = Object.entries(categories).map(([name, info]) => 
-                `<div class="status-item"><span>${name}</span>${badge((info as any).status)} <small>(${(info as any).count})</small></div>`
+                `<div class="status-item"><span>${name}</span>${badge(info?.status)} <small>(${info?.count})</small></div>`
             ).join('');
 
             const html = `

@@ -88,20 +88,20 @@ export async function handleModelHealth(
     // Test Cloudflare AI availability
     if (env.AI) {
       try {
-        // Test GPT-OSS model with minimal input
-        const gptTest = await (env.AI as any).run('@cf/gpt-oss-120b', {
+        // Test Gemma Sea Lion model with minimal input
+        const gptTest = await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
           messages: [{ role: 'user', content: 'Test' }],
           max_tokens: 5
         });
 
         healthResults.models.gpt_oss_120b = {
           status: 'healthy',
-          model: '@cf/gpt-oss-120b',
+          model: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
           test_response: (gptTest as any)?.response || 'Success',
           latency_ms: 'measured'
         };
 
-        logger.debug('GPT-OSS-120B model test successful', { requestId });
+        logger.debug('Gemma Sea Lion model test successful', { requestId });
       } catch (gptError: any) {
         healthResults.models.gpt_oss_120b = {
           status: 'unhealthy',
@@ -109,7 +109,7 @@ export async function handleModelHealth(
         };
         healthResults.overall_status = 'degraded';
 
-        logger.warn('GPT-OSS-120B model test failed', {
+        logger.warn('Gemma Sea Lion model test failed', {
           requestId,
           error: gptError.message
         });

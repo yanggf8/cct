@@ -436,7 +436,17 @@ function generateEndOfDayHTML(
         <div class="header">
             <h1>🏁 End-of-Day Trading Summary</h1>
             <p>Comprehensive analysis of today's trading performance and market close</p>
-            <div class="date-display">${today}</div>
+            <div class="date-display">${currentDate.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}${hasData ? ` • Generated ${currentDate.toLocaleTimeString('en-US', {
+              timeZone: 'America/New_York',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            })} ET` : ' • ⏳ Scheduled: 4:05 PM ET'}</div>
         </div>
 
         ${!hasData ? `

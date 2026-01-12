@@ -1072,7 +1072,7 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
  */
 function getDefaultIntradayData(): IntradayPerformanceData {
   return {
-    modelHealth: { status: 'pending', display: 'ℹ️ Pending' },
+    modelHealth: { status: 'pending', display: '⏳ Scheduled: 12:00 PM ET' },
     liveAccuracy: 0,
     totalSignals: 0,
     correctCalls: 0,
