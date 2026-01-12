@@ -156,6 +156,14 @@ Active schedules (.github/workflows/trading-system.yml):
 Not scheduled:
 - `sector_rotation_refresh` exists in `src/modules/scheduler.ts` but is disabled in Wrangler and GitHub Actions. Run manually via `POST /api/v1/jobs/trigger` with `{"triggerMode": "sector_rotation_refresh"}` if needed.
 
+### D1 Fallback Status (Reports)
+| Report      | D1 Fallback | Notes |
+|-------------|-------------|-------|
+| Pre-Market  | ✅ Yes      | Includes `sentiment_signals → signals` transformation in `briefing-handlers.ts`. |
+| Intraday    | ✅ Yes      | Uses prediction-shaped data; no sentiment transform needed. |
+| End-of-Day  | ✅ Yes      | Uses prediction-shaped data; no sentiment transform needed. |
+| Weekly      | ✅ Yes      | Aggregates daily data; no sentiment transform needed. |
+
 ## 🔧 Troubleshooting Guide
 
 ### **🚨 Common Issues and Solutions**

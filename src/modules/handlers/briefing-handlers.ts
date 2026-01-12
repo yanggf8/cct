@@ -53,13 +53,28 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
         const isStale = rawData.analysis.is_stale === true;
         const sourceDate = rawData.analysis.source_date || dateStr;
         
+        // Extract signals from either 'signals' or 'sentiment_signals' (D1 format)
+        let signals = rawData.analysis.signals || [];
+        if ((!signals || signals.length === 0) && rawData.analysis.sentiment_signals) {
+          signals = Object.values(rawData.analysis.sentiment_signals).map((s: any) => ({
+            symbol: s.symbol,
+            direction: s.sentiment_analysis?.sentiment || 'neutral',
+            sentiment: s.sentiment_analysis?.sentiment || 'neutral',
+            confidence: s.sentiment_analysis?.confidence || 0,
+            reasoning: s.sentiment_analysis?.reasoning || '',
+            signal_strength: s.sentiment_analysis?.dual_ai_comparison?.signal_strength || 'MODERATE',
+            timestamp: s.timestamp
+          }));
+        }
+        
         briefingData = {
           ...rawData,
-          signals: rawData.analysis.signals || [],
-          totalSignals: rawData.analysis.signals?.length || 0,
-          avgConfidence: rawData.analysis.overall_confidence || 0,
+          signals,
+          totalSignals: signals.length,
+          avgConfidence: signals.length > 0 
+            ? signals.reduce((sum: number, s: any) => sum + (s.confidence || 0), 0) / signals.length 
+            : 0,
           marketSentiment: rawData.analysis.market_sentiment?.overall_sentiment || 'NEUTRAL',
-          // Mark as partial fallback instead of synthetic defaults
           isPartialFallback,
           isStale,
           sourceDate,
