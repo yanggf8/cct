@@ -11,14 +11,8 @@ const { execSync } = require('child_process');
 console.log('🏗️  Building Backend...');
 
 try {
-  // Run TypeScript compilation check
-  console.log('🔍 Running TypeScript compilation check...');
-  execSync('npx tsc --noEmit', {
-    stdio: 'inherit',
-    cwd: process.cwd()
-  });
-
-  console.log('✅ TypeScript compilation successful');
+  // TypeScript check skipped - done once in deploy validation
+  console.log('⏭️  TypeScript check deferred to deploy validation');
 
   // Generate deployment metadata
   const buildInfo = {

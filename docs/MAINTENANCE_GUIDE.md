@@ -170,6 +170,9 @@ Not scheduled:
 - DO cache acts as the hot layer; D1 remains authoritative for historical replay and recovery.
 - All DO-backed endpoints should expose a cache-bypass option (e.g., `?bypass_cache=1` or header) to fetch fresh data directly for testing/debugging without relying on cached payloads.
 
+### Build Validation
+- TypeScript compilation runs once via `npm run build:check` during deploy validation; frontend/backend build scripts skip additional `tsc` passes to avoid redundancy.
+
 ## 🔧 Troubleshooting Guide
 
 ### **🚨 Common Issues and Solutions**

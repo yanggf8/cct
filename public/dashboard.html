@@ -111,21 +111,16 @@
         }
 
         function getJobRunForDate(dateStr, jobId) {
-            // Find any analysis job on this date
-            // For now, all jobs are stored as 'analysis' type
-            // Match by date and approximate time window
-            const jobRuns = d1Jobs.filter(j => j.executed_at.slice(0, 10) === dateStr);
+            // Match by date and expected hour window (±2h tolerance)
+            const jobHours = { 'pre-market': 12, 'intraday': 16, 'end-of-day': 20 };
+            const expectedHour = jobHours[jobId];
+            if (expectedHour === undefined) return null;
             
-            if (jobRuns.length === 0) return null;
-            
-            // Sort by execution time
-            jobRuns.sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
-            
-            // Map job slots to runs by order (first run = pre-market, second = intraday, third = end-of-day)
-            const jobOrder = { 'pre-market': 0, 'intraday': 1, 'end-of-day': 2 };
-            const idx = jobOrder[jobId];
-            
-            return idx !== undefined && jobRuns[idx] ? jobRuns[idx] : null;
+            return d1Jobs.find(j => {
+                const execDate = j.executed_at.slice(0, 10);
+                const execHour = new Date(j.executed_at).getUTCHours();
+                return execDate === dateStr && Math.abs(execHour - expectedHour) <= 2;
+            });
         }
 
         function renderDailySection() {

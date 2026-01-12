@@ -54,19 +54,8 @@ try {
     copyDir(STATIC_DIR, `${BUILD_DIR}/static`);
   }
 
-  // Compile TypeScript files (without emit for checking)
-  if (!SKIP_TYPECHECK) {
-    console.log('🔍 Running TypeScript compilation check...');
-    try {
-      execSync('npx tsc --noEmit', { stdio: 'inherit' });
-      console.log('✅ TypeScript compilation successful');
-    } catch (error) {
-      console.error('❌ TypeScript compilation failed');
-      process.exit(1);
-    }
-  } else {
-    console.log('⏭️  Skipping TypeScript check (--skip-typecheck)');
-  }
+  // TypeScript check skipped - done once in deploy validation
+  console.log('⏭️  TypeScript check deferred to deploy validation');
 
   // Generate build info
   const buildInfo = {

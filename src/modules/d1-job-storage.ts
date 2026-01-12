@@ -316,15 +316,7 @@ export async function getD1FallbackData(
     return { data: snapshot, source: 'd1_snapshot', sourceDate: dateStr, isStale: false };
   }
 
-  // 2. For intraday/end-of-day, fall back to analysis snapshot
-  if (reportType === 'intraday' || reportType === 'end-of-day') {
-    snapshot = await readD1ReportSnapshot(env, dateStr, 'analysis');
-    if (snapshot) {
-      return { data: snapshot, source: 'd1_snapshot_analysis', sourceDate: dateStr, isStale: false };
-    }
-  }
-
-  // 3. Try latest D1 snapshot (may be stale)
+  // 2. Try latest D1 snapshot (may be stale)
   const latestSnapshot = await getD1LatestReportSnapshot(env, reportType);
   if (latestSnapshot) {
     const isStale = latestSnapshot.executionDate !== dateStr;
