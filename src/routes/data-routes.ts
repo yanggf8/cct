@@ -585,12 +585,18 @@ async function handleSystemStatus(
       };
     } catch (e) { /* ignore */ }
 
-    // Today's job statuses from D1
-    let jobs = { 
-      preMarket: { status: 'pending', lastRun: null }, 
-      intraday: { status: 'pending', lastRun: null }, 
-      endOfDay: { status: 'pending', lastRun: null }, 
-      weekly: { status: 'pending', lastRun: null } 
+    // Today's job statuses from D1 with scheduled times
+    const scheduledTimes = {
+      preMarket: '8:30 AM ET',
+      intraday: '12:00 PM ET',
+      endOfDay: '4:05 PM ET',
+      weekly: 'Sun 10:00 AM ET'
+    };
+    let jobs: Record<string, { status: string; lastRun: string | null; scheduled: string }> = { 
+      preMarket: { status: 'pending', lastRun: null, scheduled: scheduledTimes.preMarket }, 
+      intraday: { status: 'pending', lastRun: null, scheduled: scheduledTimes.intraday }, 
+      endOfDay: { status: 'pending', lastRun: null, scheduled: scheduledTimes.endOfDay }, 
+      weekly: { status: 'pending', lastRun: null, scheduled: scheduledTimes.weekly } 
     };
     try {
       const jobResults = await env.PREDICT_JOBS_DB.prepare(
@@ -602,16 +608,14 @@ async function handleSystemStatus(
         if (!jobMap[row.trigger_mode]) {
           jobMap[row.trigger_mode] = { 
             status: row.status, 
-            time: row.executed_at ? new Date(row.executed_at).toLocaleTimeString() : null 
+            time: row.executed_at ? new Date(row.executed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : null 
           };
         }
       }
-      jobs = {
-        preMarket: { status: jobMap['morning_prediction_alerts']?.status || 'pending', lastRun: jobMap['morning_prediction_alerts']?.time },
-        intraday: { status: jobMap['midday_validation_prediction']?.status || 'pending', lastRun: jobMap['midday_validation_prediction']?.time },
-        endOfDay: { status: jobMap['next_day_market_prediction']?.status || 'pending', lastRun: jobMap['next_day_market_prediction']?.time },
-        weekly: { status: jobMap['weekly_review_analysis']?.status || 'pending', lastRun: jobMap['weekly_review_analysis']?.time }
-      };
+      if (jobMap['morning_prediction_alerts']) jobs.preMarket = { ...jobs.preMarket, status: jobMap['morning_prediction_alerts'].status, lastRun: jobMap['morning_prediction_alerts'].time };
+      if (jobMap['midday_validation_prediction']) jobs.intraday = { ...jobs.intraday, status: jobMap['midday_validation_prediction'].status, lastRun: jobMap['midday_validation_prediction'].time };
+      if (jobMap['next_day_market_prediction']) jobs.endOfDay = { ...jobs.endOfDay, status: jobMap['next_day_market_prediction'].status, lastRun: jobMap['next_day_market_prediction'].time };
+      if (jobMap['weekly_review_analysis']) jobs.weekly = { ...jobs.weekly, status: jobMap['weekly_review_analysis'].status, lastRun: jobMap['weekly_review_analysis'].time };
     } catch (e) { /* ignore */ }
 
     // API status with endpoint details
