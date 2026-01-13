@@ -130,51 +130,17 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
       logger.warn('⚠️ [PRE-MARKET] No existing data found', { requestId, error: String(dataError) });
     }
 
-    // If no data exists, try to generate it
+    // If no data exists, show partial briefing (don't auto-generate - that's for scheduled jobs)
     if (!briefingData) {
-      logger.warn('⚠️ [PRE-MARKET] No data available, attempting auto-generation', { requestId });
-
-      // Try to trigger analysis generation
-      try {
-        logger.info('🔄 [PRE-MARKET] Triggering analysis generation', { requestId });
-        const { handleManualAnalysis } = await import('./analysis-handlers.js');
-        const analysisReq = new Request(request.url, { method: 'GET', headers: request.headers });
-        await handleManualAnalysis(analysisReq, env, ctx);
-        logger.info('✅ [PRE-MARKET] Analysis generation completed', { requestId });
-        
-        // Try to fetch data again after generation
-        try {
-          briefingData = await getPreMarketBriefingData(env, targetDate);
-          if (!briefingData) {
-            logger.warn('⚠️ [PRE-MARKET] Still no data after generation', { requestId });
-            const partialBriefing = generatePartialBriefing(dateStr, 0);
-            return new Response(partialBriefing, {
-              headers: {
-                'Content-Type': 'text/html; charset=utf-8',
-                'Cache-Control': 'public, max-age=300'
-              }
-            });
-          }
-        } catch (refetchError) {
-          logger.error('❌ [PRE-MARKET] Failed to fetch data after generation', { requestId, error: String(refetchError) });
-          const partialBriefing = generatePartialBriefing(dateStr, 0);
-          return new Response(partialBriefing, {
-            headers: {
-              'Content-Type': 'text/html; charset=utf-8',
-              'Cache-Control': 'public, max-age=300'
-            }
-          });
+      logger.warn('⚠️ [PRE-MARKET] No data available', { requestId, dateStr });
+      const partialBriefing = generatePartialBriefing(dateStr, 0);
+      return new Response(partialBriefing, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, max-age=60',
+          'X-Request-ID': requestId
         }
-      } catch (genError) {
-        logger.error('❌ [PRE-MARKET] Auto-generation failed', { requestId, error: String(genError) });
-        const partialBriefing = generatePartialBriefing(dateStr, 0);
-        return new Response(partialBriefing, {
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, max-age=300'
-          }
-        });
-      }
+      });
     }
 
     logger.debug('✅ [PRE-MARKET] Data available, generating briefing', { requestId });

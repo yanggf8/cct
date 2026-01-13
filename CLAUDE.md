@@ -251,12 +251,18 @@ GET /api/v1/realtime/status           # Stream status
 POST /api/v1/realtime/refresh         # Refresh realtime data
 ```
 
-#### Data Access (12 endpoints)
+#### Data Access (10 endpoints)
 ```bash
 GET /api/v1/data/symbols              # Available symbols
 GET /api/v1/data/history/:symbol      # Historical data
-GET /api/v1/data/health               # System health
-# + 9 additional
+GET /api/v1/data/predict-jobs/:date   # Job results for date
+GET /api/v1/data/health               # System health (?model=true, ?cron=true)
+GET /api/v1/data/system-status        # Status page payload
+GET /api/v1/data/money-flow-pool      # Money Flow Pool health
+GET /api/v1/data/kv-self-test         # KV binding self-test
+GET /api/v1/data/bindings             # Available bindings
+POST /api/v1/data/ai-compare          # Compare AI model outputs 🔒 PROTECTED
+POST /api/v1/data/migrate-5pct-to-failed # Migrate legacy 5% confidence 🔒 PROTECTED
 ```
 
 #### Enhanced Cache (7 endpoints)
@@ -565,7 +571,7 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2025-12-24
+**Last Updated**: 2026-01-13
 **Current Version**: Production Ready with Test Organization + Complete API Documentation
 **Major Updates**:
 - **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories

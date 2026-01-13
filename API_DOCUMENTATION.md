@@ -434,6 +434,69 @@ GET /api/v1/data/health?model=true
 - **Error Handling**: Graceful degradation with specific error codes (TIMEOUT, CIRCUIT_BREAKER_OPEN)
 - **Reliability**: 95% reduction in intermittent AI model errors
 
+#### **AI Model Compare (Admin)**
+```bash
+POST /api/v1/data/ai-compare
+```
+
+**Description**: Runs the same prompt through Gemma Sea Lion and DistilBERT for side-by-side comparison. Requires `X-API-KEY`.
+
+**Request Body**:
+```json
+{
+  "news": "Apple reports record Q4 earnings, beating analyst expectations by 15%."
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "AI model comparison complete",
+  "data": {
+    "newsText": "Apple reports record Q4 earnings...",
+    "models": {
+      "gemmaSeaLion": {
+        "responseTime": 912,
+        "parsed": {
+          "sentiment": 0.7,
+          "confidence": 82,
+          "rationale": "Strong earnings beat suggests bullish sentiment."
+        }
+      },
+      "distilbert": {
+        "responseTime": 184,
+        "parsed": {
+          "label": "POSITIVE",
+          "score": 0.96
+        }
+      }
+    }
+  }
+}
+```
+
+#### **Legacy 5% Confidence Migration (Admin)**
+```bash
+POST /api/v1/data/migrate-5pct-to-failed
+```
+
+**Description**: One-time cleanup that marks legacy 5% confidence values as failed in D1. Requires `X-API-KEY`.
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Migrated 42 signals from 5% fallback to failed status",
+  "data": {
+    "migrated": 42,
+    "totalSignals": 860,
+    "recordsProcessed": 31,
+    "timestamp": "2026-01-13T02:04:11.000Z"
+  }
+}
+```
+
 #### **Performance Results**
 ```bash
 GET /results

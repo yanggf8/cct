@@ -81,6 +81,11 @@ export class EnhancedRequestHandler {
     const url = new URL(request.url);
     const startTime = Date.now();
 
+    // Handle favicon.ico -> favicon.svg redirect
+    if (url.pathname === '/favicon.ico') {
+      return Response.redirect(new URL('/favicon.svg', url.origin).toString(), 301);
+    }
+
     // Start performance monitoring
     const monitor = PerformanceMonitor.monitorRequest(request);
 
