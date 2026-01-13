@@ -667,9 +667,9 @@ export async function batchDualAIAnalysis(
       });
     }
 
-    // Delay between symbols to respect rate limits (2s base + jitter)
+    // Delay between symbols to respect rate limits (3s base + jitter)
     if (i < symbols.length - 1) {
-      const delay = 2000 + Math.random() * 1000;
+      const delay = 3000 + Math.random() * 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
