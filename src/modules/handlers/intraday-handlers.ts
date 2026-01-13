@@ -236,8 +236,10 @@ export const handleIntradayCheck = createHandler(
         const currentHourET = nowETDate.getHours();
         const intradayScheduledHour = 12; // 12:00 PM ET
         const beforeSchedule = currentHourET < intradayScheduledHour;
+        const scheduledUtcTime = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16, 0);
+        const localScheduledTime = new Date(scheduledUtcTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         const scheduleInfo = beforeSchedule 
-          ? `Scheduled: 12:00 PM ET (in ${intradayScheduledHour - currentHourET}h)`
+          ? `Scheduled: 12:00 PM ET (${localScheduledTime} local)`
           : 'Job should have run - check execution';
 
         intradayData = {
@@ -279,11 +281,12 @@ export const handleIntradayCheck = createHandler(
       const nowETDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
       const scheduledUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16, 0);
       const beforeSchedule = Date.now() < scheduledUtc;
+      const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
       intradayData = {
         modelHealth: {
           status: beforeSchedule ? 'scheduled' : 'off-track',
-          display: beforeSchedule ? '⏳ Scheduled: 12:00 PM ET' : '❌ No data (job missing/failed)',
+          display: beforeSchedule ? `⏳ Scheduled: 12:00 PM ET (${localScheduled} local)` : '❌ No data (job missing/failed)',
           accuracy: undefined
         },
         liveAccuracy: 0,

@@ -458,7 +458,7 @@ function generateEndOfDayHTML(
               hour: 'numeric',
               minute: '2-digit',
               hour12: true
-            })} ET` : ' • ⏳ Scheduled: 4:05 PM ET'}</div>
+            })} ET` : ` • ⏳ Scheduled: 4:05 PM ET <span class="local-time">(${new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 21, 5)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} local)</span>`}</div>
         </div>
 
         ${!hasData ? `

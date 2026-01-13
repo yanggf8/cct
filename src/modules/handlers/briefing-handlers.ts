@@ -569,7 +569,7 @@ function generatePreMarketHTML(
               hour: 'numeric',
               minute: '2-digit',
               hour12: true
-            })} ET` : ' • ⏳ Scheduled: 8:30 AM ET'}</div>
+            })} ET` : ` • ⏳ Scheduled: 8:30 AM ET <span class="local-time">(${new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} local)</span>`}</div>
             ${briefingData?.isStale ? `<div class="stale-warning">⚠️ Showing data from ${briefingData.sourceDate} (latest available)</div>` : ''}
             ${briefingData?.isPartialFallback && !briefingData?.isStale ? `<div class="partial-warning">ℹ️ Partial data from D1 fallback</div>` : ''}
             <div class="market-status">

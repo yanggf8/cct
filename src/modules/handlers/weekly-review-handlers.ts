@@ -411,7 +411,7 @@ function generateWeeklyReviewHTML(
               hour: 'numeric',
               minute: '2-digit',
               hour12: true
-            })} ET` : ' • ⏳ Scheduled: Sunday 10:00 AM ET'}</div>
+            })} ET` : ` • ⏳ Scheduled: Sunday 10:00 AM ET <span class="local-time">(${new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 15, 0)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} local)</span>`}</div>
         </div>
 
         ${!hasData ? `
