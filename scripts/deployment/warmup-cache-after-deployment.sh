@@ -15,9 +15,9 @@ error() { echo -e "${RED}✗${NC} $*"; }
 
 log "Warming cache: $BASE_URL"
 
-# Warm endpoints in parallel
+# Warm endpoints in parallel (use correct health endpoint)
 for endpoint in \
-    "/api/v1/health" \
+    "/api/v1/data/health" \
     "/api/v1/cache/health" \
     "/api/v1/data/symbols" \
     "/dashboard.html" \

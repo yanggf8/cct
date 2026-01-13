@@ -365,15 +365,17 @@ async function generateIntradayCheckHTML(
 
   // Check for real data vs scheduled
   const hasRealData = formattedData.totalSignals > 0;
-  const scheduledUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 16, 0); // 12:00 PM ET
+  const scheduledUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 17, 0); // 12:00 PM ET = 17:00 UTC
   const beforeSchedule = Date.now() < scheduledUtc;
-  
-  // Status display for header - local time computed client-side
+
+  // Status display for header - use actual job generation time, not current request time
   let statusDisplay: string;
-  if (hasRealData) {
-    statusDisplay = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' ET';
+  if (hasRealData && formattedData.generatedAt) {
+    // Use the actual job execution time from data, not current request time
+    const generatedTime = new Date(formattedData.generatedAt);
+    statusDisplay = generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' ET';
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 12:00 PM ET (<span id="local-time" data-utc="${scheduledUtc}"></span>)`;
+    statusDisplay = `⏳ Scheduled: 12:00 PM ET (<span class="local-time" data-et="12:00"></span>)`;
   } else {
     statusDisplay = '⚠️ No data available';
   }
@@ -797,8 +799,10 @@ async function generateIntradayCheckHTML(
         </div>
     </div>
     <script>
-      document.querySelectorAll('[id^="local-time"]').forEach(el => {
-        el.textContent = new Date(parseInt(el.dataset.utc)).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+      document.querySelectorAll('.local-time').forEach(el => {
+        const et = el.dataset.et;
+        const d = new Date(new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et);
+        el.textContent = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
       });
     </script>
 </body>

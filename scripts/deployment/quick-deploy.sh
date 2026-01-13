@@ -19,6 +19,17 @@ warning() { echo -e "${YELLOW}⚠${NC} $*"; }
 
 cd "$PROJECT_ROOT"
 
+# Use local wrangler if available, fallback to global
+WRANGLER_BIN=""
+if [ -x "node_modules/.bin/wrangler" ]; then
+    WRANGLER_BIN="node_modules/.bin/wrangler"
+elif command -v wrangler >/dev/null 2>&1; then
+    WRANGLER_BIN="wrangler"
+else
+    error "wrangler not found. Run: npm install"
+    exit 1
+fi
+
 SKIP_CONFIRM="${SKIP_CONFIRM:-0}"
 [ "${SKIP_CONFIRM}" != "1" ] && [ -z "${CI:-}" ] && {
     log "Quick deploy (no build) - Ctrl+C to cancel..."
@@ -27,7 +38,8 @@ SKIP_CONFIRM="${SKIP_CONFIRM:-0}"
 }
 
 log "Deploying..."
-env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID $WRANGLER_BIN deploy
 
+curl -sf "$DEPLOYMENT_URL/api/v1/data/health" >/dev/null 2>&1 && success "Healthy"
 success "Done: $DEPLOYMENT_URL"
 warning "Tip: Fix TypeScript errors before next full deploy"

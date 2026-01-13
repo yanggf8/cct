@@ -17,6 +17,17 @@ error() { echo -e "${RED}✗${NC} $*"; }
 
 cd "$PROJECT_ROOT"
 
+# Use local wrangler if available, fallback to global
+WRANGLER_BIN=""
+if [ -x "node_modules/.bin/wrangler" ]; then
+    WRANGLER_BIN="node_modules/.bin/wrangler"
+elif command -v wrangler >/dev/null 2>&1; then
+    WRANGLER_BIN="wrangler"
+else
+    error "wrangler not found. Run: npm install"
+    exit 1
+fi
+
 SKIP_BACKEND=false
 [[ "${1:-}" == "--skip-backend" ]] && SKIP_BACKEND=true
 
@@ -29,7 +40,7 @@ if [ "$SKIP_BACKEND" = false ]; then
 fi
 
 log "Deploying..."
-env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID $WRANGLER_BIN deploy
 
-curl -sf "$DEPLOYMENT_URL/api/v1/health" >/dev/null 2>&1 && success "Healthy"
+curl -sf "$DEPLOYMENT_URL/api/v1/data/health" >/dev/null 2>&1 && success "Healthy"
 success "Done: $DEPLOYMENT_URL"

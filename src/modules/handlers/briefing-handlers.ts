@@ -197,7 +197,7 @@ function generatePreMarketHTML(
   // Check for actual data (signals > 0)
   const hasRealData = briefingData && (briefingData.totalSignals > 0 || briefingData.signals?.length > 0);
   
-  // Scheduled time: 8:30 AM ET = 13:30 UTC
+  // Scheduled time: 8:30 AM ET
   const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30);
   const beforeSchedule = Date.now() < scheduledUtc;
   
@@ -206,7 +206,7 @@ function generatePreMarketHTML(
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 8:30 AM ET (<span id="local-time" data-utc="${scheduledUtc}"></span>)`;
+    statusDisplay = `⏳ Scheduled: 8:30 AM ET (<span class="local-time" data-et="8:30 AM"></span>)`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -592,7 +592,7 @@ function generatePreMarketHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at 8:30 AM ET (<span id="local-time2" data-utc="${scheduledUtc}"></span>).` : 'There is no pre-market data available for this date.'}</p>
+            <p>${beforeSchedule ? `This report will be generated at 8:30 AM ET (<span class="local-time" data-et="8:30 AM"></span>).` : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
@@ -672,8 +672,10 @@ function generatePreMarketHTML(
     </script>
     ` : ''}
     <script>
-      document.querySelectorAll('[id^="local-time"]').forEach(el => {
-        el.textContent = new Date(parseInt(el.dataset.utc)).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+      document.querySelectorAll('.local-time').forEach(el => {
+        const et = el.dataset.et;
+        const d = new Date(new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et);
+        el.textContent = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
       });
     </script>
 </body>

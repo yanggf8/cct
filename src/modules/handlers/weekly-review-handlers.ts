@@ -134,7 +134,7 @@ function generateWeeklyReviewHTML(
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: Sunday 10:00 AM ET (<span id="local-time" data-utc="${scheduledUtc}"></span>)`;
+    statusDisplay = `⏳ Scheduled: Sunday 10:00 AM ET (<span class="local-time" data-et="10:00 AM"></span>)`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -429,7 +429,7 @@ function generateWeeklyReviewHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Weekly Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated on Sunday 10:00 AM ET (<span id="local-time2" data-utc="${scheduledUtc}"></span>).` : 'There is no trading data available for this week.'}</p>
+            <p>${beforeSchedule ? `This report will be generated on Sunday 10:00 AM ET (<span class="local-time" data-et="10:00 AM"></span>).` : 'There is no trading data available for this week.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -596,8 +596,10 @@ function generateWeeklyReviewHTML(
     </script>
     ` : ''}
     <script>
-      document.querySelectorAll('[id^="local-time"]').forEach(el => {
-        el.textContent = new Date(parseInt(el.dataset.utc)).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+      document.querySelectorAll('.local-time').forEach(el => {
+        const et = el.dataset.et;
+        const d = new Date(new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et);
+        el.textContent = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
       });
     </script>
 </body>

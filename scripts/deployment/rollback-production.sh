@@ -14,8 +14,16 @@ error() { echo -e "${RED}✗${NC} $*"; }
 
 DEPLOYMENT_URL="https://tft-trading-system.yanggf.workers.dev"
 
-# Check wrangler
-command -v wrangler >/dev/null 2>&1 || { error "wrangler not found"; exit 1; }
+# Use local wrangler if available, fallback to global
+WRANGLER_BIN=""
+if [ -x "node_modules/.bin/wrangler" ]; then
+    WRANGLER_BIN="node_modules/.bin/wrangler"
+elif command -v wrangler >/dev/null 2>&1; then
+    WRANGLER_BIN="wrangler"
+else
+    error "wrangler not found. Run: npm install"
+    exit 1
+fi
 
 # Find previous good commit
 LAST_GOOD=$(git log --oneline -5 | grep -i "deploy\|release" | head -1 | cut -d' ' -f1)
@@ -36,7 +44,10 @@ log "Building..."
 npm run build >/dev/null 2>&1 || { error "Build failed"; git checkout -; exit 1; }
 
 log "Deploying..."
-env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID $WRANGLER_BIN deploy
+
+# Verify
+curl -sf "$DEPLOYMENT_URL/api/v1/data/health" >/dev/null 2>&1 && success "Healthy"
 
 # Return to master
 log "Returning to master branch..."

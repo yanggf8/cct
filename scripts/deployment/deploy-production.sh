@@ -32,8 +32,16 @@ done
 
 cd "$PROJECT_ROOT"
 
-# Checks (fast)
-command -v wrangler >/dev/null 2>&1 || { error "wrangler not found"; exit 1; }
+# Use local wrangler if available, fallback to global
+WRANGLER_BIN=""
+if [ -x "node_modules/.bin/wrangler" ]; then
+    WRANGLER_BIN="node_modules/.bin/wrangler"
+elif command -v wrangler >/dev/null 2>&1; then
+    WRANGLER_BIN="wrangler"
+else
+    error "wrangler not found. Run: npm install"
+    exit 1
+fi
 
 # Git check
 if [ "$SKIP_CONFIRM" = "0" ] && [ -n "$(git status --porcelain 2>/dev/null)" ]; then
@@ -55,14 +63,17 @@ npm run build
 
 # Deploy
 log "Deploying..."
-if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy; then
+if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID $WRANGLER_BIN deploy; then
     success "Deployed"
 else
     error "Failed"
     exit 1
 fi
 
-# Quick health check
-curl -sf "$DEPLOYMENT_URL/api/v1/health" >/dev/null 2>&1 && success "Healthy"
+# Quick health check (use correct endpoint)
+if curl -sf "$DEPLOYMENT_URL/api/v1/data/health" >/dev/null 2>&1; then
+    success "Healthy"
+fi
 
 success "Done in $(($(date +%s) - START))s"
+log "URL: $DEPLOYMENT_URL"
