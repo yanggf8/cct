@@ -430,42 +430,21 @@ export class ReportDataRetrieval {
       let finalSummary: EndOfDaySummary | null = null;
       let tomorrowOutlook: TomorrowOutlook | null = null;
 
-      if (predictionsResult.data) {
-        const predictions: PredictionsData = predictionsResult.data;
-        finalSummary = this.generateEndOfDaySummary(predictions);
-
-        // Generate AI-powered tomorrow outlook (expensive - only if not cached)
-        try {
-          logger.info('🤖 [END-OF-DAY] Running AI analysis for tomorrow outlook', { date: dateStr });
-          const aiAnalysis: EnhancedAnalysisResults = await runEnhancedAnalysis(env, {
-            purpose: 'tomorrow_outlook',
-            context: 'end_of_day_summary'
-          });
-
-          tomorrowOutlook = this.generateAITomorrowOutlook(aiAnalysis, predictions);
-          logger.info('✅ [END-OF-DAY] AI-powered tomorrow outlook generated', {
-            date: dateStr,
-            marketBias: tomorrowOutlook.marketBias,
-            confidence: tomorrowOutlook.confidence
-          });
-        } catch (error: unknown) {
-          logger.warn('⚠️ [END-OF-DAY] AI analysis failed, using fallback', {
-            date: dateStr,
-            error: (error as Error).message
-          });
-          tomorrowOutlook = this.generateTomorrowOutlook(predictions);
-        }
-
-        if (tomorrowOutlook) {
-          await tomorrowOutlookTracker.storeTomorrowOutlook(env, date, tomorrowOutlook as any);
-        }
-      }
-
-      // If pre-computed summary exists, use it
+      // Use pre-computed summary if exists
       if (summaryResult.data) {
         const parsedSummary = summaryResult.data;
-        finalSummary = parsedSummary.summary || finalSummary;
-        tomorrowOutlook = parsedSummary.tomorrowOutlook || tomorrowOutlook;
+        finalSummary = parsedSummary.summary || null;
+        tomorrowOutlook = parsedSummary.tomorrowOutlook || null;
+      }
+
+      // Generate summary from predictions if no pre-computed summary
+      if (!finalSummary && predictionsResult.data) {
+        const predictions: PredictionsData = predictionsResult.data;
+        finalSummary = this.generateEndOfDaySummary(predictions);
+        // Use non-AI fallback for outlook (AI generation is for scheduled jobs only)
+        if (!tomorrowOutlook) {
+          tomorrowOutlook = this.generateTomorrowOutlook(predictions);
+        }
       }
 
       const result: EndOfDaySummaryData = {
