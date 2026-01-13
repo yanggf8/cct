@@ -8,6 +8,7 @@ import { createSuccessResponse } from '../response-factory.js';
 import { createHandler } from '../handler-factory.js';
 import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
 import { getPreMarketBriefingData } from '../report-data-retrieval.js';
+import { generatePendingPageHTML } from './pending-page.js';
 import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
@@ -130,11 +131,17 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
       logger.warn('⚠️ [PRE-MARKET] No existing data found', { requestId, error: String(dataError) });
     }
 
-    // If no data exists, show partial briefing (don't auto-generate - that's for scheduled jobs)
+    // If no data exists, show pending page (don't auto-generate - that's for scheduled jobs)
     if (!briefingData) {
       logger.warn('⚠️ [PRE-MARKET] No data available', { requestId, dateStr });
-      const partialBriefing = generatePartialBriefing(dateStr, 0);
-      return new Response(partialBriefing, {
+      const pendingPage = generatePendingPageHTML({
+        title: 'Pre-Market Briefing',
+        reportType: 'pre-market',
+        dateStr,
+        scheduledHourUTC: 13,
+        scheduledMinuteUTC: 30
+      });
+      return new Response(pendingPage, {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'public, max-age=60',
@@ -671,114 +678,6 @@ function generatePreMarketHTML(
         });
     </script>
     ` : ''}
-    <script>
-      document.querySelectorAll('.sched-time').forEach(el => {
-        const utcH = parseInt(el.dataset.utch);
-        const utcM = parseInt(el.dataset.utcm || '0');
-        const d = new Date();
-        d.setUTCHours(utcH, utcM, 0, 0);
-        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
-        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
-        el.textContent = et + ' ET (' + local + ' local)';
-      });
-    </script>
-</body>
-</html>`;
-}
-
-/**
- * Generate partial briefing HTML
- */
-function generatePartialBriefing(dateStr: string, completionRate: number): string {
-  // Calculate scheduled time: 8:30 AM ET = 13:30 UTC
-  const currentDate = new Date(dateStr + 'T12:00:00Z');
-  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30);
-  const beforeSchedule = Date.now() < scheduledUtc;
-  
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pre-Market Briefing - ${dateStr}</title>
-    ${getNavScripts()}
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #ffffff;
-            min-height: 100vh;
-            padding: 20px;
-            padding-top: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .partial-content {
-            text-align: center;
-            max-width: 600px;
-            padding: 40px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .partial-content h2 {
-            color: #feca57;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
-        .partial-content p {
-            margin-bottom: 20px;
-            opacity: 0.9;
-        }
-        .schedule-info {
-            background: rgba(79, 172, 254, 0.2);
-            border: 1px solid rgba(79, 172, 254, 0.5);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            font-size: 1.1rem;
-        }
-        .refresh-button {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            margin-top: 20px;
-        }
-        .refresh-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(79, 172, 254, 0.3);
-        }
-        .info-box {
-            background: rgba(255, 255, 255, 0.05);
-            border-left: 4px solid #4facfe;
-            padding: 15px;
-            margin: 20px 0;
-            text-align: left;
-            border-radius: 5px;
-        }
-    </style>
-</head>
-<body>
-    ${getSharedNavHTML('pre-market')}
-    <div class="partial-content">
-        <h2>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h2>
-        <div class="schedule-info">
-            ${beforeSchedule 
-              ? `📅 Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`
-              : `This report has no data for ${dateStr}`}
-        </div>
-        <p>${beforeSchedule 
-          ? 'The pre-market briefing will be generated at the scheduled time above.'
-          : 'The scheduled job may not have run. Check system status for details.'}</p>
-        <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
-    </div>
     <script>
       document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);

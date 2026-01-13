@@ -57,36 +57,43 @@ if [ "$SKIP_CONFIRM" = "0" ]; then
     echo
 fi
 
-# Build
+# Build with progress indicator
 log "Building..."
-npm run build &
-BUILD_PID=$!
+(
+    npm run build 2>&1 &
+    BUILD_PID=$!
 
-# Show spinner while build runs
-spinners=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-i=0
-while kill -0 $BUILD_PID 2>/dev/null; do
-    printf "\r${BLUE}${spinners[$((i % 10))]}${NC} Building... "
-    sleep 0.1
-    ((i++))
-done
+    # Spinner while building
+    spinners=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    i=0
+    while kill -0 $BUILD_PID 2>/dev/null; do
+        printf "\r${BLUE}${spinners[$((i % 10))]}${NC} Building... %${i}s " >&2
+        sleep 0.1
+        ((i++))
+    done
+    printf "\r" >&2
 
-# Wait for build and check result
-if wait $BUILD_PID; then
-    printf "\r${GREEN}✓${NC} Build complete     \n"
-else
-    printf "\r${RED}✗${NC} Build failed       \n"
-    exit 1
-fi
+    wait $BUILD_PID
+) && success "Build complete" || { error "Build failed"; exit 1; }
 
-# Deploy
+# Deploy with progress
 log "Deploying..."
-if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID $WRANGLER_BIN deploy; then
-    success "Deployed"
-else
-    error "Failed"
-    exit 1
-fi
+(
+    env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID $WRANGLER_BIN deploy 2>&1 &
+    DEPLOY_PID=$!
+
+    # Spinner while deploying
+    spinners=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    i=0
+    while kill -0 $DEPLOY_PID 2>/dev/null; do
+        printf "\r${BLUE}${spinners[$((i % 10))]}${NC} Uploading... %${i}s " >&2
+        sleep 0.1
+        ((i++))
+    done
+    printf "\r" >&2
+
+    wait $DEPLOY_PID
+) && success "Deployed" || { error "Deploy failed"; exit 1; }
 
 # Quick health check (use correct endpoint)
 if curl -sf "$DEPLOYMENT_URL/api/v1/data/health" >/dev/null 2>&1; then

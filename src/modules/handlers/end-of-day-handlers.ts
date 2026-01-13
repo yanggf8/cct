@@ -10,6 +10,7 @@ import { getEndOfDaySummaryData } from '../report-data-retrieval.js';
 import { writeD1ReportSnapshot } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
+import { generatePendingPageHTML } from './pending-page.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('end-of-day-handlers');

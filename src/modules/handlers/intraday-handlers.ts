@@ -9,6 +9,7 @@ import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
 import { writeD1ReportSnapshot } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
+import { generatePendingPageHTML } from './pending-page.js';
 import {
   getWithRetry,
   updateJobStatus,
