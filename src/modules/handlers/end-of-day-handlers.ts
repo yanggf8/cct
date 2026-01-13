@@ -136,7 +136,7 @@ function generateEndOfDayHTML(
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 4:05 PM ET (<span class="local-time" data-utch="21" data-utcm="5"></span>)`;
+    statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="21" data-utcm="5"></span>`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -475,7 +475,7 @@ function generateEndOfDayHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No End-of-Day Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at 4:05 PM ET (<span class="local-time" data-utch="21" data-utcm="5"></span>).` : 'There is no end-of-day data available for this date.'}</p>
+            <p>${beforeSchedule ? `This report will be generated at <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : 'There is no end-of-day data available for this date.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -638,11 +638,14 @@ function generateEndOfDayHTML(
     </script>
     ` : ''}
     <script>
-      document.querySelectorAll('.local-time').forEach(el => {
+      document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
-        const utcDate = new Date(Date.UTC(2024, 0, 1, utcH, utcM));
-        el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true}) + ' local';
+        const d = new Date();
+        d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
       });
     </script>
 </body>

@@ -206,7 +206,7 @@ function generatePreMarketHTML(
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 8:30 AM ET (<span class="local-time" data-utch="13" data-utcm="30"></span>)`;
+    statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -592,7 +592,7 @@ function generatePreMarketHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at 8:30 AM ET (<span class="local-time" data-utch="13" data-utcm="30"></span>).` : 'There is no pre-market data available for this date.'}</p>
+            <p>${beforeSchedule ? `This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
@@ -672,11 +672,14 @@ function generatePreMarketHTML(
     </script>
     ` : ''}
     <script>
-      document.querySelectorAll('.local-time').forEach(el => {
+      document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
-        const utcDate = new Date(Date.UTC(2024, 0, 1, utcH, utcM));
-        el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true}) + ' local';
+        const d = new Date();
+        d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
       });
     </script>
 </body>

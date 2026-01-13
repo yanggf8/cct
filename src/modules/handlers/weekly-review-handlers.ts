@@ -134,7 +134,7 @@ function generateWeeklyReviewHTML(
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: Sunday 10:00 AM ET (<span class="local-time" data-utch="15" data-utcm="0"></span>)`;
+    statusDisplay = `⏳ Scheduled: Sunday <span class="sched-time" data-utch="15" data-utcm="0"></span>`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -429,7 +429,7 @@ function generateWeeklyReviewHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Weekly Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated on Sunday 10:00 AM ET (<span class="local-time" data-utch="15" data-utcm="0"></span>).` : 'There is no trading data available for this week.'}</p>
+            <p>${beforeSchedule ? `This report will be generated on Sunday <span class="sched-time" data-utch="15" data-utcm="0"></span>.` : 'There is no trading data available for this week.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -596,11 +596,14 @@ function generateWeeklyReviewHTML(
     </script>
     ` : ''}
     <script>
-      document.querySelectorAll('.local-time').forEach(el => {
+      document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
-        const utcDate = new Date(Date.UTC(2024, 0, 1, utcH, utcM));
-        el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true}) + ' local';
+        const d = new Date();
+        d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
       });
     </script>
 </body>
