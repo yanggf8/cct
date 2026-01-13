@@ -2,11 +2,11 @@
  * Report Data Retrieval Module - TypeScript
  * DO/D1 data access functions for the 4-report workflow with comprehensive type safety
  * D1 fallback: When DO cache misses, queries D1 snapshots first, then predictions
+ * NOTE: This module is READ-ONLY - no AI calls. AI generation happens in scheduled jobs.
  */
 
 import { createLogger } from './logging.js';
 import { tomorrowOutlookTracker, type MarketBias, type ConfidenceLevel, type VolatilityLevel } from './tomorrow-outlook-tracker.js';
-import { runEnhancedAnalysis, type EnhancedAnalysisResults } from './enhanced_analysis.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { getD1Predictions, transformD1ToAnalysis, readD1ReportSnapshot, getD1LatestReportSnapshot, getD1FallbackData } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -775,89 +775,6 @@ export class ReportDataRetrieval {
       keyFocus: marketBias === 'bullish' ? 'Long opportunities' :
                  marketBias === 'bearish' ? 'Risk management' : 'Market neutral',
       recommendations: this.generateRecommendations(performanceSummary)
-    };
-  }
-
-  generateAITomorrowOutlook(aiAnalysis: EnhancedAnalysisResults, predictionsData: PredictionsData): TomorrowOutlook {
-    // Extract AI-based predictions and sentiment
-    const tradingSignals = aiAnalysis.sentiment_signals || {};
-    const symbols = Object.keys(tradingSignals);
-
-    let marketBias: MarketBias = 'neutral';
-    let confidence: ConfidenceLevel = 'medium';
-    let reasoning = '';
-    let aiInsights: string[] = [];
-    let keyFactors: string[] = [];
-
-    // Analyze AI trading signals
-    let bullishCount = 0;
-    let bearishCount = 0;
-    let highConfidenceSignals = 0;
-
-    symbols.forEach(symbol => {
-      const signal = tradingSignals[symbol];
-      if (signal && signal.sentiment_analysis) {
-        const direction = signal.sentiment_analysis.sentiment.toLowerCase();
-        if (direction === 'positive') bullishCount++;
-        else if (direction === 'negative') bearishCount++;
-
-        if (signal.sentiment_analysis.confidence >= 0.7) {
-          highConfidenceSignals++;
-        }
-      }
-    });
-
-    // Determine market bias from AI signals
-    if (bullishCount > bearishCount * 1.5) {
-      marketBias = 'bullish';
-      reasoning = 'AI analysis shows strong bullish sentiment across multiple symbols';
-    } else if (bearishCount > bullishCount * 1.5) {
-      marketBias = 'bearish';
-      reasoning = 'AI analysis indicates bearish market conditions';
-    } else if (bullishCount === bearishCount) {
-      marketBias = 'neutral';
-      reasoning = 'AI analysis shows balanced market conditions';
-    }
-
-    // Set confidence based on AI signal strength
-    if (highConfidenceSignals >= 3) {
-      confidence = 'high';
-      reasoning += ' with high-confidence AI signals';
-    } else if (highConfidenceSignals >= 1) {
-      confidence = 'medium';
-      reasoning += ' with moderate AI signal confidence';
-    } else {
-      confidence = 'low';
-      reasoning += ' with limited AI signal confidence';
-    }
-
-    // Extract key factors from AI analysis
-    if (aiAnalysis.execution_metrics) {
-      keyFactors.push(`Analysis method: ${aiAnalysis.execution_metrics.analysis_method}`);
-      if (aiAnalysis.execution_metrics.sentiment_sources) {
-        keyFactors.push(`Sentiment sources: ${aiAnalysis.execution_metrics.sentiment_sources.join(', ')}`);
-      }
-    }
-
-    // Add AI model information
-    aiInsights.push('GPT-OSS-120B sentiment analysis');
-    aiInsights.push('Multi-symbol AI prediction');
-    aiInsights.push(`${symbols.length} symbols analyzed`);
-
-    return {
-      marketBias,
-      confidence,
-      reasoning,
-      keyFactors,
-      aiInsights,
-      basedOnData: 'ai_analysis',
-      aiModelUsed: 'GPT-OSS-120B + DistilBERT',
-      analysisTimestamp: aiAnalysis.analysis_time,
-      symbolsAnalyzed: symbols.length,
-      highConfidenceSignals,
-      generatedAt: new Date().toISOString(),
-      keyFocus: 'AI-driven market analysis',
-      recommendations: []
     };
   }
 

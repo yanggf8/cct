@@ -193,7 +193,24 @@ function generatePreMarketHTML(
   currentDate: Date
 ): string {
   const today = currentDate.toISOString().split('T')[0];
-  const hasData = briefingData && Object.keys(briefingData).length > 0;
+  
+  // Check for actual data (signals > 0)
+  const hasRealData = briefingData && (briefingData.totalSignals > 0 || briefingData.signals?.length > 0);
+  
+  // Scheduled time: 8:30 AM ET = 13:30 UTC
+  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30);
+  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const beforeSchedule = Date.now() < scheduledUtc;
+  
+  // Determine display status
+  let statusDisplay: string;
+  if (hasRealData) {
+    statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+  } else if (beforeSchedule) {
+    statusDisplay = `⏳ Scheduled: 8:30 AM ET (${localScheduled} local)`;
+  } else {
+    statusDisplay = `⚠️ No data available`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -564,12 +581,7 @@ function generatePreMarketHTML(
               year: 'numeric',
               month: 'long',
               day: 'numeric'
-            })}${hasData ? ` • Generated ${currentDate.toLocaleTimeString('en-US', {
-              timeZone: 'America/New_York',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            })} ET` : ` • ⏳ Scheduled: 8:30 AM ET <span class="local-time">(${new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} local)</span>`}</div>
+            })} • ${statusDisplay}</div>
             ${briefingData?.isStale ? `<div class="stale-warning">⚠️ Showing data from ${briefingData.sourceDate} (latest available)</div>` : ''}
             ${briefingData?.isPartialFallback && !briefingData?.isStale ? `<div class="partial-warning">ℹ️ Partial data from D1 fallback</div>` : ''}
             <div class="market-status">
@@ -578,9 +590,10 @@ function generatePreMarketHTML(
             </div>
         </div>
 
-        ${!hasData ? `
+        ${!hasRealData ? `
         <div class="no-data">
-            <h3>⚠️ No Pre-Market Data Available</h3>
+            <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
+            <p>${beforeSchedule ? `This report will be generated at 8:30 AM ET (${localScheduled} local).` : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
@@ -644,7 +657,7 @@ function generatePreMarketHTML(
         `}
     </div>
 
-    ${hasData ? `
+    ${hasRealData ? `
     <script>
         // Initialize interactive elements
         document.addEventListener('DOMContentLoaded', function() {

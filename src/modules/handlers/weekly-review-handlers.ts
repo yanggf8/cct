@@ -120,7 +120,25 @@ function generateWeeklyReviewHTML(
   weekEnd.setDate(weekStart.getDate() + 6);
 
   const weekRange = `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
-  const hasData = weeklyData && Object.keys(weeklyData).length > 0;
+  
+  // Check for actual data
+  const hasRealData = weeklyData && (weeklyData.totalSignals > 0 || weeklyData.tradingDays > 0);
+  
+  // Scheduled time: Sunday 10:00 AM ET = 15:00 UTC
+  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 15, 0);
+  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const isSunday = currentDate.getDay() === 0;
+  const beforeSchedule = isSunday && Date.now() < scheduledUtc;
+  
+  // Determine display status
+  let statusDisplay: string;
+  if (hasRealData) {
+    statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+  } else if (beforeSchedule) {
+    statusDisplay = `⏳ Scheduled: Sunday 10:00 AM ET (${localScheduled} local)`;
+  } else {
+    statusDisplay = `⚠️ No data available`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -406,18 +424,13 @@ function generateWeeklyReviewHTML(
         <div class="header">
             <h1>📊 Weekly Trading Review</h1>
             <p>Comprehensive analysis of your trading performance and signal accuracy</p>
-            <div class="week-range">${weekRange}${hasData ? ` • Generated ${currentDate.toLocaleTimeString('en-US', {
-              timeZone: 'America/New_York',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            })} ET` : ` • ⏳ Scheduled: Sunday 10:00 AM ET <span class="local-time">(${new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 15, 0)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} local)</span>`}</div>
+            <div class="week-range">${weekRange} • ${statusDisplay}</div>
         </div>
 
-        ${!hasData ? `
+        ${!hasRealData ? `
         <div class="no-data">
-            <h3>⚠️ No Weekly Data Available</h3>
-            <p>There is no trading data available for this week yet. Weekly analysis requires at least one trading day of data.</p>
+            <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Weekly Data Available'}</h3>
+            <p>${beforeSchedule ? `This report will be generated on Sunday 10:00 AM ET (${localScheduled} local).` : 'There is no trading data available for this week.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -497,7 +510,7 @@ function generateWeeklyReviewHTML(
         `}
     </div>
 
-    ${hasData ? `
+    ${hasRealData ? `
     <script>
         // Initialize charts when page loads
         document.addEventListener('DOMContentLoaded', function() {

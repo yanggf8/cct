@@ -123,7 +123,24 @@ function generateEndOfDayHTML(
   currentDate: Date
 ): string {
   const today = currentDate.toISOString().split('T')[0];
-  const hasData = endOfDayData && Object.keys(endOfDayData).length > 0;
+  
+  // Check for actual data (signals > 0), not just object existence
+  const hasRealData = endOfDayData && (endOfDayData.totalSignals > 0 || endOfDayData.finalSummary?.totalSignals > 0);
+  
+  // Scheduled time: 4:05 PM ET = 21:05 UTC
+  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 21, 5);
+  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const beforeSchedule = Date.now() < scheduledUtc;
+  
+  // Determine display status
+  let statusDisplay: string;
+  if (hasRealData) {
+    statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+  } else if (beforeSchedule) {
+    statusDisplay = `⏳ Scheduled: 4:05 PM ET (${localScheduled} local)`;
+  } else {
+    statusDisplay = `⚠️ No data available`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -453,18 +470,13 @@ function generateEndOfDayHTML(
               year: 'numeric',
               month: 'long',
               day: 'numeric'
-            })}${hasData ? ` • Generated ${currentDate.toLocaleTimeString('en-US', {
-              timeZone: 'America/New_York',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            })} ET` : ` • ⏳ Scheduled: 4:05 PM ET <span class="local-time">(${new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 21, 5)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })} local)</span>`}</div>
+            })} • ${statusDisplay}</div>
         </div>
 
-        ${!hasData ? `
+        ${!hasRealData ? `
         <div class="no-data">
-            <h3>⚠️ No End-of-Day Data Available</h3>
-            <p>There is no end-of-day data available for today. This data is typically generated after market close.</p>
+            <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No End-of-Day Data Available'}</h3>
+            <p>${beforeSchedule ? `This report will be generated at 4:05 PM ET (${localScheduled} local).` : 'There is no end-of-day data available for this date.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -538,7 +550,7 @@ function generateEndOfDayHTML(
         `}
     </div>
 
-    ${hasData ? `
+    ${hasRealData ? `
     <script>
         // Initialize charts when page loads
         document.addEventListener('DOMContentLoaded', function() {
