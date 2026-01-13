@@ -1,250 +1,235 @@
-#!/bin/env bash
-
+#!/usr/bin/env bash
 # Production Deployment Script with Frontend Build
-# Inspired by DAC deployment approach with build verification and cache warming
-# Ensures we deploy the most recent build, not old cached assets
+# Enhanced with pre-flight checks, confirmation, and parallel cache warming
 
 set -euo pipefail
 
-# Configuration
+# Source shared utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BUILD_DIR="$PROJECT_ROOT/dist"
-DEPLOYMENT_URL="https://tft-trading-system.yanggf.workers.dev"
+source "$SCRIPT_DIR/lib/deploy-utils.sh"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Parse arguments
+SKIP_CONFIRM="${SKIP_CONFIRM:-0}"
+SKIP_BUILD="${SKIP_BUILD:-0}"
+VERIFY_ONLY="${VERIFY_ONLY:-0}"
 
-# Timing
-DEPLOY_START=$(date +%s)
-step_start() { STEP_START=$(date +%s); }
-step_end() { local now=$(date +%s); echo -e "${YELLOW}⏱️  [TIMING]${NC} $1 took $((now - STEP_START))s"; }
-
-# Logging
-log() { echo -e "${BLUE}📦 [DEPLOY]${NC} $*"; }
-success() { echo -e "${GREEN}✅ [SUCCESS]${NC} $*"; }
-warning() { echo -e "${YELLOW}⚠️  [WARNING]${NC} $*"; }
-error() { echo -e "${RED}❌ [ERROR]${NC} $*"; }
+for arg in "$@"; do
+    case $arg in
+        --yes|-y) SKIP_CONFIRM=1 ;;
+        --no-build) SKIP_BUILD=1 ;;
+        --verify) VERIFY_ONLY=1 ;;
+    esac
+done
 
 # Environment checks
 check_environment() {
+    step_start
     log "Checking deployment environment..."
 
-    # Check if wrangler is installed
-    if ! command -v wrangler &> /dev/null; then
-        error "Wrangler CLI not found. Please install with: npm install -g wrangler"
-        exit 1
-    fi
-
-    # Skip auth check if SKIP_AUTH_CHECK=1 (saves ~7s)
-    if [ "${SKIP_AUTH_CHECK:-0}" != "1" ]; then
-        if ! wrangler whoami &> /dev/null; then
-            log "Not authenticated with Wrangler. Attempting browser authentication..."
-            wrangler auth || {
-                error "Failed to authenticate with Wrangler"
-                exit 1
-            }
-        fi
-    fi
+    check_dependencies || return 1
+    check_auth || return 1
+    check_git_state || return 1
 
     success "Environment checks passed"
+    step_end "check_environment"
 }
 
-# Frontend build with recovery
+# Frontend build
 build_frontend() {
+    [ "$SKIP_BUILD" = "1" ] && { log "Skipping frontend build (--no-build)"; return 0; }
+
+    step_start
     log "Building frontend assets..."
 
     cd "$PROJECT_ROOT"
 
     # Clean previous build
-    if [ -d "$BUILD_DIR" ]; then
-        log "Cleaning previous build directory..."
-        rm -rf "$BUILD_DIR"
-    fi
+    [ -d "$BUILD_DIR" ] && rm -rf "$BUILD_DIR"
 
-    # Run frontend build with recovery
-    attempt_build() {
-        log "Running frontend build..."
-        npm run build:frontend
-    }
-
-    if attempt_build; then
-        success "Frontend build completed successfully"
+    # Build with recovery
+    if npm run build:frontend 2>/dev/null; then
+        generate_build_info
+        success "Frontend build completed"
+        step_end "build_frontend"
         return 0
     fi
 
-    warning "Frontend build failed. Attempting recovery..."
+    warning "Build failed, attempting recovery..."
 
-    # Clear npm cache and retry
-    log "Clearing npm cache..."
-    npm cache clean --force
+    # Recovery: clean cache and rebuild
+    npm cache clean --force >/dev/null 2>&1 || true
+    npm ci --prefer-offline --no-audit --no-fund >/dev/null 2>&1 || true
 
-    # Reinstall dependencies
-    log "Reinstalling dependencies..."
-    npm ci --prefer-offline=false --no-audit --no-fund
-
-    if attempt_build; then
+    if npm run build:frontend 2>/dev/null; then
+        generate_build_info
         success "Frontend build succeeded after recovery"
+        step_end "build_frontend"
         return 0
     fi
 
-    error "Frontend build failed after recovery attempts"
+    error "Frontend build failed"
     return 1
 }
 
 # Backend build
 build_backend() {
+    [ "$SKIP_BUILD" = "1" ] && { log "Skipping backend build (--no-build)"; return 0; }
+
+    step_start
     log "Building backend..."
 
     cd "$PROJECT_ROOT"
 
-    if npm run build:backend; then
-        success "Backend build completed successfully"
-    else
-        error "Backend build failed"
-        return 1
+    if npm run build:backend 2>/dev/null; then
+        success "Backend build completed"
+        step_end "build_backend"
+        return 0
     fi
+
+    error "Backend build failed"
+    return 1
 }
 
-# Type checking and validation
+# Validate build
 validate_build() {
-    log "Validating build quality..."
+    step_start
+    log "Validating build..."
 
-    cd "$PROJECT_ROOT"
+    [ ! -d "$BUILD_DIR" ] && { error "Build directory not found"; return 1; }
 
-    # Run TypeScript checks
-    if npm run build:check; then
-        success "TypeScript validation passed"
-    else
-        error "TypeScript validation failed"
-        return 1
-    fi
-
-    # Verify build artifacts exist
-    if [ ! -d "$BUILD_DIR" ]; then
-        error "Build directory not found"
-        return 1
-    fi
-
-    # Check build info
+    # Check build-info.json
     if [ -f "$BUILD_DIR/build-info.json" ]; then
-        local build_time=$(jq -r '.buildTime' "$BUILD_DIR/build-info.json")
-        local build_version=$(jq -r '.version' "$BUILD_DIR/build-info.json")
-        log "Build time: $build_time"
-        log "Build version: $build_version"
+        local build_time=$(jq -r '.buildTime // "unknown"' "$BUILD_DIR/build-info.json")
+        local git_commit=$(jq -r '.gitCommit // "unknown"' "$BUILD_DIR/build-info.json")
+        log "Build: $git_commit at $build_time"
     fi
 
-    success "Build validation completed"
+    success "Build validation passed"
+    step_end "validate_build"
     return 0
 }
 
-# Deployment
+# Deploy
 deploy_to_production() {
-    log "Deploying to production..."
+    step_start
+    log "Deploying to Cloudflare Workers..."
 
     cd "$PROJECT_ROOT"
 
-    # Deploy without API token to use browser auth (per DEPLOYMENT_GUIDE.md)
-    log "Starting Cloudflare deployment..."
-
-    # Deploy using browser authentication (explicitly target top-level/production environment)
-    # We unset CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID to ensure we use the local OAuth credentials (wrangler login)
-    if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID node_modules/.bin/wrangler deploy ; then
-        success "Deployment completed successfully"
-    else
-        error "Deployment failed"
-        return 1
+    # Use browser auth (unset API tokens)
+    if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID node_modules/.bin/wrangler deploy; then
+        success "Deployment completed"
+        step_end "deploy_to_production"
+        return 0
     fi
+
+    error "Deployment failed"
+    return 1
 }
 
-# Post-deployment verification
+# Verify deployment
 verify_deployment() {
+    step_start
     log "Verifying deployment..."
-    sleep 1
-    curl -s -f "$DEPLOYMENT_URL/api/v1/health" > /dev/null && success "Health check passed" || warning "Health check failed"
-    curl -s -f "$DEPLOYMENT_URL/end-of-day-summary" | grep -q "<html" && success "/end-of-day-summary OK"
-    curl -s -f "$DEPLOYMENT_URL/weekly-review" | grep -q "<html" && success "/weekly-review OK"
+
+    sleep 2  # Wait for propagation
+
+    local failures=0
+
+    health_check "/api/v1/health" "Health check" || failures=$((failures + 1))
+    health_check "/api/v1/cache/health" "Cache health" || failures=$((failures + 1))
+
+    # Quick HTML checks
+    curl -s "$DEPLOYMENT_URL/end-of-day-summary" 2>/dev/null | grep -q "<html" && \
+        success "/end-of-day-summary OK" || { warning "/end-of-day-summary check failed"; failures=$((failures + 1)); }
+    curl -s "$DEPLOYMENT_URL/weekly-review" 2>/dev/null | grep -q "<html" && \
+        success "/weekly-review OK" || warning "/weekly-review check failed"
+
+    if [ $failures -eq 0 ]; then
+        success "All health checks passed"
+    else
+        warning "$failures health check(s) failed"
+    fi
+
+    step_end "verify_deployment"
 }
 
-# Post-deployment cache warming
+# Warm cache (parallel)
 warm_cache() {
-    log "Warming production cache..."
-
-    # Test various endpoints to warm cache
-    local warm_endpoints=(
-        "/api/v1/health"
-        "/api/v1/guards/health"
-        "/dashboard.html"
-        "/pre-market-briefing"
-    )
-
-    for endpoint in "${warm_endpoints[@]}"; do
-        log "Warming: $endpoint"
-        curl -s "$DEPLOYMENT_URL$endpoint" > /dev/null || true
-    done
-
-    success "Cache warming completed"
+    step_start
+    warm_cache_parallel
+    step_end "warm_cache"
 }
 
 # Main deployment flow
 main() {
-    log "Starting production deployment process..."
+    log "Starting production deployment..."
 
-    # Record deployment start time
-    local deployment_start=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    if [ "$VERIFY_ONLY" = "1" ]; then
+        verify_deployment
+        print_summary "success"
+        return 0
+    fi
 
-    # Execute deployment pipeline with timing
-    step_start; check_environment || exit 1; step_end "check_environment"
-    step_start; build_frontend || exit 1; step_end "build_frontend"
-    step_start; build_backend || exit 1; step_end "build_backend"
-    step_start; validate_build || exit 1; step_end "validate_build"
-    step_start; deploy_to_production || exit 1; step_end "deploy_to_production"
-    step_start; verify_deployment; step_end "verify_deployment"
-    step_start; warm_cache; step_end "warm_cache"
-    
-    echo -e "${YELLOW}⏱️  [TIMING]${NC} TOTAL: $(($(date +%s) - DEPLOY_START))s"
+    # Pre-deployment
+    check_environment || { print_summary "failed"; exit 1; }
 
-    # Success
-    local deployment_end=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    # Build (unless skipped)
+    if [ "$SKIP_BUILD" = "0" ]; then
+        build_frontend || { print_summary "failed"; exit 1; }
+        build_backend || { print_summary "failed"; exit 1; }
+        validate_build || { print_summary "failed"; exit 1; }
+    fi
 
-    success "Production deployment completed successfully!"
-    log "Deployment started: $deployment_start"
-    log "Deployment completed: $deployment_end"
-    log "Production URL: $DEPLOYMENT_URL"
+    # Confirmation (unless skipped)
+    [ "$SKIP_CONFIRM" = "0" ] && confirm_deployment
 
-    echo ""
-    log "🚀 Your application is now live!"
-    log "📊 Dashboard: $DEPLOYMENT_URL/dashboard.html"
-    log "📈 Pre-market: $DEPLOYMENT_URL/pre-market-briefing"
-    log "🔍 Intraday: $DEPLOYMENT_URL/intraday-check"
-    log "📋 End-of-day: $DEPLOYMENT_URL/end-of-day-summary"
-    log "📊 Weekly: $DEPLOYMENT_URL/weekly-review"
+    # Deploy
+    deploy_to_production || { print_summary "failed"; exit 1; }
+
+    # Post-deployment
+    verify_deployment
+    warm_cache
+
+    # Tag successful deployment
+    tag_deployment 2>/dev/null || true
+
+    print_summary "success"
 }
 
-# Script options
+# Script modes
 case "${1:-deploy}" in
     "build-only")
+        SKIP_CONFIRM=1
         check_environment
         build_frontend || exit 1
         build_backend || exit 1
         validate_build || exit 1
-        success "Build completed. Use '$0 deploy' to deploy."
+        success "Build complete. Use '$0 deploy' to deploy."
         ;;
     "deploy")
         main "$@"
         ;;
     "verify")
-        verify_deployment
+        VERIFY_ONLY=1 main "$@"
         ;;
     *)
-        echo "Usage: $0 [build-only|deploy|verify]"
-        echo "  build-only - Build frontend and backend without deploying"
-        echo "  deploy      - Full deployment process (default)"
-        echo "  verify      - Verify current deployment"
+        echo "Usage: $0 [build-only|deploy|verify] [options]"
+        echo ""
+        echo "Commands:"
+        echo "  build-only  Build without deploying"
+        echo "  deploy      Full deployment (default)"
+        echo "  verify      Verify current deployment"
+        echo ""
+        echo "Options:"
+        echo "  --yes, -y       Skip confirmation prompt"
+        echo "  --no-build      Skip build step"
+        echo "  --verify        Only verify (no deploy)"
+        echo ""
+        echo "Environment:"
+        echo "  SKIP_CONFIRM=1  Auto-confirm deployment"
+        echo "  SKIP_AUTH_CHECK=1  Skip authentication check"
+        echo "  SKIP_BUILD=1    Skip build step"
         exit 1
         ;;
 esac

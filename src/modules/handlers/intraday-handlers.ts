@@ -363,6 +363,22 @@ async function generateIntradayCheckHTML(
     };
   }
 
+  // Check for real data vs scheduled
+  const hasRealData = formattedData.totalSignals > 0;
+  const scheduledUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 16, 0); // 12:00 PM ET
+  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const beforeSchedule = Date.now() < scheduledUtc;
+  
+  // Status display for header
+  let statusDisplay: string;
+  if (hasRealData) {
+    statusDisplay = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' EDT';
+  } else if (beforeSchedule) {
+    statusDisplay = `⏳ Scheduled: 12:00 PM ET (${localScheduled} local)`;
+  } else {
+    statusDisplay = '⚠️ No data available';
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -658,11 +674,7 @@ async function generateIntradayCheckHTML(
               year: 'numeric',
               month: 'long',
               day: 'numeric'
-            })} - ${new Date().toLocaleTimeString('en-US', {
-              timeZone: 'America/New_York',
-              hour: '2-digit',
-              minute: '2-digit'
-            })} EDT</div>
+            })} - ${statusDisplay}</div>
         </div>
 
         <div class="model-health ${formattedData.modelHealth.status}">
