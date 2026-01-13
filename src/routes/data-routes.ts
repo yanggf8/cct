@@ -1659,67 +1659,78 @@ async function handleMigrate5PctToFailed(
   }
 
   try {
-    // Get all analysis records
-    const records = await db.prepare(
-      "SELECT id, execution_date, report_type, report_content FROM scheduled_job_results WHERE report_type = 'analysis'"
-    ).all();
-
+    // Process in batches to avoid D1 timeout
+    const BATCH_SIZE = 50;
+    let offset = 0;
     let migratedCount = 0;
     let totalSignals = 0;
+    let recordsProcessed = 0;
 
-    for (const row of records.results || []) {
-      try {
-        const content = JSON.parse(row.report_content as string);
-        let modified = false;
+    while (true) {
+      const records = await db.prepare(
+        "SELECT id, execution_date, report_type, report_content FROM scheduled_job_results WHERE report_type = 'analysis' LIMIT ? OFFSET ?"
+      ).bind(BATCH_SIZE, offset).all();
 
-        // Check sentiment_signals object
-        if (content.sentiment_signals) {
-          for (const symbol of Object.keys(content.sentiment_signals)) {
-            const signal = content.sentiment_signals[symbol];
-            const conf = signal?.sentiment_analysis?.confidence;
-            
-            // Check for 5% confidence (0.04 to 0.06 range)
-            if (typeof conf === 'number' && conf >= 0.04 && conf <= 0.06) {
-              signal.sentiment_analysis.confidence = null;
-              signal.sentiment_analysis.status = 'failed';
-              signal.sentiment_analysis.failure_reason = 'legacy_fallback_data';
-              modified = true;
-              migratedCount++;
+      if (!records.results || records.results.length === 0) break;
+
+      for (const row of records.results) {
+        try {
+          const content = JSON.parse(row.report_content as string);
+          let modified = false;
+
+          // Check sentiment_signals object
+          if (content.sentiment_signals) {
+            for (const symbol of Object.keys(content.sentiment_signals)) {
+              const signal = content.sentiment_signals[symbol];
+              const conf = signal?.sentiment_analysis?.confidence;
+              
+              // Check for 5% confidence (0.04 to 0.06 range)
+              if (typeof conf === 'number' && conf >= 0.04 && conf <= 0.06) {
+                signal.sentiment_analysis.confidence = null;
+                signal.sentiment_analysis.status = 'failed';
+                signal.sentiment_analysis.failure_reason = 'legacy_fallback_data';
+                modified = true;
+                migratedCount++;
+              }
+              totalSignals++;
             }
-            totalSignals++;
           }
-        }
 
-        // Check signals array
-        if (Array.isArray(content.signals)) {
-          for (const signal of content.signals) {
-            const conf = signal?.confidence;
-            if (typeof conf === 'number' && conf >= 0.04 && conf <= 0.06) {
-              signal.confidence = null;
-              signal.status = 'failed';
-              signal.failure_reason = 'legacy_fallback_data';
-              modified = true;
-              migratedCount++;
+          // Check signals array
+          if (Array.isArray(content.signals)) {
+            for (const signal of content.signals) {
+              const conf = signal?.confidence;
+              if (typeof conf === 'number' && conf >= 0.04 && conf <= 0.06) {
+                signal.confidence = null;
+                signal.status = 'failed';
+                signal.failure_reason = 'legacy_fallback_data';
+                modified = true;
+                migratedCount++;
+              }
+              totalSignals++;
             }
-            totalSignals++;
           }
-        }
 
-        if (modified) {
-          await db.prepare(
-            "UPDATE scheduled_job_results SET report_content = ? WHERE id = ?"
-          ).bind(JSON.stringify(content), row.id).run();
+          if (modified) {
+            await db.prepare(
+              "UPDATE scheduled_job_results SET report_content = ? WHERE id = ?"
+            ).bind(JSON.stringify(content), row.id).run();
+          }
+          recordsProcessed++;
+        } catch (parseError) {
+          logger.warn('Failed to parse record', { id: row.id, error: String(parseError) });
         }
-      } catch (parseError) {
-        logger.warn('Failed to parse record', { id: row.id, error: String(parseError) });
       }
+
+      offset += BATCH_SIZE;
+      if (records.results.length < BATCH_SIZE) break;
     }
 
     return new Response(
       JSON.stringify(ApiResponseFactory.success({
         migrated: migratedCount,
         totalSignals,
-        recordsProcessed: records.results?.length || 0,
+        recordsProcessed,
         timestamp: new Date().toISOString()
       }, { message: `Migrated ${migratedCount} signals from 5% fallback to failed status` })),
       { status: HttpStatus.OK, headers }

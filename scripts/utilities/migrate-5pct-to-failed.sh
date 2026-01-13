@@ -18,7 +18,7 @@ cat << 'EOF'
 
 To migrate:
 1. Deploy the updated code first
-2. Call: POST /api/v1/admin/migrate-5pct-to-failed
+2. Call: POST /api/v1/data/migrate-5pct-to-failed
    with X-API-KEY header
 
 This will:
@@ -28,4 +28,4 @@ EOF
 
 echo ""
 echo "Alternative: Run the migration endpoint after deploy"
-echo "curl -X POST -H 'X-API-KEY: \$X_API_KEY' https://tft-trading-system.yanggf.workers.dev/api/v1/admin/migrate-5pct-to-failed"
+echo "curl -X POST -H 'X-API-KEY: \$X_API_KEY' https://tft-trading-system.yanggf.workers.dev/api/v1/data/migrate-5pct-to-failed"
