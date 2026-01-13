@@ -88,8 +88,15 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="ERROR|WA
 
 #### **Pre-Market Briefing Verification (8:35 AM ET)**
 ```bash
-# Verify pre-market briefing generated
+# Trigger pre-market job (write → D1)
+curl -X POST -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/pre-market
+
+# Verify pre-market briefing generated (read → DO cache → D1 fallback)
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pre-market-briefing
+
+# Expected flow:
+# POST /api/v1/jobs/pre-market → D1 (scheduled_job_results) with AI model metadata
+# GET /pre-market-briefing → DO cache (hit) else D1 fallback → warm DO
 
 # Check morning predictions accuracy
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/results

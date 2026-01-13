@@ -25,6 +25,7 @@ import {
 } from '../modules/validation.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
+import { readD1ReportSnapshot, getD1LatestReportSnapshot } from '../modules/d1-job-storage.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment, ReportSignal } from '../types.js';
 import { getPrimarySentiment } from '../types.js';
@@ -552,17 +553,19 @@ async function handlePreMarketReport(
     const today = new Date().toISOString().split('T')[0];
     const cacheKey = `pre_market_report_${today}`;
 
-    // Check cache first
-    const cached = await (dal as any).get('REPORTS', cacheKey);
+    // 1. Check DO cache first
+    const cachedResult = await dal.read(cacheKey);
+    const cached = cachedResult.success ? cachedResult.data : null;
 
-    if (cached) {
-      logger.info('PreMarketReport: Cache hit', { requestId });
+    // Validate cached data is actually valid pre-market data (not an old error response)
+    if (cached && cached.type === 'pre_market_briefing' && !cached.error) {
+      logger.info('PreMarketReport: DO cache hit', { requestId });
 
       return new Response(
         JSON.stringify(
           ApiResponseFactory.cached(cached, 'hit', {
-            source: 'cache',
-            ttl: 3600, // 1 hour
+            source: 'do_cache',
+            ttl: 3600,
             requestId,
             processingTime: timer.getElapsedMs(),
           })
@@ -571,64 +574,113 @@ async function handlePreMarketReport(
       );
     }
 
-    // Ensure pre-market analysis data exists using the data bridge
-    const hasAnalysis = await dataBridge.hasPreMarketAnalysis();
-
-    if (!hasAnalysis) {
-      logger.info('PreMarketReport: No pre-market analysis found, generating via data bridge', { requestId });
-
-      // Generate pre-market analysis data
-      const defaultSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
-      await dataBridge.generatePreMarketAnalysis(defaultSymbols);
+    // If cached data is invalid, log and continue to D1 fallback
+    if (cached) {
+      logger.warn('PreMarketReport: Invalid cached data detected, skipping', {
+        requestId,
+        hasError: !!cached.error,
+        type: cached.type
+      });
     }
 
-    // Get the analysis data using the data bridge
-    const analysisData = await dataBridge.getCurrentPreMarketAnalysis();
+    // 2. D1 fallback - check for pre-market job result
+    logger.info('PreMarketReport: DO cache miss, checking D1', { requestId });
 
-    // Generate response with proper handling for missing data
-    const response = {
+    let d1Data = await readD1ReportSnapshot(env, today, 'pre-market');
+    let isStale = false;
+    let sourceDate = today;
+
+    // If no data for today, try latest available
+    if (!d1Data) {
+      const latestSnapshot = await getD1LatestReportSnapshot(env, 'pre-market');
+      if (latestSnapshot) {
+        d1Data = latestSnapshot.data;
+        sourceDate = latestSnapshot.executionDate;
+        isStale = sourceDate !== today;
+        logger.info('PreMarketReport: Using latest D1 snapshot', { sourceDate, isStale, requestId });
+      }
+    }
+
+    if (d1Data && d1Data.trading_signals) {
+      logger.info('PreMarketReport: D1 fallback hit', { requestId, sourceDate, isStale });
+
+      // Transform D1 data to response format
+      const tradingSignals = d1Data.trading_signals || {};
+      const response = {
+        type: 'pre_market_briefing',
+        timestamp: new Date().toISOString(),
+        market_status: 'pre_market',
+        date: sourceDate,
+        is_stale: isStale,
+        key_insights: [
+          'Pre-market analysis complete',
+          `Data from ${sourceDate}`,
+          isStale ? 'Note: Using previous day data' : 'Fresh data available',
+        ],
+        high_confidence_signals: Object.values(tradingSignals)
+          .filter((signal: any) => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7)
+          .slice(0, 5)
+          .map((signal: any) => ({
+            symbol: signal.symbol,
+            sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+            confidence: signal.sentiment_layers?.[0]?.confidence || 0.5,
+            reason: signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal',
+          })),
+        all_signals: Object.values(tradingSignals).map((signal: any) => ({
+          symbol: signal.symbol,
+          sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+          confidence: signal.sentiment_layers?.[0]?.confidence || 0,
+          reason: signal.sentiment_layers?.[0]?.reasoning || '',
+        })),
+        data_source: 'd1_snapshot',
+        generated_at: d1Data.generated_at || d1Data.timestamp || sourceDate,
+        symbols_analyzed: Object.keys(tradingSignals).length,
+      };
+
+      // Warm DO cache with D1 data (only if not stale)
+      if (!isStale) {
+        try {
+          await dal.write(cacheKey, response, { expirationTtl: 3600 });
+          logger.info('PreMarketReport: Warmed DO cache from D1', { requestId });
+        } catch (e) {
+          logger.warn('PreMarketReport: Failed to warm DO cache', { error: (e as Error).message });
+        }
+      }
+
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.success(response, {
+            source: 'd1_fallback',
+            ttl: 3600,
+            requestId,
+            processingTime: timer.getElapsedMs(),
+          })
+        ),
+        { status: HttpStatus.OK, headers }
+      );
+    }
+
+    // 3. No data in DO cache or D1 - return empty response (don't auto-generate)
+    logger.info('PreMarketReport: No data found in DO cache or D1', { requestId });
+
+    const emptyResponse = {
       type: 'pre_market_briefing',
       timestamp: new Date().toISOString(),
       market_status: 'pre_market',
-      key_insights: [
-        'Pre-market analysis complete',
-        'High-confidence signals identified',
-        'Market sentiment calculated',
-      ],
-      high_confidence_signals: analysisData?.trading_signals
-        ? Object.values(analysisData.trading_signals)
-            .filter(signal => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7)
-            .slice(0, 3)
-            .map(signal => ({
-              symbol: signal.symbol,
-              sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-              confidence: signal.sentiment_layers?.[0]?.confidence || 0.5,
-              reason: signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal',
-            }))
-        : [],
-      data_source: 'data_bridge',
-      generated_at: analysisData?.generated_at || new Date().toISOString(),
-      symbols_analyzed: analysisData ? Object.keys(analysisData.trading_signals).length : 0,
+      date: today,
+      message: 'No pre-market data available. Run POST /api/v1/jobs/pre-market to generate.',
+      high_confidence_signals: [],
+      all_signals: [],
+      data_source: 'none',
+      symbols_analyzed: 0,
     };
-
-    // Cache for 1 hour
-    await dal.write(cacheKey, response, { expirationTtl: 3600 });
-
-    logger.info('PreMarketReport: Report generated via data bridge', {
-      signalsCount: response.high_confidence_signals.length,
-      processingTime: timer.getElapsedMs(),
-      symbols_analyzed: response.symbols_analyzed,
-      data_source: response.data_source,
-      requestId
-    });
 
     return new Response(
       JSON.stringify(
-        ApiResponseFactory.success(response, {
-          source: 'fresh',
-          ttl: 3600,
+        ApiResponseFactory.success(emptyResponse, {
+          source: 'empty',
           requestId,
-          processingTime: timer.finish(),
+          processingTime: timer.getElapsedMs(),
         })
       ),
       { status: HttpStatus.OK, headers }

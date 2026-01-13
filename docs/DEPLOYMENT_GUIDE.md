@@ -335,7 +335,7 @@ timeout 20 curl -s -H "X-API-KEY: your_api_key" "https://your-domain.workers.dev
 timeout 45 curl -s -H "X-API-KEY: your_api_key" "https://your-domain.workers.dev/analyze"
 
 # Test 4-tier reporting system
-curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/pre-market-briefing
+curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/pre-market-briefing  # DO → D1 fallback
 curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/intraday-check
 curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/end-of-day-summary
 curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/weekly-review        # This week
