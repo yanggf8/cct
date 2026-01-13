@@ -1,42 +1,33 @@
 #!/usr/bin/env bash
-# Quick Deployment Script - Immediate deployment without builds
-# Use for hotfixes when you need to deploy immediately
+# Quick deploy - skip build, deploy current artifacts
 
 set -euo pipefail
 
-# Source shared utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/deploy-utils.sh"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DEPLOYMENT_URL="https://tft-trading-system.yanggf.workers.dev"
 
-log "🚀 Quick Deploy (bypassing build checks)"
-log "⚠️  Use only for emergency hotfixes!"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-# Quick confirmation
-[ "${SKIP_CONFIRM:-0}" != "1" ] && confirm_deployment
+log() { echo -e "${BLUE}➜${NC} $*"; }
+success() { echo -e "${GREEN}✓${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*"; }
+warning() { echo -e "${YELLOW}⚠${NC} $*"; }
 
-# Deploy immediately (no build)
-log "Deploying current state..."
-if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy; then
-    success "Deployment completed"
-else
-    error "Deployment failed"
-    exit 1
-fi
+cd "$PROJECT_ROOT"
 
-# Quick verification
-sleep 3
-log "Running quick verification..."
+SKIP_CONFIRM="${SKIP_CONFIRM:-0}"
+[ "${SKIP_CONFIRM}" != "1" ] && [ -z "${CI:-}" ] && {
+    log "Quick deploy (no build) - Ctrl+C to cancel..."
+    read -t 5 -p "Deploying in 5s... " || true
+    echo
+}
 
-health_check "/api/v1/health" "Health check" 10 || warning "Health check failed - may still be propagating"
+log "Deploying..."
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID npx wrangler deploy
 
-# Test HTML endpoints
-for endpoint in "/pre-market-briefing" "/intraday-check" "/end-of-day-summary" "/weekly-review"; do
-    if curl -sf "$DEPLOYMENT_URL$endpoint" | grep -q "<!DOCTYPE html\\|<html"; then
-        success "$endpoint - OK"
-    else
-        warning "$endpoint - may need time to propagate"
-    fi
-done
-
-warning "⚠️  Reminder: Fix TypeScript errors before next production deploy"
-print_summary "success"
+success "Done: $DEPLOYMENT_URL"
+warning "Tip: Fix TypeScript errors before next full deploy"

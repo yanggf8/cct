@@ -126,16 +126,15 @@ function generateWeeklyReviewHTML(
   
   // Scheduled time: Sunday 10:00 AM ET = 15:00 UTC
   const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 15, 0);
-  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   const isSunday = currentDate.getDay() === 0;
   const beforeSchedule = isSunday && Date.now() < scheduledUtc;
   
-  // Determine display status
+  // Determine display status - local time computed client-side
   let statusDisplay: string;
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: Sunday 10:00 AM ET (${localScheduled} local)`;
+    statusDisplay = `⏳ Scheduled: Sunday 10:00 AM ET (<span id="local-time" data-utc="${scheduledUtc}"></span>)`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -430,7 +429,7 @@ function generateWeeklyReviewHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Weekly Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated on Sunday 10:00 AM ET (${localScheduled} local).` : 'There is no trading data available for this week.'}</p>
+            <p>${beforeSchedule ? `This report will be generated on Sunday 10:00 AM ET (<span id="local-time2" data-utc="${scheduledUtc}"></span>).` : 'There is no trading data available for this week.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -596,6 +595,11 @@ function generateWeeklyReviewHTML(
         }
     </script>
     ` : ''}
+    <script>
+      document.querySelectorAll('[id^="local-time"]').forEach(el => {
+        el.textContent = new Date(parseInt(el.dataset.utc)).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+      });
+    </script>
 </body>
 </html>`;
 }

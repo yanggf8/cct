@@ -4,9 +4,9 @@
 
 **A+ (99/100) Enterprise Production System**: Comprehensive maintenance guide for the optimized enterprise trading system featuring enhanced security, intelligent rate limiting, memory-safe operations, and race-condition prevention.
 
-**Current Version**: Latest (2025-10-24 - X_API_KEY Standardization Complete)
+**Current Version**: Latest (2026-01-13 - Deployment Simplified)
 **Live System**: https://tft-trading-system.yanggf.workers.dev ✅ **FULLY OPERATIONAL**
-**System Grade**: A+ (99/100) Production Ready ✅ **X_API_KEY STANDARDIZATION COMPLETE**
+**System Grade**: A+ (99/100) Production Ready ✅ **SIMPLIFIED DEPLOYMENT v3.0**
 
 ## 🧪 System Testing Procedures (Verified 2025-10-24)
 
@@ -352,16 +352,19 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="unauthor
 - [ ] Backup current version
 - [ ] Maintenance window scheduled (if needed)
 
-#### **Deployment Commands**
+#### **Deployment Commands (Simplified v3.0)**
 ```bash
-# Deploy to production
-env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
+# Standard deployment (build + deploy + confirm)
+npm run deploy
+
+# Quick deployment (skip confirmation)
+npm run deploy -- --yes
+
+# Quick hotfix (no build, deploy current artifacts)
+npm run deploy:quick
 
 # Verify deployment health
-curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
-
-# Check for deployment issues
-env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=10m
+curl https://tft-trading-system.yanggf.workers.dev/api/v1/health
 ```
 
 #### **Post-Deployment Verification**
@@ -374,13 +377,11 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=10m
 
 #### **Rollback Procedures**
 ```bash
-# Quick rollback to previous version
-git log --oneline -5
-git checkout <previous-commit-hash>
-env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
+# Quick rollback script
+./scripts/deployment/rollback-production.sh
 
-# Verify rollback success
-curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/health
+# Manual rollback
+npm run deploy:quick -- --yes  # If you just need to redeploy current artifacts
 ```
 
 ## 📊 Monitoring & Alerting

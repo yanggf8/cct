@@ -129,15 +129,14 @@ function generateEndOfDayHTML(
   
   // Scheduled time: 4:05 PM ET = 21:05 UTC
   const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 21, 5);
-  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   const beforeSchedule = Date.now() < scheduledUtc;
   
-  // Determine display status
+  // Determine display status - local time computed client-side
   let statusDisplay: string;
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 4:05 PM ET (${localScheduled} local)`;
+    statusDisplay = `⏳ Scheduled: 4:05 PM ET (<span id="local-time" data-utc="${scheduledUtc}"></span>)`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -476,7 +475,7 @@ function generateEndOfDayHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No End-of-Day Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at 4:05 PM ET (${localScheduled} local).` : 'There is no end-of-day data available for this date.'}</p>
+            <p>${beforeSchedule ? `This report will be generated at 4:05 PM ET (<span id="local-time2" data-utc="${scheduledUtc}"></span>).` : 'There is no end-of-day data available for this date.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -638,6 +637,11 @@ function generateEndOfDayHTML(
         }
     </script>
     ` : ''}
+    <script>
+      document.querySelectorAll('[id^="local-time"]').forEach(el => {
+        el.textContent = new Date(parseInt(el.dataset.utc)).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+      });
+    </script>
 </body>
 </html>`;
 }

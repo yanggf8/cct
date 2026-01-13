@@ -49,7 +49,11 @@ if [ "$SKIP_CONFIRM" = "0" ]; then
     echo
 fi
 
-# Deploy (predeploy hook in package.json handles build)
+# Build
+log "Building..."
+npm run build
+
+# Deploy
 log "Deploying..."
 if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy; then
     success "Deployed"

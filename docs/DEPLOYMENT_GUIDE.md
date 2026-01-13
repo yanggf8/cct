@@ -4,9 +4,9 @@
 
 **Enterprise-Grade Market Intelligence System**: Complete deployment guide for the CCT platform featuring dual AI sentiment analysis, RESTful API architecture, multi-level caching, and comprehensive data access modernization.
 
-**Current Version**: Production-Ready System v2.0-Enhanced (100% Complete)
+**Current Version**: Production-Ready System v3.0-Simplified (100% Complete)
 **Target Platform**: Cloudflare Workers (Production Grade)
-**System Focus**: Complete AI Trading Intelligence with Enhanced Caching & Debug Infrastructure
+**System Focus**: Fast, streamlined deployment with minimal overhead
 
 ## 🎯 Prerequisites
 
@@ -229,8 +229,11 @@ wrangler custom-domains list
 
 #### **Step 4: Deploy to Production**
 ```bash
-# Full deployment (frontend + backend)
+# Full deployment (build + deploy, with confirmation)
 npm run deploy
+
+# Skip confirmation (for CI/CD or quick deploys)
+npm run deploy -- --yes
 
 # Or deploy without API token (uses browser auth)
 env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
@@ -239,49 +242,62 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
 curl -H "X-API-KEY: your_api_key" https://your-subdomain.your-accounts-domain.workers.dev/health
 ```
 
-#### **Frontend-Only Deployment**
+#### **Deployment Options**
 ```bash
-# Build and deploy frontend only (skips backend build)
-npm run deploy:frontend:only
+# Standard deployment (build + deploy + confirm)
+npm run deploy
 
-# Build frontend + backend, then deploy
+# Quick deployment (no build, uses current artifacts)
+npm run deploy:quick
+
+# Frontend-only deployment
 npm run deploy:frontend
 
-# Build frontend assets only (no deploy)
-npm run build:frontend:only
+# Frontend-only, skip backend build
+npm run deploy:frontend:only
+
+# Wrangler deploy only (no script wrapper)
+npm run deploy:only
+```
+
+#### **Rollback**
+```bash
+# Rollback to previous good commit
+./scripts/deployment/rollback-production.sh
 ```
 
 ### **🔄 Update Deployment**
 
 #### **Standard Update Process**
 ```bash
-# 1. Test changes locally
-npm run build
-npm test
+# 1. Commit your changes
+git add .
+git commit -m "Description of changes"
 
-# 2. Deploy to production
-env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
+# 2. Deploy
+npm run deploy
 
-# 3. Verify deployment
-curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/health
-
-# 4. Monitor for issues
-wrangler tail --format=pretty --since=5m
+# 3. Verify
+curl https://tft-trading-system.yanggf.workers.dev/api/v1/health
 ```
 
-#### **Rollback if Needed**
+#### **Quick Hotfix (Skip Build)**
 ```bash
-# View recent commits
-git log --oneline -5
+# For emergency fixes when you're sure artifacts are current
+npm run deploy:quick
+```
 
-# Checkout previous version
-git checkout <previous-commit-hash>
+#### **Rollback**
+```bash
+# Rollback to previous commit
+./scripts/deployment/rollback-production.sh
 
-# Redeploy
-env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
-
-# Verify rollback
-curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/health
+# Manual rollback
+git log --oneline -5              # Find previous commit
+git checkout <commit-hash>        # Checkout
+npm run build                     # Build
+npm run deploy -- --yes          # Deploy
+git checkout -                    # Return to branch
 ```
 
 ## 🔍 Deployment Verification
@@ -753,6 +769,28 @@ wrangler secret put FRED_ALLOW_DEGRADATION
 
 ---
 
-**Last Updated: 2025-12-10 | Version: Production-Ready with DAC Money Flow**
+**Last Updated: 2026-01-13 | Version: v3.0-Simplified**
 
 *This deployment guide should be followed for all production deployments and updated as the system evolves.*
+
+## 📦 Deployment Scripts Reference
+
+### Scripts Overview
+```
+scripts/deployment/
+├── deploy-production.sh      # Main deployment script (65 lines)
+├── deploy-frontend.sh         # Frontend-only deployment (35 lines)
+├── quick-deploy.sh            # Quick deploy, no build (33 lines)
+├── rollback-production.sh     # Rollback to previous commit (45 lines)
+└── warmup-cache-after-deployment.sh  # Cache warming (38 lines)
+```
+
+### npm Scripts
+| Command | Description |
+|---------|-------------|
+| `npm run deploy` | Build + deploy (with confirmation) |
+| `npm run deploy -- --yes` | Deploy without confirmation |
+| `npm run deploy:quick` | Deploy current artifacts (no build) |
+| `npm run deploy:frontend` | Build frontend + backend + deploy |
+| `npm run deploy:frontend:only` | Build frontend only + deploy |
+| `npm run deploy:only` | Wrangler deploy (no build) |

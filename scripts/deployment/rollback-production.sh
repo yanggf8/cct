@@ -1,94 +1,45 @@
 #!/usr/bin/env bash
-# Production Rollback Script
-# Quick rollback to previous deployment with cache invalidation
+# Fast rollback to previous commit
 
 set -euo pipefail
 
-# Source shared utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/deploy-utils.sh"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Configuration
-WORKER_NAME="${WORKER_NAME:-tft-trading-system}"
-ROLLBACK_REASON="${1:-emergency}"
-DRY_RUN="${DRY_RUN:-false}"
-SKIP_CACHE_INVALIDATION="${SKIP_CACHE_INVALIDATION:-false}"
+log() { echo -e "${BLUE}➜${NC} $*"; }
+success() { echo -e "${GREEN}✓${NC} $*"; }
+error() { echo -e "${RED}✗${NC} $*"; }
 
-# Safety checks
-log "🚨 Production Rollback: $ROLLBACK_REASON"
+DEPLOYMENT_URL="https://tft-trading-system.yanggf.workers.dev"
 
-check_dependencies || exit 1
-check_auth || exit 1
+# Check wrangler
+command -v wrangler >/dev/null 2>&1 || { error "wrangler not found"; exit 1; }
 
-# Git state check
-if [ -f "wrangler.toml" ]; then
-    success "Project directory verified"
-else
-    error "wrangler.toml not found. Run from project root."
-    exit 1
-fi
+# Find previous good commit
+LAST_GOOD=$(git log --oneline -5 | grep -i "deploy\|release" | head -1 | cut -d' ' -f1)
+[[ -z "$LAST_GOOD" ]] && LAST_GOOD="HEAD~1"
 
-# Show recent commits
-log "\n🔍 Recent Commits (Rollback Candidates)"
-git log --oneline -10 --decorate --graph || true
+log "Rollback to: $LAST_GOOD"
+git log --oneline -3 "$LAST_GOOD"
 
-# Find last good commit
-LAST_GOOD=$(git log --oneline --grep="deploy\\|release" -n 1 2>/dev/null | cut -d' ' -f1 || echo "HEAD~1")
-log "\nTarget rollback commit: $LAST_GOOD"
-
-# Dry run check
-if [ "$DRY_RUN" = "true" ]; then
-    warning "🧪 DRY RUN MODE - No changes will be made"
-    log "Would checkout: $LAST_GOOD"
-    log "Would build and deploy rollback version"
-    exit 0
-fi
-
-# Confirmation
-echo ""
-read -p "Rollback to $LAST_GOOD? (yes/no): " -r
+read -p "Rollback to $LAST_GOOD? (y/n): " -n 1 -r
 echo
-[[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]] && { log "Rollback cancelled"; exit 0; }
+[[ ! $REPLY =~ ^[Yy]$ ]] && { log "Cancelled"; exit 0; }
 
-# Perform rollback
-log "🔄 Performing rollback..."
+# Checkout and deploy
+log "Checking out $LAST_GOOD..."
+git checkout "$LAST_GOOD"
 
-# Checkout target commit
-if [ -n "$LAST_GOOD" ]; then
-    log "Checking out: $LAST_GOOD"
-    git checkout "$LAST_GOOD"
-fi
+log "Building..."
+npm run build >/dev/null 2>&1 || { error "Build failed"; git checkout -; exit 1; }
 
-# Build
-log "Building rollback version..."
-cd "$PROJECT_ROOT"
-npm run build >/dev/null 2>&1 || {
-    error "Build failed - aborting rollback"
-    git checkout - 2>/dev/null || git checkout main 2>/dev/null || true
-    exit 1
-}
+log "Deploying..."
+env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy
 
-# Deploy
-log "Deploying rollback version..."
-if env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID wrangler deploy; then
-    success "Rollback deployed"
-else
-    error "Deployment failed"
-    git checkout - 2>/dev/null || git checkout main 2>/dev/null || true
-    exit 1
-fi
+# Return to master
+log "Returning to master branch..."
+git checkout - 2>/dev/null || git checkout master 2>/dev/null || git checkout main 2>/dev/null || true
 
-# Verification
-log "✅ Verifying rollback..."
-sleep 10
-
-health_check "/api/v1/health" "Health endpoint" 10 || {
-    error "Health check failed - manual verification required"
-}
-
-# Return to original state
-log "\n🔧 Returning to original branch..."
-git checkout - 2>/dev/null || git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
-
-success "✅ Rollback complete!"
-print_summary "success"
+success "Rolled back: $DEPLOYMENT_URL"

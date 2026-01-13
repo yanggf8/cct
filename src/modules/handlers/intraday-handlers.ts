@@ -366,15 +366,14 @@ async function generateIntradayCheckHTML(
   // Check for real data vs scheduled
   const hasRealData = formattedData.totalSignals > 0;
   const scheduledUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 16, 0); // 12:00 PM ET
-  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   const beforeSchedule = Date.now() < scheduledUtc;
   
-  // Status display for header
+  // Status display for header - local time computed client-side
   let statusDisplay: string;
   if (hasRealData) {
-    statusDisplay = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' EDT';
+    statusDisplay = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' ET';
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 12:00 PM ET (${localScheduled} local)`;
+    statusDisplay = `⏳ Scheduled: 12:00 PM ET (<span id="local-time" data-utc="${scheduledUtc}"></span>)`;
   } else {
     statusDisplay = '⚠️ No data available';
   }
@@ -797,6 +796,11 @@ async function generateIntradayCheckHTML(
             </div>
         </div>
     </div>
+    <script>
+      document.querySelectorAll('[id^="local-time"]').forEach(el => {
+        el.textContent = new Date(parseInt(el.dataset.utc)).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+      });
+    </script>
 </body>
 </html>`;
 }
