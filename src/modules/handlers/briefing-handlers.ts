@@ -680,9 +680,11 @@ function generatePreMarketHTML(
  * Generate partial briefing HTML
  */
 function generatePartialBriefing(dateStr: string, completionRate: number): string {
-  // Note: This is a synchronous function, so we show a message about checking for recent data
-  // The actual data fetching happens in the handler before calling this function
-  const showProgress = completionRate === 0;
+  // Calculate scheduled time: 8:30 AM ET = 13:30 UTC
+  const currentDate = new Date(dateStr + 'T12:00:00Z');
+  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30);
+  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const beforeSchedule = Date.now() < scheduledUtc;
   
   return `<!DOCTYPE html>
 <html lang="en">
@@ -718,21 +720,16 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
             font-size: 1.5rem;
         }
         .partial-content p {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             opacity: 0.9;
         }
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.1);
+        .schedule-info {
+            background: rgba(79, 172, 254, 0.2);
+            border: 1px solid rgba(79, 172, 254, 0.5);
+            padding: 15px;
             border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4facfe, #00f2fe);
-            transition: width 0.3s ease;
+            margin: 20px 0;
+            font-size: 1.1rem;
         }
         .refresh-button {
             background: linear-gradient(45deg, #4facfe, #00f2fe);
@@ -743,6 +740,7 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
             cursor: pointer;
             font-size: 1rem;
             transition: all 0.3s ease;
+            margin-top: 20px;
         }
         .refresh-button:hover {
             transform: translateY(-2px);
@@ -761,26 +759,17 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
 <body>
     ${getSharedNavHTML('pre-market')}
     <div class="partial-content">
-        <h2>${showProgress ? '⏳ Pre-Market Briefing in Progress' : '📊 Generating Fresh Analysis'}</h2>
-        <p>Market analysis is currently being prepared. Data completion: ${Math.round(completionRate * 100)}%</p>
-        ${showProgress ? `
-        <div class="progress-bar">
-            <div class="progress-fill" style="width: ${completionRate * 100}%"></div>
+        <h2>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h2>
+        <div class="schedule-info">
+            ${beforeSchedule 
+              ? `📅 Scheduled: <strong>8:30 AM ET</strong> (${localScheduled} local)`
+              : `This report has no data for ${dateStr}`}
         </div>
-        <p>This typically takes 2-3 minutes to complete. The page will refresh automatically when ready.</p>
-        ` : `
-        <div class="info-box">
-            <strong>🔄 Auto-generation triggered</strong><br>
-            The system is generating fresh analysis data. This page will automatically refresh when complete.
-        </div>
-        <p><strong>Tip:</strong> You can also check the <a href="/api/v1/reports/pre-market" style="color: #4facfe;">API endpoint</a> for the latest data.</p>
-        `}
-        <button class="refresh-button" onclick="location.reload()">Check Status</button>
+        <p>${beforeSchedule 
+          ? 'The pre-market briefing will be generated at the scheduled time above.'
+          : 'The scheduled job may not have run. Check system status for details.'}</p>
+        <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
     </div>
-    <script>
-        // Auto-refresh every 30 seconds
-        setTimeout(() => location.reload(), 30000);
-    </script>
 </body>
 </html>`;
 }
