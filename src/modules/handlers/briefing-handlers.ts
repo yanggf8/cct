@@ -675,11 +675,8 @@ function generatePreMarketHTML(
       document.querySelectorAll('.local-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
-        // Use today's date with ET timezone to handle DST correctly
-        const todayET = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' });
-        const etString = `${todayET} ${utcH.toString().padStart(2, '0')}:${utcM.toString().padStart(2, '0')}`;
-        const etDate = new Date(etString + ' America/New_York');
-        el.textContent = etDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' local';
+        const utcDate = new Date(Date.UTC(2024, 0, 1, utcH, utcM));
+        el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true}) + ' local';
       });
     </script>
 </body>
