@@ -312,8 +312,12 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="memory|c
 
 #### **1. System Performance Review**
 ```bash
-# Check weekly analysis accuracy
+# Check weekly analysis accuracy (current week)
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/weekly-review
+
+# Last week (previous Sunday) or specific week (any date within that week)
+curl -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/weekly-review?week=last"
+curl -H "X-API-KEY: $X_API_KEY" "https://tft-trading-system.yanggf.workers.dev/weekly-review?week=2025-01-05"
 
 # Review 7-day performance trends
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=7d | grep -E "(ERROR|WARN|performance|timeout)"

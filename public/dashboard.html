@@ -196,6 +196,7 @@
             const renderWeeklyCard = (sunday, label) => {
                 const dateStr = getDateStr(sunday);
                 const isFuture = sunday > today;
+                const isLastWeek = label === 'Last Week';
                 const run = d1Jobs.find(j => {
                     const execDate = j.executed_at.slice(0, 10);
                     const execHour = new Date(j.executed_at).getUTCHours();
@@ -214,8 +215,10 @@
                     sText = '⚪ No run';
                 }
 
+                const weekUrl = isLastWeek ? '/weekly-review?week=last' : '/weekly-review';
+
                 return `
-                    <a href="/weekly-review" class="weekly-card ${status}" style="text-decoration:none;color:inherit;display:block;">
+                    <a href="${weekUrl}" class="weekly-card ${status}" style="text-decoration:none;color:inherit;display:block;">
                         <div class="weekly-label">${label}</div>
                         <div class="weekly-date">📋 ${sunday.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
                         <div class="weekly-status">${sText}</div>

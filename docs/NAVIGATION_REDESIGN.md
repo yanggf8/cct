@@ -36,7 +36,9 @@ This document outlines the transition from a top-bar navigation to a persistent 
     *   🌅 Pre-Market (`/pre-market-briefing`)
     *   📊 Intraday (`/intraday-check`)
     *   🌆 End-of-Day (`/end-of-day-summary`)
-    *   📋 Weekly (`/weekly-review`)
+    *   📋 Weekly
+        * This Week (`/weekly-review`)
+        * Last Week (`/weekly-review?week=last`)
 *   **Portfolio**
     *   📊 Breakdown (`/portfolio-breakdown.html`)
     *   💼 Optimization (`/portfolio-optimization-dashboard.html`)

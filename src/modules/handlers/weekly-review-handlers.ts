@@ -16,21 +16,66 @@ import type { CloudflareEnvironment } from '../../types';
 const logger = createLogger('weekly-review-handlers');
 
 /**
+ * Get the Sunday for a given week based on a date string
+ * If no date provided, returns the most recent Sunday
+ * Special values: "last" = previous week
+ */
+function getWeekSunday(weekParam: string | null): Date {
+  const today = new Date();
+
+  // Handle "last" parameter for previous week
+  if (weekParam === 'last') {
+    const day = today.getDay();
+    const thisSunday = new Date(today);
+    thisSunday.setDate(today.getDate() - day);
+    const lastSunday = new Date(thisSunday);
+    lastSunday.setDate(thisSunday.getDate() - 7);
+    lastSunday.setHours(0, 0, 0, 0);
+    return lastSunday;
+  }
+
+  if (weekParam && weekParam !== 'last') {
+    const weekDate = new Date(weekParam);
+    if (!isNaN(weekDate.getTime())) {
+      // Find the Sunday of that week
+      const day = weekDate.getDay();
+      const diff = weekDate.getDate() - day;
+      const sunday = new Date(weekDate);
+      sunday.setDate(diff);
+      sunday.setHours(0, 0, 0, 0);
+      return sunday;
+    }
+  }
+
+  // Default: find most recent Sunday
+  const day = today.getDay();
+  const diff = today.getDate() - day;
+  const sunday = new Date(today);
+  sunday.setDate(diff);
+  sunday.setHours(0, 0, 0, 0);
+  return sunday;
+}
+
+/**
  * Generate Weekly Review Page
  */
 export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-  const today = new Date();
-  const dateStr = today.toISOString().split('T')[0];
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
+  const weekParam = url.searchParams.get('week');
+
+  // Determine which week to show
+  const weekSunday = getWeekSunday(weekParam);
+  const weekStr = weekSunday.toISOString().split('T')[0];
+  const cacheKey = `weekly_html_${weekStr}`;
 
   // Fast path: check DO cache first (unless bypass)
   if (!bypassCache) {
     try {
       const dal = createSimplifiedEnhancedDAL(env);
-      const cached = await dal.read(`weekly_html_${dateStr}`);
+      const cached = await dal.read(cacheKey);
       if (cached.success && cached.data) {
         return new Response(cached.data, {
           headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=600', 'X-Cache': 'HIT', 'X-Request-ID': requestId }
@@ -41,46 +86,51 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
 
   logger.info('📈 [WEEKLY-REVIEW] Starting weekly review generation', {
     requestId,
+    week: weekStr,
     bypassCache
   });
 
   logger.debug('📊 [WEEKLY-REVIEW] Retrieving weekly review data', {
     requestId,
-    date: dateStr
+    week: weekStr
   });
 
   let weeklyData: any = null;
 
   try {
-    weeklyData = await getWeeklyReviewData(env, today);
+    weeklyData = await getWeeklyReviewData(env, weekSunday);
 
     if (weeklyData) {
       logger.info('✅ [WEEKLY-REVIEW] Weekly data retrieved successfully', {
         requestId,
+        week: weekStr,
         totalSignals: weeklyData.totalSignals || 0,
         tradingDays: weeklyData.tradingDays || 0,
         hasData: true
       });
     } else {
-      logger.warn('⚠️ [WEEKLY-REVIEW] No weekly data found for this week', {
-        requestId
+      logger.warn('⚠️ [WEEKLY-REVIEW] No weekly data found for week', {
+        requestId,
+        week: weekStr
       });
     }
 
   } catch (error: any) {
     logger.error('❌ [WEEKLY-REVIEW] Failed to retrieve weekly data', {
       requestId,
+      week: weekStr,
       error: (error instanceof Error ? error.message : String(error)),
       stack: error.stack
     });
   }
 
-  // If no data, show pending page
+  // If no data, show pending page or no data page
   if (!weeklyData) {
+    const isPastWeek = weekSunday < new Date(new Date().setDate(new Date().getDate() - new Date().getDay()));
     const pendingPage = generatePendingPageHTML({
       title: 'Weekly Review',
       reportType: 'weekly',
-      dateStr,
+      dateStr: weekStr,
       scheduledHourUTC: 15,
       scheduledMinuteUTC: 0
     });
@@ -93,13 +143,18 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
     });
   }
 
-  // Generate HTML
-  const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, today);
+  // Generate HTML with week label
+  const today = new Date();
+  const thisSunday = getWeekSunday(null);
+  const isThisWeek = weekSunday.toDateString() === thisSunday.toDateString();
+  const weekLabel = isThisWeek ? 'This Week' : 'Week of ' + weekSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, weekSunday, weekLabel);
 
   // Write snapshot to D1 and cache HTML
   const dal = createSimplifiedEnhancedDAL(env);
   if (weeklyData) {
-    await writeD1ReportSnapshot(env, dateStr, 'weekly', weeklyData, {
+    await writeD1ReportSnapshot(env, weekStr, 'weekly', weeklyData, {
       processingTimeMs: Date.now() - startTime,
       tradingDays: weeklyData.tradingDays || 0,
       ai_models: {
@@ -107,12 +162,13 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
         secondary: '@cf/huggingface/distilbert-sst-2-int8'
       }
     });
-    await dal.write(`weekly_${dateStr}`, weeklyData, { expirationTtl: 86400 });
+    await dal.write(`weekly_${weekStr}`, weeklyData, { expirationTtl: 86400 });
   }
-  await dal.write(`weekly_html_${dateStr}`, htmlContent, { expirationTtl: 600 });
+  await dal.write(cacheKey, htmlContent, { expirationTtl: 600 });
 
   logger.info('🎯 [WEEKLY-REVIEW] Weekly review completed', {
     requestId,
+    week: weekStr,
     duration: Date.now() - startTime,
     hasData: !!weeklyData
   });
@@ -131,29 +187,27 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
 function generateWeeklyReviewHTML(
   weeklyData: any,
   requestId: string,
-  currentDate: Date
+  weekSunday: Date,
+  weekLabel: string
 ): string {
-  const weekStart = new Date(currentDate);
-  weekStart.setDate(currentDate.getDate() - currentDate.getDay());
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekEnd = new Date(weekSunday);
+  weekEnd.setDate(weekSunday.getDate() + 6);
 
-  const weekRange = `${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
-  
+  const weekRange = `${weekSunday.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
+
   // Check for actual data
   const hasRealData = weeklyData && (weeklyData.totalSignals > 0 || weeklyData.tradingDays > 0);
-  
+
   // Scheduled time: Sunday 10:00 AM ET = 15:00 UTC
-  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 15, 0);
-  const isSunday = currentDate.getDay() === 0;
-  const beforeSchedule = isSunday && Date.now() < scheduledUtc;
-  
-  // Determine display status - local time computed client-side
+  const scheduledUtc = Date.UTC(weekSunday.getUTCFullYear(), weekSunday.getUTCMonth(), weekSunday.getUTCDate(), 15, 0);
+
+  // Determine display status - use data's generatedAt if available
   let statusDisplay: string;
-  if (hasRealData) {
-    statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
-  } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: Sunday <span class="sched-time" data-utch="15" data-utcm="0"></span>`;
+  if (hasRealData && weeklyData.generatedAt) {
+    const generatedTime = new Date(weeklyData.generatedAt);
+    statusDisplay = `Generated ${generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+  } else if (hasRealData) {
+    statusDisplay = `Data available`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -163,7 +217,7 @@ function generateWeeklyReviewHTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weekly Trading Review - ${weekRange}</title>
+    <title>Weekly Trading Review - ${weekLabel}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/cct-api.js"></script>
@@ -447,8 +501,8 @@ function generateWeeklyReviewHTML(
 
         ${!hasRealData ? `
         <div class="no-data">
-            <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Weekly Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated on Sunday <span class="sched-time" data-utch="15" data-utcm="0"></span>.` : 'There is no trading data available for this week.'}</p>
+            <h3>⚠️ No Weekly Data Available</h3>
+            <p>There is no trading data available for this week.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -614,17 +668,6 @@ function generateWeeklyReviewHTML(
         }
     </script>
     ` : ''}
-    <script>
-      document.querySelectorAll('.sched-time').forEach(el => {
-        const utcH = parseInt(el.dataset.utch);
-        const utcM = parseInt(el.dataset.utcm || '0');
-        const d = new Date();
-        d.setUTCHours(utcH, utcM, 0, 0);
-        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
-        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
-        el.textContent = et + ' ET (' + local + ' local)';
-      });
-    </script>
 </body>
 </html>`;
 }

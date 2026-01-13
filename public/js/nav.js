@@ -53,7 +53,11 @@
                 <div class="nav-group-title">Weekly</div>
                 <a href="/weekly-review" class="nav-item" data-page="weekly">
                     <span class="nav-icon">📋</span>
-                    <span class="nav-text">Weekly Review</span>
+                    <span class="nav-text">This Week</span>
+                </a>
+                <a href="/weekly-review?week=last" class="nav-item" data-page="weekly-last">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Last Week</span>
                 </a>
             </div>
 
@@ -62,10 +66,6 @@
                 <a href="/portfolio-breakdown.html" class="nav-item" data-page="breakdown">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">Breakdown</span>
-                </a>
-                <a href="/portfolio-optimization-dashboard.html" class="nav-item" data-page="portfolio">
-                    <span class="nav-icon">💼</span>
-                    <span class="nav-text">Optimization</span>
                 </a>
             </div>
 
@@ -105,22 +105,47 @@
         const search = window.location.search;
         const navItems = document.querySelectorAll('.nav-item');
         const currentPath = normalizePath(path);
-        
-        // Check if viewing a past date (yesterday or specific date)
-        const dateParam = new URLSearchParams(search).get('date');
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(search);
+        const dateParam = urlParams.get('date');
+        const weekParam = urlParams.get('week');
+
+        // Check context
         const isYesterday = dateParam === 'yesterday' || (dateParam && dateParam !== new Date().toISOString().slice(0, 10));
+        const isLastWeek = weekParam === 'last';
 
         navItems.forEach(item => {
             const href = item.getAttribute('href') || '';
             const [itemPath, itemSearch] = href.split('?');
             const normalizedItemPath = normalizePath(itemPath);
-            const itemHasYesterday = itemSearch?.includes('date=yesterday');
-            
-            // Match: same path AND (both yesterday OR both today)
-            if (currentPath === normalizedItemPath) {
-                if ((isYesterday && itemHasYesterday) || (!isYesterday && !itemHasYesterday)) {
-                    item.classList.add('active');
-                }
+
+            // Only match if paths are the same
+            if (currentPath !== normalizedItemPath) return;
+
+            // Parse item parameters
+            const itemParams = new URLSearchParams(itemSearch || '');
+            const itemHasYesterday = itemParams.get('date') === 'yesterday';
+            const itemHasLastWeek = itemParams.get('week') === 'last';
+
+            // Determine if this item should be active
+            let shouldBeActive = false;
+
+            // Daily reports: match yesterday/today
+            if (currentPath === '/pre-market-briefing' || currentPath === '/intraday-check' || currentPath === '/end-of-day-summary') {
+                shouldBeActive = (isYesterday && itemHasYesterday) || (!isYesterday && !itemHasYesterday);
+            }
+            // Weekly reports: match last week/this week
+            else if (currentPath === '/weekly-review') {
+                shouldBeActive = (isLastWeek && itemHasLastWeek) || (!isLastWeek && !itemHasLastWeek);
+            }
+            // Other pages: simple path match
+            else {
+                shouldBeActive = true;
+            }
+
+            if (shouldBeActive) {
+                item.classList.add('active');
             }
 
             // Close nav on mobile after selection

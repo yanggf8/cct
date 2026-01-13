@@ -144,7 +144,10 @@ Our system doesn't hide behind complex algorithms. We use **simple, transparent 
 - Tomorrow's market outlook and bias
 
 #### **🔍 Weekly Review**
-**URL**: `/weekly-review`
+**URLs**:
+- `/weekly-review` (this week)
+- `/weekly-review?week=last` (last week)
+- `/weekly-review?week=YYYY-MM-DD` (specific week; any date within the week)
 **Best Time**: After 10:00 AM on Sundays
 **Content**: Comprehensive weekly pattern analysis
 
