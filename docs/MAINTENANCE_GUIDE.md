@@ -199,6 +199,7 @@ Not scheduled:
 - Pending deployment: status page will show scheduled times for pending jobs (e.g., `⏰ pending 8:30 AM ET`), actual run times when completed, and favicon fix.
 - Pending deployment: dashboard job times will display both ET and local time (e.g., `8:30 AM ET (9:30 PM local)`).
 - Pre-market average confidence now excludes failed signals (confidence ≤ 0) and displays valid/total counts for clarity.
+- Market drivers cache policy: uses DO-backed SimplifiedEnhancedDAL for all cache reads/writes; legacy cache managers removed. Hot reads are DO-only (integration test `tests/integration/dac/test-do-hot-read.ts`).
 
 ## 🔧 Troubleshooting Guide
 
