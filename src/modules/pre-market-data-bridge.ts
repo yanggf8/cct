@@ -147,11 +147,24 @@ export class PreMarketDataBridge {
               confidence: sentimentData.confidence
             });
           } else {
-            // Write skipped (low confidence) to D1
+            // Determine the actual failure reason
+            let failureReason = 'Unknown';
+            if (!sentimentData) {
+              failureReason = 'No sentiment data returned';
+            } else if (sentimentData.articles_analyzed === 0) {
+              failureReason = 'No news articles available';
+            } else if (sentimentData.confidence <= 0.3) {
+              failureReason = `Low confidence: ${sentimentData.confidence}`;
+            } else if (sentimentData.reasoning) {
+              failureReason = sentimentData.reasoning;
+            }
+
+            // Write skipped to D1 with detailed reason
             await writeSymbolPredictionToD1(this.env, symbol, today, {
               status: 'skipped',
               confidence: sentimentData?.confidence,
-              error_message: sentimentData ? `Low confidence: ${sentimentData.confidence}` : 'No sentiment data returned',
+              error_message: failureReason,
+              articles_count: sentimentData?.articles_analyzed || 0,
               raw_response: sentimentData
             });
           }
