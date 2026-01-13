@@ -4,11 +4,16 @@
 
 **Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (Gemma Sea Lion 27B + DistilBERT-SST-2), Durable Objects-only caching architecture, predictive analytics dashboard, and real-time sector rotation analysis.
 
-**Current Status**: ✅ **PRODUCTION READY** - **TypeScript Error-Free** (2025-12-24)
+**Current Status**: ✅ **PRODUCTION READY** - **TypeScript Error-Free** (2026-01-13)
 
 **Live System**: https://tft-trading-system.yanggf.workers.dev
 
 ## 🚀 Latest Updates
+
+### **🕐 Local Time Display (2026-01-13)**
+- ✅ **Browser-Based Conversion**: Report schedules show both ET and user's local timezone
+- ✅ **DST-Safe**: Uses `Date.UTC()` + `toLocaleTimeString()` approach (same as dashboard)
+- ✅ **Root Redirect**: Safe JS redirect from `/` to `/dashboard.html`
 
 ### **🔄 KV→DO Migration Complete (2025-12-24)**
 - ✅ **DO-Only Cache**: All cache operations migrated to Durable Objects
