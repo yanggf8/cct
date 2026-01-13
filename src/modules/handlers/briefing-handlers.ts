@@ -693,7 +693,6 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
   // Calculate scheduled time: 8:30 AM ET = 13:30 UTC
   const currentDate = new Date(dateStr + 'T12:00:00Z');
   const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30);
-  const localScheduled = new Date(scheduledUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   const beforeSchedule = Date.now() < scheduledUtc;
   
   return `<!DOCTYPE html>
@@ -772,7 +771,7 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
         <h2>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h2>
         <div class="schedule-info">
             ${beforeSchedule 
-              ? `📅 Scheduled: <strong>8:30 AM ET</strong> (${localScheduled} local)`
+              ? `📅 Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`
               : `This report has no data for ${dateStr}`}
         </div>
         <p>${beforeSchedule 
@@ -780,6 +779,17 @@ function generatePartialBriefing(dateStr: string, completionRate: number): strin
           : 'The scheduled job may not have run. Check system status for details.'}</p>
         <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
     </div>
+    <script>
+      document.querySelectorAll('.sched-time').forEach(el => {
+        const utcH = parseInt(el.dataset.utch);
+        const utcM = parseInt(el.dataset.utcm || '0');
+        const d = new Date();
+        d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
+      });
+    </script>
 </body>
 </html>`;
 }
