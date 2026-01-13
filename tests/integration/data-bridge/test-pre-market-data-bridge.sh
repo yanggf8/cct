@@ -82,7 +82,7 @@ test_pre_market_data_generation() {
 
     progress "Step 1: Force generating pre-market data..."
 
-    generation_response=$(api_request "/api/v1/reports/pre-market/generate" "Pre-market data generation" "POST")
+    generation_response=$(api_request "/api/v1/jobs/pre-market" "Pre-market data generation" "POST")
 
     if [ $? -eq 0 ]; then
         success "Pre-market data generation successful"
@@ -235,7 +235,7 @@ test_data_bridge_health() {
     # Test that the data bridge can be called multiple times
     log "Testing multiple data bridge calls..."
     for i in {1..3}; do
-        generation_response=$(api_request "/api/v1/reports/pre-market/generate" "Data bridge call $i" "POST")
+        generation_response=$(api_request "/api/v1/jobs/pre-market" "Data bridge call $i" "POST")
         if [ $? -eq 0 ]; then
             log "Call $i: Successful"
         else

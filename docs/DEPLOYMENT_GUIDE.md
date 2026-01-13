@@ -338,7 +338,8 @@ timeout 45 curl -s -H "X-API-KEY: your_api_key" "https://your-domain.workers.dev
 curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/pre-market-briefing
 curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/intraday-check
 curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/end-of-day-summary
-curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/weekly-review
+curl -H "X-API-KEY: your_api_key" https://your-domain.workers.dev/weekly-review        # This week
+curl -H "X-API-KEY: your_api_key" "https://your-domain.workers.dev/weekly-review?week=last"  # Last week
 ```
 
 #### **Security Verification**

@@ -184,7 +184,7 @@ curl -s "https://tft-trading-system.yanggf.workers.dev/pre-market-briefing"
 #### **Pre-Market Data Generation**
 ```bash
 # Force generate pre-market data
-POST /api/v1/reports/pre-market/generate
+POST /api/v1/jobs/pre-market
 Content-Type: application/json
 X-API-KEY: test
 

@@ -7,7 +7,8 @@ import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
 import { handleScheduledEvent } from '../modules/scheduler.js';
-import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot } from '../modules/d1-job-storage.js';
+import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1ReportSnapshot } from '../modules/d1-job-storage.js';
+import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('jobs-routes');
@@ -26,8 +27,8 @@ export async function handleJobsRoutes(
   const url = new URL(request.url);
 
   // Read-only endpoints are public, write endpoints require auth
-  const isWriteEndpoint = path === '/api/v1/jobs/trigger';
-  
+  const isWriteEndpoint = path === '/api/v1/jobs/trigger' || path === '/api/v1/jobs/pre-market';
+
   if (isWriteEndpoint) {
     const authResult = validateApiKey(request, env);
     if (!authResult.valid) {
@@ -39,6 +40,11 @@ export async function handleJobsRoutes(
   }
 
   try {
+    // POST /api/v1/jobs/pre-market - Execute pre-market analysis job (protected)
+    if (path === '/api/v1/jobs/pre-market' && request.method === 'POST') {
+      return await handlePreMarketJob(request, env, headers, requestId, timer);
+    }
+
     // POST /api/v1/jobs/trigger - Manually trigger a scheduled job (protected)
     if (path === '/api/v1/jobs/trigger' && request.method === 'POST') {
       return await handleJobTrigger(request, env, headers, requestId, timer);
@@ -257,4 +263,106 @@ async function handleJobTrigger(
     }, { requestId, processingTime: timer.getElapsedMs() })),
     { status: HttpStatus.OK, headers }
   );
+}
+
+/**
+ * POST /api/v1/jobs/pre-market
+ * Execute pre-market analysis job
+ * Body: { "symbols": ["AAPL", "MSFT", ...] } (optional, defaults to top 5)
+ */
+async function handlePreMarketJob(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  const dataBridge = createPreMarketDataBridge(env);
+
+  try {
+    // Parse request body for optional symbols
+    let symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default symbols
+
+    try {
+      const body = await request.json() as any;
+      if (body.symbols && Array.isArray(body.symbols)) {
+        symbols = body.symbols;
+      }
+    } catch {
+      // Use default symbols if body parsing fails
+    }
+
+    logger.info('PreMarketJob: Starting job execution', { symbols, requestId });
+
+    // Execute pre-market analysis job
+    const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols);
+    const today = new Date().toISOString().split('T')[0];
+
+    // Build job result for D1 storage
+    const jobResult = {
+      date: today,
+      job_type: 'pre-market',
+      symbols_analyzed: Object.keys(analysisData.trading_signals).length,
+      high_confidence_signals: Object.values(analysisData.trading_signals)
+        .filter(signal => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7).length,
+      trading_signals: analysisData.trading_signals,
+      generated_at: analysisData.generated_at,
+      timestamp: analysisData.timestamp
+    };
+
+    // Write to D1 for persistence
+    await writeD1ReportSnapshot(env, today, 'pre-market', jobResult, {
+      processingTimeMs: timer.getElapsedMs(),
+      symbolsRequested: symbols,
+      ai_models: {
+        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+        secondary: '@cf/huggingface/distilbert-sst-2-int8'
+      }
+    });
+
+    const response = {
+      success: true,
+      job_type: 'pre-market',
+      message: 'Pre-market job executed successfully',
+      result: {
+        symbols_analyzed: Object.keys(analysisData.trading_signals).length,
+        high_confidence_signals: Object.values(analysisData.trading_signals)
+          .filter(signal => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7).length,
+        generated_at: analysisData.generated_at,
+        symbols: symbols
+      },
+      processing_time_ms: timer.getElapsedMs(),
+      timestamp: new Date().toISOString()
+    };
+
+    logger.info('PreMarketJob: Job execution completed', {
+      symbols_count: Object.keys(analysisData.trading_signals).length,
+      high_confidence_count: response.result.high_confidence_signals,
+      processing_time: timer.getElapsedMs(),
+      requestId
+    });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success(response, {
+        requestId,
+        processingTime: timer.getElapsedMs(),
+      })),
+      { status: HttpStatus.OK, headers }
+    );
+
+  } catch (error: any) {
+    logger.error('PreMarketJob Error', { error: error.message, requestId });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error(
+        'Failed to execute pre-market job',
+        'JOB_ERROR',
+        {
+          requestId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      )),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
+  }
 }

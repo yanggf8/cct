@@ -149,7 +149,7 @@ GET /api/v1/reports/daily             # Latest daily report
 GET /api/v1/reports/weekly/:week      # Weekly reports
 GET /api/v1/reports/weekly            # Latest weekly report
 GET /api/v1/reports/pre-market        # Pre-market briefing
-POST /api/v1/reports/pre-market/generate # Force generate pre-market data 🔒 PROTECTED
+POST /api/v1/jobs/pre-market          # Trigger pre-market job 🔒 PROTECTED
 GET /api/v1/reports/intraday          # Intraday check
 GET /api/v1/reports/end-of-day        # End-of-day summary
 ```
@@ -472,7 +472,7 @@ curl -s "https://tft-trading-system.yanggf.workers.dev/pre-market-briefing"
 curl -X POST -H "X-API-KEY: test" \
   -H "Content-Type: application/json" \
   -d '{"symbols": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]}' \
-  "https://tft-trading-system.yanggf.workers.dev/api/v1/reports/pre-market/generate"
+  "https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/pre-market"
 ```
 
 ### **Rollback (if needed)**

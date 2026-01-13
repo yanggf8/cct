@@ -96,7 +96,7 @@
 - ✅ **Root Cause Fixed**: Eliminated "Data completion: 0%" issue
 - ✅ **Instant Response**: 2-3 minute wait → <500ms response time
 - ✅ **Data Bridge**: Seamless integration between sentiment analysis and reporting
-- ✅ **Manual Generation**: `POST /api/v1/reports/pre-market/generate` for on-demand data
+- ✅ **Manual Generation**: `POST /api/v1/jobs/pre-market` for on-demand data
 
 ## 🏗️ System Architecture
 

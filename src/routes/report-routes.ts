@@ -78,15 +78,12 @@ export async function handleReportRoutes(
       return await handleWeeklyReport(week, request, env, headers, requestId);
     }
 
-    // GET /api/v1/reports/pre-market - Pre-market briefing
+    // GET /api/v1/reports/pre-market - Pre-market briefing (READ only)
     if (path === '/api/v1/reports/pre-market' && method === 'GET') {
       return await handlePreMarketReport(request, env, headers, requestId);
     }
 
-    // POST /api/v1/reports/pre-market/generate - Force generate pre-market data
-    if (path === '/api/v1/reports/pre-market/generate' && method === 'POST') {
-      return await handlePreMarketDataGeneration(request, env, headers, requestId);
-    }
+    // NOTE: POST /api/v1/jobs/pre-market moved to jobs-routes.ts (WRITE operations)
 
     // GET /api/v1/reports/intraday - Intraday check
     if (path === '/api/v1/reports/intraday' && method === 'GET') {
@@ -644,90 +641,6 @@ async function handlePreMarketReport(
         ApiResponseFactory.error(
           'Failed to generate pre-market report',
           'REPORT_ERROR',
-          {
-            requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        )
-      ),
-      {
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        headers,
-      }
-    );
-  }
-}
-
-/**
- * Handle pre-market data generation
- * POST /api/v1/reports/pre-market/generate
- */
-async function handlePreMarketDataGeneration(
-  request: Request,
-  env: CloudflareEnvironment,
-  headers: Record<string, string>,
-  requestId: string
-): Promise<Response> {
-  const timer = new ProcessingTimer();
-  const dataBridge = createPreMarketDataBridge(env);
-
-  try {
-    // Parse request body for optional symbols
-    let symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default symbols
-
-    try {
-      const body = await request.json() as any;
-      if (body.symbols && Array.isArray(body.symbols)) {
-        symbols = body.symbols;
-      }
-    } catch (error: unknown) {
-      // Use default symbols if body parsing fails
-    }
-
-    logger.info('PreMarketDataGeneration: Starting data generation', { symbols, requestId });
-
-    // Force refresh pre-market analysis
-    const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols);
-
-    const response = {
-      success: true,
-      message: 'Pre-market data generated successfully',
-      data: {
-        symbols_analyzed: Object.keys(analysisData.trading_signals).length,
-        high_confidence_signals: Object.values(analysisData.trading_signals)
-          .filter(signal => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7).length,
-        generated_at: analysisData.generated_at,
-        symbols: symbols
-      },
-      processing_time: timer.getElapsedMs(),
-      timestamp: new Date().toISOString()
-    };
-
-    logger.info('PreMarketDataGeneration: Data generation completed', {
-      symbols_count: Object.keys(analysisData.trading_signals).length,
-      high_confidence_count: response.data.high_confidence_signals,
-      processing_time: timer.getElapsedMs(),
-      requestId
-    });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.success(response, {
-          requestId,
-          processingTime: timer.getElapsedMs(),
-        })
-      ),
-      { status: HttpStatus.OK, headers }
-    );
-
-  } catch (error: any) {
-    logger.error('PreMarketDataGeneration Error', { error, requestId });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Failed to generate pre-market data',
-          'GENERATION_ERROR',
           {
             requestId,
             error: error instanceof Error ? error.message : 'Unknown error'
