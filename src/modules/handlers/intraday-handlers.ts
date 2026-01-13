@@ -276,7 +276,7 @@ export const handleIntradayCheck = createHandler(
     }
 
     // If no data, show pending page
-    if (!intradayData) {
+    if (!intradayData || intradayData.totalSignals === 0) {
       const pendingPage = generatePendingPageHTML({
         title: 'Intraday Performance Check',
         reportType: 'intraday',
