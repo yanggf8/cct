@@ -59,7 +59,25 @@ fi
 
 # Build
 log "Building..."
-npm run build
+npm run build &
+BUILD_PID=$!
+
+# Show spinner while build runs
+spinners=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+i=0
+while kill -0 $BUILD_PID 2>/dev/null; do
+    printf "\r${BLUE}${spinners[$((i % 10))]}${NC} Building... "
+    sleep 0.1
+    ((i++))
+done
+
+# Wait for build and check result
+if wait $BUILD_PID; then
+    printf "\r${GREEN}✓${NC} Build complete     \n"
+else
+    printf "\r${RED}✗${NC} Build failed       \n"
+    exit 1
+fi
 
 # Deploy
 log "Deploying..."

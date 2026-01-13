@@ -12,7 +12,8 @@
 
 ### **🕐 Local Time Display (2026-01-13)**
 - ✅ **Browser-Based Conversion**: Report schedules show both ET and user's local timezone
-- ✅ **DST-Safe**: Uses `Date.UTC()` + `toLocaleTimeString()` approach (same as dashboard)
+- ✅ **DST-Safe**: Uses `setUTCHours()` + `toLocaleTimeString({timeZone: 'America/New_York'})` for ET
+- ✅ **Consistent**: All 4 report handlers use identical `.sched-time` script
 - ✅ **Root Redirect**: Safe JS redirect from `/` to `/dashboard.html`
 
 ### **🔄 KV→DO Migration Complete (2025-12-24)**
