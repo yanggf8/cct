@@ -102,13 +102,25 @@
 
         // Set active state based on current page
         const path = window.location.pathname;
+        const search = window.location.search;
         const navItems = document.querySelectorAll('.nav-item');
         const currentPath = normalizePath(path);
+        
+        // Check if viewing a past date (yesterday or specific date)
+        const dateParam = new URLSearchParams(search).get('date');
+        const isYesterday = dateParam === 'yesterday' || (dateParam && dateParam !== new Date().toISOString().slice(0, 10));
 
         navItems.forEach(item => {
-            const itemPath = normalizePath(item.getAttribute('href') || '');
-            if (currentPath === itemPath) {
-                item.classList.add('active');
+            const href = item.getAttribute('href') || '';
+            const [itemPath, itemSearch] = href.split('?');
+            const normalizedItemPath = normalizePath(itemPath);
+            const itemHasYesterday = itemSearch?.includes('date=yesterday');
+            
+            // Match: same path AND (both yesterday OR both today)
+            if (currentPath === normalizedItemPath) {
+                if ((isYesterday && itemHasYesterday) || (!isYesterday && !itemHasYesterday)) {
+                    item.classList.add('active');
+                }
             }
 
             // Close nav on mobile after selection

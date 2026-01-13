@@ -476,12 +476,12 @@ POST /api/v1/data/ai-compare
 }
 ```
 
-#### **Legacy 5% Confidence Migration (Admin)**
+#### **Legacy 5% Confidence Migration (Deprecated)**
 ```bash
 POST /api/v1/data/migrate-5pct-to-failed
 ```
 
-**Description**: One-time cleanup that marks legacy 5% confidence values as failed in D1. Requires `X-API-KEY`.
+**Description**: Deprecated. The D1 cleanup has already been performed; do not run in production unless explicitly needed for a new backfill. Requires `X-API-KEY`.
 
 **Response**:
 ```json

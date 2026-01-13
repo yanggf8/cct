@@ -262,7 +262,7 @@ GET /api/v1/data/money-flow-pool      # Money Flow Pool health
 GET /api/v1/data/kv-self-test         # KV binding self-test
 GET /api/v1/data/bindings             # Available bindings
 POST /api/v1/data/ai-compare          # Compare AI model outputs 🔒 PROTECTED
-POST /api/v1/data/migrate-5pct-to-failed # Migrate legacy 5% confidence 🔒 PROTECTED
+POST /api/v1/data/migrate-5pct-to-failed # Legacy 5% migration (deprecated) 🔒 PROTECTED ⚠️ DEPRECATED
 ```
 
 #### Enhanced Cache (7 endpoints)
