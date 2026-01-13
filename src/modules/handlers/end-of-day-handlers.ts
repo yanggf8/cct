@@ -83,6 +83,24 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     });
   }
 
+  // If no data, show pending page
+  if (!endOfDayData) {
+    const pendingPage = generatePendingPageHTML({
+      title: 'End-of-Day Summary',
+      reportType: 'end-of-day',
+      dateStr,
+      scheduledHourUTC: 21,
+      scheduledMinuteUTC: 5
+    });
+    return new Response(pendingPage, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=60',
+        'X-Request-ID': requestId
+      }
+    });
+  }
+
   // Generate HTML
   const htmlContent = generateEndOfDayHTML(endOfDayData, requestId, today);
 

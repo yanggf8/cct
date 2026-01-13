@@ -275,35 +275,22 @@ export const handleIntradayCheck = createHandler(
       logger.error('❌ [INTRADAY] Failed to retrieve data', { requestId, error: (error as Error).message });
     }
 
-    // If no data, reflect true job state (not run yet or failed)
+    // If no data, show pending page
     if (!intradayData) {
-      const nowETDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      const scheduledUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 16, 0);
-      const beforeSchedule = Date.now() < scheduledUtc;
-
-      intradayData = {
-        modelHealth: {
-          status: beforeSchedule ? 'scheduled' : 'off-track',
-          display: beforeSchedule ? `⏳ Scheduled: <span class="sched-time" data-utch="17" data-utcm="0"></span>` : '❌ No data (job missing/failed)',
-          accuracy: undefined
-        },
-        liveAccuracy: 0,
-        totalSignals: 0,
-        correctCalls: 0,
-        wrongCalls: 0,
-        pendingCalls: 0,
-        avgDivergence: 0,
-        divergences: [],
-        onTrackSignals: [],
-        recalibrationAlert: {
-          status: beforeSchedule ? 'pending' : 'yes',
-          message: beforeSchedule ? 'Job has not run yet' : 'No intraday data available; job may have failed',
-          threshold: 60,
-          currentValue: 0
-        },
-        generatedAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      };
+      const pendingPage = generatePendingPageHTML({
+        title: 'Intraday Performance Check',
+        reportType: 'intraday',
+        dateStr,
+        scheduledHourUTC: 17,
+        scheduledMinuteUTC: 0
+      });
+      return new Response(pendingPage, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, max-age=60',
+          'X-Request-ID': requestId
+        }
+      });
     }
 
     const html: string = await generateIntradayCheckHTML(intradayData, today, env);

@@ -75,6 +75,24 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
     });
   }
 
+  // If no data, show pending page
+  if (!weeklyData) {
+    const pendingPage = generatePendingPageHTML({
+      title: 'Weekly Review',
+      reportType: 'weekly',
+      dateStr,
+      scheduledHourUTC: 15,
+      scheduledMinuteUTC: 0
+    });
+    return new Response(pendingPage, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'public, max-age=60',
+        'X-Request-ID': requestId
+      }
+    });
+  }
+
   // Generate HTML
   const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, today);
 
