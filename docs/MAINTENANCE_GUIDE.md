@@ -95,8 +95,9 @@ curl -X POST -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.worker
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pre-market-briefing
 
 # Expected flow:
-# POST /api/v1/jobs/pre-market → D1 (scheduled_job_results) with AI model metadata
+# POST /api/v1/jobs/pre-market → D1 (scheduled_job_results) with AI model metadata (INSERT OR REPLACE per date/type)
 # GET /pre-market-briefing → DO cache (hit) else D1 fallback → warm DO
+# Re-run behavior: same-day rerun overwrites D1 row; first read after rerun warms DO with the new data; subsequent reads hit DO.
 
 # Check morning predictions accuracy
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/results
