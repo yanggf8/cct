@@ -325,6 +325,7 @@ Sunday (10:00 AM):  Weekly Review        → Pattern analysis
 - `src/modules/DO_CACHE_METRICS.ts` - DO cache metrics tracking (refactored)
 - `src/modules/pre-market-data-bridge.ts` - Pre-market data integration (300+ lines)
 - `src/modules/enhanced-dal.ts` - DAL with cache integration
+- `src/modules/market-drivers-replacement.ts` - Market drivers using DO-backed simplified DAL (legacy cache removed)
 - `src/modules/config.ts` - Centralized configuration
 
 **Routes:**
@@ -500,8 +501,17 @@ wrangler secret put FEATURE_FLAG_DO_CACHE
 - **Performance Focused**: Multi-level caching with intelligent management
 - **Type Safety**: TypeScript coverage for all modules
 
-### **Deployment Approval** ⚠️ **CRITICAL**
-**Always ask for user approval before deploying to production.** Present a summary of changes and wait for explicit confirmation before running `npm run deploy` or any wrangler deploy command.
+### **Deployment Approval** ⚠️ **CRITICAL - MANDATORY**
+**ALWAYS ask for user approval before deploying to production.**
+
+**Required workflow:**
+1. Complete all code changes
+2. Run `npm run build` to verify compilation
+3. Present a summary of changes to the user
+4. **WAIT for explicit user confirmation** (e.g., "deploy", "yes", "approved")
+5. Only then run deployment commands
+
+**DO NOT auto-deploy after build.** The user must explicitly approve each deployment.
 
 ### **Deploy Command** ⚠️ **DO NOT REMOVE - CRITICAL INSTRUCTION**
 ```bash

@@ -12,6 +12,8 @@
 import { createLogger } from './logging.js';
 import { RealEconomicIndicators, FREDDataIntegration, YahooFinanceIntegration } from './real-data-integration.js';
 import { mockGuard, requireRealData } from './mock-elimination-guards.js';
+import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
+import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('market-drivers-replacement');
 
@@ -195,56 +197,8 @@ class CircuitBreaker {
 }
 
 /**
- * Cache Manager with TTL and jitter
- */
-class CacheManager {
-  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
-  private readonly defaultTtlMs = 300000; // 5 minutes
-  private readonly jitterMs = 30000; // 30 seconds
-
-  set(key: string, data: any, ttlMs?: number): void {
-    const ttl = ttlMs || this.defaultTtlMs;
-    const jitter = Math.random() * this.jitterMs;
-    const effectiveTtl = ttl + jitter;
-
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl: effectiveTtl
-    });
-  }
-
-  get(key: string): any | null {
-    const item = this.cache.get(key);
-
-    if (!item) {
-      return null;
-    }
-
-    if (Date.now() - item.timestamp > item.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    return item.data;
-  }
-
-  clear(): void {
-    this.cache.clear();
-  }
-
-  cleanup(): void {
-    const now = Date.now();
-    for (const [key, item] of this.cache.entries()) {
-      if (now - item.timestamp > item.ttl) {
-        this.cache.delete(key);
-      }
-    }
-  }
-}
-
-/**
  * Production Market Drivers - Real Data Only
+ * Uses Durable Objects cache via simplified-enhanced-dal for persistence
  */
 export class ProductionMarketDrivers {
   private readonly fredIntegration: FREDDataIntegration;
@@ -252,15 +206,74 @@ export class ProductionMarketDrivers {
   private readonly deduplicator: RequestDeduplicator;
   private readonly fredCircuitBreaker: CircuitBreaker;
   private readonly yahooCircuitBreaker: CircuitBreaker;
-  private readonly cache: CacheManager;
+  private readonly env: CloudflareEnvironment | null;
+  private dal: ReturnType<typeof createSimplifiedEnhancedDAL> | null = null;
 
-  constructor(env?: { FRED_API_KEY?: string }) {
+  constructor(env?: CloudflareEnvironment) {
+    this.env = env || null;
     this.fredIntegration = new FREDDataIntegration({ apiKey: env?.FRED_API_KEY || '' });
     this.yahooFinance = new YahooFinanceIntegration();
     this.deduplicator = new RequestDeduplicator();
     this.fredCircuitBreaker = new CircuitBreaker();
     this.yahooCircuitBreaker = new CircuitBreaker();
-    this.cache = new CacheManager();
+
+    // Initialize DAL if env is provided
+    if (env) {
+      this.dal = createSimplifiedEnhancedDAL(env);
+    }
+  }
+
+  /**
+   * Get DAL instance (lazy initialization for requests with env)
+   */
+  private getDAL(env?: CloudflareEnvironment): ReturnType<typeof createSimplifiedEnhancedDAL> | null {
+    if (this.dal) return this.dal;
+    if (env) {
+      this.dal = createSimplifiedEnhancedDAL(env);
+      return this.dal;
+    }
+    return null;
+  }
+
+  /**
+   * Cache get using DO via DAL
+   */
+  private async cacheGet(key: string, env?: CloudflareEnvironment): Promise<any | null> {
+    const dal = this.getDAL(env);
+    if (!dal) {
+      logger.debug('No DAL available, cache miss', { key });
+      return null;
+    }
+
+    try {
+      const result = await dal.read(key);
+      if (result.success && result.data) {
+        logger.debug('DO cache hit', { key });
+        return result.data;
+      }
+      return null;
+    } catch (error) {
+      logger.warn('DO cache read error', { key, error: (error as Error).message });
+      return null;
+    }
+  }
+
+  /**
+   * Cache set using DO via DAL
+   */
+  private async cacheSet(key: string, data: any, ttlSeconds: number, env?: CloudflareEnvironment): Promise<void> {
+    const dal = this.getDAL(env);
+    if (!dal) {
+      logger.debug('No DAL available, skipping cache write', { key });
+      return;
+    }
+
+    try {
+      await dal.write(key, data, { expirationTtl: ttlSeconds });
+      logger.debug('DO cache write', { key, ttlSeconds });
+    } catch (error) {
+      logger.warn('DO cache write error', { key, error: (error as Error).message });
+    }
   }
 
   /**
@@ -296,14 +309,15 @@ export class ProductionMarketDrivers {
   }
 
   /**
-   * Fetch FRED series with deduplication and caching
+   * Fetch FRED series with deduplication and DO caching
    */
-  private async fetchFREDSeries(seriesId: string): Promise<DataSourceResult> {
-    const cacheKey = `fred:${seriesId}`;
+  private async fetchFREDSeries(seriesId: string, env?: CloudflareEnvironment): Promise<DataSourceResult> {
+    const cacheKey = `market_drivers_fred_${seriesId}`;
 
-    // Check cache first
-    const cached = this.cache.get(cacheKey);
+    // Check DO cache first
+    const cached = await this.cacheGet(cacheKey, env);
     if (cached) {
+      logger.debug('FRED cache hit from DO', { seriesId });
       return this.createDataSourceResult(cached, 'FRED', seriesId, 98);
     }
 
@@ -311,8 +325,8 @@ export class ProductionMarketDrivers {
       return this.fredCircuitBreaker.execute(async () => {
         const value = await this.fredIntegration.fetchSeries(seriesId);
 
-        // Cache the result
-        this.cache.set(cacheKey, value, 3600000); // 1 hour for FRED data
+        // Cache the result in DO (1 hour for FRED data)
+        await this.cacheSet(cacheKey, value, 3600, env);
 
         return this.createDataSourceResult(value, 'FRED', seriesId, 95);
       });
@@ -320,14 +334,15 @@ export class ProductionMarketDrivers {
   }
 
   /**
-   * Fetch market data with deduplication and caching
+   * Fetch market data with deduplication and DO caching
    */
-  private async fetchMarketData(symbols: string[]): Promise<DataSourceResult[]> {
-    const cacheKey = `market:${symbols.join(',')}`;
+  private async fetchMarketData(symbols: string[], env?: CloudflareEnvironment): Promise<DataSourceResult[]> {
+    const cacheKey = `market_drivers_market_${symbols.sort().join('_')}`;
 
-    // Check cache first
-    const cached = this.cache.get(cacheKey);
+    // Check DO cache first
+    const cached = await this.cacheGet(cacheKey, env);
     if (cached) {
+      logger.debug('Market data cache hit from DO', { symbols });
       return cached.map((data: any) =>
         this.createDataSourceResult(data.value, 'YahooFinance', data.symbol, 97)
       );
@@ -337,8 +352,8 @@ export class ProductionMarketDrivers {
       return this.yahooCircuitBreaker.execute(async () => {
         const marketData = await this.yahooFinance.fetchMarketData(symbols);
 
-        // Cache the result
-        this.cache.set(cacheKey, marketData, 300000); // 5 minutes for market data
+        // Cache the result in DO (5 minutes for market data)
+        await this.cacheSet(cacheKey, marketData, 300, env);
 
         return marketData.map(data =>
           this.createDataSourceResult(data.price, 'YahooFinance', data.symbol, 97)
@@ -349,9 +364,10 @@ export class ProductionMarketDrivers {
 
   /**
    * Get real macroeconomic drivers
+   * @param env Optional Cloudflare environment for DO cache access
    */
   @requireRealData('ProductionMarketDrivers.getMacroDrivers')
-  async getMacroDrivers(): Promise<MacroDrivers> {
+  async getMacroDrivers(env?: CloudflareEnvironment): Promise<MacroDrivers> {
     logger.info('Fetching real macroeconomic drivers from FRED');
 
     try {
@@ -370,7 +386,7 @@ export class ProductionMarketDrivers {
       ];
 
       const results = await Promise.all(
-        seriesIds.map(seriesId => this.fetchFREDSeries(seriesId))
+        seriesIds.map(seriesId => this.fetchFREDSeries(seriesId, env || this.env || undefined))
       );
 
       // Map results to indices
@@ -473,14 +489,16 @@ export class ProductionMarketDrivers {
 
   /**
    * Get real market structure
+   * @param env Optional Cloudflare environment for DO cache access
    */
   @requireRealData('ProductionMarketDrivers.getMarketStructure')
-  async getMarketStructure(): Promise<MarketStructure> {
+  async getMarketStructure(env?: CloudflareEnvironment): Promise<MarketStructure> {
     logger.info('Fetching real market structure indicators');
+    const effectiveEnv = env || this.env || undefined;
 
     try {
       // Fetch market data for key indicators
-      const marketData = await this.fetchMarketData(['^VIX', 'SPY', 'QQQ', 'DX-Y.NYB']); // DXY index
+      const marketData = await this.fetchMarketData(['^VIX', 'SPY', 'QQQ', 'DX-Y.NYB'], effectiveEnv); // DXY index
 
       // Find VIX data
       const vixData = marketData.find(data => data.seriesId === '^VIX');
@@ -489,8 +507,8 @@ export class ProductionMarketDrivers {
       }
 
       // Fetch 10-year Treasury from FRED
-      const treasury10Y = await this.fetchFREDSeries('DGS10');
-      const sofrRate = await this.fetchFREDSeries('SOFR');
+      const treasury10Y = await this.fetchFREDSeries('DGS10', effectiveEnv);
+      const sofrRate = await this.fetchFREDSeries('SOFR', effectiveEnv);
 
       // Find SPY data
       const spyData = marketData.find(data => data.seriesId === 'SPY');
@@ -557,9 +575,10 @@ export class ProductionMarketDrivers {
 
   /**
    * Get real geopolitical risk (placeholder - would integrate with news APIs)
+   * @param env Optional Cloudflare environment for DO cache access
    */
   @requireRealData('ProductionMarketDrivers.getGeopoliticalRisk')
-  async getGeopoliticalRisk(): Promise<GeopoliticalRisk> {
+  async getGeopoliticalRisk(env?: CloudflareEnvironment): Promise<GeopoliticalRisk> {
     logger.info('Assessing real geopolitical risk indicators');
 
     // TODO: Integrate with real news APIs (Reuters, Bloomberg, etc.)
