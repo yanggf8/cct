@@ -47,13 +47,59 @@ interface ModernSentimentData {
 }
 
 /**
+ * Write symbol prediction to D1 (success or failure)
+ */
+async function writeSymbolPredictionToD1(
+  env: CloudflareEnvironment,
+  symbol: string,
+  date: string,
+  data: {
+    status: 'success' | 'failed' | 'skipped';
+    sentiment?: string;
+    confidence?: number;
+    direction?: string;
+    model?: string;
+    error_message?: string;
+    news_source?: string;
+    articles_count?: number;
+    raw_response?: any;
+  }
+): Promise<void> {
+  if (!env.PREDICT_JOBS_DB) return;
+  
+  try {
+    await env.PREDICT_JOBS_DB.prepare(`
+      INSERT OR REPLACE INTO symbol_predictions 
+      (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(
+      symbol,
+      date,
+      data.sentiment || null,
+      data.confidence || null,
+      data.direction || null,
+      data.model || null,
+      data.status,
+      data.error_message || null,
+      data.news_source || null,
+      data.articles_count || 0,
+      data.raw_response ? JSON.stringify(data.raw_response) : null
+    ).run();
+  } catch (e) {
+    logger.warn(`Failed to write symbol prediction to D1: ${symbol}`, { error: e });
+  }
+}
+
+/**
  * Pre-Market Data Bridge
  * Transforms modern sentiment data into legacy format for pre-market reporting
  */
 export class PreMarketDataBridge {
   private dal: ReturnType<typeof createSimplifiedEnhancedDAL>;
+  private env: CloudflareEnvironment;
 
   constructor(env: CloudflareEnvironment) {
+    this.env = env;
     this.dal = createSimplifiedEnhancedDAL(env, {
       enableCache: true,
       environment: env.ENVIRONMENT || 'production'
@@ -66,10 +112,10 @@ export class PreMarketDataBridge {
    */
   async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']): Promise<AnalysisData> {
     logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols });
+    const today = new Date().toISOString().split('T')[0];
 
     try {
       const trading_signals: Record<string, TradingSignal> = {};
-      const today = new Date().toISOString().split('T')[0];
 
       // Get sentiment data for each symbol
       for (const symbol of symbols) {
@@ -86,13 +132,39 @@ export class PreMarketDataBridge {
               }]
             };
 
+            // Write success to D1
+            await writeSymbolPredictionToD1(this.env, symbol, today, {
+              status: 'success',
+              sentiment: sentimentData.sentiment,
+              confidence: sentimentData.confidence,
+              direction: sentimentData.sentiment,
+              articles_count: sentimentData.articles_analyzed,
+              news_source: 'dac_pool'
+            });
+
             logger.debug(`Generated signal for ${symbol}`, {
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence
             });
+          } else {
+            // Write skipped (low confidence) to D1
+            await writeSymbolPredictionToD1(this.env, symbol, today, {
+              status: 'skipped',
+              confidence: sentimentData?.confidence,
+              error_message: sentimentData ? `Low confidence: ${sentimentData.confidence}` : 'No sentiment data returned',
+              raw_response: sentimentData
+            });
           }
         } catch (error: unknown) {
-          logger.warn(`Failed to get sentiment for ${symbol}`, { error, symbol });
+          const errMsg = error instanceof Error ? error.message : String(error);
+          logger.warn(`Failed to get sentiment for ${symbol}`, { error: errMsg, symbol });
+          
+          // Write failure to D1
+          await writeSymbolPredictionToD1(this.env, symbol, today, {
+            status: 'failed',
+            error_message: errMsg,
+            raw_response: { error: errMsg, stack: error instanceof Error ? error.stack : undefined }
+          });
         }
       }
 
