@@ -189,7 +189,7 @@ Not scheduled:
 - System status: `/system-status` (HTML) backed by `/api/v1/data/system-status` returns API/cache/D1/jobs/model health; refreshes every 30s.
 - AI model policy: use `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B) for GPT-class inference; do not use deprecated `@cf/openchat/openchat-3.5-0106`.
 - AI response parsing: Gemma returns OpenAI-compatible format (`choices[0].message.content`); DistilBERT returns array sorted by label (use highest score, not first item).
-- AI failure handling: return `status: 'failed', confidence: null` - no fake fallback data. Failed signals excluded from averages.
+- AI failure handling: return `status: 'failed', confidence: null` - no fake fallback data. Failed signals excluded from averages. Prompts now require numeric `confidence` in JSON; parser falls back to regex and high/medium/low mapping if needed.
 - AI rate limiting: symbols processed sequentially with 2-3s delays; auto-retry with 5s/10s/15s backoff on rate limit errors.
 - D1 records include `source_models[]` array tracking which AI models contributed to each signal result.
 - Reports should display real accuracy as soon as a job completes and data is available (no placeholders once D1/DO has results).

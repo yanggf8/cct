@@ -295,14 +295,17 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
       .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
       .join('\n\n');
 
-    const prompt = `As a financial analyst specializing in ${symbol}, analyze these news articles and provide:
+    const prompt = `As a financial analyst specializing in ${symbol}, analyze these news articles and respond in this exact JSON format:
 
-1. Overall sentiment (bullish/bearish/neutral)
-2. Confidence level (0-100%)
-3. Key reasons for this sentiment
-4. Short-term trading implications
+{
+  "sentiment": "bullish" | "bearish" | "neutral",
+  "confidence": 0.XX,  // decimal between 0.0 and 1.0, REQUIRED
+  "reasoning": "brief explanation"
+}
 
-${newsContext}`;
+${newsContext}
+
+Respond ONLY with valid JSON, no other text.`;
 
     // Add circuit breaker, timeout protection and retry logic
     const circuitBreaker = getAICircuitBreakers().gpt;

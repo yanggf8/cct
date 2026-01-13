@@ -31,11 +31,33 @@ interface ModelPricing {
 /**
  * Parse natural language response from AI models (GPT, Llama, etc.)
  * Extracts sentiment, confidence, and reasoning from unstructured text
+ * Supports both JSON format and legacy natural language format
  */
 export function parseNaturalLanguageResponse(content: string): ParsedSentimentResponse {
-  const lowerContent = content.toLowerCase();
+  // Try JSON parsing first (new format with numeric confidence)
+  try {
+    // Find JSON object in response
+    const jsonMatch = content.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.sentiment && typeof parsed.confidence === 'number') {
+        return {
+          sentiment: parsed.sentiment.toLowerCase(),
+          confidence: Math.max(0, Math.min(1, parsed.confidence)), // Clamp to 0-1
+          price_impact: 'medium',
+          reasoning: parsed.reasoning || content.replace(/\n+/g, ' ').substring(0, 200) + '...',
+          time_horizon: 'days',
+          key_factors: [],
+          market_context: 'Parsed from AI JSON response'
+        };
+      }
+    }
+  } catch {
+    // JSON parsing failed, fall through to regex parsing
+  }
 
-  // Extract sentiment
+  // Fallback: Extract sentiment from natural language
+  const lowerContent = content.toLowerCase();
   let sentiment = 'neutral';
   if (lowerContent.includes('bullish') || lowerContent.includes('positive') || lowerContent.includes('optimistic')) {
     sentiment = 'bullish';
@@ -44,7 +66,7 @@ export function parseNaturalLanguageResponse(content: string): ParsedSentimentRe
   }
 
   // Extract confidence (look for numbers between 0 and 1)
-  let confidence = 0.6; // default
+  let confidence = 0.6; // default fallback
   const confidenceMatch = content.match(/confidence\s*level[:\s]*([0-9]*\.?[0-9]+)/i) ||
                           content.match(/confidence[:\s]*([0-9]*\.?[0-9]+)/i);
   if (confidenceMatch) {
@@ -53,6 +75,15 @@ export function parseNaturalLanguageResponse(content: string): ParsedSentimentRe
       confidence = confValue;
     } else if (confValue <= 100) {
       confidence = confValue / 100; // Convert percentage
+    }
+  }
+
+  // Handle text-based confidence levels
+  if (confidence === 0.6) {
+    const textMatch = content.match(/confidence[:\s]*(high|medium|low)/i);
+    if (textMatch) {
+      const level = textMatch[1].toLowerCase();
+      confidence = level === 'high' ? 0.8 : level === 'medium' ? 0.5 : 0.3;
     }
   }
 
