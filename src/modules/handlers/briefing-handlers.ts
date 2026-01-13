@@ -80,7 +80,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
         const isStale = rawData.analysis.is_stale === true;
         const sourceDate = rawData.analysis.source_date || dateStr;
         
-        // Extract signals from either 'signals' or 'sentiment_signals' (D1 format)
+        // Extract signals from 'signals', 'sentiment_signals', or 'trading_signals' (job format)
         let signals = rawData.analysis.signals || [];
         if ((!signals || signals.length === 0) && rawData.analysis.sentiment_signals) {
           signals = Object.values(rawData.analysis.sentiment_signals).map((s: any) => ({
@@ -91,6 +91,18 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
             reasoning: s.sentiment_analysis?.reasoning || '',
             signal_strength: s.sentiment_analysis?.dual_ai_comparison?.signal_strength || 'MODERATE',
             timestamp: s.timestamp
+          }));
+        }
+        // Handle trading_signals format from jobs endpoint
+        if ((!signals || signals.length === 0) && rawData.analysis.trading_signals) {
+          signals = Object.values(rawData.analysis.trading_signals).map((s: any) => ({
+            symbol: s.symbol,
+            direction: s.sentiment_layers?.[0]?.sentiment || 'neutral',
+            sentiment: s.sentiment_layers?.[0]?.sentiment || 'neutral',
+            confidence: s.sentiment_layers?.[0]?.confidence || 0,
+            reasoning: s.sentiment_layers?.[0]?.reasoning || '',
+            signal_strength: 'MODERATE',
+            timestamp: rawData.analysis.generated_at || rawData.analysis.timestamp
           }));
         }
         

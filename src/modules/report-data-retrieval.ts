@@ -219,17 +219,42 @@ export class ReportDataRetrieval {
       // D1 fallback chain if cache miss
       if (!analysisResult.data) {
         logger.info('DO cache miss, trying D1 fallback', { key: analysisKey, date: dateStr });
-        const fallback = await getD1FallbackData(env, dateStr, 'analysis');
-        
+
+        // Try 'pre-market' report type first (from jobs endpoint), then 'analysis' (legacy)
+        let fallback = await getD1FallbackData(env, dateStr, 'pre-market');
+        if (!fallback) {
+          fallback = await getD1FallbackData(env, dateStr, 'analysis');
+        }
+
         if (fallback) {
+          // Transform pre-market job data to analysis format if needed
+          let fallbackData = fallback.data;
+          if (fallbackData.trading_signals && !fallbackData.signals) {
+            // Convert trading_signals to signals format expected by briefing
+            fallbackData = {
+              ...fallbackData,
+              signals: Object.values(fallbackData.trading_signals).map((s: any) => ({
+                symbol: s.symbol,
+                direction: s.sentiment_layers?.[0]?.sentiment || 'neutral',
+                sentiment: s.sentiment_layers?.[0]?.sentiment || 'neutral',
+                confidence: s.sentiment_layers?.[0]?.confidence || 0,
+                reasoning: s.sentiment_layers?.[0]?.reasoning || '',
+                signal_strength: 'MODERATE',
+                timestamp: fallbackData.generated_at || fallbackData.timestamp
+              })),
+              sentiment_signals: fallbackData.trading_signals,
+              source: fallback.source
+            };
+          }
+
           // Only cache to today's key if data is fresh (not stale)
           if (!fallback.isStale) {
-            await dal.write(analysisKey, fallback.data, { expirationTtl: 86400 });
+            await dal.write(analysisKey, fallbackData, { expirationTtl: 86400 });
             logger.info('D1 fallback success, warmed DO cache', { source: fallback.source, date: dateStr });
           } else {
             logger.info('D1 fallback using stale data (not cached)', { source: fallback.source, sourceDate: fallback.sourceDate });
           }
-          analysisResult = { success: true, data: fallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
+          analysisResult = { success: true, data: fallbackData, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
         }
       }
 
