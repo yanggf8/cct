@@ -659,7 +659,7 @@ function generatePreMarketHTML(
 
         <!-- Signals Section -->
         <div class="signals-section">
-            <h2>🎯 High-Confidence Signals</h2>
+            <h2>🎯 All Signals</h2>
             <div class="signal-grid">
                 ${generateSignalCards(briefingData.signals || [])}
             </div>
@@ -815,7 +815,7 @@ function generateMarketOverview(marketData: any): string {
  */
 function generateSignalCards(signals: any[]): string {
   if (!signals || signals.length === 0) {
-    return '<div style="text-align: center; opacity: 0.7;">No high-confidence signals available yet</div>';
+    return '<div style="text-align: center; opacity: 0.7;">No signals available yet</div>';
   }
 
   return signals.slice(0, 6).map(signal => {
