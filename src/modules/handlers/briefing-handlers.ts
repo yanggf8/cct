@@ -206,7 +206,7 @@ function generatePreMarketHTML(
   if (hasRealData) {
     statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 8:30 AM ET (<span class="local-time" data-et="8:30 AM"></span>)`;
+    statusDisplay = `⏳ Scheduled: 8:30 AM ET (<span class="local-time" data-utch="13" data-utcm="30"></span>)`;
   } else {
     statusDisplay = `⚠️ No data available`;
   }
@@ -592,7 +592,7 @@ function generatePreMarketHTML(
         ${!hasRealData ? `
         <div class="no-data">
             <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at 8:30 AM ET (<span class="local-time" data-et="8:30 AM"></span>).` : 'There is no pre-market data available for this date.'}</p>
+            <p>${beforeSchedule ? `This report will be generated at 8:30 AM ET (<span class="local-time" data-utch="13" data-utcm="30"></span>).` : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
@@ -673,10 +673,13 @@ function generatePreMarketHTML(
     ` : ''}
     <script>
       document.querySelectorAll('.local-time').forEach(el => {
-        const et = el.dataset.et;
-        const dateStr = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et;
-        const etDate = new Date(dateStr + ' EST');
-        el.textContent = etDate.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+        const utcH = parseInt(el.dataset.utch);
+        const utcM = parseInt(el.dataset.utcm || '0');
+        // Use today's date with ET timezone to handle DST correctly
+        const todayET = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+        const etString = `${todayET} ${utcH.toString().padStart(2, '0')}:${utcM.toString().padStart(2, '0')}`;
+        const etDate = new Date(etString + ' America/New_York');
+        el.textContent = etDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' local';
       });
     </script>
 </body>

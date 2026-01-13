@@ -1,8 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta http-equiv="refresh" content="0;url=/dashboard.html">
+  <meta charset="UTF-8">
+  <title>Redirecting...</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script>
+    // Redirect to dashboard unless we are already there to avoid loops
+    if (window.location.pathname !== '/dashboard.html') {
+      window.location.replace('/dashboard.html');
+    }
+  </script>
 </head>
-<body></body>
+<body>
+  <p>Redirecting to <a href="/dashboard.html">Dashboard</a>...</p>
+</body>
 </html>

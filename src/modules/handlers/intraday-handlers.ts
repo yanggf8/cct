@@ -237,7 +237,7 @@ export const handleIntradayCheck = createHandler(
         const intradayScheduledHour = 12; // 12:00 PM ET
         const beforeSchedule = currentHourET < intradayScheduledHour;
         const scheduleInfo = beforeSchedule 
-          ? `Scheduled: 12:00 PM ET (<span class="local-time" data-et="12:00"></span>)`
+          ? `Scheduled: 12:00 PM ET (<span class="local-time" data-utch="17" data-utcm="0"></span>)`
           : 'Job should have run - check execution';
 
         intradayData = {
@@ -283,7 +283,7 @@ export const handleIntradayCheck = createHandler(
       intradayData = {
         modelHealth: {
           status: beforeSchedule ? 'scheduled' : 'off-track',
-          display: beforeSchedule ? `⏳ Scheduled: 12:00 PM ET (<span class="local-time" data-et="12:00"></span>)` : '❌ No data (job missing/failed)',
+          display: beforeSchedule ? `⏳ Scheduled: 12:00 PM ET (<span class="local-time" data-utch="17" data-utcm="0"></span>)` : '❌ No data (job missing/failed)',
           accuracy: undefined
         },
         liveAccuracy: 0,
@@ -372,7 +372,7 @@ async function generateIntradayCheckHTML(
     const generatedTime = new Date(formattedData.generatedAt);
     statusDisplay = generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' ET';
   } else if (beforeSchedule) {
-    statusDisplay = `⏳ Scheduled: 12:00 PM ET (<span class="local-time" data-et="12:00"></span>)`;
+    statusDisplay = `⏳ Scheduled: 12:00 PM ET (<span class="local-time" data-utch="17" data-utcm="0"></span>)`;
   } else {
     statusDisplay = '⚠️ No data available';
   }
@@ -797,10 +797,10 @@ async function generateIntradayCheckHTML(
     </div>
     <script>
       document.querySelectorAll('.local-time').forEach(el => {
-        const et = el.dataset.et;
-        const dateStr = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et;
-        const etDate = new Date(dateStr + ' EST');
-        el.textContent = etDate.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+        const utcH = parseInt(el.dataset.utch);
+        const utcM = parseInt(el.dataset.utcm || '0');
+        const utcDate = new Date(Date.UTC(2024, 0, 1, utcH, utcM));
+        el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true}) + ' local';
       });
     </script>
 </body>

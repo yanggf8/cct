@@ -88,6 +88,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **4-Moment Workflow**: Pre-Market → Intraday → End-of-Day → Weekly Review
 - **Real-Time Data**: Yahoo Finance + Federal Reserve (FRED) integration with rate limiting
 - **Production Market Indicators**: Real SOFR, VIX percentiles, Treasury yields
+- **Local Time Display**: Report schedules show both ET and user's local timezone (browser-based conversion)
 - **Notifications**: Chrome browser notifications
 - **Scheduling**: GitHub Actions (100% free, unlimited)
 - **Cost**: $0/month (Cloudflare + GitHub)
