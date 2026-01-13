@@ -195,9 +195,13 @@ export const handleIntradayCheck = createHandler(
 
     // Skip dependency validation and job status for page views - just get data
     let intradayData: IntradayPerformanceData | null = null;
+    let hasRealJobData = false;
     try {
       const intradayCheckData = await getIntradayCheckData(env, today);
-      if (intradayCheckData) {
+      // Check if job actually ran (has predictions)
+      hasRealJobData = !!(intradayCheckData?.morningPredictions?.predictions?.length);
+      
+      if (intradayCheckData && hasRealJobData) {
         const ps = intradayCheckData.performanceSummary;
         const rawAccuracy = ps?.averageAccuracy;
         const hasAccuracy = typeof rawAccuracy === 'number' && rawAccuracy > 0;
@@ -275,8 +279,8 @@ export const handleIntradayCheck = createHandler(
       logger.error('❌ [INTRADAY] Failed to retrieve data', { requestId, error: (error as Error).message });
     }
 
-    // If no data, show pending page
-    if (!intradayData || intradayData.totalSignals === 0) {
+    // If no real data (no predictions from job), show pending page
+    if (!hasRealJobData) {
       const pendingPage = generatePendingPageHTML({
         title: 'Intraday Performance Check',
         reportType: 'intraday',
