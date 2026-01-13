@@ -674,8 +674,9 @@ function generatePreMarketHTML(
     <script>
       document.querySelectorAll('.local-time').forEach(el => {
         const et = el.dataset.et;
-        const d = new Date(new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et);
-        el.textContent = d.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
+        const dateStr = new Date().toLocaleDateString('en-US', {timeZone: 'America/New_York'}) + ' ' + et;
+        const etDate = new Date(dateStr + ' EST');
+        el.textContent = etDate.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + ' local';
       });
     </script>
 </body>
