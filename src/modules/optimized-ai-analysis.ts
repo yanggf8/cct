@@ -251,7 +251,7 @@ Confidence: [0-100]
 Key factors: [brief list of main drivers]
 Short-term outlook: [1-2 sentences]`;
 
-      const response = await this.env.AI.run('@cf/openchat/openchat-3.5-0106', {
+      const response = await this.env.AI.run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: 300 // Reduced token count

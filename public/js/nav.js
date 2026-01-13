@@ -18,7 +18,7 @@
             </div>
 
             <div class="nav-group">
-                <div class="nav-group-title">Reports</div>
+                <div class="nav-group-title">Today's Reports</div>
                 <a href="/pre-market-briefing" class="nav-item" data-page="pre-market">
                     <span class="nav-icon">🌅</span>
                     <span class="nav-text">Pre-Market</span>
@@ -31,9 +31,29 @@
                     <span class="nav-icon">🌆</span>
                     <span class="nav-text">End-of-Day</span>
                 </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">Yesterday's Reports</div>
+                <a href="/pre-market-briefing?date=yesterday" class="nav-item" data-page="pre-market-yesterday">
+                    <span class="nav-icon">🌅</span>
+                    <span class="nav-text">Pre-Market</span>
+                </a>
+                <a href="/intraday-check?date=yesterday" class="nav-item" data-page="intraday-yesterday">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Intraday</span>
+                </a>
+                <a href="/end-of-day-summary?date=yesterday" class="nav-item" data-page="end-of-day-yesterday">
+                    <span class="nav-icon">🌆</span>
+                    <span class="nav-text">End-of-Day</span>
+                </a>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">Weekly</div>
                 <a href="/weekly-review" class="nav-item" data-page="weekly">
                     <span class="nav-icon">📋</span>
-                    <span class="nav-text">Weekly</span>
+                    <span class="nav-text">Weekly Review</span>
                 </a>
             </div>
 

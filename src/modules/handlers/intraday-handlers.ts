@@ -156,10 +156,18 @@ export const handleIntradayCheck = createHandler(
   async (request: Request, env: CloudflareEnvironment): Promise<Response> => {
     const requestId: string = crypto.randomUUID();
     const startTime: number = Date.now();
-    const today: Date = new Date();
-    const dateStr: string = today.toISOString().split('T')[0];
     const url = new URL(request.url);
     const bypassCache = url.searchParams.get('bypass') === '1';
+    
+    // Support ?date=yesterday or ?date=YYYY-MM-DD
+    const dateParam = url.searchParams.get('date');
+    let today: Date = new Date();
+    if (dateParam === 'yesterday') {
+      today.setDate(today.getDate() - 1);
+    } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      today = new Date(dateParam + 'T12:00:00Z');
+    }
+    const dateStr: string = today.toISOString().split('T')[0];
 
     // Fast path: check DO cache first (unless bypass requested)
     if (!bypassCache) {
@@ -309,7 +317,12 @@ export const handleIntradayCheck = createHandler(
     // Write to D1 as source of truth
     if (intradayData) {
       try {
-        await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData);
+        await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData, {
+          ai_models: {
+            primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+            secondary: '@cf/huggingface/distilbert-sst-2-int8'
+          }
+        });
       } catch (e) { /* ignore D1 write errors */ }
     }
 

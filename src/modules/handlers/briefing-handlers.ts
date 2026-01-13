@@ -22,10 +22,18 @@ const logger = createLogger('briefing-handlers');
 export const handlePreMarketBriefing = createHandler('pre-market-briefing', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-  const today = new Date();
-  const dateStr = today.toISOString().split('T')[0];
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
+  
+  // Support ?date=yesterday or ?date=YYYY-MM-DD
+  const dateParam = url.searchParams.get('date');
+  let targetDate = new Date();
+  if (dateParam === 'yesterday') {
+    targetDate.setDate(targetDate.getDate() - 1);
+  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    targetDate = new Date(dateParam + 'T12:00:00Z');
+  }
+  const dateStr = targetDate.toISOString().split('T')[0];
 
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', {
     requestId,
@@ -63,7 +71,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     let briefingData: any = null;
 
     try {
-      const rawData = await getPreMarketBriefingData(env, today);
+      const rawData = await getPreMarketBriefingData(env, targetDate);
 
       // Transform data structure: extract signals from analysis
       if (rawData && rawData.analysis) {
@@ -78,20 +86,28 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
             symbol: s.symbol,
             direction: s.sentiment_analysis?.sentiment || 'neutral',
             sentiment: s.sentiment_analysis?.sentiment || 'neutral',
-            confidence: s.sentiment_analysis?.confidence || 0,
+            confidence: s.sentiment_analysis?.confidence, // Keep null/undefined for failed
             reasoning: s.sentiment_analysis?.reasoning || '',
             signal_strength: s.sentiment_analysis?.dual_ai_comparison?.signal_strength || 'MODERATE',
             timestamp: s.timestamp
           }));
         }
         
+        // Validated signals = have real confidence data (not null/undefined)
+        const validatedSignals = signals.filter((s: any) => typeof s.confidence === 'number' && s.confidence > 0);
+        // High confidence signals = confidence >= 60%
+        const highConfidenceSignals = validatedSignals.filter((s: any) => s.confidence >= 0.6);
+        const avgConfidence = validatedSignals.length > 0
+          ? validatedSignals.reduce((sum: number, s: any) => sum + s.confidence, 0) / validatedSignals.length
+          : 0;
+
         briefingData = {
           ...rawData,
           signals,
           totalSignals: signals.length,
-          avgConfidence: signals.length > 0 
-            ? signals.reduce((sum: number, s: any) => sum + (s.confidence || 0), 0) / signals.length 
-            : 0,
+          validatedSignals: validatedSignals.length,
+          highConfidenceSignals: highConfidenceSignals.length,
+          avgConfidence,
           marketSentiment: rawData.analysis.market_sentiment?.overall_sentiment || 'NEUTRAL',
           isPartialFallback,
           isStale,
@@ -101,6 +117,9 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
         logger.info('✅ [PRE-MARKET] Pre-market data found', {
           requestId,
           signalsCount: briefingData.signals?.length || 0,
+          validatedSignals: briefingData.validatedSignals || 0,
+          highConfidenceSignals: briefingData.highConfidenceSignals || 0,
+          avgConfidence: Math.round((briefingData.avgConfidence || 0) * 100) + '%',
           hasAnalysis: true,
           isPartialFallback,
           isStale,
@@ -125,7 +144,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
         
         // Try to fetch data again after generation
         try {
-          briefingData = await getPreMarketBriefingData(env, today);
+          briefingData = await getPreMarketBriefingData(env, targetDate);
           if (!briefingData) {
             logger.warn('⚠️ [PRE-MARKET] Still no data after generation', { requestId });
             const partialBriefing = generatePartialBriefing(dateStr, 0);
@@ -161,7 +180,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     logger.debug('✅ [PRE-MARKET] Data available, generating briefing', { requestId });
 
     // Generate comprehensive pre-market HTML
-    const htmlContent = generatePreMarketHTML(briefingData, requestId, today);
+    const htmlContent = generatePreMarketHTML(briefingData, requestId, targetDate);
 
     // Cache HTML for fast subsequent loads
     try {
@@ -603,14 +622,23 @@ function generatePreMarketHTML(
         <!-- Summary Cards -->
         <div class="summary-grid">
             <div class="summary-card">
-                <h3>Active Signals</h3>
-                <div class="value">${briefingData.totalSignals || 0}</div>
-                <div class="label">High-confidence predictions</div>
+                <h3>High Confidence</h3>
+                <div class="value">${briefingData.highConfidenceSignals}/${briefingData.totalSignals}</div>
+                <div class="label">Signals ≥60% confidence</div>
+            </div>
+            <div class="summary-card">
+                <h3>Validated</h3>
+                <div class="value">${briefingData.validatedSignals}/${briefingData.totalSignals}</div>
+                <div class="label">With real AI data</div>
             </div>
             <div class="summary-card">
                 <h3>Avg Confidence</h3>
-                <div class="value">${briefingData.avgConfidence ? Math.round(briefingData.avgConfidence * 100) + '%' : 'N/A'}</div>
-                <div class="label">Prediction confidence</div>
+                <div class="value">${briefingData.validatedSignals > 0
+                  ? Math.round(briefingData.avgConfidence * 100) + '%'
+                  : 'N/A'}</div>
+                <div class="label">${briefingData.validatedSignals > 0
+                  ? 'From validated signals'
+                  : 'No validated signals'}</div>
             </div>
             <div class="summary-card">
                 <h3>Market Sentiment</h3>

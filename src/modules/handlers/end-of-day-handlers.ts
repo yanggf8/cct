@@ -20,10 +20,18 @@ const logger = createLogger('end-of-day-handlers');
 export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
   const requestId = crypto.randomUUID();
   const startTime = Date.now();
-  const today = new Date();
-  const dateStr = today.toISOString().split('T')[0];
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
+  
+  // Support ?date=yesterday or ?date=YYYY-MM-DD
+  const dateParam = url.searchParams.get('date');
+  let today = new Date();
+  if (dateParam === 'yesterday') {
+    today.setDate(today.getDate() - 1);
+  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    today = new Date(dateParam + 'T12:00:00Z');
+  }
+  const dateStr = today.toISOString().split('T')[0];
 
   // Fast path: check DO cache first (unless bypass)
   if (!bypassCache) {
@@ -82,7 +90,11 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   if (endOfDayData) {
     await writeD1ReportSnapshot(env, dateStr, 'end-of-day', endOfDayData, {
       processingTimeMs: Date.now() - startTime,
-      hasTomorrowOutlook: !!endOfDayData.tomorrowOutlook
+      hasTomorrowOutlook: !!endOfDayData.tomorrowOutlook,
+      ai_models: {
+        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+        secondary: '@cf/huggingface/distilbert-sst-2-int8'
+      }
     });
     await dal.write(`end_of_day_${dateStr}`, endOfDayData, { expirationTtl: 86400 });
   }

@@ -177,7 +177,11 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
     const d1Written = await writeD1ReportSnapshot(env, dateStr, 'analysis', analysis, {
       symbols_processed: analysis.symbols_analyzed?.length || 0,
       execution_time_ms: analysis.execution_metrics?.total_time_ms || 0,
-      trigger: 'manual_analysis'
+      trigger: 'manual_analysis',
+      ai_models: {
+        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+        secondary: '@cf/huggingface/distilbert-sst-2-int8'
+      }
     });
     logger.info('D1 report snapshot write', { success: d1Written, dateStr, reportType: 'analysis' });
 

@@ -96,6 +96,16 @@ export async function handleDataRoutes(
       return await handleSystemStatus(request, env, headers, requestId);
     }
 
+    // POST /api/v1/data/ai-compare - Compare AI model outputs
+    if (path === '/api/v1/data/ai-compare' && method === 'POST') {
+      return await handleAICompare(request, env, headers, requestId);
+    }
+
+    // POST /api/v1/data/migrate-5pct-to-failed - Migrate legacy 5% confidence to failed status
+    if (path === '/api/v1/data/migrate-5pct-to-failed' && method === 'POST') {
+      return await handleMigrate5PctToFailed(request, env, headers, requestId);
+    }
+
     // GET /api/v1/data/money-flow-pool - Money Flow Pool health check
     if (path === '/api/v1/data/money-flow-pool' && method === 'GET') {
       return await handleMoneyFlowPoolHealth(request, env, headers, requestId);
@@ -539,22 +549,22 @@ async function handleSystemStatus(
     } catch (e) { /* ignore - cache DO may not be available */ }
 
     // AI model status - real inference tests
-    const models: { gpt: { status: string; responseTime?: number; error?: string }; distilbert: { status: string; responseTime?: number } } = {
-      gpt: { status: 'checking' },
+    const models: { gemmaSeaLion: { status: string; responseTime?: number }; distilbert: { status: string; responseTime?: number } } = {
+      gemmaSeaLion: { status: 'checking' },
       distilbert: { status: 'checking' }
     };
     try {
       if (env.AI) {
-        // Test GPT model (using Gemma Sea Lion)
+        // Test Gemma Sea Lion model
         try {
           const gptStart = Date.now();
           await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
             messages: [{ role: 'user', content: 'Hi' }],
             max_tokens: 5
           });
-          models.gpt = { status: 'healthy', responseTime: Date.now() - gptStart };
+          models.gemmaSeaLion = { status: 'healthy', responseTime: Date.now() - gptStart };
         } catch (e: any) {
-          models.gpt = { status: 'unhealthy' };
+          models.gemmaSeaLion = { status: 'unhealthy' };
         }
         // Test DistilBERT model
         try {
@@ -565,11 +575,11 @@ async function handleSystemStatus(
           models.distilbert = { status: 'unhealthy' };
         }
       } else {
-        models.gpt = { status: 'unavailable' };
+        models.gemmaSeaLion = { status: 'unavailable' };
         models.distilbert = { status: 'unavailable' };
       }
     } catch (e) {
-      models.gpt = { status: 'error' };
+      models.gemmaSeaLion = { status: 'error' };
       models.distilbert = { status: 'error' };
     }
 
@@ -685,9 +695,9 @@ async function handleModelHealth(
     const response = {
       timestamp: new Date().toISOString(),
       models: {
-        gpt_oss_120b: {
+        gemma_sea_lion: {
           status: gptHealthy.status,
-          model: '@cf/openchat/openchat-3.5-0106',
+          model: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
           response_time_ms: gptHealthy.responseTime
         },
         distilbert: {
@@ -1617,5 +1627,194 @@ async function handleMoneyFlowPoolHealth(
         headers,
       }
     );
+  }
+}
+
+
+/**
+ * Migrate legacy 5% confidence values to failed status
+ * POST /api/v1/data/migrate-5pct-to-failed
+ */
+async function handleMigrate5PctToFailed(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  // Require API key for this admin operation
+  const validation = validateApiKey(request, env);
+  if (!validation.valid) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+      { status: HttpStatus.UNAUTHORIZED, headers }
+    );
+  }
+
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('D1 database not available', 'DB_UNAVAILABLE', { requestId })),
+      { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+    );
+  }
+
+  try {
+    // Get all analysis records
+    const records = await db.prepare(
+      "SELECT id, execution_date, report_type, report_content FROM scheduled_job_results WHERE report_type = 'analysis'"
+    ).all();
+
+    let migratedCount = 0;
+    let totalSignals = 0;
+
+    for (const row of records.results || []) {
+      try {
+        const content = JSON.parse(row.report_content as string);
+        let modified = false;
+
+        // Check sentiment_signals object
+        if (content.sentiment_signals) {
+          for (const symbol of Object.keys(content.sentiment_signals)) {
+            const signal = content.sentiment_signals[symbol];
+            const conf = signal?.sentiment_analysis?.confidence;
+            
+            // Check for 5% confidence (0.04 to 0.06 range)
+            if (typeof conf === 'number' && conf >= 0.04 && conf <= 0.06) {
+              signal.sentiment_analysis.confidence = null;
+              signal.sentiment_analysis.status = 'failed';
+              signal.sentiment_analysis.failure_reason = 'legacy_fallback_data';
+              modified = true;
+              migratedCount++;
+            }
+            totalSignals++;
+          }
+        }
+
+        // Check signals array
+        if (Array.isArray(content.signals)) {
+          for (const signal of content.signals) {
+            const conf = signal?.confidence;
+            if (typeof conf === 'number' && conf >= 0.04 && conf <= 0.06) {
+              signal.confidence = null;
+              signal.status = 'failed';
+              signal.failure_reason = 'legacy_fallback_data';
+              modified = true;
+              migratedCount++;
+            }
+            totalSignals++;
+          }
+        }
+
+        if (modified) {
+          await db.prepare(
+            "UPDATE scheduled_job_results SET report_content = ? WHERE id = ?"
+          ).bind(JSON.stringify(content), row.id).run();
+        }
+      } catch (parseError) {
+        logger.warn('Failed to parse record', { id: row.id, error: String(parseError) });
+      }
+    }
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({
+        migrated: migratedCount,
+        totalSignals,
+        recordsProcessed: records.results?.length || 0,
+        timestamp: new Date().toISOString()
+      }, { message: `Migrated ${migratedCount} signals from 5% fallback to failed status` })),
+      { status: HttpStatus.OK, headers }
+    );
+
+  } catch (error) {
+    logger.error('Migration failed', { requestId, error: String(error) });
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Migration failed', 'MIGRATION_ERROR', { requestId, error: String(error) })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
+  }
+}
+
+
+/**
+ * Compare AI model outputs with same input
+ * POST /api/v1/data/ai-compare
+ */
+async function handleAICompare(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const validation = validateApiKey(request, env);
+  if (!validation.valid) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+      { status: HttpStatus.UNAUTHORIZED, headers }
+    );
+  }
+
+  try {
+    const body = await request.json() as { news?: string };
+    const newsText = body.news || 'Apple reports record Q4 earnings, beating analyst expectations by 15%. Stock surges 8% in after-hours trading.';
+
+    const prompt = `Analyze the sentiment of this stock news:
+${newsText}
+
+Respond with JSON only:
+{"sentiment": 0.5, "confidence": 80, "rationale": "2 sentence explanation"}`;
+
+    const results: any = { newsText, models: {} };
+
+    // Test Gemma Sea Lion
+    try {
+      const start = Date.now();
+      const response = await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 300
+      });
+      results.models.gemmaSeaLion = {
+        responseTime: Date.now() - start,
+        rawResponse: response?.response || response,
+        parsed: tryParseJSON(response?.response || JSON.stringify(response))
+      };
+    } catch (e: any) {
+      results.models.gemmaSeaLion = { error: e.message };
+    }
+
+    // Test DistilBERT (classification only)
+    try {
+      const start = Date.now();
+      const response = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', { text: newsText });
+      results.models.distilbert = {
+        responseTime: Date.now() - start,
+        rawResponse: response,
+        parsed: Array.isArray(response) ? response[0] : response
+      };
+    } catch (e: any) {
+      results.models.distilbert = { error: e.message };
+    }
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success(results, { message: 'AI model comparison complete' })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('AI comparison failed', 'AI_ERROR', { requestId, error: String(error) })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
+  }
+}
+
+function tryParseJSON(text: string): any {
+  if (!text) return null;
+  try {
+    // Try to extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    return { raw: text };
+  } catch {
+    return { raw: text };
   }
 }

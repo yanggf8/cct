@@ -444,14 +444,16 @@ export function analyzeTextSentiment(text: string): { label: string; score: numb
 async function getFreeLLMSentiment(newsData: NewsArticle[], symbol: string, env: any): Promise<NewsArticle[]> {
   // Use Gemini free tier (15 requests/minute)
   if (!env.GEMINI_API_KEY) {
-    console.log('No Gemini API key, using rule-based sentiment');
+    console.log('No Gemini API key - marking as failed');
     return newsData.map(item => ({
       ...item,
       llm_sentiment: {
-        label: item.sentiment.label,
-        score: item.sentiment.score,
-        reasoning: 'Rule-based sentiment analysis fallback',
-        price_impact: 'unknown'
+        label: 'neutral',
+        score: 0,
+        reasoning: 'No API key configured',
+        price_impact: 'unknown',
+        status: 'failed',
+        failure_reason: 'GEMINI_API_KEY not configured'
       }
     }));
   }
@@ -509,14 +511,16 @@ Respond with JSON only:
     }));
 
   } catch (error: any) {
-    console.log('Gemini LLM sentiment failed, using rule-based:', error);
+    console.log('Gemini LLM sentiment failed - marking as failed:', error);
     return newsData.map(item => ({
       ...item,
       llm_sentiment: {
-        label: item.sentiment.label,
-        score: item.sentiment.score,
-        reasoning: 'Rule-based sentiment analysis fallback (error case)',
-        price_impact: 'unknown'
+        label: 'neutral',
+        score: 0,
+        reasoning: 'AI model failed',
+        price_impact: 'unknown',
+        status: 'failed',
+        failure_reason: error.message || 'LLM unavailable'
       }
     }));
   }
@@ -572,16 +576,26 @@ export async function getFreeSentimentSignal(symbol: string, env: any): Promise<
 /**
  * Calculate aggregated sentiment from multiple sources
  */
-function calculateAggregatedSentiment(newsData: NewsArticle[]): { label: string; confidence: number; score: number; reasoning: string } {
+function calculateAggregatedSentiment(newsData: NewsArticle[]): { label: string; confidence: number | null; score: number; reasoning: string; status?: string } {
   if (newsData.length === 0) {
-    return { label: 'neutral', confidence: 0, score: 0, reasoning: 'No data' };
+    return { label: 'neutral', confidence: null, score: 0, reasoning: 'No data', status: 'failed' };
+  }
+
+  // Check if all items have failed LLM sentiment
+  const allFailed = newsData.every(item => (item.llm_sentiment as any)?.status === 'failed');
+  if (allFailed) {
+    return { label: 'neutral', confidence: null, score: 0, reasoning: 'AI analysis failed for all sources', status: 'failed' };
   }
 
   let totalScore = 0;
   let totalWeight = 0;
   const sentimentCounts: { [key: string]: number } = { bullish: 0, bearish: 0, neutral: 0 };
+  let validItems = 0;
 
   newsData.forEach(item => {
+    // Skip failed items
+    if ((item.llm_sentiment as any)?.status === 'failed') return;
+    
     // Use LLM sentiment if available, otherwise rule-based
     const sentiment = item.llm_sentiment || item.sentiment;
 
@@ -590,21 +604,30 @@ function calculateAggregatedSentiment(newsData: NewsArticle[]): { label: string;
 
     totalScore += sentiment.score * weight;
     totalWeight += weight;
+    validItems++;
 
     sentimentCounts[sentiment.label]++;
   });
+
+  if (validItems === 0) {
+    return { label: 'neutral', confidence: null, score: 0, reasoning: 'No valid AI results', status: 'failed' };
+  }
 
   const avgScore = totalWeight > 0 ? totalScore / totalWeight : 0;
   const dominantSentiment = Object.keys(sentimentCounts)
     .reduce((a: any, b: any) => sentimentCounts[a] > sentimentCounts[b] ? a : b);
 
-  const confidence = Math.min(0.9, Math.abs(avgScore) + (newsData.length * 0.1));
+  // Real confidence from AI results, not fake formula
+  const avgConfidence = newsData
+    .filter(item => (item.llm_sentiment as any)?.status !== 'failed' && item.llm_sentiment?.score !== undefined)
+    .reduce((sum, item) => sum + Math.abs(item.llm_sentiment?.score || 0), 0) / validItems;
 
   return {
     label: Math.abs(avgScore) > 0.1 ? (avgScore > 0 ? 'bullish' : 'bearish') : 'neutral',
     score: avgScore,
-    confidence: confidence,
-    reasoning: `${dominantSentiment} sentiment from ${newsData.length} sources (${sentimentCounts.bullish}B/${sentimentCounts.bearish}B/${sentimentCounts.neutral}N)`
+    confidence: Math.min(0.9, avgConfidence),
+    reasoning: `${dominantSentiment} sentiment from ${validItems} sources (${sentimentCounts.bullish}B/${sentimentCounts.bearish}B/${sentimentCounts.neutral}N)`,
+    status: 'success'
   };
 }
 

@@ -65,6 +65,7 @@ export interface Signal {
   strength: SignalStrength;
   reasoning: string;
   action: SignalAction;
+  source_models?: string[]; // Which models contributed to this signal
 }
 
 export interface PerformanceMetrics {
@@ -120,6 +121,30 @@ export interface BatchDualAIAnalysisResult {
 
 export interface BatchAnalysisOptions {
   [key: string]: any;
+}
+
+/**
+ * Extract text from AI response - handles multiple formats
+ */
+function extractAIResponseText(response: any): string {
+  if (!response) return '';
+  
+  // OpenAI-compatible format (Gemma Sea Lion)
+  if (response.choices?.[0]?.message?.content) {
+    return response.choices[0].message.content;
+  }
+  
+  // Legacy format (openchat)
+  if (response.response) {
+    return response.response;
+  }
+  
+  // Direct string
+  if (typeof response === 'string') {
+    return response;
+  }
+  
+  return JSON.stringify(response);
 }
 
 // Initialize logging for this module
@@ -219,7 +244,7 @@ export async function performDualAIComparison(
       error: error.message,
       models: { gpt: null, distilbert: null },
       comparison: { agree: false, agreement_type: 'error', match_details: { error: error.message } },
-      signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}` }
+      signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
     };
   }
 }
@@ -284,7 +309,7 @@ ${newsContext}`;
     const response = await retryAIcall(async () => {
       return await circuitBreaker.execute(async () => {
         return await Promise.race([
-          env.AI.run('@cf/openchat/openchat-3.5-0106', {
+          env.AI.run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.1,
             max_tokens: 600
@@ -296,14 +321,16 @@ ${newsContext}`;
       });
     });
 
-    const analysisData = parseNaturalLanguageResponse((response as any).response);
+    // Extract response text - handle both formats
+    const responseText = extractAIResponseText(response);
+    const analysisData = parseNaturalLanguageResponse(responseText);
 
     return {
-      model: 'gpt-oss-120b',
+      model: 'gemma-sea-lion-27b',
       direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
       confidence: analysisData.confidence,
       reasoning: analysisData.reasoning || 'No detailed reasoning provided',
-      raw_response: (response as any).response,
+      raw_response: responseText,
       articles_analyzed: topArticles.length,
       analysis_type: 'contextual_analysis'
     };
@@ -379,10 +406,18 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
           });
 
           const result = (Array.isArray(response) ? response[0] : response) as { label?: string; score?: number };
+          // DistilBERT returns [{label: "NEGATIVE", score}, {label: "POSITIVE", score}]
+          // Find the label with highest score
+          let bestResult = result;
+          if (Array.isArray(response) && response.length > 1) {
+            bestResult = response.reduce((best: any, curr: any) => 
+              (curr.score || 0) > (best.score || 0) ? curr : best
+            );
+          }
           return {
             index,
-            sentiment: result.label?.toLowerCase() || 'neutral',
-            confidence: result.score || 0.5,
+            sentiment: bestResult.label?.toLowerCase() || 'neutral',
+            confidence: bestResult.score || 0.5,
             title: (article as any).title.substring(0, 100)
           };
         } catch (error: any) {
@@ -503,36 +538,44 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
  * Simple Signal Generation Rules
  */
 function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERTResult: ModelResult): Signal {
+  const gptOk = !gptResult.error && gptResult.confidence > 0;
+  const dbOk = !distilBERTResult.error && distilBERTResult.confidence > 0;
+  
+  // Track which models actually contributed
+  const sourceModels: string[] = [];
+  if (gptOk) sourceModels.push('gemma-sea-lion-v4-27b-it');
+  if (dbOk) sourceModels.push('distilbert-sst-2-int8');
+
   if (agreement.agree) {
-    // Both models agree - this is our strongest signal
     return {
       type: 'AGREEMENT',
       direction: gptResult.direction,
       strength: calculateAgreementStrength(gptResult.confidence, distilBERTResult.confidence),
       reasoning: `Both AI models agree on ${gptResult.direction} sentiment`,
-      action: getActionForAgreement(gptResult.direction, gptResult.confidence, distilBERTResult.confidence)
+      action: getActionForAgreement(gptResult.direction, gptResult.confidence, distilBERTResult.confidence),
+      source_models: sourceModels
     };
   }
 
   if (agreement.type === 'partial_agreement') {
-    // One model neutral, one directional
     const directionalModel = gptResult.direction === 'neutral' ? distilBERTResult : gptResult;
     return {
       type: 'PARTIAL_AGREEMENT',
       direction: directionalModel.direction,
       strength: 'MODERATE',
       reasoning: `Mixed signals: ${(agreement.details as any).gpt_direction} vs ${(agreement.details as any).distilbert_direction}`,
-      action: directionalModel.confidence > 0.7 ? 'CONSIDER' : 'HOLD'
+      action: directionalModel.confidence > 0.7 ? 'CONSIDER' : 'HOLD',
+      source_models: sourceModels
     };
   }
 
-  // Full disagreement
   return {
     type: 'DISAGREEMENT',
     direction: 'UNCLEAR',
     strength: 'WEAK',
     reasoning: `Models disagree: GPT says ${gptResult.direction}, DistilBERT says ${distilBERTResult.direction}`,
-    action: 'AVOID'
+    action: 'AVOID',
+    source_models: sourceModels
   };
 }
 
@@ -571,7 +614,7 @@ export async function batchDualAIAnalysis(
 ): Promise<BatchDualAIAnalysisResult> {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
-  logInfo(`Starting batch dual AI analysis for ${symbols.length} symbols...`);
+  logInfo(`Starting batch dual AI analysis for ${symbols.length} symbols (sequential mode)...`);
 
   const results: DualAIComparisonResult[] = [];
   const statistics: BatchStatistics = {
@@ -582,86 +625,54 @@ export async function batchDualAIAnalysis(
     errors: 0
   };
 
-  // Process symbols in small batches for rate limiting
-  const batchSize = 2; // Conservative for AI rate limits
-  const batches: string[][] = [];
-  for (let i = 0; i < symbols.length; i += batchSize) {
-    batches.push(symbols.slice(i, i + batchSize));
-  }
+  // Process symbols SEQUENTIALLY to avoid rate limits
+  for (let i = 0; i < symbols.length; i++) {
+    const symbol = symbols[i];
+    
+    try {
+      logAIDebug(`Analyzing ${symbol} (${i + 1}/${symbols.length}) with dual AI...`);
 
-  for (const batch of batches) {
-    const batchPromises = batch.map(async (symbol: any) => {
-      try {
-        logAIDebug(`Analyzing ${symbol} with dual AI...`);
+      // Get news data
+      const newsData = await getFreeStockNews(symbol, env);
 
-        // Get news data
-        const newsData = await getFreeStockNews(symbol,  env);
+      // Run dual AI comparison with rate limit retry
+      const dualAIResult = await performDualAIComparisonWithRetry(symbol, newsData, env);
 
-        // Run dual AI comparison
-        const dualAIResult = await performDualAIComparison(symbol,  newsData,  env);
-
-        // Track statistics
-        if (dualAIResult.error) {
-          statistics.errors++;
-        } else if ((dualAIResult.comparison as any).agree) {
-          statistics.full_agreement++;
-        } else if ((dualAIResult.comparison as any).agreement_type === 'partial_agreement') {
-          statistics.partial_agreement++;
-        } else {
-          statistics.disagreement++;
-        }
-
-        return {
-          symbol,
-          success: !dualAIResult.error,
-          result: dualAIResult,
-          newsCount: newsData?.length || 0
-        };
-
-      } catch (error: any) {
-        logError(`Dual AI analysis failed for ${symbol}:`, error);
+      // Track statistics
+      if (dualAIResult.error) {
         statistics.errors++;
-        return {
-          symbol,
-          success: false,
-          error: error.message
-        };
-      }
-    });
-
-    // Wait for batch to complete
-    const batchResults = await Promise.allSettled(batchPromises);
-
-    // Process results
-    batchResults.forEach((result: any) => {
-      if ((result.status === 'fulfilled' && (result.value as any).success)) {
-        if ((result.value as any).result) {
-          results.push((result.value as any).result);
-        }
+      } else if ((dualAIResult.comparison as any).agree) {
+        statistics.full_agreement++;
+      } else if ((dualAIResult.comparison as any).agreement_type === 'partial_agreement') {
+        statistics.partial_agreement++;
       } else {
-        const symbol = (result.status === 'fulfilled' ? (result.value as any).symbol : 'unknown');
-        const error = (result.status === 'fulfilled' ? (result.value as any).error : (result.reason as any)?.message);
-
-        results.push({
-          symbol,
-          timestamp: new Date().toISOString(),
-          error: error || 'Unknown error',
-          models: { gpt: null, distilbert: null },
-          comparison: { agree: false, agreement_type: 'error', match_details: { error } },
-          signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Batch analysis failed: ${error || 'Unknown error'}` }
-        });
+        statistics.disagreement++;
       }
-    });
 
-    // Proper delay between batches for rate limiting
-    if (batches.indexOf(batch) < batches.length - 1) {
-      const batchDelay = 1000 + (Math.random() * 500); // 1-1.5s delay with jitter
-      await new Promise(resolve => setTimeout(resolve,  batchDelay));
+      results.push(dualAIResult);
+
+    } catch (error: any) {
+      logError(`Dual AI analysis failed for ${symbol}:`, error);
+      statistics.errors++;
+      results.push({
+        symbol,
+        timestamp: new Date().toISOString(),
+        error: error.message,
+        models: { gpt: null, distilbert: null },
+        comparison: { agree: false, agreement_type: 'error', match_details: { error: error.message } },
+        signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
+      });
+    }
+
+    // Delay between symbols to respect rate limits (2s base + jitter)
+    if (i < symbols.length - 1) {
+      const delay = 2000 + Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 
   const totalTime = Date.now() - startTime;
-  logInfo(`Batch dual AI analysis completed in ${totalTime}ms: ${statistics.full_agreement} agreements, ${statistics.disagreement} disagreements`);
+  logInfo(`Batch dual AI analysis completed in ${totalTime}ms: ${statistics.full_agreement} agreements, ${statistics.errors} errors`);
 
   return {
     results,
@@ -673,6 +684,52 @@ export async function batchDualAIAnalysis(
       success_rate: (symbols.length - statistics.errors) / symbols.length
     }
   };
+}
+
+/**
+ * Perform dual AI comparison with rate limit aware retry
+ */
+async function performDualAIComparisonWithRetry(
+  symbol: string,
+  newsData: NewsArticle[],
+  env: CloudflareEnvironment,
+  maxRetries: number = 3
+): Promise<DualAIComparisonResult> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const result = await performDualAIComparison(symbol, newsData, env);
+      
+      // Check if we got rate limited (both models failed)
+      const gptFailed = result.models?.gpt?.error;
+      const dbFailed = result.models?.distilbert?.error;
+      
+      if (gptFailed && dbFailed && attempt < maxRetries - 1) {
+        // Both failed - likely rate limited, wait and retry
+        const waitTime = (attempt + 1) * 5000 + Math.random() * 2000; // 5s, 10s, 15s + jitter
+        logInfo(`Rate limit detected for ${symbol}, waiting ${Math.round(waitTime/1000)}s before retry ${attempt + 2}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
+      return result;
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check for rate limit error
+      if (error.message?.includes('rate') || error.message?.includes('429') || error.message?.includes('quota')) {
+        const waitTime = (attempt + 1) * 5000 + Math.random() * 2000;
+        logInfo(`Rate limit error for ${symbol}, waiting ${Math.round(waitTime/1000)}s before retry ${attempt + 2}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  
+  throw lastError || new Error('Max retries exceeded');
 }
 
 /**
@@ -776,7 +833,7 @@ export async function enhancedBatchDualAIAnalysis(
         error: item.error || 'Unknown error',
         models: { gpt: null, distilbert: null },
         comparison: { agree: false, agreement_type: 'error', match_details: { error: item.error } },
-        signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Enhanced batch analysis failed: ${item.error || 'Unknown error'}` }
+        signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Enhanced batch analysis failed: ${item.error || 'Unknown error'}`, source_models: [] }
       });
       statistics.errors++;
     }

@@ -92,6 +92,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Scheduling**: GitHub Actions (100% free, unlimited)
 - **Cost**: $0/month (Cloudflare + GitHub)
 
+### **AI Model Policy**
+- **Primary Model**: `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B)
+- **Secondary Model**: `@cf/huggingface/distilbert-sst-2-int8` (DistilBERT SST-2)
+- **DEPRECATED - DO NOT USE**: `@cf/openchat/openchat-3.5-0106` (removed as of 2025-10-01)
+- **Rate Limiting**: Sequential processing with 2-3s delays between symbols
+- **Failure Handling**: Return `status: 'failed', confidence: null` - no fake fallback data
+
 ### **🚀 Sprint 1-A: Production Market Indicators (Latest)**
 
 **Real Data Sources Implemented:**

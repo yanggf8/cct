@@ -237,10 +237,10 @@ Provide a detailed analysis with:
 
 Be precise and focus on actionable trading insights.`;
 
-    logAIDebug(`Calling Cloudflare AI GPT-OSS-120B for ${symbol}...`);
+    logAIDebug(`Calling Cloudflare AI Gemma Sea Lion for ${symbol}...`);
 
     const response = await env.AI.run(
-      '@cf/openchat/openchat-3.5-0106',
+      '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
       {
         messages: [
           {
@@ -253,7 +253,7 @@ Be precise and focus on actionable trading insights.`;
       }
     );
 
-    logAIDebug('GPT-OSS-120B response received:', response);
+    logAIDebug('Gemma Sea Lion response received:', response);
 
     if (!response || !response.response) {
       throw new Error('Empty response from GPT-OSS-120B');
@@ -267,9 +267,9 @@ Be precise and focus on actionable trading insights.`;
 
     const result: SentimentResult = {
       ...analysisData,
-      source: 'cloudflare_gpt_oss',
-      method: 'gpt_oss_primary',
-      model: 'openchat-3.5-0106',
+      source: 'cloudflare_gemma',
+      method: 'gemma_sea_lion_primary',
+      model: 'gemma-sea-lion-v4-27b-it',
       source_count: newsData.length,
       analysis_type: 'primary_sentiment',
       cost_estimate: {

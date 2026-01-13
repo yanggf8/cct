@@ -82,7 +82,11 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   if (weeklyData) {
     await writeD1ReportSnapshot(env, dateStr, 'weekly', weeklyData, {
       processingTimeMs: Date.now() - startTime,
-      tradingDays: weeklyData.tradingDays || 0
+      tradingDays: weeklyData.tradingDays || 0,
+      ai_models: {
+        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+        secondary: '@cf/huggingface/distilbert-sst-2-int8'
+      }
     });
     await dal.write(`weekly_${dateStr}`, weeklyData, { expirationTtl: 86400 });
   }

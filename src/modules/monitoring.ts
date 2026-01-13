@@ -475,7 +475,7 @@ export const HealthMonitor = {
       if (env.AI) {
         const timer = systemMetrics.timer('health.ai_check');
 
-        await env.AI.run('@cf/openchat/openchat-3.5-0106', {
+        await env.AI.run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
           messages: [{ role: 'user', content: 'health check' }],
           max_tokens: 5
         });

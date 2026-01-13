@@ -413,11 +413,13 @@ export class EnhancedSentimentPipeline {
    */
   private async performSentimentAnalysis(articles: EnhancedNewsArticle[], symbol: string): Promise<{
     sentiment: 'bullish' | 'bearish' | 'neutral';
-    confidence: number;
+    confidence: number | null;
     score: number;
+    status?: 'success' | 'failed';
+    failure_reason?: string;
   }> {
     if (articles.length === 0) {
-      return { sentiment: 'neutral', confidence: 0, score: 0 };
+      return { sentiment: 'neutral', confidence: null, score: 0, status: 'failed', failure_reason: 'No articles' };
     }
 
     try {
@@ -451,45 +453,23 @@ Respond with JSON only:
         return {
           sentiment: result.sentiment || 'neutral',
           confidence: Math.max(0, Math.min(1, result.confidence || 0.5)),
-          score: Math.max(-1, Math.min(1, result.score || 0))
+          score: Math.max(-1, Math.min(1, result.score || 0)),
+          status: 'success'
         };
       }
     } catch (error) {
-      logger.warn('AI analysis failed, using rule-based fallback', {
+      logger.warn('AI analysis failed - returning failure status', {
         error: error instanceof Error ? error.message : 'Unknown'
       });
     }
 
-    // Fallback to rule-based sentiment analysis
-    return this.ruleBasedSentiment(articles);
-  }
-
-  /**
-   * Rule-based sentiment analysis fallback
-   */
-  private ruleBasedSentiment(articles: EnhancedNewsArticle[]): {
-    sentiment: 'bullish' | 'bearish' | 'neutral';
-    confidence: number;
-    score: number;
-  } {
-    let totalScore = 0;
-    let totalWeight = 0;
-
-    articles.forEach(article => {
-      const sentimentScore = this.getSentimentScore((article as any).sentiment || 'neutral');
-      const weight = (article as any).source_weight || 1.0;
-
-      totalScore += sentimentScore * weight;
-      totalWeight += weight;
-    });
-
-    const avgScore = totalWeight > 0 ? totalScore / totalWeight : 0;
-    const confidence = Math.min(0.9, Math.abs(avgScore) + (articles.length * 0.05));
-
+    // Return failure instead of fake fallback data
     return {
-      sentiment: Math.abs(avgScore) > 0.15 ? (avgScore > 0 ? 'bullish' : 'bearish') : 'neutral',
-      confidence: confidence,
-      score: avgScore
+      sentiment: 'neutral',
+      confidence: null,
+      score: 0,
+      status: 'failed',
+      failure_reason: 'AI model unavailable'
     };
   }
 

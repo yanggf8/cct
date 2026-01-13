@@ -218,8 +218,8 @@ function convertDualAIToLegacyFormat(
     // Convert dual AI models to sentiment layers format
     sentiment_layers: [
       {
-        layer_type: 'gpt_oss_120b',
-        model: 'openchat-3.5-0106',
+        layer_type: 'gemma_sea_lion',
+        model: 'gemma-sea-lion-v4-27b-it',
         sentiment: gptModel ? gptModel.direction.toLowerCase() : 'neutral',
         confidence: gptModel ? gptModel.confidence : 0,
         detailed_analysis: {
@@ -277,7 +277,7 @@ function convertDualAIToLegacyFormat(
     // Analysis metadata
     analysis_metadata: {
       method: 'dual_ai_comparison',
-      models_used: ['openchat-3.5-0106', 'distilbert-sst-2-int8'],
+      models_used: ['gemma-sea-lion-v4-27b-it', 'distilbert-sst-2-int8'],
       total_processing_time: dualAIResult.execution_time_ms || (Date.now() - (options.startTime || Date.now())),
       news_quality_score: calculateNewsQualityScore(newsData),
       dual_ai_specific: {

@@ -229,8 +229,8 @@ GET /analyze-symbol?symbol=AAPL
   },
   "sentiment_layers": [
     {
-      "layer_type": "gpt_oss_120b",
-      "model": "openchat-3.5-0106",
+      "layer_type": "gemma_sea_lion",
+      "model": "gemma-sea-lion-v4-27b-it",
       "sentiment": "up",
       "confidence": 0.6,
       "detailed_analysis": {
@@ -409,9 +409,9 @@ GET /api/v1/data/health?model=true
   "data": {
     "timestamp": "2025-01-17T08:48:53.134Z",
     "models": {
-      "gpt_oss_120b": {
+      "gemma_sea_lion": {
         "status": "healthy",
-        "model": "@cf/openchat/openchat-3.5-0106",
+        "model": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
         "response_time_ms": 1521,
         "error": null
       },

@@ -216,7 +216,7 @@ export class IntegrationTestSuite {
     try {
       // Test GPT Model
       const gptStart = Date.now();
-      const gptResult = await this.env.AI.run('@cf/openchat/openchat-3.5-0106', {
+      const gptResult = await this.env.AI.run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
         messages: [{ role: 'user', content: 'Integration test - respond with "OK"' }],
         temperature: 0.1,
         max_tokens: 10
@@ -542,7 +542,7 @@ export class IntegrationTestSuite {
       const apiTests = [
         { name: 'FRED API', test: () => createFredApiClientWithHealthCheck(this.env) },
         { name: 'Yahoo Finance', test: () => yahooHealthCheck() },
-        { name: 'AI Model GPT', test: () => this.env.AI.run('@cf/openchat/openchat-3.5-0106', {
+        { name: 'AI Model GPT', test: () => this.env.AI.run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
           messages: [{ role: 'user', content: 'Performance test' }],
           temperature: 0.1,
           max_tokens: 10
