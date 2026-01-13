@@ -12,7 +12,6 @@
     "build:prod": "tsc --project tsconfig.prod.json",
     "build:dev": "tsc --project tsconfig.dev.json",
     "build:check": "npm run typecheck",
-    "predeploy": "npm run build",
     "deploy": "./scripts/deployment/deploy-production.sh",
     "deploy:only": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env=staging",

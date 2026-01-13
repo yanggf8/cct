@@ -130,8 +130,14 @@ EOF
     log "Build info written to $build_info_file"
 }
 
-# Deployment confirmation
+# Deployment confirmation (auto-skips in CI/CD)
 confirm_deployment() {
+    # Auto-skip in CI environments (GitHub Actions, GitLab CI, CircleCI, etc.)
+    if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ] || [ -n "${GITLAB_CI:-}" ]; then
+        log "CI/CD detected - skipping confirmation prompt"
+        return 0
+    fi
+
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║           READY TO DEPLOY TO PRODUCTION                 ║${NC}"
