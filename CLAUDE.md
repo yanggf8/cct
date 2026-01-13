@@ -550,24 +550,18 @@ npm run build:frontend:only
 ### Current State
 | Component | Status | Details |
 |-----------|--------|---------|
-| **D1 Schema** | ⚠️ Partial | `job_executions`, `symbol_predictions`, `daily_analysis` exist; no `scheduled_job_results` table |
-| **D1 Writes** | ⚠️ Partial | Cron health → `job_executions`; predictions → `symbol_predictions`/`daily_analysis` |
-| **D1 Reads** | ⚠️ Partial | Pre-market has D1 fallback; other reports (intraday/end-of-day/weekly) do not |
+| **D1 Schema** | ✅ Updated | `job_executions`, `symbol_predictions`, `daily_analysis`, `scheduled_job_results` (with status/error fields for symbol predictions) |
+| **D1 Writes** | ✅ All | Cron health → `job_executions`; predictions → `symbol_predictions`/`daily_analysis`; report snapshots → `scheduled_job_results` |
+| **D1 Reads** | ✅ All | Pre-market, intraday, end-of-day, weekly read D1 (DO cache first, D1 fallback) |
 | **DO Cache** | ✅ Primary | All reports read DO cache first |
-| **Cache Warm-after-write** | ❌ Missing | No automatic DO cache population after D1 writes |
+| **Cache Warm-after-write** | ✅ Implemented | D1 reads warm DO cache on miss; cache used on subsequent reads |
 | **KV Usage** | ✅ Eliminated | KV unused for job storage; validation guards remain in code |
 
 ### What Works Now
-- Pre-market briefing: DO cache → D1 fallback (today, then yesterday) → write-back to DO
+- Report data flow: DO cache → D1 fallback → warm DO (all reports: pre-market, intraday, end-of-day, weekly)
 - Job execution tracking in D1
-- Symbol predictions stored in D1
-
-### Remaining Tasks
-1. Create `scheduled_job_results` table migration (execution_date, report_type, metadata)
-2. Add report snapshot writes to D1
-3. Implement cache warm-after-write from D1
-4. Extend D1 fallback to intraday/end-of-day/weekly handlers
-5. Create D1 query API endpoints (`/api/v1/jobs/history`, `/api/v1/jobs/latest`)
+- Symbol predictions stored in D1 with status/error/news_source/raw_response for troubleshooting
+- Pre-market job write/read flow uses `INSERT OR REPLACE` per date/type; reruns overwrite and re-warm DO
 6. Remove unused KV validation guards
 
 ---
