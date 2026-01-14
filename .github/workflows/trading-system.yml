@@ -50,22 +50,23 @@ jobs:
 
           # Determine analysis type based on schedule
           # Use /api/v1/jobs/trigger with triggerMode for scheduled jobs
-          if [[ "$CURRENT_DAY" == "7" && "$CURRENT_TIME" == "14:00" ]]; then
+          # Allow 15-minute window for GitHub Actions delay
+          if [[ "$CURRENT_DAY" == "7" && "$CURRENT_TIME" >= "13:45" && "$CURRENT_TIME" <= "14:15" ]]; then
             echo "analysis_type=weekly-review" >> $GITHUB_OUTPUT
             echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
             echo "trigger_mode=weekly_review_analysis" >> $GITHUB_OUTPUT
             echo "description=Weekly Review - Comprehensive high-confidence signal analysis"
-          elif [[ "$CURRENT_TIME" == "12:30" ]]; then
+          elif [[ "$CURRENT_TIME" >= "12:15" && "$CURRENT_TIME" <= "12:45" ]]; then
             echo "analysis_type=pre-market" >> $GITHUB_OUTPUT
             echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
             echo "trigger_mode=morning_prediction_alerts" >> $GITHUB_OUTPUT
             echo "description=Pre-Market Briefing - High-confidence signals (≥70%)"
-          elif [[ "$CURRENT_TIME" == "16:00" ]]; then
+          elif [[ "$CURRENT_TIME" >= "15:45" && "$CURRENT_TIME" <= "16:15" ]]; then
             echo "analysis_type=intraday" >> $GITHUB_OUTPUT
             echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
             echo "trigger_mode=midday_validation_prediction" >> $GITHUB_OUTPUT
             echo "description=Intraday Performance Check - Real-time tracking"
-          elif [[ "$CURRENT_TIME" == "20:05" ]]; then
+          elif [[ "$CURRENT_TIME" >= "19:50" && "$CURRENT_TIME" <= "20:20" ]]; then
             echo "analysis_type=end-of-day" >> $GITHUB_OUTPUT
             echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
             echo "trigger_mode=next_day_market_prediction" >> $GITHUB_OUTPUT
