@@ -69,9 +69,10 @@ export async function writeD1ReportSnapshot(
     return false;
   }
 
+  const contentJson = JSON.stringify(reportContent);
+  const metadataJson = metadata ? JSON.stringify(metadata) : null;
+
   try {
-    const contentJson = JSON.stringify(reportContent);
-    const metadataJson = metadata ? JSON.stringify(metadata) : null;
 
     // Upsert: replace if same date+type exists
     await db.prepare(`

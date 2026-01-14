@@ -81,12 +81,13 @@ export class DACArticlesPoolClientV2 {
 
   /**
    * Get stock articles via service binding
-   * Uses DAC admin probe endpoint: /api/admin/article-pool/probe/stock/:symbol
+   * Uses DAC admin accessor endpoint: /api/admin/article-pool/accessor/stock/:symbol
+   * Returns full articles array (not just metadata like probe endpoint)
    */
   async getStockArticles(symbol: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `https://dac-backend/api/admin/article-pool/probe/stock/${symbol}`,
+        `https://dac-backend/api/admin/article-pool/accessor/stock/${symbol}`,
         {
           method: 'GET',
           headers: {
@@ -113,22 +114,12 @@ export class DACArticlesPoolClientV2 {
 
       const data = await response.json() as any;
 
-      // DAC probe endpoint returns nested structure, extract accessor result
-      if (data.accessorCall) {
-        return {
-          success: data.accessorCall.success,
-          articles: data.accessorCall.articles || [],
-          metadata: data.accessorCall.metadata,
-          error: data.accessorCall.error,
-          errorMessage: data.accessorCall.errorMessage
-        };
-      }
-
-      // Fallback to direct response format
+      // DAC accessor endpoint returns direct structure (not nested like probe)
+      // Note: metadata can be undefined - let getArticlesForSentiment handle defaults via || operators
       return {
         success: data.success || false,
         articles: data.articles || [],
-        metadata: data.metadata,
+        metadata: data.metadata, // Pass through as-is (can be undefined)
         error: data.error,
         errorMessage: data.errorMessage
       };

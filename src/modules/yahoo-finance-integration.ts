@@ -20,6 +20,17 @@ import { getMarketDataConfig } from './config.js';
 
 const logger = createLogger('yahoo-finance-integration');
 
+// Global in-flight request map for deduplication (prevents cache stampede)
+const inFlightRequests = new Map<string, Promise<MarketData | null>>();
+
+// Simple module-level cache with TTL (5-minute max)
+// Note: Expiry enforced on access, not via setInterval (reliable in Cloudflare Workers)
+interface CacheEntry {
+  data: MarketData;
+  expiresAt: number;
+}
+const marketDataCache = new Map<string, CacheEntry>();
+
 /**
  * Yahoo Finance API base URL
  */
@@ -44,75 +55,118 @@ export interface MarketData {
 }
 
 /**
- * Get market data for a single symbol
+ * Get market data for a single symbol with caching and stampede protection
  */
 export async function getMarketData(symbol: string): Promise<MarketData | null> {
+  const cacheKey = `yahoo_${symbol}_${Math.floor(Date.now() / 300000)}`; // 5-min bucket
+  const now = Date.now();
+
   try {
     // Ensure rate limiter reflects current config each call
     const cfg = getMarketDataConfig();
     configureYahooRateLimiter((cfg as any).RATE_LIMIT_REQUESTS_PER_MINUTE || 100, (cfg as any).RATE_LIMIT_WINDOW_MS || 60000);
 
-    logger.debug(`Fetching market data for ${symbol}`);
-
-    const url = `${YAHOO_FINANCE_API_URL}/${symbol}?interval=1d&range=1d`;
-
-    const response = await rateLimitedFetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
+    // 1. Check module-level cache first (with lazy expiry cleanup)
+    const cachedEntry = marketDataCache.get(cacheKey);
+    if (cachedEntry) {
+      if (cachedEntry.expiresAt > now) {
+        logger.debug(`[Yahoo Cache] HIT for ${symbol}`);
+        return cachedEntry.data;
+      } else {
+        // Expired - delete and continue to fetch
+        marketDataCache.delete(cacheKey);
       }
-    });
-
-    if (!response.ok) {
-      logger.warn(`Yahoo Finance API returned ${response.status} for ${symbol}`, {
-        status: response.status,
-        statusText: response.statusText,
-        symbol
-      });
-      return null;
     }
 
-    const data = await response.json();
-
-    if (!(data as any).chart?.result?.[0]) {
-      logger.warn(`No data returned from Yahoo Finance for ${symbol}`, { symbol });
-      return null;
+    // 2. Check if request is already in-flight (stampede protection)
+    if (inFlightRequests.has(cacheKey)) {
+      logger.debug(`[Yahoo Cache] IN-FLIGHT dedup for ${symbol}`);
+      return await inFlightRequests.get(cacheKey)!;
     }
 
-    const result = (data as any).chart.result[0];
-    const meta = result.meta || {};
-    const quotes = result.indicators?.quote?.[0] || [];
-    const latestQuote = quotes[0] || {};
+    // 3. Create new in-flight request
+    const requestPromise = (async () => {
+      try {
+        logger.debug(`[Yahoo Cache] MISS for ${symbol}, fetching from API...`);
 
-    // Extract price data
-    const price = meta.regularMarketPrice || latestQuote.close || meta.previousClose || 0;
-    const change = meta.regularMarketChange || 0;
-    const changePercent = meta.regularMarketChangePercent || 0;
+        const url = `${YAHOO_FINANCE_API_URL}/${symbol}?interval=1d&range=1d`;
 
-    const marketData: MarketData = {
-      symbol,
-      price,
-      regularMarketPrice: price,
-      regularMarketChange: change,
-      regularMarketChangePercent: changePercent,
-      regularMarketTime: meta.regularMarketTime || Date.now(),
-      currency: meta.currency || 'USD',
-      marketState: meta.marketState || 'CLOSED',
-      exchangeName: meta.exchangeName || 'NASDAQ',
-      quoteType: meta.quoteType || 'EQUITY',
-      success: true,
-      timestamp: Date.now(),
-    };
+        const response = await rateLimitedFetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; TradingBot/1.0)',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+          }
+        });
 
-    logger.debug(`Successfully fetched market data for ${symbol}`, {
-      symbol,
-      price,
-      change: changePercent,
-      marketState: marketData.marketState
-    });
+        if (!response.ok) {
+          logger.warn(`Yahoo Finance API returned ${response.status} for ${symbol}`, {
+            status: response.status,
+            statusText: response.statusText,
+            symbol
+          });
+          return null;
+        }
 
-    return marketData;
+        const data = await response.json();
+
+        if (!(data as any).chart?.result?.[0]) {
+          logger.warn(`No data returned from Yahoo Finance for ${symbol}`, { symbol });
+          return null;
+        }
+
+        const result = (data as any).chart.result[0];
+        const meta = result.meta || {};
+        const quotes = result.indicators?.quote?.[0] || [];
+        const latestQuote = quotes[0] || {};
+
+        // Extract price data
+        const price = meta.regularMarketPrice || latestQuote.close || meta.previousClose || 0;
+        const change = meta.regularMarketChange || 0;
+        const changePercent = meta.regularMarketChangePercent || 0;
+
+        const marketData: MarketData = {
+          symbol,
+          price,
+          regularMarketPrice: price,
+          regularMarketChange: change,
+          regularMarketChangePercent: changePercent,
+          regularMarketTime: meta.regularMarketTime || Date.now(),
+          currency: meta.currency || 'USD',
+          marketState: meta.marketState || 'CLOSED',
+          exchangeName: meta.exchangeName || 'NASDAQ',
+          quoteType: meta.quoteType || 'EQUITY',
+          success: true,
+          timestamp: Date.now(),
+        };
+
+        // Store in module-level cache with 5-min TTL
+        marketDataCache.set(cacheKey, {
+          data: marketData,
+          expiresAt: now + 300000 // 5 minutes
+        });
+        logger.debug(`[Yahoo Cache] Stored data for ${symbol}, TTL: 300s`);
+
+        logger.debug(`Successfully fetched market data for ${symbol}`, {
+          symbol,
+          price,
+          change: changePercent,
+          marketState: marketData.marketState
+        });
+
+        return marketData;
+
+      } catch (error: unknown) {
+        logger.error(`[Yahoo Cache] Failed to fetch market data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
+        return null;
+      } finally {
+        // Clean up in-flight request
+        inFlightRequests.delete(cacheKey);
+      }
+    })();
+
+    inFlightRequests.set(cacheKey, requestPromise);
+    return await requestPromise;
 
   } catch (error: unknown) {
     logger.error(`Failed to fetch market data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });
