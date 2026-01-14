@@ -30,8 +30,8 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
   
-  // Resolve query date: ?date > ?tz/cookie > ET default
-  const queryDateStr = resolveQueryDate(request, url);
+  // Resolve query date: ?date > ?tz > DO setting > ET default
+  const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
   const todayET = getTodayInZone('America/New_York');
 
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', { requestId, queryDate: queryDateStr, bypassCache });

@@ -245,6 +245,51 @@ export async function handleApiV1Request(
       const securityStatus = getSecurityStatus();
       const body = ApiResponseFactory.success(securityStatus, { requestId: headers['X-Request-ID'] });
       return new Response(JSON.stringify(body), { status: HttpStatus.OK, headers });
+    } else if (path === '/api/v1/settings/timezone') {
+      // Settings: timezone preference stored in CACHE_DO
+      if (request.method === 'GET') {
+        let timezone: string | null = null;
+        if (env.CACHE_DO) {
+          try {
+            const id = (env.CACHE_DO as any).idFromName('global-cache');
+            const stub = (env.CACHE_DO as any).get(id);
+            const res = await stub.fetch('https://do/get', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: 'settings:timezone' })
+            });
+            const data = await res.json() as { value?: string };
+            timezone = data.value || null;
+          } catch { /* ignore */ }
+        }
+        return new Response(JSON.stringify({ timezone: timezone || 'America/New_York' }), { status: HttpStatus.OK, headers });
+      } else if (request.method === 'PUT') {
+        // Require API key for writes
+        if (!apiKey) {
+          return new Response(JSON.stringify({ error: 'API key required' }), { status: HttpStatus.UNAUTHORIZED, headers });
+        }
+        const reqBody = await request.json() as { timezone?: string };
+        if (!reqBody.timezone) {
+          return new Response(JSON.stringify({ error: 'timezone required' }), { status: HttpStatus.BAD_REQUEST, headers });
+        }
+        // Validate IANA timezone
+        try {
+          Intl.DateTimeFormat(undefined, { timeZone: reqBody.timezone });
+        } catch {
+          return new Response(JSON.stringify({ error: 'invalid timezone' }), { status: HttpStatus.BAD_REQUEST, headers });
+        }
+        if (env.CACHE_DO) {
+          const id = (env.CACHE_DO as any).idFromName('global-cache');
+          const stub = (env.CACHE_DO as any).get(id);
+          await stub.fetch('https://do/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'settings:timezone', value: reqBody.timezone, ttl: 31536000 })
+          });
+        }
+        return new Response(JSON.stringify({ success: true, timezone: reqBody.timezone }), { status: HttpStatus.OK, headers });
+      }
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: HttpStatus.METHOD_NOT_ALLOWED, headers });
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(

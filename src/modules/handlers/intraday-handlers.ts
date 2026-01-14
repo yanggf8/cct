@@ -19,7 +19,6 @@ import {
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
-import { resolveQueryDate, getCurrentTimeET } from './date-utils.js';
 import { getTodayInZone, resolveQueryDate, getCurrentTimeET } from './date-utils.js';
 
 const logger: Logger = createLogger('intraday-handlers');
@@ -162,8 +161,8 @@ export const handleIntradayCheck = createHandler(
     const url = new URL(request.url);
     const bypassCache = url.searchParams.get('bypass') === '1';
     
-    // Resolve query date: ?date > ?tz/cookie > ET default
-    const dateStr = resolveQueryDate(request, url);
+    // Resolve query date: ?date > ?tz > DO setting > ET default
+    const dateStr = await resolveQueryDate(url, env.CACHE_DO as any);
     const todayET = getTodayInZone('America/New_York');
     const today = new Date(dateStr + 'T12:00:00Z');
 

@@ -79,6 +79,10 @@
                     <span class="nav-icon">🧪</span>
                     <span class="nav-text">API Test</span>
                 </a>
+                <a href="/settings.html" class="nav-item" data-page="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Settings</span>
+                </a>
             </div>
         </div>
 

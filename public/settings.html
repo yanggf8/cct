@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - CCT Trading System</title>
+    <link rel="stylesheet" href="/css/nav.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --green: #3fb950; --blue: #58a6ff; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .settings-container { max-width: 500px; margin: 2rem auto; padding: 2rem; }
+        h1 { font-size: 1.4rem; margin-bottom: 1.5rem; }
+        .setting-group { margin-bottom: 1.5rem; }
+        .setting-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        .setting-group select { width: 100%; padding: 0.5rem; font-size: 1rem; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+        .warning { background: #3d2a00; border: 1px solid #d29922; color: #d29922; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; display: none; }
+        .success { background: #1a3d1a; border: 1px solid var(--green); color: var(--green); padding: 0.75rem; border-radius: 4px; margin-top: 1rem; display: none; }
+        .detected { font-size: 0.9rem; color: var(--text-muted); margin-top: 0.25rem; }
+        button { padding: 0.75rem 1.5rem; font-size: 1rem; cursor: pointer; background: var(--blue); color: white; border: none; border-radius: 6px; }
+        button:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div id="nav-container"></div>
+    <main class="main-content">
+        <div class="settings-container">
+            <h1>⚙️ Settings</h1>
+            
+            <div class="setting-group">
+                <label for="timezone">Your Timezone</label>
+                <select id="timezone"></select>
+                <div class="detected" id="detected"></div>
+                <div class="warning" id="warning">⚠️ This doesn't match your browser's detected timezone.</div>
+            </div>
+            
+            <button onclick="save()">Save</button>
+            <div class="success" id="success">✓ Settings saved</div>
+        </div>
+    </main>
+    <script src="/js/nav.js"></script>
+    <script>
+        const tzSelect = document.getElementById('timezone');
+        const warning = document.getElementById('warning');
+        const detected = document.getElementById('detected');
+        const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
+        // Common timezones
+        const zones = [
+            'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+            'America/Toronto', 'America/Vancouver', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+            'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Singapore', 'Asia/Taipei', 'Asia/Seoul',
+            'Australia/Sydney', 'Australia/Melbourne', 'Pacific/Auckland', 'UTC'
+        ];
+        
+        // Add browser's timezone if not in list
+        if (!zones.includes(browserTz)) zones.unshift(browserTz);
+        
+        zones.forEach(tz => {
+            const opt = document.createElement('option');
+            opt.value = tz;
+            opt.textContent = tz;
+            tzSelect.appendChild(opt);
+        });
+        
+        detected.textContent = 'Browser detected: ' + browserTz;
+        
+        // Load saved value from DO via API
+        fetch('/api/v1/settings/timezone').then(r => r.json()).then(data => {
+            tzSelect.value = data.timezone || browserTz;
+            checkMatch();
+        }).catch(() => {
+            tzSelect.value = browserTz;
+            checkMatch();
+        });
+        
+        tzSelect.onchange = checkMatch;
+        
+        function checkMatch() {
+            warning.style.display = tzSelect.value !== browserTz ? 'block' : 'none';
+        }
+        
+        function save() {
+            const apiKey = sessionStorage.getItem('cct_api_key') || localStorage.getItem('cct_api_key') || window.CCT_API_KEY || '';
+            fetch('/api/v1/settings/timezone', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+                body: JSON.stringify({ timezone: tzSelect.value })
+            }).then(r => {
+                if (r.ok) {
+                    document.getElementById('success').style.display = 'block';
+                    setTimeout(() => document.getElementById('success').style.display = 'none', 2000);
+                } else if (r.status === 401) {
+                    alert('API key required. Please set your API key first.');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

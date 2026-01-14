@@ -3,8 +3,9 @@
  * 
  * Precedence for resolving "today":
  * 1. ?date=YYYY-MM-DD - explicit date (always wins)
- * 2. ?tz= or cct_tz cookie - server computes that zone's "today"
- * 3. Default to ET (aligns with job schedule)
+ * 2. ?tz= query param - override timezone
+ * 3. CACHE_DO settings - user's saved timezone preference
+ * 4. Default to ET (aligns with job schedule)
  */
 
 /** Get today's date string in a given IANA timezone */
@@ -19,15 +20,37 @@ export function getTodayInZone(tz: string): string {
   }
 }
 
-/** Parse cct_tz cookie from request */
-export function getTimezoneFromCookie(request: Request): string | null {
-  const cookie = request.headers.get('cookie') || '';
-  const match = cookie.match(/cct_tz=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+/** Get timezone from CACHE_DO */
+export async function getTimezoneFromDO(cacheDO: any): Promise<string | null> {
+  if (!cacheDO) return null;
+  try {
+    const id = cacheDO.idFromName('global-cache');
+    const stub = cacheDO.get(id);
+    const res = await stub.fetch('https://do/get', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'settings:timezone' })
+    });
+    const data = await res.json() as { value?: string };
+    return data.value || null;
+  } catch {
+    return null;
+  }
 }
 
-/** Resolve query date from params/cookie with precedence: ?date > ?tz/cookie > ET default */
-export function resolveQueryDate(request: Request, url: URL): string {
+/** Save timezone to CACHE_DO */
+export async function setTimezoneInDO(cacheDO: any, tz: string): Promise<void> {
+  const id = cacheDO.idFromName('global-cache');
+  const stub = cacheDO.get(id);
+  await stub.fetch('https://do/set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'settings:timezone', value: tz, ttl: 31536000 }) // 1 year
+  });
+}
+
+/** Resolve query date with precedence: ?date > ?tz > DO setting > ET default */
+export async function resolveQueryDate(url: URL, cacheDO?: any): Promise<string> {
   const dateParam = url.searchParams.get('date');
   
   // 1. Explicit date always wins
@@ -35,10 +58,9 @@ export function resolveQueryDate(request: Request, url: URL): string {
     return dateParam;
   }
   
-  // Handle "yesterday" relative to resolved timezone
+  // Resolve timezone: ?tz > DO setting > ET default
   const tzParam = url.searchParams.get('tz');
-  const tzCookie = getTimezoneFromCookie(request);
-  const tz = tzParam || tzCookie || 'America/New_York';
+  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'America/New_York';
   const today = getTodayInZone(tz);
   
   if (dateParam === 'yesterday') {
@@ -47,7 +69,6 @@ export function resolveQueryDate(request: Request, url: URL): string {
     return d.toISOString().split('T')[0];
   }
   
-  // 2/3. Use timezone from param, cookie, or default ET
   return today;
 }
 

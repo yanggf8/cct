@@ -12,16 +12,20 @@ import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import { generatePendingPageHTML } from './pending-page.js';
 import type { CloudflareEnvironment } from '../../types';
+import { getTodayInZone, getTimezoneFromDO } from './date-utils.js';
 
 const logger = createLogger('weekly-review-handlers');
 
 /**
  * Get the Sunday for a given week based on a date string
- * If no date provided, returns the most recent Sunday
- * Special values: "last" = previous week
+ * Uses timezone from ?tz, DO setting, or defaults to ET
  */
-function getWeekSunday(weekParam: string | null): Date {
-  const today = new Date();
+async function getWeekSunday(weekParam: string | null, url: URL, cacheDO?: DurableObjectNamespace): Promise<Date> {
+  // Resolve timezone: ?tz > DO setting > ET default
+  const tzParam = url.searchParams.get('tz');
+  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'America/New_York';
+  const todayStr = getTodayInZone(tz);
+  const today = new Date(todayStr + 'T12:00:00Z');
 
   // Handle "last" parameter for previous week
   if (weekParam === 'last') {
@@ -66,8 +70,8 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   const bypassCache = url.searchParams.get('bypass') === '1';
   const weekParam = url.searchParams.get('week');
 
-  // Determine which week to show
-  const weekSunday = getWeekSunday(weekParam);
+  // Determine which week to show (uses timezone from ?tz > DO setting > ET)
+  const weekSunday = await getWeekSunday(weekParam, url, env.CACHE_DO as any);
   const weekStr = weekSunday.toISOString().split('T')[0];
   const cacheKey = `weekly_html_${weekStr}`;
 
@@ -144,8 +148,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   }
 
   // Generate HTML with week label
-  const today = new Date();
-  const thisSunday = getWeekSunday(null);
+  const thisSunday = await getWeekSunday(null, url, env.CACHE_DO as any);
   const isThisWeek = weekSunday.toDateString() === thisSunday.toDateString();
   const weekLabel = isThisWeek ? 'This Week' : 'Week of ' + weekSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
