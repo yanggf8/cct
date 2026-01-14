@@ -262,10 +262,10 @@ export class DACArticlesPoolClient {
  */
 export function createDACArticlesPoolClient(env: {
   DAC_BACKEND?: any;
-  DAC_ARTICLES_POOL_API_KEY?: string;
+  X_API_KEY?: string;
 }): DACArticlesPoolClient | null {
   const dacBackend = env.DAC_BACKEND;
-  const apiKey = env.DAC_ARTICLES_POOL_API_KEY;
+  const apiKey = env.X_API_KEY;
 
   if (!dacBackend) {
     logger.warn('DAC backend service binding not available');
@@ -273,7 +273,7 @@ export function createDACArticlesPoolClient(env: {
   }
 
   if (!apiKey) {
-    logger.warn('DAC_ARTICLES_POOL_API_KEY not configured');
+    logger.warn('X_API_KEY not configured (required for DAC authentication)');
     return null;
   }
 
@@ -288,7 +288,7 @@ export class DACArticlesAdapter {
 
   constructor(env: {
     DAC_BACKEND?: any;
-    DAC_ARTICLES_POOL_API_KEY?: string;
+    X_API_KEY?: string;
   }) {
     this.client = createDACArticlesPoolClient(env);
   }
