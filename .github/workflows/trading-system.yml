@@ -7,13 +7,13 @@ name: Enhanced Trading System Automated Analysis with Predictive Intelligence
 
 on:
   schedule:
-    # Pre-Market Briefing - 8:30 AM EST/EDT (12:30 PM UTC)
+    # Pre-Market Briefing - 8:30 AM ET (12:30 PM UTC)
     - cron: '30 12 * * 1-5'  # Monday-Friday at 12:30 UTC
-    # Intraday Performance Check - 12:00 PM EST/EDT (4:00 PM UTC)
+    # Intraday Performance Check - 12:00 PM ET (4:00 PM UTC)
     - cron: '0 16 * * 1-5'   # Monday-Friday at 16:00 UTC
-    # End-of-Day Summary - 4:05 PM EST/EDT (8:05 PM UTC)
+    # End-of-Day Summary - 4:05 PM ET (8:05 PM UTC)
     - cron: '5 20 * * 1-5'   # Monday-Friday at 20:05 UTC
-    # Weekly Review - 10:00 AM EST/EDT Sunday (2:00 PM UTC)
+    # Weekly Review - 10:00 AM ET Sunday (2:00 PM UTC)
     - cron: '0 14 * * SUN'   # Sunday at 14:00 UTC
 
   # Manual trigger for testing
@@ -71,9 +71,10 @@ jobs:
             echo "trigger_mode=next_day_market_prediction" >> $GITHUB_OUTPUT
             echo "description=End-of-Day Summary - Market close analysis"
           else
-            # Default for manual triggers
+            # Default for manual triggers - use POST /api/v1/jobs/trigger
             echo "analysis_type=manual" >> $GITHUB_OUTPUT
-            echo "endpoint=/api/v1/sentiment/analysis" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
+            echo "trigger_mode=morning_prediction_alerts" >> $GITHUB_OUTPUT
             echo "description=Manual Analysis - On-demand trading analysis"
           fi
 
