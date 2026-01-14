@@ -30,6 +30,11 @@ Verified by searching for `getFreeStockNewsWithErrorTracking` usage:
 - `X_API_KEY` must be set in the environment; there is no default key.
 - Type definitions updated: `X_API_KEY` added to `CloudflareEnvironment`, legacy `DAC_ARTICLES_POOL_API_KEY` removed.
 
+### Job Status Tracking (D1)
+- Job status writes are now D1-backed (`job_executions` via `updateD1JobStatus`).
+- `getD1JobStatus` returns the latest run (`ORDER BY executed_at DESC LIMIT 1`); history remains append-only.
+- No UNIQUE constraint on (job_type, date) by design to keep execution history.
+
 ---
 
 ## Monitoring Infrastructure

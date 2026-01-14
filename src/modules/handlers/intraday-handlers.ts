@@ -12,7 +12,6 @@ import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { generatePendingPageHTML } from './pending-page.js';
 import {
   getWithRetry,
-  updateJobStatus,
   validateDependencies,
   getJobStatus
 } from '../kv-utils.js';

@@ -372,3 +372,119 @@ export async function getD1FallbackData(
 
   return null;
 }
+
+/**
+ * Update job status in D1 job_executions table
+ * Replaces KV-based updateJobStatus for unified storage
+ */
+export async function updateD1JobStatus(
+  env: CloudflareEnvironment,
+  jobType: string,
+  date: string,
+  status: 'done' | 'failed' | 'running' | 'pending',
+  metadata: {
+    symbols_processed?: number;
+    execution_time_ms?: number;
+    symbols_successful?: number;
+    symbols_fallback?: number;
+    symbols_failed?: number;
+    errors?: string[];
+    [key: string]: any;
+  } = {}
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    logger.warn('D1 database not available for job status update');
+    return false;
+  }
+
+  const executedAt = new Date().toISOString();
+  const symbolsProcessed = metadata.symbols_processed ?? 0;
+  const symbolsSuccessful = metadata.symbols_successful ?? symbolsProcessed;
+  const symbolsFallback = metadata.symbols_fallback ?? 0;
+  const symbolsFailed = metadata.symbols_failed ?? 0;
+  const successRate = symbolsProcessed > 0 ? (symbolsSuccessful / symbolsProcessed) : 1;
+  const errorsJson = JSON.stringify(metadata.errors || []);
+
+  try {
+    await db.prepare(`
+      INSERT INTO job_executions (job_type, status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      jobType,
+      status === 'done' ? 'success' : status,
+      executedAt,
+      metadata.execution_time_ms ?? 0,
+      symbolsProcessed,
+      symbolsSuccessful,
+      symbolsFallback,
+      symbolsFailed,
+      successRate,
+      errorsJson
+    ).run();
+
+    logger.info('D1 job status updated', { jobType, date, status, symbolsProcessed });
+    return true;
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    if (errMsg.includes('no such table')) {
+      logger.warn('D1 job_executions table not found - migration not applied', { jobType, date });
+    } else {
+      logger.error('D1 job status update failed', { error: errMsg, jobType, date });
+    }
+    return false;
+  }
+}
+
+/**
+ * Get job status from D1 job_executions table
+ * Replaces KV-based getJobStatus
+ */
+export async function getD1JobStatus(
+  env: CloudflareEnvironment,
+  jobType: string,
+  date: string
+): Promise<{ status: string; timestamp: string; metadata: any } | null> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return null;
+
+  try {
+    const result = await db.prepare(`
+      SELECT status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors
+      FROM job_executions
+      WHERE job_type = ? AND DATE(executed_at) = ?
+      ORDER BY executed_at DESC
+      LIMIT 1
+    `).bind(jobType, date).first<{
+      status: string;
+      executed_at: string;
+      execution_time_ms: number;
+      symbols_processed: number;
+      symbols_successful: number;
+      symbols_fallback: number;
+      symbols_failed: number;
+      success_rate: number;
+      errors: string;
+    }>();
+
+    if (result) {
+      return {
+        status: result.status === 'success' ? 'done' : result.status,
+        timestamp: result.executed_at,
+        metadata: {
+          execution_time_ms: result.execution_time_ms,
+          symbols_processed: result.symbols_processed,
+          symbols_successful: result.symbols_successful,
+          symbols_fallback: result.symbols_fallback,
+          symbols_failed: result.symbols_failed,
+          success_rate: result.success_rate,
+          errors: JSON.parse(result.errors || '[]')
+        }
+      };
+    }
+    return null;
+  } catch (error) {
+    logger.debug('D1 job status query failed', { error: (error as Error).message, jobType, date });
+    return null;
+  }
+}

@@ -16,7 +16,7 @@ import { createAnalysisResponse, type AnalysisResponseOptions } from '../respons
 import { BusinessMetrics } from '../monitoring.js';
 import { getJobStatus, validateDependencies } from '../kv-utils.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
-import { writeD1ReportSnapshot } from '../d1-job-storage.js';
+import { writeD1ReportSnapshot, updateD1JobStatus } from '../d1-job-storage.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('analysis-handlers');
@@ -191,9 +191,8 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
     await dal.write(analysisKey, analysis, { expirationTtl: 86400 }); // 24 hours
     logger.info('✅ DO cache warmed after D1 write', { key: analysisKey, dateStr });
 
-    // Update job status after successful analysis
-    const { updateJobStatus } = await import('../kv-utils.js');
-    await updateJobStatus('analysis', dateStr, 'done', env, {
+    // Update job status in D1
+    await updateD1JobStatus(env, 'analysis', dateStr, 'done', {
       symbols_processed: analysis.symbols_analyzed?.length || 0,
       execution_time_ms: analysis.execution_metrics?.total_time_ms || 0
     });
@@ -229,12 +228,10 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       await dal.write(analysisKey, basicAnalysis, { expirationTtl: 86400 });
       logger.info('✅ Fallback analysis data stored in KV', { key: analysisKey, dateStr });
 
-      // Update job status even for fallback
-      const { updateJobStatus } = await import('../kv-utils.js');
-      await updateJobStatus('analysis', dateStr, 'done', env, {
+      // Update job status in D1 even for fallback
+      await updateD1JobStatus(env, 'analysis', dateStr, 'done', {
         symbols_processed: (basicAnalysis as any).symbols_analyzed?.length || 0,
-        execution_time_ms: (basicAnalysis as any).execution_metrics?.total_time_ms || 0,
-        fallback: true
+        execution_time_ms: (basicAnalysis as any).execution_metrics?.total_time_ms || 0
       });
 
       BusinessMetrics.analysisCompleted('manual_fallback',
