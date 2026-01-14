@@ -310,7 +310,7 @@ export const handleIntradayCheck = createHandler(
             primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
             secondary: '@cf/huggingface/distilbert-sst-2-int8'
           }
-        });
+        }, 'scheduler');
       } catch (e) { /* ignore D1 write errors */ }
     }
 

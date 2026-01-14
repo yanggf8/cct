@@ -164,7 +164,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
         primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
         secondary: '@cf/huggingface/distilbert-sst-2-int8'
       }
-    });
+    }, 'scheduler');
     await dal.write(`weekly_${weekStr}`, weeklyData, { expirationTtl: 86400 });
   }
   await dal.write(cacheKey, htmlContent, { expirationTtl: 600 });

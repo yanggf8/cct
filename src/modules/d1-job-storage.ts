@@ -47,6 +47,11 @@ export interface D1ScheduledJobResult {
 }
 
 /**
+ * Trigger source types for tracking who/what initiated a job
+ */
+export type TriggerSource = 'github-actions' | 'manual-api' | 'cron' | 'scheduler' | 'unknown';
+
+/**
  * Write report snapshot to D1 scheduled_job_results table
  * Safe: returns false if table doesn't exist (migration not applied)
  */
@@ -55,7 +60,8 @@ export async function writeD1ReportSnapshot(
   executionDate: string,
   reportType: string,
   reportContent: any,
-  metadata?: any
+  metadata?: any,
+  triggerSource: TriggerSource = 'unknown'
 ): Promise<boolean> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -69,17 +75,25 @@ export async function writeD1ReportSnapshot(
 
     // Upsert: replace if same date+type exists
     await db.prepare(`
-      INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, created_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-    `).bind(executionDate, reportType, contentJson, metadataJson).run();
+      INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, trigger_source, created_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `).bind(executionDate, reportType, contentJson, metadataJson, triggerSource).run();
 
-    logger.info('D1 report snapshot written', { executionDate, reportType });
+    logger.info('D1 report snapshot written', { executionDate, reportType, triggerSource });
     return true;
   } catch (error) {
     const errMsg = (error as Error).message;
-    // Gracefully handle missing table (migration not applied)
+    // Gracefully handle missing table (migration not applied) or missing column (migration pending)
     if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
       logger.warn('D1 scheduled_job_results table not found - migration not applied', { executionDate, reportType });
+    } else if (errMsg.includes('no column named trigger_source')) {
+      // Fallback: write without trigger_source if column doesn't exist yet
+      logger.warn('trigger_source column not found - using legacy write', { executionDate, reportType });
+      await db.prepare(`
+        INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, created_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+      `).bind(executionDate, reportType, contentJson, metadataJson).run();
+      return true;
     } else {
       logger.error('D1 write failed', { error: errMsg, executionDate, reportType });
     }

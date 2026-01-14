@@ -287,7 +287,7 @@ export async function handleScheduledEvent(
               primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
               secondary: '@cf/huggingface/distilbert-sst-2-int8'
             }
-          });
+          }, 'cron');
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
         }
       } catch (dalError: any) {

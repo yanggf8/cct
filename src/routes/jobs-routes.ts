@@ -7,7 +7,34 @@ import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
 import { handleScheduledEvent } from '../modules/scheduler.js';
-import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1ReportSnapshot } from '../modules/d1-job-storage.js';
+import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1ReportSnapshot, TriggerSource } from '../modules/d1-job-storage.js';
+
+/**
+ * Detect trigger source from request headers
+ * - GitHub Actions sets User-Agent containing "GitHub-Hookshot" or custom header
+ * - Can be explicitly set via X-Trigger-Source header
+ * - Defaults to 'manual-api' for API calls
+ */
+function detectTriggerSource(request: Request): TriggerSource {
+  const userAgent = request.headers.get('User-Agent') || '';
+  const explicitSource = request.headers.get('X-Trigger-Source');
+
+  // Explicit header takes precedence
+  if (explicitSource) {
+    const validSources: TriggerSource[] = ['github-actions', 'manual-api', 'cron', 'scheduler', 'unknown'];
+    if (validSources.includes(explicitSource as TriggerSource)) {
+      return explicitSource as TriggerSource;
+    }
+  }
+
+  // Detect GitHub Actions
+  if (userAgent.includes('GitHub-Hookshot') || request.headers.get('X-GitHub-Actions')) {
+    return 'github-actions';
+  }
+
+  // Default to manual-api for API endpoint calls
+  return 'manual-api';
+}
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -311,6 +338,9 @@ async function handlePreMarketJob(
       timestamp: analysisData.timestamp
     };
 
+    // Detect trigger source for audit trail
+    const triggerSource = detectTriggerSource(request);
+
     // Write to D1 for persistence
     await writeD1ReportSnapshot(env, today, 'pre-market', jobResult, {
       processingTimeMs: timer.getElapsedMs(),
@@ -319,7 +349,7 @@ async function handlePreMarketJob(
         primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
         secondary: '@cf/huggingface/distilbert-sst-2-int8'
       }
-    });
+    }, triggerSource);
 
     const response = {
       success: true,

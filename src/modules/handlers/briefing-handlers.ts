@@ -80,7 +80,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const showScheduled = isQueryingFuture || (isQueryingToday && beforeScheduleET);
 
   // Generate HTML based on D1 data availability
-  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture);
+  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture, isQueryingToday);
 
   // Cache HTML for fast subsequent loads
   try {
@@ -107,7 +107,8 @@ function generatePreMarketHTML(
   d1Result: { data: any; createdAt: string; isStale?: boolean; sourceDate?: string } | null,
   queryDateStr: string,
   showScheduled: boolean,
-  isQueryingFuture: boolean
+  isQueryingFuture: boolean,
+  isQueryingToday: boolean
 ): string {
   const briefingData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
@@ -139,13 +140,23 @@ function generatePreMarketHTML(
     day: 'numeric'
   });
 
+  // Format query date for display
+  const queryDateFormatted = new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
+  });
+
+  // Context-aware text: "today's" vs "this date's" / "{date}'s"
+  const sessionContext = isQueryingToday ? "today's" : `${queryDateFormatted}'s`;
+  const sessionContextCapitalized = isQueryingToday ? "Today's" : `${queryDateFormatted}'s`;
+
   // Determine display status - D1 is source of truth
   // Show both ET and local time for generated reports
   let statusDisplay: string;
   if (hasD1Data && d1CreatedAt) {
     const ts = new Date(d1CreatedAt).getTime();
     if (isStale) {
-      statusDisplay = `⚠️ Showing data from ${sourceDateFormatted} (today's report not yet available)`;
+      statusDisplay = `⚠️ Showing data from ${sourceDateFormatted} (${sessionContext} report not yet available)`;
     } else {
       statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
     }
@@ -518,7 +529,7 @@ function generatePreMarketHTML(
     <div class="container">
         <div class="header">
             <h1>🚀 Pre-Market Briefing</h1>
-            <p>Comprehensive trading battle plan for today's market session</p>
+            <p>Comprehensive trading battle plan for ${sessionContext} market session</p>
             <div class="date-display">${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
@@ -533,9 +544,9 @@ function generatePreMarketHTML(
 
         ${isStale && hasD1Data ? `
         <div class="stale-warning">
-            ⚠️ <strong>Stale Data:</strong> Today's pre-market report has not been generated yet.
+            ⚠️ <strong>Stale Data:</strong> ${sessionContextCapitalized} pre-market report has not been generated yet.
             Showing data from <strong>${sourceDateFormatted}</strong>.
-            The report is scheduled for <span class="sched-time" data-utch="13" data-utcm="30"></span>.
+            ${isQueryingToday ? `The report is scheduled for <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : ''}
             <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
         </div>
         ` : ''}
@@ -771,7 +782,7 @@ function generateSignalCards(signals: any[]): string {
  */
 function generateActionItems(actionItems: any[]): string {
   if (!actionItems || actionItems.length === 0) {
-    return '<li class="action-item"><h4>📋 Monitor Market</h4><p>Watch for pre-market movements and news that could impact today\'s trading session.</p></li>';
+    return '<li class="action-item"><h4>📋 Monitor Market</h4><p>Watch for pre-market movements and news that could impact the trading session.</p></li>';
   }
 
   return actionItems.map((item: any, index: any) => `

@@ -49,21 +49,26 @@ jobs:
           echo "Current day: $CURRENT_DAY"
 
           # Determine analysis type based on schedule
+          # Use /api/v1/jobs/trigger with triggerMode for scheduled jobs
           if [[ "$CURRENT_DAY" == "7" && "$CURRENT_TIME" == "14:00" ]]; then
             echo "analysis_type=weekly-review" >> $GITHUB_OUTPUT
-            echo "endpoint=/api/v1/reports/weekly" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
+            echo "trigger_mode=weekly_review_analysis" >> $GITHUB_OUTPUT
             echo "description=Weekly Review - Comprehensive high-confidence signal analysis"
           elif [[ "$CURRENT_TIME" == "12:30" ]]; then
             echo "analysis_type=pre-market" >> $GITHUB_OUTPUT
-            echo "endpoint=/api/v1/reports/pre-market" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
+            echo "trigger_mode=morning_prediction_alerts" >> $GITHUB_OUTPUT
             echo "description=Pre-Market Briefing - High-confidence signals (≥70%)"
           elif [[ "$CURRENT_TIME" == "16:00" ]]; then
             echo "analysis_type=intraday" >> $GITHUB_OUTPUT
-            echo "endpoint=/api/v1/reports/intraday" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
+            echo "trigger_mode=midday_validation_prediction" >> $GITHUB_OUTPUT
             echo "description=Intraday Performance Check - Real-time tracking"
           elif [[ "$CURRENT_TIME" == "20:05" ]]; then
             echo "analysis_type=end-of-day" >> $GITHUB_OUTPUT
-            echo "endpoint=/api/v1/reports/end-of-day" >> $GITHUB_OUTPUT
+            echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
+            echo "trigger_mode=next_day_market_prediction" >> $GITHUB_OUTPUT
             echo "description=End-of-Day Summary - Market close analysis"
           else
             # Default for manual triggers
@@ -74,11 +79,13 @@ jobs:
 
           echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
           echo "Endpoint: ${{ steps.analysis-type.outputs.endpoint }}"
+          echo "Trigger Mode: ${{ steps.analysis-type.outputs.trigger_mode || 'N/A' }}"
           echo "Description: ${{ steps.analysis-type.outputs.description }}"
 
       - name: Execute Trading Analysis
         run: |
           ENDPOINT="${{ steps.analysis-type.outputs.endpoint }}"
+          TRIGGER_MODE="${{ steps.analysis-type.outputs.trigger_mode }}"
           WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
           API_KEY="${{ secrets.X_API_KEY }}"
 
@@ -86,29 +93,26 @@ jobs:
           echo "📍 Endpoint: $ENDPOINT"
           echo "🌐 Worker URL: $WORKER_URL"
 
-          # Step 1: Generate analysis data first (except for manual analyze or API calls)
-          if [[ "$ENDPOINT" != "/api/v1/sentiment/analysis" ]]; then
-            echo "📊 Step 1: Generating analysis data..."
-            analyze_response=$(curl -s \
+          # Job trigger endpoint uses POST with triggerMode in body
+          if [[ "$ENDPOINT" == "/api/v1/jobs/trigger" ]]; then
+            echo "📋 Executing scheduled job..."
+            response=$(curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-KEY: $API_KEY" \
+              -H "X-Trigger-Source: github-actions" \
+              -d "{\"triggerMode\": \"$TRIGGER_MODE\"}" \
+              --connect-timeout 300 \
+              --max-time 600 \
+              "$WORKER_URL$ENDPOINT")
+          else
+            # Manual analysis endpoint (GET)
+            echo "📋 Executing manual analysis..."
+            response=$(curl -s \
               -H "X-API-KEY: $API_KEY" \
               --connect-timeout 300 \
               --max-time 600 \
-              "$WORKER_URL/api/v1/sentiment/analysis")
-            
-            echo "Analysis generation response:"
-            echo "$analyze_response" | jq '.' 2>/dev/null || echo "$analyze_response"
-            
-            # Wait a moment for data to be stored
-            sleep 2
+              "$WORKER_URL$ENDPOINT")
           fi
-
-          # Step 2: Execute report endpoint
-          echo "📋 Step 2: Generating report..."
-          response=$(curl -s \
-            -H "X-API-KEY: $API_KEY" \
-            --connect-timeout 300 \
-            --max-time 600 \
-            "$WORKER_URL$ENDPOINT")
 
           echo "📊 Analysis Response:"
           echo "$response" | jq '.' 2>/dev/null || echo "$response"

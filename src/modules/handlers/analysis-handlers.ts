@@ -182,7 +182,7 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
         primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
         secondary: '@cf/huggingface/distilbert-sst-2-int8'
       }
-    });
+    }, 'manual-api');
     logger.info('D1 report snapshot write', { success: d1Written, dateStr, reportType: 'analysis' });
 
     // 2. Warm DO cache from the analysis (cache-after-write)
