@@ -54,7 +54,7 @@ export async function handleJobsRoutes(
   const url = new URL(request.url);
 
   // Read-only endpoints are public, write endpoints require auth
-  const isWriteEndpoint = path === '/api/v1/jobs/trigger' || path === '/api/v1/jobs/pre-market';
+  const isWriteEndpoint = path === '/api/v1/jobs/trigger' || path === '/api/v1/jobs/pre-market' || path === '/api/v1/jobs/intraday';
 
   if (isWriteEndpoint) {
     const authResult = validateApiKey(request, env);
@@ -70,6 +70,11 @@ export async function handleJobsRoutes(
     // POST /api/v1/jobs/pre-market - Execute pre-market analysis job (protected)
     if (path === '/api/v1/jobs/pre-market' && request.method === 'POST') {
       return await handlePreMarketJob(request, env, headers, requestId, timer);
+    }
+
+    // POST /api/v1/jobs/intraday - Execute intraday analysis job (protected)
+    if (path === '/api/v1/jobs/intraday' && request.method === 'POST') {
+      return await handleIntradayJob(request, env, headers, requestId, timer);
     }
 
     // POST /api/v1/jobs/trigger - Manually trigger a scheduled job (protected)
@@ -387,6 +392,97 @@ async function handlePreMarketJob(
     return new Response(
       JSON.stringify(ApiResponseFactory.error(
         'Failed to execute pre-market job',
+        'JOB_ERROR',
+        {
+          requestId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      )),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
+  }
+}
+
+/**
+ * POST /api/v1/jobs/intraday
+ * Execute intraday analysis job
+ */
+async function handleIntradayJob(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  try {
+    const { IntradayDataBridge } = await import('../modules/intraday-data-bridge.js');
+    const bridge = new IntradayDataBridge(env);
+
+    logger.info('IntradayJob: Starting job execution', { requestId });
+
+    // Execute intraday analysis
+    const analysisData = await bridge.generateIntradayAnalysis();
+    const today = new Date().toISOString().split('T')[0];
+
+    // Build job result for D1 storage
+    const jobResult = {
+      date: today,
+      job_type: 'intraday',
+      symbols_analyzed: analysisData.total_symbols,
+      on_track_count: analysisData.on_track_count,
+      diverged_count: analysisData.diverged_count,
+      overall_accuracy: analysisData.overall_accuracy,
+      market_status: analysisData.market_status,
+      symbols: analysisData.symbols,
+      timestamp: analysisData.timestamp
+    };
+
+    // Detect trigger source
+    const triggerSource = detectTriggerSource(request);
+
+    // Write to D1
+    await writeD1ReportSnapshot(env, today, 'intraday', jobResult, {
+      processingTimeMs: timer.getElapsedMs(),
+      symbolsAnalyzed: analysisData.total_symbols,
+      accuracyRate: analysisData.overall_accuracy
+    }, triggerSource);
+
+    const response = {
+      success: true,
+      job_type: 'intraday',
+      message: 'Intraday job executed successfully',
+      result: {
+        symbols_analyzed: analysisData.total_symbols,
+        on_track: analysisData.on_track_count,
+        diverged: analysisData.diverged_count,
+        accuracy: analysisData.overall_accuracy,
+        market_status: analysisData.market_status
+      },
+      processing_time_ms: timer.getElapsedMs(),
+      timestamp: new Date().toISOString()
+    };
+
+    logger.info('IntradayJob: Job execution completed', {
+      symbols_count: analysisData.total_symbols,
+      accuracy: analysisData.overall_accuracy,
+      processing_time: timer.getElapsedMs(),
+      requestId
+    });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success(response, {
+        requestId,
+        processingTime: timer.getElapsedMs(),
+      })),
+      { status: HttpStatus.OK, headers }
+    );
+
+  } catch (error: any) {
+    logger.error('IntradayJob Error', { error: error.message, requestId });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error(
+        'Failed to execute intraday job',
         'JOB_ERROR',
         {
           requestId,

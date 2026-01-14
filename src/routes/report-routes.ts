@@ -721,27 +721,61 @@ async function handleIntradayReport(
   const timer = new ProcessingTimer();
 
   try {
-    const response = {
-      type: 'intraday_check',
-      timestamp: new Date().toISOString(),
-      market_status: isMarketOpen() ? 'open' : 'closed',
-      current_performance: {
-        time: new Date().toLocaleTimeString(),
-        market_sentiment: 'neutral',
-        tracking_predictions: 'Morning predictions being monitored',
-      },
-    };
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Read from D1 report snapshots
+    if (!env.PREDICT_JOBS_DB) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error(
+          'Database not available',
+          'DB_ERROR',
+          { requestId }
+        )),
+        { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+      );
+    }
 
-    logger.info('IntradayReport: Report generated', {
-      marketStatus: response.market_status,
-      processingTime: timer.getElapsedMs(),
-      requestId
-    });
+    const snapshot = await env.PREDICT_JOBS_DB
+      .prepare('SELECT content FROM report_snapshots WHERE report_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+      .bind(today, 'intraday')
+      .first();
+
+    let response;
+    
+    if (snapshot && snapshot.content) {
+      // Parse and return stored intraday data
+      const content = typeof snapshot.content === 'string' 
+        ? JSON.parse(snapshot.content) 
+        : snapshot.content;
+      
+      response = content;
+      
+      logger.info('IntradayReport: Returning D1 data', {
+        symbols_count: content.symbols_analyzed || 0,
+        accuracy: content.overall_accuracy || 0,
+        requestId
+      });
+    } else {
+      // No data available - return message to run job
+      response = {
+        type: 'intraday_check',
+        timestamp: new Date().toISOString(),
+        market_status: isMarketOpen() ? 'open' : 'closed',
+        message: 'No intraday data available. Run POST /api/v1/jobs/intraday to generate.',
+        symbols: [],
+        overall_accuracy: 0,
+        on_track_count: 0,
+        diverged_count: 0,
+        total_symbols: 0
+      };
+      
+      logger.info('IntradayReport: No D1 data available', { date: today, requestId });
+    }
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
-          source: 'fresh',
+          source: snapshot ? 'd1' : 'fresh',
           ttl: 300, // 5 minutes
           requestId,
           processingTime: timer.finish(),
