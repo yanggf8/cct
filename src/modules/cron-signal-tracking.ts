@@ -5,8 +5,7 @@
 
 import { createLogger } from './logging.js';
 import { rateLimitedFetch } from './rate-limiter.js';
-import { updateJobStatus, putWithVerification, logKVOperation } from './kv-utils.js';
-import { createDAL } from './dal.js';
+import { writeD1ReportSnapshot, readD1ReportSnapshot } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -150,7 +149,6 @@ class CronSignalTracker {
     date: Date
   ): Promise<boolean> {
     const dateStr = date.toISOString().split('T')[0];
-    const predictionsKey = `morning_predictions_${dateStr}`;
 
     try {
       // Extract high-confidence signals from analysis
@@ -193,50 +191,38 @@ class CronSignalTracker {
         }
       };
 
-      const predictionsJson = JSON.stringify(predictionsData);
-
-      logger.info('Saving morning predictions to KV', {
+      logger.info('Saving morning predictions to D1', {
         date: dateStr,
-        key: predictionsKey,
-        signalCount: highConfidenceSignals.length,
-        bytes: predictionsJson.length
+        signalCount: highConfidenceSignals.length
       });
 
-      const success = await putWithVerification(predictionsKey, predictionsJson, env, {
-        expirationTtl: 7 * 24 * 60 * 60 // 7 days
-      });
+      // Write to D1 scheduled_job_results table
+      const success = await writeD1ReportSnapshot(
+        env,
+        dateStr,
+        'morning_predictions',
+        predictionsData,
+        {
+          signalCount: highConfidenceSignals.length,
+          averageConfidence: predictionsData.metadata.averageConfidence,
+          bullishCount: predictionsData.metadata.bullishCount,
+          bearishCount: predictionsData.metadata.bearishCount
+        },
+        'cron'
+      );
 
       if (success) {
-        logKVOperation('SAVE_MORNING_PREDICTIONS', predictionsKey, true, {
+        logger.info('D1 morning predictions saved successfully', {
           date: dateStr,
           signalCount: highConfidenceSignals.length,
-          avgConfidence: predictionsData.metadata.averageConfidence.toFixed(1),
-          totalBytes: predictionsJson.length
+          avgConfidence: predictionsData.metadata.averageConfidence.toFixed(1)
         });
-
-        // Update job status for morning predictions
-        try {
-          await updateJobStatus('morning_predictions', dateStr, 'done', env, {
-            signalCount: highConfidenceSignals.length,
-            averageConfidence: predictionsData.metadata.averageConfidence,
-            bullishCount: predictionsData.metadata.bullishCount,
-            bearishCount: predictionsData.metadata.bearishCount
-          });
-        } catch (statusError: any) {
-          logger.warn('Failed to update morning predictions job status', {
-            date: dateStr,
-            error: statusError.message
-          });
-        }
-
         return true;
       } else {
-        logKVOperation('SAVE_MORNING_PREDICTIONS', predictionsKey, false, {
+        logger.error('D1 morning predictions save failed', {
           date: dateStr,
-          signalCount: highConfidenceSignals.length,
-          error: 'KV verification failed'
+          signalCount: highConfidenceSignals.length
         });
-
         return false;
       }
 
@@ -254,16 +240,15 @@ class CronSignalTracker {
    */
   async getMorningPredictions(env: CloudflareEnvironment, date: Date): Promise<PredictionsData | null> {
     const dateStr = date.toISOString().split('T')[0];
-    const predictionsKey = `morning_predictions_${dateStr}`;
 
     try {
-      const dal = createDAL(env);
-      const result = await dal.read(predictionsKey);
-      if (result.success && result.data) {
+      // Read from D1 scheduled_job_results table
+      const result = await readD1ReportSnapshot(env, dateStr, 'morning_predictions');
+      if (result && result.data) {
         return result.data as PredictionsData;
       }
     } catch (error: any) {
-      logger.error('Failed to retrieve morning predictions', {
+      logger.error('Failed to retrieve morning predictions from D1', {
         date: dateStr,
         error: (error instanceof Error ? error.message : String(error))
       });
@@ -308,20 +293,28 @@ class CronSignalTracker {
         };
       });
 
-      // Save updated predictions
+      // Save updated predictions to D1
       const updatedData: PredictionsData = {
         ...predictionsData,
         predictions: updatedPredictions,
         lastPerformanceUpdate: new Date().toISOString()
       };
 
-      const dal = createDAL(env);
-      const writeResult = await dal.write(`morning_predictions_${dateStr}`, updatedData, {
-        expirationTtl: 7 * 24 * 60 * 60
-      });
+      const writeSuccess = await writeD1ReportSnapshot(
+        env,
+        dateStr,
+        'morning_predictions',
+        updatedData,
+        {
+          performanceUpdate: true,
+          symbolCount: symbols.length,
+          updatedAt: new Date().toISOString()
+        },
+        'cron'
+      );
 
-      if (!writeResult.success) {
-        logger.warn('Failed to write updated predictions', { error: writeResult.error });
+      if (!writeSuccess) {
+        logger.warn('Failed to write updated predictions to D1', { date: dateStr });
       }
 
       logger.info('Updated signal performance', {

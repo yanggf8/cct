@@ -132,9 +132,17 @@ export function generateRequestId(): string {
 }
 
 // API Key Validation Helper
-export function validateApiKey(request: Request): { valid: boolean; key: string | null } {
+export function validateApiKey(request: Request, env?: { X_API_KEY?: string }): { valid: boolean; key: string | null } {
   const apiKey = request.headers.get('X-API-Key');
-  const validKeys = ['yanggf', 'demo', 'test'];
+
+  // If environment is provided, use configured keys
+  if (env?.X_API_KEY) {
+    const validKeys = env.X_API_KEY.split(',').map(k => k.trim()).filter(Boolean);
+    return { valid: validKeys.includes(apiKey || ''), key: apiKey };
+  }
+
+  // Fallback for backward compatibility - should not be used in production
+  const validKeys = ['demo', 'test'];
   return { valid: validKeys.includes(apiKey || ''), key: apiKey };
 }
 

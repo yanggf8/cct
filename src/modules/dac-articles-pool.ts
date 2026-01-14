@@ -265,10 +265,15 @@ export function createDACArticlesPoolClient(env: {
   DAC_ARTICLES_POOL_API_KEY?: string;
 }): DACArticlesPoolClient | null {
   const dacBackend = env.DAC_BACKEND;
-  const apiKey = env.DAC_ARTICLES_POOL_API_KEY || 'yanggf';
+  const apiKey = env.DAC_ARTICLES_POOL_API_KEY;
 
   if (!dacBackend) {
     logger.warn('DAC backend service binding not available');
+    return null;
+  }
+
+  if (!apiKey) {
+    logger.warn('DAC_ARTICLES_POOL_API_KEY not configured');
     return null;
   }
 

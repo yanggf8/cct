@@ -216,12 +216,12 @@ export function validateRequestBody(body: any, requiredFields: string[] = []): R
 /**
  * API Key Validation
  */
-export function validateApiKey(apiKey: any, validKeys: string[] = ['yanggf', 'demo', 'test']): string {
+export function validateApiKey(apiKey: any, validKeys: string[] = []): string {
   if (!apiKey || typeof apiKey !== 'string') {
     throw new ValidationError('API key must be provided', 'apiKey', apiKey);
   }
 
-  if (!validKeys.includes(apiKey)) {
+  if (validKeys.length > 0 && !validKeys.includes(apiKey)) {
     throw new ValidationError('Invalid API key', 'apiKey', apiKey);
   }
 
