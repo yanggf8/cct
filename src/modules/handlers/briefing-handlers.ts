@@ -57,7 +57,9 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const fallback = await getD1FallbackData(env, queryDateStr, 'pre-market');
   const d1Result = fallback ? {
     data: fallback.data,
-    createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString()
+    createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString(),
+    isStale: fallback.isStale || false,
+    sourceDate: fallback.sourceDate || queryDateStr
   } : null;
   
   if (fallback) {
@@ -94,24 +96,27 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 
 /**
  * Generate pre-market HTML page
- * 
+ *
  * Status display logic (D1 is source of truth):
  * 1. If D1 has data → show "Generated {d1_created_at} ET"
- * 2. If no D1 data AND querying today AND before 8:30 AM ET → show "Scheduled"
- * 3. If no D1 data AND past scheduled time → show "No data available"
+ * 2. If data is stale (from different date) → show stale warning
+ * 3. If no D1 data AND querying today AND before 8:30 AM ET → show "Scheduled"
+ * 4. If no D1 data AND past scheduled time → show "No data available"
  */
 function generatePreMarketHTML(
-  d1Result: { data: any; createdAt: string } | null,
+  d1Result: { data: any; createdAt: string; isStale?: boolean; sourceDate?: string } | null,
   queryDateStr: string,
   showScheduled: boolean,
   isQueryingFuture: boolean
 ): string {
   const briefingData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
-  
+  const isStale = d1Result?.isStale || false;
+  const sourceDate = d1Result?.sourceDate || queryDateStr;
+
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;
-  
+
   // Extract signals for display
   let signals: any[] = [];
   if (briefingData) {
@@ -127,13 +132,23 @@ function generatePreMarketHTML(
   }
   const totalSignals = signals.length;
   const highConfidenceSignals = signals.filter((s: any) => (s.confidence || 0) >= 0.6).length;
-  
+
+  // Format source date for display
+  const sourceDateFormatted = new Date(sourceDate + 'T12:00:00Z').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
+  });
+
   // Determine display status - D1 is source of truth
   // Show both ET and local time for generated reports
   let statusDisplay: string;
   if (hasD1Data && d1CreatedAt) {
     const ts = new Date(d1CreatedAt).getTime();
-    statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
+    if (isStale) {
+      statusDisplay = `⚠️ Showing data from ${sourceDateFormatted} (today's report not yet available)`;
+    } else {
+      statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
+    }
   } else if (showScheduled) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`;
   } else {
@@ -515,6 +530,15 @@ function generatePreMarketHTML(
                 <span>Pre-Market Active</span>
             </div>
         </div>
+
+        ${isStale && hasD1Data ? `
+        <div class="stale-warning">
+            ⚠️ <strong>Stale Data:</strong> Today's pre-market report has not been generated yet.
+            Showing data from <strong>${sourceDateFormatted}</strong>.
+            The report is scheduled for <span class="sched-time" data-utch="13" data-utcm="30"></span>.
+            <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
+        </div>
+        ` : ''}
 
         ${!hasD1Data ? `
         <div class="no-data">

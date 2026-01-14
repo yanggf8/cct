@@ -126,6 +126,7 @@ Our system doesn't hide behind complex algorithms. We use **simple, transparent 
 - Symbol-specific analysis with confidence scores
 - Bullish/bearish sentiment distribution
 - Interactive confidence visualizations
+- If a day's report isn't ready yet, you'll see a yellow stale warning showing the source date of the fallback data and the scheduled ET generation time.
 
 #### **📈 Intraday Check**
 **URL**: `/intraday-check`
