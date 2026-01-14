@@ -33,3 +33,4 @@ export default {
 // Export DO classes for wrangler
 export { CacheDurableObject } from './modules/cache-durable-object.js';
 export { SimpleCacheDO } from './modules/simple-cache-do.js';
+export { RateLimiterDO } from './modules/rate-limiter-do.js';

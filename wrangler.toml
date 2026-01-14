@@ -57,10 +57,19 @@ entrypoint = "handleRequest"
 [[durable_objects.bindings]]
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER_DO"
+class_name = "RateLimiterDO"
+
 # Durable Objects migrations
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CacheDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RateLimiterDO"]
 
 # Scheduled events (DISABLED - Migrated to GitHub Actions)
 # All prediction scheduling now handled by .github/workflows/trading-system.yml

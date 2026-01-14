@@ -65,12 +65,56 @@ class APISecurityManager {
   private suspiciousIPs: Map<string, SuspiciousActivity> = new Map();
   private lockedOutAPIKeys: Map<string, number> = new Map();
   private lockedOutIPs: Map<string, number> = new Map();
+  private rateLimiterDO?: DurableObjectNamespace;
 
-  constructor(config: Partial<SecurityConfig> = {}) {
+  constructor(config: Partial<SecurityConfig> = {}, rateLimiterDO?: DurableObjectNamespace) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.authLimiter = createRateLimiter(this.config.authRequestsPerMinute, 60000);
+    this.rateLimiterDO = rateLimiterDO;
 
-    logger.info('API Security Manager initialized', { config: this.config });
+    logger.info('API Security Manager initialized', { config: this.config, hasDO: !!rateLimiterDO });
+  }
+
+  /**
+   * Check rate limit using DO (distributed) with in-memory fallback
+   */
+  public async checkRateLimitDO(
+    identifier: string,
+    maxRequests: number,
+    windowMs: number
+  ): Promise<{ allowed: boolean; remaining: number; retryAfter?: number }> {
+    if (!this.rateLimiterDO) {
+      // Fallback to in-memory
+      if (!this.apiLimiters.has(identifier)) {
+        this.apiLimiters.set(identifier, createRateLimiter(maxRequests, windowMs));
+      }
+      const limiter = this.apiLimiters.get(identifier);
+      const allowed = limiter.isAllowed();
+      return { 
+        allowed, 
+        remaining: limiter.getStatus()?.remaining || 0,
+        retryAfter: allowed ? undefined : Math.ceil(limiter.getRetryAfter() / 1000)
+      };
+    }
+
+    try {
+      const id = (this.rateLimiterDO as any).idFromName('global-limiter');
+      const stub = (this.rateLimiterDO as any).get(id);
+      const res = await stub.fetch('https://do/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, maxRequests, windowMs })
+      });
+      return await res.json();
+    } catch (error) {
+      logger.error('DO rate limiter failed, using fallback', { error });
+      // Fallback to in-memory on DO failure
+      if (!this.apiLimiters.has(identifier)) {
+        this.apiLimiters.set(identifier, createRateLimiter(maxRequests, windowMs));
+      }
+      const limiter = this.apiLimiters.get(identifier);
+      return { allowed: limiter.isAllowed(), remaining: 0 };
+    }
   }
 
   /**

@@ -33,6 +33,7 @@ interface EnhancedContext extends ExecutionContext {
   estTime?: Date;
   scheduledTime?: Date;
   validatedBody?: any;
+  abortSignal?: AbortSignal;
 }
 
 interface HandlerFunction<T = Response> {
@@ -84,14 +85,18 @@ export function createHandler<T = Response>(
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
     const userAgent = request.headers.get('User-Agent') || 'unknown';
+    const controller = new AbortController();
 
     // Create enhanced context preserving ExecutionContext prototype methods
     const enhancedCtx: EnhancedContext = Object.assign(Object.create(ctx), {
       requestId,
       logger,
       startTime,
-      userAgent
+      userAgent,
+      abortSignal: controller.signal
     });
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // Log request start
@@ -112,15 +117,20 @@ export function createHandler<T = Response>(
         }
       }
 
-      // Execute handler with timeout
-      const timeoutPromise = new Promise<never>((_: any, reject: any) =>
-        setTimeout(() => reject(new Error(`Handler timeout after ${timeout}ms`)), timeout)
-      );
+      // Execute handler with timeout and abort
+      const timeoutPromise = new Promise<never>((_: any, reject: any) => {
+        timeoutId = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`Handler timeout after ${timeout}ms`));
+        }, timeout);
+      });
 
       const result = await Promise.race([
         handlerFn(request, env, enhancedCtx),
         timeoutPromise
       ]);
+
+      if (timeoutId) clearTimeout(timeoutId);
 
       // Calculate performance metrics
       const duration = Date.now() - startTime;
@@ -160,6 +170,7 @@ export function createHandler<T = Response>(
       return result;
 
     } catch (error: any) {
+      if (timeoutId) clearTimeout(timeoutId);
       const duration = Date.now() - startTime;
 
       // Log error with context
