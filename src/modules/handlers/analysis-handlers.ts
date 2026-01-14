@@ -16,7 +16,7 @@ import { createAnalysisResponse, type AnalysisResponseOptions } from '../respons
 import { BusinessMetrics } from '../monitoring.js';
 import { getJobStatus, validateDependencies } from '../kv-utils.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
-import { writeD1ReportSnapshot, updateD1JobStatus } from '../d1-job-storage.js';
+import { writeD1JobResult, updateD1JobStatus } from '../d1-job-storage.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('analysis-handlers');
@@ -174,7 +174,7 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
     });
 
     // 1. Write to D1 first (persistent storage)
-    const d1Written = await writeD1ReportSnapshot(env, dateStr, 'analysis', analysis, {
+    const d1Written = await writeD1JobResult(env, dateStr, 'analysis', analysis, {
       symbols_processed: analysis.symbols_analyzed?.length || 0,
       execution_time_ms: analysis.execution_metrics?.total_time_ms || 0,
       trigger: 'manual_analysis',

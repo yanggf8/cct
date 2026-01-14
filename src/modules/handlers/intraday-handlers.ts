@@ -7,7 +7,7 @@ import { createLogger, type Logger } from '../logging.js';
 import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
-import { writeD1ReportSnapshot } from '../d1-job-storage.js';
+import { writeD1JobResult } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { generatePendingPageHTML } from './pending-page.js';
 import {
@@ -304,7 +304,7 @@ export const handleIntradayCheck = createHandler(
     // Write to D1 as source of truth
     if (intradayData) {
       try {
-        await writeD1ReportSnapshot(env, dateStr, 'intraday', intradayData, {
+        await writeD1JobResult(env, dateStr, 'intraday', intradayData, {
           ai_models: {
             primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
             secondary: '@cf/huggingface/distilbert-sst-2-int8'

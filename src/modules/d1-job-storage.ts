@@ -55,7 +55,7 @@ export type TriggerSource = 'github-actions' | 'manual-api' | 'cron' | 'schedule
  * Write report snapshot to D1 scheduled_job_results table
  * Safe: returns false if table doesn't exist (migration not applied)
  */
-export async function writeD1ReportSnapshot(
+export async function writeD1JobResult(
   env: CloudflareEnvironment,
   executionDate: string,
   reportType: string,

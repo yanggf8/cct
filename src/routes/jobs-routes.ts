@@ -7,7 +7,7 @@ import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
 import { handleScheduledEvent } from '../modules/scheduler.js';
-import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1ReportSnapshot, TriggerSource } from '../modules/d1-job-storage.js';
+import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1JobResult, TriggerSource } from '../modules/d1-job-storage.js';
 
 /**
  * Detect trigger source from request headers
@@ -347,7 +347,7 @@ async function handlePreMarketJob(
     const triggerSource = detectTriggerSource(request);
 
     // Write to D1 for persistence
-    await writeD1ReportSnapshot(env, today, 'pre-market', jobResult, {
+    await writeD1JobResult(env, today, 'pre-market', jobResult, {
       processingTimeMs: timer.getElapsedMs(),
       symbolsRequested: symbols,
       ai_models: {
@@ -441,7 +441,7 @@ async function handleIntradayJob(
     const triggerSource = detectTriggerSource(request);
 
     // Write to D1
-    await writeD1ReportSnapshot(env, today, 'intraday', jobResult, {
+    await writeD1JobResult(env, today, 'intraday', jobResult, {
       processingTimeMs: timer.getElapsedMs(),
       symbolsAnalyzed: analysisData.total_symbols,
       accuracyRate: analysisData.overall_accuracy

@@ -7,7 +7,7 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
-import { writeD1ReportSnapshot } from '../d1-job-storage.js';
+import { writeD1JobResult } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import { generatePendingPageHTML } from './pending-page.js';
@@ -157,7 +157,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   // Write snapshot to D1 and cache HTML
   const dal = createSimplifiedEnhancedDAL(env);
   if (weeklyData) {
-    await writeD1ReportSnapshot(env, weekStr, 'weekly', weeklyData, {
+    await writeD1JobResult(env, weekStr, 'weekly', weeklyData, {
       processingTimeMs: Date.now() - startTime,
       tradingDays: weeklyData.tradingDays || 0,
       ai_models: {

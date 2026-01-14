@@ -736,17 +736,17 @@ async function handleIntradayReport(
     }
 
     const snapshot = await env.PREDICT_JOBS_DB
-      .prepare('SELECT content FROM report_snapshots WHERE report_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+      .prepare('SELECT report_content, created_at FROM scheduled_job_results WHERE execution_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
       .bind(today, 'intraday')
       .first();
 
     let response;
     
-    if (snapshot && snapshot.content) {
+    if (snapshot && snapshot.report_content) {
       // Parse and return stored intraday data
-      const content = typeof snapshot.content === 'string' 
-        ? JSON.parse(snapshot.content) 
-        : snapshot.content;
+      const content = typeof snapshot.report_content === 'string' 
+        ? JSON.parse(snapshot.report_content) 
+        : snapshot.report_content;
       
       response = content;
       

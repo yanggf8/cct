@@ -13,7 +13,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { writeD1ReportSnapshot } from './d1-job-storage.js';
+import { writeD1JobResult } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -276,7 +276,7 @@ export async function handleScheduledEvent(
         };
         const d1ReportType = reportTypeMap[triggerMode];
         if (d1ReportType) {
-          const d1Written = await writeD1ReportSnapshot(env, dateStr, d1ReportType, {
+          const d1Written = await writeD1JobResult(env, dateStr, d1ReportType, {
             ...analysisResult,
             cron_execution_id: cronExecutionId,
             trigger_mode: triggerMode,

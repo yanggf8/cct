@@ -5,7 +5,7 @@
 
 import { createLogger } from './logging.js';
 import { rateLimitedFetch } from './rate-limiter.js';
-import { writeD1ReportSnapshot, readD1ReportSnapshot } from './d1-job-storage.js';
+import { writeD1JobResult, readD1ReportSnapshot } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 // Type definitions
@@ -197,7 +197,7 @@ class CronSignalTracker {
       });
 
       // Write to D1 scheduled_job_results table
-      const success = await writeD1ReportSnapshot(
+      const success = await writeD1JobResult(
         env,
         dateStr,
         'morning_predictions',
@@ -300,7 +300,7 @@ class CronSignalTracker {
         lastPerformanceUpdate: new Date().toISOString()
       };
 
-      const writeSuccess = await writeD1ReportSnapshot(
+      const writeSuccess = await writeD1JobResult(
         env,
         dateStr,
         'morning_predictions',
