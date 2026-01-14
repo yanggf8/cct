@@ -8,7 +8,8 @@
  * 4. Progressive enhancement with fallback strategies
  */
 
-import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
+import { getFreeStockNewsWithErrorTracking } from './free-stock-news-with-error-tracking.js';
+import type { NewsArticle } from './free_sentiment_pipeline.js';
 import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils.js';
 import { logInfo, logError, logAIDebug } from './logging.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
@@ -297,7 +298,8 @@ Short-term outlook: [1-2 sentences]`;
   private async getNewsDataWithRetry(symbol: string): Promise<NewsArticle[]> {
     for (let attempt = 1; attempt <= RATE_LIMIT_CONFIG.MAX_RETRY_ATTEMPTS; attempt++) {
       try {
-        return await getFreeStockNews(symbol, this.env);
+        const result = await getFreeStockNewsWithErrorTracking(symbol, this.env);
+        return result.articles as NewsArticle[];
       } catch (error: any) {
         if (attempt === RATE_LIMIT_CONFIG.MAX_RETRY_ATTEMPTS) {
           throw error;

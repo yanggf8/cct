@@ -5,7 +5,8 @@
  */
 
 import { createTechnicalFeatures, normalizeTechnicalFeatures } from './technical_indicators.js';
-import { getFreeStockNews, analyzeTextSentiment } from './free_sentiment_pipeline.js';
+import { getFreeStockNewsWithErrorTracking } from './free-stock-news-with-error-tracking.js';
+import { analyzeTextSentiment } from './free_sentiment_pipeline.js';
 import { runEnhancedAnalysis } from './enhanced_analysis.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -419,7 +420,8 @@ function getDateXMonthsAgo(months: number): string {
  */
 async function getStockSentiment(symbol: string, env: CloudflareEnvironment): Promise<SentimentData> {
   try {
-    const newsData = await getFreeStockNews(symbol,  env);
+    const newsResult = await getFreeStockNewsWithErrorTracking(symbol, env);
+    const newsData = newsResult.articles;
 
     if (env.MODELSCOPE_API_KEY && newsData.length > 0) {
       return await getModelScopeAISentiment(symbol,  newsData,  env) as any;

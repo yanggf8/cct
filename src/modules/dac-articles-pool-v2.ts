@@ -273,14 +273,19 @@ export class DACArticlesPoolClientV2 {
  * Create DAC articles pool client instance using service binding
  */
 export function createDACArticlesPoolClientV2(env: {
-  DAC_BACKEND?: Fetcher;
-  DAC_ARTICLES_POOL_API_KEY?: string;
+  DAC_BACKEND?: Fetcher | undefined;
+  X_API_KEY?: string;
 }): DACArticlesPoolClientV2 | null {
   const dacBackend = env.DAC_BACKEND;
-  const apiKey = env.DAC_ARTICLES_POOL_API_KEY || 'yanggf';
+  const apiKey = env.X_API_KEY;
 
   if (!dacBackend) {
     console.warn('[DAC_POOL_V2] DAC backend service binding not available');
+    return null;
+  }
+
+  if (!apiKey) {
+    console.error('[DAC_POOL_V2] X_API_KEY secret not configured');
     return null;
   }
 
@@ -316,8 +321,8 @@ export class DACArticlesAdapterV2 {
   private client: DACArticlesPoolClientV2 | null;
 
   constructor(env: {
-    DAC_BACKEND?: Fetcher;
-    DAC_ARTICLES_POOL_API_KEY?: string;
+    DAC_BACKEND?: Fetcher | undefined;
+    X_API_KEY?: string;
   }) {
     this.client = createDACArticlesPoolClientV2(env);
   }

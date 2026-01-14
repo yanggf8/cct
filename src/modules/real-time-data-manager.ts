@@ -26,7 +26,8 @@ import { initializeMarketDrivers } from './market-drivers.js';
 import { initializeMarketStructureFetcher } from './market-structure-fetcher.js';
 import FredApiClient from './fred-api-client.js';
 import { getMarketData, isMarketOpen, getMarketStatus } from './yahoo-finance-integration.js';
-import { getFreeSentimentSignal, getFreeStockNews } from './free_sentiment_pipeline.js';
+import { getFreeSentimentSignal } from './free_sentiment_pipeline.js';
+import { getFreeStockNewsWithErrorTracking } from './free-stock-news-with-error-tracking.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -179,7 +180,8 @@ export class RealTimeDataManager {
     try {
       // Use a broad market symbol list for sentiment relevance if not incremental
       const symbols = opts.incremental ? ['SPY', 'QQQ'] : ['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'AMZN'];
-      const news = await Promise.allSettled(symbols.map(s => getFreeStockNews(s, this.env)));
+      const newsResults = await Promise.allSettled(symbols.map(s => getFreeStockNewsWithErrorTracking(s, this.env)));
+      const news = newsResults.map((r: any) => r.status === 'fulfilled' ? r.value.articles : []);
       const signals = await Promise.allSettled(symbols.map(s => getFreeSentimentSignal(s, this.env)));
       const ns = getCacheNamespace('market_data');
       await this.cache.set(ns.name, 'sentiment:latest', { news, signals, incremental: !!opts.incremental, timestamp: new Date().toISOString() }, { l1: CACHE_TTL.SHORT, l2: CACHE_TTL.MEDIUM } as any);

@@ -419,6 +419,7 @@ export interface CloudflareEnvironment {
   WORKER_API_KEY?: string;
   FRED_API_KEY?: string;
   FRED_API_KEYS?: string;
+  X_API_KEY?: string;  // DAC backend API key for service binding authentication
 
   // Storage Adapter Configuration (Phase 2 Migration)
   STORAGE_ADAPTER_ENABLED?: string;
@@ -455,7 +456,6 @@ export interface CloudflareEnvironment {
   GUARD_MAINTENANCE_MODE?: string;
   OPENAI_API_KEY?: string;
   HUGGINGFACE_API_KEY?: string;
-  DAC_ARTICLES_POOL_API_KEY?: string;
 
   // Social Media Integration
   FACEBOOK_PAGE_TOKEN?: string;

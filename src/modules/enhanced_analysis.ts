@@ -3,7 +3,8 @@
  * Simple, transparent dual AI system with GPT-OSS-120B and DistilBERT
  */
 import { performDualAIComparison, batchDualAIAnalysis, type DualAIComparisonResult, type BatchDualAIAnalysisResult } from './dual-ai-analysis.js';
-import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
+import { getFreeStockNewsWithErrorTracking } from './free-stock-news-with-error-tracking.js';
+import type { NewsArticle } from './free_sentiment_pipeline.js';
 import { mapSentimentToDirection } from './sentiment-utils.js';
 import { storeSymbolAnalysis, batchStoreAnalysisResults, trackCronHealth } from './data.js';
 import { initLogging, logSentimentDebug, logKVDebug, logAIDebug, logSuccess, logError, logInfo, logWarn } from './logging.js';
@@ -599,7 +600,8 @@ export async function validateSentimentEnhancement(env: CloudflareEnvironment): 
   logInfo(`Testing sentiment enhancement for ${testSymbol}...`);
 
   try {
-    const newsData = await getFreeStockNews(testSymbol, env);
+    const newsResult = await getFreeStockNewsWithErrorTracking(testSymbol, env);
+    const newsData = newsResult.articles;
     logInfo(`News data: ${newsData.length} articles found`);
 
     const sentimentResult = await getSentimentWithFallbackChain(testSymbol, newsData, env);
