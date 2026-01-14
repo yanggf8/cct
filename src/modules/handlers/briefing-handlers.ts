@@ -6,7 +6,7 @@
  * 1. Read from D1 for queryDate
  * 2. If no D1 data, try fallback chain (latest D1 snapshot, predictions)
  * 3. If data exists → show it with created_at timestamp
- * 4. If no data AND querying today AND before 8:30 AM ET → show "Scheduled"
+ * 4. If no data AND querying today-or-future AND before that date's 8:30 AM ET → show "Scheduled"
  * 5. If no data AND past scheduled time → show "No data available"
  */
 
@@ -65,12 +65,20 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   }
   
   // Determine schedule status
-  const isQueryingToday = queryDateStr === todayET;
+  // queryDateStr is user's "today" (may be ahead of ET)
+  // Show "Scheduled" if: querying today-or-future AND before that date's schedule time in ET
   const { hour, minute } = getCurrentTimeET();
+  const queryDate = new Date(queryDateStr + 'T00:00:00Z');
+  const todayETDate = new Date(todayET + 'T00:00:00Z');
+  const isQueryingFuture = queryDate > todayETDate;
+  const isQueryingToday = queryDateStr === todayET;
   const beforeScheduleET = hour < 8 || (hour === 8 && minute < 30); // Before 8:30 AM ET
+  
+  // Show scheduled if: querying future date OR (querying ET's today AND before schedule)
+  const showScheduled = isQueryingFuture || (isQueryingToday && beforeScheduleET);
 
   // Generate HTML based on D1 data availability
-  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET);
+  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture);
 
   // Cache HTML for fast subsequent loads
   try {
@@ -95,8 +103,8 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 function generatePreMarketHTML(
   d1Result: { data: any; createdAt: string } | null,
   queryDateStr: string,
-  isQueryingToday: boolean,
-  beforeScheduleET: boolean
+  showScheduled: boolean,
+  isQueryingFuture: boolean
 ): string {
   const briefingData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
@@ -126,7 +134,7 @@ function generatePreMarketHTML(
   if (hasD1Data && d1CreatedAt) {
     const ts = new Date(d1CreatedAt).getTime();
     statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
-  } else if (isQueryingToday && beforeScheduleET) {
+  } else if (showScheduled) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`;
   } else {
     statusDisplay = `⚠️ No data available`;
@@ -510,8 +518,12 @@ function generatePreMarketHTML(
 
         ${!hasD1Data ? `
         <div class="no-data">
-            <h3>${isQueryingToday && beforeScheduleET ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
-            <p>${isQueryingToday && beforeScheduleET ? `This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : 'There is no pre-market data available for this date.'}</p>
+            <h3>${showScheduled ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
+            <p>${showScheduled
+              ? (isQueryingFuture
+                ? 'This report is scheduled for the selected date. It will appear after generation at <span class="sched-time" data-utch="13" data-utcm="30"></span> on that day.'
+                : 'This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.')
+              : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>

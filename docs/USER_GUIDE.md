@@ -29,7 +29,13 @@ The dashboard is your central hub for:
 - **Quick Access Links**: Direct navigation to all 4 analysis moments
 - **Mobile-Friendly Interface**: Works seamlessly on desktop and mobile devices
 
-### **2. Understanding the 4 Moment Analysis System**
+### **2. Set Your Timezone**
+
+- Open **⚙️ Settings** in the left nav (`/settings.html`) to choose your preferred IANA timezone.
+- The setting is stored in the Cache Durable Object and becomes the default “today” for all reports; `?tz=` still overrides, and ET is the fallback if no setting exists.
+- Report schedules remain keyed to ET (e.g., pre-market at 8:30 AM ET) but the date being requested follows your saved timezone, so “today” aligns with your local day.
+
+### **3. Understanding the 4 Moment Analysis System**
 
 Our system delivers comprehensive sentiment insights through four specialized reports:
 
