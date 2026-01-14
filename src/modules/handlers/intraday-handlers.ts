@@ -188,16 +188,99 @@ export const handleIntradayCheck = createHandler(
       date: dateStr
     });
 
-    // Skip dependency validation and job status for page views - just get data
+    // Read from D1 scheduled_job_results (same as API endpoint)
     let intradayData: IntradayPerformanceData | null = null;
     let hasRealJobData = false;
-    try {
-      const intradayCheckData = await getIntradayCheckData(env, today);
-      // Check if job actually ran (has predictions)
-      hasRealJobData = !!(intradayCheckData?.morningPredictions?.predictions?.length);
-      
-      if (intradayCheckData && hasRealJobData) {
-        const ps = intradayCheckData.performanceSummary;
+    
+    if (env.PREDICT_JOBS_DB) {
+      try {
+        const snapshot = await env.PREDICT_JOBS_DB
+          .prepare('SELECT report_content FROM scheduled_job_results WHERE execution_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+          .bind(dateStr, 'intraday')
+          .first();
+        
+        if (snapshot && snapshot.report_content) {
+          const content = typeof snapshot.report_content === 'string' 
+            ? JSON.parse(snapshot.report_content) 
+            : snapshot.report_content;
+          
+          hasRealJobData = true;
+          
+          // Transform D1 data to IntradayPerformanceData format
+          const symbols = content.symbols || [];
+          const divergences: DivergenceData[] = symbols
+            .filter((s: any) => s.performance === 'diverged')
+            .map((s: any) => ({
+              symbol: s.symbol,
+              predicted: s.morning_prediction,
+              predictedDirection: s.morning_prediction === 'bullish' ? 'up' : s.morning_prediction === 'bearish' ? 'down' : 'flat',
+              actual: s.current_sentiment,
+              actualDirection: s.current_sentiment === 'UP' ? 'up' : s.current_sentiment === 'DOWN' ? 'down' : 'flat',
+              performance: s.accuracy_score,
+              confidence: s.morning_confidence,
+              level: s.morning_confidence >= 0.7 ? 'high' : s.morning_confidence >= 0.5 ? 'medium' : 'low',
+              reason: `Morning: ${s.morning_prediction} (${(s.morning_confidence * 100).toFixed(0)}%), Current: ${s.current_sentiment}`
+            }));
+          
+          const onTrackSignals: IntradaySignal[] = symbols
+            .filter((s: any) => s.performance === 'on_track' || s.performance === 'strengthened')
+            .map((s: any) => ({
+              symbol: s.symbol,
+              predicted: s.morning_prediction,
+              predictedDirection: s.morning_prediction === 'bullish' ? 'up' : s.morning_prediction === 'bearish' ? 'down' : 'flat',
+              actual: s.current_sentiment,
+              actualDirection: s.current_sentiment === 'UP' ? 'up' : s.current_sentiment === 'DOWN' ? 'down' : 'flat',
+              performance: s.accuracy_score,
+              confidence: s.morning_confidence,
+              reason: `Morning: ${s.morning_prediction} (${(s.morning_confidence * 100).toFixed(0)}%), Current: ${s.current_sentiment}`
+            }));
+          
+          const accuracy = content.overall_accuracy * 100;
+          
+          intradayData = {
+            modelHealth: {
+              status: accuracy >= 60 ? 'on-track' : accuracy >= 40 ? 'divergence' : 'off-track',
+              display: accuracy >= 60 ? '✅ On Track' : accuracy >= 40 ? '⚠️ Divergence' : '❌ Off Track',
+              accuracy
+            },
+            liveAccuracy: accuracy,
+            totalSignals: content.symbols_analyzed || 0,
+            correctCalls: content.on_track_count || 0,
+            wrongCalls: content.diverged_count || 0,
+            pendingCalls: 0,
+            avgDivergence: 0,
+            divergences,
+            onTrackSignals,
+            recalibrationAlert: {
+              status: accuracy < 50 ? 'yes' : accuracy < 60 ? 'warning' : 'no',
+              message: accuracy < 50 ? 'Model recalibration recommended' : accuracy < 60 ? 'Monitor performance' : 'Performance within acceptable range',
+              threshold: 60,
+              currentValue: accuracy
+            },
+            lastUpdated: content.timestamp,
+            generatedAt: content.timestamp
+          };
+          
+          logger.info('📊 [INTRADAY] Loaded data from D1', {
+            symbols: content.symbols_analyzed,
+            accuracy,
+            requestId
+          });
+        }
+      } catch (error) {
+        logger.error('📊 [INTRADAY] Failed to read from D1', { error, requestId });
+      }
+    }
+    
+    // Fallback to old method if D1 data not available
+    if (!hasRealJobData) {
+      try {
+        const intradayCheckData = await getIntradayCheckData(env, today);
+        // Check if job actually ran (has predictions)
+        hasRealJobData = !!(intradayCheckData?.morningPredictions?.predictions?.length);
+        
+        if (intradayCheckData && hasRealJobData) {
+          const ps = intradayCheckData.performanceSummary;
         const rawAccuracy = ps?.averageAccuracy;
         const hasAccuracy = typeof rawAccuracy === 'number' && rawAccuracy > 0;
         const accuracy = hasAccuracy ? rawAccuracy : null;
@@ -270,8 +353,9 @@ export const handleIntradayCheck = createHandler(
           lastUpdated: intradayCheckData.generatedAt
         };
       }
-    } catch (error: unknown) {
-      logger.error('❌ [INTRADAY] Failed to retrieve data', { requestId, error: (error as Error).message });
+      } catch (error: unknown) {
+        logger.error('❌ [INTRADAY] Failed to retrieve data', { requestId, error: (error as Error).message });
+      }
     }
 
     // If no real data (no predictions from job), show pending page

@@ -12,3 +12,4 @@ dist/
 
 # Secrets - never commit
 .secrets
+.dev.vars
