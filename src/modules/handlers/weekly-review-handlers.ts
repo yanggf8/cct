@@ -201,11 +201,11 @@ function generateWeeklyReviewHTML(
   // Scheduled time: Sunday 10:00 AM ET = 15:00 UTC
   const scheduledUtc = Date.UTC(weekSunday.getUTCFullYear(), weekSunday.getUTCMonth(), weekSunday.getUTCDate(), 15, 0);
 
-  // Determine display status - use data's generatedAt if available
+  // Determine display status - show both ET and local time
   let statusDisplay: string;
   if (hasRealData && weeklyData.generatedAt) {
-    const generatedTime = new Date(weeklyData.generatedAt);
-    statusDisplay = `Generated ${generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+    const ts = new Date(weeklyData.generatedAt).getTime();
+    statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
   } else if (hasRealData) {
     statusDisplay = `Data available`;
   } else {
@@ -668,6 +668,16 @@ function generateWeeklyReviewHTML(
         }
     </script>
     ` : ''}
+    <script>
+      // Render generated times with ET and local
+      document.querySelectorAll('.gen-time').forEach(el => {
+        const ts = parseInt(el.dataset.ts);
+        const d = new Date(ts);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
+      });
+    </script>
 </body>
 </html>`;
 }

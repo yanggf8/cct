@@ -17,28 +17,9 @@ import { validateRequest, validateEnvironment } from '../validation.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
+import { getTodayInZone, resolveQueryDate, getCurrentTimeET } from './date-utils.js';
 
 const logger = createLogger('briefing-handlers');
-
-/** Get today's date string in ET timezone */
-function getTodayET(): string {
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
-  return formatter.format(new Date());
-}
-
-/** Get current hour and minute in ET timezone */
-function getCurrentTimeET(): { hour: number; minute: number } {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false
-  });
-  const parts = formatter.formatToParts(new Date());
-  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-  return { hour, minute };
-}
 
 /**
  * Generate Pre-Market Briefing Page
@@ -49,19 +30,9 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
   
-  // Determine query date from URL param, default to today in ET
-  const dateParam = url.searchParams.get('date');
-  const todayET = getTodayET();
-  let queryDateStr: string;
-  if (dateParam === 'yesterday') {
-    const yesterday = new Date(todayET + 'T12:00:00Z');
-    yesterday.setDate(yesterday.getDate() - 1);
-    queryDateStr = yesterday.toISOString().split('T')[0];
-  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    queryDateStr = dateParam;
-  } else {
-    queryDateStr = todayET;
-  }
+  // Resolve query date: ?date > ?tz/cookie > ET default
+  const queryDateStr = resolveQueryDate(request, url);
+  const todayET = getTodayInZone('America/New_York');
 
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', { requestId, queryDate: queryDateStr, bypassCache });
 
@@ -150,10 +121,11 @@ function generatePreMarketHTML(
   const highConfidenceSignals = signals.filter((s: any) => (s.confidence || 0) >= 0.6).length;
   
   // Determine display status - D1 is source of truth
+  // Show both ET and local time for generated reports
   let statusDisplay: string;
   if (hasD1Data && d1CreatedAt) {
-    const generatedTime = new Date(d1CreatedAt);
-    statusDisplay = `Generated ${generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+    const ts = new Date(d1CreatedAt).getTime();
+    statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
   } else if (isQueryingToday && beforeScheduleET) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`;
   } else {
@@ -597,11 +569,20 @@ function generatePreMarketHTML(
     </script>
     ` : ''}
     <script>
+      // Render scheduled times with ET and local
       document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
         const d = new Date();
         d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
+      });
+      // Render generated times with ET and local
+      document.querySelectorAll('.gen-time').forEach(el => {
+        const ts = parseInt(el.dataset.ts);
+        const d = new Date(ts);
         const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';

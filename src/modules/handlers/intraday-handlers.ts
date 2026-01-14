@@ -19,6 +19,8 @@ import {
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
+import { resolveQueryDate, getCurrentTimeET } from './date-utils.js';
+import { getTodayInZone, resolveQueryDate, getCurrentTimeET } from './date-utils.js';
 
 const logger: Logger = createLogger('intraday-handlers');
 
@@ -160,15 +162,10 @@ export const handleIntradayCheck = createHandler(
     const url = new URL(request.url);
     const bypassCache = url.searchParams.get('bypass') === '1';
     
-    // Support ?date=yesterday or ?date=YYYY-MM-DD
-    const dateParam = url.searchParams.get('date');
-    let today: Date = new Date();
-    if (dateParam === 'yesterday') {
-      today.setDate(today.getDate() - 1);
-    } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-      today = new Date(dateParam + 'T12:00:00Z');
-    }
-    const dateStr: string = today.toISOString().split('T')[0];
+    // Resolve query date: ?date > ?tz/cookie > ET default
+    const dateStr = resolveQueryDate(request, url);
+    const todayET = getTodayInZone('America/New_York');
+    const today = new Date(dateStr + 'T12:00:00Z');
 
     // Fast path: check DO cache first (unless bypass requested)
     if (!bypassCache) {
@@ -357,12 +354,11 @@ async function generateIntradayCheckHTML(
   const scheduledUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 17, 0); // 12:00 PM ET = 17:00 UTC
   const beforeSchedule = Date.now() < scheduledUtc;
 
-  // Status display for header - use actual job generation time, not current request time
+  // Status display for header - show both ET and local time
   let statusDisplay: string;
   if (hasRealData && formattedData.generatedAt) {
-    // Use the actual job execution time from data, not current request time
-    const generatedTime = new Date(formattedData.generatedAt);
-    statusDisplay = generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' ET';
+    const ts = new Date(formattedData.generatedAt).getTime();
+    statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
   } else if (beforeSchedule) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="17" data-utcm="0"></span>`;
   } else {
@@ -788,11 +784,20 @@ async function generateIntradayCheckHTML(
         </div>
     </div>
     <script>
+      // Render scheduled times with ET and local
       document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
         const d = new Date();
         d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
+      });
+      // Render generated times with ET and local
+      document.querySelectorAll('.gen-time').forEach(el => {
+        const ts = parseInt(el.dataset.ts);
+        const d = new Date(ts);
         const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';

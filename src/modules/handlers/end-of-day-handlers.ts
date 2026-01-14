@@ -16,29 +16,9 @@ import { getD1FallbackData } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
+import { getTodayInZone, resolveQueryDate, getCurrentTimeET } from './date-utils.js';
 
 const logger = createLogger('end-of-day-handlers');
-
-/** Get today's date string in ET timezone */
-function getTodayET(): string {
-  // Use Intl.DateTimeFormat for reliable timezone conversion
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }); // en-CA gives YYYY-MM-DD
-  return formatter.format(new Date());
-}
-
-/** Get current hour and minute in ET timezone */
-function getCurrentTimeET(): { hour: number; minute: number } {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false
-  });
-  const parts = formatter.formatToParts(new Date());
-  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
-  return { hour, minute };
-}
 
 /**
  * Generate End-of-Day Summary Page
@@ -49,19 +29,9 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
   
-  // Determine query date from URL param, default to today in ET
-  const dateParam = url.searchParams.get('date');
-  const todayET = getTodayET();
-  let queryDateStr: string;
-  if (dateParam === 'yesterday') {
-    const yesterday = new Date(todayET + 'T12:00:00Z');
-    yesterday.setDate(yesterday.getDate() - 1);
-    queryDateStr = yesterday.toISOString().split('T')[0];
-  } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    queryDateStr = dateParam;
-  } else {
-    queryDateStr = todayET;
-  }
+  // Resolve query date: ?date > ?tz/cookie > ET default
+  const queryDateStr = resolveQueryDate(request, url);
+  const todayET = getTodayInZone('America/New_York');
 
   // Fast path: check DO HTML cache first (unless bypass)
   if (!bypassCache) {
@@ -130,11 +100,11 @@ function generateEndOfDayHTML(
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;
   
-  // Determine display status - D1 is source of truth
+  // Determine display status - show both ET and local time
   let statusDisplay: string;
   if (hasD1Data && d1CreatedAt) {
-    const generatedTime = new Date(d1CreatedAt);
-    statusDisplay = `Generated ${generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+    const ts = new Date(d1CreatedAt).getTime();
+    statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
   } else if (isQueryingToday && beforeScheduleET) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="21" data-utcm="5"></span>`;
   } else {
@@ -638,11 +608,20 @@ function generateEndOfDayHTML(
     </script>
     ` : ''}
     <script>
+      // Render scheduled times with ET and local
       document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
         const utcM = parseInt(el.dataset.utcm || '0');
         const d = new Date();
         d.setUTCHours(utcH, utcM, 0, 0);
+        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = et + ' ET (' + local + ' local)';
+      });
+      // Render generated times with ET and local
+      document.querySelectorAll('.gen-time').forEach(el => {
+        const ts = parseInt(el.dataset.ts);
+        const d = new Date(ts);
         const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';
