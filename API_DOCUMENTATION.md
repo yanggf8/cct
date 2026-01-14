@@ -609,6 +609,263 @@ GET /api/weekly-data
 
 **Description**: Retrieve weekly analysis data for dashboard reporting
 
+### **🔄 Backfill System**
+
+#### **Trigger Backfill**
+```bash
+POST /api/backfill?days=N
+```
+
+**Description**: Retroactively generate daily summaries for missing dates
+
+**Parameters**:
+- `days` (required): Number of days to backfill (max 365)
+
+**Response**:
+```json
+{
+  "success": true,
+  "backfill_result": {
+    "backfill_date": "2026-01-14",
+    "processed": 5,
+    "skipped": 2,
+    "failed": 0
+  }
+}
+```
+
+#### **Verify Backfill**
+```bash
+GET /api/verify-backfill?days=N
+```
+
+**Description**: Verify backfill data integrity for a date range
+
+**Parameters**:
+- `days` (required): Number of days to verify (max 365)
+
+**Response**:
+```json
+{
+  "success": true,
+  "verified": 5,
+  "missing": 0,
+  "results": [...]
+}
+```
+
+## 🏗️ Architecture Reference
+
+### **📁 Handler Groups**
+
+The system uses a **handler-based microservice architecture** organized into 4 groups:
+
+#### **📊 Trading Services Group**
+| Handler | Endpoint | Purpose |
+|---------|----------|---------|
+| `briefing-handlers.ts` | `/pre-market-briefing` | Morning briefing with ≥70% confidence signals |
+| `end-of-day-handlers.ts` | `/end-of-day-summary` | EOD performance review & tomorrow's outlook |
+| `weekly-review-handlers.ts` | `/weekly-review` | Weekly pattern analysis & model optimization |
+| `intraday-handlers.ts` | `/intraday-check` | Real-time signal tracking & divergence alerts |
+
+#### **🔧 Analysis Services Group**
+| Handler | Endpoint | Purpose |
+|---------|----------|---------|
+| `analysis-handlers.ts` | `/analyze`, `/analyze-symbol` | Dual AI sentiment & technical analysis |
+| `health-handlers.ts` | `/health`, `/model-health` | System & AI model health checks |
+| `http-data-handlers.ts` | `/results`, `/kv-debug` | KV storage & data retrieval |
+
+#### **💾 Data Services Group**
+| Handler | Endpoint | Purpose |
+|---------|----------|---------|
+| `summary-handlers.ts` | `/api/daily-summary`, `/api/backfill` | Daily summaries & historical backfill |
+| `summary-handlers.ts` | `/api/verify-backfill` | Backfill data integrity verification |
+
+#### **⚙️ Infrastructure Services Group**
+| Handler | Purpose |
+|---------|---------|
+| `enhanced-request-handler.ts` | Main entry point: auth, routing, migration |
+| `handler-factory.ts` | Factory for standardized handlers with cross-cutting concerns |
+
+### **🔧 Handler Factory Pattern**
+
+All handlers use `handler-factory.ts` for standardized middleware:
+
+```typescript
+// Available factory functions
+createHandler()           // Standard handler with logging & metrics
+createAPIHandler()        // API handler with request validation
+createHealthHandler()     // Health check with service dependencies
+createCronHandler()       // Cron job with execution tracking
+createBatchHandler()      // Batch processing with progress
+createCachedHandler()     // Cached responses with L1/L2 layers
+```
+
+### **📂 Module Organization**
+
+```
+src/modules/
+├── handlers/              # 8 HTTP request handlers
+│   ├── briefing-handlers.ts
+│   ├── end-of-day-handlers.ts
+│   ├── weekly-review-handlers.ts
+│   ├── intraday-handlers.ts
+│   ├── analysis-handlers.ts
+│   ├── health-handlers.ts
+│   ├── http-data-handlers.ts
+│   └── summary-handlers.ts
+├── scheduler.ts           # Cron entry point
+├── cron-signal-tracking.ts # Signal tracking logic
+├── enhanced-request-handler.ts # Main router
+├── handler-factory.ts     # Handler factory
+└── report/                # Analysis modules
+    ├── pre-market-analysis.ts
+    ├── intraday-analysis.ts
+    ├── end-of-day-analysis.ts
+    └── weekly-review-analysis.ts
+```
+
+### **⏰ Cron Scheduler Architecture**
+
+**Entry Point**: `src/index.ts:scheduled()` → `src/modules/scheduler.ts`
+
+| UTC Time | EST/EDT | Trigger Mode | Handler |
+|----------|---------|--------------|---------|
+| 12:30 Mon-Fri | 8:30 AM / 7:30 AM | `morning_prediction_alerts` | briefing-handlers |
+| 16:00 Mon-Fri | 12:00 PM / 11:00 AM | `midday_validation_prediction` | intraday-handlers |
+| 20:05 Mon-Fri | 4:05 PM / 3:05 PM | `next_day_market_prediction` | end-of-day-handlers |
+| 14:00 Sun | 10:00 AM | `weekly_review_analysis` | weekly-review-handlers |
+| 13:30 Mon-Fri | 9:30 AM / 8:30 AM | `sector_rotation_refresh` | sector rotation |
+
+**Note**: Times shown as "EDT / EST" (Daylight Saving / Standard)
+
+### **🔄 Request Flow**
+
+```
+HTTP Request
+    │
+    ▼
+┌─────────────────────────────┐
+│ enhanced-request-handler.ts │ ← Auth + Routing
+└─────────────────────────────┘
+    │
+    ├── /pre-market-briefing → briefing-handlers.ts
+    ├── /end-of-day-summary  → end-of-day-handlers.ts
+    ├── /weekly-review       → weekly-review-handlers.ts
+    ├── /intraday-check      → intraday-handlers.ts
+    ├── /analyze*            → analysis-handlers.ts
+    ├── /health*             → health-handlers.ts
+    ├── /results, /kv-debug  → http-data-handlers.ts
+    ├── /api/daily-summary*  → summary-handlers.ts
+    ├── /api/backfill        → summary-handlers.ts
+    └── /api/verify-backfill → summary-handlers.ts
+
+Cron Event
+    │
+    ▼
+┌─────────────────────────────┐
+│ src/index.ts:scheduled()    │ ← Cloudflare trigger
+└─────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────┐
+│ src/modules/scheduler.ts    │ ← Dispatch by trigger mode
+└─────────────────────────────┘
+    │
+    ├── morning_prediction_alerts → briefing logic
+    ├── midday_validation_prediction → intraday logic
+    ├── next_day_market_prediction → eod logic
+    ├── weekly_review_analysis → weekly logic
+    └── sector_rotation_refresh → sector rotation
+
+### **🛣️ Route Architecture**
+
+The system uses **21 route modules** organized by domain:
+
+```
+src/routes/
+├── api-v1.ts                      # Main API router
+├── report-routes.ts               # /api/v1/reports/*
+├── jobs-routes.ts                 # /api/v1/jobs/*
+├── data-routes.ts                 # /api/v1/data/*
+├── sentiment-routes.ts            # /api/v1/sentiment/*
+├── technical-routes.ts            # /api/v1/technical/*
+├── sector-routes.ts               # /api/v1/sectors/*
+├── realtime-routes.ts             # /api/v1/realtime/*
+├── advanced-analytics-routes.ts   # /api/v1/advanced-analytics/*
+├── predictive-analytics-routes.ts # /api/v1/predictive-analytics/*
+├── backtesting-routes.ts          # /api/v1/backtesting/*
+├── market-intelligence-routes.ts  # /api/v1/market-intelligence/*
+├── market-drivers-routes.ts       # /api/v1/market-drivers/*
+├── portfolio-routes.ts            # /api/v1/portfolio/*
+├── risk-management-routes.ts      # /api/v1/risk/*
+├── enhanced-cache-routes.ts       # /api/v1/cache/*
+├── enhanced-sentiment-routes.ts   # /api/v1/sentiment/enhanced/*
+├── production-guards-routes.ts    # /api/v1/production/*
+├── sector-rotation-routes.ts      # /api/v1/sector-rotation/*
+├── migration-manager.ts           # API migration handling
+└── legacy-compatibility.ts        # Legacy endpoint compatibility
+```
+
+#### **Route Groups by Domain**
+
+| Domain | Route Files | Base Path |
+|--------|-------------|-----------|
+| **Reports** | `report-routes.ts`, `jobs-routes.ts` | `/api/v1/reports/*`, `/api/v1/jobs/*` |
+| **Data** | `data-routes.ts`, `sentiment-routes.ts`, `technical-routes.ts`, `sector-routes.ts`, `realtime-routes.ts` | `/api/v1/data/*`, `/api/v1/sentiment/*`, `/api/v1/technical/*`, `/api/v1/sectors/*`, `/api/v1/realtime/*` |
+| **Analytics** | `advanced-analytics-routes.ts`, `predictive-analytics-routes.ts`, `backtesting-routes.ts` | `/api/v1/advanced-analytics/*`, `/api/v1/predictive-analytics/*`, `/api/v1/backtesting/*` |
+| **Market Intelligence** | `market-intelligence-routes.ts`, `market-drivers-routes.ts` | `/api/v1/market-intelligence/*`, `/api/v1/market-drivers/*` |
+| **Risk & Portfolio** | `portfolio-routes.ts`, `risk-management-routes.ts` | `/api/v1/portfolio/*`, `/api/v1/risk/*` |
+| **System** | `enhanced-cache-routes.ts`, `enhanced-sentiment-routes.ts`, `production-guards-routes.ts` | `/api/v1/cache/*`, `/api/v1/sentiment/enhanced/*`, `/api/v1/production/*` |
+| **Sector** | `sector-rotation-routes.ts` | `/api/v1/sector-rotation/*` |
+| **Utilities** | `migration-manager.ts`, `legacy-compatibility.ts` | Internal routing |
+
+#### **Request Flow**
+
+```
+HTTP Request
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ src/index.ts:fetch()                    │ ← Worker entry point
+└─────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ enhanced-request-handler.ts             │ ← Auth + routing
+└─────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ src/routes/api-v1.ts                    │ ← Main API router
+└─────────────────────────────────────────┘
+    │
+    ├── /api/v1/reports/*   → report-routes.ts
+    ├── /api/v1/jobs/*      → jobs-routes.ts
+    ├── /api/v1/data/*      → data-routes.ts
+    ├── /api/v1/sentiment/* → sentiment-routes.ts
+    ├── /api/v1/technical/* → technical-routes.ts
+    ├── /api/v1/sectors/*   → sector-routes.ts
+    ├── /api/v1/realtime/*  → realtime-routes.ts
+    ├── /api/v1/analytics/* → analytics routes
+    ├── /api/v1/market/*    → market routes
+    ├── /api/v1/portfolio/* → portfolio-routes.ts
+    ├── /api/v1/risk/*      → risk-management-routes.ts
+    ├── /api/v1/cache/*     → enhanced-cache-routes.ts
+    ├── /api/v1/sector-*    → sector-rotation-routes.ts
+    └── ... (other routes)
+```
+
+#### **API Coverage Summary**
+
+| Category | Documented | Total |
+|----------|------------|-------|
+| HTML Report Pages | 10 | 10 |
+| Cache/Admin Endpoints | ~10 | ~10 |
+| JSON API Endpoints | ~10 | **60+** |
+
+**Note**: The majority of JSON APIs (`/api/v1/*`) are not fully enumerated in this documentation. Only core endpoints are documented. See route files in `src/routes/` for complete definitions.
+
 ## 🔒 Security Features
 
 ### **🛡️ Enterprise Security Implementation (ACTIVE)**
