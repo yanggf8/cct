@@ -586,7 +586,8 @@ async function handlePreMarketReport(
     // 2. D1 fallback - check for pre-market job result
     logger.info('PreMarketReport: DO cache miss, checking D1', { requestId });
 
-    let d1Data = await readD1ReportSnapshot(env, today, 'pre-market');
+    const d1Result = await readD1ReportSnapshot(env, today, 'pre-market');
+    let d1Data = d1Result?.data;
     let isStale = false;
     let sourceDate = today;
 

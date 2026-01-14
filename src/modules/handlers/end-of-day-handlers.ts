@@ -1,19 +1,44 @@
 /**
  * End-of-Day Summary Handler
  * Analyzes high-confidence signal performance and provides market close insights
+ * 
+ * Data flow (D1 is source of truth with fallback):
+ * 1. Read from D1 for queryDate
+ * 2. If no D1 data, try fallback chain (latest D1 snapshot, predictions)
+ * 3. If data exists → show it with created_at timestamp
+ * 4. If no data AND querying today AND before 4:05 PM ET → show "Scheduled"
+ * 5. If no data AND past scheduled time → show "No data available"
  */
 
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
-import { generateEndOfDayAnalysis } from '../report/end-of-day-analysis.js';
-import { getEndOfDaySummaryData } from '../report-data-retrieval.js';
-import { writeD1ReportSnapshot } from '../d1-job-storage.js';
+import { getD1FallbackData } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
-import { generatePendingPageHTML } from './pending-page.js';
 import type { CloudflareEnvironment } from '../../types';
 
 const logger = createLogger('end-of-day-handlers');
+
+/** Get today's date string in ET timezone */
+function getTodayET(): string {
+  // Use Intl.DateTimeFormat for reliable timezone conversion
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }); // en-CA gives YYYY-MM-DD
+  return formatter.format(new Date());
+}
+
+/** Get current hour and minute in ET timezone */
+function getCurrentTimeET(): { hour: number; minute: number } {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(new Date());
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  return { hour, minute };
+}
 
 /**
  * Generate End-of-Day Summary Page
@@ -24,21 +49,25 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
   
-  // Support ?date=yesterday or ?date=YYYY-MM-DD
+  // Determine query date from URL param, default to today in ET
   const dateParam = url.searchParams.get('date');
-  let today = new Date();
+  const todayET = getTodayET();
+  let queryDateStr: string;
   if (dateParam === 'yesterday') {
-    today.setDate(today.getDate() - 1);
+    const yesterday = new Date(todayET + 'T12:00:00Z');
+    yesterday.setDate(yesterday.getDate() - 1);
+    queryDateStr = yesterday.toISOString().split('T')[0];
   } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    today = new Date(dateParam + 'T12:00:00Z');
+    queryDateStr = dateParam;
+  } else {
+    queryDateStr = todayET;
   }
-  const dateStr = today.toISOString().split('T')[0];
 
-  // Fast path: check DO cache first (unless bypass)
+  // Fast path: check DO HTML cache first (unless bypass)
   if (!bypassCache) {
     try {
       const dal = createSimplifiedEnhancedDAL(env);
-      const cached = await dal.read(`end_of_day_html_${dateStr}`);
+      const cached = await dal.read(`end_of_day_html_${queryDateStr}`);
       if (cached.success && cached.data) {
         return new Response(cached.data, {
           headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'HIT', 'X-Request-ID': requestId }
@@ -47,114 +76,66 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     } catch (e) { /* continue */ }
   }
 
-  logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', {
-    requestId,
-    bypassCache
-  });
+  logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', { requestId, queryDate: queryDateStr, bypassCache });
 
-  logger.debug('📊 [END-OF-DAY] Retrieving end-of-day summary data', {
-    requestId,
-    date: dateStr
-  });
+  // Use getD1FallbackData which handles full fallback chain and returns createdAt
+  const fallback = await getD1FallbackData(env, queryDateStr, 'end-of-day');
+  const d1Result = fallback ? {
+    data: fallback.data,
+    createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString()
+  } : null;
+  
+  if (fallback) {
+    logger.info('END-OF-DAY: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
+  }
+  
+  // Determine schedule status
+  const isQueryingToday = queryDateStr === todayET;
+  const { hour, minute } = getCurrentTimeET();
+  const beforeScheduleET = hour < 16 || (hour === 16 && minute < 5); // Before 4:05 PM ET
 
-  let endOfDayData: any = null;
+  // Generate HTML based on D1 data availability
+  const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET);
 
+  // Cache HTML for fast subsequent loads
   try {
-    endOfDayData = await getEndOfDaySummaryData(env, today);
+    const dal = createSimplifiedEnhancedDAL(env);
+    await dal.write(`end_of_day_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
+  } catch (e) { /* ignore */ }
 
-    if (endOfDayData) {
-      logger.info('✅ [END-OF-DAY] End-of-day data retrieved successfully', {
-        requestId,
-        signalCount: endOfDayData.signals?.length || 0,
-        hasTomorrowOutlook: !!endOfDayData.tomorrowOutlook,
-        hasData: true
-      });
-    } else {
-      logger.warn('⚠️ [END-OF-DAY] No end-of-day data found for today', {
-        requestId
-      });
-    }
-
-  } catch (error: any) {
-    logger.error('❌ [END-OF-DAY] Failed to retrieve end-of-day data', {
-      requestId,
-      error: (error instanceof Error ? error.message : String(error)),
-      stack: error.stack
-    });
-  }
-
-  // If no data, show pending page
-  if (!endOfDayData) {
-    const pendingPage = generatePendingPageHTML({
-      title: 'End-of-Day Summary',
-      reportType: 'end-of-day',
-      dateStr,
-      scheduledHourUTC: 21,
-      scheduledMinuteUTC: 5
-    });
-    return new Response(pendingPage, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=60',
-        'X-Request-ID': requestId
-      }
-    });
-  }
-
-  // Generate HTML
-  const htmlContent = generateEndOfDayHTML(endOfDayData, requestId, today);
-
-  // Write snapshot to D1 and cache HTML
-  const dal = createSimplifiedEnhancedDAL(env);
-  if (endOfDayData) {
-    await writeD1ReportSnapshot(env, dateStr, 'end-of-day', endOfDayData, {
-      processingTimeMs: Date.now() - startTime,
-      hasTomorrowOutlook: !!endOfDayData.tomorrowOutlook,
-      ai_models: {
-        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-        secondary: '@cf/huggingface/distilbert-sst-2-int8'
-      }
-    });
-    await dal.write(`end_of_day_${dateStr}`, endOfDayData, { expirationTtl: 86400 });
-  }
-  await dal.write(`end_of_day_html_${dateStr}`, htmlContent, { expirationTtl: 300 });
-
-  logger.info('🎯 [END-OF-DAY] End-of-day summary completed', {
-    requestId,
-    duration: Date.now() - startTime,
-    hasData: !!endOfDayData
-  });
+  logger.info('🎯 [END-OF-DAY] End-of-day summary completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result });
 
   return new Response(htmlContent, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=300' // 5 minute cache
-    }
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Request-ID': requestId }
   });
 });
 
 /**
- * Generate comprehensive end-of-day HTML
+ * Generate end-of-day HTML page
+ * 
+ * Status display logic (D1 is source of truth):
+ * 1. If D1 has data → show "Generated {d1_created_at} ET"
+ * 2. If no D1 data AND querying today AND before 4:05 PM ET → show "Scheduled"
+ * 3. If no D1 data AND past scheduled time → show "No data available"
  */
 function generateEndOfDayHTML(
-  endOfDayData: any,
-  requestId: string,
-  currentDate: Date
+  d1Result: { data: any; createdAt: string } | null,
+  queryDateStr: string,
+  isQueryingToday: boolean,
+  beforeScheduleET: boolean
 ): string {
-  const today = currentDate.toISOString().split('T')[0];
+  const endOfDayData = d1Result?.data;
+  const d1CreatedAt = d1Result?.createdAt;
   
-  // Check for actual data (signals > 0), not just object existence
-  const hasRealData = endOfDayData && (endOfDayData.totalSignals > 0 || endOfDayData.finalSummary?.totalSignals > 0);
+  // D1 record exists = we have data (regardless of signal count)
+  const hasD1Data = !!d1Result;
   
-  // Scheduled time: 4:05 PM ET = 21:05 UTC
-  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 21, 5);
-  const beforeSchedule = Date.now() < scheduledUtc;
-  
-  // Determine display status - local time computed client-side
+  // Determine display status - D1 is source of truth
   let statusDisplay: string;
-  if (hasRealData) {
-    statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
-  } else if (beforeSchedule) {
+  if (hasD1Data && d1CreatedAt) {
+    const generatedTime = new Date(d1CreatedAt);
+    statusDisplay = `Generated ${generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+  } else if (isQueryingToday && beforeScheduleET) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="21" data-utcm="5"></span>`;
   } else {
     statusDisplay = `⚠️ No data available`;
@@ -165,7 +146,7 @@ function generateEndOfDayHTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>End-of-Day Trading Summary - ${today}</title>
+    <title>End-of-Day Trading Summary - ${queryDateStr}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/cct-api.js"></script>
@@ -483,7 +464,7 @@ function generateEndOfDayHTML(
         <div class="header">
             <h1>🏁 End-of-Day Trading Summary</h1>
             <p>Comprehensive analysis of today's trading performance and market close</p>
-            <div class="date-display">${currentDate.toLocaleDateString('en-US', {
+            <div class="date-display">${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
@@ -491,10 +472,10 @@ function generateEndOfDayHTML(
             })} • ${statusDisplay}</div>
         </div>
 
-        ${!hasRealData ? `
+        ${!hasD1Data ? `
         <div class="no-data">
-            <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No End-of-Day Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : 'There is no end-of-day data available for this date.'}</p>
+            <h3>${isQueryingToday && beforeScheduleET ? '⏳ Report Not Yet Generated' : '⚠️ No End-of-Day Data Available'}</h3>
+            <p>${isQueryingToday && beforeScheduleET ? `This report will be generated at <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : 'There is no end-of-day data available for this date.'}</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
@@ -502,12 +483,12 @@ function generateEndOfDayHTML(
         <div class="summary-grid">
             <div class="summary-card">
                 <h3>Total Signals</h3>
-                <div class="value">${endOfDayData.totalSignals || 0}</div>
+                <div class="value">${endOfDayData?.totalSignals || endOfDayData?.finalSummary?.totalSignals || 0}</div>
                 <div class="label">High-confidence predictions</div>
             </div>
             <div class="summary-card">
                 <h3>Accuracy Rate</h3>
-                <div class="value">${endOfDayData.accuracyRate ? Math.round(endOfDayData.accuracyRate * 100) + '%' : 'N/A'}</div>
+                <div class="value">${endOfDayData?.accuracyRate ? Math.round(endOfDayData.accuracyRate * 100) + '%' : 'N/A'}</div>
                 <div class="label">Today's success rate</div>
             </div>
             <div class="summary-card">
@@ -568,7 +549,7 @@ function generateEndOfDayHTML(
         `}
     </div>
 
-    ${hasRealData ? `
+    ${hasD1Data ? `
     <script>
         // Initialize charts when page loads
         document.addEventListener('DOMContentLoaded', function() {

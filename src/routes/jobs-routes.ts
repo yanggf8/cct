@@ -183,14 +183,15 @@ async function handleJobSnapshot(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  const snapshot = await readD1ReportSnapshot(env, date, reportType);
+  const result = await readD1ReportSnapshot(env, date, reportType);
   
-  if (snapshot) {
+  if (result) {
     return new Response(
       JSON.stringify(ApiResponseFactory.success({
         date,
         reportType,
-        data: snapshot
+        data: result.data,
+        createdAt: result.createdAt
       }, { requestId, processingTime: timer.getElapsedMs() })),
       { status: HttpStatus.OK, headers }
     );

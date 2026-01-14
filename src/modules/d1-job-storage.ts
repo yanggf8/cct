@@ -95,21 +95,22 @@ export async function readD1ReportSnapshot(
   env: CloudflareEnvironment,
   executionDate: string,
   reportType: string
-): Promise<any | null> {
+): Promise<{ data: any; createdAt: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
   try {
     const result = await db.prepare(
-      'SELECT report_content, metadata FROM scheduled_job_results WHERE execution_date = ? AND report_type = ?'
-    ).bind(executionDate, reportType).first<{ report_content: string; metadata: string }>();
+      'SELECT report_content, metadata, created_at FROM scheduled_job_results WHERE execution_date = ? AND report_type = ?'
+    ).bind(executionDate, reportType).first<{ report_content: string; metadata: string; created_at: string }>();
 
     if (result?.report_content) {
       try {
         const content = JSON.parse(result.report_content);
         content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
         content._source = 'd1_snapshot';
-        return content;
+        content._d1_created_at = result.created_at;
+        return { data: content, createdAt: result.created_at };
       } catch (parseError) {
         logger.error('D1 JSON parse failed', { executionDate, reportType, error: (parseError as Error).message });
         return null;
@@ -134,22 +135,23 @@ export async function readD1ReportSnapshot(
 export async function getD1LatestReportSnapshot(
   env: CloudflareEnvironment,
   reportType: string
-): Promise<{ data: any; executionDate: string } | null> {
+): Promise<{ data: any; executionDate: string; createdAt: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
   try {
     const result = await db.prepare(
-      'SELECT execution_date, report_content, metadata FROM scheduled_job_results WHERE report_type = ? ORDER BY execution_date DESC LIMIT 1'
-    ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string }>();
+      'SELECT execution_date, report_content, metadata, created_at FROM scheduled_job_results WHERE report_type = ? ORDER BY execution_date DESC LIMIT 1'
+    ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string; created_at: string }>();
 
     if (result?.report_content) {
       try {
         const content = JSON.parse(result.report_content);
         content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
         content._source = 'd1_snapshot';
+        content._d1_created_at = result.created_at;
         content.source_date = result.execution_date;
-        return { data: content, executionDate: result.execution_date };
+        return { data: content, executionDate: result.execution_date, createdAt: result.created_at };
       } catch (parseError) {
         logger.error('D1 JSON parse failed', { reportType, error: (parseError as Error).message });
         return null;
@@ -306,14 +308,17 @@ function calculateAverageConfidence(predictions: D1SymbolPrediction[]): number {
 export async function getD1FallbackData(
   env: CloudflareEnvironment,
   dateStr: string,
-  reportType: string
-): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean } | null> {
+  reportType: string,
+  options: { skipTodaySnapshot?: boolean } = {}
+): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean; createdAt?: string | null } | null> {
   const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day' || reportType === 'predictions';
 
-  // 1. Try D1 snapshot for today with exact report type
-  let snapshot = await readD1ReportSnapshot(env, dateStr, reportType);
-  if (snapshot) {
-    return { data: snapshot, source: 'd1_snapshot', sourceDate: dateStr, isStale: false };
+  // 1. Try D1 snapshot for today with exact report type (unless skipped)
+  if (!options.skipTodaySnapshot) {
+    const snapshotResult = await readD1ReportSnapshot(env, dateStr, reportType);
+    if (snapshotResult) {
+      return { data: snapshotResult.data, source: 'd1_snapshot', sourceDate: dateStr, isStale: false, createdAt: snapshotResult.createdAt };
+    }
   }
 
   // 2. Try latest D1 snapshot (may be stale)
@@ -322,14 +327,20 @@ export async function getD1FallbackData(
     const isStale = latestSnapshot.executionDate !== dateStr;
     latestSnapshot.data.is_stale = isStale;
     latestSnapshot.data.source_date = latestSnapshot.executionDate;
-    return { data: latestSnapshot.data, source: 'd1_snapshot', sourceDate: latestSnapshot.executionDate, isStale };
+    return {
+      data: latestSnapshot.data,
+      source: 'd1_snapshot',
+      sourceDate: latestSnapshot.executionDate,
+      isStale,
+      createdAt: latestSnapshot.createdAt
+    };
   }
 
   // 4. Try D1 predictions for today
   let predictions = await getD1Predictions(env, dateStr);
   if (predictions && predictions.length > 0) {
     const data = usePredictionsShape ? transformD1ToPredictions(predictions) : transformD1ToAnalysis(predictions);
-    return { data, source: 'd1_predictions', sourceDate: dateStr, isStale: false };
+    return { data, source: 'd1_predictions', sourceDate: dateStr, isStale: false, createdAt: data.generated_at || null };
   }
 
   // 5. Try D1 predictions for yesterday
@@ -341,7 +352,7 @@ export async function getD1FallbackData(
     const data = usePredictionsShape ? transformD1ToPredictions(predictions) : transformD1ToAnalysis(predictions);
     data.is_stale = true;
     data.source_date = yesterdayStr;
-    return { data, source: 'd1_predictions', sourceDate: yesterdayStr, isStale: true };
+    return { data, source: 'd1_predictions', sourceDate: yesterdayStr, isStale: true, createdAt: data.generated_at || null };
   }
 
   return null;

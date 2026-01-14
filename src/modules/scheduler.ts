@@ -13,6 +13,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
+import { writeD1ReportSnapshot } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -266,6 +267,29 @@ export async function handleScheduledEvent(
         );
 
         console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey}`);
+
+        // Write to D1 with correct report type based on trigger mode
+        const reportTypeMap: Record<string, string> = {
+          'morning_prediction_alerts': 'pre-market',
+          'midday_validation_prediction': 'intraday',
+          'next_day_market_prediction': 'end-of-day'
+        };
+        const d1ReportType = reportTypeMap[triggerMode];
+        if (d1ReportType) {
+          const d1Written = await writeD1ReportSnapshot(env, dateStr, d1ReportType, {
+            ...analysisResult,
+            cron_execution_id: cronExecutionId,
+            trigger_mode: triggerMode,
+            generated_at: estTime.toISOString()
+          }, {
+            processingTimeMs: Date.now() - scheduledTime.getTime(),
+            ai_models: {
+              primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+              secondary: '@cf/huggingface/distilbert-sst-2-int8'
+            }
+          });
+          console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
+        }
       } catch (dalError: any) {
         console.error(`❌ [CRON-DAL-ERROR] ${cronExecutionId} DAL operation failed:`, {
           error: dalError.message,

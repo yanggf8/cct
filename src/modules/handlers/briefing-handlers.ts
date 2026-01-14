@@ -1,21 +1,44 @@
 /**
  * Pre-Market Briefing Handler
  * Comprehensive battle plan for the sentiment analysis day
+ * 
+ * Data flow (D1 is source of truth with fallback):
+ * 1. Read from D1 for queryDate
+ * 2. If no D1 data, try fallback chain (latest D1 snapshot, predictions)
+ * 3. If data exists → show it with created_at timestamp
+ * 4. If no data AND querying today AND before 8:30 AM ET → show "Scheduled"
+ * 5. If no data AND past scheduled time → show "No data available"
  */
 
 import { createLogger } from '../logging.js';
-import { createSuccessResponse } from '../response-factory.js';
 import { createHandler } from '../handler-factory.js';
-import { generatePreMarketSignals } from '../report/pre-market-analysis.js';
-import { getPreMarketBriefingData } from '../report-data-retrieval.js';
-import { generatePendingPageHTML } from './pending-page.js';
-import { validateRequest, validateEnvironment, safeValidate } from '../validation.js';
+import { getD1FallbackData } from '../d1-job-storage.js';
+import { validateRequest, validateEnvironment } from '../validation.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
-
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 
 const logger = createLogger('briefing-handlers');
+
+/** Get today's date string in ET timezone */
+function getTodayET(): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' });
+  return formatter.format(new Date());
+}
+
+/** Get current hour and minute in ET timezone */
+function getCurrentTimeET(): { hour: number; minute: number } {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(new Date());
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  return { hour, minute };
+}
 
 /**
  * Generate Pre-Market Briefing Page
@@ -26,23 +49,22 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
   
-  // Support ?date=yesterday or ?date=YYYY-MM-DD
+  // Determine query date from URL param, default to today in ET
   const dateParam = url.searchParams.get('date');
-  let targetDate = new Date();
+  const todayET = getTodayET();
+  let queryDateStr: string;
   if (dateParam === 'yesterday') {
-    targetDate.setDate(targetDate.getDate() - 1);
+    const yesterday = new Date(todayET + 'T12:00:00Z');
+    yesterday.setDate(yesterday.getDate() - 1);
+    queryDateStr = yesterday.toISOString().split('T')[0];
   } else if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    targetDate = new Date(dateParam + 'T12:00:00Z');
+    queryDateStr = dateParam;
+  } else {
+    queryDateStr = todayET;
   }
-  const dateStr = targetDate.toISOString().split('T')[0];
 
-  logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', {
-    requestId,
-    date: dateStr,
-    bypassCache
-  });
+  logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', { requestId, queryDate: queryDateStr, bypassCache });
 
-  // Validate inputs
   validateRequest(request);
   validateEnvironment(env);
 
@@ -51,180 +73,88 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   // Fast path: check DO HTML cache first (unless bypass)
   if (!bypassCache) {
     try {
-      const cached = await dal.read(`premarket_html_${dateStr}`);
+      const cached = await dal.read(`premarket_html_${queryDateStr}`);
       if (cached.success && cached.data) {
         return new Response(cached.data, {
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, max-age=300',
-            'X-Cache': 'HIT',
-            'X-Request-ID': requestId
-          }
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'HIT', 'X-Request-ID': requestId }
         });
       }
-    } catch (e) { /* continue to generate */ }
+    } catch (e) { /* continue */ }
   }
 
-  logger.debug('✅ [PRE-MARKET] Input validation passed', { requestId });
+  // Use getD1FallbackData which handles full fallback chain and returns createdAt
+  const fallback = await getD1FallbackData(env, queryDateStr, 'pre-market');
+  const d1Result = fallback ? {
+    data: fallback.data,
+    createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString()
+  } : null;
+  
+  if (fallback) {
+    logger.info('PRE-MARKET: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
+  }
+  
+  // Determine schedule status
+  const isQueryingToday = queryDateStr === todayET;
+  const { hour, minute } = getCurrentTimeET();
+  const beforeScheduleET = hour < 8 || (hour === 8 && minute < 30); // Before 8:30 AM ET
 
+  // Generate HTML based on D1 data availability
+  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET);
+
+  // Cache HTML for fast subsequent loads
   try {
-    // Try to get pre-market briefing data first
-    let briefingData: any = null;
+    await dal.write(`premarket_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
+  } catch (e) { /* ignore */ }
 
-    try {
-      const rawData = await getPreMarketBriefingData(env, targetDate);
+  logger.info('🎯 [PRE-MARKET] Pre-market briefing completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result });
 
-      // Transform data structure: extract signals from analysis
-      if (rawData && rawData.analysis) {
-        const isPartialFallback = rawData.analysis.source === 'd1_fallback';
-        const isStale = rawData.analysis.is_stale === true;
-        const sourceDate = rawData.analysis.source_date || dateStr;
-        
-        // Extract signals from 'signals', 'sentiment_signals', or 'trading_signals' (job format)
-        let signals = rawData.analysis.signals || [];
-        if ((!signals || signals.length === 0) && rawData.analysis.sentiment_signals) {
-          signals = Object.values(rawData.analysis.sentiment_signals).map((s: any) => ({
-            symbol: s.symbol,
-            direction: s.sentiment_analysis?.sentiment || 'neutral',
-            sentiment: s.sentiment_analysis?.sentiment || 'neutral',
-            confidence: s.sentiment_analysis?.confidence, // Keep null/undefined for failed
-            reasoning: s.sentiment_analysis?.reasoning || '',
-            signal_strength: s.sentiment_analysis?.dual_ai_comparison?.signal_strength || 'MODERATE',
-            timestamp: s.timestamp
-          }));
-        }
-        // Handle trading_signals format from jobs endpoint
-        if ((!signals || signals.length === 0) && rawData.analysis.trading_signals) {
-          signals = Object.values(rawData.analysis.trading_signals).map((s: any) => ({
-            symbol: s.symbol,
-            direction: s.sentiment_layers?.[0]?.sentiment || 'neutral',
-            sentiment: s.sentiment_layers?.[0]?.sentiment || 'neutral',
-            confidence: s.sentiment_layers?.[0]?.confidence || 0,
-            reasoning: s.sentiment_layers?.[0]?.reasoning || '',
-            signal_strength: 'MODERATE',
-            timestamp: rawData.analysis.generated_at || rawData.analysis.timestamp
-          }));
-        }
-        
-        // Validated signals = have real confidence data (not null/undefined)
-        const validatedSignals = signals.filter((s: any) => typeof s.confidence === 'number' && s.confidence > 0);
-        // High confidence signals = confidence >= 60%
-        const highConfidenceSignals = validatedSignals.filter((s: any) => s.confidence >= 0.6);
-        const avgConfidence = validatedSignals.length > 0
-          ? validatedSignals.reduce((sum: number, s: any) => sum + s.confidence, 0) / validatedSignals.length
-          : 0;
-
-        briefingData = {
-          ...rawData,
-          signals,
-          totalSignals: signals.length,
-          validatedSignals: validatedSignals.length,
-          highConfidenceSignals: highConfidenceSignals.length,
-          avgConfidence,
-          marketSentiment: rawData.analysis.market_sentiment?.overall_sentiment || 'NEUTRAL',
-          isPartialFallback,
-          isStale,
-          sourceDate,
-          dataQuality: isStale ? 'stale' : (isPartialFallback ? 'partial' : 'full')
-        };
-        logger.info('✅ [PRE-MARKET] Pre-market data found', {
-          requestId,
-          signalsCount: briefingData.signals?.length || 0,
-          validatedSignals: briefingData.validatedSignals || 0,
-          highConfidenceSignals: briefingData.highConfidenceSignals || 0,
-          avgConfidence: Math.round((briefingData.avgConfidence || 0) * 100) + '%',
-          hasAnalysis: true,
-          isPartialFallback,
-          isStale,
-          sourceDate
-        });
-      }
-    } catch (dataError) {
-      logger.warn('⚠️ [PRE-MARKET] No existing data found', { requestId, error: String(dataError) });
-    }
-
-    // If no data exists, show pending page (don't auto-generate - that's for scheduled jobs)
-    if (!briefingData) {
-      logger.warn('⚠️ [PRE-MARKET] No data available', { requestId, dateStr });
-      const pendingPage = generatePendingPageHTML({
-        title: 'Pre-Market Briefing',
-        reportType: 'pre-market',
-        dateStr,
-        scheduledHourUTC: 13,
-        scheduledMinuteUTC: 30
-      });
-      return new Response(pendingPage, {
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=60',
-          'X-Request-ID': requestId
-        }
-      });
-    }
-
-    logger.debug('✅ [PRE-MARKET] Data available, generating briefing', { requestId });
-
-    // Generate comprehensive pre-market HTML
-    const htmlContent = generatePreMarketHTML(briefingData, requestId, targetDate);
-
-    // Cache HTML for fast subsequent loads
-    try {
-      await dal.write(`premarket_html_${dateStr}`, htmlContent, { expirationTtl: 300 });
-    } catch (e) { /* ignore cache write errors */ }
-
-    logger.info('🎯 [PRE-MARKET] Pre-market briefing completed', {
-      requestId,
-      duration: Date.now() - startTime,
-      hasData: !!briefingData
-    });
-
-    return new Response(htmlContent, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, max-age=300',
-        'X-Cache': 'MISS',
-        'X-Request-ID': requestId,
-        'X-Processing-Time': `${Date.now() - startTime}ms`
-      }
-    });
-
-  } catch (error: any) {
-    logger.error('❌ [PRE-MARKET] Pre-market briefing failed', {
-      requestId,
-      error: (error instanceof Error ? error.message : String(error)),
-      stack: error.stack,
-      duration: Date.now() - startTime
-    });
-
-    return new Response(generateErrorHTML(error, requestId), {
-      status: 500,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' }
-    });
-  }
+  return new Response(htmlContent, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Request-ID': requestId }
+  });
 });
 
 /**
- * Generate comprehensive pre-market HTML
+ * Generate pre-market HTML page
+ * 
+ * Status display logic (D1 is source of truth):
+ * 1. If D1 has data → show "Generated {d1_created_at} ET"
+ * 2. If no D1 data AND querying today AND before 8:30 AM ET → show "Scheduled"
+ * 3. If no D1 data AND past scheduled time → show "No data available"
  */
 function generatePreMarketHTML(
-  briefingData: any,
-  requestId: string,
-  currentDate: Date
+  d1Result: { data: any; createdAt: string } | null,
+  queryDateStr: string,
+  isQueryingToday: boolean,
+  beforeScheduleET: boolean
 ): string {
-  const today = currentDate.toISOString().split('T')[0];
+  const briefingData = d1Result?.data;
+  const d1CreatedAt = d1Result?.createdAt;
   
-  // Check for actual data (signals > 0)
-  const hasRealData = briefingData && (briefingData.totalSignals > 0 || briefingData.signals?.length > 0);
+  // D1 record exists = we have data (regardless of signal count)
+  const hasD1Data = !!d1Result;
   
-  // Scheduled time: 8:30 AM ET
-  const scheduledUtc = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), currentDate.getUTCDate(), 13, 30);
-  const beforeSchedule = Date.now() < scheduledUtc;
+  // Extract signals for display
+  let signals: any[] = [];
+  if (briefingData) {
+    signals = briefingData.signals || [];
+    if (signals.length === 0 && briefingData.trading_signals) {
+      signals = Object.values(briefingData.trading_signals).map((s: any) => ({
+        symbol: s.symbol,
+        direction: s.sentiment_layers?.[0]?.sentiment || 'neutral',
+        confidence: s.sentiment_layers?.[0]?.confidence || 0,
+        reasoning: s.sentiment_layers?.[0]?.reasoning || ''
+      }));
+    }
+  }
+  const totalSignals = signals.length;
+  const highConfidenceSignals = signals.filter((s: any) => (s.confidence || 0) >= 0.6).length;
   
-  // Determine display status - local time computed client-side
+  // Determine display status - D1 is source of truth
   let statusDisplay: string;
-  if (hasRealData) {
-    statusDisplay = `Generated ${currentDate.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
-  } else if (beforeSchedule) {
+  if (hasD1Data && d1CreatedAt) {
+    const generatedTime = new Date(d1CreatedAt);
+    statusDisplay = `Generated ${generatedTime.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true })} ET`;
+  } else if (isQueryingToday && beforeScheduleET) {
     statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="13" data-utcm="30"></span>`;
   } else {
     statusDisplay = `⚠️ No data available`;
@@ -235,7 +165,7 @@ function generatePreMarketHTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pre-Market Briefing - ${today}</title>
+    <title>Pre-Market Briefing - ${queryDateStr}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/cct-api.js"></script>
@@ -594,24 +524,22 @@ function generatePreMarketHTML(
         <div class="header">
             <h1>🚀 Pre-Market Briefing</h1>
             <p>Comprehensive trading battle plan for today's market session</p>
-            <div class="date-display">${currentDate.toLocaleDateString('en-US', {
+            <div class="date-display">${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
               day: 'numeric'
             })} • ${statusDisplay}</div>
-            ${briefingData?.isStale ? `<div class="stale-warning">⚠️ Showing data from ${briefingData.sourceDate} (latest available)</div>` : ''}
-            ${briefingData?.isPartialFallback && !briefingData?.isStale ? `<div class="partial-warning">ℹ️ Partial data from D1 fallback</div>` : ''}
             <div class="market-status">
                 <span class="status-dot"></span>
                 <span>Pre-Market Active</span>
             </div>
         </div>
 
-        ${!hasRealData ? `
+        ${!hasD1Data ? `
         <div class="no-data">
-            <h3>${beforeSchedule ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
-            <p>${beforeSchedule ? `This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : 'There is no pre-market data available for this date.'}</p>
+            <h3>${isQueryingToday && beforeScheduleET ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
+            <p>${isQueryingToday && beforeScheduleET ? `This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
@@ -620,40 +548,18 @@ function generatePreMarketHTML(
         <div class="summary-grid">
             <div class="summary-card">
                 <h3>High Confidence</h3>
-                <div class="value">${briefingData.highConfidenceSignals}/${briefingData.totalSignals}</div>
+                <div class="value">${highConfidenceSignals}/${totalSignals}</div>
                 <div class="label">Signals ≥60% confidence</div>
             </div>
             <div class="summary-card">
-                <h3>Validated</h3>
-                <div class="value">${briefingData.validatedSignals}/${briefingData.totalSignals}</div>
-                <div class="label">With real AI data</div>
-            </div>
-            <div class="summary-card">
-                <h3>Avg Confidence</h3>
-                <div class="value">${briefingData.validatedSignals > 0
-                  ? Math.round(briefingData.avgConfidence * 100) + '%'
-                  : 'N/A'}</div>
-                <div class="label">${briefingData.validatedSignals > 0
-                  ? 'From validated signals'
-                  : 'No validated signals'}</div>
+                <h3>Total Signals</h3>
+                <div class="value">${totalSignals}</div>
+                <div class="label">Analyzed symbols</div>
             </div>
             <div class="summary-card">
                 <h3>Market Sentiment</h3>
-                <div class="value">${briefingData.marketSentiment || 'NEUTRAL'}</div>
+                <div class="value">${briefingData?.market_sentiment?.overall_sentiment || 'NEUTRAL'}</div>
                 <div class="label">Overall market mood</div>
-            </div>
-            <div class="summary-card">
-                <h3>Key Focus</h3>
-                <div class="value">${briefingData.keyFocus || 'BALANCED'}</div>
-                <div class="label">Trading strategy</div>
-            </div>
-        </div>
-
-        <!-- Market Overview -->
-        <div class="market-overview">
-            <h2>📊 Market Overview</h2>
-            <div class="market-grid">
-                ${generateMarketOverview(briefingData.marketData)}
             </div>
         </div>
 
@@ -661,7 +567,7 @@ function generatePreMarketHTML(
         <div class="signals-section">
             <h2>🎯 All Signals</h2>
             <div class="signal-grid">
-                ${generateSignalCards(briefingData.signals || [])}
+                ${generateSignalCards(signals)}
             </div>
         </div>
 
@@ -669,13 +575,13 @@ function generatePreMarketHTML(
         <div class="action-items">
             <h2>⚡ Today's Action Items</h2>
             <ul class="action-list">
-                ${generateActionItems(briefingData.actionItems || [])}
+                ${generateActionItems(briefingData?.actionItems || briefingData?.action_items || [])}
             </ul>
         </div>
         `}
     </div>
 
-    ${hasRealData ? `
+    ${hasD1Data ? `
     <script>
         // Initialize interactive elements
         document.addEventListener('DOMContentLoaded', function() {
