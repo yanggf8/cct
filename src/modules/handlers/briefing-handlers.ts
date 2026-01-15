@@ -114,10 +114,11 @@ function generatePreMarketHTML(
   const briefingData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
   const sourceDate = d1Result?.sourceDate || queryDateStr;
-  // isStale: D1 marked the data old/out-of-date
+  // isStale: D1 marked the data old/out-of-date (sourceDate != queryDate)
   const isStale = d1Result?.isStale || false;
-  // isPending: querying today, no data yet, and before schedule
-  const isPending = !d1Result && isQueryingToday && showScheduled;
+  // isPending: querying today with no exact match data, and before schedule
+  // Show pending even if stale fallback data exists - don't show yesterday's data as "today"
+  const isPending = (!d1Result || isStale) && isQueryingToday && showScheduled;
 
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;

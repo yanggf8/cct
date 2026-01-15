@@ -67,8 +67,9 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   const sourceDate = fallback?.sourceDate || queryDateStr;
   // isStale: data is old/not on time (from D1)
   const isStale = fallback?.isStale || false;
-  // isPending: querying today, no data yet, and before schedule
-  const isPending = !d1Result && isQueryingToday && beforeScheduleET;
+  // isPending: querying today with no exact match data, and before schedule
+  // Show pending even if stale fallback data exists - don't show yesterday's data as "today"
+  const isPending = (!d1Result || isStale) && isQueryingToday && beforeScheduleET;
 
   // Generate HTML based on D1 data availability
   const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate);
