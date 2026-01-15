@@ -196,12 +196,15 @@ function generatePreMarketHTML(
         </div>
         ` : '';
 
+  // Display date: use actual D1 sourceDate when data exists, queryDate only for pending/no-data
+  const displayDate = hasD1Data ? sourceDate : queryDateStr;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pre-Market Briefing - ${queryDateStr}</title>
+    <title>Pre-Market Briefing - ${displayDate}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/cct-api.js"></script>
@@ -559,8 +562,8 @@ function generatePreMarketHTML(
     <div class="container">
         <div class="header">
             <h1>🚀 Pre-Market Briefing</h1>
-            <p>Comprehensive trading battle plan for ${sessionContext} market session</p>
-            <div class="date-display">${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
+            <p>Comprehensive trading battle plan for the market session</p>
+            <div class="date-display">${new Date(displayDate + 'T12:00:00Z').toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',

@@ -146,12 +146,15 @@ function generateEndOfDayHTML(
         </div>
         ` : '';
 
+  // Display date: use actual D1 sourceDate when data exists, queryDate only for pending/no-data
+  const displayDate = hasD1Data ? sourceDate : queryDateStr;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>End-of-Day Trading Summary - ${queryDateStr}</title>
+    <title>End-of-Day Trading Summary - ${displayDate}</title>
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/cct-api.js"></script>
@@ -468,8 +471,8 @@ function generateEndOfDayHTML(
     <div class="container">
         <div class="header">
             <h1>🏁 End-of-Day Trading Summary</h1>
-            <p>Comprehensive analysis of today's trading performance and market close</p>
-            <div class="date-display">${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
+            <p>Comprehensive analysis of trading performance and market close</p>
+            <div class="date-display">${new Date(displayDate + 'T12:00:00Z').toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
