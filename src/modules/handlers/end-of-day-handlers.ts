@@ -17,6 +17,7 @@ import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { getTodayInZone, resolveQueryDate, getCurrentTimeET } from './date-utils.js';
+import { generatePendingPageHTML } from './pending-page.js';
 
 const logger = createLogger('end-of-day-handlers');
 
@@ -108,6 +109,11 @@ function generateEndOfDayHTML(
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;
 
+  // Check if data is genuinely stale (>1 day difference) vs timezone edge case (consecutive day)
+  // Only show stale warning for genuinely old data, not timezone differences
+  const daysDiff = Math.abs(Math.round((new Date(queryDateStr + 'T00:00:00Z').getTime() - new Date(sourceDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
+  const shouldShowStaleWarning = isStale && daysDiff > 1;
+
   // Determine display status - show both ET and local time
   let statusDisplay: string;
   if (hasD1Data && d1CreatedAt) {
@@ -122,11 +128,17 @@ function generateEndOfDayHTML(
   // Branch: pending (not yet executed) vs stale (over time) vs normal
   if (isPending) {
     // Report hasn't run yet for today
-    return getPendingPage('End-of-Day Summary', queryDateStr, '16:05', true);
+    return generatePendingPageHTML({
+      title: 'End-of-Day Summary',
+      reportType: 'end-of-day',
+      dateStr: queryDateStr,
+      scheduledHourUTC: 21,
+      scheduledMinuteUTC: 5
+    });
   }
 
   // For stale data (over time), show report with warning
-  const staleWarning = isStale ? `
+  const staleWarning = shouldShowStaleWarning ? `
         <div class="stale-warning">
             ⚠️ <strong>Stale Data:</strong> Showing data from <strong>${sourceDate}</strong>.
             ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : ''}

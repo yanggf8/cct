@@ -238,6 +238,13 @@ curl -H "X-API-KEY: your_api_key" https://tft-trading-system.yanggf.workers.dev/
 - **Security**: Do not use `window.CCT_API_KEY` in production. Personal build currently bakes `window.CCT_API_KEY = 'yanggf'` in `public/js/nav.js`; remove/replace before sharing or deploying.
 - **Timezone Default**: Asia/Taipei (fallback when no `tz` param or saved setting)
 
+**Report “Today” Resolution (Pre‑Market & Other Reports)**
+- Determine “today” using the resolved timezone (param → DO setting → default Asia/Taipei) but fetch the report dated in ET (D1 stores ET, which is intended).
+- If today’s record exists in D1: render it (with a stale banner if D1 marked it stale).
+- If no record exists yet:
+  - Before the scheduled time: show “pending” (report not yet generated).
+  - After the scheduled time: treat as stale/missing and show the stale warning with refresh guidance.
+
 ## 🔧 Development
 
 ### **Quick Start**

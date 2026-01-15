@@ -18,6 +18,7 @@ import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/htm
 import type { CloudflareEnvironment } from '../../types';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { getTodayInZone, resolveQueryDate, getCurrentTimeET } from './date-utils.js';
+import { generatePendingPageHTML } from './pending-page.js';
 
 const logger = createLogger('briefing-handlers');
 
@@ -153,6 +154,11 @@ function generatePreMarketHTML(
   const sessionContext = isQueryingToday ? "today's" : `${queryDateFormatted}'s`;
   const sessionContextCapitalized = isQueryingToday ? "Today's" : `${queryDateFormatted}'s`;
 
+  // Check if data is genuinely stale (>1 day difference) vs timezone edge case (consecutive day)
+  // Only show stale warning for genuinely old data, not timezone differences
+  const daysDiff = Math.abs(Math.round((new Date(queryDateStr + 'T00:00:00Z').getTime() - new Date(sourceDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
+  const shouldShowStaleWarning = isStale && daysDiff > 1;
+
   // Determine display status - D1 is source of truth
   // Show both ET and local time for generated reports
   let statusDisplay: string;
@@ -172,11 +178,17 @@ function generatePreMarketHTML(
   // Branch: pending (not yet executed today) vs stale (old data) vs normal
   if (isPending) {
     // Report hasn't run yet for today
-    return getPendingPage('Pre-Market Briefing', queryDateStr, '13:30', false);
+    return generatePendingPageHTML({
+      title: 'Pre-Market Briefing',
+      reportType: 'pre-market',
+      dateStr: queryDateStr,
+      scheduledHourUTC: 13,
+      scheduledMinuteUTC: 30
+    });
   }
 
   // For stale data (over time), show report with warning
-  const staleWarning = isStale ? `
+  const staleWarning = shouldShowStaleWarning ? `
         <div class="stale-warning">
             ⚠️ <strong>Stale Data:</strong> Showing data from <strong>${sourceDateFormatted}</strong>.
             ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : ''}
