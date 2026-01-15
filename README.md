@@ -240,9 +240,9 @@ curl -H "X-API-KEY: your_api_key" https://tft-trading-system.yanggf.workers.dev/
 
 **Report “Today” Resolution (Pre‑Market & Other Reports)**
 - Determine “today” using the resolved timezone (param → DO setting → default Asia/Taipei) but fetch the report dated in ET (D1 stores ET, which is intended).
-- If D1 has a record: render it using the record’s `sourceDate` for the title/header (no “fake” date), with a stale banner only when D1 marks it stale and the gap is >1 day.
+- If D1 has a record: render it using the record’s `sourceDate` for the title/header (no “fake” date); stale banner only when D1 marks it stale and the gap is >1 day.
 - If no record exists yet:
-  - Before the scheduled time: show “pending” (report not yet generated).
+  - Before the scheduled time: show “pending”; stale fallback data is intentionally suppressed so yesterday never appears as “today.”
   - After the scheduled time: treat as stale/missing and show the stale warning with refresh guidance.
 
 ## 🔧 Development
