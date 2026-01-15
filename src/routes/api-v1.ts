@@ -262,7 +262,7 @@ export async function handleApiV1Request(
             timezone = data.value || null;
           } catch { /* ignore */ }
         }
-        return new Response(JSON.stringify({ timezone: timezone || 'America/New_York' }), { status: HttpStatus.OK, headers });
+        return new Response(JSON.stringify({ timezone: timezone || 'Asia/Taipei' }), { status: HttpStatus.OK, headers });
       } else if (request.method === 'PUT') {
         // Require API key for writes
         if (!apiKey) {

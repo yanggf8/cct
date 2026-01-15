@@ -56,6 +56,7 @@
         const detected = document.getElementById('detected');
         const apiKeyInput = document.getElementById('apikey');
         const authStatus = document.getElementById('auth-status');
+        const errorEl = document.getElementById('error');
         const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
         // Load stored API key
@@ -124,7 +125,6 @@
             tzSelect.appendChild(opt);
         });
 
-        const errorEl = document.getElementById('error');
         tzSelect.onchange = checkMatch;
 
         function checkMatch() {

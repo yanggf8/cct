@@ -236,6 +236,7 @@ curl -H "X-API-KEY: your_api_key" https://tft-trading-system.yanggf.workers.dev/
 - **Set/Update**: Settings page (`/settings.html`) or `cctApi.setApiKey(key)`
 - **Clear**: Settings page "Clear API Key" button or `cctApi.setApiKey('')`
 - **Security**: Do not use `window.CCT_API_KEY` in production. Personal build currently bakes `window.CCT_API_KEY = 'yanggf'` in `public/js/nav.js`; remove/replace before sharing or deploying.
+- **Timezone Default**: Asia/Taipei (fallback when no `tz` param or saved setting)
 
 ## 🔧 Development
 

@@ -399,7 +399,7 @@ export const CONFIG: SystemConfig = {
   // Analysis Configuration
   ANALYSIS: {
     MAX_SYMBOLS_PER_BATCH: 5,
-    DEFAULT_TIMEZONE: 'America/New_York',
+    DEFAULT_TIMEZONE: 'Asia/Taipei',
     DATE_FORMAT: 'YYYY-MM-DD',
     WORKER_VERSION: '2.0',
     ENABLE_ENHANCED_FEATURES: true,

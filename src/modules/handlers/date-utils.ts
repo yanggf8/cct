@@ -58,9 +58,9 @@ export async function resolveQueryDate(url: URL, cacheDO?: any): Promise<string>
     return dateParam;
   }
   
-  // Resolve timezone: ?tz > DO setting > ET default
+  // Resolve timezone: ?tz > DO setting > Asia/Taipei default
   const tzParam = url.searchParams.get('tz');
-  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'America/New_York';
+  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'Asia/Taipei';
   const today = getTodayInZone(tz);
   
   if (dateParam === 'yesterday') {

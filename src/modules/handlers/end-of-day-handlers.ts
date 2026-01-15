@@ -63,9 +63,14 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
   const isQueryingToday = queryDateStr === todayET;
   const { hour, minute } = getCurrentTimeET();
   const beforeScheduleET = hour < 16 || (hour === 16 && minute < 5); // Before 4:05 PM ET
+  const sourceDate = fallback?.sourceDate || queryDateStr;
+  // isStale: data is old/not on time (from D1)
+  const isStale = fallback?.isStale || false;
+  // isPending: querying today, no data yet, and before schedule
+  const isPending = !d1Result && isQueryingToday && beforeScheduleET;
 
   // Generate HTML based on D1 data availability
-  const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET);
+  const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate);
 
   // Cache HTML for fast subsequent loads
   try {
@@ -89,17 +94,20 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
  * 3. If no D1 data AND past scheduled time → show "No data available"
  */
 function generateEndOfDayHTML(
-  d1Result: { data: any; createdAt: string } | null,
+  d1Result: { data: any; createdAt: string; isStale?: boolean } | null,
   queryDateStr: string,
   isQueryingToday: boolean,
-  beforeScheduleET: boolean
+  beforeScheduleET: boolean,
+  isPending: boolean,
+  sourceDate: string
 ): string {
   const endOfDayData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
-  
+  const isStale = d1Result?.isStale || false;
+
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;
-  
+
   // Determine display status - show both ET and local time
   let statusDisplay: string;
   if (hasD1Data && d1CreatedAt) {
@@ -110,6 +118,21 @@ function generateEndOfDayHTML(
   } else {
     statusDisplay = `⚠️ No data available`;
   }
+
+  // Branch: pending (not yet executed) vs stale (over time) vs normal
+  if (isPending) {
+    // Report hasn't run yet for today
+    return getPendingPage('End-of-Day Summary', queryDateStr, '16:05', true);
+  }
+
+  // For stale data (over time), show report with warning
+  const staleWarning = isStale ? `
+        <div class="stale-warning">
+            ⚠️ <strong>Stale Data:</strong> Showing data from <strong>${sourceDate}</strong>.
+            ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : ''}
+            <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
+        </div>
+        ` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -440,6 +463,7 @@ function generateEndOfDayHTML(
               month: 'long',
               day: 'numeric'
             })} • ${statusDisplay}</div>
+            ${staleWarning}
         </div>
 
         ${!hasD1Data ? `

@@ -48,6 +48,8 @@ curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/api/
 
 **⚠️ Security Note**: This is a personal system with `window.CCT_API_KEY = 'yanggf'` baked into `public/js/nav.js`. Before sharing or deploying publicly, remove or replace this value.
 
+**Timezone Default**: Asia/Taipei (baked-in fallback when no `tz` param or saved setting)
+
 **Setting the API Key**:
 ```javascript
 // Via Settings UI (/settings.html)

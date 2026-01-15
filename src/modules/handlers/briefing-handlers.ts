@@ -112,8 +112,11 @@ function generatePreMarketHTML(
 ): string {
   const briefingData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
-  const isStale = d1Result?.isStale || false;
   const sourceDate = d1Result?.sourceDate || queryDateStr;
+  // isStale: D1 marked the data old/out-of-date
+  const isStale = d1Result?.isStale || false;
+  // isPending: querying today, no data yet, and before schedule
+  const isPending = !d1Result && isQueryingToday && showScheduled;
 
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;
@@ -156,7 +159,7 @@ function generatePreMarketHTML(
   if (hasD1Data && d1CreatedAt) {
     const ts = new Date(d1CreatedAt).getTime();
     if (isStale) {
-      statusDisplay = `⚠️ Showing data from ${sourceDateFormatted} (${sessionContext} report not yet available)`;
+      statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
     } else {
       statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
     }
@@ -165,6 +168,21 @@ function generatePreMarketHTML(
   } else {
     statusDisplay = `⚠️ No data available`;
   }
+
+  // Branch: pending (not yet executed today) vs stale (old data) vs normal
+  if (isPending) {
+    // Report hasn't run yet for today
+    return getPendingPage('Pre-Market Briefing', queryDateStr, '13:30', false);
+  }
+
+  // For stale data (over time), show report with warning
+  const staleWarning = isStale ? `
+        <div class="stale-warning">
+            ⚠️ <strong>Stale Data:</strong> Showing data from <strong>${sourceDateFormatted}</strong>.
+            ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : ''}
+            <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
+        </div>
+        ` : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -536,20 +554,12 @@ function generatePreMarketHTML(
               month: 'long',
               day: 'numeric'
             })} • ${statusDisplay}</div>
+            ${staleWarning}
             <div class="market-status">
                 <span class="status-dot"></span>
                 <span>Pre-Market Active</span>
             </div>
         </div>
-
-        ${isStale && hasD1Data ? `
-        <div class="stale-warning">
-            ⚠️ <strong>Stale Data:</strong> ${sessionContextCapitalized} pre-market report has not been generated yet.
-            Showing data from <strong>${sourceDateFormatted}</strong>.
-            ${isQueryingToday ? `The report is scheduled for <span class="sched-time" data-utch="13" data-utcm="30"></span>.` : ''}
-            <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
-        </div>
-        ` : ''}
 
         ${!hasD1Data ? `
         <div class="no-data">
