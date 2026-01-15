@@ -10,7 +10,7 @@ export interface AuthResult {
   reason?: string;
 }
 
-// Public endpoints that don't require authentication (exact matches only)
+// Public endpoints that don't require authentication (exact matches only, all methods)
 const PUBLIC_ENDPOINTS = [
   '/api/v1',              // API documentation root only
   '/api/v1/data/health',  // Health check
@@ -19,6 +19,11 @@ const PUBLIC_ENDPOINTS = [
   '/api/v1/jobs/latest',  // Latest job (read-only)
   '/health',
   '/model-health',
+];
+
+// Public endpoints for GET method only (writes still require auth)
+const PUBLIC_GET_ONLY = [
+  '/api/v1/settings/timezone', // User timezone preference (GET public, PUT requires auth)
 ];
 
 // Public endpoint prefixes (for dynamic paths)
@@ -38,14 +43,20 @@ const HTML_ENDPOINTS = [
 
 /**
  * Check if endpoint requires authentication
+ * @param path - URL pathname
+ * @param method - HTTP method (GET, POST, PUT, etc.)
  */
-export function requiresAuth(path: string): boolean {
+export function requiresAuth(path: string, method?: string): boolean {
   // HTML pages don't require auth
   if (HTML_ENDPOINTS.some(e => path === e || path.startsWith(e + '?'))) {
     return false;
   }
   // Public API endpoints - exact match only (not prefix)
   if (PUBLIC_ENDPOINTS.some(e => path === e || path === e + '/')) {
+    return false;
+  }
+  // GET-only public endpoints
+  if (method === 'GET' && PUBLIC_GET_ONLY.some(e => path === e || path === e + '/')) {
     return false;
   }
   // Public prefixes (for dynamic paths like /api/v1/jobs/snapshots/:date/:type)
@@ -66,9 +77,10 @@ export function requiresAuth(path: string): boolean {
 export function authenticateRequest(request: Request, env: CloudflareEnvironment): AuthResult {
   const url = new URL(request.url);
   const path = url.pathname;
+  const method = request.method;
 
-  // Check if auth is required
-  if (!requiresAuth(path)) {
+  // Check if auth is required (pass method for GET-only public endpoints)
+  if (!requiresAuth(path, method)) {
     return { authenticated: true, reason: 'public_endpoint' };
   }
 

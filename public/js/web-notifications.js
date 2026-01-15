@@ -88,21 +88,25 @@ class WebNotificationClient {
 
     async sendSubscriptionToServer(subscription) {
         try {
-            const response = await fetch(`${this.apiUrl}/notifications/subscribe`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+            // Use cctApi if available (includes auth), otherwise fall back to direct fetch
+            if (window.cctApi && window.cctApi.notificationsSubscribe) {
+                await window.cctApi.notificationsSubscribe({
                     subscription: subscription,
                     subscriptionId: this.subscriptionId
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Server returned ${response.status}`);
+                });
+            } else {
+                const response = await fetch(`${this.apiUrl}/notifications/subscribe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription: subscription,
+                        subscriptionId: this.subscriptionId
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}`);
+                }
             }
-
             console.log('Subscription sent to server');
         } catch (error) {
             console.error('Failed to send subscription to server:', error);

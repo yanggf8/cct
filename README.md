@@ -10,6 +10,12 @@
 
 ## 🚀 Latest Updates
 
+### **🌐 Frontend API Client Unification (2026-01-15)**
+- ✅ **Single Client**: Dashboard, system status, web notifications, and settings now call `cctApi` instead of raw `fetch`
+- ✅ **Timezone UX**: Settings page shows load/save errors and keeps browser vs saved timezone visible
+- ✅ **Auth Guard**: `/api/v1/settings/timezone` is public for GET only; writes still require API key
+- ✅ **API Root Fix**: `cctApi.apiRoot()` hits `/api/v1` without trailing slash
+
 ### **🕐 Local Time Display (2026-01-13)**
 - ✅ **Browser-Based Conversion**: Report schedules show both ET and user's local timezone
 - ✅ **DST-Safe**: Uses `setUTCHours()` + `toLocaleTimeString({timeZone: 'America/New_York'})` for ET

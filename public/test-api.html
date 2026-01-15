@@ -140,9 +140,8 @@
 
         async function testApiDocs() {
             try {
-                const response = await fetch('/api/v1');
-                const result = await response.json();
-                addResult('basicResults', 'API Documentation', response.ok, {
+                const result = await cctApi.apiRoot();
+                addResult('basicResults', 'API Documentation', true, {
                     title: result.title,
                     version: result.version
                 });

@@ -43,7 +43,8 @@ class CCTApi {
 
   // Core request method - always sends API key
   async request(endpoint, options = {}) {
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    // Handle empty endpoint (for apiRoot) - don't add trailing slash
+    const path = endpoint === '' ? '' : (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
     const url = `${this.baseUrl}${path}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -165,6 +166,23 @@ class CCTApi {
   getBacktestHistory() { return this.backtestHistory(); }
   getBacktestResults(backtestId) { return this.backtestResults(backtestId); }
   getBacktestPerformance(backtestId) { return this.backtestPerformance(backtestId); }
+
+  // Settings
+  getTimezone() { return this.get('/settings/timezone'); }
+  setTimezone(tz) { return this.request('/settings/timezone', { method: 'PUT', body: { timezone: tz } }); }
+
+  // Jobs
+  jobsHistory(limit = 50) { return this.get('/jobs/history', { limit }); }
+  jobsLatest() { return this.get('/jobs/latest'); }
+  getJobsHistory(limit) { return this.jobsHistory(limit); }
+
+  // System
+  systemStatus() { return this.get('/data/system-status'); }
+  getSystemStatus() { return this.systemStatus(); }
+  apiRoot() { return this.request('', { method: 'GET' }); }
+
+  // Notifications
+  notificationsSubscribe(subscription) { return this.post('/notifications/subscribe', subscription); }
 }
 
 // Create singleton instance

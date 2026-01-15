@@ -1,173 +1,201 @@
 /**
- * CCT API Client v1 - Secure & Backward Compatible
- * Exported as a string for serving from Cloudflare Worker
- * No hardcoded API keys but graceful degradation for unauthenticated requests
+ * CCT API Client - Exported as a string for serving from Cloudflare Worker
+ * This file is auto-synced with public/js/cct-api.js
  */
 
 export const API_CLIENT_CONTENT = `/**
- * CCT API Client v1 - Secure & Backward Compatible
- * No hardcoded API keys but graceful degradation for unauthenticated requests
+ * CCT API Client - Centralized API Communication
+ * All API requests go through this client with automatic auth handling
  */
 
-class CCTApiClient {
+class CCTApi {
   constructor(options = {}) {
     this.baseUrl = options.baseUrl || '/api/v1';
-    this.apiKey = options.apiKey || this.getStoredApiKey() || null;
-    this.defaultHeaders = {
+    this.timeout = options.timeout || 30000;
+    this.apiKey = options.apiKey || this._getStoredKey();
+  }
+
+  // Get API key from multiple sources (priority: session > local > window)
+  _getStoredKey() {
+    try {
+      return sessionStorage.getItem('cct_api_key')
+        || localStorage.getItem('cct_api_key')
+        || window.CCT_API_KEY
+        || '';
+    } catch {
+      return window.CCT_API_KEY || '';
+    }
+  }
+
+  // Set API key (stores in both session and local)
+  setApiKey(key) {
+    this.apiKey = key;
+    try {
+      if (key) {
+        sessionStorage.setItem('cct_api_key', key);
+        localStorage.setItem('cct_api_key', key);
+      } else {
+        sessionStorage.removeItem('cct_api_key');
+        localStorage.removeItem('cct_api_key');
+      }
+    } catch {}
+  }
+
+  // Check if authenticated
+  isAuthenticated() {
+    return !!this.apiKey;
+  }
+
+  // Core request method - always sends API key
+  async request(endpoint, options = {}) {
+    // Handle empty endpoint (for apiRoot) - don't add trailing slash
+    const path = endpoint === '' ? '' : (endpoint.startsWith('/') ? endpoint : \`/\${endpoint}\`);
+    const url = \`\${this.baseUrl}\${path}\`;
+    const headers = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...options.headers
     };
 
-    // Only add API key header if we have one
+    // Always add API key
     if (this.apiKey) {
-      this.defaultHeaders['X-API-Key'] = this.apiKey;
+      headers['X-API-Key'] = this.apiKey;
     }
-    this.timeout = options.timeout || 30000;
-    this.enableCache = options.enableCache !== false;
-    this.cache = new Map();
-    this.cacheTimeout = options.cacheTimeout || 300000;
-  }
 
-  getStoredApiKey() {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('cct_api_key');
-    }
-    return null;
-  }
-
-  setApiKey(apiKey) {
-    this.apiKey = apiKey;
-    if (this.apiKey) {
-      this.defaultHeaders['X-API-Key'] = apiKey;
-    } else {
-      delete this.defaultHeaders['X-API-Key'];
-    }
-    // SECURITY: Session-based only - no localStorage storage
-  }
-
-  async request(endpoint, options = {}) {
-    const url = \`\${this.baseUrl}\${endpoint}\`;
     const config = {
-      headers: { ...this.defaultHeaders, ...options.headers },
-      timeout: this.timeout,
+      method: options.method || 'GET',
+      headers,
       ...options
     };
 
-    try {
-      const response = await fetch(url, config);
-
-      if (response.status === 401) {
-        console.warn('Authentication required for:', endpoint);
-        // Don't throw; return a structured error for unauthenticated requests
-        return { success: false, error: 'Authentication required', data: null };
-      }
-
-      if (!response.ok) {
-        throw new Error(\`HTTP \${response.status}: \${response.statusText}\`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('API request failed:', error.message);
-      throw error;
+    if (options.body && typeof options.body === 'object') {
+      config.body = JSON.stringify(options.body);
     }
+
+    const response = await fetch(url, config);
+
+    if (response.status === 401) {
+      console.warn('API authentication failed - check API key');
+      if (this.onUnauthorized) this.onUnauthorized();
+      throw new Error('Unauthorized - API key required');
+    }
+
+    if (!response.ok) {
+      throw new Error(\`API Error: \${response.status}\`);
+    }
+
+    return response.json();
   }
 
-  // Public endpoints (work without authentication)
-  async getSymbols() {
-    return this.request('/data/symbols');
+  // GET request
+  get(endpoint, params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const url = query ? \`\${endpoint}?\${query}\` : endpoint;
+    return this.request(url);
   }
 
-  async getHealth() {
-    return this.request('/data/health');
+  // POST request
+  post(endpoint, body = {}) {
+    return this.request(endpoint, { method: 'POST', body });
   }
 
-  // Protected endpoints (require authentication)
-  async getSentimentAnalysis(symbols) {
-    return this.request(\`/sentiment/symbols/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
-  }
+  // ============ API Methods ============
 
-  async getMarketSentiment() {
-    return this.request('/sentiment/market');
-  }
+  // Health & Status
+  health() { return this.get('/data/health'); }
+  symbols() { return this.get('/data/symbols'); }
+  getHealth() { return this.health(); }
+  getSymbols() { return this.symbols(); }
 
-  async getDailyReport(date) {
-    return this.request(\`/reports/daily/\${date}\`);
-  }
+  // Sentiment
+  sentiment(symbols) { return this.get('/sentiment/analysis', { symbols: symbols?.join(',') }); }
+  sentimentSymbol(symbol) { return this.get(\`/sentiment/symbols/\${symbol}\`); }
+  marketSentiment() { return this.get('/sentiment/market'); }
+  getSentimentAnalysis(symbols) { return this.sentiment(symbols); }
+  getMarketSentiment() { return this.marketSentiment(); }
 
-  async getPreMarketBriefing() {
-    return this.request('/reports/pre-market');
-  }
+  // Reports
+  preMarket() { return this.get('/reports/pre-market'); }
+  intraday() { return this.get('/reports/intraday'); }
+  endOfDay() { return this.get('/reports/end-of-day'); }
+  weekly() { return this.get('/reports/weekly'); }
+  dailyReport(date) { return this.get(\`/reports/daily/\${date}\`); }
+  getPreMarketBriefing() { return this.preMarket(); }
+  getIntradayCheck() { return this.intraday(); }
+  getEndOfDaySummary() { return this.endOfDay(); }
 
-  async getIntradayCheck() {
-    return this.request('/reports/intraday');
-  }
+  // Market Data
+  marketDrivers() { return this.get('/market-drivers/snapshot'); }
+  marketRegime() { return this.get('/market-drivers/regime'); }
+  marketIntelligence() { return this.get('/market-intelligence/dashboard'); }
+  getMarketDriversSnapshot() { return this.marketDrivers(); }
+  getMarketRegime() { return this.marketRegime(); }
 
-  async getEndOfDaySummary() {
-    return this.request('/reports/end-of-day');
-  }
+  // Sectors
+  sectors() { return this.get('/sectors/snapshot'); }
+  sectorRotation() { return this.get('/sector-rotation/results'); }
+  getSectorSnapshot() { return this.sectors(); }
+  getSectorRotation() { return this.sectorRotation(); }
 
-  async getSymbolHistory(symbol, period = '1mo') {
-    return this.request(\`/data/history/\${symbol}?period=\${period}\`);
-  }
+  // Predictive
+  predictiveSignals() { return this.get('/predictive/signals'); }
+  predictiveForecast() { return this.get('/predictive/forecast'); }
+  predictiveInsights() { return this.get('/predictive/insights'); }
+  getPredictiveSignals() { return this.predictiveSignals(); }
+  getPredictiveInsights() { return this.predictiveInsights(); }
 
-  async getMarketRegime() {
-    return this.request('/market/regime');
-  }
+  // Technical
+  technical(symbol) { return this.get(\`/technical/symbols/\${symbol}\`); }
 
-  async getPredictiveSignals(symbols) {
-    return this.request(\`/predictive/signals/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
-  }
+  // Dashboard
+  dashboardMetrics() { return this.get('/dashboard/metrics'); }
+  dashboardEconomics() { return this.get('/dashboard/economics'); }
 
-  async getSectorSnapshot() {
-    return this.request('/sectors/snapshot');
-  }
+  // Cache
+  cacheHealth() { return this.get('/cache/health'); }
+  cacheMetrics() { return this.get('/cache/metrics'); }
 
-  async getSectorAnalysis() {
-    return this.request('/sectors/analysis');
-  }
+  // History
+  history(symbol) { return this.get(\`/data/history/\${symbol}\`); }
+  getHistory(symbol) { return this.history(symbol); }
 
-  async getPortfolioCorrelation(symbols) {
-    return this.request('/portfolio/correlation', {
-      method: 'POST',
-      body: JSON.stringify({ symbols })
-    });
-  }
+  // Realtime
+  realtimeStatus() { return this.get('/realtime/status'); }
+  getRealtimeStatus() { return this.realtimeStatus(); }
 
-  async getRiskMetrics(symbols) {
-    return this.request(\`/risk/metrics/\${Array.isArray(symbols) ? symbols.join(',') : symbols}\`);
-  }
+  // Backtesting
+  backtestHistory() { return this.get('/backtesting/history'); }
+  backtestResults(backtestId) { return this.get(\`/backtesting/results/\${backtestId}\`); }
+  backtestPerformance(backtestId) { return this.get(\`/backtesting/performance/\${backtestId}\`); }
+  backtestStatus(backtestId) { return this.get(\`/backtesting/status/\${backtestId}\`); }
+  runBacktest(config) { return this.post('/backtesting/run', config); }
+  getBacktestHistory() { return this.backtestHistory(); }
+  getBacktestResults(backtestId) { return this.backtestResults(backtestId); }
+  getBacktestPerformance(backtestId) { return this.backtestPerformance(backtestId); }
 
-  async getTechnicalAnalysis(symbol, indicators = []) {
-    return this.request(\`/technical/analysis/\${symbol}?indicators=\${indicators.join(',')}\`);
-  }
+  // Settings
+  getTimezone() { return this.get('/settings/timezone'); }
+  setTimezone(tz) { return this.request('/settings/timezone', { method: 'PUT', body: { timezone: tz } }); }
 
-  // Cache management
-  clearCache() {
-    this.cache.clear();
-  }
+  // Jobs
+  jobsHistory(limit = 50) { return this.get('/jobs/history', { limit }); }
+  jobsLatest() { return this.get('/jobs/latest'); }
+  getJobsHistory(limit) { return this.jobsHistory(limit); }
+
+  // System
+  systemStatus() { return this.get('/data/system-status'); }
+  getSystemStatus() { return this.systemStatus(); }
+  apiRoot() { return this.request('', { method: 'GET' }); }
+
+  // Notifications
+  notificationsSubscribe(subscription) { return this.post('/notifications/subscribe', subscription); }
 }
 
-// Initialize global API client with backward compatibility
-window.cctApi = new CCTApiClient({
-  baseUrl: window.location.origin,
-  apiKey: (() => {
-    try {
-      return localStorage.getItem('cct_api_key');
-    } catch (e) {
-      return null;
-    }
-  })(),
-  timeout: 30000,
-  enableCache: true,
-  cacheTimeout: 300000
-});
+// Create singleton instance
+const cctApi = new CCTApi();
 
-// Global authentication function
-window.setCctApiKey = function(apiKey) {
-  if (window.cctApi) {
-    window.cctApi.setApiKey(apiKey);
-  }
-};
+// Export for global access
+window.cctApi = cctApi;
+window.CCTApi = CCTApi;
 
-console.log('CCT API Client initialized (secure, backward-compatible version)');`;
+console.log('CCT API Client initialized');
+`;

@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/css/nav.css?v=20251226">
     <script src="/js/nav.js?v=20251226"></script>
+    <script src="/js/cct-api.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; }
@@ -82,11 +83,7 @@
 
         async function fetchD1Jobs() {
             try {
-                const apiKey = sessionStorage.getItem('cct_api_key') || localStorage.getItem('cct_api_key') || window.CCT_API_KEY || '';
-                const res = await fetch('/api/v1/jobs/history?limit=50', {
-                    headers: apiKey ? { 'X-API-KEY': apiKey } : {}
-                });
-                const data = await res.json();
+                const data = await cctApi.jobsHistory(50);
                 return data.success ? (data.data.jobs || []) : [];
             } catch (e) {
                 console.error('Failed to fetch D1 jobs:', e);
