@@ -784,6 +784,8 @@ src/modules/
 
 **Note**: Times shown as "EDT / EST" (Daylight Saving / Standard)
 
+**Known gap (scheduler implementation)**: `midday_validation_prediction` currently falls through to the generic branch and runs `runEnhancedPreMarketAnalysis`, then writes the result to D1 as `report_type = intraday`. Intraday jobs therefore store pre-market payloads. Fix requires adding a dedicated intraday branch in `scheduler.ts` that calls `IntradayDataBridge.generateIntradayAnalysis()` and normalizes `symbols_analyzed`.
+
 ### **🔄 Request Flow**
 
 ```
