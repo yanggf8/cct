@@ -13,7 +13,8 @@
         h1 { font-size: 1.4rem; margin-bottom: 1.5rem; }
         .setting-group { margin-bottom: 1.5rem; }
         .setting-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
-        .setting-group select { width: 100%; padding: 0.5rem; font-size: 1rem; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+        .setting-group select, .setting-group input { width: 100%; padding: 0.5rem; font-size: 1rem; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+        .setting-group input::placeholder { color: var(--text-muted); }
         .warning { background: #3d2a00; border: 1px solid #d29922; color: #d29922; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; display: none; }
         .error { background: #3d1a1a; border: 1px solid #f85149; color: #f85149; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; display: none; }
         .success { background: #1a3d1a; border: 1px solid var(--green); color: var(--green); padding: 0.75rem; border-radius: 4px; margin-top: 1rem; display: none; }
@@ -27,6 +28,13 @@
     <main class="main-content">
         <div class="settings-container">
             <h1>⚙️ Settings</h1>
+
+            <div class="setting-group">
+                <label for="apikey">API Key (required to save)</label>
+                <input type="password" id="apikey" placeholder="Enter your API key">
+                <div class="detected" id="auth-status"></div>
+                <button onclick="clearKey()" style="margin-top: 0.5rem; background: #6e7681; padding: 0.5rem 1rem; font-size: 0.9rem;">Clear API Key</button>
+            </div>
 
             <div class="setting-group">
                 <label for="timezone">Your Timezone</label>
@@ -46,7 +54,57 @@
         const tzSelect = document.getElementById('timezone');
         const warning = document.getElementById('warning');
         const detected = document.getElementById('detected');
+        const apiKeyInput = document.getElementById('apikey');
+        const authStatus = document.getElementById('auth-status');
         const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        // Load stored API key
+        const storedKey = cctApi.apiKey;
+        if (storedKey) {
+            apiKeyInput.value = storedKey;
+            authStatus.textContent = 'API key loaded from storage';
+        }
+
+        // Update API key when changed
+        apiKeyInput.addEventListener('change', () => {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                cctApi.setApiKey(key);
+                authStatus.textContent = 'API key updated';
+                // Reload timezone with new key
+                loadTimezone();
+            } else {
+                authStatus.textContent = '';
+            }
+        });
+
+        // Load timezone function
+        function loadTimezone() {
+            errorEl.style.display = 'none';
+            cctApi.getTimezone().then(data => {
+                if (data.timezone) {
+                    tzSelect.value = data.timezone;
+                    detected.textContent = 'Browser: ' + browserTz + ' | Saved: ' + data.timezone;
+                } else {
+                    tzSelect.value = browserTz;
+                    detected.textContent = 'Browser: ' + browserTz + ' (no saved preference)';
+                }
+                checkMatch();
+            }).catch(err => {
+                if (err.message.includes('Unauthorized')) {
+                    errorEl.textContent = 'Enter your API key above to load/save settings.';
+                } else {
+                    errorEl.textContent = 'Failed to load: ' + (err.message || 'Network error');
+                }
+                errorEl.style.display = 'block';
+                tzSelect.value = browserTz;
+                detected.textContent = 'Browser: ' + browserTz + ' (enter API key to load saved)';
+                checkMatch();
+            });
+        }
+
+        // Initial load
+        loadTimezone();
 
         // Common timezones
         const zones = [
@@ -66,27 +124,7 @@
             tzSelect.appendChild(opt);
         });
 
-        detected.textContent = 'Browser detected: ' + browserTz;
-
-        // Load saved value using centralized API
         const errorEl = document.getElementById('error');
-        cctApi.getTimezone().then(data => {
-            if (data.timezone) {
-                tzSelect.value = data.timezone;
-                detected.textContent = 'Browser detected: ' + browserTz + ' | Saved: ' + data.timezone;
-            } else {
-                tzSelect.value = browserTz;
-                detected.textContent = 'Browser detected: ' + browserTz + ' (no saved preference)';
-            }
-            checkMatch();
-        }).catch(err => {
-            tzSelect.value = browserTz;
-            errorEl.textContent = '⚠️ Failed to load saved timezone: ' + (err.message || 'Network error');
-            errorEl.style.display = 'block';
-            detected.textContent = 'Browser detected: ' + browserTz + ' (showing fallback)';
-            checkMatch();
-        });
-
         tzSelect.onchange = checkMatch;
 
         function checkMatch() {
@@ -94,19 +132,37 @@
         }
 
         function save() {
+            if (!cctApi.isAuthenticated()) {
+                errorEl.textContent = 'Please enter your API key above to save settings.';
+                errorEl.style.display = 'block';
+                apiKeyInput.focus();
+                return;
+            }
+            errorEl.style.display = 'none';
+
             cctApi.setTimezone(tzSelect.value).then(result => {
                 if (result && result.success) {
                     document.getElementById('success').style.display = 'block';
                     setTimeout(() => document.getElementById('success').style.display = 'none', 2000);
-                    console.log('✓ Timezone saved:', tzSelect.value);
+                    detected.textContent = 'Browser detected: ' + browserTz + ' | Saved: ' + tzSelect.value;
                 } else {
-                    console.error('Failed to save timezone:', result);
-                    alert('Failed to save timezone. Please try again.');
+                    errorEl.textContent = 'Failed to save timezone. Please try again.';
+                    errorEl.style.display = 'block';
                 }
             }).catch(error => {
-                console.error('Save error:', error);
-                alert('Network error. Please check your connection and try again.');
+                if (error.message.includes('Unauthorized')) {
+                    errorEl.textContent = 'Invalid API key. Please check and try again.';
+                } else {
+                    errorEl.textContent = 'Network error: ' + error.message;
+                }
+                errorEl.style.display = 'block';
             });
+        }
+
+        function clearKey() {
+            cctApi.setApiKey('');
+            apiKeyInput.value = '';
+            authStatus.textContent = 'API key cleared';
         }
     </script>
 </body>

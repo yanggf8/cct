@@ -10,11 +10,21 @@
 
 ## 🚀 Latest Updates
 
-### **🌐 Frontend API Client Unification (2026-01-15)**
-- ✅ **Single Client**: Dashboard, system status, web notifications, and settings now call `cctApi` instead of raw `fetch`
-- ✅ **Timezone UX**: Settings page shows load/save errors and keeps browser vs saved timezone visible
-- ✅ **Auth Guard**: `/api/v1/settings/timezone` is public for GET only; writes still require API key
-- ✅ **API Root Fix**: `cctApi.apiRoot()` hits `/api/v1` without trailing slash
+### **🔐 Auth Policy Overhaul (2026-01-15)**
+- ✅ **Protected Backend**: All `/api/v1/*` endpoints require auth except health checks
+- ✅ **Session-Only Keys**: API keys stored in sessionStorage (tab-bound, cleared on close)
+- ✅ **Baked-in Fallback**: `window.CCT_API_KEY` set via `nav.js` for convenience
+- ✅ **Settings UI**: API key input with clear button, auto-reloads data when key entered
+- ✅ **Centralized Client**: All pages use `cctApi` - no more direct `fetch()` calls
+
+**Public Endpoints** (no auth):
+- `/health` - System health
+- `/model-health` - AI model health
+- `/api/v1/data/health` - API health
+
+**Protected Endpoints** (require `X-API-KEY`):
+- All `/api/v1/*` except `/api/v1/data/health`
+- Jobs history, system status, API docs, settings, etc.
 
 ### **🕐 Local Time Display (2026-01-13)**
 - ✅ **Browser-Based Conversion**: Report schedules show both ET and user's local timezone
@@ -219,6 +229,13 @@ https://tft-trading-system.yanggf.workers.dev/api/v1
 ```bash
 curl -H "X-API-KEY: your_api_key" https://tft-trading-system.yanggf.workers.dev/api/v1/sentiment/analysis
 ```
+
+**API Key Storage Policy:**
+- **Storage**: `sessionStorage` only (tab-bound, cleared on browser close)
+- **Priority**: `sessionStorage.cct_api_key` → `window.CCT_API_KEY` (staging/personal fallback)
+- **Set/Update**: Settings page (`/settings.html`) or `cctApi.setApiKey(key)`
+- **Clear**: Settings page "Clear API Key" button or `cctApi.setApiKey('')`
+- **Security**: Do not use `window.CCT_API_KEY` in production. Personal build currently bakes `window.CCT_API_KEY = 'yanggf'` in `public/js/nav.js`; remove/replace before sharing or deploying.
 
 ## 🔧 Development
 

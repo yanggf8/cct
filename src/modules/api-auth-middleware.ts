@@ -10,25 +10,21 @@ export interface AuthResult {
   reason?: string;
 }
 
-// Public endpoints that don't require authentication (exact matches only, all methods)
+// Public endpoints that don't require authentication (health checks only)
 const PUBLIC_ENDPOINTS = [
-  '/api/v1',              // API documentation root only
   '/api/v1/data/health',  // Health check
-  '/api/v1/data/system-status', // System status for status page
-  '/api/v1/jobs/history', // Job history (read-only)
-  '/api/v1/jobs/latest',  // Latest job (read-only)
   '/health',
   '/model-health',
 ];
 
-// Public endpoints for GET method only (writes still require auth)
-const PUBLIC_GET_ONLY = [
-  '/api/v1/settings/timezone', // User timezone preference (GET public, PUT requires auth)
-];
-
 // Public endpoint prefixes (for dynamic paths)
 const PUBLIC_PREFIXES = [
-  '/api/v1/jobs/snapshots/', // Job snapshots (read-only)
+  // No public prefixes - all require auth
+];
+
+// Public endpoints for GET method only (read access, writes require auth)
+const PUBLIC_GET_ONLY: string[] = [
+  // No GET-only public endpoints - all require auth
 ];
 
 // Endpoints that serve HTML pages (no auth required)

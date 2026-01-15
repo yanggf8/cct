@@ -1,4 +1,7 @@
 // Shared Navigation Component - Left Sidebar
+// Bootstrap API key for personal use (sessionStorage can override this)
+window.CCT_API_KEY = 'yanggf';
+
 (function() {
     const navHTML = `
     <button class="mobile-nav-toggle" aria-label="Toggle navigation" type="button">

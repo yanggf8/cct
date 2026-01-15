@@ -10,28 +10,23 @@ class CCTApi {
     this.apiKey = options.apiKey || this._getStoredKey();
   }
 
-  // Get API key from multiple sources (priority: session > local > window)
+  // Get API key (priority: session > window fallback for staging)
   _getStoredKey() {
     try {
-      return sessionStorage.getItem('cct_api_key') 
-        || localStorage.getItem('cct_api_key') 
-        || window.CCT_API_KEY 
-        || '';
+      return sessionStorage.getItem('cct_api_key') || window.CCT_API_KEY || '';
     } catch {
       return window.CCT_API_KEY || '';
     }
   }
 
-  // Set API key (stores in both session and local)
+  // Set API key (session-only, tab-bound)
   setApiKey(key) {
     this.apiKey = key;
     try {
       if (key) {
         sessionStorage.setItem('cct_api_key', key);
-        localStorage.setItem('cct_api_key', key);
       } else {
         sessionStorage.removeItem('cct_api_key');
-        localStorage.removeItem('cct_api_key');
       }
     } catch {}
   }

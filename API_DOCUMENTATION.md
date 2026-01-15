@@ -28,10 +28,53 @@
 
 ## 🔐 Authentication
 
-All protected endpoints require API key authentication using the `X-API-KEY` header:
+### Public Endpoints (No Auth Required)
+- `/health` - System health check
+- `/model-health` - AI model health check
+- `/api/v1/data/health` - API health endpoint
+
+### Protected Endpoints (API Key Required)
+All other `/api/v1/*` endpoints require authentication:
 
 ```bash
-curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/endpoint
+curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/api/v1/endpoint
+```
+
+### Frontend API Client (`cctApi`)
+
+**Storage Policy** (session-only, tab-bound):
+1. `sessionStorage.cct_api_key` - User-entered key (first priority)
+2. `window.CCT_API_KEY` - Baked-in fallback (personal use, set in `nav.js`)
+
+**⚠️ Security Note**: This is a personal system with `window.CCT_API_KEY = 'yanggf'` baked into `public/js/nav.js`. Before sharing or deploying publicly, remove or replace this value.
+
+**Setting the API Key**:
+```javascript
+// Via Settings UI (/settings.html)
+cctApi.setApiKey('your_key');
+
+// Or programmatically (must be before loading cct-api.js)
+window.CCT_API_KEY = 'your_key';
+```
+
+**Clearing the API Key**:
+```javascript
+cctApi.setApiKey('');  // Clears sessionStorage
+```
+
+### Usage Examples
+
+```javascript
+// Check if authenticated
+if (cctApi.isAuthenticated()) {
+  // Make authenticated requests
+  const data = await cctApi.jobsHistory(50);
+}
+
+// All requests automatically include X-API-KEY header
+const status = await cctApi.systemStatus();
+const root = await cctApi.apiRoot();
+const timezone = await cctApi.getTimezone();  // Requires auth (GET + PUT)
 ```
 
 ## 🌐 Base URL
