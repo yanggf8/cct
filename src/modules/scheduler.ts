@@ -230,6 +230,11 @@ export async function handleScheduledEvent(
           throw new Error(`Invalid intraday result: ${JSON.stringify(intradayResult)}`);
         }
         
+        // Treat empty symbols array as a failure (no symbols analyzed)
+        if (intradayResult.symbols.length === 0) {
+          throw new Error('Intraday analysis produced no symbols - empty result');
+        }
+        
         // Transform to scheduler expected shape
         // Note: symbols_analyzed must be a number (not array) to match intraday UI expectations
         // and be consistent with /api/v1/jobs/intraday endpoint
