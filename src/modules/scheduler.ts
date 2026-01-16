@@ -26,7 +26,7 @@ export interface ScheduledController {
 }
 
 export interface AnalysisResult {
-  symbols_analyzed?: string[];
+  symbols_analyzed?: string[] | number;
   trading_signals?: Record<string, any>;
   timestamp?: string;
   trigger_mode?: string;
@@ -216,6 +216,65 @@ export async function handleScheduledEvent(
       console.log(`✅ [CRON-COMPLETE-SECTORS] ${cronExecutionId} Sector rotation refresh completed`);
       return new Response('Sector rotation refresh completed successfully', { status: 200 });
 
+    } else if (triggerMode === 'midday_validation_prediction') {
+      // Intraday Performance Check
+      console.log(`📊 [CRON-INTRADAY] ${cronExecutionId} Generating intraday analysis`);
+      
+      try {
+        const { IntradayDataBridge } = await import('./intraday-data-bridge.js');
+        const bridge = new IntradayDataBridge(env);
+        const intradayResult = await bridge.generateIntradayAnalysis();
+        
+        // Validate intradayResult before creating analysisResult
+        if (!intradayResult || !intradayResult.symbols || !Array.isArray(intradayResult.symbols)) {
+          throw new Error(`Invalid intraday result: ${JSON.stringify(intradayResult)}`);
+        }
+        
+        // Transform to scheduler expected shape
+        // Note: symbols_analyzed must be a number (not array) to match intraday UI expectations
+        // and be consistent with /api/v1/jobs/intraday endpoint
+        analysisResult = {
+          ...intradayResult,
+          symbols_analyzed: intradayResult.symbols.length, // Store as number, not array
+          symbols_list: intradayResult.symbols.map(s => s.symbol), // Keep symbols array in separate field
+          timestamp: intradayResult.timestamp,
+          trigger_mode: triggerMode
+        };
+        
+        console.log(`✅ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis completed`, {
+          symbols_count: intradayResult.symbols.length,
+          overall_accuracy: intradayResult.overall_accuracy,
+          on_track_count: intradayResult.on_track_count,
+          diverged_count: intradayResult.diverged_count
+        });
+      } catch (intradayError: any) {
+        console.error(`❌ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis failed:`, {
+          error: intradayError.message,
+          stack: intradayError.stack
+        });
+        // Set analysisResult to null to ensure fail-fast check works
+        analysisResult = null;
+      }
+      
+      // Facebook messaging has been migrated to Chrome web notifications
+      console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
+
+      // If intraday analysis failed and produced no result, treat as failure
+      if (!analysisResult) {
+        console.error(`❌ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis did not produce a valid result`);
+        const errorResponse: CronResponse = {
+          success: false,
+          trigger_mode: triggerMode,
+          error: 'Intraday analysis failed - no valid result generated',
+          execution_id: cronExecutionId,
+          timestamp: estTime.toISOString()
+        };
+        return new Response(JSON.stringify(errorResponse), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
     } else {
       // Enhanced pre-market analysis with sentiment
       console.log(`🚀 [CRON-ENHANCED] ${cronExecutionId} Running enhanced analysis with sentiment...`);
@@ -230,10 +289,12 @@ export async function handleScheduledEvent(
       console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
     }
 
-    // Store results in KV using DAL
-    if (analysisResult) {
+    // Store results in KV using DAL (skip for intraday to prevent overwriting pre-market data)
+    // dateStr is needed for both KV and D1 writes
+    const dateStr = estTime.toISOString().split('T')[0];
+    
+    if (analysisResult && triggerMode !== 'midday_validation_prediction') {
       const dal = createSimplifiedEnhancedDAL(env);
-      let dateStr = estTime.toISOString().split('T')[0];
       const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, '');
 
       const timestampedKey = `analysis_${dateStr}_${timeStr}`;
@@ -267,15 +328,30 @@ export async function handleScheduledEvent(
         );
 
         console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey}`);
+      } catch (dalError: any) {
+        console.error(`❌ [CRON-DAL-ERROR] ${cronExecutionId} DAL operation failed:`, {
+          error: dalError.message,
+          stack: dalError.stack,
+          timestampedKey,
+          dailyKey
+        });
+        // Continue execution even if DAL fails
+      }
+    } else if (analysisResult && triggerMode === 'midday_validation_prediction') {
+      console.log(`⏭️ [CRON-DAL-SKIP] ${cronExecutionId} Skipping KV writes for intraday job (D1 only)`);
+    }
 
-        // Write to D1 with correct report type based on trigger mode
-        const reportTypeMap: Record<string, string> = {
-          'morning_prediction_alerts': 'pre-market',
-          'midday_validation_prediction': 'intraday',
-          'next_day_market_prediction': 'end-of-day'
-        };
-        const d1ReportType = reportTypeMap[triggerMode];
-        if (d1ReportType) {
+    // Write to D1 with correct report type based on trigger mode
+    // This runs for all trigger modes (including intraday)
+    if (analysisResult) {
+      const reportTypeMap: Record<string, string> = {
+        'morning_prediction_alerts': 'pre-market',
+        'midday_validation_prediction': 'intraday',
+        'next_day_market_prediction': 'end-of-day'
+      };
+      const d1ReportType = reportTypeMap[triggerMode];
+      if (d1ReportType) {
+        try {
           const d1Written = await writeD1JobResult(env, dateStr, d1ReportType, {
             ...analysisResult,
             cron_execution_id: cronExecutionId,
@@ -289,15 +365,15 @@ export async function handleScheduledEvent(
             }
           }, 'cron');
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
+        } catch (d1Error: any) {
+          console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 write failed:`, {
+            error: d1Error.message,
+            stack: d1Error.stack,
+            reportType: d1ReportType,
+            dateStr
+          });
+          // Continue execution even if D1 fails
         }
-      } catch (dalError: any) {
-        console.error(`❌ [CRON-DAL-ERROR] ${cronExecutionId} DAL operation failed:`, {
-          error: dalError.message,
-          stack: dalError.stack,
-          timestampedKey,
-          dailyKey
-        });
-        // Continue execution even if DAL fails
       }
     }
 
@@ -305,14 +381,18 @@ export async function handleScheduledEvent(
     console.log(`✅ [CRON-COMPLETE] ${cronExecutionId}`, {
       trigger_mode: triggerMode,
       duration_ms: cronDuration,
-      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 0,
+      symbols_analyzed: typeof analysisResult?.symbols_analyzed === 'number' 
+        ? analysisResult.symbols_analyzed 
+        : (analysisResult?.symbols_analyzed?.length || 0),
       facebook_status: env.FACEBOOK_PAGE_TOKEN ? 'sent' : 'skipped'
     });
 
     const response: CronResponse = {
       success: true,
       trigger_mode: triggerMode,
-      symbols_analyzed: analysisResult?.symbols_analyzed?.length || 0,
+      symbols_analyzed: typeof analysisResult?.symbols_analyzed === 'number' 
+        ? analysisResult.symbols_analyzed 
+        : (analysisResult?.symbols_analyzed?.length || 0),
       execution_id: cronExecutionId,
       timestamp: estTime.toISOString()
     };
