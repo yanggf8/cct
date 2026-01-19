@@ -610,22 +610,22 @@ async function handleSystemStatus(
     };
     try {
       const jobResults = await env.PREDICT_JOBS_DB.prepare(
-        `SELECT trigger_mode, status, executed_at FROM job_executions WHERE date(executed_at) = ? ORDER BY executed_at DESC`
+        `SELECT job_type, status, executed_at FROM job_executions WHERE date(executed_at) = ? ORDER BY executed_at DESC`
       ).bind(today).all() as any;
-      
+
       const jobMap: Record<string, { status: string; time: string | null }> = {};
       for (const row of (jobResults?.results || [])) {
-        if (!jobMap[row.trigger_mode]) {
-          jobMap[row.trigger_mode] = { 
-            status: row.status, 
-            time: row.executed_at ? new Date(row.executed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : null 
+        if (!jobMap[row.job_type]) {
+          jobMap[row.job_type] = {
+            status: row.status,
+            time: row.executed_at ? new Date(row.executed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : null
           };
         }
       }
-      if (jobMap['morning_prediction_alerts']) jobs.preMarket = { ...jobs.preMarket, status: jobMap['morning_prediction_alerts'].status, lastRun: jobMap['morning_prediction_alerts'].time };
-      if (jobMap['midday_validation_prediction']) jobs.intraday = { ...jobs.intraday, status: jobMap['midday_validation_prediction'].status, lastRun: jobMap['midday_validation_prediction'].time };
-      if (jobMap['next_day_market_prediction']) jobs.endOfDay = { ...jobs.endOfDay, status: jobMap['next_day_market_prediction'].status, lastRun: jobMap['next_day_market_prediction'].time };
-      if (jobMap['weekly_review_analysis']) jobs.weekly = { ...jobs.weekly, status: jobMap['weekly_review_analysis'].status, lastRun: jobMap['weekly_review_analysis'].time };
+      if (jobMap['pre-market']) jobs.preMarket = { ...jobs.preMarket, status: jobMap['pre-market'].status, lastRun: jobMap['pre-market'].time };
+      if (jobMap['intraday']) jobs.intraday = { ...jobs.intraday, status: jobMap['intraday'].status, lastRun: jobMap['intraday'].time };
+      if (jobMap['end-of-day']) jobs.endOfDay = { ...jobs.endOfDay, status: jobMap['end-of-day'].status, lastRun: jobMap['end-of-day'].time };
+      if (jobMap['weekly']) jobs.weekly = { ...jobs.weekly, status: jobMap['weekly'].status, lastRun: jobMap['weekly'].time };
     } catch (e) { /* ignore */ }
 
     // API status with endpoint details
