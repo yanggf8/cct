@@ -65,18 +65,14 @@ window.CCT_API_KEY = 'yanggf';
             </div>
 
             <div class="nav-group">
-                <div class="nav-group-title">Portfolio</div>
-                <a href="/portfolio-breakdown.html" class="nav-item" data-page="breakdown">
-                    <span class="nav-icon">📊</span>
-                    <span class="nav-text">Breakdown</span>
-                </a>
-            </div>
-
-            <div class="nav-group">
                 <div class="nav-group-title">System</div>
                 <a href="/system-status" class="nav-item" data-page="status">
                     <span class="nav-icon">🔍</span>
                     <span class="nav-text">Status</span>
+                </a>
+                <a href="/portfolio-breakdown.html" class="nav-item" data-page="portfolio">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Portfolio</span>
                 </a>
                 <a href="/test-api.html" class="nav-item" data-page="api">
                     <span class="nav-icon">🧪</span>
