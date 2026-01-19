@@ -107,6 +107,13 @@
 
 ## 📖 Documentation Categories
 
+### 🗃️ Archived (superseded or time-bound)
+- [OUTDATED_TESTS_ANALYSIS.md](./archive/OUTDATED_TESTS_ANALYSIS.md)
+- [SPEC_CORRECTIONS_2026-01-14.md](./archive/SPEC_CORRECTIONS_2026-01-14.md)
+- [TEST_COVERAGE_ANALYSIS_2025.md](./archive/TEST_COVERAGE_ANALYSIS_2025.md)
+- [CURL_TEST_COVERAGE_ANALYSIS.md](./archive/CURL_TEST_COVERAGE_ANALYSIS.md)
+  - Kept for historical reference; superseded by current testing guides and dashboards.
+
 ### **🏗️ Technical Architecture**
 
 #### **Core Architecture**
