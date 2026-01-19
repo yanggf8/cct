@@ -150,6 +150,7 @@ export async function handleScheduledEvent(
 
   try {
     let analysisResult: AnalysisResult | null = null;
+    const dateStr = estTime.toISOString().split('T')[0];
 
     // Real-time Data Manager integration for live data freshness and cache warming
     try {
@@ -372,8 +373,6 @@ export async function handleScheduledEvent(
 
     // Store results in KV using DAL (skip for intraday to prevent overwriting pre-market data)
     // dateStr is needed for both KV and D1 writes
-    const dateStr = estTime.toISOString().split('T')[0];
-    
     if (analysisResult && triggerMode !== 'midday_validation_prediction') {
       const dal = createSimplifiedEnhancedDAL(env);
       const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, '');
