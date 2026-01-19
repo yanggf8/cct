@@ -10,6 +10,9 @@
 ### 🎯 Confidence Mapping
 - **Pre-market signals**: Confidence now resolves from `confidence_metrics.overall_confidence` → `enhanced_prediction.confidence` → `sentiment_layers[0].confidence` → `confidence` → `0`, preventing 0% confidence displays when sentiment_layers are absent.
 
+### 🛠️ Bug Fixes
+- **Immutable headers error**: Pre-market briefing now returns 200 OK after redirect; "Can't modify immutable headers" resolved.
+
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
 ### 🔄 Cache Architecture Migration
