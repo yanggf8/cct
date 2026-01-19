@@ -8,6 +8,14 @@ class CCTApi {
     this.baseUrl = options.baseUrl || '/api/v1';
     this.timeout = options.timeout || 30000;
     this.apiKey = options.apiKey || this._getStoredKey();
+    this.retryConfig = {
+      maxRetries: 3,
+      baseDelay: 1000,
+      maxDelay: 10000,
+      maxTotalTimeout: 30000
+    };
+    this.requestInterceptors = [];
+    this.responseInterceptors = [];
   }
 
   // Get API key (priority: session > window fallback for staging)
@@ -40,7 +48,8 @@ class CCTApi {
   async request(endpoint, options = {}) {
     // Handle empty endpoint (for apiRoot) - don't add trailing slash
     const path = endpoint === '' ? '' : (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
-    const url = `${this.baseUrl}${path}`;
+    const base = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl;
+    const url = `${base}${path}`;
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers
@@ -61,19 +70,85 @@ class CCTApi {
       config.body = JSON.stringify(options.body);
     }
 
-    const response = await fetch(url, config);
-    
-    if (response.status === 401) {
-      console.warn('API authentication failed - check API key');
-      if (this.onUnauthorized) this.onUnauthorized();
-      throw new Error('Unauthorized - API key required');
-    }
+    // Add timeout with AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    config.signal = controller.signal;
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
-    }
+    try {
+      // Apply request interceptors with safe defaults
+      const interceptedConfig = this.requestInterceptors.reduce(
+        (currentConfig, interceptor) => interceptor(currentConfig),
+        config
+      );
 
-    return response.json();
+      const response = await fetch(url, interceptedConfig);
+      clearTimeout(timeoutId);
+
+      // Apply response interceptors
+      const processedResponse = this.responseInterceptors.reduce(
+        (currentResponse, interceptor) => interceptor(currentResponse),
+        response
+      );
+
+      if (response.status === 401) {
+        console.warn('API authentication failed - check API key');
+        if (this.onUnauthorized) this.onUnauthorized();
+        throw new Error('Unauthorized - API key required');
+      }
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      return processedResponse.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      // Bounded retry with retryCount defaulting to 0
+      const retryCount = options.retryCount || 0;
+
+      if (this.shouldRetry(error) && retryCount < this.retryConfig.maxRetries) {
+        const delay = this.calculateDelay(retryCount);
+        await this.delay(delay);
+
+        // Recursive call with incremented retryCount
+        return this.request(endpoint, {
+          ...options,
+          retryCount: retryCount + 1
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  shouldRetry(error) {
+    // Only retry on specific errors, not 401 (auth errors shouldn't retry)
+    return error.name === 'AbortError' ||
+           error.message.includes('timeout') ||
+           error.message.includes('Failed to fetch') ||
+           (error.message.includes('API Error: 5') && !error.message.includes('401'));
+  }
+
+  calculateDelay(attempt) {
+    const exponentialDelay = this.retryConfig.baseDelay *
+      Math.pow(2, attempt);
+    const jitter = Math.random() * 0.1 * exponentialDelay;
+    return Math.min(exponentialDelay + jitter, this.retryConfig.maxDelay);
+  }
+
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Request/Response interceptors with safe defaults
+  addRequestInterceptor(interceptor) {
+    this.requestInterceptors.push(interceptor);
+  }
+
+  addResponseInterceptor(interceptor) {
+    this.responseInterceptors.push(interceptor);
   }
 
   // GET request

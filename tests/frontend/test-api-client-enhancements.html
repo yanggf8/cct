@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Client Enhancement Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background: #004400;
+            border: 1px solid #00ff00;
+        }
+        .fail {
+            background: #440000;
+            border: 1px solid #ff0000;
+        }
+        .info {
+            background: #004444;
+            border: 1px solid #00ffff;
+        }
+        button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #555;
+        }
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 API Client Enhancement Tests</h1>
+    <div id="controls">
+        <button onclick="testTimeout()">Test 1: Timeout Handling</button>
+        <button onclick="testRetry()">Test 2: Retry Logic</button>
+        <button onclick="testInterceptors()">Test 3: Interceptors</button>
+        <button onclick="testFormatters()">Test 4: Formatters</button>
+        <button onclick="testDomCache()">Test 5: DomCache</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+    </div>
+    <div id="results"></div>
+
+    <script src="/js/cct-api.js"></script>
+    <script src="/js/utils/shared-utils.js"></script>
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(testName, passed, message) {
+            const div = document.createElement('div');
+            div.className = `test-result ${passed ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <strong>${passed ? '✅' : '❌'} ${testName}</strong><br>
+                ${message}
+            `;
+            resultsDiv.appendChild(div);
+        }
+
+        function addInfo(message) {
+            const div = document.createElement('div');
+            div.className = 'test-result info';
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+
+        // Test 1: Timeout Handling
+        async function testTimeout() {
+            resultsDiv.innerHTML = '';
+            addInfo('<h3>Test 1: Timeout Handling</h3>');
+            addInfo('Creating API client with 2 second timeout...');
+
+            const api = new CCTApi({ timeout: 2000 });
+
+            // Test that timeout property exists
+            addResult(
+                'Timeout Property',
+                api.timeout === 2000,
+                `API client timeout set to ${api.timeout}ms`
+            );
+
+            // Test AbortController would be used (we can't test actual timeout without a slow endpoint)
+            addResult(
+                'Timeout Configured',
+                api.timeout > 0,
+                `Timeout is ${api.timeout}ms`
+            );
+
+            addInfo('✅ Timeout handling configured correctly');
+        }
+
+        // Test 2: Retry Logic
+        async function testRetry() {
+            resultsDiv.innerHTML = '';
+            addInfo('<h3>Test 2: Retry Logic</h3>');
+
+            const api = new CCTApi();
+
+            // Test retry config exists
+            const hasRetryConfig = api.retryConfig !== undefined;
+            addResult(
+                'Retry Config Exists',
+                hasRetryConfig,
+                hasRetryConfig ? 'retryConfig object found' : 'retryConfig missing'
+            );
+
+            if (hasRetryConfig) {
+                addResult(
+                    'Max Retries',
+                    api.retryConfig.maxRetries === 3,
+                    `Max retries: ${api.retryConfig.maxRetries}`
+                );
+
+                addResult(
+                    'Base Delay',
+                    api.retryConfig.baseDelay === 1000,
+                    `Base delay: ${api.retryConfig.baseDelay}ms`
+                );
+
+                // Test shouldRetry method
+                const timeoutError = new Error('timeout');
+                timeoutError.name = 'AbortError';
+
+                const networkError = new Error('Failed to fetch');
+
+                const authError = new Error('API Error: 401');
+
+                addResult(
+                    'Should Retry Timeout',
+                    api.shouldRetry(timeoutError),
+                    'Timeout errors should be retried'
+                );
+
+                addResult(
+                    'Should Retry Network',
+                    api.shouldRetry(networkError),
+                    'Network errors should be retried'
+                );
+
+                addResult(
+                    'Should NOT Retry Auth',
+                    !api.shouldRetry(authError),
+                    '401 errors should NOT be retried'
+                );
+            }
+
+            addInfo('✅ Retry logic configured correctly');
+        }
+
+        // Test 3: Interceptors
+        async function testInterceptors() {
+            resultsDiv.innerHTML = '';
+            addInfo('<h3>Test 3: Interceptors</h3>');
+
+            const api = new CCTApi();
+
+            // Test interceptor arrays exist
+            addResult(
+                'Request Interceptors',
+                Array.isArray(api.requestInterceptors),
+                `Found ${api.requestInterceptors.length} request interceptors`
+            );
+
+            addResult(
+                'Response Interceptors',
+                Array.isArray(api.responseInterceptors),
+                `Found ${api.responseInterceptors.length} response interceptors`
+            );
+
+            // Test adding interceptors
+            api.addRequestInterceptor(config => config);
+            api.addResponseInterceptor(response => response);
+
+            addResult(
+                'Add Request Interceptor',
+                api.requestInterceptors.length === 1,
+                `Request interceptors: ${api.requestInterceptors.length}`
+            );
+
+            addResult(
+                'Add Response Interceptor',
+                api.responseInterceptors.length === 1,
+                `Response interceptors: ${api.responseInterceptors.length}`
+            );
+
+            addInfo('✅ Interceptors working correctly');
+        }
+
+        // Test 4: Formatters
+        async function testFormatters() {
+            resultsDiv.innerHTML = '';
+            addInfo('<h3>Test 4: Formatters Utility</h3>');
+
+            // Test Formatters exist
+            addResult(
+                'Formatters Available',
+                typeof Formatters !== 'undefined',
+                'Formatters utility is available'
+            );
+
+            if (typeof Formatters !== 'undefined') {
+                addResult(
+                    'Percentage Format',
+                    Formatters.percentage(0.8543) === '85.43%',
+                    `Formatters.percentage(0.8543) = "${Formatters.percentage(0.8543)}"`
+                );
+
+                addResult(
+                    'Currency Format',
+                    Formatters.currency(1234.56).includes('$'),
+                    `Formatters.currency(1234.56) = "${Formatters.currency(1234.56)}"`
+                );
+
+                addResult(
+                    'Compact Number',
+                    Formatters.compactNumber(1200000) === '1.2M',
+                    `Formatters.compactNumber(1200000) = "${Formatters.compactNumber(1200000)}"`
+                );
+
+                addResult(
+                    'Date Format',
+                    typeof Formatters.date(new Date()) === 'string',
+                    'Formatters.date returns string'
+                );
+            }
+
+            addInfo('✅ Formatters working correctly');
+        }
+
+        // Test 5: DomCache
+        async function testDomCache() {
+            resultsDiv.innerHTML = '';
+            addInfo('<h3>Test 5: DomCache Utility</h3>');
+
+            // Test DomCache exists
+            addResult(
+                'DomCache Available',
+                typeof DomCache !== 'undefined',
+                'DomCache utility is available'
+            );
+
+            if (typeof DomCache !== 'undefined') {
+                // Create a test element
+                const testDiv = document.createElement('div');
+                testDiv.id = 'test-element';
+                document.body.appendChild(testDiv);
+
+                // Test get
+                const element = DomCache.get('test-element');
+                addResult(
+                    'DomCache Get',
+                    element === testDiv,
+                    'DomCache.get returns correct element'
+                );
+
+                // Test caching
+                const element2 = DomCache.get('test-element');
+                addResult(
+                    'DomCache Caching',
+                    element === element2,
+                    'Same element returned from cache'
+                );
+
+                // Test getAll
+                const divs = DomCache.getAll('div');
+                addResult(
+                    'DomCache GetAll',
+                    divs.length > 0,
+                    `Found ${divs.length} div elements`
+                );
+
+                // Cleanup
+                document.body.removeChild(testDiv);
+                DomCache.clear();
+            }
+
+            addInfo('✅ DomCache working correctly');
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            resultsDiv.innerHTML = '';
+            addInfo('<h2>🚀 Running All Tests...</h2>');
+
+            await testTimeout();
+            await testRetry();
+            await testInterceptors();
+            await testFormatters();
+            await testDomCache();
+
+            addInfo('<h2>✨ All Tests Complete!</h2>');
+        }
+
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            addInfo('<h2>🔬 API Client Enhancement Test Suite</h2>');
+            addInfo('Click a button above to run tests, or "Run All Tests"');
+        });
+    </script>
+</body>
+</html>

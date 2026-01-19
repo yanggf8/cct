@@ -25,8 +25,11 @@ class PredictiveAnalyticsDashboard {
                 timeout: 30000
             });
 
-            // Hide loading overlay
-            document.getElementById('loadingOverlay').style.display = 'none';
+            // Hide loading overlay using DomCache
+            const loadingOverlay = DomCache.get('loadingOverlay');
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
 
             // Set up event listeners
             this.setupEventListeners();
@@ -42,20 +45,26 @@ class PredictiveAnalyticsDashboard {
     }
 
     setupEventListeners() {
-        // Symbol input change
-        document.getElementById('symbolInput').addEventListener('change', (e) => {
-            const symbols = e.target.value.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-            if (symbols.length > 0) {
-                this.currentSymbols = symbols;
-                this.refreshAllData();
-            }
-        });
+        // Symbol input change using DomCache
+        const symbolInput = DomCache.get('symbolInput');
+        if (symbolInput) {
+            symbolInput.addEventListener('change', (e) => {
+                const symbols = e.target.value.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+                if (symbols.length > 0) {
+                    this.currentSymbols = symbols;
+                    this.refreshAllData();
+                }
+            });
+        }
 
-        // Time range change
-        document.getElementById('timeRange').addEventListener('change', (e) => {
-            this.currentTimeRange = e.target.value;
-            this.refreshAllData();
-        });
+        // Time range change using DomCache
+        const timeRange = DomCache.get('timeRange');
+        if (timeRange) {
+            timeRange.addEventListener('change', (e) => {
+                this.currentTimeRange = e.target.value;
+                this.refreshAllData();
+            });
+        }
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -79,11 +88,11 @@ class PredictiveAnalyticsDashboard {
     }
 
     async loadAllData() {
-        this.showLoading(true);
-        this.clearError();
+        // Use scoped component loader instead of global overlay
+        ComponentLoader.show('dashboard-container', 'Loading predictive analytics...');
 
         try {
-            // Load all data in parallel
+            // Load all data in parallel with error boundaries
             const promises = [
                 this.loadMarketRegime(),
                 this.loadSentimentAnalysis(),
@@ -95,16 +104,19 @@ class PredictiveAnalyticsDashboard {
 
             await Promise.allSettled(promises);
 
-            this.showLoading(false);
+            ComponentLoader.hide('dashboard-container');
         } catch (error) {
             console.error('Error loading dashboard data:', error);
-            this.showError('Failed to load dashboard data: ' + error.message);
-            this.showLoading(false);
+            ComponentErrorHandler.showError('dashboard-container', error, {
+                showRetry: true,
+                showDetails: false
+            });
         }
     }
 
     async loadMarketRegime() {
-        try {
+        // Use scoped error handler for market regime widget
+        const loadFn = ComponentErrorHandler.wrap('market-regime-widget', async () => {
             const response = await this.apiClient.getMarketRegime({
                 enhanced: true,
                 timeRange: this.currentTimeRange
@@ -116,10 +128,10 @@ class PredictiveAnalyticsDashboard {
             } else {
                 throw new Error(response.error || 'Failed to load market regime data');
             }
-        } catch (error) {
-            console.error('Error loading market regime:', error);
-            this.updateWidgetStatus('regimeStatus', 'error');
-            this.populateRegimeFallback();
+        }, { showRetry: true });
+
+        if (loadFn) {
+            await loadFn();
         }
     }
 
