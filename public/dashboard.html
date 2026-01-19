@@ -8,6 +8,35 @@
     <link rel="stylesheet" href="/css/nav.css?v=20251226">
     <script src="/js/nav.js?v=20251226"></script>
     <script src="/js/cct-api.js"></script>
+    <script src="/js/utils/market-day-helper.js"></script>
+    <script>
+        // Memory Manager for preventing memory leaks
+        const memoryManager = (function() {
+            const intervals = new Map();
+
+            function registerInterval(id, callback, delay) {
+                if (intervals.has(id)) {
+                    clearInterval(intervals.get(id));
+                }
+                const intervalId = setInterval(() => {
+                    if (document.hidden) return;
+                    callback();
+                }, delay);
+                intervals.set(id, intervalId);
+                return intervalId;
+            }
+
+            function cleanup() {
+                intervals.forEach(id => clearInterval(id));
+                intervals.clear();
+            }
+
+            window.addEventListener('beforeunload', cleanup);
+            window.addEventListener('pagehide', cleanup);
+
+            return { registerInterval, cleanup };
+        })();
+    </script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff; }
@@ -63,6 +92,10 @@
 
         <div class="section">
             <div class="section-header">🌅 Daily Jobs <span class="label">(Mon-Fri)</span></div>
+            <div id="market-status" style="margin-bottom: 10px; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
+                <span id="market-status-icon">⏳</span>
+                <span id="market-status-text">Loading market status...</span>
+            </div>
             <div id="daily-section"><div class="loading">Loading...</div></div>
         </div>
 
@@ -128,7 +161,18 @@
             const container = document.getElementById('daily-section');
             const now = new Date();
             const today = getUTCToday();
+
+            // Use market day helper to get last market day
+            const lastMarketDayStr = MarketDayHelper.getLastMarketDay();
+            const lastMarketDay = new Date(lastMarketDayStr + 'T00:00:00');
+
+            // Determine if yesterday was a weekend
             const yesterday = new Date(today); yesterday.setUTCDate(today.getUTCDate() - 1);
+            const yesterdayIsWeekend = yesterday.getUTCDay() === 0 || yesterday.getUTCDay() === 6;
+
+            // If yesterday was a weekend, use last market day; otherwise use yesterday
+            const showDate = yesterdayIsWeekend ? lastMarketDay : yesterday;
+            const labelDate = yesterdayIsWeekend ? '📆 Last Market Day' : '📆 Yesterday';
 
             const renderRow = (date, label) => {
                 const dateStr = getDateStr(date);
@@ -177,7 +221,7 @@
                 `;
             };
 
-            container.innerHTML = renderRow(today, '📍 Today') + renderRow(yesterday, '📆 Yesterday');
+            container.innerHTML = renderRow(today, '📍 Today') + renderRow(showDate, labelDate);
         }
 
         function renderWeeklySection() {
@@ -231,9 +275,26 @@
             `;
         }
 
+        function renderMarketStatus() {
+            const statusInfo = MarketDayHelper.getMarketStatus();
+            const iconEl = document.getElementById('market-status-icon');
+            const textEl = document.getElementById('market-status-text');
+
+            if (statusInfo.status === 'OPEN') {
+                iconEl.textContent = '🟢';
+                textEl.textContent = `${statusInfo.message} • Last Market Day: ${statusInfo.lastMarketDayLabel}`;
+            } else {
+                iconEl.textContent = '🔴';
+                textEl.textContent = `${statusInfo.message} • Last Market Day: ${statusInfo.lastMarketDayLabel}`;
+            }
+        }
+
         async function loadAll() {
             document.getElementById('daily-section').innerHTML = '<div class="loading">Loading...</div>';
             document.getElementById('weekly-section').innerHTML = '<div class="loading">Loading...</div>';
+
+            // Render market status first
+            renderMarketStatus();
 
             d1Jobs = await fetchD1Jobs();
             renderDailySection();
@@ -241,7 +302,8 @@
         }
 
         loadAll();
-        setInterval(loadAll, 300000);
+        // Auto-refresh every 5 minutes (300000ms) - use memory manager to prevent leaks
+        memoryManager.registerInterval('dashboard-refresh', loadAll, 300000);
     </script>
 </body>
 </html>
