@@ -100,6 +100,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **DEPRECATED - DO NOT USE**: `@cf/openchat/openchat-3.5-0106` (removed as of 2025-10-01)
 - **Rate Limiting**: Sequential processing with 2-3s delays between symbols
 - **Failure Handling**: Return `status: 'failed', confidence: null` - no fake fallback data
+- **API Key Handling**: API key is provided via environment variable `X_API_KEY`; never hardcode. Reference via env when calling protected endpoints (e.g., `-H "X-API-KEY: $X_API_KEY"`).
 
 ### **🚀 Sprint 1-A: Production Market Indicators (Latest)**
 

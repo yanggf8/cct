@@ -43,5 +43,8 @@ Deployment targets are defined in `wrangler.toml` (production) and `wrangler-enh
 unset CLOUDFLARE_API_TOKEN && npx wrangler <command>
 ```
 
+## Secrets Access Rule
+- The API key is available in the environment as `X_API_KEY`. Do not hardcode or commit the value. Reference it via environment when triggering jobs or calling protected endpoints (e.g., pass `-H "X-API-KEY: $X_API_KEY"`).
+
 ## Skills
 Codex skills live under `/home/yanggf/.codex/skills/`, with each skill in its own folder containing a `SKILL.md` file (for example `/home/yanggf/.codex/skills/notion-knowledge-capture/SKILL.md`).
