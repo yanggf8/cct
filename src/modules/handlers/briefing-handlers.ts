@@ -56,7 +56,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 
   // Use getD1FallbackData which handles full fallback chain and returns createdAt
   const fallback = await getD1FallbackData(env, queryDateStr, 'pre-market');
-  const d1Result = fallback ? {
+  let d1Result = fallback ? {
     data: fallback.data,
     createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString(),
     isStale: fallback.isStale || false,
@@ -65,6 +65,15 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   
   if (fallback) {
     logger.info('PRE-MARKET: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
+  }
+
+  // Strict-date guard: if the only available data is from a different date, treat as no data for the requested day
+  if (d1Result && d1Result.sourceDate !== queryDateStr) {
+    logger.warn('PRE-MARKET: No D1 data for requested date; stale snapshot will NOT be used', {
+      requestedDate: queryDateStr,
+      sourceDate: d1Result.sourceDate
+    });
+    d1Result = null;
   }
   
   // Determine schedule status
