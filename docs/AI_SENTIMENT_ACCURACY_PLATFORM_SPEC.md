@@ -33,7 +33,7 @@
 | Decision | Value | Rationale |
 |----------|-------|-----------|
 | **Prediction Horizons** | 1 day, 5 days (configurable) | Short-term signal vs multi-day trend validation |
-| **Neutral Threshold** | ±1.0% (100 bps) | Filters intraday noise; configurable per holding period |
+| **Neutral Threshold** | Default ±1.0% (100 bps), configurable per holding period | Filters intraday noise; widen for longer horizons |
 | **Duplicate Prevention** | Unique constraint on (symbol, model_name, prediction_timestamp, holding_period_days) | Prevents stat inflation from duplicate predictions |
 | **Baseline Comparison** | Random guess, always-bullish, buy-and-hold S&P 500 | Establishes statistical validity |
 
@@ -81,123 +81,7 @@
 
 ## 3. Data Model
 
-### 3.1 Prediction Record
-
-Stored at prediction generation time.
-
-```sql
-CREATE TABLE IF NOT EXISTS sentiment_predictions (
-  id TEXT PRIMARY KEY,
-  model_name TEXT NOT NULL,                    -- 'gemma-sea-lion-27b', 'distilbert-sst-2', etc.
-  symbol TEXT NOT NULL,
-
-  -- Model outputs
-  predicted_direction TEXT NOT NULL CHECK(predicted_direction IN ('bullish', 'bearish', 'neutral')),
-  predicted_confidence REAL NOT NULL CHECK(predicted_confidence >= 0 AND predicted_confidence <= 1),
-  reasoning TEXT,
-
-  -- Context (all NOT NULL for data integrity)
-  news_headlines TEXT,
-  price_at_prediction REAL NOT NULL,
-  prediction_timestamp TEXT NOT NULL,
-
-  -- For validation
-  target_outcome_date TEXT NOT NULL,
-  holding_period_days INTEGER NOT NULL DEFAULT 1 CHECK(holding_period_days IN (1, 5, 10)),
-
-  -- Status tracking
-  status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'validated', 'failed')),
-  validation_attempts INTEGER DEFAULT 0,
-  last_validation_attempt_at TEXT,
-
-  created_at TEXT DEFAULT (datetime('now')),
-
-  -- Unique constraint prevents duplicate predictions inflating stats
-  UNIQUE(symbol, model_name, prediction_timestamp, holding_period_days)
-);
-
-CREATE INDEX IF NOT EXISTS idx_predictions_status
-  ON sentiment_predictions(status);
-CREATE INDEX IF NOT EXISTS idx_predictions_symbol
-  ON sentiment_predictions(symbol);
-CREATE INDEX IF NOT EXISTS idx_predictions_target_date
-  ON sentiment_predictions(target_outcome_date);
-CREATE INDEX IF NOT EXISTS idx_predictions_model
-  ON sentiment_predictions(model_name);
-```
-
-### 3.2 Outcome Record
-
-Stored at validation time (after market outcome is known).
-
-```sql
-CREATE TABLE IF NOT EXISTS sentiment_outcomes (
-  id TEXT PRIMARY KEY,
-  prediction_id TEXT NOT NULL,
-
-  -- Market reality
-  actual_price REAL NOT NULL,
-  actual_return_pct REAL NOT NULL,
-  actual_direction TEXT NOT NULL CHECK(actual_direction IN ('up', 'down', 'flat')),
-  was_correct BOOLEAN NOT NULL,
-
-  -- Validation metadata
-  validated_at TEXT NOT NULL,
-  holding_period_days INTEGER NOT NULL,
-
-  -- Additional metrics for analysis
-  volume_avg REAL,
-  market_return_pct REAL,              -- S&P 500 return over same period (alpha calculation)
-  sector_return_pct REAL,
-  vix_at_validation REAL,
-
-  created_at TEXT DEFAULT (datetime('now')),
-
-  -- Foreign key with cascade cleanup
-  FOREIGN KEY (prediction_id)
-    REFERENCES sentiment_predictions(id)
-    ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_outcomes_prediction
-  ON sentiment_outcomes(prediction_id);
-CREATE INDEX IF NOT EXISTS idx_outcomes_correct
-  ON sentiment_outcomes(was_correct);
-CREATE INDEX IF NOT EXISTS idx_outcomes_validated_at
-  ON sentiment_outcomes(validated_at);
-```
-
-### 3.3 Baseline Records
-
-Track baseline methods for statistical comparison.
-
-```sql
-CREATE TABLE IF NOT EXISTS sentiment_baselines (
-  id TEXT PRIMARY KEY,
-  symbol TEXT NOT NULL,
-  baseline_type TEXT NOT NULL CHECK(baseline_type IN ('random', 'always_bullish', 'buy_hold_sp500')),
-  prediction_date TEXT NOT NULL,
-  target_outcome_date TEXT NOT NULL,
-  holding_period_days INTEGER NOT NULL,
-
-  -- Baseline "prediction"
-  predicted_direction TEXT NOT NULL,
-  predicted_confidence REAL,           -- NULL for random, 0.5 for uniform baselines
-
-  -- Outcome
-  actual_price REAL NOT NULL,
-  actual_return_pct REAL NOT NULL,
-  was_correct BOOLEAN NOT NULL,
-
-  validated_at TEXT NOT NULL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_baselines_symbol_date
-  ON sentiment_baselines(symbol, prediction_date);
-CREATE INDEX IF NOT EXISTS idx_baselines_type
-  ON sentiment_baselines(baseline_type);
-```
+The authoritative schema is defined once in Section 7 (Database Schema). See that section for the canonical D1 DDL; avoid duplicating or diverging from it elsewhere.
 
 ---
 
@@ -245,7 +129,7 @@ interface AccuracyReport {
     calibration_error: number;         // Difference between predicted and actual confidence
   };
 
-  // Baseline comparisons
+  // Baseline comparisons (illustrative; weight by sample size in implementation)
   baseline_comparison: {
     model_vs_random: number;           // Model accuracy minus random baseline
     model_vs_always_bullish: number;   // Model accuracy minus always-bullish baseline
@@ -346,7 +230,7 @@ app.use('*', async (c, next) => {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  // Rate limiting (using Cloudflare KV or DO)
+  // Rate limiting (example: per-IP AND per-key using KV/DO; adjust limits to match production)
   const rateLimitKey = `ratelimit:${c.req.header('CF-Connecting-IP')}`;
   const limit = await checkRateLimit(rateLimitKey, 60, 60); // 60 req/min
   if (!limit.allowed) {
@@ -740,7 +624,7 @@ CREATE INDEX IF NOT EXISTS idx_baselines_type
 
 ### 7.2 Validation Cron Job
 
-File: `.github/workflows/validate-predictions.yml`
+File: `.github/workflows/validate-predictions.yml` (Wrangler note: unset `CLOUDFLARE_API_TOKEN` and use OAuth login per repo policy)
 
 ```yaml
 name: Validate AI Predictions
