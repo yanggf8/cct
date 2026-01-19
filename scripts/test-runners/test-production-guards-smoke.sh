@@ -21,6 +21,7 @@ test_endpoint() {
     local endpoint="$1"
     local description="$2"
     local expected_status="$3"
+    local send_api_key="${4:-true}"  # Default to sending API key
 
     echo "Testing $description..."
     echo "  Endpoint: $endpoint"
@@ -28,11 +29,17 @@ test_endpoint() {
     # Measure response time
     start_time=$(date +%s%N)
 
-    http_code=$(curl -s -w "%{http_code}" \
-        -H "X-API-Key: $API_KEY" \
-        -H "Content-Type: application/json" \
-        "$BASE_URL$endpoint" \
-        -o /tmp/guards_response.json)
+    # Build curl command
+    curl_cmd="curl -s -w \"%{http_code}\" -H \"Content-Type: application/json\""
+    
+    # Only add API key header if send_api_key is true
+    if [ "$send_api_key" = "true" ]; then
+        curl_cmd="$curl_cmd -H \"X-API-Key: $API_KEY\""
+    fi
+    
+    curl_cmd="$curl_cmd \"$BASE_URL$endpoint\" -o /tmp/guards_response.json"
+
+    http_code=$(eval "$curl_cmd")
 
     end_time=$(date +%s%N)
     response_time=$(( (end_time - start_time) / 1000000 )) # Convert to milliseconds
@@ -85,19 +92,19 @@ test_endpoint() {
 
 # Test authentication
 echo "🔐 Testing Authentication..."
-test_endpoint "/api/v1/guards/status" "No API key (should fail)" 401
+test_endpoint "/api/v1/guards/status" "No API key (should fail)" 401 false
 
 # Test with valid API key
 export X_API_KEY="$API_KEY"
 
 # Test all production guards endpoints
 echo "🛡️ Testing Production Guards Endpoints..."
-test_endpoint "/api/v1/guards/status" "Production Guards Status" 200
-test_endpoint "/api/v1/guards/health" "Production Guards Health" 200
-test_endpoint "/api/v1/guards/validate" "Production Guards Validation" 200
+test_endpoint "/api/v1/guards/status" "Production Guards Status" 200 true
+test_endpoint "/api/v1/guards/health" "Production Guards Health" 200 true
+test_endpoint "/api/v1/guards/validate" "Production Guards Validation" 200 true
 
 # Test invalid endpoint
-test_endpoint "/api/v1/guards/invalid" "Invalid Endpoint" 404
+test_endpoint "/api/v1/guards/invalid" "Invalid Endpoint" 404 true
 
 # Performance expectations
 echo "📊 Performance Summary:"
