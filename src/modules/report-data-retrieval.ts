@@ -237,7 +237,11 @@ export class ReportDataRetrieval {
                 symbol: s.symbol,
                 direction: s.sentiment_layers?.[0]?.sentiment || 'neutral',
                 sentiment: s.sentiment_layers?.[0]?.sentiment || 'neutral',
-                confidence: s.sentiment_layers?.[0]?.confidence || 0,
+                confidence: s.confidence_metrics?.overall_confidence ??
+                  s.enhanced_prediction?.confidence ??
+                  s.sentiment_layers?.[0]?.confidence ??
+                  s.confidence ??
+                  0,
                 reasoning: s.sentiment_layers?.[0]?.reasoning || '',
                 signal_strength: 'MODERATE',
                 timestamp: fallbackData.generated_at || fallbackData.timestamp

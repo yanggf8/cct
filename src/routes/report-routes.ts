@@ -619,18 +619,32 @@ async function handlePreMarketReport(
           isStale ? 'Note: Using previous day data' : 'Fresh data available',
         ],
         high_confidence_signals: Object.values(tradingSignals)
-          .filter((signal: any) => (signal.sentiment_layers?.[0]?.confidence || 0) > 0.7)
+          .filter((signal: any) => (
+            signal.confidence_metrics?.overall_confidence ??
+            signal.enhanced_prediction?.confidence ??
+            signal.sentiment_layers?.[0]?.confidence ??
+            signal.confidence ??
+            0
+          ) > 0.7)
           .slice(0, 5)
           .map((signal: any) => ({
             symbol: signal.symbol,
             sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-            confidence: signal.sentiment_layers?.[0]?.confidence || 0.5,
+            confidence: signal.confidence_metrics?.overall_confidence ??
+              signal.enhanced_prediction?.confidence ??
+              signal.sentiment_layers?.[0]?.confidence ??
+              signal.confidence ??
+              0.5,
             reason: signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal',
           })),
         all_signals: Object.values(tradingSignals).map((signal: any) => ({
           symbol: signal.symbol,
           sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-          confidence: signal.sentiment_layers?.[0]?.confidence || 0,
+          confidence: signal.confidence_metrics?.overall_confidence ??
+            signal.enhanced_prediction?.confidence ??
+            signal.sentiment_layers?.[0]?.confidence ??
+            signal.confidence ??
+            0,
           reason: signal.sentiment_layers?.[0]?.reasoning || '',
         })),
         data_source: 'd1_snapshot',

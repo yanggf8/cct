@@ -30,7 +30,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const startTime = Date.now();
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
-  
+
   // Resolve query date: ?date > ?tz > DO setting > ET default
   const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
   const todayET = getTodayInZone('America/New_York');
@@ -113,7 +113,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     isStale: fallback.isStale || false,
     sourceDate: fallback.sourceDate || queryDateStr
   } : null;
-  
+
   if (fallback) {
     logger.info('PRE-MARKET: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
   }
@@ -126,7 +126,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     });
     d1Result = null;
   }
-  
+
   // Determine schedule status
   // queryDateStr is user's "today" (may be ahead of ET)
   // Show "Scheduled" if: querying today-or-future AND before that date's schedule time in ET
@@ -136,7 +136,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const isQueryingFuture = queryDate > todayETDate;
   const isQueryingToday = queryDateStr === todayET;
   const beforeScheduleET = hour < 8 || (hour === 8 && minute < 30); // Before 8:30 AM ET
-  
+
   // Show scheduled if: querying future date OR (querying ET's today AND before schedule)
   const showScheduled = isQueryingFuture || (isQueryingToday && beforeScheduleET);
 
@@ -190,9 +190,13 @@ function generatePreMarketHTML(
     if (signals.length === 0 && briefingData.trading_signals) {
       signals = Object.values(briefingData.trading_signals).map((s: any) => ({
         symbol: s.symbol,
-        direction: s.sentiment_layers?.[0]?.sentiment || 'neutral',
-        confidence: s.sentiment_layers?.[0]?.confidence || 0,
-        reasoning: s.sentiment_layers?.[0]?.reasoning || ''
+        direction: s.trading_signals?.primary_direction?.toLowerCase() || s.sentiment_layers?.[0]?.sentiment || 'neutral',
+        confidence: s.confidence_metrics?.overall_confidence ??
+          s.enhanced_prediction?.confidence ??
+          s.confidence ??
+          s.sentiment_layers?.[0]?.confidence ??
+          0,
+        reasoning: s.enhanced_prediction?.sentiment_analysis?.reasoning || s.sentiment_layers?.[0]?.reasoning || ''
       }));
     }
   }
@@ -625,11 +629,11 @@ function generatePreMarketHTML(
             <h1>🚀 Pre-Market Briefing</h1>
             <p>Comprehensive trading battle plan for the market session</p>
             <div class="date-display">${new Date(displayDate + 'T12:00:00Z').toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })} • ${statusDisplay}</div>
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })} • ${statusDisplay}</div>
             ${staleWarning}
             <div class="market-status">
                 <span class="status-dot"></span>
@@ -641,10 +645,10 @@ function generatePreMarketHTML(
         <div class="no-data">
             <h3>${showScheduled ? '⏳ Report Not Yet Generated' : '⚠️ No Pre-Market Data Available'}</h3>
             <p>${showScheduled
-              ? (isQueryingFuture
-                ? 'This report is scheduled for the selected date. It will appear after generation at <span class="sched-time" data-utch="13" data-utcm="30"></span> on that day.'
-                : 'This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.')
-              : 'There is no pre-market data available for this date.'}</p>
+        ? (isQueryingFuture
+          ? 'This report is scheduled for the selected date. It will appear after generation at <span class="sched-time" data-utch="13" data-utcm="30"></span> on that day.'
+          : 'This report will be generated at <span class="sched-time" data-utch="13" data-utcm="30"></span>.')
+        : 'There is no pre-market data available for this date.'}</p>
             <p>Pre-market data is typically available 30-60 minutes before market open. Please check back closer to market opening.</p>
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>

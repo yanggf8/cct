@@ -195,7 +195,13 @@ export class PreMarketDataBridge {
       logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,
         analysis_key: analysisKey,
-        high_confidence_signals: Object.values(trading_signals).filter(s => s.sentiment_layers[0].confidence > 0.7).length
+        high_confidence_signals: Object.values(trading_signals).filter(s => (
+          (s as any).confidence_metrics?.overall_confidence ??
+          (s as any).enhanced_prediction?.confidence ??
+          s.sentiment_layers?.[0]?.confidence ??
+          (s as any).confidence ??
+          0
+        ) > 0.7).length
       });
 
       return analysisData;

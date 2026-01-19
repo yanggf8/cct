@@ -549,9 +549,13 @@ async function handleMarketSentiment(
     // Compute market-wide sentiment from all symbols
     const signals = Object.values(analysisData.trading_signals);
     const sentimentScores = signals.map(signal => {
-      const score = (signal as any).sentiment_layers?.[0]?.confidence || 0;
+      const confidence = (signal as any).confidence_metrics?.overall_confidence
+        ?? (signal as any).enhanced_prediction?.confidence
+        ?? (signal as any).sentiment_layers?.[0]?.confidence
+        ?? (signal as any).confidence
+        ?? 0;
       const sentiment = (signal as any).sentiment_layers?.[0]?.sentiment || 'neutral';
-      return sentiment === 'bullish' ? score : sentiment === 'bearish' ? -score : 0;
+      return sentiment === 'bullish' ? confidence : sentiment === 'bearish' ? -confidence : 0;
     });
 
     const overallSentiment = sentimentScores.reduce((sum: any, score: any) => sum + score, 0) / sentimentScores.length;
