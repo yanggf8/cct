@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Test Organization Complete
-- **Current Version**: Latest (2025-12-24 - Handler & Cache Cleanup)
+**Status**: ✅ **PRODUCTION READY** - Scheduled Jobs Fix Complete
+- **Current Version**: Latest (2026-01-19 - Scheduled Jobs Fix)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -52,6 +52,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **Pre-Market Briefing Fix** | ✅ Complete | Resolved "Data completion: 0%" issue |
 | **TypeScript Audit** | ✅ 97.6% Complete | 1,398 → 34 errors (1,364 fixed) |
 | **AI Model Stability** | ✅ Complete | 95% reduction in intermittent errors |
+| **Scheduled Jobs Fix** | ✅ Complete | Fixed query bug and job status tracking - dashboard now shows historical runs correctly |
 
 ---
 
@@ -556,6 +557,7 @@ npm run build:frontend:only
 | **DO Cache** | ✅ Primary | All reports read DO cache first |
 | **Cache Warm-after-write** | ✅ Implemented | D1 reads warm DO cache on miss; cache used on subsequent reads |
 | **KV Usage** | ✅ Eliminated | KV unused for job storage; validation guards remain in code |
+| **Job Status Tracking** | ✅ Fixed | Fixed query bug and added scheduler writes - dashboard now displays job execution history |
 
 ### What Works Now
 - Report data flow: DO cache → D1 fallback → warm DO (all reports: pre-market, intraday, end-of-day, weekly)
@@ -576,9 +578,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-13
-**Current Version**: Production Ready with Test Organization + Complete API Documentation
+**Last Updated**: 2026-01-19
+**Current Version**: Production Ready with Scheduled Jobs Fix
 **Major Updates**:
+- **Scheduled Jobs Fix**: Fixed query bug (trigger_mode → job_type) and added job status tracking to scheduler - dashboard now displays historical job runs correctly
 - **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories
 - **Dead Code Cleanup**: Removed orphaned route files (canary-management, exemption-management, integration-test, sector-routes-simple)
 - **New Documented Categories**: Market Intelligence, Market Drivers, Sector Analysis, Risk Management, Advanced Analytics, Predictive Analytics, Backtesting, Technical Analysis, Realtime Data
