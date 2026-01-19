@@ -110,6 +110,7 @@
             return `${etTime} (${localTime} local)`;
         }
 
+        function parseDateUTC(dateStr) { return new Date(`${dateStr}T00:00:00Z`); }
         function getDateStr(d) { return d.toISOString().slice(0, 10); }
         
         function getUTCToday() {
@@ -137,7 +138,7 @@
 
             // Use market day helper to get last market day
             const lastMarketDayStr = MarketDayHelper.getLastMarketDay();
-            const lastMarketDay = new Date(lastMarketDayStr + 'T00:00:00');
+            const lastMarketDay = parseDateUTC(lastMarketDayStr);
 
             // Determine if yesterday was a weekend
             const yesterday = new Date(today); yesterday.setUTCDate(today.getUTCDate() - 1);
