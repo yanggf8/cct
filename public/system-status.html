@@ -8,34 +8,7 @@
     <link rel="stylesheet" href="/css/nav.css?v=20251226">
     <script src="/js/nav.js?v=20251226"></script>
     <script src="/js/cct-api.js"></script>
-    <script>
-        // Memory Manager for preventing memory leaks
-        const memoryManager = (function() {
-            const intervals = new Map();
-
-            function registerInterval(id, callback, delay) {
-                if (intervals.has(id)) {
-                    clearInterval(intervals.get(id));
-                }
-                const intervalId = setInterval(() => {
-                    if (document.hidden) return;
-                    callback();
-                }, delay);
-                intervals.set(id, intervalId);
-                return intervalId;
-            }
-
-            function cleanup() {
-                intervals.forEach(id => clearInterval(id));
-                intervals.clear();
-            }
-
-            window.addEventListener('beforeunload', cleanup);
-            window.addEventListener('pagehide', cleanup);
-
-            return { registerInterval, cleanup };
-        })();
-    </script>
+    <script src="/js/utils/memory-manager.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {

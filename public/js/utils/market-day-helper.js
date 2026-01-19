@@ -3,40 +3,41 @@
  * Determines the last market day (skips weekends)
  */
 
+// Helpers for Eastern Time (ET)
+function getETDate(referenceDate = new Date()) {
+  return new Date(referenceDate.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+}
+
+function formatETDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /**
- * Get the last market day
+ * Get the last market day (ET-aware)
  * @param {Date} referenceDate - Date to calculate from (defaults to today)
- * @returns {string} - Date string in YYYY-MM-DD format
+ * @returns {string} - Date string in YYYY-MM-DD (ET) format
  */
 function getLastMarketDay(referenceDate = new Date()) {
-  const date = new Date(referenceDate);
+  const etDate = getETDate(referenceDate);
+  const dayOfWeek = etDate.getDay(); // 0 = Sunday ... 6 = Saturday
 
-  // Get the day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  const dayOfWeek = date.getDay();
-
-  // Calculate days to subtract to get to last market day
   let daysToSubtract;
-
   if (dayOfWeek === 1) {
-    // Monday - go back 3 days (to Friday)
-    daysToSubtract = 3;
+    daysToSubtract = 3; // Monday -> Friday
   } else if (dayOfWeek === 0) {
-    // Sunday - go back 2 days (to Friday)
-    daysToSubtract = 2;
+    daysToSubtract = 2; // Sunday -> Friday
   } else if (dayOfWeek === 6) {
-    // Saturday - go back 1 day (to Friday)
-    daysToSubtract = 1;
+    daysToSubtract = 1; // Saturday -> Friday
   } else {
-    // Tuesday-Friday - go back 1 day
-    daysToSubtract = 1;
+    daysToSubtract = 1; // Tue-Fri -> previous day
   }
 
-  // Subtract days to get to last market day
-  const lastMarketDay = new Date(date);
-  lastMarketDay.setDate(date.getDate() - daysToSubtract);
-
-  // Return in YYYY-MM-DD format
-  return lastMarketDay.toISOString().split('T')[0];
+  const lastMarketDay = new Date(etDate);
+  lastMarketDay.setDate(etDate.getDate() - daysToSubtract);
+  return formatETDate(lastMarketDay);
 }
 
 /**
@@ -46,30 +47,18 @@ function getLastMarketDay(referenceDate = new Date()) {
  * @returns {string} - Display label
  */
 function getDateLabel(dateStr, type = 'yesterday') {
-  const date = new Date(dateStr + 'T00:00:00');
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  const lastMarketDay = new Date(getLastMarketDay() + 'T00:00:00');
-
-  // Check if this is the actual yesterday (calendar yesterday)
-  const isCalendarYesterday = date.toDateString() === yesterday.toDateString();
-
-  // Check if this is the last market day
-  const isLastMarketDay = date.toDateString() === lastMarketDay.toDateString();
+  const date = getETDate(new Date(dateStr + 'T00:00:00'));
+  const todayET = getETDate();
+  const yesterdayET = new Date(todayET);
+  yesterdayET.setDate(todayET.getDate() - 1);
 
   if (type === 'yesterday') {
-    if (isCalendarYesterday && !isLastMarketDay) {
-      return 'Last Market Day';
-    } else if (isLastMarketDay) {
-      return 'Yesterday';
-    }
+    const yesterdayDay = yesterdayET.getDay();
+    const yesterdayIsWeekend = yesterdayDay === 0 || yesterdayDay === 6;
+    return yesterdayIsWeekend ? 'Last Market Day' : 'Yesterday';
   }
 
-  // Format date for display
-  const options = { month: 'short', day: 'numeric' };
-  return date.toLocaleDateString('en-US', options);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 /**
@@ -78,7 +67,7 @@ function getDateLabel(dateStr, type = 'yesterday') {
  * @returns {boolean} - True if weekend (Saturday or Sunday)
  */
 function isWeekend(dateStr) {
-  const date = new Date(dateStr + 'T00:00:00');
+  const date = getETDate(new Date(dateStr + 'T00:00:00'));
   const dayOfWeek = date.getDay();
   return dayOfWeek === 0 || dayOfWeek === 6;
 }
@@ -88,38 +77,28 @@ function isWeekend(dateStr) {
  * @returns {object} - Status information
  */
 function getMarketStatus() {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const hour = now.getHours();
+  const nowET = getETDate();
+  const dayOfWeek = nowET.getDay();
+  const hour = nowET.getHours();
+  const minute = nowET.getMinutes();
 
-  // Market is open Monday-Friday, 9:30 AM - 4:00 PM ET
-  // Simplified: assume market is open if it's a weekday and between 9:30-16:00
-  // Note: This is simplified and doesn't account for holidays
+  // Market hours: 9:30 AM - 4:00 PM ET, Mon-Fri (holidays not accounted for)
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-  const isMarketHours = hour >= 9 && hour < 16;
+  const afterOpen = hour > 9 || (hour === 9 && minute >= 30);
+  const beforeClose = hour < 16;
+  const isMarketHours = isWeekday && afterOpen && beforeClose;
 
-  let status = 'CLOSED';
-  let message = 'Market is closed';
+  const status = isMarketHours ? 'OPEN' : 'CLOSED';
+  const message = isMarketHours ? 'Market is open' : 'Market is closed';
 
-  if (isWeekday) {
-    if (isMarketHours) {
-      status = 'OPEN';
-      message = 'Market is open';
-    } else {
-      status = 'CLOSED';
-      message = 'Market is closed (outside trading hours)';
-    }
-  } else {
-    status = 'CLOSED';
-    message = 'Market is closed (weekend)';
-  }
+  const lastMarketDay = getLastMarketDay(nowET);
 
   return {
     status,
     message,
     isWeekend: !isWeekday,
-    lastMarketDay: getLastMarketDay(),
-    lastMarketDayLabel: getDateLabel(getLastMarketDay(), 'yesterday')
+    lastMarketDay,
+    lastMarketDayLabel: getDateLabel(lastMarketDay, 'yesterday')
   };
 }
 
