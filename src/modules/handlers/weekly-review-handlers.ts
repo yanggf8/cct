@@ -271,10 +271,28 @@ function generateWeeklyReviewHTML(
             margin-bottom: 15px;
         }
 
-        .week-range {
-            font-size: 1.1rem;
-            color: #00f2fe;
+        .date-display {
+            margin: 15px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .target-date, .generated-date {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-label {
             font-weight: 600;
+            color: #4facfe;
+            font-size: 0.95rem;
+        }
+
+        .date-value {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95rem;
         }
 
         .no-data {
@@ -499,7 +517,16 @@ function generateWeeklyReviewHTML(
         <div class="header">
             <h1>📊 Weekly Trading Review</h1>
             <p>Comprehensive analysis of your trading performance and signal accuracy</p>
-            <div class="week-range">${weekRange} • ${statusDisplay}</div>
+            <div class="date-display">
+              <div class="target-date">
+                <span class="date-label">Week:</span>
+                <span class="date-value">${weekRange}</span>
+              </div>
+              <div class="generated-date">
+                <span class="date-label">Generated:</span>
+                <span class="date-value">${statusDisplay}</span>
+              </div>
+            </div>
         </div>
 
         ${!hasRealData ? `

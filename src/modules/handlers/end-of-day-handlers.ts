@@ -207,9 +207,27 @@ function generateEndOfDayHTML(
         }
 
         .date-display {
-            font-size: 1.1rem;
-            color: #00f2fe;
+            margin: 15px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .target-date, .generated-date {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-label {
             font-weight: 600;
+            color: #4facfe;
+            font-size: 0.95rem;
+        }
+
+        .date-value {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95rem;
         }
 
         .no-data {
@@ -473,12 +491,21 @@ function generateEndOfDayHTML(
         <div class="header">
             <h1>🏁 End-of-Day Trading Summary</h1>
             <p>Comprehensive analysis of trading performance and market close</p>
-            <div class="date-display">${new Date(displayDate + 'T12:00:00Z').toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })} • ${statusDisplay}</div>
+            <div class="date-display">
+              <div class="target-date">
+                <span class="date-label">Target Day:</span>
+                <span class="date-value">${new Date(displayDate + 'T12:00:00Z').toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}</span>
+              </div>
+              <div class="generated-date">
+                <span class="date-label">Generated:</span>
+                <span class="date-value">${statusDisplay}</span>
+              </div>
+            </div>
             ${staleWarning}
         </div>
 
