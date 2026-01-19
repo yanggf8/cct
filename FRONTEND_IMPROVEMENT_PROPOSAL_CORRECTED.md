@@ -44,10 +44,10 @@ const memoryManager = (function() {
   /**
    * Clear a specific interval
    */
-  function clearInterval(id) {
+  function clearRegisteredInterval(id) {
     const intervalId = intervals.get(id);
     if (intervalId) {
-      clearInterval(intervalId);
+      window.clearInterval(intervalId);
       intervals.delete(id);
     }
   }
@@ -64,7 +64,7 @@ const memoryManager = (function() {
   window.addEventListener('beforeunload', cleanup);
   window.addEventListener('pagehide', cleanup);
 
-  return { registerInterval, clearInterval, cleanup };
+  return { registerInterval, clearRegisteredInterval, cleanup };
 })();
 
 // Usage in dashboard.html:
@@ -104,7 +104,8 @@ class CCTApi {
       maxRetries: 3,
       baseDelay: 1000,
       maxDelay: 10000,
-      maxTotalTimeout: 30000  // Cap total timeout
+      // Optionally enforce a total timeout budget in caller; not applied automatically here
+      maxTotalTimeout: 30000
     };
     this.requestInterceptors = [];  // Start empty, not undefined
     this.responseInterceptors = [];
@@ -114,7 +115,8 @@ class CCTApi {
   async request(endpoint, options = {}) {
     // Handle empty endpoint (for apiRoot) - don't add trailing slash
     const path = endpoint === '' ? '' : (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
-    const url = `${this.baseUrl}${path}`;  // FIXED: url now defined
+    const base = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl; // avoid double slashes
+    const url = `${base}${path}`;  // FIXED: url now defined
 
     const headers = {
       'Content-Type': 'application/json',
@@ -631,7 +633,7 @@ Otherwise, Phase A & B are sufficient and won't break existing pages.
     async loadFontAwesome() {
       // Try local first (current practice)
       try {
-        await this.loadLocal('/css/font-awesome.min.css');
+        await this.loadLocalCSS('/css/font-awesome.min.css');
         console.log('Font Awesome loaded from local');
         return;
       } catch (localError) {
@@ -651,6 +653,17 @@ Otherwise, Phase A & B are sufficient and won't break existing pages.
         script.onload = () => resolve();
         script.onerror = () => reject(new Error(`Local ${path} failed`));
         document.head.appendChild(script);
+      });
+    },
+
+    loadLocalCSS(path) {
+      return new Promise((resolve, reject) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = path;
+        link.onload = () => resolve();
+        link.onerror = () => reject(new Error(`Local CSS ${path} failed`));
+        document.head.appendChild(link);
       });
     },
 
