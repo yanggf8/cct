@@ -35,6 +35,57 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
   const todayET = getTodayInZone('America/New_York');
 
+  // Check if we need to redirect to last market day
+  // If no date parameter and it's a weekend or before market hours, redirect to last market day
+  const dateParam = url.searchParams.get('date');
+  if (!dateParam) {
+    const todayDate = new Date(todayET + 'T00:00:00Z');
+    const dayOfWeek = todayDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+
+    // Calculate if we should redirect
+    let shouldRedirect = false;
+
+    // Weekend - always redirect
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      shouldRedirect = true;
+    }
+
+    // Weekday - check if before pre-market time (8:30 AM ET)
+    if (!shouldRedirect && dayOfWeek >= 1 && dayOfWeek <= 5) {
+      const { hour, minute } = getCurrentTimeET();
+      if (hour < 8 || (hour === 8 && minute < 30)) {
+        shouldRedirect = true;
+      }
+    }
+
+    if (shouldRedirect) {
+      // Calculate last market day
+      const lastMarketDayDate = new Date(todayET + 'T00:00:00Z');
+      let daysToSubtract;
+      if (dayOfWeek === 0) {
+        // Sunday -> go back 2 days to Friday
+        daysToSubtract = 2;
+      } else if (dayOfWeek === 6) {
+        // Saturday -> go back 1 day to Friday
+        daysToSubtract = 1;
+      } else {
+        // Weekday before 8:30 AM -> go back 1 day
+        daysToSubtract = 1;
+      }
+      lastMarketDayDate.setDate(lastMarketDayDate.getDate() - daysToSubtract);
+      const lastMarketDay = lastMarketDayDate.toISOString().split('T')[0];
+
+      const redirectUrl = new URL(request.url);
+      redirectUrl.searchParams.set('date', lastMarketDay);
+      logger.info('PRE-MARKET: Redirect to last market day', {
+        from: queryDateStr,
+        to: lastMarketDay,
+        reason: dayOfWeek === 0 || dayOfWeek === 6 ? 'weekend' : 'before-market-hours'
+      });
+      return Response.redirect(redirectUrl.toString(), 302);
+    }
+  }
+
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', { requestId, queryDate: queryDateStr, bypassCache });
 
   validateRequest(request);

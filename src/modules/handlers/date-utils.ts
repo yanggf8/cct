@@ -58,17 +58,17 @@ export async function resolveQueryDate(url: URL, cacheDO?: any): Promise<string>
     return dateParam;
   }
   
-  // Resolve timezone: ?tz > DO setting > Asia/Taipei default
+  // Resolve timezone: ?tz > DO setting > America/New_York default
   const tzParam = url.searchParams.get('tz');
-  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'Asia/Taipei';
+  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'America/New_York';
   const today = getTodayInZone(tz);
-  
+
   if (dateParam === 'yesterday') {
     const d = new Date(today + 'T12:00:00Z');
     d.setDate(d.getDate() - 1);
     return d.toISOString().split('T')[0];
   }
-  
+
   return today;
 }
 
