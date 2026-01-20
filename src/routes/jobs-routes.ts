@@ -337,7 +337,7 @@ async function handlePreMarketJob(
       job_type: 'pre-market',
       symbols_analyzed: Object.keys(analysisData.trading_signals).length,
       high_confidence_signals: Object.values(analysisData.trading_signals)
-        .filter(signal => (
+        .filter((signal: any) => (
           signal.confidence_metrics?.overall_confidence ??
           signal.enhanced_prediction?.confidence ??
           signal.sentiment_layers?.[0]?.confidence ??
@@ -369,7 +369,7 @@ async function handlePreMarketJob(
       result: {
         symbols_analyzed: Object.keys(analysisData.trading_signals).length,
         high_confidence_signals: Object.values(analysisData.trading_signals)
-          .filter(signal => (
+          .filter((signal: any) => (
             signal.confidence_metrics?.overall_confidence ??
             signal.enhanced_prediction?.confidence ??
             signal.sentiment_layers?.[0]?.confidence ??

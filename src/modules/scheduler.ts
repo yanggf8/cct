@@ -341,7 +341,9 @@ export async function handleScheduledEvent(
       // Write success status to job_executions
       try {
         const jobType = 'intraday';
-        const symbolsAnalyzed = analysisResult.symbols_analyzed;
+        const symbolsAnalyzed = Array.isArray(analysisResult.symbols_analyzed)
+          ? analysisResult.symbols_analyzed.length
+          : (typeof analysisResult.symbols_analyzed === 'number' ? analysisResult.symbols_analyzed : 0);
         await updateD1JobStatus(env, jobType, dateStr, 'done', {
           symbols_processed: symbolsAnalyzed,
           execution_time_ms: Date.now() - scheduledTime.getTime(),
@@ -454,9 +456,10 @@ export async function handleScheduledEvent(
               'next_day_market_prediction': 'end-of-day'
             };
             const jobType = jobTypeMap[triggerMode] || triggerMode;
-            const symbolsAnalyzed = typeof analysisResult?.symbols_analyzed === 'number'
-              ? analysisResult.symbols_analyzed
-              : (analysisResult?.symbols_analyzed?.length || 0);
+            const symbolsAnalyzedRaw = analysisResult?.symbols_analyzed;
+            const symbolsAnalyzed: number = Array.isArray(symbolsAnalyzedRaw)
+              ? symbolsAnalyzedRaw.length
+              : (typeof symbolsAnalyzedRaw === 'number' ? symbolsAnalyzedRaw : 0);
 
             await updateD1JobStatus(env, jobType, dateStr, 'done', {
               symbols_processed: symbolsAnalyzed,
@@ -486,21 +489,21 @@ export async function handleScheduledEvent(
     }
 
     const cronDuration = Date.now() - scheduledTime.getTime();
+    const symbolsAnalyzedRaw = analysisResult?.symbols_analyzed;
+    const symbolsCount: number = Array.isArray(symbolsAnalyzedRaw)
+      ? symbolsAnalyzedRaw.length
+      : (typeof symbolsAnalyzedRaw === 'number' ? symbolsAnalyzedRaw : 0);
     console.log(`✅ [CRON-COMPLETE] ${cronExecutionId}`, {
       trigger_mode: triggerMode,
       duration_ms: cronDuration,
-      symbols_analyzed: typeof analysisResult?.symbols_analyzed === 'number' 
-        ? analysisResult.symbols_analyzed 
-        : (analysisResult?.symbols_analyzed?.length || 0),
+      symbols_analyzed: symbolsCount,
       facebook_status: env.FACEBOOK_PAGE_TOKEN ? 'sent' : 'skipped'
     });
 
     const response: CronResponse = {
       success: true,
       trigger_mode: triggerMode,
-      symbols_analyzed: typeof analysisResult?.symbols_analyzed === 'number' 
-        ? analysisResult.symbols_analyzed 
-        : (analysisResult?.symbols_analyzed?.length || 0),
+      symbols_analyzed: symbolsCount,
       execution_id: cronExecutionId,
       timestamp: estTime.toISOString()
     };

@@ -20,6 +20,16 @@ export interface D1SymbolPrediction {
   analysis_type: string;
   trading_signals: string;
   created_at: string;
+  // Dual model tracking columns
+  gemma_status?: string;
+  gemma_error?: string;
+  gemma_confidence?: number;
+  gemma_response_time_ms?: number;
+  distilbert_status?: string;
+  distilbert_error?: string;
+  distilbert_confidence?: number;
+  distilbert_response_time_ms?: number;
+  model_selection_reason?: string;
 }
 
 export interface D1JobExecution {
