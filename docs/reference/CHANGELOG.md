@@ -42,6 +42,7 @@
 ### 🌇 End-of-Day Dual-Model Completion
 - End-of-day flow writes per-symbol dual-model outcomes to `symbol_predictions` and surfaces full dual-model UI (agreement badges/cards) in the handler-rendered report.
 - UI parity: Intraday and end-of-day reports now use the same dual-model visual pattern as pre-market.
+- Analytics note: End-of-day persistence supports dual-model data; the accuracy breakdown still uses legacy sentiment layers. Extend `analyzeHighConfidenceSignals` to read `signal.models/comparison` if per-model agreement is needed in EOD analytics.
 
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
