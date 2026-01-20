@@ -648,6 +648,39 @@ async function handleSystemStatus(
       documentation: '/api/v1'
     };
 
+    // Article pool status for portfolio symbols
+    const portfolioSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'BRK.B', 'JPM', 'JNJ'];
+    let articlePool: { status: string; available: number; missing: string[]; symbols: Record<string, { count: number; stale: boolean }> } = {
+      status: 'unavailable',
+      available: 0,
+      missing: portfolioSymbols,
+      symbols: {}
+    };
+    try {
+      if (env.DAC_BACKEND && env.X_API_KEY) {
+        const { createDACArticlesPoolClientV2 } = await import('../modules/dac-articles-pool-v2.js');
+        const dacClient = createDACArticlesPoolClientV2({ DAC_BACKEND: env.DAC_BACKEND as any, X_API_KEY: env.X_API_KEY });
+        if (dacClient) {
+          const results = await Promise.all(
+            portfolioSymbols.map(async (sym) => {
+              try {
+                const res = await dacClient.getStockArticles(sym);
+                return { symbol: sym, count: res.articles?.length || 0, stale: res.metadata?.stale || false, success: res.success };
+              } catch { return { symbol: sym, count: 0, stale: true, success: false }; }
+            })
+          );
+          const available = results.filter(r => r.count > 0);
+          const missing = results.filter(r => r.count === 0).map(r => r.symbol);
+          articlePool = {
+            status: missing.length === 0 ? 'healthy' : missing.length < portfolioSymbols.length ? 'partial' : 'empty',
+            available: available.length,
+            missing,
+            symbols: Object.fromEntries(results.map(r => [r.symbol, { count: r.count, stale: r.stale }]))
+          };
+        }
+      }
+    } catch (e) { /* ignore */ }
+
     const response = {
       status: 'operational',
       uptime: '99.9%',
@@ -657,6 +690,7 @@ async function handleSystemStatus(
       database: dbStatus,
       models,
       jobs,
+      articlePool,
       timestamp: new Date().toISOString()
     };
 

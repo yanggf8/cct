@@ -127,6 +127,15 @@
                     <div class="status-item"><span>End-of-Day</span><span>${badge(d.jobs?.endOfDay?.status)} ${d.jobs?.endOfDay?.lastRun || d.jobs?.endOfDay?.scheduled || ''}</span></div>
                     <div class="status-item"><span>Weekly</span><span>${badge(d.jobs?.weekly?.status)} ${d.jobs?.weekly?.lastRun || d.jobs?.weekly?.scheduled || ''}</span></div>
                 </div>
+                <div class="status-card">
+                    <h3>📰 Article Pool (DAC)</h3>
+                    <div class="status-item"><span>Pool Status</span>${badge(d.articlePool?.status)}</div>
+                    <div class="status-item"><span>Symbols with Articles</span><span>${d.articlePool?.available || 0} / 10</span></div>
+                    ${d.articlePool?.missing?.length ? `<div class="status-item"><span>Missing</span><span style="color:#ef4444;font-size:0.85rem">${d.articlePool.missing.join(', ')}</span></div>` : ''}
+                    ${Object.entries(d.articlePool?.symbols || {}).slice(0, 5).map(([sym, info]) => 
+                        `<div class="status-item"><span>${sym}</span><span>${info.count} articles${info.stale ? ' <small style="color:#f59e0b">(stale)</small>' : ''}</span></div>`
+                    ).join('')}
+                </div>
             `;
             document.getElementById('status-grid').innerHTML = html;
         }
