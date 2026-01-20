@@ -647,8 +647,41 @@ async function handleSystemStatus(
       documentation: '/api/v1'
     };
 
+    // Get portfolio symbols from DO
+    let portfolioSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default fallback
+    let portfolio: { status: string; symbols: string[]; count: number; lastUpdated?: string } = {
+      status: 'unavailable',
+      symbols: portfolioSymbols,
+      count: portfolioSymbols.length
+    };
+
+    try {
+      const { getPortfolioSymbols } = await import('../modules/config.js');
+      portfolioSymbols = await getPortfolioSymbols(env);
+      portfolio = {
+        status: 'active',
+        symbols: portfolioSymbols,
+        count: portfolioSymbols.length
+      };
+
+      // Try to get lastUpdated from DO
+      if (env.PORTFOLIO_DO) {
+        const doId = env.PORTFOLIO_DO.idFromName('default');
+        const doStub = env.PORTFOLIO_DO.get(doId);
+        const doResponse = await doStub.fetch('https://portfolio.internal/symbols');
+        if (doResponse.ok) {
+          const doData = await doResponse.json() as { success: boolean; data?: { lastUpdated?: string } };
+          if (doData.success && doData.data?.lastUpdated) {
+            portfolio.lastUpdated = doData.data.lastUpdated;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[SYSTEM-STATUS] Error fetching portfolio:', error);
+      portfolio.status = 'error';
+    }
+
     // Article pool status for portfolio symbols
-    const portfolioSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
     let articlePool: { status: string; available: number; missing: string[]; symbols: Record<string, { count: number; stale: boolean }> } = {
       status: 'unavailable',
       available: 0,
@@ -714,6 +747,7 @@ async function handleSystemStatus(
       database: dbStatus,
       models,
       jobs,
+      portfolio,
       articlePool,
       timestamp: new Date().toISOString()
     };

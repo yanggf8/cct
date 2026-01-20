@@ -786,6 +786,31 @@ src/modules/
 
 **Current behavior**: `midday_validation_prediction` runs `IntradayDataBridge.generateIntradayAnalysis()`, writes intraday snapshots to D1 only (`report_type = intraday`), and skips KV writes to avoid overwriting pre-market `analysis_*` keys. `symbols_analyzed` is stored as a count; the symbols list is available separately for UI consumption.
 
+### **🗄️ D1 Report Snapshot Schema (scheduled_job_results)**
+
+`scheduled_job_results` stores report snapshots for pre-market, intraday, end-of-day, and weekly runs.
+
+**Columns (key semantics)**:
+- `scheduled_date`: report date used for queries and display (main lookup key).
+- `execution_date`: date portion of the actual run timestamp.
+- `created_at` / `generated_at`: actual run timestamp (full time).
+
+**Rule**: Query by `scheduled_date`; use `execution_date` only for audit trails.
+
+**Rerun behavior**: Pre-market reruns delete the existing snapshot for the execution date before writing the new report, ensuring the latest run is stored for that day.
+
+**⚠️ Migration Required for Date Reruns**:
+- To use the `date` parameter in `POST /api/v1/jobs/pre-market`, the `scheduled_date` column must exist.
+- If the column is missing, the job will fall back to legacy mode (using `execution_date` only).
+- Apply migration: `wrangler d1 execute cct-predict-jobs --file=schema/scheduled-jobs-migration.sql`
+- Without the column, custom dates won't be queryable by scheduled date.
+
+**One-Shot Cleanup for Old Schema Records**:
+- Set `ENABLE_D1_CLEANUP=true` to delete old schema records before writing new snapshots
+- This allows reruns to overwrite old data during the migration period
+- **Disable after migration is complete**: `wrangler secret put ENABLE_D1_CLEANUP` (enter: `false`)
+- Cleanup deletes by `scheduled_date` (new schema) with fallback to `execution_date` (old schema)
+
 ### **🔄 Request Flow**
 
 ```

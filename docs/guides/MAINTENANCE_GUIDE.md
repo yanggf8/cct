@@ -91,11 +91,20 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="ERROR|WA
 # Trigger pre-market job (write → D1)
 curl -X POST -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/pre-market
 
+# Rerun and store under a scheduled date (still uses live data)
+curl -X POST -H "X-API-KEY: $X_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"date": "YYYY-MM-DD", "symbols": ["AAPL", "MSFT"]}' \
+  https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/pre-market
+
 # Verify pre-market briefing generated (read → DO cache → D1 fallback)
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pre-market-briefing
 
 # Expected flow:
-# POST /api/v1/jobs/pre-market → D1 (scheduled_job_results) with AI model metadata (INSERT OR REPLACE per date/type)
+# POST /api/v1/jobs/pre-market → D1 (scheduled_job_results)
+# - scheduled_date: report date for queries (YYYY-MM-DD or today)
+# - execution_date: date portion of the actual run timestamp
+# - created_at / generated_at: actual run timestamp
 # GET /pre-market-briefing → DO cache (hit) else D1 fallback → warm DO
 # Re-run behavior: same-day rerun overwrites D1 row; first read after rerun warms DO with the new data; subsequent reads hit DO.
 

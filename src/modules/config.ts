@@ -283,7 +283,7 @@ export const CONFIG: SystemConfig = {
 
   // Trading Configuration
   TRADING: {
-    SYMBOLS: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
+    SYMBOLS: ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'], // Default portfolio (overridable via TRADING_SYMBOLS env var)
     MIN_NEWS_ARTICLES: 5,
     MAX_NEWS_ARTICLES: 20,
     CONFIDENCE_THRESHOLD: 0.6,
@@ -725,4 +725,42 @@ export function getMetricsConfig(env: CloudflareEnvironment): MetricsConfig {
       errorThreshold: Math.max(0.0, Math.min(1.0, parseFloat(env.PRODUCTION_METRICS_ERROR_THRESHOLD || '0.05')))
     }
   };
+}
+
+/**
+ * Get portfolio symbols from Durable Object storage
+ * Falls back to env var, then default config
+ * @param env - Cloudflare environment
+ * @returns Promise<string[]> - Array of trading symbols
+ */
+export async function getPortfolioSymbols(env: CloudflareEnvironment): Promise<string[]> {
+  try {
+    // Try to get from Portfolio DO first (allows web-based management)
+    if (env.PORTFOLIO_DO) {
+      const doId = env.PORTFOLIO_DO.idFromName('default');
+      const doStub = env.PORTFOLIO_DO.get(doId);
+      const response = await doStub.fetch('https://portfolio.internal/symbols');
+
+      if (response.ok) {
+        const data = await response.json() as { success: boolean; data?: { symbols: string[] } };
+        if (data.success && data.data?.symbols && data.data.symbols.length > 0) {
+          return data.data.symbols;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch portfolio from DO:', error);
+    // Fall through to next option
+  }
+
+  // Fallback to env var (allows runtime override via wrangler secret or wrangler.toml)
+  if (env.TRADING_SYMBOLS) {
+    const symbols = env.TRADING_SYMBOLS.split(',').map((s: string) => s.trim()).filter(Boolean);
+    if (symbols.length > 0) {
+      return symbols;
+    }
+  }
+
+  // Final fallback to default config
+  return CONFIG.TRADING.SYMBOLS;
 }

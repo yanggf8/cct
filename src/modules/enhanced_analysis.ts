@@ -412,7 +412,8 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
  * Enhanced dual AI analysis for multiple symbols
  */
 async function runDualAIAnalysisEnhanced(env: CloudflareEnvironment, options: AnalysisOptions = {}): Promise<EnhancedAnalysisResults> {
-  const symbols = (env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA').split(',').map((s: string) => s.trim());
+  const { getPortfolioSymbols } = await import('./config.js');
+  const symbols = await getPortfolioSymbols(env);
   logInfo(`Starting dual AI analysis for ${symbols.length} symbols...`);
 
   // Use batch dual AI analysis
@@ -461,8 +462,9 @@ export async function runEnhancedPreMarketAnalysis(env: CloudflareEnvironment, o
   ensureLoggingInitialized(env);
   logInfo('🚀 Starting Enhanced Pre-Market Analysis with Dual AI Comparison...');
 
-  const symbolsString = env.TRADING_SYMBOLS || 'AAPL,MSFT,GOOGL,TSLA,NVDA';
-  const symbols = symbolsString.split(',').map((s: string) => s.trim());
+  // Get portfolio symbols from DO (allows web-based management)
+  const { getPortfolioSymbols } = await import('./config.js');
+  const symbols = await getPortfolioSymbols(env);
 
   logInfo(`📊 Analyzing ${symbols.length} symbols: ${symbols.join(', ')}`);
 

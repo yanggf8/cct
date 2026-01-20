@@ -12,6 +12,7 @@ import { handleSentimentRoutes } from './sentiment-routes.js';
 import { handleReportRoutes } from './report-routes.js';
 import { handleDataRoutes } from './data-routes.js';
 import { handleJobsRoutes } from './jobs-routes.js';
+import { handlePortfolioManagementRoutes } from './portfolio-management-routes.js';
 import { handleSectorRotationRoutes } from './sector-rotation-routes.js';
 import { sectorRoutes } from './sector-routes.js';
 import { handleMarketDriversRoutes } from './market-drivers-routes.js';
@@ -169,7 +170,11 @@ export async function handleApiV1Request(
     } else if (path.startsWith('/api/v1/backtesting/')) {
       return await handleBacktestingRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/portfolio/')) {
-      // Route to portfolio optimization API
+      // Check if this is portfolio symbol management (more specific paths)
+      if (path.startsWith('/api/v1/portfolio/symbols')) {
+        return await handlePortfolioManagementRoutes(request, env, path, headers);
+      }
+      // Otherwise, route to portfolio optimization API
       return await handlePortfolioRequest(request, env, {} as ExecutionContext);
     } else if (path.startsWith('/api/v1/risk/')) {
       // Route to risk management API

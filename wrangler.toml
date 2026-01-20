@@ -62,6 +62,10 @@ class_name = "CacheDurableObject"
 name = "RATE_LIMITER_DO"
 class_name = "RateLimiterDO"
 
+[[durable_objects.bindings]]
+name = "PORTFOLIO_DO"
+class_name = "PortfolioDO"
+
 # Durable Objects migrations
 [[migrations]]
 tag = "v1"
@@ -70,6 +74,10 @@ new_sqlite_classes = ["CacheDurableObject"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["RateLimiterDO"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["PortfolioDO"]
 
 # Scheduled events (DISABLED - Migrated to GitHub Actions)
 # All prediction scheduling now handled by .github/workflows/trading-system.yml

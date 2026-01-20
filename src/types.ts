@@ -158,6 +158,7 @@ export interface CloudflareEnvironment extends CfEnvironment {
   RATE_LIMIT_DO?: DurableObjectNamespace;
   RATE_LIMITER_DO?: DurableObjectNamespace;
   ANALYTICS_DO?: DurableObjectNamespace;
+  PORTFOLIO_DO?: DurableObjectNamespace;
 
   // AI Binding (enhanced type)
   AI: CloudflareAI;

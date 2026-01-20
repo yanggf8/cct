@@ -660,24 +660,11 @@ async function handlePreMarketReport(
         };
       });
 
-      const sentiments = allSignals.map(s => s.sentiment?.toLowerCase() || 'neutral');
-      const bullishCount = sentiments.filter(s => s === 'bullish').length;
-      const bearishCount = sentiments.filter(s => s === 'bearish').length;
-      const overallSentiment = bullishCount > bearishCount ? 'BULLISH' :
-                              bearishCount > bullishCount ? 'BEARISH' : 'NEUTRAL';
-
       const response = {
         type: 'pre_market_briefing',
         timestamp: new Date().toISOString(),
         market_status: 'pre_market',
         date: sourceDate,
-        market_sentiment: {
-          overall_sentiment: overallSentiment,
-          sentiment_label: overallSentiment,
-          bullish_count: bullishCount,
-          bearish_count: bearishCount,
-          total_signals: sentiments.length
-        },
         is_stale: isStale,
         key_insights: [
           'Pre-market analysis complete',

@@ -137,6 +137,66 @@ export async function writeD1JobResult(
 }
 
 /**
+ * Delete existing report snapshot for a specific scheduled_date + report_type
+ * Cleans up old schema records (before scheduled_date column) to allow reruns
+ * Safe: returns true even if table doesn't exist (graceful no-op)
+ */
+export async function deleteD1ReportSnapshot(
+  env: CloudflareEnvironment,
+  scheduledDate: string,
+  reportType: string
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    logger.warn('D1 database not available for delete');
+    return true; // Graceful no-op
+  }
+
+  try {
+    // Try new schema first: delete by scheduled_date
+    await db.prepare(
+      `DELETE FROM scheduled_job_results
+       WHERE scheduled_date = ? AND report_type = ?`
+    ).bind(scheduledDate, reportType).run();
+
+    logger.info('Deleted old D1 report snapshot for rerun (new schema)', { scheduledDate, reportType });
+    return true;
+  } catch (error) {
+    const errMsg = (error as Error).message;
+
+    // If scheduled_date column doesn't exist, fall back to execution_date (old schema cleanup)
+    if (errMsg.includes('no column named scheduled_date')) {
+      logger.debug('scheduled_date column not found - trying old schema cleanup', { scheduledDate, reportType });
+      try {
+        await db.prepare(
+          `DELETE FROM scheduled_job_results
+           WHERE execution_date = ? AND report_type = ?`
+        ).bind(scheduledDate, reportType).run();
+
+        logger.info('Deleted old D1 report snapshot for rerun (old schema)', { scheduledDate, reportType });
+        return true;
+      } catch (fallbackError) {
+        const fallbackErrMsg = (fallbackError as Error).message;
+        if (fallbackErrMsg.includes('no such table') || fallbackErrMsg.includes('scheduled_job_results')) {
+          logger.warn('D1 scheduled_job_results table not found - skipping delete', { scheduledDate, reportType });
+          return true; // Graceful no-op if table doesn't exist
+        }
+        logger.error('D1 delete failed (old schema)', { error: fallbackErrMsg, scheduledDate, reportType });
+        return false;
+      }
+    }
+
+    if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
+      logger.warn('D1 scheduled_job_results table not found - skipping delete', { scheduledDate, reportType });
+      return true; // Graceful no-op if table doesn't exist
+    }
+
+    logger.error('D1 delete failed', { error: errMsg, scheduledDate, reportType });
+    return false;
+  }
+}
+
+/**
  * Read report snapshot from D1
  * Key selector: scheduled_date + report_type (picks latest generated_at if multiple)
  * Safe: returns null if table doesn't exist

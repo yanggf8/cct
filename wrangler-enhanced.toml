@@ -27,6 +27,10 @@ binding = "AI"
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
 
+[[env.production.durable_objects.bindings]]
+name = "PORTFOLIO_DO"
+class_name = "PortfolioDO"
+
 # Production variables
 [env.production.vars]
 ENVIRONMENT = "production"
@@ -60,6 +64,10 @@ binding = "AI"
 name = "CACHE_DO"
 class_name = "CacheDurableObject"
 
+[[env.staging.durable_objects.bindings]]
+name = "PORTFOLIO_DO"
+class_name = "PortfolioDO"
+
 # Staging variables
 [env.staging.vars]
 ENVIRONMENT = "staging"
@@ -68,3 +76,12 @@ LOG_LEVEL = "debug"
 ENABLE_CACHE = "true"
 ENABLE_MIGRATION = "true"
 NEW_API_PERCENTAGE = "100"
+
+# Durable Objects migrations
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CacheDurableObject"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["PortfolioDO"]

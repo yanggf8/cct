@@ -7,7 +7,8 @@ import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
 import { handleScheduledEvent } from '../modules/scheduler.js';
-import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1JobResult, TriggerSource } from '../modules/d1-job-storage.js';
+import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1JobResult, deleteD1ReportSnapshot, TriggerSource } from '../modules/d1-job-storage.js';
+import { getPortfolioSymbols } from '../modules/config.js';
 
 /**
  * Detect trigger source from request headers
@@ -313,27 +314,46 @@ async function handlePreMarketJob(
   const dataBridge = createPreMarketDataBridge(env);
 
   try {
-    // Parse request body for optional symbols
-    let symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']; // Default symbols
+    // Get portfolio symbols from DO (allows web-based management)
+    const defaultSymbols = await getPortfolioSymbols(env);
+
+    // Parse request body for optional symbols and date
+    let symbols: string[] = defaultSymbols;
+    let targetDate: string | undefined = undefined; // Optional date for reruns
 
     try {
       const body = await request.json() as any;
       if (body.symbols && Array.isArray(body.symbols)) {
         symbols = body.symbols;
       }
+      if (body.date && typeof body.date === 'string') {
+        // Validate date format (YYYY-MM-DD)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+          targetDate = body.date;
+        } else {
+          logger.warn('Invalid date format provided, using today', { providedDate: body.date });
+        }
+      }
     } catch {
-      // Use default symbols if body parsing fails
+      // Use default symbols and date if body parsing fails
     }
 
-    logger.info('PreMarketJob: Starting job execution', { symbols, requestId });
+    // Scheduled date: the job's planned/report date (can be past, present, or future)
+    const scheduledDate = targetDate || new Date().toISOString().split('T')[0];
 
-    // Execute pre-market analysis job
-    const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols);
-    const today = new Date().toISOString().split('T')[0];
+    logger.info('PreMarketJob: Starting job execution', {
+      symbols,
+      scheduledDate,
+      isRerun: !!targetDate,
+      requestId
+    });
+
+    // Execute pre-market analysis job with scheduled date for storage
+    const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols, scheduledDate);
 
     // Build job result for D1 storage
     const jobResult = {
-      date: today,
+      date: scheduledDate, // Store under scheduled date
       job_type: 'pre-market',
       symbols_analyzed: Object.keys(analysisData.trading_signals).length,
       high_confidence_signals: Object.values(analysisData.trading_signals)
@@ -352,15 +372,54 @@ async function handlePreMarketJob(
     // Detect trigger source for audit trail
     const triggerSource = detectTriggerSource(request);
 
-    // Write to D1 for persistence
-    await writeD1JobResult(env, today, 'pre-market', jobResult, {
-      processingTimeMs: timer.getElapsedMs(),
-      symbolsRequested: symbols,
-      ai_models: {
-        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-        secondary: '@cf/huggingface/distilbert-sst-2-int8'
+    // Write to D1 with proper date separation
+    // - execution_date: actual date of run (today)
+    // - scheduled_date: planned/report date (from user or today)
+    // - created_at: precise timestamp from options.generatedAt
+    const actualToday = new Date().toISOString().split('T')[0];
+
+    // Warn if user provided a date but migration hasn't been applied
+    if (targetDate && scheduledDate !== actualToday) {
+      logger.warn('⚠️ Custom date parameter provided, but scheduled_date column may not exist. Run migration if reruns fail.', {
+        providedDate: targetDate,
+        scheduledDate,
+        actualToday,
+        requestId
+      });
+    }
+
+    // One-shot cleanup: Delete old schema records for migration (controlled by env var)
+    // TODO: Remove this after migration is complete and all old records are cleaned
+    if (env.ENABLE_D1_CLEANUP === 'true') {
+      logger.info('D1 cleanup enabled - deleting old records for scheduled date', { scheduledDate });
+      await deleteD1ReportSnapshot(env, scheduledDate, 'pre-market');
+    }
+
+    const writeSuccess = await writeD1JobResult(
+      env,
+      actualToday,  // execution_date = when job actually ran
+      'pre-market',
+      jobResult,
+      {
+        // Metadata (extra context)
+        processingTimeMs: timer.getElapsedMs(),
+        symbolsRequested: symbols,
+        ai_models: {
+          primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+          secondary: '@cf/huggingface/distilbert-sst-2-int8'
+        }
+      },
+      triggerSource,
+      {
+        // Options (D1 column values)
+        scheduledDate,  // scheduled_date = report date for queries
+        generatedAt: analysisData.generated_at ?? new Date().toISOString()  // created_at = precise timestamp
       }
-    }, triggerSource);
+    );
+
+    if (!writeSuccess) {
+      logger.error('Failed to write job result to D1', { scheduledDate, actualToday, requestId });
+    }
 
     const response = {
       success: true,

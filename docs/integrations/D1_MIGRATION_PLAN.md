@@ -42,6 +42,7 @@
 ```sql
 CREATE TABLE IF NOT EXISTS scheduled_job_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scheduled_date TEXT NOT NULL,
   execution_date TEXT NOT NULL,
   report_type TEXT NOT NULL,
   report_content TEXT,
@@ -49,9 +50,9 @@ CREATE TABLE IF NOT EXISTS scheduled_job_results (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_scheduled_results_date ON scheduled_job_results(execution_date DESC);
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_date ON scheduled_job_results(scheduled_date DESC);
 CREATE INDEX IF NOT EXISTS idx_scheduled_results_type ON scheduled_job_results(report_type);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_results_date_type ON scheduled_job_results(execution_date, report_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_results_date_type ON scheduled_job_results(scheduled_date, report_type);
 ```
 
 **Deferred**: Adding columns/FKs on `job_executions` (not required for snapshot storage).
@@ -63,7 +64,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_results_date_type ON scheduled_j
 ### Task 1: Migration Script (ready to run)
 
 - **File**: `schema/scheduled-jobs-migration.sql`
-- Creates `scheduled_job_results` (execution_date, report_type, report_content, metadata, created_at) with indexes; no FK to job_executions by design.
+- Creates `scheduled_job_results` (scheduled_date, execution_date, report_type, report_content, metadata, created_at) with indexes; no FK to job_executions by design.
+- Query/report date uses `scheduled_date`; `execution_date` stores the actual run date (date portion of `created_at`/`generated_at`).
 - Does **not** alter `job_executions` (deferred).
 
 **Apply migration**

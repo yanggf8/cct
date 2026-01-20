@@ -249,15 +249,17 @@ export class PreMarketDataBridge {
   /**
    * Generate and store pre-market analysis data from modern sentiment data
    * This bridges the gap between the modern API and legacy reporting system
+   * @param symbols - Symbols to analyze
+   * @param targetDate - Optional target date (YYYY-MM-DD) for reruns, defaults to today
    */
-  async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']): Promise<AnalysisData> {
-    logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols });
-    const today = new Date().toISOString().split('T')[0];
+  async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'], targetDate?: string): Promise<AnalysisData> {
+    const today = targetDate || new Date().toISOString().split('T')[0];
+    logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols, targetDate: today, isRerun: !!targetDate });
 
     try {
       const trading_signals: Record<string, TradingSignal> = {};
 
-      // Get sentiment data for each symbol
+      // Get sentiment data for each symbol (always uses live/current data)
       for (const symbol of symbols) {
         try {
           const sentimentData = await this.getSymbolSentimentData(symbol);
@@ -387,11 +389,13 @@ export class PreMarketDataBridge {
 
   /**
    * Get symbol sentiment data from cache or by triggering analysis
+   * @param symbol - Symbol to analyze
    */
   private async getSymbolSentimentData(symbol: string): Promise<ModernSentimentData | null> {
     try {
-      // Try to get from cache first
-      const cacheKey = `sentiment_symbol_${symbol}_${new Date().toISOString().split('T')[0]}`;
+      // Try to get from cache first (always use today for live data)
+      const actualToday = new Date().toISOString().split('T')[0];
+      const cacheKey = `sentiment_symbol_${symbol}_${actualToday}`;
       const cached = await (this.dal as any).get(cacheKey);
 
       if (cached && cached.data) {
@@ -533,12 +537,14 @@ export class PreMarketDataBridge {
 
   /**
    * Force refresh of pre-market analysis data
+   * @param symbols - Symbols to analyze
+   * @param targetDate - Optional target date (YYYY-MM-DD) for reruns, defaults to today
    */
-  async refreshPreMarketAnalysis(symbols?: string[]): Promise<AnalysisData> {
-    logger.info('Force refreshing pre-market analysis', { symbols });
+  async refreshPreMarketAnalysis(symbols?: string[], targetDate?: string): Promise<AnalysisData> {
+    const today = targetDate || new Date().toISOString().split('T')[0];
+    logger.info('Force refreshing pre-market analysis', { symbols, targetDate: today, isRerun: !!targetDate });
 
     // Clear existing cache
-    const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
 
     try {
@@ -549,7 +555,7 @@ export class PreMarketDataBridge {
     }
 
     // Generate fresh data
-    return await this.generatePreMarketAnalysis(symbols);
+    return await this.generatePreMarketAnalysis(symbols, today);
   }
 
   /**

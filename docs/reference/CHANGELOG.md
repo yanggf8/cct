@@ -8,6 +8,14 @@
 
 ---
 
+## 2026-01-24 - Pre-Market Rerun Date Storage ✅
+
+- Pre-market job writes store scheduled date separately from execution date in `scheduled_job_results`.
+- `execution_date` records the date portion of the actual run timestamp (`created_at`/`generated_at`).
+- Reruns can backfill a prior scheduled date while preserving actual run time via `created_at`/`generated_at`.
+
+---
+
 ## 2026-01-20 - Simplified Target Date Logic ✅
 
 ### 🎯 Target Date Simplification
