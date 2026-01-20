@@ -329,14 +329,46 @@ function calculateAverageConfidence(predictions: D1SymbolPrediction[]): number {
  * Tries: D1 snapshot (today) → D1 snapshot (latest) → D1 predictions (today) → D1 predictions (yesterday)
  * Returns data with source metadata; caller decides whether to cache
  * Uses predictions-shaped data for intraday/end-of-day, analysis-shaped for others
+ * 
+ * Stale fallback rules:
+ * - If querying today and before scheduled time → return null (pending state)
+ * - If querying today and after scheduled time but no data → return stale with warning
+ * - If querying past date → return stale fallback if available
  */
 export async function getD1FallbackData(
   env: CloudflareEnvironment,
   dateStr: string,
   reportType: string,
-  options: { skipTodaySnapshot?: boolean } = {}
+  options: { skipTodaySnapshot?: boolean; allowStaleForToday?: boolean } = {}
 ): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean; createdAt?: string | null } | null> {
   const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day' || reportType === 'predictions';
+
+  // Determine if querying "today" in ET
+  const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const todayET = nowET.toISOString().split('T')[0];
+  const isQueryingToday = dateStr === todayET;
+
+  // Schedule times in ET (hour)
+  const scheduleHoursET: Record<string, number> = {
+    'pre-market': 8,   // 8:30 AM ET
+    'intraday': 12,    // 12:00 PM ET
+    'end-of-day': 16,  // 4:05 PM ET
+    'weekly': 10       // 10:00 AM ET (Sunday)
+  };
+  const scheduleMinutesET: Record<string, number> = {
+    'pre-market': 30,
+    'intraday': 0,
+    'end-of-day': 5,
+    'weekly': 0
+  };
+  const scheduleHour = scheduleHoursET[reportType] ?? 8;
+  const scheduleMinute = scheduleMinutesET[reportType] ?? 0;
+  const currentHourET = nowET.getHours();
+  const currentMinuteET = nowET.getMinutes();
+  const isBeforeSchedule = currentHourET < scheduleHour || (currentHourET === scheduleHour && currentMinuteET < scheduleMinute);
+
+  // Allow stale for today defaults to true for non end-of-day; EOD defaults to false to prevent stale display
+  const allowStaleForToday = options.allowStaleForToday ?? (reportType !== 'end-of-day');
 
   // 1. Try D1 snapshot for today with exact report type (unless skipped)
   if (!options.skipTodaySnapshot) {
@@ -346,10 +378,23 @@ export async function getD1FallbackData(
     }
   }
 
-  // 2. Try latest D1 snapshot (may be stale)
+  // 2. If querying today and before schedule, don't return stale data (pending state)
+  if (isQueryingToday && isBeforeSchedule && !allowStaleForToday) {
+    logger.debug('D1 fallback: querying today before schedule, returning null (pending)', { reportType, dateStr, currentHourET, currentMinuteET, scheduleHour, scheduleMinute });
+    return null;
+  }
+
+  // 3. Try latest D1 snapshot (may be stale)
   const latestSnapshot = await getD1LatestReportSnapshot(env, reportType);
   if (latestSnapshot) {
     const isStale = latestSnapshot.executionDate !== dateStr;
+    
+    // If querying today and latest is from a different day, only return if explicitly allowed or after schedule
+    if (isQueryingToday && isStale && !allowStaleForToday && isBeforeSchedule) {
+      logger.debug('D1 fallback: stale snapshot exists but querying today before schedule', { reportType, dateStr, snapshotDate: latestSnapshot.executionDate, currentHourET, currentMinuteET, scheduleHour, scheduleMinute });
+      return null;
+    }
+    
     latestSnapshot.data.is_stale = isStale;
     latestSnapshot.data.source_date = latestSnapshot.executionDate;
     return {

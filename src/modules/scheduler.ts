@@ -359,8 +359,99 @@ export async function handleScheduledEvent(
         });
       }
 
+    } else if (triggerMode === 'next_day_market_prediction') {
+      // End-of-Day Summary (~4:05 PM ET)
+      console.log(`🏁 [CRON-EOD] ${cronExecutionId} Generating end-of-day analysis`);
+
+      try {
+        const { generateEndOfDayAnalysis } = await import('./report/end-of-day-analysis.js');
+        const dal = createSimplifiedEnhancedDAL(env);
+        
+        // Fetch morning predictions and analysis data from cache/D1
+        const morningAnalysis = await dal.read(`analysis_${dateStr}`);
+        const analysisData = morningAnalysis.success ? morningAnalysis.data : null;
+        
+        // Fetch intraday data if available
+        const intradayResult = await dal.read(`intraday_${dateStr}`);
+        const intradayData = intradayResult.success ? intradayResult.data : null;
+
+        // Validate required inputs so failures are explicit (not silent zero-signal runs)
+        const missingInputs: string[] = [];
+        if (!analysisData) missingInputs.push('morning analysis (analysis cache)');
+        if (!analysisData?.trading_signals) missingInputs.push('morning predictions (trading_signals)');
+        if (missingInputs.length) {
+          throw new Error(`Missing required data for end-of-day analysis: ${missingInputs.join(', ')}`);
+        }
+        if (!intradayData) {
+          console.warn(`⚠️ [CRON-EOD] ${cronExecutionId} Intraday data missing for ${dateStr}; continuing with morning-only data`);
+        }
+        
+        // Morning predictions from pre-market
+        const morningPredictions = analysisData?.trading_signals || null;
+
+        const eodResult = await generateEndOfDayAnalysis(analysisData, morningPredictions, intradayData, env);
+
+        if (!eodResult) {
+          throw new Error('End-of-day analysis returned null');
+        }
+
+        // Normalize to scheduler expected shape
+        const signalsCount = eodResult.totalSignals || eodResult.signalBreakdown?.length || 0;
+        analysisResult = {
+          ...eodResult,
+          symbols_analyzed: signalsCount,
+          symbols_list: eodResult.signalBreakdown?.map((s: any) => s.ticker) || [],
+          timestamp: estTime.toISOString(),
+          trigger_mode: triggerMode
+        };
+
+        console.log(`✅ [CRON-EOD] ${cronExecutionId} End-of-day analysis completed`, {
+          signals_count: signalsCount,
+          accuracy_rate: eodResult.overallAccuracy
+        });
+      } catch (eodError: any) {
+        console.error(`❌ [CRON-EOD] ${cronExecutionId} End-of-day analysis failed:`, {
+          error: eodError.message,
+          stack: eodError.stack
+        });
+        analysisResult = null;
+      }
+
+      // If end-of-day failed, write failure status and stop before generic writer runs
+      if (!analysisResult) {
+        try {
+          const jobType = 'end-of-day';
+          await updateD1JobStatus(env, jobType, dateStr, 'failed', {
+            symbols_processed: 0,
+            execution_time_ms: Date.now() - scheduledTime.getTime(),
+            symbols_successful: 0,
+            symbols_fallback: 0,
+            symbols_failed: 0,
+            errors: ['End-of-day analysis failed']
+          });
+          console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} End-of-day failure status written to job_executions`);
+        } catch (statusError: any) {
+          console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write end-of-day failure status:`, {
+            error: statusError.message
+          });
+        }
+
+        const errorResponse: CronResponse = {
+          success: false,
+          trigger_mode: triggerMode,
+          error: 'End-of-day analysis failed - no valid result generated',
+          execution_id: cronExecutionId,
+          timestamp: estTime.toISOString()
+        };
+
+        return new Response(JSON.stringify(errorResponse), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
     } else {
-      // Enhanced pre-market analysis with sentiment
+      // Enhanced pre-market analysis with sentiment (morning_prediction_alerts)
       console.log(`🚀 [CRON-ENHANCED] ${cronExecutionId} Running enhanced analysis with sentiment...`);
       analysisResult = await runEnhancedPreMarketAnalysis(env, {
         triggerMode,
