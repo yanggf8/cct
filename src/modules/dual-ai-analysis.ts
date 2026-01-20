@@ -40,6 +40,7 @@ export interface ModelResult {
   error?: string;
   raw_response?: string;
   articles_analyzed?: number;
+  articles_titles?: string[];
   analysis_type?: string;
   sentiment_breakdown?: {
     bullish: number;
@@ -348,6 +349,7 @@ Respond ONLY with valid JSON, no other text.`;
       reasoning: analysisData.reasoning || 'No detailed reasoning provided',
       raw_response: responseText,
       articles_analyzed: topArticles.length,
+      articles_titles: topArticles.map((a: any) => a.title).filter(Boolean),
       analysis_type: 'contextual_analysis',
       response_time_ms: responseTimeMs
     };

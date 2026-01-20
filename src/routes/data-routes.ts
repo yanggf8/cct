@@ -656,17 +656,31 @@ async function handleSystemStatus(
       missing: portfolioSymbols,
       symbols: {}
     };
+
     try {
-      if (env.DAC_BACKEND && env.X_API_KEY) {
+      // Check if DAC_BACKEND service binding and API key are available
+      if (!env.DAC_BACKEND) {
+        console.log('[SYSTEM-STATUS] DAC_BACKEND service binding not available');
+      } else if (!env.WORKER_API_KEY) {
+        console.log('[SYSTEM-STATUS] WORKER_API_KEY not configured');
+      } else {
+        console.log('[SYSTEM-STATUS] DAC_BACKEND and WORKER_API_KEY available, checking article pool...');
         const { createDACArticlesPoolClientV2 } = await import('../modules/dac-articles-pool-v2.js');
-        const dacClient = createDACArticlesPoolClientV2({ DAC_BACKEND: env.DAC_BACKEND as any, X_API_KEY: env.X_API_KEY });
+        const dacClient = createDACArticlesPoolClientV2({ DAC_BACKEND: env.DAC_BACKEND as any, X_API_KEY: env.WORKER_API_KEY });
+
         if (dacClient) {
+          console.log('[SYSTEM-STATUS] DAC client created successfully');
           const results = await Promise.all(
             portfolioSymbols.map(async (sym) => {
               try {
+                console.log(`[SYSTEM-STATUS] Checking articles for ${sym}...`);
                 const res = await dacClient.getStockArticles(sym);
+                console.log(`[SYSTEM-STATUS] ${sym}: ${res.articles?.length || 0} articles, success: ${res.success}`);
                 return { symbol: sym, count: res.articles?.length || 0, stale: res.metadata?.stale || false, success: res.success };
-              } catch { return { symbol: sym, count: 0, stale: true, success: false }; }
+              } catch (error) {
+                console.error(`[SYSTEM-STATUS] Error checking ${sym}:`, error);
+                return { symbol: sym, count: 0, stale: true, success: false };
+              }
             })
           );
           const available = results.filter(r => r.count > 0);
@@ -677,9 +691,20 @@ async function handleSystemStatus(
             missing,
             symbols: Object.fromEntries(results.map(r => [r.symbol, { count: r.count, stale: r.stale }]))
           };
+          console.log('[SYSTEM-STATUS] Article pool status:', articlePool.status, `- ${available.length}/${portfolioSymbols.length} symbols have articles`);
+        } else {
+          console.log('[SYSTEM-STATUS] Failed to create DAC client');
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch (error) {
+      console.error('[SYSTEM-STATUS] Error checking article pool:', error);
+      articlePool = {
+        status: 'error',
+        available: 0,
+        missing: portfolioSymbols,
+        symbols: {}
+      };
+    }
 
     const response = {
       status: 'operational',

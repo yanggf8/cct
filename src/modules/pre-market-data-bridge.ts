@@ -43,6 +43,7 @@ interface ModernSentimentData {
   signal?: string;
   reasoning?: string;
   articles_analyzed?: number;
+  articles_titles?: string[];
   market_sentiment?: string;
   sector_sentiment?: string;
   // Dual-model tracking for diagnostics
@@ -85,6 +86,7 @@ async function writeSymbolPredictionToD1(
     error_message?: string;
     news_source?: string;
     articles_count?: number;
+    articles_content?: string[];
     raw_response?: any;
     dual_model?: DualModelData;
   }
@@ -94,11 +96,45 @@ async function writeSymbolPredictionToD1(
   try {
     // Check if new columns exist (graceful upgrade)
     const hasNewColumns = await checkDualModelColumnsExist(env);
+    const hasArticlesContent = await checkArticlesContentColumnExists(env);
 
     const dualModelData = data.dual_model ? extractDualModelData({ dual_model: data.dual_model }) : {};
+    const articlesJson = data.articles_content?.length ? JSON.stringify(data.articles_content.slice(0, 10)) : null;
 
-    if (hasNewColumns) {
-      // Use enhanced INSERT with dual-model logging
+    if (hasNewColumns && hasArticlesContent) {
+      // Use enhanced INSERT with dual-model logging + articles_content
+      await env.PREDICT_JOBS_DB.prepare(`
+        INSERT OR REPLACE INTO symbol_predictions
+        (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, articles_content, raw_response,
+         gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+         distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+         model_selection_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        symbol,
+        date,
+        data.sentiment || null,
+        data.confidence || null,
+        data.direction || null,
+        data.model || null,
+        data.status,
+        data.error_message || null,
+        data.news_source || null,
+        data.articles_count || 0,
+        articlesJson,
+        data.raw_response ? JSON.stringify(data.raw_response) : null,
+        dualModelData.gemma_status || null,
+        dualModelData.gemma_error || null,
+        dualModelData.gemma_confidence ?? null,
+        dualModelData.gemma_response_time_ms ?? null,
+        dualModelData.distilbert_status || null,
+        dualModelData.distilbert_error || null,
+        dualModelData.distilbert_confidence ?? null,
+        dualModelData.distilbert_response_time_ms ?? null,
+        dualModelData.model_selection_reason || null
+      ).run();
+    } else if (hasNewColumns) {
+      // Use enhanced INSERT with dual-model logging (no articles_content)
       await env.PREDICT_JOBS_DB.prepare(`
         INSERT OR REPLACE INTO symbol_predictions
         (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response,
@@ -153,14 +189,14 @@ async function writeSymbolPredictionToD1(
   }
 }
 
-// Cache for column existence check
+// Cache for column existence checks
 let dualModelColumnsExist: boolean | null = null;
+let articlesContentColumnExists: boolean | null = null;
 
 async function checkDualModelColumnsExist(env: CloudflareEnvironment): Promise<boolean> {
   if (dualModelColumnsExist !== null) return dualModelColumnsExist;
 
   try {
-    // Check if gemma_status column exists by querying table info
     const result = await env.PREDICT_JOBS_DB!.prepare(
       "SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_predictions'"
     ).first<{ sql: string }>();
@@ -169,6 +205,22 @@ async function checkDualModelColumnsExist(env: CloudflareEnvironment): Promise<b
     return dualModelColumnsExist;
   } catch {
     dualModelColumnsExist = false;
+    return false;
+  }
+}
+
+async function checkArticlesContentColumnExists(env: CloudflareEnvironment): Promise<boolean> {
+  if (articlesContentColumnExists !== null) return articlesContentColumnExists;
+
+  try {
+    const result = await env.PREDICT_JOBS_DB!.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_predictions'"
+    ).first<{ sql: string }>();
+
+    articlesContentColumnExists = result?.sql?.includes('articles_content') || false;
+    return articlesContentColumnExists;
+  } catch {
+    articlesContentColumnExists = false;
     return false;
   }
 }
@@ -222,6 +274,7 @@ export class PreMarketDataBridge {
               confidence: sentimentData.confidence,
               direction: sentimentData.sentiment,
               articles_count: sentimentData.articles_analyzed,
+              articles_content: sentimentData.articles_titles,
               news_source: 'dac_pool',
               dual_model: sentimentData.dual_model
             });
@@ -373,6 +426,7 @@ export class PreMarketDataBridge {
               signal: firstResult.signal?.action || 'HOLD',
               reasoning: selectedModel!.reasoning || 'Sentiment analysis completed',
               articles_analyzed: selectedModel!.articles_analyzed || 0,
+              articles_titles: selectedModel!.articles_titles || [],
               market_sentiment: selectedModel!.direction,
               sector_sentiment: selectedModel!.direction,
               dual_model: dualModelData

@@ -20,6 +20,10 @@ export interface D1SymbolPrediction {
   analysis_type: string;
   trading_signals: string;
   created_at: string;
+  // Article tracking
+  articles_count?: number;
+  articles_content?: string;
+  news_source?: string;
   // Dual model tracking columns
   gemma_status?: string;
   gemma_error?: string;
@@ -367,7 +371,10 @@ export function transformD1ToAnalysis(predictions: D1SymbolPrediction[]): any {
       gpt_reasoning: tradingSignals.entry_signals?.reasoning || '',
       distilbert_sentiment: p.direction,
       distilbert_confidence: p.confidence,
-      news_count: 0,
+      news_count: p.articles_count || 0,
+      articles_count: p.articles_count || 0,
+      articles_content: p.articles_content,
+      news_source: p.news_source,
       top_articles: []
     };
   });

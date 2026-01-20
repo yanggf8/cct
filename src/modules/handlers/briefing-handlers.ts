@@ -474,6 +474,25 @@ function generateSignalCards(signals: any[]): string {
       </div>
     ` : '';
 
+    // Articles section
+    let articlesHtml = '';
+    const articlesCount = signal.articles_count || signal.articles_analyzed || 0;
+    let articlesList: string[] = [];
+    try {
+      articlesList = signal.articles_content ? (typeof signal.articles_content === 'string' ? JSON.parse(signal.articles_content) : signal.articles_content) : [];
+    } catch { /* ignore */ }
+    
+    if (articlesCount > 0 || articlesList.length > 0) {
+      articlesHtml = `
+        <div class="articles-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(240,185,11,0.15);">
+          <div style="font-size: 0.8rem; color: rgba(250,248,245,0.65); margin-bottom: 6px;">📰 ${articlesCount} articles analyzed</div>
+          ${articlesList.length > 0 ? `<ul style="margin: 0; padding-left: 16px; font-size: 0.75rem; color: rgba(250,248,245,0.75);">
+            ${articlesList.slice(0, 3).map((t: string) => `<li style="margin-bottom: 4px;">${t.length > 60 ? t.slice(0, 60) + '...' : t}</li>`).join('')}
+          </ul>` : ''}
+        </div>
+      `;
+    }
+
     return `
       <div class="signal-card">
         <h4>${signal.symbol} ${getDirectionEmoji(signal.direction)}</h4>
@@ -490,6 +509,7 @@ function generateSignalCards(signals: any[]): string {
         </div>
         ${agreementBadge}
         ${dualModelCards}
+        ${articlesHtml}
       </div>
     `;
   }).join('');
