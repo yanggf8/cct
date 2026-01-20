@@ -39,6 +39,10 @@
 - Intraday D1 updates now persist all dual-model fields (status, error, confidence, response_time_ms, selection reason) to `symbol_predictions` for current analysis.
 - Dual-AI analysis tracks per-model `response_time_ms`; intraday logging now reports actual updated rows vs attempted for clearer observability.
 
+### 🌇 End-of-Day Dual-Model Completion
+- End-of-day flow writes per-symbol dual-model outcomes to `symbol_predictions` and surfaces full dual-model UI (agreement badges/cards) in the handler-rendered report.
+- UI parity: Intraday and end-of-day reports now use the same dual-model visual pattern as pre-market.
+
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
 ### 🔄 Cache Architecture Migration
