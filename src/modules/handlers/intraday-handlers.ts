@@ -576,71 +576,9 @@ async function generateIntradayCheckHTML(
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        /* Core styles handled by reports.css */
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #ffffff;
-            min-height: 100vh;
-            padding: 20px;
-            padding-top: 80px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 30px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-            padding: 20px 0;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #4CAF50, #2196F3);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .date-display {
-            margin: 15px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .target-date, .generated-date {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .date-label {
-            font-weight: 600;
-            color: #4facfe;
-            font-size: 0.95rem;
-        }
-
-        .date-value {
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 0.95rem;
-        }
-
+        /* Intraday Specific Components */
         .model-health {
             text-align: center;
             margin-bottom: 40px;
@@ -675,115 +613,17 @@ async function generateIntradayCheckHTML(
             margin: 10px 0;
         }
 
-        .performance-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
-        }
-
-        .performance-card {
+        .tracking-summary {
             background: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
             padding: 25px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 30px;
         }
 
-        .performance-card h3 {
-            font-size: 1.5rem;
+        .tracking-summary h3 {
             margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .divergences-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        .divergences-table th,
-        .divergences-table td {
-            padding: 12px 8px;
-            text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .divergences-table th {
-            background: rgba(255, 255, 255, 0.1);
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .divergences-table td {
-            font-family: 'Courier New', monospace;
-        }
-
-        .model-mini {
-            display: inline-block;
-            width: 18px;
-            height: 18px;
-            line-height: 18px;
-            text-align: center;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: bold;
-            margin-right: 2px;
-        }
-        .model-mini.ok { background: rgba(76, 175, 80, 0.3); color: #4CAF50; }
-        .model-mini.fail { background: rgba(244, 67, 54, 0.3); color: #f44336; }
-
-        .ticker {
-            font-weight: bold;
-            font-size: 1.1rem;
-        }
-
-        .predicted.up {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-
-        .predicted.down {
-            color: #f44336;
-            font-weight: bold;
-        }
-
-        .actual.up {
-            color: #4CAF50;
-            font-weight: bold;
-        }
-
-        .actual.down {
-            color: #f44336;
-            font-weight: bold;
-        }
-
-        .actual.flat {
-            color: #ff9800;
-            font-weight: bold;
-        }
-
-        .divergence-level {
-            font-weight: bold;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-        }
-
-        .divergence-level.high {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-        }
-
-        .divergence-level.medium {
-            background: rgba(255, 152, 0, 0.2);
-            color: #ff9800;
-        }
-
-        .divergence-level.low {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
+            font-size: 1.5rem;
+            color: #4facfe;
         }
 
         .recalibration-section {
@@ -815,143 +655,6 @@ async function generateIntradayCheckHTML(
 
         .recalibration-alert.no {
             color: #4CAF50;
-        }
-
-        .tracking-summary {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .tracking-summary h3 {
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .summary-metric {
-            text-align: center;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-        }
-
-        .summary-metric .value {
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .summary-metric .label {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-
-        .signal-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .signal-card {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .signal-card:hover {
-            transform: translateY(-3px);
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .signal-card h4 {
-            color: #00f2fe;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .signal-detail {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .signal-detail:last-child {
-            border-bottom: none;
-        }
-
-        .agreement-badge {
-            text-align: center;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin: 15px 0 10px 0;
-        }
-        .agreement-badge.agree { background: rgba(72, 219, 251, 0.2); color: #48dbfb; }
-        .agreement-badge.disagree { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
-        .agreement-badge.partial { background: rgba(254, 202, 87, 0.2); color: #feca57; }
-
-        .dual-model-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 12px;
-        }
-        .model-card {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            padding: 10px;
-            font-size: 0.8rem;
-        }
-        .model-card.failed { background: rgba(255, 107, 107, 0.1); }
-        .model-name { font-weight: 600; color: #4facfe; margin-bottom: 4px; }
-        .model-status { font-size: 0.75rem; opacity: 0.8; }
-        .model-result { font-weight: 600; margin-top: 4px; }
-
-        .footer {
-            text-align: center;
-            padding: 20px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            opacity: 0.7;
-        }
-
-        .disclaimer {
-            background: rgba(244, 67, 54, 0.1);
-            border: 1px solid #f44336;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 20px;
-            font-size: 0.9rem;
-        }
-
-        @media (max-width: 768px) {
-            .performance-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .container {
-                margin: 10px;
-                padding: 20px;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
         }
     </style>
 </head>

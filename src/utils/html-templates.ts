@@ -331,6 +331,7 @@ export function getSharedNavHTML(activePage: string = ''): string {
  */
 export function getNavScripts(): string {
   return `<link rel="stylesheet" href="/css/nav.css?v=20251226">
+<link rel="stylesheet" href="/css/reports.css?v=20260121">
 <script src="/js/nav.js?v=20251226"></script>`;
 }
 

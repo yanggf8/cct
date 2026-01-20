@@ -50,6 +50,10 @@
 - Pre-market persistence refactored to use `extractDualModelData` for consistency with intraday/EOD dual-model writes.
 - Architecture note: `symbol_predictions` is the structured source of truth for dual-model fields; `scheduled_job_results` remains a JSON snapshot store.
 
+### 🎨 Report Styling Unification
+- Added `public/css/reports.css` as shared design system (variables, cards/badges/grid utilities).
+- All report handlers now import the shared stylesheet via `getNavScripts`; duplicated inline CSS removed except page-specific tweaks.
+
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
 ### 🔄 Cache Architecture Migration
