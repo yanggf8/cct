@@ -7,6 +7,7 @@
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { createLogger } from './logging.js';
 import { batchDualAIAnalysis } from './dual-ai-analysis.js';
+import { extractDualModelData } from './data.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('pre-market-data-bridge');
@@ -94,7 +95,9 @@ async function writeSymbolPredictionToD1(
     // Check if new columns exist (graceful upgrade)
     const hasNewColumns = await checkDualModelColumnsExist(env);
 
-    if (hasNewColumns && data.dual_model) {
+    const dualModelData = data.dual_model ? extractDualModelData({ dual_model: data.dual_model }) : {};
+
+    if (hasNewColumns) {
       // Use enhanced INSERT with dual-model logging
       await env.PREDICT_JOBS_DB.prepare(`
         INSERT OR REPLACE INTO symbol_predictions
@@ -115,15 +118,15 @@ async function writeSymbolPredictionToD1(
         data.news_source || null,
         data.articles_count || 0,
         data.raw_response ? JSON.stringify(data.raw_response) : null,
-        data.dual_model.gemma?.status || null,
-        data.dual_model.gemma?.error || null,
-        data.dual_model.gemma?.confidence || null,
-        data.dual_model.gemma?.response_time_ms || null,
-        data.dual_model.distilbert?.status || null,
-        data.dual_model.distilbert?.error || null,
-        data.dual_model.distilbert?.confidence || null,
-        data.dual_model.distilbert?.response_time_ms || null,
-        data.dual_model.selection_reason || null
+        dualModelData.gemma_status || null,
+        dualModelData.gemma_error || null,
+        dualModelData.gemma_confidence ?? null,
+        dualModelData.gemma_response_time_ms ?? null,
+        dualModelData.distilbert_status || null,
+        dualModelData.distilbert_error || null,
+        dualModelData.distilbert_confidence ?? null,
+        dualModelData.distilbert_response_time_ms ?? null,
+        dualModelData.model_selection_reason || null
       ).run();
     } else {
       // Fallback to original INSERT (before migration)

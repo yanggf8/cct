@@ -9,6 +9,7 @@ import { createLogger } from './logging.js';
 import { tomorrowOutlookTracker, type MarketBias, type ConfidenceLevel, type VolatilityLevel } from './tomorrow-outlook-tracker.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { getD1Predictions, transformD1ToAnalysis, readD1ReportSnapshot, getD1LatestReportSnapshot, getD1FallbackData } from './d1-job-storage.js';
+import { getWeeklyDualModelStats } from './report/weekly-review-analysis.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('report-data-retrieval');
@@ -192,6 +193,11 @@ export interface WeeklyReviewData {
   generatedAt: string;
   isStale?: boolean;
   sourceDate?: string;
+  modelStats?: {
+    gemma: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    agreementRate: number | null;
+  };
 }
 
 /**
@@ -568,6 +574,9 @@ export class ReportDataRetrieval {
         }
       }
 
+      // Aggregate dual-model weekly stats from symbol_predictions (last 7 days ending on date)
+      const modelStats = await getWeeklyDualModelStats(env as any, date);
+
       // Generate weekly analysis
       const weeklyAnalysis: WeeklyAnalysis = this.generateWeeklyAnalysis(weeklyData);
 
@@ -578,7 +587,8 @@ export class ReportDataRetrieval {
         period: this.getWeeklyPeriod(date),
         generatedAt: new Date().toISOString(),
         isStale,
-        sourceDate
+        sourceDate,
+        modelStats
       };
 
       if (weeklyData.length === 0) {
@@ -1014,7 +1024,8 @@ export class ReportDataRetrieval {
       weeklyData: [],
       weeklyAnalysis: this.getDefaultWeeklyAnalysis(),
       period: this.getWeeklyPeriod(new Date(dateStr)),
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      modelStats: undefined
     };
   }
 

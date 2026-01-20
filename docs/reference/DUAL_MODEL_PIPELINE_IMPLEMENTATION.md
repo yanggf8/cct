@@ -29,3 +29,4 @@
 ## Follow-Ups
 - Consider extending symbol-level dual-model writes to non pre-market jobs (currently rely on `scheduled_job_results` JSON).
 - Add unit tests for `extractDualModelData()` and agreement badge rendering.
+- Source of truth: Dual-model structured fields live in `symbol_predictions`. `scheduled_job_results` remains a JSON snapshot store; use it for blobs, not structured dual-model queries.

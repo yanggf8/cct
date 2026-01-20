@@ -206,6 +206,11 @@ export interface WeeklyReviewAnalysis {
   underperformers: WeeklyPerformer[];
   sectorRotation: SectorRotation;
   nextWeekOutlook: NextWeekOutlook;
+  modelStats?: {
+    gemma: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    agreementRate: number | null;
+  };
 }
 
 /**
@@ -262,6 +267,9 @@ export async function generateWeeklyReviewAnalysis(
     // Generate insights and recommendations
     const insights = generateWeeklyInsights(patternAnalysis, accuracyMetrics, trends);
 
+    // Get dual-model stats from D1 symbol_predictions
+    const modelStats = await getWeeklyDualModelStats(env, currentTime);
+
     return {
       weeklyOverview: {
         totalTradingDays: weeklyData.tradingDays,
@@ -276,12 +284,76 @@ export async function generateWeeklyReviewAnalysis(
       topPerformers: weeklyData.topPerformers,
       underperformers: weeklyData.underperformers,
       sectorRotation: analyzeSectorRotation(weeklyData),
-      nextWeekOutlook: generateNextWeekOutlook(trends, patternAnalysis)
+      nextWeekOutlook: generateNextWeekOutlook(trends, patternAnalysis),
+      modelStats
     };
 
   } catch (error: unknown) {
     logger.error('Error generating weekly review analysis', { error: (error as Error).message });
     return getDefaultWeeklyReviewData();
+  }
+}
+
+/**
+ * Get weekly dual-model statistics from D1 symbol_predictions table
+ * Aggregates Gemma and DistilBERT performance over the past week
+ */
+export type WeeklyModelStats = {
+  gemma: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+  distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+  agreementRate: number | null;
+};
+
+export async function getWeeklyDualModelStats(
+  env: CloudflareEnvironment,
+  currentTime: number | string | Date
+): Promise<WeeklyModelStats | undefined> {
+  if (!env.PREDICT_JOBS_DB) return undefined;
+
+  try {
+    const current = typeof currentTime === 'string' || typeof currentTime === 'number' ? new Date(currentTime) : currentTime;
+    const endDate = current.toISOString().split('T')[0];
+    const result = await env.PREDICT_JOBS_DB.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN gemma_status = 'success' THEN 1 ELSE 0 END) as gemma_success,
+        SUM(CASE WHEN gemma_status = 'failed' OR gemma_status = 'timeout' THEN 1 ELSE 0 END) as gemma_failed,
+        AVG(CASE WHEN gemma_confidence IS NOT NULL THEN gemma_confidence END) as gemma_avg_confidence,
+        SUM(CASE WHEN distilbert_status = 'success' THEN 1 ELSE 0 END) as distilbert_success,
+        SUM(CASE WHEN distilbert_status = 'failed' OR distilbert_status = 'timeout' THEN 1 ELSE 0 END) as distilbert_failed,
+        AVG(CASE WHEN distilbert_confidence IS NOT NULL THEN distilbert_confidence END) as distilbert_avg_confidence,
+        SUM(CASE WHEN model_selection_reason LIKE '%agree%' OR (gemma_status = 'success' AND distilbert_status = 'success') THEN 1 ELSE 0 END) as agreements
+      FROM symbol_predictions
+      WHERE prediction_date >= date(?, '-7 days') AND prediction_date <= date(?)
+        AND (gemma_status IS NOT NULL OR distilbert_status IS NOT NULL)
+    `).bind(endDate, endDate).first();
+
+    if (!result || (result as any).total === 0) return undefined;
+
+    const r = result as any;
+    const gemmaTotal = (r.gemma_success || 0) + (r.gemma_failed || 0);
+    const distilbertTotal = (r.distilbert_success || 0) + (r.distilbert_failed || 0);
+
+    return {
+      gemma: gemmaTotal > 0 ? {
+        total: gemmaTotal,
+        success: r.gemma_success || 0,
+        failed: r.gemma_failed || 0,
+        accuracy: gemmaTotal > 0 ? (r.gemma_success || 0) / gemmaTotal : null,
+        avgConfidence: r.gemma_avg_confidence
+      } : null,
+      distilbert: distilbertTotal > 0 ? {
+        total: distilbertTotal,
+        success: r.distilbert_success || 0,
+        failed: r.distilbert_failed || 0,
+        accuracy: distilbertTotal > 0 ? (r.distilbert_success || 0) / distilbertTotal : null,
+        avgConfidence: r.distilbert_avg_confidence
+      } : null,
+      agreementRate: r.total > 0 ? (r.agreements || 0) / r.total : null
+    };
+  } catch (error: unknown) {
+    logger.warn('Failed to get weekly dual-model stats from D1', { error: (error as Error).message });
+    return undefined;
   }
 }
 
@@ -764,6 +836,7 @@ function getDefaultWeeklyReviewData(): WeeklyReviewAnalysis {
       keyFocus: 'Earnings Season',
       expectedVolatility: 'moderate',
       recommendedApproach: 'Balanced approach with selective signal execution'
-    }
+    },
+    modelStats: undefined
   };
 }
