@@ -33,6 +33,7 @@
 ### 🕒 End-of-Day Pending Handling
 - Scheduler: End-of-day branch now fails fast on missing inputs and avoids duplicate job status writes; failure returns 500 with a single status update.
 - D1 fallback: Uses hour+minute schedule gating (16:05 ET) and defaults to pending for today’s EOD requests instead of returning stale prior-day data.
+- UX: End-of-day handler always shows the requested target date, flags when data is from a different day, and shows pending correctly for users ahead of ET.
 
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
