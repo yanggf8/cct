@@ -567,7 +567,7 @@ function generateEndOfDayHTML(
     })}</span>
               </div>
               <div class="generated-date">
-                <span class="date-label">Generated:</span>
+                <span class="date-label">${hasD1Data ? 'Generated:' : 'Scheduled:'}</span>
                 <span class="date-value">${statusDisplay}</span>
               </div>
             </div>

@@ -971,7 +971,7 @@ async function generateIntradayCheckHTML(
   })}</span>
               </div>
               <div class="generated-date">
-                <span class="date-label">Generated:</span>
+                <span class="date-label">${hasRealData ? 'Generated:' : 'Scheduled:'}</span>
                 <span class="date-value">${statusDisplay}</span>
               </div>
             </div>
