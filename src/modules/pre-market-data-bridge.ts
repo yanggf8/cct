@@ -22,6 +22,9 @@ interface TradingSignal {
     confidence: number;
     reasoning: string;
   }>;
+  dual_model?: DualModelData;
+  articles_count?: number;
+  articles_content?: string[];
 }
 
 /**
@@ -57,12 +60,14 @@ interface DualModelData {
   gemma?: {
     status: 'success' | 'failed' | 'timeout' | 'skipped';
     confidence?: number;
+    direction?: string;
     error?: string;
     response_time_ms?: number;
   };
   distilbert?: {
     status: 'success' | 'failed' | 'timeout' | 'skipped';
     confidence?: number;
+    direction?: string;
     error?: string;
     response_time_ms?: number;
   };
@@ -264,7 +269,11 @@ export class PreMarketDataBridge {
                 sentiment: this.normalizeSentiment(sentimentData.sentiment),
                 confidence: sentimentData.confidence,
                 reasoning: sentimentData.reasoning || `${sentimentData.sentiment} sentiment analysis with ${sentimentData.confidence}% confidence`
-              }]
+              }],
+              // Include dual model data for display
+              dual_model: sentimentData.dual_model,
+              articles_count: sentimentData.articles_analyzed,
+              articles_content: sentimentData.articles_titles
             };
 
             // Write success to D1 with dual-model logging
@@ -403,6 +412,7 @@ export class PreMarketDataBridge {
               gemma: gptModel ? {
                 status: gptModel.error ? 'failed' : 'success',
                 confidence: gptModel.confidence,
+                direction: gptModel.direction,
                 error: gptModel.error
               } : {
                 status: 'skipped',
@@ -411,6 +421,7 @@ export class PreMarketDataBridge {
               distilbert: distilbertModel ? {
                 status: distilbertModel.error ? 'failed' : 'success',
                 confidence: distilbertModel.confidence,
+                direction: distilbertModel.direction,
                 error: distilbertModel.error
               } : {
                 status: 'skipped',

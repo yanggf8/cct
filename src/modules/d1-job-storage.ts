@@ -361,26 +361,58 @@ export function transformD1ToAnalysis(predictions: D1SymbolPrediction[]): any {
       tradingSignals = JSON.parse(p.trading_signals || '{}');
     } catch { /* ignore parse errors */ }
 
+    // Build dual_model structure from D1 columns
+    const dualModel: any = {};
+    if (p.gemma_status || p.gemma_confidence !== undefined) {
+      dualModel.gemma = {
+        status: p.gemma_status || 'unknown',
+        confidence: p.gemma_confidence,
+        error: p.gemma_error,
+        response_time_ms: p.gemma_response_time_ms,
+        direction: p.sentiment // Gemma is primary, so use main sentiment
+      };
+    }
+    if (p.distilbert_status || p.distilbert_confidence !== undefined) {
+      dualModel.distilbert = {
+        status: p.distilbert_status || 'unknown',
+        confidence: p.distilbert_confidence,
+        error: p.distilbert_error,
+        response_time_ms: p.distilbert_response_time_ms,
+        direction: p.direction
+      };
+    }
+    if (p.model_selection_reason) {
+      dualModel.selection_reason = p.model_selection_reason;
+    }
+
     return {
       symbol: p.symbol,
+      direction: p.sentiment || p.direction,
+      confidence: p.confidence,
       overall_confidence: p.confidence,
       recommendation: tradingSignals.recommendation || 'HOLD',
       agreement_type: tradingSignals.signal_type === 'AGREEMENT' ? 'full_agreement' : 'partial_agreement',
       gpt_sentiment: p.sentiment,
-      gpt_confidence: p.confidence,
+      gpt_confidence: p.gemma_confidence ?? p.confidence,
       gpt_reasoning: tradingSignals.entry_signals?.reasoning || '',
       distilbert_sentiment: p.direction,
-      distilbert_confidence: p.confidence,
+      distilbert_confidence: p.distilbert_confidence ?? p.confidence,
       news_count: p.articles_count || 0,
       articles_count: p.articles_count || 0,
       articles_content: p.articles_content,
       news_source: p.news_source,
-      top_articles: []
+      top_articles: [],
+      dual_model: Object.keys(dualModel).length > 0 ? dualModel : undefined,
+      models: Object.keys(dualModel).length > 0 ? {
+        gpt: dualModel.gemma,
+        distilbert: dualModel.distilbert
+      } : undefined
     };
   });
 
   return {
     timestamp: predictions[0]?.created_at || new Date().toISOString(),
+    generated_at: predictions[0]?.created_at || new Date().toISOString(),
     market_sentiment: {
       overall_sentiment: calculateOverallSentiment(predictions),
       sentiment_label: calculateOverallSentiment(predictions),

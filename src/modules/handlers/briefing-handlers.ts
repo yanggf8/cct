@@ -135,8 +135,8 @@ function generatePreMarketHTML(
   // Extract signals for display
   let signals: any[] = [];
   if (briefingData) {
-    signals = briefingData.signals || [];
-    if (signals.length === 0 && briefingData.trading_signals) {
+    // Check trading_signals first (new format with dual model data)
+    if (briefingData.trading_signals && Object.keys(briefingData.trading_signals).length > 0) {
       signals = Object.values(briefingData.trading_signals).map((s: any) => ({
         symbol: s.symbol,
         direction: s.trading_signals?.primary_direction?.toLowerCase() || s.sentiment_layers?.[0]?.sentiment || 'neutral',
@@ -145,8 +145,20 @@ function generatePreMarketHTML(
           s.confidence ??
           s.sentiment_layers?.[0]?.confidence ??
           0,
-        reasoning: s.enhanced_prediction?.sentiment_analysis?.reasoning || s.sentiment_layers?.[0]?.reasoning || ''
+        reasoning: s.enhanced_prediction?.sentiment_analysis?.reasoning || s.sentiment_layers?.[0]?.reasoning || '',
+        // Include dual model data
+        dual_model: s.dual_model,
+        models: s.dual_model ? {
+          gpt: s.dual_model.gemma,
+          distilbert: s.dual_model.distilbert
+        } : undefined,
+        // Include articles data
+        articles_count: s.articles_count,
+        articles_content: s.articles_content
       }));
+    } else if (briefingData.signals && briefingData.signals.length > 0) {
+      // Fallback to signals array (legacy format)
+      signals = briefingData.signals;
     }
   }
   const totalSignals = signals.length;
