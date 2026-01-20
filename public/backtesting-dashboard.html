@@ -17,16 +17,30 @@
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 1.5rem;
         }
+        body {
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #faf8f5;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
         .chart-container {
             position: relative;
             height: 400px;
         }
         .metric-card {
-            background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
-            transition: transform 0.3s ease;
+            background: rgba(250, 248, 245, 0.03);
+            border: 1px solid rgba(240, 185, 11, 0.12);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
         }
         .metric-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(240, 185, 11, 0.15);
         }
         .status-badge {
             animation: pulse 2s infinite;
@@ -37,8 +51,8 @@
             100% { opacity: 1; }
         }
         .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
+            border: 4px solid rgba(240, 185, 11, 0.2);
+            border-top: 4px solid #f0b90b;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -48,18 +62,12 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .dark-mode {
-            background-color: #1a202c;
-            color: #e2e8f0;
-        }
-        .dark-mode .metric-card {
-            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
-        }
         .export-btn {
             transition: all 0.3s ease;
         }
         .export-btn:hover {
             transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(240, 185, 11, 0.3);
         }
     </style>
 </head>
@@ -67,23 +75,23 @@
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Status Bar -->
-        <div id="statusBar" class="mb-6 p-4 bg-blue-900 border border-blue-200 rounded-lg hidden">
+        <div id="statusBar" class="mb-6 p-4 bg-gray-800 bg-opacity-20 backdrop-blur-sm border border-yellow-600/30 rounded-lg hidden">
             <div class="flex items-center">
                 <div class="loading-spinner mr-3"></div>
-                <span class="text-blue-800">Loading backtesting results...</span>
+                <span class="text-yellow-600">Loading backtesting results...</span>
             </div>
         </div>
 
         <!-- Run Selection -->
-        <div class="mb-6 bg-gray-800 p-6 rounded-lg shadow">
+        <div class="mb-6 bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow">
             <h2 class="text-lg font-semibold mb-4">Select Backtest Run</h2>
             <div class="flex items-center space-x-4">
-                <select id="runSelector" class="flex-1 px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                <select id="runSelector" class="flex-1 px-4 py-2 border border-yellow-600/50 rounded-lg focus:ring-2 focus:ring-yellow-500">
                     <option value="">Choose a backtest run...</option>
                 </select>
                 <input type="text" id="runIdInput" placeholder="Or enter Run ID directly"
-                       class="flex-1 px-4 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                <button id="loadRunBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+                       class="flex-1 px-4 py-2 border border-yellow-600/50 rounded-lg focus:ring-2 focus:ring-yellow-500">
+                <button id="loadRunBtn" class="bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700 transition">
                     Load Results
                 </button>
             </div>
@@ -101,7 +109,7 @@
                 </div>
             </div>
 
-            <div class="metric-card text-white p-6 rounded-lg shadow-lg" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+            <div class="metric-card text-white p-6 rounded-lg shadow-lg" style="background: linear-gradient(135deg, #10b981 0%, #ef4444 100%);">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-white/80 text-sm">Sharpe Ratio</p>
@@ -121,7 +129,7 @@
                 </div>
             </div>
 
-            <div class="metric-card text-white p-6 rounded-lg shadow-lg" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+            <div class="metric-card text-white p-6 rounded-lg shadow-lg" style="background: linear-gradient(135deg, #f0b90b 0%, #fcd535 100%);">
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-white/80 text-sm">Win Rate</p>
@@ -135,7 +143,7 @@
         <!-- Charts Grid -->
         <div class="dashboard-grid">
             <!-- Equity Curve -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div class="bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Equity Curve</h3>
                 <div class="chart-container">
                     <canvas id="equityCurveChart"></canvas>
@@ -143,7 +151,7 @@
             </div>
 
             <!-- Returns Distribution -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div class="bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Returns Distribution</h3>
                 <div class="chart-container">
                     <canvas id="returnsDistributionChart"></canvas>
@@ -151,7 +159,7 @@
             </div>
 
             <!-- Monthly Returns -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div class="bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Monthly Returns</h3>
                 <div class="chart-container">
                     <canvas id="monthlyReturnsChart"></canvas>
@@ -159,7 +167,7 @@
             </div>
 
             <!-- Drawdown Chart -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div class="bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Drawdown Analysis</h3>
                 <div class="chart-container">
                     <canvas id="drawdownChart"></canvas>
@@ -167,7 +175,7 @@
             </div>
 
             <!-- Trade Analysis -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div class="bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Trade Analysis</h3>
                 <div class="chart-container">
                     <canvas id="tradeAnalysisChart"></canvas>
@@ -175,7 +183,7 @@
             </div>
 
             <!-- Risk Metrics -->
-            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+            <div class="bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
                 <h3 class="text-lg font-semibold mb-4">Risk Metrics</h3>
                 <div class="chart-container">
                     <canvas id="riskMetricsChart"></canvas>
@@ -184,7 +192,7 @@
         </div>
 
         <!-- Detailed Results Table -->
-        <div class="mt-8 bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div class="mt-8 bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
             <h3 class="text-lg font-semibold mb-4">Detailed Performance Metrics</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -195,7 +203,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Description</th>
                         </tr>
                     </thead>
-                    <tbody id="metricsTableBody" class="bg-gray-800 divide-y divide-gray-200">
+                    <tbody id="metricsTableBody" class="bg-gray-800 bg-opacity-20 backdrop-blur-sm divide-y divide-gray-200">
                         <!-- Metrics will be populated here -->
                     </tbody>
                 </table>
@@ -203,7 +211,7 @@
         </div>
 
         <!-- Trade History -->
-        <div class="mt-8 bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div class="mt-8 bg-gray-800 bg-opacity-20 backdrop-blur-sm p-6 rounded-lg shadow-lg">
             <h3 class="text-lg font-semibold mb-4">Recent Trades</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -217,7 +225,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">P&L</th>
                         </tr>
                     </thead>
-                    <tbody id="tradesTableBody" class="bg-gray-800 divide-y divide-gray-200">
+                    <tbody id="tradesTableBody" class="bg-gray-800 bg-opacity-20 backdrop-blur-sm divide-y divide-gray-200">
                         <!-- Trades will be populated here -->
                     </tbody>
                 </table>

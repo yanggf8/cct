@@ -9,8 +9,15 @@
     <script src="/js/nav.js?v=20251226"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e; --accent: #58a6ff; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        :root {
+            --bg: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
+            --card: rgba(250, 248, 245, 0.03);
+            --border: rgba(240, 185, 11, 0.12);
+            --text: #faf8f5;
+            --text-muted: rgba(250, 248, 245, 0.65);
+            --accent: #f0b90b;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); background-attachment: fixed; color: var(--text); min-height: 100vh; }
         .container { max-width: 900px; margin: 0 auto; padding: 20px; }
         .header { margin-bottom: 24px; }
         h1 { font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
