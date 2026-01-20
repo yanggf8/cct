@@ -305,6 +305,20 @@ export class PreMarketDataBridge {
               failureReason = sentimentData.reasoning;
             }
 
+            // Include skipped symbols in trading_signals so they appear in the report
+            trading_signals[symbol] = {
+              symbol,
+              sentiment_layers: [{
+                sentiment: 'skipped',
+                confidence: sentimentData?.confidence || 0,
+                reasoning: failureReason
+              }],
+              dual_model: sentimentData?.dual_model,
+              articles_count: sentimentData?.articles_analyzed || 0,
+              status: 'skipped',
+              error_message: failureReason
+            } as any;
+
             // Write skipped to D1 with detailed reason and dual-model logging
             await writeSymbolPredictionToD1(this.env, symbol, today, {
               status: 'skipped',
@@ -318,6 +332,18 @@ export class PreMarketDataBridge {
         } catch (error: unknown) {
           const errMsg = error instanceof Error ? error.message : String(error);
           logger.warn(`Failed to get sentiment for ${symbol}`, { error: errMsg, symbol });
+
+          // Include failed symbols in trading_signals so they appear in the report
+          trading_signals[symbol] = {
+            symbol,
+            sentiment_layers: [{
+              sentiment: 'failed',
+              confidence: 0,
+              reasoning: errMsg
+            }],
+            status: 'failed',
+            error_message: errMsg
+          } as any;
           
           // Write failure to D1
           await writeSymbolPredictionToD1(this.env, symbol, today, {

@@ -196,8 +196,7 @@ async function handleAvailableSymbols(
 
     // Get default symbols from configuration
     const defaultSymbols = [
-      'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA',
-      'AMZN', 'META', 'BRK.B', 'JPM', 'JNJ'
+      'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'
     ];
 
     // Get static data for memory-based lookup
@@ -649,7 +648,7 @@ async function handleSystemStatus(
     };
 
     // Article pool status for portfolio symbols
-    const portfolioSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMZN', 'META', 'BRK.B', 'JPM', 'JNJ'];
+    const portfolioSymbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'];
     let articlePool: { status: string; available: number; missing: string[]; symbols: Record<string, { count: number; stale: boolean }> } = {
       status: 'unavailable',
       available: 0,

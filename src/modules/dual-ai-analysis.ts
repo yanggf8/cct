@@ -303,7 +303,7 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
 
   try {
     const callStart = Date.now();
-    const topArticles = newsData.slice(0, 8);
+    const topArticles = newsData.slice(0, 5);
     const newsContext = topArticles
       .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
       .join('\n\n');
@@ -405,7 +405,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
   try {
     const callStart = Date.now();
     const results = await Promise.all(
-      newsData.slice(0, 10).map(async (article: any, index: any) => {
+      newsData.slice(0, 5).map(async (article: any, index: any) => {
         try {
           const text = `${article.title}. ${article.summary || ''}`.substring(0, 500);
 

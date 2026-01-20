@@ -154,7 +154,10 @@ function generatePreMarketHTML(
         } : undefined,
         // Include articles data
         articles_count: s.articles_count,
-        articles_content: s.articles_content
+        articles_content: s.articles_content,
+        // Include status for skipped/failed
+        status: s.status,
+        error_message: s.error_message
       }));
     } else if (briefingData.signals && briefingData.signals.length > 0) {
       // Fallback to signals array (legacy format)
@@ -162,7 +165,8 @@ function generatePreMarketHTML(
     }
   }
   const totalSignals = signals.length;
-  const highConfidenceSignals = signals.filter((s: any) => (s.confidence || 0) >= 0.6).length;
+  const successfulSignals = signals.filter((s: any) => !s.status || s.status === 'success').length;
+  const highConfidenceSignals = signals.filter((s: any) => (s.confidence || 0) >= 0.6 && (!s.status || s.status === 'success')).length;
 
   // Format source date for display
   const sourceDateFormatted = new Date(sourceDate + 'T12:00:00Z').toLocaleDateString('en-US', {
@@ -451,10 +455,57 @@ function generateSignalCards(signals: any[]): string {
     return '<div style="text-align: center; opacity: 0.7;">No signals available yet</div>';
   }
 
-  return signals.slice(0, 6).map(signal => {
+  // Sort: successful first, then skipped/failed
+  const sortedSignals = [...signals].sort((a, b) => {
+    const aFailed = a.status === 'skipped' || a.status === 'failed';
+    const bFailed = b.status === 'skipped' || b.status === 'failed';
+    if (aFailed && !bFailed) return 1;
+    if (!aFailed && bFailed) return -1;
+    return 0;
+  });
+
+  return sortedSignals.map(signal => {
+    const isSkipped = signal.status === 'skipped';
+    const isFailed = signal.status === 'failed';
+    const hasError = isSkipped || isFailed;
     const confidence = Math.round((signal.confidence || 0) * 100);
     
-    // Extract dual model data
+    // For skipped/failed, show error card
+    if (hasError) {
+      return `
+      <div class="signal-card" style="opacity: 0.7; border-color: ${isFailed ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'};">
+        <h4>${signal.symbol} ${isFailed ? '❌' : '⚠️'}</h4>
+        <div class="signal-detail">
+          <span class="label">Status:</span>
+          <span class="value" style="color: ${isFailed ? '#ef4444' : '#f59e0b'};">${isFailed ? 'FAILED' : 'SKIPPED'}</span>
+        </div>
+        <div class="signal-detail">
+          <span class="label">Reason:</span>
+          <span class="value" style="font-size: 0.85rem;">${signal.error_message || signal.reasoning || 'Unknown error'}</span>
+        </div>
+        ${signal.articles_count !== undefined ? `
+        <div class="signal-detail">
+          <span class="label">Articles:</span>
+          <span class="value">${signal.articles_count || 0}</span>
+        </div>
+        ` : ''}
+        ${signal.dual_model ? `
+        <div class="dual-model-grid" style="margin-top: 10px;">
+          <div class="model-card ${signal.dual_model.gemma?.status === 'failed' ? 'failed' : ''}">
+            <div class="model-name">Gemma</div>
+            <div class="model-status" style="font-size: 0.75rem;">${signal.dual_model.gemma?.status || 'N/A'}</div>
+          </div>
+          <div class="model-card ${signal.dual_model.distilbert?.status === 'failed' ? 'failed' : ''}">
+            <div class="model-name">DistilBERT</div>
+            <div class="model-status" style="font-size: 0.75rem;">${signal.dual_model.distilbert?.status || 'N/A'}</div>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+      `;
+    }
+
+    // Extract dual model data for successful signals
     const gemma = signal.dual_model?.gemma || signal.models?.gpt || {};
     const distilbert = signal.dual_model?.distilbert || signal.models?.distilbert || {};
     const agreement = signal.agreement?.status || signal.dual_model?.agreement || 

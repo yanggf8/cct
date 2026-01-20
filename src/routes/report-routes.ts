@@ -548,39 +548,43 @@ async function handlePreMarketReport(
   const timer = new ProcessingTimer();
   const dal = createSimplifiedEnhancedDAL(env);
   const dataBridge = createPreMarketDataBridge(env);
+  const url = new URL(request.url);
+  const bypassCache = url.searchParams.get('bypass') === 'true' || url.searchParams.get('nocache') === 'true';
 
   try {
     const today = new Date().toISOString().split('T')[0];
     const cacheKey = `pre_market_report_${today}`;
 
-    // 1. Check DO cache first
-    const cachedResult = await dal.read(cacheKey);
-    const cached = cachedResult.success ? cachedResult.data : null;
+    // 1. Check DO cache first (unless bypass)
+    if (!bypassCache) {
+      const cachedResult = await dal.read(cacheKey);
+      const cached = cachedResult.success ? cachedResult.data : null;
 
-    // Validate cached data is actually valid pre-market data (not an old error response)
-    if (cached && cached.type === 'pre_market_briefing' && !cached.error) {
-      logger.info('PreMarketReport: DO cache hit', { requestId });
+      // Validate cached data is actually valid pre-market data (not an old error response)
+      if (cached && cached.type === 'pre_market_briefing' && !cached.error) {
+        logger.info('PreMarketReport: DO cache hit', { requestId });
 
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
-            source: 'do_cache',
-            ttl: 3600,
-            requestId,
-            processingTime: timer.getElapsedMs(),
-          })
-        ),
-        { status: HttpStatus.OK, headers }
-      );
-    }
+        return new Response(
+          JSON.stringify(
+            ApiResponseFactory.cached(cached, 'hit', {
+              source: 'do_cache',
+              ttl: 3600,
+              requestId,
+              processingTime: timer.getElapsedMs(),
+            })
+          ),
+          { status: HttpStatus.OK, headers }
+        );
+      }
 
-    // If cached data is invalid, log and continue to D1 fallback
-    if (cached) {
-      logger.warn('PreMarketReport: Invalid cached data detected, skipping', {
-        requestId,
-        hasError: !!cached.error,
-        type: cached.type
-      });
+      // If cached data is invalid, log and continue to D1 fallback
+      if (cached) {
+        logger.warn('PreMarketReport: Invalid cached data detected, skipping', {
+          requestId,
+          hasError: !!cached.error,
+          type: cached.type
+        });
+      }
     }
 
     // 2. D1 fallback - check for pre-market job result
@@ -607,11 +611,36 @@ async function handlePreMarketReport(
 
       // Transform D1 data to response format
       const tradingSignals = d1Data.trading_signals || {};
+
+      // Calculate overall market sentiment from signals
+      const allSignals = Object.values(tradingSignals).map((signal: any) => ({
+        symbol: signal.symbol,
+        sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+        confidence: signal.confidence_metrics?.overall_confidence ??
+          signal.enhanced_prediction?.confidence ??
+          signal.sentiment_layers?.[0]?.confidence ??
+          signal.confidence ??
+          0
+      }));
+
+      const sentiments = allSignals.map(s => s.sentiment?.toLowerCase() || 'neutral');
+      const bullishCount = sentiments.filter(s => s === 'bullish').length;
+      const bearishCount = sentiments.filter(s => s === 'bearish').length;
+      const overallSentiment = bullishCount > bearishCount ? 'BULLISH' :
+                              bearishCount > bullishCount ? 'BEARISH' : 'NEUTRAL';
+
       const response = {
         type: 'pre_market_briefing',
         timestamp: new Date().toISOString(),
         market_status: 'pre_market',
         date: sourceDate,
+        market_sentiment: {
+          overall_sentiment: overallSentiment,
+          sentiment_label: overallSentiment,
+          bullish_count: bullishCount,
+          bearish_count: bearishCount,
+          total_signals: sentiments.length
+        },
         is_stale: isStale,
         key_insights: [
           'Pre-market analysis complete',
@@ -637,15 +666,9 @@ async function handlePreMarketReport(
               0.5,
             reason: signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal',
           })),
-        all_signals: Object.values(tradingSignals).map((signal: any) => ({
-          symbol: signal.symbol,
-          sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-          confidence: signal.confidence_metrics?.overall_confidence ??
-            signal.enhanced_prediction?.confidence ??
-            signal.sentiment_layers?.[0]?.confidence ??
-            signal.confidence ??
-            0,
-          reason: signal.sentiment_layers?.[0]?.reasoning || '',
+        all_signals: allSignals.map(signal => ({
+          ...signal,
+          reason: tradingSignals[signal.symbol]?.sentiment_layers?.[0]?.reasoning || ''
         })),
         data_source: 'd1_snapshot',
         generated_at: d1Data.generated_at || d1Data.timestamp || sourceDate,
