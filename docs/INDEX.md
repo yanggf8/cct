@@ -4,7 +4,7 @@
 
 **System Status**: ✅ **PRODUCTION READY** - Enterprise Security Active  
 **Live System**: https://tft-trading-system.yanggf.workers.dev  
-**Last Updated**: 2026-01-19
+**Last Updated**: 2026-01-21
 
 ---
 
@@ -76,6 +76,8 @@ Active reference documentation.
 |----------|-------------|
 | [CHANGELOG.md](reference/CHANGELOG.md) | Project changelog |
 | [PROJECT_STATUS_OVERVIEW.md](reference/PROJECT_STATUS_OVERVIEW.md) | Current project status |
+| [DUAL_MODEL_PIPELINE_PLAN.md](reference/DUAL_MODEL_PIPELINE_PLAN.md) | Dual-model pipeline objectives and rollout steps |
+| [DUAL_MODEL_PIPELINE_IMPLEMENTATION.md](reference/DUAL_MODEL_PIPELINE_IMPLEMENTATION.md) | Implemented dual-model storage, reporting, and diagnostics |
 | [KV_BINDING_FIX.md](reference/KV_BINDING_FIX.md) | KV binding fix reference |
 | [NAVIGATION_REDESIGN.md](reference/NAVIGATION_REDESIGN.md) | Navigation redesign notes |
 | [PRODUCTION_GUARDS_HANDBOOK.md](reference/PRODUCTION_GUARDS_HANDBOOK.md) | Production guards reference |
