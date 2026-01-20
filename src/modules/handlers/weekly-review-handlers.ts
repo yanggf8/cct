@@ -177,13 +177,10 @@ function generateWeeklyReviewHTML(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weekly Trading Review - ${weekLabel}</title>
+    <link rel="stylesheet" href="/css/reports.css">
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script src="js/cct-api.js"></script>
-    <style>
-        /* Core styles handled by reports.css */
-    </style>
-</head>
 </head>
 <body>
     ${getSharedNavHTML('weekly')}

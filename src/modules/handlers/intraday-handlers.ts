@@ -542,11 +542,10 @@ async function generateIntradayCheckHTML(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎯 Intraday Performance Check - ${date}</title>
+    <link rel="stylesheet" href="/css/reports.css">
     ${getNavScripts()}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Core styles handled by reports.css */
-
         /* Intraday Specific Components */
         .model-health {
             text-align: center;

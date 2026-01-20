@@ -33,7 +33,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         /* Header */
         .page-header {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-bottom: 2px solid #4facfe;
+            border-bottom: 2px solid #f0b90b;
             padding: 20px;
             text-align: center;
             position: relative;
@@ -42,7 +42,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         .page-title {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #4facfe;
+            color: #f0b90b;
             margin-bottom: 10px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
@@ -57,7 +57,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
             position: absolute;
             left: 20px;
             top: 20px;
-            color: #4facfe;
+            color: #f0b90b;
             text-decoration: none;
             font-size: 1rem;
             display: flex;
@@ -67,14 +67,14 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         .back-nav:hover {
-            color: #00f2fe;
+            color: #10b981;
             text-decoration: none;
         }
 
         /* Controls */
         .controls {
             background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(15, 52, 96, 0.8) 100%);
-            border: 1px solid rgba(79, 172, 254, 0.3);
+            border: 1px solid rgba(240, 185, 11, 0.3);
             border-radius: 15px;
             padding: 20px;
             margin: 20px;
@@ -93,7 +93,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         }
 
         .btn {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #f0b90b 0%, #10b981 100%);
             border: none;
             color: #000;
             padding: 10px 20px;
@@ -109,20 +109,20 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+            box-shadow: 0 5px 15px rgba(240, 185, 11, 0.4);
             text-decoration: none;
             color: #000;
         }
 
         .btn-secondary {
-            background: rgba(79, 172, 254, 0.2);
-            border: 1px solid #4facfe;
-            color: #4facfe;
+            background: rgba(240, 185, 11, 0.2);
+            border: 1px solid #f0b90b;
+            color: #f0b90b;
         }
 
         .btn-secondary:hover {
-            background: rgba(79, 172, 254, 0.3);
-            color: #00f2fe;
+            background: rgba(240, 185, 11, 0.3);
+            color: #10b981;
         }
 
         /* Status indicators */
@@ -165,7 +165,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
 
         .summary-card {
             background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(15, 52, 96, 0.8) 100%);
-            border: 1px solid rgba(79, 172, 254, 0.3);
+            border: 1px solid rgba(240, 185, 11, 0.3);
             border-radius: 12px;
             padding: 20px;
             text-align: center;
@@ -175,13 +175,13 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
 
         .summary-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(79, 172, 254, 0.2);
+            box-shadow: 0 10px 30px rgba(240, 185, 11, 0.2);
         }
 
         .summary-value {
             font-size: 2rem;
             font-weight: bold;
-            color: #4facfe;
+            color: #f0b90b;
             margin-bottom: 5px;
         }
 
@@ -200,7 +200,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
 
         .sector-card {
             background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(15, 52, 96, 0.8) 100%);
-            border: 1px solid rgba(79, 172, 254, 0.3);
+            border: 1px solid rgba(240, 185, 11, 0.3);
             border-radius: 15px;
             padding: 25px;
             backdrop-filter: blur(10px);
@@ -211,7 +211,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
 
         .sector-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 15px 35px rgba(79, 172, 254, 0.2);
+            box-shadow: 0 15px 35px rgba(240, 185, 11, 0.2);
         }
 
         .sector-card.bullish {
@@ -240,7 +240,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         .sector-symbol {
             font-size: 1.5rem;
             font-weight: bold;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .sector-name {
@@ -285,7 +285,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         .metric-value {
             font-size: 1.2rem;
             font-weight: bold;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .metric-label {
@@ -309,7 +309,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
             flex: 1;
             text-align: center;
             padding: 8px;
-            background: rgba(79, 172, 254, 0.1);
+            background: rgba(240, 185, 11, 0.1);
             border-radius: 8px;
         }
 
@@ -327,7 +327,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
         /* Chart Section */
         .chart-section {
             background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(15, 52, 96, 0.8) 100%);
-            border: 1px solid rgba(79, 172, 254, 0.3);
+            border: 1px solid rgba(240, 185, 11, 0.3);
             border-radius: 15px;
             padding: 25px;
             backdrop-filter: blur(10px);
@@ -437,7 +437,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
 
         <!-- Rotation Chart -->
         <div class="chart-section">
-            <h2 style="color: #4facfe; margin-bottom: 20px; font-size: 1.3rem;">Sector Performance Chart</h2>
+            <h2 style="color: #f0b90b; margin-bottom: 20px; font-size: 1.3rem;">Sector Performance Chart</h2>
             <div class="chart-container">
                 <canvas id="sectorChart"></canvas>
             </div>
@@ -489,7 +489,7 @@ export async function handleSectorRotationDashboardPage(request: Request, env: E
                             backgroundColor: 'rgba(0, 0, 0, 0.8)',
                             titleColor: '#ffffff',
                             bodyColor: '#ffffff',
-                            borderColor: '#4facfe',
+                            borderColor: '#f0b90b',
                             borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
