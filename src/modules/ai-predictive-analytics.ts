@@ -420,10 +420,20 @@ Based on this market data, classify the overall market sentiment as positive, ne
       });
 
       if (response && response.length > 0) {
-        const result = response[0];
-        const sentimentScore = result.score;
-        const sentimentLabel = sentimentScore > 0.1 ? 'positive' :
-                            sentimentScore < -0.1 ? 'negative' : 'neutral';
+        // DistilBERT returns an array like [{ label: 'NEGATIVE', score: 0.15 }, { label: 'POSITIVE', score: 0.85 }]
+        const bestResult = (response as Array<{ label?: string; score?: number }>).reduce(
+          (best, curr) => ((curr?.score || 0) > (best?.score || 0) ? curr : best),
+          { label: 'neutral', score: 0 }
+        );
+
+        const sentimentLabel = bestResult.label?.toLowerCase() === 'positive' ? 'positive' :
+                            bestResult.label?.toLowerCase() === 'negative' ? 'negative' : 'neutral';
+
+        const sentimentScore = sentimentLabel === 'positive'
+          ? (bestResult.score || 0)
+          : sentimentLabel === 'negative'
+            ? -(bestResult.score || 0)
+            : 0;
 
         const keySignals = this.extractKeySignals(context, sentimentLabel);
 
@@ -436,7 +446,7 @@ Based on this market data, classify the overall market sentiment as positive, ne
         return {
           sentimentScore,
           sentimentLabel,
-          confidence: Math.abs(sentimentScore) * 100,
+          confidence: (bestResult.score || 0.5) * 100,
           keySignals
         };
       } else {
