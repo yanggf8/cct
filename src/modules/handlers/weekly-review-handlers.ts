@@ -17,50 +17,6 @@ import { getTodayInZone, getTimezoneFromDO, getWeekSunday } from './date-utils.j
 const logger = createLogger('weekly-review-handlers');
 
 /**
- * Get the Sunday for a given week based on a date string
- * Uses timezone from ?tz, DO setting, or defaults to ET
- */
-async function getWeekSunday(weekParam: string | null, url: URL, cacheDO?: DurableObjectNamespace): Promise<Date> {
-  // Resolve timezone: ?tz > DO setting > Asia/Taipei default
-  const tzParam = url.searchParams.get('tz');
-  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'Asia/Taipei';
-  const todayStr = getTodayInZone(tz);
-  const today = new Date(todayStr + 'T12:00:00Z');
-
-  // Handle "last" parameter for previous week
-  if (weekParam === 'last') {
-    const day = today.getDay();
-    const thisSunday = new Date(today);
-    thisSunday.setDate(today.getDate() - day);
-    const lastSunday = new Date(thisSunday);
-    lastSunday.setDate(thisSunday.getDate() - 7);
-    lastSunday.setHours(0, 0, 0, 0);
-    return lastSunday;
-  }
-
-  if (weekParam && weekParam !== 'last') {
-    const weekDate = new Date(weekParam);
-    if (!isNaN(weekDate.getTime())) {
-      // Find the Sunday of that week
-      const day = weekDate.getDay();
-      const diff = weekDate.getDate() - day;
-      const sunday = new Date(weekDate);
-      sunday.setDate(diff);
-      sunday.setHours(0, 0, 0, 0);
-      return sunday;
-    }
-  }
-
-  // Default: find most recent Sunday
-  const day = today.getDay();
-  const diff = today.getDate() - day;
-  const sunday = new Date(today);
-  sunday.setDate(diff);
-  sunday.setHours(0, 0, 0, 0);
-  return sunday;
-}
-
-/**
  * Generate Weekly Review Page
  */
 export const handleWeeklyReview = createHandler('weekly-review', async (request: Request, env: CloudflareEnvironment, ctx: any) => {

@@ -23,7 +23,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
             color: #ffffff; min-height: 100vh; padding: 20px; padding-top: 80px;
         }
         .container { max-width: 1400px; margin: 0 auto; }
@@ -34,7 +34,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
         }
         .header h1 {
             font-size: 2.8rem; margin-bottom: 10px;
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px; }
@@ -45,7 +45,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
         }
         .stat-card:hover { transform: translateY(-5px); }
         .stat-card h3 { font-size: 1.1rem; margin-bottom: 10px; opacity: 0.8; text-transform: uppercase; }
-        .stat-card .value { font-size: 2.5rem; font-weight: bold; color: #00f2fe; margin: 10px 0; }
+        .stat-card .value { font-size: 2.5rem; font-weight: bold; color: #fcd535; margin: 10px 0; }
         .chart-container {
             background: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 30px;
             backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); margin: 20px 0;
@@ -57,19 +57,19 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             border-radius: 15px; color: #ff6b6b; 
         }
         .refresh-button {
-            background: linear-gradient(45deg, #4facfe, #00f2fe); color: white; border: none;
+            background: linear-gradient(135deg, #f0b90b, #e8a00e); color: white; border: none;
             padding: 12px 24px; border-radius: 25px; cursor: pointer; font-size: 1rem;
             margin: 20px auto; display: block; transition: all 0.3s ease;
         }
-        .refresh-button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(79, 172, 254, 0.3); }
+        .refresh-button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(240, 185, 11, 0.3); }
         .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         .table th, .table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-        .table th { background: rgba(255, 255, 255, 0.1); color: #4facfe; font-weight: 600; }
+        .table th { background: rgba(255, 255, 255, 0.1); color: #f0b90b; font-weight: 600; }
         .table tr:hover { background: rgba(255, 255, 255, 0.05); }
         .accuracy-indicator { display: inline-flex; align-items: center; gap: 5px; }
         .symbol-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
         .symbol-card { background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.1); }
-        .symbol-card h4 { color: #4facfe; margin-bottom: 15px; font-size: 1.2rem; }
+        .symbol-card h4 { color: #f0b90b; margin-bottom: 15px; font-size: 1.2rem; }
         .prediction-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
         .prediction-row:last-child { border-bottom: none; }
         
@@ -91,7 +91,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             <!-- Date Selection Controls -->
             <div style="margin: 20px 0; display: flex; gap: 15px; align-items: center; justify-content: center; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <label for="weekSelect" style="color: #4facfe; font-weight: 600;">📅 Select Week:</label>
+                    <label for="weekSelect" style="color: #f0b90b; font-weight: 600;">📅 Select Week:</label>
                     <select id="weekSelect" onchange="loadData()" style="
                         padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3);
                         background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
@@ -102,7 +102,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                     </select>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <label for="dateRange" style="color: #4facfe; font-weight: 600;">📊 Date Range:</label>
+                    <label for="dateRange" style="color: #f0b90b; font-weight: 600;">📊 Date Range:</label>
                     <select id="dateRange" onchange="loadData()" style="
                         padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3);
                         background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
@@ -153,14 +153,14 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📈 Daily Dual AI Accuracy Trends</h2>
+                <h2 style="text-align: center; color: #f0b90b; margin-bottom: 20px;">📈 Daily Dual AI Accuracy Trends</h2>
                 <div class="chart-wrapper">
                     <canvas id="accuracyChart"></canvas>
                 </div>
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">📋 Dual AI Analysis History</h2>
+                <h2 style="text-align: center; color: #f0b90b; margin-bottom: 20px;">📋 Dual AI Analysis History</h2>
                 <div style="overflow-x: auto;">
                     <table class="table">
                         <thead>
@@ -183,7 +183,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
             </div>
 
             <div class="chart-container">
-                <h2 style="text-align: center; color: #4facfe; margin-bottom: 20px;">🤝 Dual AI Agreement Analysis</h2>
+                <h2 style="text-align: center; color: #f0b90b; margin-bottom: 20px;">🤝 Dual AI Agreement Analysis</h2>
                 <div id="symbol-breakdown" class="symbol-grid">
                     <!-- Dynamic content -->
                 </div>
@@ -267,14 +267,14 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                     datasets: [{
                         label: 'Price Accuracy (%)',
                         data: dailyData.map(d => d.priceAccuracy),
-                        borderColor: '#4facfe',
-                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                        borderColor: '#f0b90b',
+                        backgroundColor: 'rgba(240, 185, 11, 0.1)',
                         tension: 0.4,
                         fill: true
                     }, {
                         label: 'Direction Accuracy (%)',
                         data: dailyData.map(d => d.directionAccuracy),
-                        borderColor: '#00f2fe',
+                        borderColor: '#10b981',
                         backgroundColor: 'rgba(0, 242, 254, 0.1)',
                         tension: 0.4,
                         fill: true
@@ -356,14 +356,14 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                 // Format layer consistency with color coding
                 const layerConsistency = data.layerConsistency !== undefined ? data.layerConsistency * 100 : 0;
                 let consistencyColor = '#ff6b6b'; // Default red
-                if (layerConsistency >= 70) consistencyColor = '#00f2fe'; // High consistency - cyan
+                if (layerConsistency >= 70) consistencyColor = '#10b981'; // High consistency - emerald
                 else if (layerConsistency >= 50) consistencyColor = '#ffd93d'; // Medium consistency - yellow
 
                 card.innerHTML = \`
                     <h4>\${symbol}</h4>
                     <div class="prediction-row">
                         <span>📊 Price Accuracy:</span>
-                        <span style="color: #4facfe; font-weight: 600;">\${data.priceAccuracy ? data.priceAccuracy.toFixed(2) + '%' : '-'}</span>
+                        <span style="color: #f0b90b; font-weight: 600;">\${data.priceAccuracy ? data.priceAccuracy.toFixed(2) + '%' : '-'}</span>
                     </div>
                     <div class="prediction-row">
                         <span>🎯 Direction Accuracy:</span>
@@ -383,7 +383,7 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                     </div>
                     <div class="prediction-row">
                         <span>🚀 Primary Model:</span>
-                        <span style="color: #4facfe; font-weight: 600;">\${data.primaryModel || 'GPT-OSS-120B'}</span>
+                        <span style="color: #f0b90b; font-weight: 600;">\${data.primaryModel || 'GPT-OSS-120B'}</span>
                     </div>
                 \`;
 

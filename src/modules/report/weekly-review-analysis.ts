@@ -7,6 +7,7 @@
 
 import { createLogger } from '../logging.js';
 import { createCache } from '../cache-abstraction.js';
+import { getLastTradingDays } from '../handlers/date-utils.js';
 import type { CloudflareEnvironment as BaseEnv } from '../../types.js';
 
 const logger = createLogger('weekly-review-analysis');
@@ -602,30 +603,6 @@ function generateNextWeekOutlook(trends: WeeklyTrends, patternAnalysis: PatternA
 // Helper Functions
 // ============================================================================
 
-/**
- * Get last trading days (excluding weekends)
- */
-function getLastTradingDays(currentTime: number | string | Date, count: number): Date[] {
-  const dates: Date[] = [];
-  const current = new Date(currentTime);
-
-  // Go back to find trading days (weekdays)
-  let daysBack = 0;
-  while (dates.length < count && daysBack < count * 2) {
-    const checkDate = new Date(current);
-    checkDate.setDate(current.getDate() - daysBack);
-
-    // Check if it's a weekday (Monday = 1, Friday = 5)
-    const dayOfWeek = checkDate.getDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      dates.push(checkDate);
-    }
-
-    daysBack++;
-  }
-
-  return dates.reverse(); // Return in chronological order
-}
 
 /**
  * Get day name from index

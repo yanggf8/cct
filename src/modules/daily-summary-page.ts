@@ -32,7 +32,7 @@ export async function handleDailySummaryPage(
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
@@ -56,7 +56,7 @@ export async function handleDailySummaryPage(
         .header h1 {
             font-size: 2.8rem;
             margin-bottom: 10px;
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -86,7 +86,7 @@ export async function handleDailySummaryPage(
         }
 
         .nav-button {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             color: white;
             border: none;
             padding: 8px 16px;
@@ -98,7 +98,7 @@ export async function handleDailySummaryPage(
 
         .nav-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(79, 172, 254, 0.3);
+            box-shadow: 0 8px 20px rgba(240, 185, 11, 0.3);
         }
 
         .nav-button:disabled {
@@ -140,7 +140,7 @@ export async function handleDailySummaryPage(
         .stat-card .value {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #00f2fe;
+            color: #fcd535;
             margin-bottom: 5px;
         }
 
@@ -168,7 +168,7 @@ export async function handleDailySummaryPage(
             margin-bottom: 20px;
             font-size: 1.5rem;
             text-align: center;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .chart-wrapper {
@@ -189,7 +189,7 @@ export async function handleDailySummaryPage(
         .symbol-analysis h2 {
             margin-bottom: 20px;
             font-size: 1.5rem;
-            color: #4facfe;
+            color: #f0b90b;
             text-align: center;
         }
 
@@ -213,7 +213,7 @@ export async function handleDailySummaryPage(
         }
 
         .symbol-card h4 {
-            color: #4facfe;
+            color: #f0b90b;
             margin-bottom: 15px;
             font-size: 1.3rem;
             display: flex;
@@ -226,11 +226,11 @@ export async function handleDailySummaryPage(
             padding: 12px;
             background: rgba(255, 255, 255, 0.03);
             border-radius: 8px;
-            border-left: 3px solid #4facfe;
+            border-left: 3px solid #f0b90b;
         }
 
         .prediction-section h5 {
-            color: #00f2fe;
+            color: #fcd535;
             margin-bottom: 8px;
             font-size: 0.9rem;
             text-transform: uppercase;
@@ -265,7 +265,7 @@ export async function handleDailySummaryPage(
 
         .confidence-fill {
             height: 100%;
-            background: linear-gradient(90deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%);
+            background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
             border-radius: 3px;
             transition: width 0.3s ease;
         }
@@ -287,7 +287,7 @@ export async function handleDailySummaryPage(
 
         .conflict-indicator.aligned {
             background: rgba(72, 219, 251, 0.2);
-            color: #48dbfb;
+            color: #10b981;
         }
 
         .loading {
@@ -307,7 +307,7 @@ export async function handleDailySummaryPage(
         }
 
         .refresh-button {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             color: white;
             border: none;
             padding: 12px 24px;
@@ -321,7 +321,7 @@ export async function handleDailySummaryPage(
 
         .refresh-button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(79, 172, 254, 0.3);
+            box-shadow: 0 10px 25px rgba(240, 185, 11, 0.3);
         }
 
         .weekly-link {
@@ -334,7 +334,7 @@ export async function handleDailySummaryPage(
         }
 
         .weekly-link a {
-            color: #4facfe;
+            color: #f0b90b;
             text-decoration: none;
             font-weight: 600;
             font-size: 1.1rem;
@@ -342,7 +342,7 @@ export async function handleDailySummaryPage(
         }
 
         .weekly-link a:hover {
-            color: #00f2fe;
+            color: #fcd535;
         }
 
         /* KPI Dashboard Styles */
@@ -357,7 +357,7 @@ export async function handleDailySummaryPage(
         .kpi-dashboard h2 {
             text-align: center;
             margin-bottom: 30px;
-            color: #4facfe;
+            color: #f0b90b;
             font-size: 1.8rem;
         }
 
@@ -381,12 +381,12 @@ export async function handleDailySummaryPage(
 
         .kpi-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 30px rgba(79, 172, 254, 0.2);
+            box-shadow: 0 15px 30px rgba(240, 185, 11, 0.2);
             background: rgba(255, 255, 255, 0.12);
         }
 
         .kpi-card h4 {
-            color: #4facfe;
+            color: #f0b90b;
             margin-bottom: 15px;
             font-size: 1.1rem;
             display: flex;
@@ -420,7 +420,7 @@ export async function handleDailySummaryPage(
 
         .kpi-status.excellent {
             background: rgba(72, 219, 251, 0.2);
-            color: #48dbfb;
+            color: #10b981;
         }
 
         .kpi-status.good {
@@ -451,11 +451,11 @@ export async function handleDailySummaryPage(
             height: 100%;
             border-radius: 4px;
             transition: all 0.8s ease;
-            background: linear-gradient(90deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%);
+            background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
         }
 
         .kpi-fill.excellent {
-            background: linear-gradient(90deg, #48dbfb, #00f2fe);
+            background: linear-gradient(90deg, #10b981, #fcd535);
         }
 
         .kpi-fill.good {
@@ -586,7 +586,7 @@ export async function handleDailySummaryPage(
                         <div class="kpi-target">Target: $0.00</div>
                         <div class="kpi-status" id="kpi-cost-status">Excellent</div>
                         <div class="kpi-bar">
-                            <div class="kpi-fill" id="kpi-cost-fill" style="width: 100%; background: #48dbfb;"></div>
+                            <div class="kpi-fill" id="kpi-cost-fill" style="width: 100%; background: #10b981;"></div>
                         </div>
                     </div>
 
@@ -763,14 +763,14 @@ export async function handleDailySummaryPage(
                     datasets: [{
                         label: 'Morning Prediction (%)',
                         data: morningConf,
-                        backgroundColor: 'rgba(79, 172, 254, 0.8)',
-                        borderColor: '#4facfe',
+                        backgroundColor: 'rgba(240, 185, 11, 0.8)',
+                        borderColor: '#f0b90b',
                         borderWidth: 1
                     }, {
                         label: 'Midday AI (%)',
                         data: middayAI,
                         backgroundColor: 'rgba(0, 242, 254, 0.8)',
-                        borderColor: '#00f2fe',
+                        borderColor: '#10b981',
                         borderWidth: 1
                     }, {
                         label: 'Midday Technical (%)',

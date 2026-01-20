@@ -15,7 +15,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
@@ -39,7 +39,7 @@
         .header h1 {
             font-size: 2.8rem;
             margin-bottom: 10px;
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -83,7 +83,7 @@
         .stat-card .value {
             font-size: 2.5rem;
             font-weight: bold;
-            color: #00f2fe;
+            color: #fcd535;
             margin-bottom: 5px;
         }
 
@@ -111,7 +111,7 @@
             margin-bottom: 20px;
             font-size: 1.5rem;
             text-align: center;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .chart-wrapper {
@@ -132,7 +132,7 @@
         .data-table h2 {
             margin-bottom: 20px;
             font-size: 1.5rem;
-            color: #4facfe;
+            color: #f0b90b;
             text-align: center;
         }
 
@@ -154,7 +154,7 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .table tr:hover {
@@ -188,7 +188,7 @@
         }
 
         .refresh-button {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             color: white;
             border: none;
             padding: 12px 24px;
@@ -220,7 +220,7 @@
         }
 
         .symbol-card h4 {
-            color: #4facfe;
+            color: #f0b90b;
             margin-bottom: 15px;
             font-size: 1.2rem;
         }
@@ -426,14 +426,14 @@
                     datasets: [{
                         label: 'Price Accuracy (%)',
                         data: dailyData.map(d => d.priceAccuracy),
-                        borderColor: '#4facfe',
+                        borderColor: '#f0b90b',
                         backgroundColor: 'rgba(79, 172, 254, 0.1)',
                         tension: 0.4,
                         fill: true
                     }, {
                         label: 'Direction Accuracy (%)',
                         data: dailyData.map(d => d.directionAccuracy),
-                        borderColor: '#00f2fe',
+                        borderColor: '#10b981',
                         backgroundColor: 'rgba(0, 242, 254, 0.1)',
                         tension: 0.4,
                         fill: true
@@ -481,7 +481,7 @@
 
             const models = Object.keys(modelData);
             const accuracies = models.map(model => modelData[model].accuracy);
-            const colors = ['#4facfe', '#00f2fe', '#ff6b6b', '#feca57', '#48dbfb'];
+            const colors = ['#f0b90b', '#10b981', '#ef4444', '#f59e0b', '#fcd535'];
 
             modelChart = new Chart(ctx, {
                 type: 'bar',
@@ -534,7 +534,7 @@
 
             symbols.forEach((symbol, index) => {
                 const symbolPredictions = predictions.filter(p => p.symbol === symbol);
-                const colors = ['#4facfe', '#00f2fe', '#ff6b6b', '#feca57', '#48dbfb'];
+                const colors = ['#f0b90b', '#10b981', '#ef4444', '#f59e0b', '#fcd535'];
                 
                 datasets.push({
                     label: `${symbol} Predicted`,
