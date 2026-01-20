@@ -613,15 +613,52 @@ async function handlePreMarketReport(
       const tradingSignals = d1Data.trading_signals || {};
 
       // Calculate overall market sentiment from signals
-      const allSignals = Object.values(tradingSignals).map((signal: any) => ({
-        symbol: signal.symbol,
-        sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-        confidence: signal.confidence_metrics?.overall_confidence ??
+      const allSignals = Object.values(tradingSignals).map((signal: any) => {
+        const confidence = signal.confidence_metrics?.overall_confidence ??
           signal.enhanced_prediction?.confidence ??
           signal.sentiment_layers?.[0]?.confidence ??
           signal.confidence ??
-          0
-      }));
+          null;
+
+        // Extract dual model confidence values
+        const gemmaConfidence = signal.gemma_confidence ?? null;
+        const distilbertConfidence = signal.distilbert_confidence ?? null;
+
+        // Determine status based on explicit error fields first, then confidence
+        // Per dual-ai-analysis contract: failures have error field AND confidence=0
+        const hasError = !!(
+          signal.error ||
+          signal.error_message ||
+          signal.status === 'failed' ||
+          signal.status === 'skipped' ||
+          signal.gemma_error ||
+          signal.distilbert_error
+        );
+
+        // Status: failed if explicit error OR missing confidence
+        const status = hasError || confidence === null ? 'failed' : 'success';
+
+        // Failure reason: prioritize explicit error fields over reasoning
+        const failureReason = status === 'failed'
+          ? (signal.error ||
+            signal.error_message ||
+            signal.gemma_error ||
+            signal.distilbert_error ||
+            signal.status ||
+            'Analysis failed')
+          : undefined;
+
+        return {
+          symbol: signal.symbol,
+          sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+          confidence,
+          gemma_confidence: gemmaConfidence,
+          distilbert_confidence: distilbertConfidence,
+          status,
+          failure_reason: failureReason,
+          reason: status === 'success' ? (signal.sentiment_layers?.[0]?.reasoning || '') : failureReason
+        };
+      });
 
       const sentiments = allSignals.map(s => s.sentiment?.toLowerCase() || 'neutral');
       const bullishCount = sentiments.filter(s => s === 'bullish').length;
@@ -648,28 +685,69 @@ async function handlePreMarketReport(
           isStale ? 'Note: Using previous day data' : 'Fresh data available',
         ],
         high_confidence_signals: Object.values(tradingSignals)
-          .filter((signal: any) => (
-            signal.confidence_metrics?.overall_confidence ??
-            signal.enhanced_prediction?.confidence ??
-            signal.sentiment_layers?.[0]?.confidence ??
-            signal.confidence ??
-            0
-          ) > 0.7)
-          .slice(0, 5)
-          .map((signal: any) => ({
-            symbol: signal.symbol,
-            sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
-            confidence: signal.confidence_metrics?.overall_confidence ??
+          .filter((signal: any) => {
+            const conf = signal.confidence_metrics?.overall_confidence ??
               signal.enhanced_prediction?.confidence ??
               signal.sentiment_layers?.[0]?.confidence ??
               signal.confidence ??
-              0.5,
-            reason: signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal',
-          })),
-        all_signals: allSignals.map(signal => ({
-          ...signal,
-          reason: tradingSignals[signal.symbol]?.sentiment_layers?.[0]?.reasoning || ''
-        })),
+              null;
+            const hasError = !!(
+              signal.error ||
+              signal.error_message ||
+              signal.status === 'failed' ||
+              signal.status === 'skipped' ||
+              signal.gemma_error ||
+              signal.distilbert_error
+            );
+            return !hasError && conf !== null && conf > 0.7;
+          })
+          .slice(0, 5)
+          .map((signal: any) => {
+            const confidence = signal.confidence_metrics?.overall_confidence ??
+              signal.enhanced_prediction?.confidence ??
+              signal.sentiment_layers?.[0]?.confidence ??
+              signal.confidence ??
+              null;
+
+            // Extract dual model confidence (same as allSignals)
+            const gemmaConfidence = signal.gemma_confidence ?? null;
+            const distilbertConfidence = signal.distilbert_confidence ?? null;
+
+            // Derive status using same logic as allSignals for consistency
+            const hasError = !!(
+              signal.error ||
+              signal.error_message ||
+              signal.status === 'failed' ||
+              signal.status === 'skipped' ||
+              signal.gemma_error ||
+              signal.distilbert_error
+            );
+            const status = hasError || confidence === null ? 'failed' : 'success';
+
+            // Failure reason: same logic as allSignals
+            const failureReason = status === 'failed'
+              ? (signal.error ||
+                signal.error_message ||
+                signal.gemma_error ||
+                signal.distilbert_error ||
+                signal.status ||
+                'Analysis failed')
+              : undefined;
+
+            return {
+              symbol: signal.symbol,
+              sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+              confidence,
+              gemma_confidence: gemmaConfidence,
+              distilbert_confidence: distilbertConfidence,
+              status,
+              failure_reason: failureReason,
+              reason: status === 'success'
+                ? (signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal')
+                : failureReason,
+            };
+          }),
+        all_signals: allSignals,  // Already contains reason and status
         data_source: 'd1_snapshot',
         generated_at: d1Data.generated_at || d1Data.timestamp || sourceDate,
         symbols_analyzed: Object.keys(tradingSignals).length,

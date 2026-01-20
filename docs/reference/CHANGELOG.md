@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-01-23 - Pre-Market Failure Signaling ✅
+
+- Pre-market report signals now return null confidence on missing data instead of a default value.
+- Signals include explicit `status` and `failure_reason` fields driven by error indicators, with dual-model confidence included.
+- High-confidence signals use the same status/error logic and omit errored entries from the list.
+
+---
+
 ## 2026-01-20 - Simplified Target Date Logic ✅
 
 ### 🎯 Target Date Simplification
