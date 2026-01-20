@@ -113,6 +113,9 @@ export class IntradayDataBridge {
         accuracy: overallAccuracy
       });
 
+      // 5. Write intraday results to symbol_predictions for queryability
+      await this.writeIntradayToD1(today, performance, currentAnalysis);
+
       return analysisData;
 
     } catch (error: unknown) {
@@ -237,5 +240,60 @@ export class IntradayDataBridge {
       diverged_count: 0,
       total_symbols: 0
     };
+  }
+
+  /**
+   * Write intraday dual model results to symbol_predictions for queryability
+   */
+  private async writeIntradayToD1(
+    date: string,
+    performance: IntradayPerformance[],
+    currentAnalysis: any
+  ): Promise<void> {
+    if (!this.env.PREDICT_JOBS_DB) return;
+
+    try {
+      const { extractDualModelData } = await import('./data.js');
+      let actualUpdates = 0;
+
+      for (const perf of performance) {
+        const current = currentAnalysis.results?.find((r: any) => r.symbol === perf.symbol);
+        if (!current) continue;
+
+        const dualModelData = extractDualModelData(current);
+
+        // Update existing prediction with intraday data
+        await this.env.PREDICT_JOBS_DB.prepare(`
+          UPDATE symbol_predictions SET
+            gemma_status = COALESCE(?, gemma_status),
+            gemma_error = COALESCE(?, gemma_error),
+            gemma_confidence = COALESCE(?, gemma_confidence),
+            gemma_response_time_ms = COALESCE(?, gemma_response_time_ms),
+            distilbert_status = COALESCE(?, distilbert_status),
+            distilbert_error = COALESCE(?, distilbert_error),
+            distilbert_confidence = COALESCE(?, distilbert_confidence),
+            distilbert_response_time_ms = COALESCE(?, distilbert_response_time_ms),
+            model_selection_reason = COALESCE(?, model_selection_reason)
+          WHERE symbol = ? AND prediction_date = ?
+        `).bind(
+          dualModelData.gemma_status || null,
+          dualModelData.gemma_error || null,
+          dualModelData.gemma_confidence ?? null,
+          dualModelData.gemma_response_time_ms ?? null,
+          dualModelData.distilbert_status || null,
+          dualModelData.distilbert_error || null,
+          dualModelData.distilbert_confidence ?? null,
+          dualModelData.distilbert_response_time_ms ?? null,
+          dualModelData.model_selection_reason || null,
+          perf.symbol,
+          date
+        ).run();
+        actualUpdates++;
+      }
+
+      logger.info('IntradayDataBridge: Wrote dual model data to D1', { count: actualUpdates, attempted: performance.length });
+    } catch (error: unknown) {
+      logger.warn('IntradayDataBridge: Failed to write intraday dual model data', { error });
+    }
   }
 }

@@ -35,6 +35,10 @@
 - D1 fallback: Uses hour+minute schedule gating (16:05 ET) and defaults to pending for today’s EOD requests instead of returning stale prior-day data.
 - UX: End-of-day handler always shows the requested target date, flags when data is from a different day, and shows pending correctly for users ahead of ET.
 
+### 📈 Intraday Dual-Model Persistence
+- Intraday D1 updates now persist all dual-model fields (status, error, confidence, response_time_ms, selection reason) to `symbol_predictions` for current analysis.
+- Dual-AI analysis tracks per-model `response_time_ms`; intraday logging now reports actual updated rows vs attempted for clearer observability.
+
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
 ### 🔄 Cache Architecture Migration

@@ -26,6 +26,7 @@ export interface ModelResult {
   direction: Direction;
   confidence: number;
   reasoning: string;
+  response_time_ms?: number;
   error?: string;
   raw_response?: string;
   articles_analyzed?: number;
@@ -290,6 +291,7 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
   }
 
   try {
+    const callStart = Date.now();
     const topArticles = newsData.slice(0, 8);
     const newsContext = topArticles
       .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
@@ -327,6 +329,7 @@ Respond ONLY with valid JSON, no other text.`;
     // Extract response text - handle both formats
     const responseText = extractAIResponseText(response);
     const analysisData = parseNaturalLanguageResponse(responseText);
+    const responseTimeMs = Date.now() - callStart;
 
     return {
       model: 'gemma-sea-lion-27b',
@@ -335,7 +338,8 @@ Respond ONLY with valid JSON, no other text.`;
       reasoning: analysisData.reasoning || 'No detailed reasoning provided',
       raw_response: responseText,
       articles_analyzed: topArticles.length,
-      analysis_type: 'contextual_analysis'
+      analysis_type: 'contextual_analysis',
+      response_time_ms: responseTimeMs
     };
 
   } catch (error: any) {
@@ -387,6 +391,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
   }
 
   try {
+    const callStart = Date.now();
     const results = await Promise.all(
       newsData.slice(0, 10).map(async (article: any, index: any) => {
         try {
@@ -443,6 +448,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
     else if (bearishCount > bullishCount * 1.5) direction = 'bearish';
 
     const avgConfidence = validResults.reduce((sum: any, r: any) => sum + r.confidence, 0) / validResults.length;
+    const responseTimeMs = Date.now() - callStart;
 
     return {
       model: 'distilbert-sst-2-int8',
@@ -456,7 +462,8 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
         neutral: validResults.length - bullishCount - bearishCount
       },
       individual_results: validResults,
-      analysis_type: 'sentiment_classification'
+      analysis_type: 'sentiment_classification',
+      response_time_ms: responseTimeMs
     };
 
   } catch (error: any) {
