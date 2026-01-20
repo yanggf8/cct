@@ -35,6 +35,7 @@ export interface D1SymbolPrediction {
 export interface D1JobExecution {
   id: number;
   job_type: string;
+  scheduled_date?: string | null;
   status: string;
   executed_at: string;
   execution_time_ms: number;
@@ -50,6 +51,7 @@ export interface D1JobExecution {
 export interface D1ScheduledJobResult {
   id: number;
   execution_date: string;
+  scheduled_date: string | null;  // The market date this report is FOR
   report_type: string;
   report_content: string;
   metadata: string;
@@ -64,6 +66,9 @@ export type TriggerSource = 'github-actions' | 'manual-api' | 'cron' | 'schedule
 /**
  * Write report snapshot to D1 scheduled_job_results table
  * Safe: returns false if table doesn't exist (migration not applied)
+ *
+ * @param scheduledDate - The market date this report is FOR (ET date string)
+ * @param generatedAt - When the job actually finished (ISO timestamp)
  */
 export async function writeD1JobResult(
   env: CloudflareEnvironment,
@@ -71,7 +76,8 @@ export async function writeD1JobResult(
   reportType: string,
   reportContent: any,
   metadata?: any,
-  triggerSource: TriggerSource = 'unknown'
+  triggerSource: TriggerSource = 'unknown',
+  options?: { scheduledDate?: string; generatedAt?: string }
 ): Promise<boolean> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -81,30 +87,44 @@ export async function writeD1JobResult(
 
   const contentJson = JSON.stringify(reportContent);
   const metadataJson = metadata ? JSON.stringify(metadata) : null;
+  const scheduledDate = options?.scheduledDate || executionDate;  // Default to executionDate for backward compat
+  const generatedAt = options?.generatedAt || new Date().toISOString();
 
   try {
-
-    // Upsert: replace if same date+type exists
+    // Try new schema with scheduled_date first
     await db.prepare(`
-      INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, trigger_source, created_at)
-      VALUES (?, ?, ?, ?, ?, datetime('now'))
-    `).bind(executionDate, reportType, contentJson, metadataJson, triggerSource).run();
+      INSERT OR REPLACE INTO scheduled_job_results (execution_date, scheduled_date, report_type, report_content, metadata, trigger_source, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(executionDate, scheduledDate, reportType, contentJson, metadataJson, triggerSource, generatedAt).run();
 
-    logger.info('D1 report snapshot written', { executionDate, reportType, triggerSource });
+    logger.info('D1 report snapshot written', { executionDate, scheduledDate, reportType, triggerSource });
     return true;
   } catch (error) {
     const errMsg = (error as Error).message;
-    // Gracefully handle missing table (migration not applied) or missing column (migration pending)
-    if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
-      logger.warn('D1 scheduled_job_results table not found - migration not applied', { executionDate, reportType });
+    // Gracefully handle missing scheduled_date column (migration not applied)
+    if (errMsg.includes('no column named scheduled_date')) {
+      // Fallback: try without scheduled_date
+      logger.warn('scheduled_date column not found - using legacy write', { executionDate, reportType });
+      try {
+        await db.prepare(`
+          INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, trigger_source, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(executionDate, reportType, contentJson, metadataJson, triggerSource, generatedAt).run();
+        return true;
+      } catch (fallbackError) {
+        logger.error('D1 legacy write also failed', { error: (fallbackError as Error).message, executionDate, reportType });
+        return false;
+      }
     } else if (errMsg.includes('no column named trigger_source')) {
       // Fallback: write without trigger_source if column doesn't exist yet
-      logger.warn('trigger_source column not found - using legacy write', { executionDate, reportType });
+      logger.warn('trigger_source column not found - using older legacy write', { executionDate, reportType });
       await db.prepare(`
         INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, created_at)
-        VALUES (?, ?, ?, ?, datetime('now'))
-      `).bind(executionDate, reportType, contentJson, metadataJson).run();
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(executionDate, reportType, contentJson, metadataJson, generatedAt).run();
       return true;
+    } else if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
+      logger.warn('D1 scheduled_job_results table not found - migration not applied', { executionDate, reportType });
     } else {
       logger.error('D1 write failed', { error: errMsg, executionDate, reportType });
     }
@@ -114,20 +134,37 @@ export async function writeD1JobResult(
 
 /**
  * Read report snapshot from D1
+ * Key selector: scheduled_date + report_type (picks latest generated_at if multiple)
  * Safe: returns null if table doesn't exist
  */
 export async function readD1ReportSnapshot(
   env: CloudflareEnvironment,
-  executionDate: string,
+  scheduledDate: string,
   reportType: string
-): Promise<{ data: any; createdAt: string } | null> {
+): Promise<{ data: any; createdAt: string; scheduledDate?: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
   try {
-    const result = await db.prepare(
-      'SELECT report_content, metadata, created_at FROM scheduled_job_results WHERE execution_date = ? AND report_type = ?'
-    ).bind(executionDate, reportType).first<{ report_content: string; metadata: string; created_at: string }>();
+    // Try new schema: query by scheduled_date, pick latest generated_at (created_at)
+    let result = await db.prepare(
+      `SELECT report_content, metadata, created_at, scheduled_date
+       FROM scheduled_job_results
+       WHERE scheduled_date = ? AND report_type = ?
+       ORDER BY created_at DESC
+       LIMIT 1`
+    ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date?: string }>();
+
+    // Fallback: if scheduled_date column doesn't exist or no results, try execution_date
+    if (!result) {
+      result = await db.prepare(
+        `SELECT report_content, metadata, created_at
+         FROM scheduled_job_results
+         WHERE execution_date = ? AND report_type = ?
+         ORDER BY created_at DESC
+         LIMIT 1`
+      ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string }>();
+    }
 
     if (result?.report_content) {
       try {
@@ -135,15 +172,39 @@ export async function readD1ReportSnapshot(
         content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
         content._source = 'd1_snapshot';
         content._d1_created_at = result.created_at;
-        return { data: content, createdAt: result.created_at };
+        content._scheduled_date = result.scheduled_date || scheduledDate;  // Track the scheduled date
+        return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date || scheduledDate };
       } catch (parseError) {
-        logger.error('D1 JSON parse failed', { executionDate, reportType, error: (parseError as Error).message });
+        logger.error('D1 JSON parse failed', { scheduledDate, reportType, error: (parseError as Error).message });
         return null;
       }
     }
     return null;
   } catch (error) {
     const errMsg = (error as Error).message;
+    // If scheduled_date column doesn't exist, try legacy query
+    if (errMsg.includes('no column named scheduled_date')) {
+      logger.debug('scheduled_date column not found - using legacy query', { scheduledDate, reportType });
+      try {
+        const result = await db.prepare(
+          `SELECT report_content, metadata, created_at
+           FROM scheduled_job_results
+           WHERE execution_date = ? AND report_type = ?
+           LIMIT 1`
+        ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string }>();
+
+        if (result?.report_content) {
+          const content = JSON.parse(result.report_content);
+          content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
+          content._source = 'd1_snapshot';
+          content._d1_created_at = result.created_at;
+          return { data: content, createdAt: result.created_at, scheduledDate };
+        }
+      } catch (legacyError) {
+        logger.debug('Legacy query also failed', { error: (legacyError as Error).message });
+      }
+      return null;
+    }
     if (errMsg.includes('no such table')) {
       logger.debug('D1 scheduled_job_results table not found - using predictions fallback');
     } else {
@@ -155,19 +216,36 @@ export async function readD1ReportSnapshot(
 
 /**
  * Get latest report snapshot from D1 (any date)
+ * Returns the most recent report by scheduled_date
  * Safe: returns null if table doesn't exist
  */
 export async function getD1LatestReportSnapshot(
   env: CloudflareEnvironment,
   reportType: string
-): Promise<{ data: any; executionDate: string; createdAt: string } | null> {
+): Promise<{ data: any; scheduledDate: string; executionDate: string; createdAt: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
   try {
-    const result = await db.prepare(
-      'SELECT execution_date, report_content, metadata, created_at FROM scheduled_job_results WHERE report_type = ? ORDER BY execution_date DESC LIMIT 1'
-    ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string; created_at: string }>();
+    // Try new schema with scheduled_date
+    let result = await db.prepare(
+      `SELECT execution_date, scheduled_date, report_content, metadata, created_at
+       FROM scheduled_job_results
+       WHERE report_type = ?
+       ORDER BY coalesce(scheduled_date, execution_date) DESC, created_at DESC
+       LIMIT 1`
+    ).bind(reportType).first<{ execution_date: string; scheduled_date?: string; report_content: string; metadata: string; created_at: string }>();
+
+    // Fallback to execution_date if scheduled_date doesn't exist
+    if (!result) {
+      result = await db.prepare(
+        `SELECT execution_date, report_content, metadata, created_at
+         FROM scheduled_job_results
+         WHERE report_type = ?
+         ORDER BY execution_date DESC, created_at DESC
+         LIMIT 1`
+      ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string; created_at: string; scheduled_date?: string }>();
+    }
 
     if (result?.report_content) {
       try {
@@ -175,8 +253,10 @@ export async function getD1LatestReportSnapshot(
         content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
         content._source = 'd1_snapshot';
         content._d1_created_at = result.created_at;
-        content.source_date = result.execution_date;
-        return { data: content, executionDate: result.execution_date, createdAt: result.created_at };
+        const scheduledDate = result.scheduled_date || result.execution_date;
+        content._scheduled_date = scheduledDate;
+        content.source_date = scheduledDate;
+        return { data: content, scheduledDate, executionDate: result.execution_date, createdAt: result.created_at };
       } catch (parseError) {
         logger.error('D1 JSON parse failed', { reportType, error: (parseError as Error).message });
         return null;
@@ -185,6 +265,28 @@ export async function getD1LatestReportSnapshot(
     return null;
   } catch (error) {
     const errMsg = (error as Error).message;
+    if (errMsg.includes('no column named scheduled_date')) {
+      // Fallback: try without scheduled_date
+      try {
+        const result = await db.prepare(
+          `SELECT execution_date, report_content, metadata, created_at
+           FROM scheduled_job_results
+           WHERE report_type = ?
+           ORDER BY execution_date DESC, created_at DESC
+           LIMIT 1`
+        ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string; created_at: string }>();
+
+        if (result?.report_content) {
+          const content = JSON.parse(result.report_content);
+          content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
+          content._source = 'd1_snapshot';
+          content._d1_created_at = result.created_at;
+          return { data: content, scheduledDate: result.execution_date, executionDate: result.execution_date, createdAt: result.created_at };
+        }
+      } catch {
+        // Ignore fallback errors
+      }
+    }
     if (!errMsg.includes('no such table')) {
       logger.error('D1 latest read failed', { error: errMsg });
     }
@@ -367,14 +469,23 @@ export async function getD1FallbackData(
   const currentMinuteET = nowET.getMinutes();
   const isBeforeSchedule = currentHourET < scheduleHour || (currentHourET === scheduleHour && currentMinuteET < scheduleMinute);
 
-  // Allow stale for today defaults to true for non end-of-day; EOD defaults to false to prevent stale display
-  const allowStaleForToday = options.allowStaleForToday ?? (reportType !== 'end-of-day');
+  // Allow stale for today defaults to false for all reports - never show wrong scheduled_date
+  // If querying Jan 20, only show data with scheduled_date = Jan 20, not Jan 19
+  const allowStaleForToday = options.allowStaleForToday ?? false;
 
-  // 1. Try D1 snapshot for today with exact report type (unless skipped)
+  // 1. Try D1 snapshot for requested scheduled_date (key selector)
   if (!options.skipTodaySnapshot) {
     const snapshotResult = await readD1ReportSnapshot(env, dateStr, reportType);
     if (snapshotResult) {
-      return { data: snapshotResult.data, source: 'd1_snapshot', sourceDate: dateStr, isStale: false, createdAt: snapshotResult.createdAt };
+      // Verify the scheduled_date matches what was requested
+      const snapshotScheduledDate = snapshotResult.scheduledDate || snapshotResult.data?._scheduled_date || snapshotResult.data?.source_date;
+      const isExactMatch = snapshotScheduledDate === dateStr;
+
+      if (isExactMatch) {
+        return { data: snapshotResult.data, source: 'd1_snapshot', sourceDate: dateStr, isStale: false, createdAt: snapshotResult.createdAt };
+      }
+      // scheduled_date mismatch - treat as not found
+      logger.debug('D1 fallback: scheduled_date mismatch', { requested: dateStr, found: snapshotScheduledDate, reportType });
     }
   }
 
@@ -384,10 +495,16 @@ export async function getD1FallbackData(
     return null;
   }
 
-  // 3. Try latest D1 snapshot (may be stale)
+  // 3. Try latest D1 snapshot ONLY if allowStaleForToday is explicitly true
+  // By default, we DON'T show data from a different scheduled_date
+  if (!allowStaleForToday) {
+    logger.debug('D1 fallback: no exact scheduled_date match and stale not allowed', { requested: dateStr, reportType });
+    return null;
+  }
+
   const latestSnapshot = await getD1LatestReportSnapshot(env, reportType);
   if (latestSnapshot) {
-    const isStale = latestSnapshot.executionDate !== dateStr;
+    const isStale = latestSnapshot.scheduledDate !== dateStr;
     
     // If querying today and latest is from a different day, only return if explicitly allowed or after schedule
     if (isQueryingToday && isStale && !allowStaleForToday && isBeforeSchedule) {
@@ -396,11 +513,11 @@ export async function getD1FallbackData(
     }
     
     latestSnapshot.data.is_stale = isStale;
-    latestSnapshot.data.source_date = latestSnapshot.executionDate;
+    latestSnapshot.data.source_date = latestSnapshot.scheduledDate;
     return {
       data: latestSnapshot.data,
       source: 'd1_snapshot',
-      sourceDate: latestSnapshot.executionDate,
+      sourceDate: latestSnapshot.scheduledDate,
       isStale,
       createdAt: latestSnapshot.createdAt
     };
@@ -445,7 +562,8 @@ export async function updateD1JobStatus(
     symbols_failed?: number;
     errors?: string[];
     [key: string]: any;
-  } = {}
+  } = {},
+  options?: { scheduledDate?: string }
 ): Promise<boolean> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -453,7 +571,15 @@ export async function updateD1JobStatus(
     return false;
   }
 
+  // Normalize scheduled date to ET to avoid timezone drift in comparisons
+  const normalizeToETDate = (dateStr: string): string => {
+    const base = dateStr.includes('T') ? new Date(dateStr) : new Date(`${dateStr}T00:00:00Z`);
+    const etDate = new Date(base.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    return etDate.toISOString().split('T')[0];
+  };
+
   const executedAt = new Date().toISOString();
+  const scheduledDate = normalizeToETDate(options?.scheduledDate || date);
   const symbolsProcessed = metadata.symbols_processed ?? 0;
   const symbolsSuccessful = metadata.symbols_successful ?? symbolsProcessed;
   const symbolsFallback = metadata.symbols_fallback ?? 0;
@@ -463,10 +589,11 @@ export async function updateD1JobStatus(
 
   try {
     await db.prepare(`
-      INSERT INTO job_executions (job_type, status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO job_executions (job_type, scheduled_date, status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       jobType,
+      scheduledDate,
       status === 'done' ? 'success' : status,
       executedAt,
       metadata.execution_time_ms ?? 0,
@@ -478,10 +605,34 @@ export async function updateD1JobStatus(
       errorsJson
     ).run();
 
-    logger.info('D1 job status updated', { jobType, date, status, symbolsProcessed });
+    logger.info('D1 job status updated', { jobType, date, scheduledDate, status, symbolsProcessed });
     return true;
   } catch (error) {
     const errMsg = (error as Error).message;
+    if (errMsg.includes('no column named scheduled_date')) {
+      logger.warn('job_executions.scheduled_date column not found - falling back to legacy insert', { jobType, date });
+      try {
+        await db.prepare(`
+          INSERT INTO job_executions (job_type, status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          jobType,
+          status === 'done' ? 'success' : status,
+          executedAt,
+          metadata.execution_time_ms ?? 0,
+          symbolsProcessed,
+          symbolsSuccessful,
+          symbolsFallback,
+          symbolsFailed,
+          successRate,
+          errorsJson
+        ).run();
+        return true;
+      } catch (legacyError) {
+        logger.error('D1 job status legacy insert failed', { error: (legacyError as Error).message, jobType, date });
+        return false;
+      }
+    }
     if (errMsg.includes('no such table')) {
       logger.warn('D1 job_executions table not found - migration not applied', { jobType, date });
     } else {
@@ -499,18 +650,26 @@ export async function getD1JobStatus(
   env: CloudflareEnvironment,
   jobType: string,
   date: string
-): Promise<{ status: string; timestamp: string; metadata: any } | null> {
+): Promise<{ status: string; timestamp: string; metadata: any; scheduled_date?: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
+  const normalizeToETDate = (dateStr: string): string => {
+    const base = dateStr.includes('T') ? new Date(dateStr) : new Date(`${dateStr}T00:00:00Z`);
+    const etDate = new Date(base.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    return etDate.toISOString().split('T')[0];
+  };
+
+  const scheduledDate = normalizeToETDate(date);
+
   try {
     const result = await db.prepare(`
-      SELECT status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors
+      SELECT status, executed_at, execution_time_ms, symbols_processed, symbols_successful, symbols_fallback, symbols_failed, success_rate, errors, scheduled_date
       FROM job_executions
-      WHERE job_type = ? AND DATE(executed_at) = ?
+      WHERE job_type = ? AND coalesce(scheduled_date, DATE(executed_at)) = ?
       ORDER BY executed_at DESC
       LIMIT 1
-    `).bind(jobType, date).first<{
+    `).bind(jobType, scheduledDate).first<{
       status: string;
       executed_at: string;
       execution_time_ms: number;
@@ -520,6 +679,7 @@ export async function getD1JobStatus(
       symbols_failed: number;
       success_rate: number;
       errors: string;
+      scheduled_date?: string;
     }>();
 
     if (result) {
@@ -534,7 +694,8 @@ export async function getD1JobStatus(
           symbols_failed: result.symbols_failed,
           success_rate: result.success_rate,
           errors: JSON.parse(result.errors || '[]')
-        }
+        },
+        scheduled_date: result.scheduled_date || scheduledDate
       };
     }
     return null;
