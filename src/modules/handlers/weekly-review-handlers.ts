@@ -560,6 +560,34 @@ function generateWeeklyReviewHTML(
             </div>
         </div>
 
+        <!-- Dual Model Performance -->
+        <div class="dual-model-section" style="margin-bottom: 40px;">
+            <h2 style="text-align: center; margin-bottom: 20px;">🤖 AI Model Performance</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 800px; margin: 0 auto;">
+                <div class="summary-card">
+                    <h3>Gemma Sea Lion</h3>
+                    <div class="value">${weeklyData.modelStats?.gemma?.accuracy ? Math.round(weeklyData.modelStats.gemma.accuracy * 100) + '%' : 'N/A'}</div>
+                    <div class="label">${weeklyData.modelStats?.gemma?.total || 0} predictions</div>
+                    <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
+                        ✓ ${weeklyData.modelStats?.gemma?.success || 0} success | 
+                        ✗ ${weeklyData.modelStats?.gemma?.failed || 0} failed
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <h3>DistilBERT</h3>
+                    <div class="value">${weeklyData.modelStats?.distilbert?.accuracy ? Math.round(weeklyData.modelStats.distilbert.accuracy * 100) + '%' : 'N/A'}</div>
+                    <div class="label">${weeklyData.modelStats?.distilbert?.total || 0} predictions</div>
+                    <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
+                        ✓ ${weeklyData.modelStats?.distilbert?.success || 0} success | 
+                        ✗ ${weeklyData.modelStats?.distilbert?.failed || 0} failed
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 15px; font-size: 0.9rem; opacity: 0.8;">
+                Agreement Rate: ${weeklyData.modelStats?.agreementRate ? Math.round(weeklyData.modelStats.agreementRate * 100) + '%' : 'N/A'}
+            </div>
+        </div>
+
         <!-- Charts Section -->
         <div class="charts-section">
             <div class="chart-container">

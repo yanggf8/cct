@@ -31,6 +31,16 @@ export interface SymbolPrediction {
   analysis_type: string;
   trading_signals?: any;
   created_at?: string;
+  // Dual model tracking
+  gemma_status?: string;
+  gemma_error?: string;
+  gemma_confidence?: number;
+  gemma_response_time_ms?: number;
+  distilbert_status?: string;
+  distilbert_error?: string;
+  distilbert_confidence?: number;
+  distilbert_response_time_ms?: number;
+  model_selection_reason?: string;
 }
 
 export interface DailyAnalysisSummary {
@@ -82,8 +92,12 @@ export class PredictJobsDB {
   // Symbol Predictions
   async savePrediction(pred: Omit<SymbolPrediction, 'id' | 'created_at'>): Promise<void> {
     await this.db.prepare(`
-      INSERT OR REPLACE INTO symbol_predictions (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO symbol_predictions 
+      (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals,
+       gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+       distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+       model_selection_reason)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       pred.symbol,
       pred.prediction_date,
@@ -92,17 +106,34 @@ export class PredictJobsDB {
       pred.direction,
       pred.model,
       pred.analysis_type,
-      JSON.stringify(pred.trading_signals || {})
+      JSON.stringify(pred.trading_signals || {}),
+      pred.gemma_status || null,
+      pred.gemma_error || null,
+      pred.gemma_confidence ?? null,
+      pred.gemma_response_time_ms ?? null,
+      pred.distilbert_status || null,
+      pred.distilbert_error || null,
+      pred.distilbert_confidence ?? null,
+      pred.distilbert_response_time_ms ?? null,
+      pred.model_selection_reason || null
     ).run();
   }
 
   async savePredictionsBatch(predictions: Omit<SymbolPrediction, 'id' | 'created_at'>[]): Promise<void> {
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO symbol_predictions (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO symbol_predictions 
+      (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals,
+       gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+       distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+       model_selection_reason)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     await this.db.batch(predictions.map(p => stmt.bind(
-      p.symbol, p.prediction_date, p.sentiment, p.confidence, p.direction, p.model, p.analysis_type, JSON.stringify(p.trading_signals || {})
+      p.symbol, p.prediction_date, p.sentiment, p.confidence, p.direction, p.model, p.analysis_type, 
+      JSON.stringify(p.trading_signals || {}),
+      p.gemma_status || null, p.gemma_error || null, p.gemma_confidence ?? null, p.gemma_response_time_ms ?? null,
+      p.distilbert_status || null, p.distilbert_error || null, p.distilbert_confidence ?? null, p.distilbert_response_time_ms ?? null,
+      p.model_selection_reason || null
     )));
   }
 

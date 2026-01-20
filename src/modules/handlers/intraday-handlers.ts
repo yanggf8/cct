@@ -630,6 +630,20 @@ async function generateIntradayCheckHTML(
             font-family: 'Courier New', monospace;
         }
 
+        .model-mini {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
+            text-align: center;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-right: 2px;
+        }
+        .model-mini.ok { background: rgba(76, 175, 80, 0.3); color: #4CAF50; }
+        .model-mini.fail { background: rgba(244, 67, 54, 0.3); color: #f44336; }
+
         .ticker {
             font-weight: bold;
             font-size: 1.1rem;
@@ -855,19 +869,25 @@ async function generateIntradayCheckHTML(
                             <th>Predicted</th>
                             <th>Current</th>
                             <th>Level</th>
-                            <th>Reason</th>
+                            <th>Models</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${(formattedData.divergences || []).map((div: DivergenceData) => `
+                        ${(formattedData.divergences || []).map((div: DivergenceData) => {
+                          const gemma = (div as any).gemma_status || (div as any).dual_model?.gemma?.status;
+                          const distilbert = (div as any).distilbert_status || (div as any).dual_model?.distilbert?.status;
+                          const modelInfo = gemma || distilbert ? 
+                            `<span class="model-mini ${gemma === 'success' ? 'ok' : 'fail'}">G</span><span class="model-mini ${distilbert === 'success' ? 'ok' : 'fail'}">D</span>` : '—';
+                          return `
                             <tr>
                                 <td class="ticker">${div.symbol}</td>
                                 <td class="predicted ${div.predictedDirection}">${div.predicted}</td>
                                 <td class="actual ${div.actualDirection}">${div.actual}</td>
                                 <td><span class="divergence-level ${div.level}">${div.level.toUpperCase()}</span></td>
-                                <td>${div.reason || 'Price action divergence'}</td>
+                                <td>${modelInfo}</td>
                             </tr>
-                        `).join('')}
+                          `;
+                        }).join('')}
                     </tbody>
                 </table>
                 ${(formattedData.divergences || []).length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No significant divergences detected</div>' : ''}

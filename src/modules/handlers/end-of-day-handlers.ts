@@ -455,6 +455,9 @@ function generateEndOfDayHTML(
             color: #feca57;
         }
 
+        .model-ok { color: #4facfe; }
+        .model-fail { color: #ff6b6b; }
+
         .tomorrow-outlook {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
@@ -731,7 +734,7 @@ function generateEndOfDayHTML(
 }
 
 /**
- * Generate signal cards HTML
+ * Generate signal cards HTML with dual model display
  */
 function generateSignalCards(signals: any[]): string {
     if (!signals || signals.length === 0) {
@@ -741,6 +744,25 @@ function generateSignalCards(signals: any[]): string {
     return signals.map(signal => {
         const accuracyClass = signal.status === 'correct' ? 'accuracy-correct' :
             signal.status === 'incorrect' ? 'accuracy-incorrect' : 'accuracy-pending';
+
+        // Extract dual model data
+        const gemma = signal.dual_model?.gemma || signal.models?.gpt || {};
+        const distilbert = signal.dual_model?.distilbert || signal.models?.distilbert || {};
+        const hasDualModel = gemma.status || distilbert.status || gemma.direction || distilbert.direction;
+
+        const dualModelInfo = hasDualModel ? `
+        <div class="signal-detail" style="flex-direction: column; align-items: flex-start;">
+          <span class="label" style="margin-bottom: 5px;">Models:</span>
+          <div style="display: flex; gap: 10px; font-size: 0.85rem;">
+            <span class="${gemma.status === 'failed' || gemma.error ? 'model-fail' : 'model-ok'}">
+              G: ${gemma.direction?.substring(0,4).toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}
+            </span>
+            <span class="${distilbert.status === 'failed' || distilbert.error ? 'model-fail' : 'model-ok'}">
+              D: ${distilbert.direction?.substring(0,4).toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}
+            </span>
+          </div>
+        </div>
+        ` : '';
 
         return `
       <div class="signal-card">
@@ -761,10 +783,7 @@ function generateSignalCards(signals: any[]): string {
             </span>
           </span>
         </div>
-        <div class="signal-detail">
-          <span class="label">Target:</span>
-          <span class="value">$${signal.targetPrice || 'N/A'}</span>
-        </div>
+        ${dualModelInfo}
       </div>
     `;
     }).join('');

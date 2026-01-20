@@ -553,6 +553,35 @@ function generatePreMarketHTML(
             transition: width 0.3s ease;
         }
 
+        .agreement-badge {
+            text-align: center;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        .agreement-badge.agree { background: rgba(72, 219, 251, 0.2); color: #48dbfb; }
+        .agreement-badge.disagree { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+        .agreement-badge.partial { background: rgba(254, 202, 87, 0.2); color: #feca57; }
+
+        .dual-model-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .model-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.8rem;
+        }
+        .model-card.failed { background: rgba(255, 107, 107, 0.1); }
+        .model-name { font-weight: 600; color: #4facfe; margin-bottom: 4px; }
+        .model-status { font-size: 0.75rem; opacity: 0.8; }
+        .model-result { font-weight: 600; margin-top: 4px; }
+
         .market-overview {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
@@ -870,7 +899,7 @@ function generateMarketOverview(marketData: any): string {
 }
 
 /**
- * Generate signal cards HTML
+ * Generate signal cards HTML with dual model display
  */
 function generateSignalCards(signals: any[]): string {
   if (!signals || signals.length === 0) {
@@ -879,6 +908,39 @@ function generateSignalCards(signals: any[]): string {
 
   return signals.slice(0, 6).map(signal => {
     const confidence = Math.round((signal.confidence || 0) * 100);
+    
+    // Extract dual model data
+    const gemma = signal.dual_model?.gemma || signal.models?.gpt || {};
+    const distilbert = signal.dual_model?.distilbert || signal.models?.distilbert || {};
+    const agreement = signal.agreement?.status || signal.dual_model?.agreement || 
+      (gemma.direction && distilbert.direction && gemma.direction === distilbert.direction ? 'AGREE' : 
+       gemma.direction && distilbert.direction ? 'DISAGREE' : 'PARTIAL');
+    
+    const hasDualModel = gemma.status || distilbert.status || gemma.direction || distilbert.direction;
+    
+    // Agreement badge
+    const agreementBadge = hasDualModel ? `
+      <div class="agreement-badge ${agreement.toLowerCase()}">
+        ${agreement === 'AGREE' ? '✓ MODELS AGREE' : agreement === 'DISAGREE' ? '✗ MODELS DISAGREE' : '◐ PARTIAL AGREEMENT'}
+      </div>
+    ` : '';
+    
+    // Dual model cards
+    const dualModelCards = hasDualModel ? `
+      <div class="dual-model-grid">
+        <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
+          <div class="model-name">Gemma Sea Lion</div>
+          <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : gemma.direction ? '✓ SUCCESS' : '—'}</div>
+          <div class="model-result">${gemma.direction?.toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
+        </div>
+        <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
+          <div class="model-name">DistilBERT</div>
+          <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : distilbert.direction ? '✓ SUCCESS' : '—'}</div>
+          <div class="model-result">${distilbert.direction?.toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
+        </div>
+      </div>
+    ` : '';
+
     return `
       <div class="signal-card">
         <h4>${signal.symbol} ${getDirectionEmoji(signal.direction)}</h4>
@@ -893,10 +955,8 @@ function generateSignalCards(signals: any[]): string {
         <div class="confidence-bar">
           <div class="confidence-fill" style="width: ${confidence}%"></div>
         </div>
-        <div class="signal-detail">
-          <span class="label">Strategy:</span>
-          <span class="value">${signal.strategy || 'Standard'}</span>
-        </div>
+        ${agreementBadge}
+        ${dualModelCards}
       </div>
     `;
   }).join('');

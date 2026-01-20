@@ -360,6 +360,76 @@ export async function storeFactTableData(env: CloudflareEnvironment, factTableDa
 }
 
 /**
+ * Extract dual model data from various analysis result formats
+ */
+export function extractDualModelData(analysisData: any): {
+  gemma_status?: string;
+  gemma_error?: string;
+  gemma_confidence?: number;
+  gemma_response_time_ms?: number;
+  distilbert_status?: string;
+  distilbert_error?: string;
+  distilbert_confidence?: number;
+  distilbert_response_time_ms?: number;
+  model_selection_reason?: string;
+} {
+  // Format 1: DualAIComparisonResult (models.gpt, models.distilbert)
+  if (analysisData?.models?.gpt || analysisData?.models?.distilbert) {
+    const gpt = analysisData.models?.gpt;
+    const distilbert = analysisData.models?.distilbert;
+    return {
+      gemma_status: gpt?.error ? 'failed' : gpt?.direction ? 'success' : undefined,
+      gemma_error: gpt?.error || undefined,
+      gemma_confidence: gpt?.confidence,
+      gemma_response_time_ms: gpt?.response_time_ms,
+      distilbert_status: distilbert?.error ? 'failed' : distilbert?.direction ? 'success' : undefined,
+      distilbert_error: distilbert?.error || undefined,
+      distilbert_confidence: distilbert?.confidence,
+      distilbert_response_time_ms: distilbert?.response_time_ms,
+      model_selection_reason: analysisData.agreement?.status || analysisData.final_signal?.source
+    };
+  }
+
+  // Format 2: Pre-market-data-bridge format (dual_model.gemma, dual_model.distilbert)
+  if (analysisData?.dual_model?.gemma || analysisData?.dual_model?.distilbert) {
+    const gemma = analysisData.dual_model?.gemma;
+    const distilbert = analysisData.dual_model?.distilbert;
+    return {
+      gemma_status: gemma?.status,
+      gemma_error: gemma?.error,
+      gemma_confidence: gemma?.confidence,
+      gemma_response_time_ms: gemma?.response_time_ms,
+      distilbert_status: distilbert?.status,
+      distilbert_error: distilbert?.error,
+      distilbert_confidence: distilbert?.confidence,
+      distilbert_response_time_ms: distilbert?.response_time_ms,
+      model_selection_reason: analysisData.dual_model?.selection_reason
+    };
+  }
+
+  // Format 3: trading_signals contains dual model info
+  if (analysisData?.trading_signals?.dual_model) {
+    return extractDualModelData({ dual_model: analysisData.trading_signals.dual_model });
+  }
+
+  // Format 4: sentiment_layers with model info
+  const layers = analysisData?.sentiment_layers || [];
+  const gemmaLayer = layers.find((l: any) => l.model?.toLowerCase().includes('gemma') || l.model?.toLowerCase().includes('gpt'));
+  const distilbertLayer = layers.find((l: any) => l.model?.toLowerCase().includes('distilbert'));
+  
+  if (gemmaLayer || distilbertLayer) {
+    return {
+      gemma_status: gemmaLayer ? 'success' : undefined,
+      gemma_confidence: gemmaLayer?.confidence,
+      distilbert_status: distilbertLayer ? 'success' : undefined,
+      distilbert_confidence: distilbertLayer?.confidence
+    };
+  }
+
+  return {};
+}
+
+/**
  * Store granular analysis for a single symbol - uses D1 only
  */
 export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: string, analysisData: any): Promise<boolean> {
@@ -379,6 +449,8 @@ export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: st
       return false;
     }
 
+    const dualModelData = extractDualModelData(analysisData);
+
     await db.savePrediction({
       symbol,
       prediction_date: dateStr,
@@ -387,7 +459,8 @@ export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: st
       direction: analysisData.trading_signals?.primary_direction || 'NEUTRAL',
       model: analysisData.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
       analysis_type: analysisData.analysis_type || 'fine_grained_sentiment',
-      trading_signals: analysisData.trading_signals
+      trading_signals: analysisData.trading_signals,
+      ...dualModelData
     });
 
     // Ensure a daily summary exists so /results does not return 404 for single-symbol writes
@@ -430,16 +503,20 @@ export async function batchStoreAnalysisResults(env: CloudflareEnvironment, anal
       return { success: false, error: 'D1 init failed', total_operations: 0, successful_operations: 0, failed_operations: 0 };
     }
 
-    const predictions = analysisResults.filter(r => r?.symbol).map(result => ({
-      symbol: result.symbol,
-      prediction_date: date,
-      sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
-      confidence: result.confidence_metrics?.overall_confidence || 0.5,
-      direction: result.trading_signals?.primary_direction || 'NEUTRAL',
-      model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
-      analysis_type: result.analysis_type || 'fine_grained_sentiment',
-      trading_signals: result.trading_signals
-    }));
+    const predictions = analysisResults.filter(r => r?.symbol).map(result => {
+      const dualModelData = extractDualModelData(result);
+      return {
+        symbol: result.symbol,
+        prediction_date: date,
+        sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
+        confidence: result.confidence_metrics?.overall_confidence || 0.5,
+        direction: result.trading_signals?.primary_direction || 'NEUTRAL',
+        model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
+        analysis_type: result.analysis_type || 'fine_grained_sentiment',
+        trading_signals: result.trading_signals,
+        ...dualModelData
+      };
+    });
 
     await db.savePredictionsBatch(predictions);
     await db.saveDailyAnalysis({
