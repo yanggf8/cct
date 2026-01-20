@@ -44,6 +44,12 @@
 - UI parity: Intraday and end-of-day reports now use the same dual-model visual pattern as pre-market.
 - Analytics note: End-of-day persistence supports dual-model data; the accuracy breakdown still uses legacy sentiment layers. Extend `analyzeHighConfidenceSignals` to read `signal.models/comparison` if per-model agreement is needed in EOD analytics.
 
+## 2026-01-22 - Weekly Dual-Model Stats & Persistence Alignment ✅
+
+- Weekly review now surfaces Gemma/DistilBERT weekly stats (success/fail, accuracy, avg confidence, agreement rate) aggregated from `symbol_predictions`.
+- Pre-market persistence refactored to use `extractDualModelData` for consistency with intraday/EOD dual-model writes.
+- Architecture note: `symbol_predictions` is the structured source of truth for dual-model fields; `scheduled_job_results` remains a JSON snapshot store.
+
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
 ### 🔄 Cache Architecture Migration
