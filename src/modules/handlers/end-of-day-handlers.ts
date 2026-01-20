@@ -34,36 +34,6 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
     const todayET = getTodayInZone('America/New_York');
 
-    // Check if we need to redirect to last market day
-    // If resolved date is a weekend, redirect to last market day
-    const dateParam = url.searchParams.get('date');
-    const resolvedDate = new Date(queryDateStr + 'T00:00:00Z');
-    const dayOfWeek = resolvedDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
-
-    if (dateParam === 'yesterday' && (dayOfWeek === 0 || dayOfWeek === 6)) {
-        // Calculate last market day (Friday)
-        const lastMarketDayDate = new Date(todayET + 'T00:00:00Z');
-        let daysToSubtract;
-        if (dayOfWeek === 0) {
-            // Sunday -> go back 2 days to Friday
-            daysToSubtract = 2;
-        } else {
-            // Saturday -> go back 1 day to Friday
-            daysToSubtract = 1;
-        }
-        lastMarketDayDate.setDate(lastMarketDayDate.getDate() - daysToSubtract);
-        const lastMarketDay = lastMarketDayDate.toISOString().split('T')[0];
-
-        const redirectUrl = new URL(request.url);
-        redirectUrl.searchParams.set('date', lastMarketDay);
-        logger.info('END-OF-DAY: Redirect to last market day', {
-            from: queryDateStr,
-            to: lastMarketDay,
-            reason: 'weekend'
-        });
-        return Response.redirect(redirectUrl.toString(), 302);
-    }
-
     // Fast path: check DO HTML cache first (unless bypass)
     if (!bypassCache) {
         try {

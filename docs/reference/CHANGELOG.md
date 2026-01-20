@@ -1,6 +1,22 @@
 # Changelog
 
-# Changelog
+## 2026-01-20 - Simplified Target Date Logic ✅
+
+### 🎯 Target Date Simplification
+- **Removed all redirect logic** from pre-market, intraday, and end-of-day handlers
+- **Target date** is now simply resolved via `resolveQueryDate()`: `?date param > ?tz param > DO setting > ET default`
+- No automatic redirects based on weekends or time of day
+- Scheduled jobs pass explicit date, resolving manual trigger issues
+
+### 📁 Files Modified
+- `briefing-handlers.ts`: Removed 30-line redirect block
+- `intraday-handlers.ts`: Removed 29-line redirect block + cleaned unused imports
+- `end-of-day-handlers.ts`: Removed 29-line redirect block
+
+### 📚 Documentation
+- Archived `WEEKEND_DATE_FIX.md` to `docs/archive/legacy/` (redirect logic obsolete)
+
+---
 
 ## 2026-01-20 - Report Timestamp Clarity & Confidence Fix ✅
 
