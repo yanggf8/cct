@@ -175,8 +175,12 @@ export async function handleScheduledEvent(
       // Sunday 10:00 AM - Weekly Review Analysis
       console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly review analysis`);
 
-      // Generate weekly analysis result
-      analysisResult = await generateWeeklyReviewAnalysis(env as any, estTime);
+      // Analyze the previous week (Sunday prior to current execution)
+      const weekSunday = new Date(estTime);
+      weekSunday.setDate(weekSunday.getDate() - 7);
+
+      // Generate weekly analysis result for that week
+      analysisResult = await generateWeeklyReviewAnalysis(env as any, weekSunday);
 
       console.log(`📱 [CRON-FB-WEEKLY] ${cronExecutionId} Sending weekly review via Facebook`);
       await sendWeeklyReviewWithTracking(analysisResult, env, cronExecutionId);

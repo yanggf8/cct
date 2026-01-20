@@ -497,7 +497,11 @@ export async function sendWeeklyReviewWithTracking(
   console.log(`🚀 [WEEKLY-REVIEW] ${cronExecutionId} Starting weekly review with Facebook messaging`);
 
   // Generate the weekly analysis data using the report module
-  const weeklyData = analysisResult || await generateWeeklyReviewAnalysis(env as any, new Date());
+  // Use the same week reference as page generation (previous Sunday)
+  const weekSunday = new Date();
+  weekSunday.setDate(weekSunday.getDate() - 7);
+  const weekStr = weekSunday.toISOString().split('T')[0];
+  const weeklyData = analysisResult || await generateWeeklyReviewAnalysis(env as any, weekSunday);
 
   const now = new Date();
   const weeklyAccuracy = weeklyData.accuracy || 68;
