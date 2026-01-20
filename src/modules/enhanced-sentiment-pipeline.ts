@@ -474,22 +474,6 @@ Respond with JSON only:
   }
 
   /**
-   * Get sentiment score from label
-   */
-  private getSentimentScore(sentiment: string): number {
-    const scores: { [key: string]: number } = {
-      'bullish': 0.8,
-      'positive': 0.7,
-      'buy': 0.6,
-      'bearish': -0.8,
-      'negative': -0.7,
-      'sell': -0.6,
-      'neutral': 0
-    };
-    return scores[sentiment.toLowerCase()] || 0;
-  }
-
-  /**
    * Simple sentiment analysis for headlines
    */
   private analyzeTextSentiment(text: string): 'bullish' | 'bearish' | 'neutral' {
