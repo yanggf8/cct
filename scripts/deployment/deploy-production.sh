@@ -76,6 +76,11 @@ log "Building..."
     wait $BUILD_PID
 ) && success "Build complete" || { error "Build failed"; exit 1; }
 
+# Deploy confirmation (always ask, even with --yes)
+log "Ready to deploy to ${DEPLOYMENT_URL}?"
+read -p "Press Enter to deploy, Ctrl+C to cancel..."
+echo
+
 # Deploy with progress
 log "Deploying..."
 (
