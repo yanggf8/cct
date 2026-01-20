@@ -44,10 +44,32 @@ interface ModernSentimentData {
   articles_analyzed?: number;
   market_sentiment?: string;
   sector_sentiment?: string;
+  // Dual-model tracking for diagnostics
+  dual_model?: DualModelData;
+}
+
+/**
+ * Dual-model data structure for comprehensive logging
+ */
+interface DualModelData {
+  gemma?: {
+    status: 'success' | 'failed' | 'timeout' | 'skipped';
+    confidence?: number;
+    error?: string;
+    response_time_ms?: number;
+  };
+  distilbert?: {
+    status: 'success' | 'failed' | 'timeout' | 'skipped';
+    confidence?: number;
+    error?: string;
+    response_time_ms?: number;
+  };
+  selection_reason?: string;
 }
 
 /**
  * Write symbol prediction to D1 (success or failure)
+ * Now captures both models' results for diagnostics
  */
 async function writeSymbolPredictionToD1(
   env: CloudflareEnvironment,
@@ -63,30 +85,88 @@ async function writeSymbolPredictionToD1(
     news_source?: string;
     articles_count?: number;
     raw_response?: any;
+    dual_model?: DualModelData;
   }
 ): Promise<void> {
   if (!env.PREDICT_JOBS_DB) return;
-  
+
   try {
-    await env.PREDICT_JOBS_DB.prepare(`
-      INSERT OR REPLACE INTO symbol_predictions 
-      (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).bind(
-      symbol,
-      date,
-      data.sentiment || null,
-      data.confidence || null,
-      data.direction || null,
-      data.model || null,
-      data.status,
-      data.error_message || null,
-      data.news_source || null,
-      data.articles_count || 0,
-      data.raw_response ? JSON.stringify(data.raw_response) : null
-    ).run();
+    // Check if new columns exist (graceful upgrade)
+    const hasNewColumns = await checkDualModelColumnsExist(env);
+
+    if (hasNewColumns && data.dual_model) {
+      // Use enhanced INSERT with dual-model logging
+      await env.PREDICT_JOBS_DB.prepare(`
+        INSERT OR REPLACE INTO symbol_predictions
+        (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response,
+         gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+         distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+         model_selection_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        symbol,
+        date,
+        data.sentiment || null,
+        data.confidence || null,
+        data.direction || null,
+        data.model || null,
+        data.status,
+        data.error_message || null,
+        data.news_source || null,
+        data.articles_count || 0,
+        data.raw_response ? JSON.stringify(data.raw_response) : null,
+        data.dual_model.gemma?.status || null,
+        data.dual_model.gemma?.error || null,
+        data.dual_model.gemma?.confidence || null,
+        data.dual_model.gemma?.response_time_ms || null,
+        data.dual_model.distilbert?.status || null,
+        data.dual_model.distilbert?.error || null,
+        data.dual_model.distilbert?.confidence || null,
+        data.dual_model.distilbert?.response_time_ms || null,
+        data.dual_model.selection_reason || null
+      ).run();
+    } else {
+      // Fallback to original INSERT (before migration)
+      await env.PREDICT_JOBS_DB.prepare(`
+        INSERT OR REPLACE INTO symbol_predictions
+        (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `).bind(
+        symbol,
+        date,
+        data.sentiment || null,
+        data.confidence || null,
+        data.direction || null,
+        data.model || null,
+        data.status,
+        data.error_message || null,
+        data.news_source || null,
+        data.articles_count || 0,
+        data.raw_response ? JSON.stringify(data.raw_response) : null
+      ).run();
+    }
   } catch (e) {
     logger.warn(`Failed to write symbol prediction to D1: ${symbol}`, { error: e });
+  }
+}
+
+// Cache for column existence check
+let dualModelColumnsExist: boolean | null = null;
+
+async function checkDualModelColumnsExist(env: CloudflareEnvironment): Promise<boolean> {
+  if (dualModelColumnsExist !== null) return dualModelColumnsExist;
+
+  try {
+    // Check if gemma_status column exists by querying table info
+    const result = await env.PREDICT_JOBS_DB!.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_predictions'"
+    ).first<{ sql: string }>();
+
+    dualModelColumnsExist = result?.sql?.includes('gemma_status') || false;
+    return dualModelColumnsExist;
+  } catch {
+    dualModelColumnsExist = false;
+    return false;
   }
 }
 
@@ -132,14 +212,15 @@ export class PreMarketDataBridge {
               }]
             };
 
-            // Write success to D1
+            // Write success to D1 with dual-model logging
             await writeSymbolPredictionToD1(this.env, symbol, today, {
               status: 'success',
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence,
               direction: sentimentData.sentiment,
               articles_count: sentimentData.articles_analyzed,
-              news_source: 'dac_pool'
+              news_source: 'dac_pool',
+              dual_model: sentimentData.dual_model
             });
 
             logger.debug(`Generated signal for ${symbol}`, {
@@ -159,13 +240,14 @@ export class PreMarketDataBridge {
               failureReason = sentimentData.reasoning;
             }
 
-            // Write skipped to D1 with detailed reason
+            // Write skipped to D1 with detailed reason and dual-model logging
             await writeSymbolPredictionToD1(this.env, symbol, today, {
               status: 'skipped',
               confidence: sentimentData?.confidence,
               error_message: failureReason,
               articles_count: sentimentData?.articles_analyzed || 0,
-              raw_response: sentimentData
+              raw_response: sentimentData,
+              dual_model: sentimentData?.dual_model
             });
           }
         } catch (error: unknown) {
@@ -250,17 +332,47 @@ export class PreMarketDataBridge {
 
           if (firstResult && !firstResult.error && (firstResult.models?.gpt || firstResult.models?.distilbert)) {
             // Use GPT if available, otherwise fall back to DistilBERT
-            const model = firstResult.models.gpt || firstResult.models.distilbert;
+            const gptModel = firstResult.models.gpt;
+            const distilbertModel = firstResult.models.distilbert;
+            const selectedModel = gptModel || distilbertModel;
+
+            // Determine selection reason
+            let selectionReason = 'gemma_success';
+            if (!gptModel && distilbertModel) {
+              selectionReason = gptModel?.error?.includes('timeout') ? 'timeout_fallback' : 'gemma_failed_fallback';
+            }
+
+            // Build dual-model diagnostic data
+            const dualModelData: DualModelData = {
+              gemma: gptModel ? {
+                status: gptModel.error ? 'failed' : 'success',
+                confidence: gptModel.confidence,
+                error: gptModel.error
+              } : {
+                status: 'skipped',
+                error: 'No GPT model data'
+              },
+              distilbert: distilbertModel ? {
+                status: distilbertModel.error ? 'failed' : 'success',
+                confidence: distilbertModel.confidence,
+                error: distilbertModel.error
+              } : {
+                status: 'skipped',
+                error: 'No DistilBERT model data'
+              },
+              selection_reason: selectionReason
+            };
 
             const sentimentData: ModernSentimentData = {
               symbol,
-              sentiment: this.normalizeSentiment(model.direction),
-              confidence: model.confidence,
+              sentiment: this.normalizeSentiment(selectedModel!.direction),
+              confidence: selectedModel!.confidence,
               signal: firstResult.signal?.action || 'HOLD',
-              reasoning: model.reasoning || 'Sentiment analysis completed',
-              articles_analyzed: model.articles_analyzed || 0,
-              market_sentiment: model.direction,
-              sector_sentiment: model.direction
+              reasoning: selectedModel!.reasoning || 'Sentiment analysis completed',
+              articles_analyzed: selectedModel!.articles_analyzed || 0,
+              market_sentiment: selectedModel!.direction,
+              sector_sentiment: selectedModel!.direction,
+              dual_model: dualModelData
             };
 
             logger.info(`Generated sentiment data for ${symbol}`, {
@@ -268,8 +380,11 @@ export class PreMarketDataBridge {
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence,
               articles_analyzed: sentimentData.articles_analyzed,
-              model_used: model.model,
-              signal_action: sentimentData.signal
+              model_used: selectedModel!.model,
+              signal_action: sentimentData.signal,
+              gemma_status: dualModelData.gemma?.status,
+              distilbert_status: dualModelData.distilbert?.status,
+              selection_reason: selectionReason
             });
 
             return sentimentData;

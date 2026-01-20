@@ -7,6 +7,7 @@
 import { ApiResponseFactory, HttpStatus, generateRequestId as genReqId } from '../modules/api-v1-responses.js';
 import { checkAPISecurity, recordAuthAttempt, getSecurityStatus } from '../modules/api-security.js';
 import { createLogger } from '../modules/logging.js';
+import { CircuitBreakerFactory } from '../modules/circuit-breaker.js';
 import { handleSentimentRoutes } from './sentiment-routes.js';
 import { handleReportRoutes } from './report-routes.js';
 import { handleDataRoutes } from './data-routes.js';
@@ -290,6 +291,90 @@ export async function handleApiV1Request(
         return new Response(JSON.stringify({ success: true, timezone: reqBody.timezone }), { status: HttpStatus.OK, headers });
       }
       return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: HttpStatus.METHOD_NOT_ALLOWED, headers });
+    } else if (path === '/api/v1/diagnostics/ai-models') {
+      // AI Models Diagnostic endpoint - returns circuit breaker status and model health
+      const gptBreaker = CircuitBreakerFactory.getInstance('ai-model-gpt');
+      const distilbertBreaker = CircuitBreakerFactory.getInstance('ai-model-distilbert');
+
+      const gptMetrics = gptBreaker.getMetrics();
+      const distilbertMetrics = distilbertBreaker.getMetrics();
+
+      // Query recent D1 data for model statistics
+      let recentStats = null;
+      if (env.PREDICT_JOBS_DB) {
+        try {
+          const result = await env.PREDICT_JOBS_DB.prepare(`
+            SELECT
+              model,
+              status,
+              COUNT(*) as count,
+              AVG(confidence) as avg_confidence,
+              MAX(created_at) as last_run
+            FROM symbol_predictions
+            WHERE prediction_date >= date('now', '-7 days')
+            GROUP BY model, status
+            ORDER BY model, status
+          `).all();
+          recentStats = result.results;
+        } catch (e: any) {
+          recentStats = { error: e.message };
+        }
+      }
+
+      const diagnosticData = {
+        timestamp: new Date().toISOString(),
+        circuit_breakers: {
+          gemma_sea_lion: {
+            name: 'ai-model-gpt',
+            state: gptMetrics.state,
+            healthy: gptBreaker.isHealthy(),
+            success_rate: gptBreaker.getSuccessRate(),
+            failure_rate: gptBreaker.getFailureRate(),
+            metrics: {
+              total_calls: gptMetrics.totalCalls,
+              success_count: gptMetrics.successCount,
+              failure_count: gptMetrics.failureCount,
+              consecutive_failures: gptMetrics.consecutiveFailures,
+              consecutive_successes: gptMetrics.consecutiveSuccesses,
+              last_failure: gptMetrics.lastFailureTime ? new Date(gptMetrics.lastFailureTime).toISOString() : null,
+              last_success: gptMetrics.lastSuccessTime ? new Date(gptMetrics.lastSuccessTime).toISOString() : null,
+              state_changed: new Date(gptMetrics.stateChangedTime).toISOString(),
+              avg_call_duration_ms: Math.round(gptMetrics.averageCallDuration)
+            }
+          },
+          distilbert: {
+            name: 'ai-model-distilbert',
+            state: distilbertMetrics.state,
+            healthy: distilbertBreaker.isHealthy(),
+            success_rate: distilbertBreaker.getSuccessRate(),
+            failure_rate: distilbertBreaker.getFailureRate(),
+            metrics: {
+              total_calls: distilbertMetrics.totalCalls,
+              success_count: distilbertMetrics.successCount,
+              failure_count: distilbertMetrics.failureCount,
+              consecutive_failures: distilbertMetrics.consecutiveFailures,
+              consecutive_successes: distilbertMetrics.consecutiveSuccesses,
+              last_failure: distilbertMetrics.lastFailureTime ? new Date(distilbertMetrics.lastFailureTime).toISOString() : null,
+              last_success: distilbertMetrics.lastSuccessTime ? new Date(distilbertMetrics.lastSuccessTime).toISOString() : null,
+              state_changed: new Date(distilbertMetrics.stateChangedTime).toISOString(),
+              avg_call_duration_ms: Math.round(distilbertMetrics.averageCallDuration)
+            }
+          }
+        },
+        d1_statistics: recentStats,
+        summary: {
+          gemma_operational: gptBreaker.isHealthy() && gptMetrics.state === 'CLOSED',
+          distilbert_operational: distilbertBreaker.isHealthy() && distilbertMetrics.state === 'CLOSED',
+          recommendation: !gptBreaker.isHealthy()
+            ? 'Gemma circuit breaker is not healthy - check logs for failures'
+            : !distilbertBreaker.isHealthy()
+            ? 'DistilBERT circuit breaker is not healthy - check logs for failures'
+            : 'All AI models operational'
+        }
+      };
+
+      const body = ApiResponseFactory.success(diagnosticData, { requestId: headers['X-Request-ID'] });
+      return new Response(JSON.stringify(body), { status: HttpStatus.OK, headers });
     } else if (path === '/api/v1') {
       // API v1 root - return available endpoints
       const body = ApiResponseFactory.success(
@@ -430,6 +515,9 @@ export async function handleApiV1Request(
             },
             security: {
               status: 'GET /api/v1/security/status',
+            },
+            diagnostics: {
+              ai_models: 'GET /api/v1/diagnostics/ai-models',
             },
           } as ApiDocumentation['available_endpoints'],
           documentation: 'https://github.com/yanggf8/cct',
