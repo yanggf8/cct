@@ -592,7 +592,7 @@ async function generateIntradayCheckHTML(
         .tracking-summary h3 {
             margin-bottom: 20px;
             font-size: 1.5rem;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .recalibration-section {
@@ -781,7 +781,7 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;

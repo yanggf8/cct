@@ -12,7 +12,7 @@ import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import { generatePendingPageHTML } from './pending-page.js';
 import type { CloudflareEnvironment } from '../../types';
-import { getTodayInZone, getTimezoneFromDO } from './date-utils.js';
+import { getTodayInZone, getTimezoneFromDO, getWeekSunday } from './date-utils.js';
 
 const logger = createLogger('weekly-review-handlers');
 
@@ -395,8 +395,8 @@ function generateWeeklyReviewHTML(
                     datasets: [{
                         label: 'Daily Accuracy (%)',
                         data: ${JSON.stringify(weeklyData.dailyData?.map((d: any) => (d.accuracy || 0) * 100) || [])},
-                        borderColor: '#4facfe',
-                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                        borderColor: '#f0b90b',
+                        backgroundColor: 'rgba(240, 185, 11, 0.1)',
                         tension: 0.4
                     }]
                 },
@@ -415,7 +415,7 @@ function generateWeeklyReviewHTML(
     weeklyData.signalDistribution?.bearish || 0,
     weeklyData.signalDistribution?.neutral || 0
   ])},
-                        backgroundColor: ['#4facfe', '#ff6b6b', '#feca57'],
+                        backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
                         borderWidth: 0
                     }]
                 },
@@ -434,8 +434,8 @@ function generateWeeklyReviewHTML(
                     datasets: [{
                         label: 'Accuracy (%)',
                         data: ${JSON.stringify(weeklyData.symbolPerformance?.map((s: any) => (s.accuracy || 0) * 100) || [])},
-                        backgroundColor: 'rgba(79, 172, 254, 0.8)',
-                        borderColor: '#4facfe',
+                        backgroundColor: 'rgba(240, 185, 11, 0.8)',
+                        borderColor: '#f0b90b',
                         borderWidth: 1
                     }]
                 },

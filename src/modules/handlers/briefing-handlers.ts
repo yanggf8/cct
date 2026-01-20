@@ -356,14 +356,9 @@ function generateErrorHTML(error: any, requestId: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pre-Market Briefing Error</title>
     ${getNavScripts()}
+    <link rel="stylesheet" href="/css/reports.css">
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            color: #ffffff;
-            min-height: 100vh;
-            padding: 20px;
-            padding-top: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -372,13 +367,13 @@ function generateErrorHTML(error: any, requestId: string): string {
             text-align: center;
             max-width: 600px;
             padding: 40px;
-            background: rgba(255, 107, 107, 0.1);
+            background: var(--error-glow);
             border-radius: 20px;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 107, 107, 0.3);
+            border: 1px solid rgba(239, 68, 68, 0.25);
         }
         .error-content h2 {
-            color: #ff6b6b;
+            color: var(--error);
             margin-bottom: 20px;
             font-size: 1.5rem;
         }
@@ -389,25 +384,11 @@ function generateErrorHTML(error: any, requestId: string): string {
         .error-details {
             background: rgba(0, 0, 0, 0.2);
             padding: 15px;
-            border-radius: 10px;
+            border-radius: var(--radius-md);
             margin-bottom: 20px;
-            font-family: monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.9rem;
             text-align: left;
-        }
-        .refresh-button {
-            background: linear-gradient(45deg, #4facfe, #00f2fe);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        .refresh-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(79, 172, 254, 0.3);
         }
     </style>
 </head>

@@ -179,7 +179,7 @@ function generateEndOfDayHTML(
             margin-bottom: 20px;
             font-size: 1.5rem;
             text-align: center;
-            color: #4facfe;
+            color: #f0b90b;
         }
 
         .outlook-content {
@@ -191,7 +191,7 @@ function generateEndOfDayHTML(
             font-size: 1.8rem;
             font-weight: bold;
             margin-bottom: 10px;
-            color: #00f2fe;
+            color: #fcd535;
         }
 
         .outlook-confidence {
@@ -350,7 +350,7 @@ function generateEndOfDayHTML(
         endOfDayData.performanceDistribution?.incorrect || 0,
         endOfDayData.performanceDistribution?.pending || 0
     ])},
-                        backgroundColor: ['#4facfe', '#ff6b6b', '#feca57'],
+                        backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
                         borderWidth: 0
                     }]
                 },
@@ -370,7 +370,7 @@ function generateEndOfDayHTML(
                         label: 'Confidence (%)',
                         data: ${JSON.stringify(endOfDayData.confidenceData?.map((c: any) => (c.confidence || 0) * 100) || [])},
                         backgroundColor: 'rgba(79, 172, 254, 0.8)',
-                        borderColor: '#4facfe',
+                        borderColor: '#f0b90b',
                         borderWidth: 1
                     }]
                 },
@@ -389,7 +389,7 @@ function generateEndOfDayHTML(
                         backgroundColor: ${JSON.stringify(endOfDayData.symbolPerformance?.map((s: any) =>
         s.performance >= 0 ? 'rgba(79, 172, 254, 0.8)' : 'rgba(255, 107, 107, 0.8)'
     ) || [])},
-                        borderColor: '#4facfe',
+                        borderColor: '#f0b90b',
                         borderWidth: 1
                     }]
                 },

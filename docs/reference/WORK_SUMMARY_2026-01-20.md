@@ -144,6 +144,8 @@ System
 
 ## 🎯 Initiative 4: Weekend Date Redirect Fix
 
+> **⚠️ SUPERSEDED**: This redirect logic was removed on 2026-01-20. Target date is now simply resolved via `resolveQueryDate()` with no automatic redirects. See CHANGELOG.md for details. Documentation archived to `docs/archive/legacy/WEEKEND_DATE_FIX.md`.
+
 ### Issue
 When accessing `/intraday-check?date=yesterday` on weekends, system showed "No data" for Saturday instead of redirecting to last market day (Friday).
 

@@ -85,3 +85,72 @@ export function getCurrentTimeET(): { hour: number; minute: number } {
   const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
   return { hour, minute };
 }
+
+/**
+ * Get the Sunday for a given week based on a date string
+ * Uses timezone from ?tz, DO setting, or defaults to ET
+ */
+export async function getWeekSunday(weekParam: string | null, url: URL, cacheDO?: any): Promise<Date> {
+  // Resolve timezone: ?tz > DO setting > Asia/Taipei default
+  const tzParam = url.searchParams.get('tz');
+  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'Asia/Taipei';
+  const todayStr = getTodayInZone(tz);
+  const today = new Date(todayStr + 'T12:00:00Z');
+
+  // Handle "last" parameter for previous week
+  if (weekParam === 'last') {
+    const day = today.getDay();
+    const thisSunday = new Date(today);
+    thisSunday.setDate(today.getDate() - day);
+    const lastSunday = new Date(thisSunday);
+    lastSunday.setDate(thisSunday.getDate() - 7);
+    lastSunday.setHours(0, 0, 0, 0);
+    return lastSunday;
+  }
+
+  if (weekParam && weekParam !== 'last') {
+    const weekDate = new Date(weekParam);
+    if (!isNaN(weekDate.getTime())) {
+      // Find the Sunday of that week
+      const day = weekDate.getDay();
+      const diff = weekDate.getDate() - day;
+      const sunday = new Date(weekDate);
+      sunday.setDate(diff);
+      sunday.setHours(0, 0, 0, 0);
+      return sunday;
+    }
+  }
+
+  // Default: find most recent Sunday
+  const day = today.getDay();
+  const diff = today.getDate() - day;
+  const sunday = new Date(today);
+  sunday.setDate(diff);
+  sunday.setHours(0, 0, 0, 0);
+  return sunday;
+}
+
+/**
+ * Get last trading days (excluding weekends)
+ */
+export function getLastTradingDays(currentTime: number | string | Date, count: number): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(currentTime);
+
+  // Go back to find trading days (weekdays)
+  let daysBack = 0;
+  while (dates.length < count && daysBack < count * 2) {
+    const checkDate = new Date(current);
+    checkDate.setDate(current.getDate() - daysBack);
+
+    // Check if it's a weekday (Monday = 1, Friday = 5)
+    const dayOfWeek = checkDate.getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      dates.push(checkDate);
+    }
+
+    daysBack++;
+  }
+
+  return dates.reverse(); // Return in chronological order
+}

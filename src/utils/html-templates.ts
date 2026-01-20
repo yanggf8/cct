@@ -34,7 +34,7 @@ export function generateEmptyStateHTML(options: {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
@@ -50,7 +50,7 @@ export function generateEmptyStateHTML(options: {
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -79,7 +79,7 @@ export function generateEmptyStateHTML(options: {
         .empty-state h3 {
             font-size: 1.5rem;
             margin-bottom: 15px;
-            color: #00d4ff;
+            color: #f0b90b;
         }
         .empty-state p {
             color: #b0b0b0;
@@ -87,7 +87,7 @@ export function generateEmptyStateHTML(options: {
             line-height: 1.6;
         }
         .retry-button {
-            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             color: white;
             border: none;
             padding: 12px 24px;
@@ -178,7 +178,7 @@ export function generateErrorStateHTML(options: {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(160deg, #1a1714 0%, #1f1b16 40%, #2a241c 100%);
             color: #ffffff;
             min-height: 100vh;
             padding: 20px;
@@ -241,7 +241,7 @@ export function generateErrorStateHTML(options: {
             margin-top: 30px;
         }
         .action-button {
-            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            background: linear-gradient(135deg, #f0b90b, #e8a00e);
             color: white;
             border: none;
             padding: 12px 24px;
