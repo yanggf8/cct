@@ -14,6 +14,22 @@
 - **Immutable headers**: Cloned responses before setting headers in `index-enhanced.ts`, `canary-toggle.ts`, and `enhanced-request-handler.ts` to resolve “Can't modify immutable headers” 500s.
 - **Immutable headers error**: Pre-market briefing now returns 200 OK after redirect; "Can't modify immutable headers" resolved.
 
+## 2026-01-21 - Dual-Model Reporting & Diagnostics ✅
+
+### 🧠 Dual-Model Data
+- `symbol_predictions` now stores dual-model fields (Gemma/DistilBERT status, error, confidence, response time, selection reason) via new migration.
+- D1 write paths updated to persist both models’ outcomes.
+
+### 📊 Reporting Updates
+- Pre-market, intraday, end-of-day, and weekly reports surface both models’ results with agreement status and model cards/badges.
+- Combined signal remains, with per-model detail for successes/failures.
+
+### 🩺 Diagnostics
+- New endpoint `GET /api/v1/diagnostics/ai-models` reports circuit breaker health and recent D1 stats for Gemma/DistilBERT.
+
+### ✅ Verification
+- TypeScript typecheck passing; dual-model fields aligned in interfaces; UI renders both models and agreement badges.
+
 ## 2025-12-24 - Version 3.2.0 - KV→DO Migration Complete & UI Cleanup ✅
 
 ### 🔄 Cache Architecture Migration
