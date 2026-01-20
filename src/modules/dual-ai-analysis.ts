@@ -2,8 +2,18 @@
 
 /**
  * Dual AI Comparison Analysis Module - TypeScript
- * Simple, transparent dual AI system that runs GPT-OSS-120B and DistilBERT side-by-side
+ * Simple, transparent dual AI system that runs two models side-by-side
  * and reports whether they agree or disagree with clear decision rules.
+ * 
+ * MODEL NAMING CONVENTION:
+ * - "gpt" field = Gemma Sea Lion 27B (@cf/aisingapore/gemma-sea-lion-v4-27b-it)
+ *   Legacy naming from when GPT-OSS-120B was used; kept for backward compatibility.
+ * - "distilbert" field = DistilBERT-SST-2 (@cf/huggingface/distilbert-sst-2-int8)
+ * 
+ * The "gpt" naming is retained to avoid breaking changes in:
+ * - D1 queries expecting models.gpt
+ * - Frontend handlers extracting signal.models?.gpt
+ * - Existing stored data in scheduled_job_results
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';

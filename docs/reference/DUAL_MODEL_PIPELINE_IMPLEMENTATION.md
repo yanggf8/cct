@@ -11,6 +11,10 @@
   - `briefing-handlers.ts`, `intraday-handlers.ts`, `end-of-day-handlers.ts`, `weekly-review-handlers.ts` show combined signal plus per-model cards/badges with status, direction, confidence, and errors.
   - Agreement badge highlights AGREE/PARTIAL/DISAGREE.
 - **Diagnostics**: `GET /api/v1/diagnostics/ai-models` returns circuit breaker health and recent D1 model stats.
+- **Persistence Updates**: 
+  - Intraday job now updates `symbol_predictions` with current dual-model outcomes.
+  - End-of-Day analysis now persists per-symbol dual-model data to `symbol_predictions`.
+- **UI Parity**: All reports (Pre-Market, Intraday, End-of-Day) now use the unified signal card layout with agreement badges and per-model status/confidence cards.
 
 ## Backward Compatibility
 - Null-safe rendering: reports fall back to “N/A” when a model is absent.

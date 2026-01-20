@@ -5,6 +5,7 @@
 
 import { createLogger } from '../logging.js';
 import { rateLimitedFetch } from '../rate-limiter.js';
+import { extractDualModelData } from '../data.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 // Type definitions
@@ -13,18 +14,29 @@ interface TradingSignal {
     sentiment: string;
     confidence: number;
     reasoning: string;
+    model?: string;
   }>;
   overall_confidence?: number;
   primary_direction?: string;
+  dual_model?: any;
 }
 
 interface AnalysisSignal {
+  symbol?: string;
   trading_signals?: TradingSignal;
   sentiment_layers?: Array<{
     sentiment: string;
     confidence: number;
     reasoning: string;
+    model?: string;
   }>;
+  dual_model?: any;
+  models?: {
+    gpt?: { direction?: string; confidence?: number; error?: string };
+    distilbert?: { direction?: string; confidence?: number; error?: string };
+  };
+  comparison?: { agree?: boolean; agreement_type?: string; match_details?: any };
+  signal?: { direction?: string; confidence?: number };
 }
 
 interface AnalysisData {
@@ -73,6 +85,11 @@ interface SignalPerformance {
   topWinners: TopPerformer[];
   topLosers: TopPerformer[];
   signalBreakdown: SignalBreakdown[];
+  modelStats?: {
+    gemma: { accuracy: number; correct: number; total: number } | null;
+    distilbert: { accuracy: number; correct: number; total: number } | null;
+    agreementRate: number | null;
+  };
 }
 
 interface TomorrowOutlook {
@@ -106,6 +123,61 @@ interface IntradayData {
 const logger = createLogger('end-of-day-analysis');
 
 /**
+ * Write end-of-day dual model results to symbol_predictions for queryability
+ */
+async function writeEndOfDayToD1(
+  env: CloudflareEnvironment,
+  date: string,
+  analysisData: AnalysisData | null
+): Promise<void> {
+  if (!env.PREDICT_JOBS_DB || !analysisData || !analysisData.trading_signals) return;
+
+  try {
+    let actualUpdates = 0;
+    const symbols = Object.keys(analysisData.trading_signals);
+
+    for (const symbol of symbols) {
+      const signal = analysisData.trading_signals[symbol];
+      const dualModelData = extractDualModelData(signal);
+
+      // Update existing prediction with end-of-day status (if dual model data present)
+      if (Object.keys(dualModelData).length > 0) {
+        await env.PREDICT_JOBS_DB.prepare(`
+          UPDATE symbol_predictions SET
+            gemma_status = COALESCE(?, gemma_status),
+            gemma_error = COALESCE(?, gemma_error),
+            gemma_confidence = COALESCE(?, gemma_confidence),
+            gemma_response_time_ms = COALESCE(?, gemma_response_time_ms),
+            distilbert_status = COALESCE(?, distilbert_status),
+            distilbert_error = COALESCE(?, distilbert_error),
+            distilbert_confidence = COALESCE(?, distilbert_confidence),
+            distilbert_response_time_ms = COALESCE(?, distilbert_response_time_ms),
+            model_selection_reason = COALESCE(?, model_selection_reason)
+          WHERE symbol = ? AND prediction_date = ?
+        `).bind(
+          dualModelData.gemma_status || null,
+          dualModelData.gemma_error || null,
+          dualModelData.gemma_confidence ?? null,
+          dualModelData.gemma_response_time_ms ?? null,
+          dualModelData.distilbert_status || null,
+          dualModelData.distilbert_error || null,
+          dualModelData.distilbert_confidence ?? null,
+          dualModelData.distilbert_response_time_ms ?? null,
+          dualModelData.model_selection_reason || null,
+          symbol,
+          date
+        ).run();
+        actualUpdates++;
+      }
+    }
+
+    logger.info('End-of-Day Analysis: Wrote dual model data to D1', { count: actualUpdates, total: symbols.length });
+  } catch (error: unknown) {
+    logger.warn('End-of-Day Analysis: Failed to write dual model data to D1', { error });
+  }
+}
+
+/**
  * Generate comprehensive end-of-day analysis
  */
 export async function generateEndOfDayAnalysis(
@@ -117,6 +189,8 @@ export async function generateEndOfDayAnalysis(
   logger.info('Generating end-of-day market close analysis');
 
   try {
+    const today = new Date().toISOString().split('T')[0];
+
     // Get final market close data
     const marketCloseData = await getMarketClosePerformance(analysisData?.symbols_analyzed || [], env);
 
@@ -129,6 +203,9 @@ export async function generateEndOfDayAnalysis(
 
     // Generate tomorrow's outlook
     const tomorrowOutlook = generateTomorrowOutlook(analysisData, signalPerformance);
+
+    // Persist per-symbol dual model results
+    await writeEndOfDayToD1(env, today, analysisData);
 
     // Compile comprehensive end-of-day data
     const endOfDayResults: EndOfDayResult = {
@@ -148,6 +225,7 @@ export async function generateEndOfDayAnalysis(
 
 /**
  * Analyze performance of high-confidence signals at market close
+ * Supports both legacy sentiment_layers format and dual-model format (models.gpt/distilbert)
  */
 function analyzeHighConfidenceSignals(
   analysisData: AnalysisData | null,
@@ -163,20 +241,47 @@ function analyzeHighConfidenceSignals(
   const signalBreakdown: SignalBreakdown[] = [];
   const topWinners: TopPerformer[] = [];
   const topLosers: TopPerformer[] = [];
+  
+  // Dual-model tracking
+  let gemmaCorrect = 0, gemmaTotal = 0;
+  let distilbertCorrect = 0, distilbertTotal = 0;
+  let agreementCount = 0;
 
   // Process each symbol
   Object.keys(signals).forEach(symbol => {
     const signal = signals[symbol];
     const tradingSignals = signal.trading_signals || signal;
     const sentimentLayer = signal.sentiment_layers?.[0];
+    
+    // Check for dual-model format (gpt = Gemma Sea Lion, distilbert = DistilBERT-SST-2)
+    const isDualModel = signal.models?.gpt || signal.models?.distilbert || signal.comparison;
+    const gemma = signal.models?.gpt;
+    const distilbert = signal.models?.distilbert;
+    const comparison = signal.comparison;
 
-    const predictedDirection = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' : 'down';
-    const confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
+    // Extract direction and confidence - prefer dual-model if available
+    let predictedDirection: string;
+    let confidence: number;
+    
+    if (isDualModel && signal.signal) {
+      // Use combined signal from dual-model analysis
+      predictedDirection = signal.signal.direction === 'bullish' || signal.signal.direction === 'up' ? 'up' : 'down';
+      confidence = (signal.signal.confidence || comparison?.match_details?.confidence_spread || 0.7) * 100;
+    } else {
+      // Legacy format
+      predictedDirection = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' : 'down';
+      confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
+    }
 
     // Only analyze high-confidence signals
     if (confidence < (CONFIDENCE_THRESHOLD * 100)) return;
 
     totalSignals++;
+    
+    // Track dual-model agreement
+    if (isDualModel && comparison) {
+      if (comparison.agree) agreementCount++;
+    }
 
     // Get market close performance
     const closePerformance = marketCloseData[symbol];
@@ -186,6 +291,18 @@ function analyzeHighConfidenceSignals(
 
       if (isCorrect) correctCalls++;
       else wrongCalls++;
+      
+      // Track per-model accuracy if dual-model
+      if (gemma?.direction) {
+        gemmaTotal++;
+        const gemmaDir = gemma.direction === 'bullish' || gemma.direction === 'up' ? 'up' : 'down';
+        if (gemmaDir === actualDirection) gemmaCorrect++;
+      }
+      if (distilbert?.direction) {
+        distilbertTotal++;
+        const distilbertDir = distilbert.direction === 'bullish' || distilbert.direction === 'up' ? 'up' : 'down';
+        if (distilbertDir === actualDirection) distilbertCorrect++;
+      }
 
       // Add to signal breakdown
       signalBreakdown.push({
@@ -196,7 +313,13 @@ function analyzeHighConfidenceSignals(
         actualDirection,
         confidence: Math.round(confidence),
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
-        correct: isCorrect
+        correct: isCorrect,
+        // Add dual-model info if available
+        ...(isDualModel && {
+          gemma_direction: gemma?.direction,
+          distilbert_direction: distilbert?.direction,
+          models_agree: comparison?.agree
+        })
       });
 
       // Track top performers
@@ -233,7 +356,13 @@ function analyzeHighConfidenceSignals(
     modelGrade,
     topWinners: topWinners.slice(0, 3),
     topLosers: topLosers.slice(0, 3),
-    signalBreakdown
+    signalBreakdown,
+    // Dual-model performance stats
+    modelStats: {
+      gemma: gemmaTotal > 0 ? { accuracy: gemmaCorrect / gemmaTotal, correct: gemmaCorrect, total: gemmaTotal } : null,
+      distilbert: distilbertTotal > 0 ? { accuracy: distilbertCorrect / distilbertTotal, correct: distilbertCorrect, total: distilbertTotal } : null,
+      agreementRate: totalSignals > 0 ? agreementCount / totalSignals : null
+    }
   };
 }
 
