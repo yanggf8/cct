@@ -91,18 +91,24 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     }
 
     // Determine schedule status
+    // Fix: use >= comparison for pending logic (handles users ahead of ET)
+    const queryDate = new Date(queryDateStr + 'T00:00:00Z');
+    const todayETDate = new Date(todayET + 'T00:00:00Z');
+    const isQueryingTodayOrFuture = queryDate >= todayETDate;
     const isQueryingToday = queryDateStr === todayET;
     const { hour, minute } = getCurrentTimeET();
     const beforeScheduleET = hour < 16 || (hour === 16 && minute < 5); // Before 4:05 PM ET
     const sourceDate = fallback?.sourceDate || queryDateStr;
     // isStale: data is old/not on time (from D1)
     const isStale = fallback?.isStale || false;
-    // isPending: querying today with no exact match data, and before schedule
+    // dataDateDiffers: data is from a different day than requested
+    const dataDateDiffers = fallback && sourceDate !== queryDateStr;
+    // isPending: querying today/future with no exact match data, and before schedule
     // Show pending even if stale fallback data exists - don't show yesterday's data as "today"
-    const isPending = (!d1Result || isStale) && isQueryingToday && beforeScheduleET;
+    const isPending = (!d1Result || isStale || dataDateDiffers) && isQueryingTodayOrFuture && beforeScheduleET;
 
     // Generate HTML based on D1 data availability
-    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate);
+    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers);
 
     // Cache HTML for fast subsequent loads
     try {
@@ -131,7 +137,8 @@ function generateEndOfDayHTML(
     isQueryingToday: boolean,
     beforeScheduleET: boolean,
     isPending: boolean,
-    sourceDate: string
+    sourceDate: string,
+    dataDateDiffers: boolean
 ): string {
     const endOfDayData = d1Result?.data;
     const d1CreatedAt = d1Result?.createdAt;
@@ -140,10 +147,18 @@ function generateEndOfDayHTML(
     // D1 record exists = we have data (regardless of signal count)
     const hasD1Data = !!d1Result;
 
-    // Check if data is genuinely stale (>1 day difference) vs timezone edge case (consecutive day)
-    // Only show stale warning for genuinely old data, not timezone differences
-    const daysDiff = Math.abs(Math.round((new Date(queryDateStr + 'T00:00:00Z').getTime() - new Date(sourceDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
-    const shouldShowStaleWarning = isStale && daysDiff > 1;
+    // Display date: always show the REQUESTED date as "Target Day"
+    // sourceDate is used only for warnings when data differs
+    const displayDate = queryDateStr;
+
+    // Show warning when data is from a different day than requested
+    const dataDateWarning = dataDateDiffers ? `
+        <div class="stale-warning">
+            ⚠️ <strong>Data Mismatch:</strong> Showing data from <strong>${new Date(sourceDate + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</strong>; you requested <strong>${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</strong>.
+            ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : ''}
+            <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
+        </div>
+        ` : '';
 
     // Determine display status - show both ET and local time
     let statusDisplay: string;
@@ -156,7 +171,7 @@ function generateEndOfDayHTML(
         statusDisplay = `⚠️ No data available`;
     }
 
-    // Branch: pending (not yet executed) vs stale (over time) vs normal
+    // Branch: pending (not yet executed) vs normal
     if (isPending) {
         // Report hasn't run yet for today
         return generatePendingPageHTML({
@@ -167,18 +182,6 @@ function generateEndOfDayHTML(
             scheduledMinuteUTC: 5
         });
     }
-
-    // For stale data (over time), show report with warning
-    const staleWarning = shouldShowStaleWarning ? `
-        <div class="stale-warning">
-            ⚠️ <strong>Stale Data:</strong> Showing data from <strong>${sourceDate}</strong>.
-            ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : ''}
-            <button class="refresh-button" style="margin-left: 15px; padding: 6px 12px; font-size: 0.85rem;" onclick="location.reload()">Refresh</button>
-        </div>
-        ` : '';
-
-    // Display date: use actual D1 sourceDate when data exists, queryDate only for pending/no-data
-    const displayDate = hasD1Data ? sourceDate : queryDateStr;
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -455,6 +458,35 @@ function generateEndOfDayHTML(
             color: #feca57;
         }
 
+        .agreement-badge {
+            text-align: center;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin: 15px 0 10px 0;
+        }
+        .agreement-badge.agree { background: rgba(72, 219, 251, 0.2); color: #48dbfb; }
+        .agreement-badge.disagree { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+        .agreement-badge.partial { background: rgba(254, 202, 87, 0.2); color: #feca57; }
+
+        .dual-model-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .model-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.8rem;
+        }
+        .model-card.failed { background: rgba(255, 107, 107, 0.1); }
+        .model-name { font-weight: 600; color: #4facfe; margin-bottom: 4px; }
+        .model-status { font-size: 0.75rem; opacity: 0.8; }
+        .model-result { font-weight: 600; margin-top: 4px; }
+
         .model-ok { color: #4facfe; }
         .model-fail { color: #ff6b6b; }
 
@@ -539,7 +571,7 @@ function generateEndOfDayHTML(
                 <span class="date-value">${statusDisplay}</span>
               </div>
             </div>
-            ${staleWarning}
+            ${dataDateWarning}
         </div>
 
         ${!hasD1Data ? `
@@ -738,30 +770,45 @@ function generateEndOfDayHTML(
  */
 function generateSignalCards(signals: any[]): string {
     if (!signals || signals.length === 0) {
-        return '<p style="text-align: center; opacity: 0.7;">No signal data available for today.</p>';
+        return '<p style="text-align: center; opacity: 0.7; grid-column: 1 / -1; padding: 40px;">No signal data available for today.</p>';
     }
 
     return signals.map(signal => {
         const accuracyClass = signal.status === 'correct' ? 'accuracy-correct' :
             signal.status === 'incorrect' ? 'accuracy-incorrect' : 'accuracy-pending';
+        
+        const confidence = Math.round((signal.confidence || 0) * 100);
 
         // Extract dual model data
         const gemma = signal.dual_model?.gemma || signal.models?.gpt || {};
         const distilbert = signal.dual_model?.distilbert || signal.models?.distilbert || {};
+        const agreement = signal.agreement?.status || signal.dual_model?.agreement || 
+          (gemma.direction && distilbert.direction && gemma.direction === distilbert.direction ? 'AGREE' : 
+           gemma.direction && distilbert.direction ? 'DISAGREE' : 'PARTIAL');
+        
         const hasDualModel = gemma.status || distilbert.status || gemma.direction || distilbert.direction;
-
-        const dualModelInfo = hasDualModel ? `
-        <div class="signal-detail" style="flex-direction: column; align-items: flex-start;">
-          <span class="label" style="margin-bottom: 5px;">Models:</span>
-          <div style="display: flex; gap: 10px; font-size: 0.85rem;">
-            <span class="${gemma.status === 'failed' || gemma.error ? 'model-fail' : 'model-ok'}">
-              G: ${gemma.direction?.substring(0,4).toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}
-            </span>
-            <span class="${distilbert.status === 'failed' || distilbert.error ? 'model-fail' : 'model-ok'}">
-              D: ${distilbert.direction?.substring(0,4).toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}
-            </span>
+        
+        // Agreement badge
+        const agreementBadge = hasDualModel ? `
+          <div class="agreement-badge ${agreement.toLowerCase()}">
+            ${agreement === 'AGREE' ? '✓ MODELS AGREE' : agreement === 'DISAGREE' ? '✗ MODELS DISAGREE' : '◐ PARTIAL AGREEMENT'}
           </div>
-        </div>
+        ` : '';
+        
+        // Dual model cards
+        const dualModelCards = hasDualModel ? `
+          <div class="dual-model-grid">
+            <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
+              <div class="model-name">Gemma Sea Lion</div>
+              <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : gemma.direction ? '✓ SUCCESS' : '—'}</div>
+              <div class="model-result">${gemma.direction?.toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
+            </div>
+            <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
+              <div class="model-name">DistilBERT</div>
+              <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : distilbert.direction ? '✓ SUCCESS' : '—'}</div>
+              <div class="model-result">${distilbert.direction?.toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
+            </div>
+          </div>
         ` : '';
 
         return `
@@ -773,7 +820,7 @@ function generateSignalCards(signals: any[]): string {
         </div>
         <div class="signal-detail">
           <span class="label">Confidence:</span>
-          <span class="value">${Math.round((signal.confidence || 0) * 100)}%</span>
+          <span class="value">${confidence}%</span>
         </div>
         <div class="signal-detail">
           <span class="label">Status:</span>
@@ -783,7 +830,8 @@ function generateSignalCards(signals: any[]): string {
             </span>
           </span>
         </div>
-        ${dualModelInfo}
+        ${agreementBadge}
+        ${dualModelCards}
       </div>
     `;
     }).join('');

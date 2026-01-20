@@ -443,6 +443,96 @@ export const handleIntradayCheck = createHandler(
 // ============================================================================
 
 /**
+ * Generate signal cards HTML with dual model display
+ */
+function generateSignalCards(signals: any[]): string {
+  if (!signals || signals.length === 0) {
+    return '<div style="text-align: center; opacity: 0.7; grid-column: 1 / -1; padding: 40px;">No signals available yet</div>';
+  }
+
+  return signals.map(signal => {
+    const confidence = Math.round((signal.confidence || 0) * 100);
+    const accuracy = signal.performance === 'on_track' || signal.performance === 'strengthened' ? 'ok' : 
+                     signal.performance === 'diverged' ? 'fail' : 'pending';
+    
+    // Extract dual model data
+    const gemma = signal.gemma_status ? {
+      status: signal.gemma_status,
+      error: signal.gemma_error,
+      confidence: signal.gemma_confidence,
+      direction: signal.morning_prediction // Simplification for display
+    } : (signal.dual_model?.gemma || {});
+
+    const distilbert = signal.distilbert_status ? {
+      status: signal.distilbert_status,
+      error: signal.distilbert_error,
+      confidence: signal.distilbert_confidence,
+      direction: signal.morning_prediction // Simplification for display
+    } : (signal.dual_model?.distilbert || {});
+
+    const agreement = signal.agreement || signal.model_selection_reason || 'PARTIAL';
+    
+    const hasDualModel = gemma.status || distilbert.status;
+    
+    // Agreement badge
+    const agreementBadge = hasDualModel ? `
+      <div class="agreement-badge ${agreement.toLowerCase().includes('agree') ? 'agree' : agreement.toLowerCase().includes('diverge') || agreement.toLowerCase().includes('disagree') ? 'disagree' : 'partial'}">
+        ${agreement.toUpperCase().includes('AGREE') ? '✓ MODELS AGREE' : agreement.toUpperCase().includes('DIVERGE') || agreement.toUpperCase().includes('DISAGREE') ? '✗ MODELS DISAGREE' : '◐ PARTIAL AGREEMENT'}
+      </div>
+    ` : '';
+    
+    // Dual model cards
+    const dualModelCards = hasDualModel ? `
+      <div class="dual-model-grid">
+        <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
+          <div class="model-name">Gemma Sea Lion</div>
+          <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : '✓ SUCCESS'}</div>
+          <div class="model-result">${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : 'N/A'}</div>
+        </div>
+        <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
+          <div class="model-name">DistilBERT</div>
+          <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : '✓ SUCCESS'}</div>
+          <div class="model-result">${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : 'N/A'}</div>
+        </div>
+      </div>
+    ` : '';
+
+    return `
+      <div class="signal-card">
+        <h4>${signal.symbol} ${getDirectionEmoji(signal.predictedDirection || signal.predicted)}</h4>
+        <div class="signal-detail">
+          <span class="label">Morning:</span>
+          <span class="value ${signal.predictedDirection || signal.predicted}">${(signal.predictedDirection || signal.predicted || 'N/A').toUpperCase()}</span>
+        </div>
+        <div class="signal-detail">
+          <span class="label">Current:</span>
+          <span class="value ${signal.actualDirection || signal.actual}">${(signal.actualDirection || signal.actual || 'PENDING').toUpperCase()}</span>
+        </div>
+        <div class="signal-detail">
+          <span class="label">Status:</span>
+          <span class="value"><span class="divergence-level ${accuracy === 'ok' ? 'low' : accuracy === 'fail' ? 'high' : 'medium'}">${accuracy === 'ok' ? 'ON TARGET' : accuracy === 'fail' ? 'DIVERGED' : 'TRACKING'}</span></span>
+        </div>
+        ${agreementBadge}
+        ${dualModelCards}
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * Get direction emoji
+ */
+function getDirectionEmoji(direction?: string): string {
+  if (!direction) return '❓';
+  switch (direction.toLowerCase()) {
+    case 'bullish': case 'up': return '📈';
+    case 'bearish': case 'down': return '📉';
+    case 'neutral': case 'flat': return '➡️';
+    default: return '❓';
+  }
+}
+
+/**
  * Generate comprehensive intraday check HTML
  */
 async function generateIntradayCheckHTML(
@@ -763,6 +853,76 @@ async function generateIntradayCheckHTML(
             opacity: 0.8;
         }
 
+        .signal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .signal-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .signal-card:hover {
+            transform: translateY(-3px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .signal-card h4 {
+            color: #00f2fe;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .signal-detail {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .signal-detail:last-child {
+            border-bottom: none;
+        }
+
+        .agreement-badge {
+            text-align: center;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin: 15px 0 10px 0;
+        }
+        .agreement-badge.agree { background: rgba(72, 219, 251, 0.2); color: #48dbfb; }
+        .agreement-badge.disagree { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+        .agreement-badge.partial { background: rgba(254, 202, 87, 0.2); color: #feca57; }
+
+        .dual-model-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .model-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.8rem;
+        }
+        .model-card.failed { background: rgba(255, 107, 107, 0.1); }
+        .model-name { font-weight: 600; color: #4facfe; margin-bottom: 4px; }
+        .model-status { font-size: 0.75rem; opacity: 0.8; }
+        .model-result { font-weight: 600; margin-top: 4px; }
+
         .footer {
             text-align: center;
             padding: 20px 0;
@@ -857,68 +1017,24 @@ async function generateIntradayCheckHTML(
         </div>
 
         <div class="performance-grid">
-            <div class="performance-card">
+            <div class="performance-card" style="grid-column: 1 / -1;">
                 <h3>🚨 Significant Divergences</h3>
                 <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
                     High-confidence signals (≥70%) not performing as expected
                 </div>
-                <table class="divergences-table">
-                    <thead>
-                        <tr>
-                            <th>Ticker</th>
-                            <th>Predicted</th>
-                            <th>Current</th>
-                            <th>Level</th>
-                            <th>Models</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(formattedData.divergences || []).map((div: DivergenceData) => {
-                          const gemma = (div as any).gemma_status || (div as any).dual_model?.gemma?.status;
-                          const distilbert = (div as any).distilbert_status || (div as any).dual_model?.distilbert?.status;
-                          const modelInfo = gemma || distilbert ? 
-                            `<span class="model-mini ${gemma === 'success' ? 'ok' : 'fail'}">G</span><span class="model-mini ${distilbert === 'success' ? 'ok' : 'fail'}">D</span>` : '—';
-                          return `
-                            <tr>
-                                <td class="ticker">${div.symbol}</td>
-                                <td class="predicted ${div.predictedDirection}">${div.predicted}</td>
-                                <td class="actual ${div.actualDirection}">${div.actual}</td>
-                                <td><span class="divergence-level ${div.level}">${div.level.toUpperCase()}</span></td>
-                                <td>${modelInfo}</td>
-                            </tr>
-                          `;
-                        }).join('')}
-                    </tbody>
-                </table>
-                ${(formattedData.divergences || []).length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No significant divergences detected</div>' : ''}
+                <div class="signal-grid">
+                    ${generateSignalCards(formattedData.divergences || [])}
+                </div>
             </div>
 
-            <div class="performance-card">
+            <div class="performance-card" style="grid-column: 1 / -1;">
                 <h3>✅ On-Track Signals</h3>
                 <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
                     High-confidence signals performing as expected
                 </div>
-                <table class="divergences-table">
-                    <thead>
-                        <tr>
-                            <th>Ticker</th>
-                            <th>Predicted</th>
-                            <th>Current</th>
-                            <th>Performance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(formattedData.onTrackSignals || []).map((signal: IntradaySignal) => `
-                            <tr>
-                                <td class="ticker">${signal.symbol}</td>
-                                <td class="predicted ${signal.predictedDirection}">${signal.predicted}</td>
-                                <td class="actual ${signal.actualDirection}">${signal.actual}</td>
-                                <td class="divergence-level low">ON TARGET</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                ${(formattedData.onTrackSignals || []).length === 0 ? '<div style="text-align: center; padding: 20px; opacity: 0.6;">No on-track signals available</div>' : ''}
+                <div class="signal-grid">
+                    ${generateSignalCards(formattedData.onTrackSignals || [])}
+                </div>
             </div>
         </div>
 
