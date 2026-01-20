@@ -207,16 +207,15 @@ export class EnhancedRequestHandler {
           break;
       }
 
-      // Add enhanced system headers while preserving existing Content-Type
-      (response as any).headers.set('X-Enhanced-System', 'true');
-      (response as any).headers.set('X-API-Version', 'v1');
-      (response as any).headers.set('X-Migration-Reason', reason);
-
-      // Ensure proper Content-Type for HTML responses
-      const contentType = (response as any).headers.get('Content-Type') || '';
-      if (contentType.includes('text/html')) {
-        (response as any).headers.set('Content-Type', 'text/html; charset=utf-8');
+      // Clone response with enhanced headers (Response headers are immutable)
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set('X-Enhanced-System', 'true');
+      newHeaders.set('X-API-Version', 'v1');
+      newHeaders.set('X-Migration-Reason', reason);
+      if (newHeaders.get('Content-Type')?.includes('text/html')) {
+        newHeaders.set('Content-Type', 'text/html; charset=utf-8');
       }
+      response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
 
       monitor.complete(response);
 
@@ -418,18 +417,17 @@ export class EnhancedRequestHandler {
 
 try {
       // Handle request directly with enhanced logic
-      const response = await this.handleDirectRequest(request, ctx);
+      let response = await this.handleDirectRequest(request, ctx);
 
-      // Add migration headers while preserving existing Content-Type
-      (response as any).headers.set('X-Enhanced-System', 'true');
-      (response as any).headers.set('X-API-Version', 'legacy');
-      (response as any).headers.set('X-Migration-Reason', reason);
-
-      // Ensure proper Content-Type for HTML responses
-      const contentType = (response as any).headers.get('Content-Type') || '';
-      if (contentType.includes('text/html')) {
-        (response as any).headers.set('Content-Type', 'text/html; charset=utf-8');
+      // Clone response with enhanced headers (Response headers are immutable)
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set('X-Enhanced-System', 'true');
+      newHeaders.set('X-API-Version', 'legacy');
+      newHeaders.set('X-Migration-Reason', reason);
+      if (newHeaders.get('Content-Type')?.includes('text/html')) {
+        newHeaders.set('Content-Type', 'text/html; charset=utf-8');
       }
+      response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
 
       monitor.complete(response);
 

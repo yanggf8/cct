@@ -665,10 +665,10 @@ function generateWeeklyReviewHTML(
                     labels: ['Bullish', 'Bearish', 'Neutral'],
                     datasets: [{
                         data: ${JSON.stringify([
-                            weeklyData.signalDistribution?.bullish || 0,
-                            weeklyData.signalDistribution?.bearish || 0,
-                            weeklyData.signalDistribution?.neutral || 0
-                        ])},
+    weeklyData.signalDistribution?.bullish || 0,
+    weeklyData.signalDistribution?.bearish || 0,
+    weeklyData.signalDistribution?.neutral || 0
+  ])},
                         backgroundColor: ['#4facfe', '#ff6b6b', '#feca57'],
                         borderWidth: 0
                     }]
@@ -699,13 +699,15 @@ function generateWeeklyReviewHTML(
     </script>
     ` : ''}
     <script>
-      // Render generated times with ET and local
+      // Render generated times with ET and local (include full date for both)
       document.querySelectorAll('.gen-time').forEach(el => {
         const ts = parseInt(el.dataset.ts);
         const d = new Date(ts);
-        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
-        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
-        el.textContent = et + ' ET (' + local + ' local)';
+        const etDate = d.toLocaleDateString('en-US', {timeZone: 'America/New_York', month: 'short', day: 'numeric'});
+        const etTime = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const localDate = d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+        const localTime = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = etDate + ', ' + etTime + ' ET (' + localDate + ', ' + localTime + ' local)';
       });
     </script>
 </body>

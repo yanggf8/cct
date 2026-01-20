@@ -320,12 +320,17 @@ export async function getDistilBERTSentiment(symbol: string, newsData: NewsArtic
           { text: text }
         );
 
-        const result = response[0] as { label?: string; score?: number };
+        // DistilBERT returns [[NEGATIVE, score], [POSITIVE, score]] - use the HIGHEST score
+        // The element with highest score is the actual sentiment prediction
+        const sentiments = response as Array<{ label?: string; score?: number }>;
+        const bestResult = sentiments.reduce((best, curr) =>
+          (curr.score || 0) > (best.score || 0) ? curr : best
+        );
 
         return {
-          sentiment: result.label?.toLowerCase() || 'neutral',
-          confidence: result.score || 0.5,
-          score: (result.label === 'POSITIVE' ? result.score : -(result.score || 0)) || 0,
+          sentiment: bestResult.label?.toLowerCase() || 'neutral',
+          confidence: bestResult.score || 0.5,
+          score: (bestResult.label === 'POSITIVE' ? bestResult.score : -(bestResult.score || 0)) || 0,
           text_analyzed: text,
           processing_order: index
         };

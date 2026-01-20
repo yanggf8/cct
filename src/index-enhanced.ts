@@ -90,12 +90,14 @@ export default {
       }
 
       // Handle request with enhanced system
-      const response = await enhancedHandler.handleRequest(request, ctx);
+      let response = await enhancedHandler.handleRequest(request, ctx);
 
-      // Add enhanced system headers
-      response.headers.set('X-Worker-Version', '2.0-enhanced');
-      response.headers.set('X-Response-Time', String(Date.now() - startTime));
-      response.headers.set('X-Timestamp', new Date().toISOString());
+      // Clone response with enhanced headers (Response headers are immutable)
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set('X-Worker-Version', '2.0-enhanced');
+      newHeaders.set('X-Response-Time', String(Date.now() - startTime));
+      newHeaders.set('X-Timestamp', new Date().toISOString());
+      response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
 
       logger.debug('Request completed', {
         method: request.method,

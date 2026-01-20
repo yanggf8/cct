@@ -25,66 +25,96 @@ const logger = createLogger('end-of-day-handlers');
  * Generate End-of-Day Summary Page
  */
 export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
-  const requestId = crypto.randomUUID();
-  const startTime = Date.now();
-  const url = new URL(request.url);
-  const bypassCache = url.searchParams.get('bypass') === '1';
-  
-  // Resolve query date: ?date > ?tz > DO setting > ET default
-  const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
-  const todayET = getTodayInZone('America/New_York');
+    const requestId = crypto.randomUUID();
+    const startTime = Date.now();
+    const url = new URL(request.url);
+    const bypassCache = url.searchParams.get('bypass') === '1';
 
-  // Fast path: check DO HTML cache first (unless bypass)
-  if (!bypassCache) {
-    try {
-      const dal = createSimplifiedEnhancedDAL(env);
-      const cached = await dal.read(`end_of_day_html_${queryDateStr}`);
-      if (cached.success && cached.data) {
-        return new Response(cached.data, {
-          headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'HIT', 'X-Request-ID': requestId }
+    // Resolve query date: ?date > ?tz > DO setting > ET default
+    const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
+    const todayET = getTodayInZone('America/New_York');
+
+    // Check if we need to redirect to last market day
+    // If resolved date is a weekend, redirect to last market day
+    const dateParam = url.searchParams.get('date');
+    const resolvedDate = new Date(queryDateStr + 'T00:00:00Z');
+    const dayOfWeek = resolvedDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+
+    if (dateParam === 'yesterday' && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        // Calculate last market day (Friday)
+        const lastMarketDayDate = new Date(todayET + 'T00:00:00Z');
+        let daysToSubtract;
+        if (dayOfWeek === 0) {
+            // Sunday -> go back 2 days to Friday
+            daysToSubtract = 2;
+        } else {
+            // Saturday -> go back 1 day to Friday
+            daysToSubtract = 1;
+        }
+        lastMarketDayDate.setDate(lastMarketDayDate.getDate() - daysToSubtract);
+        const lastMarketDay = lastMarketDayDate.toISOString().split('T')[0];
+
+        const redirectUrl = new URL(request.url);
+        redirectUrl.searchParams.set('date', lastMarketDay);
+        logger.info('END-OF-DAY: Redirect to last market day', {
+            from: queryDateStr,
+            to: lastMarketDay,
+            reason: 'weekend'
         });
-      }
-    } catch (e) { /* continue */ }
-  }
+        return Response.redirect(redirectUrl.toString(), 302);
+    }
 
-  logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', { requestId, queryDate: queryDateStr, bypassCache });
+    // Fast path: check DO HTML cache first (unless bypass)
+    if (!bypassCache) {
+        try {
+            const dal = createSimplifiedEnhancedDAL(env);
+            const cached = await dal.read(`end_of_day_html_${queryDateStr}`);
+            if (cached.success && cached.data) {
+                return new Response(cached.data, {
+                    headers: { 'Content-Type': 'text/html', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'HIT', 'X-Request-ID': requestId }
+                });
+            }
+        } catch (e) { /* continue */ }
+    }
 
-  // Use getD1FallbackData which handles full fallback chain and returns createdAt
-  const fallback = await getD1FallbackData(env, queryDateStr, 'end-of-day');
-  const d1Result = fallback ? {
-    data: fallback.data,
-    createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString()
-  } : null;
-  
-  if (fallback) {
-    logger.info('END-OF-DAY: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
-  }
-  
-  // Determine schedule status
-  const isQueryingToday = queryDateStr === todayET;
-  const { hour, minute } = getCurrentTimeET();
-  const beforeScheduleET = hour < 16 || (hour === 16 && minute < 5); // Before 4:05 PM ET
-  const sourceDate = fallback?.sourceDate || queryDateStr;
-  // isStale: data is old/not on time (from D1)
-  const isStale = fallback?.isStale || false;
-  // isPending: querying today with no exact match data, and before schedule
-  // Show pending even if stale fallback data exists - don't show yesterday's data as "today"
-  const isPending = (!d1Result || isStale) && isQueryingToday && beforeScheduleET;
+    logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', { requestId, queryDate: queryDateStr, bypassCache });
 
-  // Generate HTML based on D1 data availability
-  const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate);
+    // Use getD1FallbackData which handles full fallback chain and returns createdAt
+    const fallback = await getD1FallbackData(env, queryDateStr, 'end-of-day');
+    const d1Result = fallback ? {
+        data: fallback.data,
+        createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString()
+    } : null;
 
-  // Cache HTML for fast subsequent loads
-  try {
-    const dal = createSimplifiedEnhancedDAL(env);
-    await dal.write(`end_of_day_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
-  } catch (e) { /* ignore */ }
+    if (fallback) {
+        logger.info('END-OF-DAY: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
+    }
 
-  logger.info('🎯 [END-OF-DAY] End-of-day summary completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result });
+    // Determine schedule status
+    const isQueryingToday = queryDateStr === todayET;
+    const { hour, minute } = getCurrentTimeET();
+    const beforeScheduleET = hour < 16 || (hour === 16 && minute < 5); // Before 4:05 PM ET
+    const sourceDate = fallback?.sourceDate || queryDateStr;
+    // isStale: data is old/not on time (from D1)
+    const isStale = fallback?.isStale || false;
+    // isPending: querying today with no exact match data, and before schedule
+    // Show pending even if stale fallback data exists - don't show yesterday's data as "today"
+    const isPending = (!d1Result || isStale) && isQueryingToday && beforeScheduleET;
 
-  return new Response(htmlContent, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Request-ID': requestId }
-  });
+    // Generate HTML based on D1 data availability
+    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate);
+
+    // Cache HTML for fast subsequent loads
+    try {
+        const dal = createSimplifiedEnhancedDAL(env);
+        await dal.write(`end_of_day_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
+    } catch (e) { /* ignore */ }
+
+    logger.info('🎯 [END-OF-DAY] End-of-day summary completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result });
+
+    return new Response(htmlContent, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Request-ID': requestId }
+    });
 });
 
 /**
@@ -96,50 +126,50 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
  * 3. If no D1 data AND past scheduled time → show "No data available"
  */
 function generateEndOfDayHTML(
-  d1Result: { data: any; createdAt: string; isStale?: boolean } | null,
-  queryDateStr: string,
-  isQueryingToday: boolean,
-  beforeScheduleET: boolean,
-  isPending: boolean,
-  sourceDate: string
+    d1Result: { data: any; createdAt: string; isStale?: boolean } | null,
+    queryDateStr: string,
+    isQueryingToday: boolean,
+    beforeScheduleET: boolean,
+    isPending: boolean,
+    sourceDate: string
 ): string {
-  const endOfDayData = d1Result?.data;
-  const d1CreatedAt = d1Result?.createdAt;
-  const isStale = d1Result?.isStale || false;
+    const endOfDayData = d1Result?.data;
+    const d1CreatedAt = d1Result?.createdAt;
+    const isStale = d1Result?.isStale || false;
 
-  // D1 record exists = we have data (regardless of signal count)
-  const hasD1Data = !!d1Result;
+    // D1 record exists = we have data (regardless of signal count)
+    const hasD1Data = !!d1Result;
 
-  // Check if data is genuinely stale (>1 day difference) vs timezone edge case (consecutive day)
-  // Only show stale warning for genuinely old data, not timezone differences
-  const daysDiff = Math.abs(Math.round((new Date(queryDateStr + 'T00:00:00Z').getTime() - new Date(sourceDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
-  const shouldShowStaleWarning = isStale && daysDiff > 1;
+    // Check if data is genuinely stale (>1 day difference) vs timezone edge case (consecutive day)
+    // Only show stale warning for genuinely old data, not timezone differences
+    const daysDiff = Math.abs(Math.round((new Date(queryDateStr + 'T00:00:00Z').getTime() - new Date(sourceDate + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24)));
+    const shouldShowStaleWarning = isStale && daysDiff > 1;
 
-  // Determine display status - show both ET and local time
-  let statusDisplay: string;
-  if (hasD1Data && d1CreatedAt) {
-    const ts = new Date(d1CreatedAt).getTime();
-    statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
-  } else if (isQueryingToday && beforeScheduleET) {
-    statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="21" data-utcm="5"></span>`;
-  } else {
-    statusDisplay = `⚠️ No data available`;
-  }
+    // Determine display status - show both ET and local time
+    let statusDisplay: string;
+    if (hasD1Data && d1CreatedAt) {
+        const ts = new Date(d1CreatedAt).getTime();
+        statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
+    } else if (isQueryingToday && beforeScheduleET) {
+        statusDisplay = `⏳ Scheduled: <span class="sched-time" data-utch="21" data-utcm="5"></span>`;
+    } else {
+        statusDisplay = `⚠️ No data available`;
+    }
 
-  // Branch: pending (not yet executed) vs stale (over time) vs normal
-  if (isPending) {
-    // Report hasn't run yet for today
-    return generatePendingPageHTML({
-      title: 'End-of-Day Summary',
-      reportType: 'end-of-day',
-      dateStr: queryDateStr,
-      scheduledHourUTC: 21,
-      scheduledMinuteUTC: 5
-    });
-  }
+    // Branch: pending (not yet executed) vs stale (over time) vs normal
+    if (isPending) {
+        // Report hasn't run yet for today
+        return generatePendingPageHTML({
+            title: 'End-of-Day Summary',
+            reportType: 'end-of-day',
+            dateStr: queryDateStr,
+            scheduledHourUTC: 21,
+            scheduledMinuteUTC: 5
+        });
+    }
 
-  // For stale data (over time), show report with warning
-  const staleWarning = shouldShowStaleWarning ? `
+    // For stale data (over time), show report with warning
+    const staleWarning = shouldShowStaleWarning ? `
         <div class="stale-warning">
             ⚠️ <strong>Stale Data:</strong> Showing data from <strong>${sourceDate}</strong>.
             ${isQueryingToday ? `Today's report is scheduled for <span class="sched-time" data-utch="21" data-utcm="5"></span>.` : ''}
@@ -147,10 +177,10 @@ function generateEndOfDayHTML(
         </div>
         ` : '';
 
-  // Display date: use actual D1 sourceDate when data exists, queryDate only for pending/no-data
-  const displayDate = hasD1Data ? sourceDate : queryDateStr;
+    // Display date: use actual D1 sourceDate when data exists, queryDate only for pending/no-data
+    const displayDate = hasD1Data ? sourceDate : queryDateStr;
 
-  return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -495,11 +525,11 @@ function generateEndOfDayHTML(
               <div class="target-date">
                 <span class="date-label">Target Day:</span>
                 <span class="date-value">${new Date(displayDate + 'T12:00:00Z').toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}</span>
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    })}</span>
               </div>
               <div class="generated-date">
                 <span class="date-label">Generated:</span>
@@ -622,10 +652,10 @@ function generateEndOfDayHTML(
                     labels: ['Correct', 'Incorrect', 'Pending'],
                     datasets: [{
                         data: ${JSON.stringify([
-                            endOfDayData.performanceDistribution?.correct || 0,
-                            endOfDayData.performanceDistribution?.incorrect || 0,
-                            endOfDayData.performanceDistribution?.pending || 0
-                        ])},
+        endOfDayData.performanceDistribution?.correct || 0,
+        endOfDayData.performanceDistribution?.incorrect || 0,
+        endOfDayData.performanceDistribution?.pending || 0
+    ])},
                         backgroundColor: ['#4facfe', '#ff6b6b', '#feca57'],
                         borderWidth: 0
                     }]
@@ -663,8 +693,8 @@ function generateEndOfDayHTML(
                         label: 'Performance (%)',
                         data: ${JSON.stringify(endOfDayData.symbolPerformance?.map((s: any) => (s.performance || 0) * 100) || [])},
                         backgroundColor: ${JSON.stringify(endOfDayData.symbolPerformance?.map((s: any) =>
-                            s.performance >= 0 ? 'rgba(79, 172, 254, 0.8)' : 'rgba(255, 107, 107, 0.8)'
-                        ) || [])},
+        s.performance >= 0 ? 'rgba(79, 172, 254, 0.8)' : 'rgba(255, 107, 107, 0.8)'
+    ) || [])},
                         borderColor: '#4facfe',
                         borderWidth: 1
                     }]
@@ -685,13 +715,15 @@ function generateEndOfDayHTML(
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';
       });
-      // Render generated times with ET and local
+      // Render generated times with ET and local (include full date for both)
       document.querySelectorAll('.gen-time').forEach(el => {
         const ts = parseInt(el.dataset.ts);
         const d = new Date(ts);
-        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
-        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
-        el.textContent = et + ' ET (' + local + ' local)';
+        const etDate = d.toLocaleDateString('en-US', {timeZone: 'America/New_York', month: 'short', day: 'numeric'});
+        const etTime = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const localDate = d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+        const localTime = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = etDate + ', ' + etTime + ' ET (' + localDate + ', ' + localTime + ' local)';
       });
     </script>
 </body>
@@ -702,15 +734,15 @@ function generateEndOfDayHTML(
  * Generate signal cards HTML
  */
 function generateSignalCards(signals: any[]): string {
-  if (!signals || signals.length === 0) {
-    return '<p style="text-align: center; opacity: 0.7;">No signal data available for today.</p>';
-  }
+    if (!signals || signals.length === 0) {
+        return '<p style="text-align: center; opacity: 0.7;">No signal data available for today.</p>';
+    }
 
-  return signals.map(signal => {
-    const accuracyClass = signal.status === 'correct' ? 'accuracy-correct' :
-                         signal.status === 'incorrect' ? 'accuracy-incorrect' : 'accuracy-pending';
+    return signals.map(signal => {
+        const accuracyClass = signal.status === 'correct' ? 'accuracy-correct' :
+            signal.status === 'incorrect' ? 'accuracy-incorrect' : 'accuracy-pending';
 
-    return `
+        return `
       <div class="signal-card">
         <h4>${signal.symbol} ${getDirectionEmoji(signal.direction)}</h4>
         <div class="signal-detail">
@@ -735,18 +767,18 @@ function generateSignalCards(signals: any[]): string {
         </div>
       </div>
     `;
-  }).join('');
+    }).join('');
 }
 
 /**
  * Get direction emoji
  */
 function getDirectionEmoji(direction?: string): string {
-  if (!direction) return '❓';
-  switch (direction.toLowerCase()) {
-    case 'bullish': case 'up': return '📈';
-    case 'bearish': case 'down': return '📉';
-    case 'neutral': case 'flat': return '➡️';
-    default: return '❓';
-  }
+    if (!direction) return '❓';
+    switch (direction.toLowerCase()) {
+        case 'bullish': case 'up': return '📈';
+        case 'bearish': case 'down': return '📉';
+        case 'neutral': case 'flat': return '➡️';
+        default: return '❓';
+    }
 }

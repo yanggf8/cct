@@ -656,11 +656,11 @@ function generatePreMarketHTML(
               <div class="target-date">
                 <span class="date-label">Target Day:</span>
                 <span class="date-value">${new Date(queryDateStr + 'T12:00:00Z').toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}</span>
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })}</span>
               </div>
               <div class="generated-date">
                 <span class="date-label">Generated:</span>
@@ -749,13 +749,15 @@ function generatePreMarketHTML(
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';
       });
-      // Render generated times with ET and local
+      // Render generated times with ET and local (include full date for both)
       document.querySelectorAll('.gen-time').forEach(el => {
         const ts = parseInt(el.dataset.ts);
         const d = new Date(ts);
-        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
-        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
-        el.textContent = et + ' ET (' + local + ' local)';
+        const etDate = d.toLocaleDateString('en-US', {timeZone: 'America/New_York', month: 'short', day: 'numeric'});
+        const etTime = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const localDate = d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+        const localTime = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = etDate + ', ' + etTime + ' ET (' + localDate + ', ' + localTime + ' local)';
       });
     </script>
 </body>

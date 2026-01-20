@@ -159,11 +159,41 @@ export const handleIntradayCheck = createHandler(
     const startTime: number = Date.now();
     const url = new URL(request.url);
     const bypassCache = url.searchParams.get('bypass') === '1';
-    
+
     // Resolve query date: ?date > ?tz > DO setting > ET default
     const dateStr = await resolveQueryDate(url, env.CACHE_DO as any);
     const todayET = getTodayInZone('America/New_York');
     const today = new Date(dateStr + 'T12:00:00Z');
+
+    // Check if we need to redirect to last market day
+    // If resolved date is a weekend, redirect to last market day
+    const dateParam = url.searchParams.get('date');
+    const resolvedDate = new Date(dateStr + 'T00:00:00Z');
+    const dayOfWeek = resolvedDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+
+    if (dateParam === 'yesterday' && (dayOfWeek === 0 || dayOfWeek === 6)) {
+      // Calculate last market day (Friday)
+      const lastMarketDayDate = new Date(todayET + 'T00:00:00Z');
+      let daysToSubtract;
+      if (dayOfWeek === 0) {
+        // Sunday -> go back 2 days to Friday
+        daysToSubtract = 2;
+      } else {
+        // Saturday -> go back 1 day to Friday
+        daysToSubtract = 1;
+      }
+      lastMarketDayDate.setDate(lastMarketDayDate.getDate() - daysToSubtract);
+      const lastMarketDay = lastMarketDayDate.toISOString().split('T')[0];
+
+      const redirectUrl = new URL(request.url);
+      redirectUrl.searchParams.set('date', lastMarketDay);
+      logger.info('INTRADAY: Redirect to last market day', {
+        from: dateStr,
+        to: lastMarketDay,
+        reason: 'weekend'
+      });
+      return Response.redirect(redirectUrl.toString(), 302);
+    }
 
     // Fast path: check DO cache first (unless bypass requested)
     if (!bypassCache) {
@@ -191,21 +221,21 @@ export const handleIntradayCheck = createHandler(
     // Read from D1 scheduled_job_results (same as API endpoint)
     let intradayData: IntradayPerformanceData | null = null;
     let hasRealJobData = false;
-    
+
     if (env.PREDICT_JOBS_DB) {
       try {
         const snapshot = await env.PREDICT_JOBS_DB
           .prepare('SELECT report_content FROM scheduled_job_results WHERE execution_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
           .bind(dateStr, 'intraday')
           .first();
-        
+
         if (snapshot && snapshot.report_content) {
-          const content = typeof snapshot.report_content === 'string' 
-            ? JSON.parse(snapshot.report_content) 
+          const content = typeof snapshot.report_content === 'string'
+            ? JSON.parse(snapshot.report_content)
             : snapshot.report_content;
-          
+
           hasRealJobData = true;
-          
+
           // Transform D1 data to IntradayPerformanceData format
           const symbols = content.symbols || [];
           const divergences: DivergenceData[] = symbols
@@ -221,7 +251,7 @@ export const handleIntradayCheck = createHandler(
               level: s.morning_confidence >= 0.7 ? 'high' : s.morning_confidence >= 0.5 ? 'medium' : 'low',
               reason: `Morning: ${s.morning_prediction} (${(s.morning_confidence * 100).toFixed(0)}%), Current: ${s.current_sentiment}`
             }));
-          
+
           const onTrackSignals: IntradaySignal[] = symbols
             .filter((s: any) => s.performance === 'on_track' || s.performance === 'strengthened')
             .map((s: any) => ({
@@ -234,9 +264,9 @@ export const handleIntradayCheck = createHandler(
               confidence: s.morning_confidence,
               reason: `Morning: ${s.morning_prediction} (${(s.morning_confidence * 100).toFixed(0)}%), Current: ${s.current_sentiment}`
             }));
-          
+
           const accuracy = content.overall_accuracy * 100;
-          
+
           intradayData = {
             modelHealth: {
               status: accuracy >= 60 ? 'on-track' : accuracy >= 40 ? 'divergence' : 'off-track',
@@ -260,7 +290,7 @@ export const handleIntradayCheck = createHandler(
             lastUpdated: content.timestamp,
             generatedAt: content.timestamp
           };
-          
+
           logger.info('📊 [INTRADAY] Loaded data from D1', {
             symbols: content.symbols_analyzed,
             accuracy,
@@ -271,88 +301,88 @@ export const handleIntradayCheck = createHandler(
         logger.error('📊 [INTRADAY] Failed to read from D1', { error, requestId });
       }
     }
-    
+
     // Fallback to old method if D1 data not available
     if (!hasRealJobData) {
       try {
         const intradayCheckData = await getIntradayCheckData(env, today);
         // Check if job actually ran (has predictions)
         hasRealJobData = !!(intradayCheckData?.morningPredictions?.predictions?.length);
-        
+
         if (intradayCheckData && hasRealJobData) {
           const ps = intradayCheckData.performanceSummary;
-        const rawAccuracy = ps?.averageAccuracy;
-        const hasAccuracy = typeof rawAccuracy === 'number' && rawAccuracy > 0;
-        const accuracy = hasAccuracy ? rawAccuracy : null;
-        const predictions = intradayCheckData.morningPredictions?.predictions || [];
-        
-        // Build divergences and onTrackSignals from actual predictions
-        const divergences: DivergenceData[] = predictions
-          .filter((p: any) => p.status === 'divergent')
-          .map((p: any) => ({
-            symbol: p.symbol,
-            predicted: p.prediction || 'unknown',
-            predictedDirection: (p.prediction === 'up' ? 'up' : p.prediction === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
-            actual: p.performance?.actualDirection || 'unknown',
-            actualDirection: (p.performance?.actualDirection === 'up' ? 'up' : p.performance?.actualDirection === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
-            performance: p.performance?.accuracy,
-            confidence: p.confidence,
-            level: (p.confidence || 0) >= 70 ? 'high' : (p.confidence || 0) >= 50 ? 'medium' : 'low' as 'high' | 'medium' | 'low',
-            reason: p.reasoning
-          }));
-        
-        const onTrackSignals: IntradaySignal[] = predictions
-          .filter((p: any) => p.status === 'validated' || p.status === 'tracking')
-          .map((p: any) => ({
-            symbol: p.symbol,
-            predicted: p.prediction || 'unknown',
-            predictedDirection: (p.prediction === 'up' ? 'up' : p.prediction === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
-            actual: p.performance?.actualDirection || 'pending',
-            actualDirection: (p.performance?.actualDirection === 'up' ? 'up' : p.performance?.actualDirection === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
-            performance: p.performance?.accuracy,
-            confidence: p.confidence,
-            reason: p.reasoning
-          }));
+          const rawAccuracy = ps?.averageAccuracy;
+          const hasAccuracy = typeof rawAccuracy === 'number' && rawAccuracy > 0;
+          const accuracy = hasAccuracy ? rawAccuracy : null;
+          const predictions = intradayCheckData.morningPredictions?.predictions || [];
 
-        // Determine schedule info (ET)
-        const nowETDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        const currentHourET = nowETDate.getHours();
-        const intradayScheduledHour = 12; // 12:00 PM ET
-        const beforeSchedule = currentHourET < intradayScheduledHour;
-        const scheduleInfo = beforeSchedule 
-          ? `Scheduled: <span class="sched-time" data-utch="17" data-utcm="0"></span>`
-          : 'Job should have run - check execution';
+          // Build divergences and onTrackSignals from actual predictions
+          const divergences: DivergenceData[] = predictions
+            .filter((p: any) => p.status === 'divergent')
+            .map((p: any) => ({
+              symbol: p.symbol,
+              predicted: p.prediction || 'unknown',
+              predictedDirection: (p.prediction === 'up' ? 'up' : p.prediction === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+              actual: p.performance?.actualDirection || 'unknown',
+              actualDirection: (p.performance?.actualDirection === 'up' ? 'up' : p.performance?.actualDirection === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+              performance: p.performance?.accuracy,
+              confidence: p.confidence,
+              level: (p.confidence || 0) >= 70 ? 'high' : (p.confidence || 0) >= 50 ? 'medium' : 'low' as 'high' | 'medium' | 'low',
+              reason: p.reasoning
+            }));
 
-        intradayData = {
-          modelHealth: {
-            status: !hasAccuracy ? 'pending' : accuracy! >= 60 ? 'on-track' : accuracy! >= 40 ? 'divergence' : 'off-track',
-            display: !hasAccuracy ? `⏳ ${scheduleInfo}` : accuracy! >= 60 ? '✅ On Track' : accuracy! >= 40 ? '⚠️ Divergence' : '❌ Off Track',
-            accuracy: hasAccuracy ? accuracy! : undefined
-          },
-          liveAccuracy: accuracy || 0,
-          totalSignals: ps?.totalSignals || 0,
-          correctCalls: ps?.validatedSignals || 0,
-          wrongCalls: ps?.divergentSignals || 0,
-          pendingCalls: ps?.trackingSignals || 0,
-          avgDivergence: accuracy ? 100 - accuracy : 0,
-          divergences,
-          onTrackSignals,
-          recalibrationAlert: {
-            status: !hasAccuracy ? 'pending' : accuracy! >= 60 ? 'no' : accuracy! >= 40 ? 'warning' : 'yes',
-            message: !hasAccuracy
-              ? 'Accuracy pending - waiting for validation data'
-              : accuracy! >= 60 
-                ? 'No recalibration needed - accuracy above 60%'
-                : accuracy! >= 40 
-                  ? 'Accuracy below 60% - monitor closely'
-                  : 'Accuracy below 40% - recalibration recommended',
-            threshold: 60,
-            currentValue: accuracy || 0
-          },
-          generatedAt: intradayCheckData.generatedAt,
-          lastUpdated: intradayCheckData.generatedAt
-        };
-      }
+          const onTrackSignals: IntradaySignal[] = predictions
+            .filter((p: any) => p.status === 'validated' || p.status === 'tracking')
+            .map((p: any) => ({
+              symbol: p.symbol,
+              predicted: p.prediction || 'unknown',
+              predictedDirection: (p.prediction === 'up' ? 'up' : p.prediction === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+              actual: p.performance?.actualDirection || 'pending',
+              actualDirection: (p.performance?.actualDirection === 'up' ? 'up' : p.performance?.actualDirection === 'down' ? 'down' : 'flat') as 'up' | 'down' | 'flat',
+              performance: p.performance?.accuracy,
+              confidence: p.confidence,
+              reason: p.reasoning
+            }));
+
+          // Determine schedule info (ET)
+          const nowETDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+          const currentHourET = nowETDate.getHours();
+          const intradayScheduledHour = 12; // 12:00 PM ET
+          const beforeSchedule = currentHourET < intradayScheduledHour;
+          const scheduleInfo = beforeSchedule
+            ? `Scheduled: <span class="sched-time" data-utch="17" data-utcm="0"></span>`
+            : 'Job should have run - check execution';
+
+          intradayData = {
+            modelHealth: {
+              status: !hasAccuracy ? 'pending' : accuracy! >= 60 ? 'on-track' : accuracy! >= 40 ? 'divergence' : 'off-track',
+              display: !hasAccuracy ? `⏳ ${scheduleInfo}` : accuracy! >= 60 ? '✅ On Track' : accuracy! >= 40 ? '⚠️ Divergence' : '❌ Off Track',
+              accuracy: hasAccuracy ? accuracy! : undefined
+            },
+            liveAccuracy: accuracy || 0,
+            totalSignals: ps?.totalSignals || 0,
+            correctCalls: ps?.validatedSignals || 0,
+            wrongCalls: ps?.divergentSignals || 0,
+            pendingCalls: ps?.trackingSignals || 0,
+            avgDivergence: accuracy ? 100 - accuracy : 0,
+            divergences,
+            onTrackSignals,
+            recalibrationAlert: {
+              status: !hasAccuracy ? 'pending' : accuracy! >= 60 ? 'no' : accuracy! >= 40 ? 'warning' : 'yes',
+              message: !hasAccuracy
+                ? 'Accuracy pending - waiting for validation data'
+                : accuracy! >= 60
+                  ? 'No recalibration needed - accuracy above 60%'
+                  : accuracy! >= 40
+                    ? 'Accuracy below 60% - monitor closely'
+                    : 'Accuracy below 40% - recalibration recommended',
+              threshold: 60,
+              currentValue: accuracy || 0
+            },
+            generatedAt: intradayCheckData.generatedAt,
+            lastUpdated: intradayCheckData.generatedAt
+          };
+        }
       } catch (error: unknown) {
         logger.error('❌ [INTRADAY] Failed to retrieve data', { requestId, error: (error as Error).message });
       }
@@ -760,11 +790,11 @@ async function generateIntradayCheckHTML(
               <div class="target-date">
                 <span class="date-label">Target Day:</span>
                 <span class="date-value">${new Date(date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}</span>
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })}</span>
               </div>
               <div class="generated-date">
                 <span class="date-label">Generated:</span>
@@ -775,26 +805,24 @@ async function generateIntradayCheckHTML(
 
         <div class="model-health ${formattedData.modelHealth.status}">
             <div class="health-status ${formattedData.modelHealth.status}">${formattedData.modelHealth.display}</div>
-            <div class="accuracy-metric">${
-              formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
-                ? '⏳ Awaiting validation data'
-                : `Live Accuracy: ${formattedData.liveAccuracy}%`
-            }</div>
-            <div>${
-              formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
-                ? 'High-confidence signals will be tracked after job execution'
-                : `Tracking ${formattedData.totalSignals} high-confidence signals from this morning`
-            }</div>
+            <div class="accuracy-metric">${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
+      ? '⏳ Awaiting validation data'
+      : `Live Accuracy: ${formattedData.liveAccuracy}%`
+    }</div>
+            <div>${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
+      ? 'High-confidence signals will be tracked after job execution'
+      : `Tracking ${formattedData.totalSignals} high-confidence signals from this morning`
+    }</div>
         </div>
 
         <div class="tracking-summary">
             <h3>📊 High-Confidence Signal Tracking</h3>
             ${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
-              ? `<div style="text-align: center; padding: 20px; opacity: 0.7;">
+      ? `<div style="text-align: center; padding: 20px; opacity: 0.7;">
                   <div style="font-size: 1.2rem; margin-bottom: 10px;">⏳ Awaiting job execution</div>
                   <div>Signal tracking data will appear after the scheduled job runs</div>
                 </div>`
-              : `<div class="summary-grid">
+      : `<div class="summary-grid">
                 <div class="summary-metric">
                     <div class="value">${formattedData.correctCalls}</div>
                     <div class="label">Correct Calls</div>
@@ -904,13 +932,15 @@ async function generateIntradayCheckHTML(
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';
       });
-      // Render generated times with ET and local
+      // Render generated times with ET and local (include full date for both)
       document.querySelectorAll('.gen-time').forEach(el => {
         const ts = parseInt(el.dataset.ts);
         const d = new Date(ts);
-        const et = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
-        const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
-        el.textContent = et + ' ET (' + local + ' local)';
+        const etDate = d.toLocaleDateString('en-US', {timeZone: 'America/New_York', month: 'short', day: 'numeric'});
+        const etTime = d.toLocaleTimeString('en-US', {timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true});
+        const localDate = d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+        const localTime = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+        el.textContent = etDate + ', ' + etTime + ' ET (' + localDate + ', ' + localTime + ' local)';
       });
     </script>
 </body>
@@ -1131,11 +1161,11 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
         <div class="header">
             <h1>📊 Intraday Performance Check</h1>
             <div class="date">${date.toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })} - ${time} EDT</div>
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })} - ${time} EDT</div>
         </div>
 
         <div class="waiting-status">
@@ -1152,11 +1182,11 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
 
             <ul class="dependency-list">
                 ${validation.requiredJobs.map((job: string) => {
-                  const isMissing: boolean = validation.missing.includes(job);
-                  const status: string = isMissing ? 'missing' : 'completed';
-                  const display: string = job.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+    const isMissing: boolean = validation.missing.includes(job);
+    const status: string = isMissing ? 'missing' : 'completed';
+    const display: string = job.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
 
-                  return `
+    return `
                     <li class="dependency-item ${status}">
                       <span>${display}</span>
                       <span class="dependency-status ${status}">
@@ -1164,7 +1194,7 @@ function generateIntradayWaitingHTML(validation: DependencyValidation, date: Dat
                       </span>
                     </li>
                   `;
-                }).join('')}
+  }).join('')}
             </ul>
         </div>
 

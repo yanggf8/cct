@@ -420,13 +420,14 @@ export function createCanaryHandler(
       percentage: canaryContext.rolloutPercentage
     });
 
-    // Add canary headers to response
+    // Add canary headers to response (clone since headers are immutable)
     const addCanaryHeaders = (response: Response): Response => {
-      response.headers.set('X-Canary-Status', canaryContext.isInCanary ? 'true' : 'false');
-      response.headers.set('X-Canary-Route', route);
-      response.headers.set('X-Canary-Reason', canaryContext.reason);
-      response.headers.set('X-Canary-Percentage', canaryContext.rolloutPercentage.toString());
-      return response;
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set('X-Canary-Status', canaryContext.isInCanary ? 'true' : 'false');
+      newHeaders.set('X-Canary-Route', route);
+      newHeaders.set('X-Canary-Reason', canaryContext.reason);
+      newHeaders.set('X-Canary-Percentage', canaryContext.rolloutPercentage.toString());
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
     };
 
     try {
