@@ -6,8 +6,9 @@
 
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { createLogger } from './logging.js';
-import { batchDualAIAnalysis } from './dual-ai-analysis.js';
+import { batchDualAIAnalysis, performDualAIComparison } from './dual-ai-analysis.js';
 import { extractDualModelData } from './data.js';
+import { createDACArticlesPoolClientV2 } from './dac-articles-pool-v2.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('pre-market-data-bridge');
@@ -28,10 +29,25 @@ interface TradingSignal {
 }
 
 /**
+ * Market Pulse data structure for market index sentiment (v3.10.0)
+ */
+interface MarketPulseData {
+  symbol: string;
+  name: string;
+  direction: string;
+  confidence: number;
+  articles_count: number;
+  source: string;
+  reasoning?: string;
+  dual_model?: DualModelData;
+}
+
+/**
  * Analysis data structure expected by pre-market reports
  */
 interface AnalysisData {
   trading_signals: Record<string, TradingSignal>;
+  market_pulse?: MarketPulseData;
   timestamp: string;
   generated_at: string;
 }
@@ -247,6 +263,133 @@ export class PreMarketDataBridge {
   }
 
   /**
+   * Generate Market Pulse data for market index sentiment (v3.10.0)
+   * Fetches SPY articles from DAC and analyzes market sentiment
+   * Uses 1-hour cache to reduce AI calls
+   */
+  async generateMarketPulse(): Promise<MarketPulseData | null> {
+    const CACHE_TTL_HOURS = 1;
+    const cacheKey = 'market_pulse_SPY';
+
+    logger.info('PreMarketDataBridge: Generating market pulse for SPY');
+
+    try {
+      // Check cache first - reuse if less than 1 hour old
+      const cached = await (this.dal as any).get(cacheKey);
+      if (cached && cached.data && cached.data.cached_at) {
+        const cacheAge = Date.now() - new Date(cached.data.cached_at).getTime();
+        const cacheAgeHours = cacheAge / (1000 * 60 * 60);
+
+        if (cacheAgeHours < CACHE_TTL_HOURS) {
+          logger.info('PreMarketDataBridge: Using cached market pulse', {
+            cacheAgeMinutes: Math.round(cacheAge / 60000),
+            direction: cached.data.direction
+          });
+          return cached.data;
+        }
+        logger.info('PreMarketDataBridge: Cache expired, regenerating market pulse');
+      }
+
+      // Get DAC client - map WORKER_API_KEY to X_API_KEY as expected by factory
+      if (!this.env.DAC_BACKEND || !this.env.WORKER_API_KEY) {
+        logger.warn('PreMarketDataBridge: DAC_BACKEND or WORKER_API_KEY not available for market pulse');
+        return null;
+      }
+
+      const dacClient = createDACArticlesPoolClientV2({
+        DAC_BACKEND: this.env.DAC_BACKEND as any,
+        X_API_KEY: this.env.WORKER_API_KEY
+      });
+      if (!dacClient) {
+        logger.warn('PreMarketDataBridge: DAC client creation failed');
+        return null;
+      }
+
+      // Fetch SPY articles from DAC market pool
+      const marketArticles = await dacClient.getMarketArticles('SPY');
+
+      if (!marketArticles.success || marketArticles.articles.length === 0) {
+        logger.warn('PreMarketDataBridge: No SPY articles available for market pulse', {
+          error: marketArticles.error,
+          errorMessage: marketArticles.errorMessage
+        });
+        return null;
+      }
+
+      logger.info('PreMarketDataBridge: Fetched SPY articles from DAC', {
+        count: marketArticles.articles.length,
+        source: marketArticles.metadata?.source,
+        freshCount: marketArticles.metadata?.freshCount
+      });
+
+      // Run dual AI analysis on SPY with the fetched articles directly
+      // Cast to compatible type - runtime fields are the same (title, summary, source)
+      const result = await performDualAIComparison('SPY', marketArticles.articles as any, this.env);
+
+      if (result.error || (!result.models?.gpt && !result.models?.distilbert)) {
+        logger.warn('PreMarketDataBridge: SPY analysis failed', {
+          error: result.error,
+          hasGPT: !!result.models?.gpt,
+          hasDistilBERT: !!result.models?.distilbert
+        });
+        return null;
+      }
+
+      // Use GPT (Gemma) if available, fall back to DistilBERT
+      const selectedModel = result.models.gpt || result.models.distilbert;
+
+      const marketPulse: MarketPulseData = {
+        symbol: 'SPY',
+        name: 'S&P 500 ETF',
+        direction: this.normalizeSentiment(selectedModel!.direction),
+        confidence: selectedModel!.confidence,
+        articles_count: marketArticles.articles.length,
+        source: marketArticles.metadata?.source || 'DAC',
+        reasoning: selectedModel!.reasoning,
+        dual_model: {
+          gemma: result.models.gpt ? {
+            status: result.models.gpt.error ? 'failed' : 'success',
+            confidence: result.models.gpt.confidence,
+            direction: result.models.gpt.direction,
+            error: result.models.gpt.error
+          } : { status: 'skipped' },
+          distilbert: result.models.distilbert ? {
+            status: result.models.distilbert.error ? 'failed' : 'success',
+            confidence: result.models.distilbert.confidence,
+            direction: result.models.distilbert.direction,
+            error: result.models.distilbert.error
+          } : { status: 'skipped' }
+        }
+      };
+
+      // Add cached_at timestamp and cache for 1 hour
+      const marketPulseWithCache = {
+        ...marketPulse,
+        cached_at: new Date().toISOString()
+      };
+
+      try {
+        await (this.dal as any).put(cacheKey, marketPulseWithCache, { expirationTtl: 3600 }); // 1 hour TTL
+        logger.info('PreMarketDataBridge: Market pulse cached', { cacheKey });
+      } catch (cacheError) {
+        logger.warn('PreMarketDataBridge: Failed to cache market pulse', { error: cacheError });
+      }
+
+      logger.info('PreMarketDataBridge: Market pulse generated', {
+        direction: marketPulse.direction,
+        confidence: marketPulse.confidence,
+        articles_count: marketPulse.articles_count
+      });
+
+      return marketPulseWithCache;
+
+    } catch (error) {
+      logger.error('PreMarketDataBridge: Failed to generate market pulse', { error });
+      return null;
+    }
+  }
+
+  /**
    * Generate and store pre-market analysis data from modern sentiment data
    * This bridges the gap between the modern API and legacy reporting system
    * @param symbols - Symbols to analyze
@@ -356,9 +499,13 @@ export class PreMarketDataBridge {
         }
       }
 
+      // Generate Market Pulse (SPY sentiment) - v3.10.0
+      const marketPulse = await this.generateMarketPulse();
+
       // Create the analysis data structure
       const analysisData: AnalysisData = {
         trading_signals,
+        market_pulse: marketPulse || undefined,
         timestamp: new Date().toISOString(),
         generated_at: new Date().toISOString()
       };
@@ -370,6 +517,8 @@ export class PreMarketDataBridge {
       logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,
         analysis_key: analysisKey,
+        has_market_pulse: !!marketPulse,
+        market_pulse_direction: marketPulse?.direction,
         high_confidence_signals: Object.values(trading_signals).filter(s => (
           (s as any).confidence_metrics?.overall_confidence ??
           (s as any).enhanced_prediction?.confidence ??

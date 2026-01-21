@@ -667,7 +667,7 @@ async function handleSystemStatus(
       // Try to get lastUpdated from DO
       if (env.PORTFOLIO_DO) {
         const doId = env.PORTFOLIO_DO.idFromName('default');
-        const doStub = env.PORTFOLIO_DO.get(doId);
+        const doStub = (env.PORTFOLIO_DO as any).get(doId);
         const doResponse = await doStub.fetch('https://portfolio.internal/symbols');
         if (doResponse.ok) {
           const doData = await doResponse.json() as { success: boolean; data?: { lastUpdated?: string } };
@@ -738,6 +738,34 @@ async function handleSystemStatus(
       };
     }
 
+    // Market Indices pool status (v3.10.0)
+    const marketIndices: { status: string; indices: Record<string, { count: number; stale: boolean; source?: string }> } = {
+      status: 'unavailable',
+      indices: {}
+    };
+
+    try {
+      if (env.DAC_BACKEND && env.WORKER_API_KEY) {
+        const { createDACArticlesPoolClientV2 } = await import('../modules/dac-articles-pool-v2.js');
+        const dacClient = createDACArticlesPoolClientV2({ DAC_BACKEND: env.DAC_BACKEND as any, X_API_KEY: env.WORKER_API_KEY });
+
+        if (dacClient) {
+          // Check SPY market pool
+          const spyResult = await dacClient.getMarketArticles('SPY');
+          marketIndices.indices['SPY'] = {
+            count: spyResult.articles?.length || 0,
+            stale: spyResult.metadata?.stale || false,
+            source: spyResult.metadata?.source
+          };
+          marketIndices.status = spyResult.success && spyResult.articles.length > 0 ? 'healthy' : 'empty';
+          console.log('[SYSTEM-STATUS] Market indices pool status:', marketIndices.status, `SPY: ${spyResult.articles?.length || 0} articles`);
+        }
+      }
+    } catch (error) {
+      console.error('[SYSTEM-STATUS] Error checking market indices pool:', error);
+      marketIndices.status = 'error';
+    }
+
     const response = {
       status: 'operational',
       uptime: '99.9%',
@@ -749,6 +777,7 @@ async function handleSystemStatus(
       jobs,
       portfolio,
       articlePool,
+      marketIndices,
       timestamp: new Date().toISOString()
     };
 

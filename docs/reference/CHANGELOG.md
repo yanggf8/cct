@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-01-21 - Market Pulse & Indices (v3.10.0) ✅
+
+- Added DAC market pool support (SPY) with market accessor and harvest endpoints; ArticleCacheDO accepts `market:` prefix.
+- Pre-market briefing now includes a Market Pulse section sourced from SPY market articles with dual-model analysis and 1-hour caching.
+- System Status surfaces a Market Indices card alongside the portfolio article pool to show SPY harvest health and counts.
+- DAC client now supports `getMarketArticles()` and maps `WORKER_API_KEY` → `X_API_KEY` when creating the service-binding client.
+
+## 2026-01-21 - Pre-Market UI Trim & Status Ratio Fix ✅
+
+- Pre-market briefing summary now shows only two cards (High Confidence, Total Signals); removed the Market Sentiment card for a leaner header (`src/modules/handlers/briefing-handlers.ts`).
+- System Status page article pool ratio now uses the live portfolio count with nullish fallbacks, avoiding hardcoded totals and preserving legitimate zero counts (`public/system-status.html`).
+- No behavior changes to scheduling or data sources; these are UI-only updates.
+
 ## 2026-01-23 - Pre-Market Failure Signaling ✅
 
 - Pre-market report signals now return null confidence on missing data instead of a default value.

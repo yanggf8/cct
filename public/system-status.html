@@ -137,11 +137,18 @@
                 <div class="status-card">
                     <h3>📰 Article Pool (DAC)</h3>
                     <div class="status-item"><span>Pool Status</span>${badge(d.articlePool?.status)}</div>
-                    <div class="status-item"><span>Symbols with Articles</span><span>${d.articlePool?.available || 0} / 10</span></div>
+                    <div class="status-item"><span>Symbols with Articles</span><span>${d.articlePool?.available ?? 0} / ${d.portfolio?.count ?? Object.keys(d.articlePool?.symbols || {}).length || 'N/A'}</span></div>
                     ${d.articlePool?.missing?.length ? `<div class="status-item"><span>Missing</span><span style="color:#ef4444;font-size:0.85rem">${d.articlePool.missing.join(', ')}</span></div>` : ''}
                     ${Object.entries(d.articlePool?.symbols || {}).slice(0, 5).map(([sym, info]) =>
                         `<div class="status-item"><span>${sym}</span><span>${info.count} articles${info.stale ? ' <small style="color:#f59e0b">(stale)</small>' : ''}</span></div>`
                     ).join('')}
+                </div>
+                <div class="status-card">
+                    <h3>📊 Market Indices</h3>
+                    <div class="status-item"><span>Pool Status</span>${badge(d.marketIndices?.status || 'unavailable')}</div>
+                    ${Object.entries(d.marketIndices?.indices || {}).map(([sym, info]) =>
+                        `<div class="status-item"><span>${sym}</span><span>${info.count} articles${info.stale ? ' <small style="color:#f59e0b">(stale)</small>' : ''}${info.source ? ` <small style="color:#64748b">(${info.source})</small>` : ''}</span></div>`
+                    ).join('') || '<div class="status-item"><span>SPY</span><span style="color:#64748b">Not harvested yet</span></div>'}
                 </div>
             `;
             document.getElementById('status-grid').innerHTML = html;

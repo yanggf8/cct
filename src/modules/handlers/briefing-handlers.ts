@@ -283,6 +283,9 @@ function generatePreMarketHTML(
             <button class="refresh-button" onclick="location.reload()">Refresh Page</button>
         </div>
         ` : `
+        <!-- Market Pulse Section (v3.10.0) -->
+        ${generateMarketPulseSection(briefingData?.market_pulse)}
+
         <!-- Summary Cards -->
         <div class="summary-grid">
             <div class="summary-card">
@@ -294,11 +297,6 @@ function generatePreMarketHTML(
                 <h3>Total Signals</h3>
                 <div class="value">${totalSignals}</div>
                 <div class="label">Analyzed symbols</div>
-            </div>
-            <div class="summary-card">
-                <h3>Market Sentiment</h3>
-                <div class="value">${briefingData?.market_sentiment?.overall_sentiment || 'NEUTRAL'}</div>
-                <div class="label">Overall market mood</div>
             </div>
         </div>
 
@@ -605,4 +603,87 @@ function getDirectionEmoji(direction?: string): string {
     case 'neutral': case 'flat': return '➡️';
     default: return '❓';
   }
+}
+
+/**
+ * Generate Market Pulse section HTML (v3.10.0)
+ * Shows overall market sentiment based on SPY analysis
+ */
+function generateMarketPulseSection(marketPulse: any): string {
+  if (!marketPulse) {
+    return `
+      <div class="market-pulse-section" style="margin-bottom: 24px; padding: 20px; background: rgba(240,185,11,0.05); border-radius: 12px; border: 1px solid rgba(240,185,11,0.15);">
+        <h2 style="margin: 0 0 12px 0; font-size: 1.2rem; color: rgba(250,248,245,0.9);">📊 Market Pulse</h2>
+        <div style="text-align: center; opacity: 0.7; padding: 16px;">
+          <span>Market sentiment data not available</span>
+          <p style="font-size: 0.85rem; margin-top: 8px;">SPY articles will be analyzed when available</p>
+        </div>
+      </div>
+    `;
+  }
+
+  const confidence = Math.round((marketPulse.confidence || 0) * 100);
+  const directionColor = marketPulse.direction === 'bullish' ? '#22c55e' :
+                         marketPulse.direction === 'bearish' ? '#ef4444' : '#f59e0b';
+  const directionIcon = marketPulse.direction === 'bullish' ? '📈' :
+                        marketPulse.direction === 'bearish' ? '📉' : '➡️';
+
+  // Dual model display
+  const gemma = marketPulse.dual_model?.gemma;
+  const distilbert = marketPulse.dual_model?.distilbert;
+  const hasDualModel = gemma || distilbert;
+
+  return `
+    <div class="market-pulse-section" style="margin-bottom: 24px; padding: 20px; background: rgba(240,185,11,0.08); border-radius: 12px; border: 1px solid rgba(240,185,11,0.2);">
+      <h2 style="margin: 0 0 16px 0; font-size: 1.2rem; color: rgba(250,248,245,0.95);">📊 Market Pulse</h2>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <!-- Main Sentiment Card -->
+        <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 10px;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <span style="font-size: 2rem;">${directionIcon}</span>
+            <div>
+              <div style="font-size: 1.4rem; font-weight: 600; color: ${directionColor}; text-transform: uppercase;">
+                ${marketPulse.direction || 'N/A'}
+              </div>
+              <div style="font-size: 0.85rem; color: rgba(250,248,245,0.7);">
+                ${marketPulse.symbol} • ${marketPulse.name}
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.9rem; color: rgba(250,248,245,0.8);">
+            <span>Confidence: <strong>${confidence}%</strong></span>
+            <span>Articles: <strong>${marketPulse.articles_count || 0}</strong></span>
+          </div>
+          <div class="confidence-bar" style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; height: 6px; overflow: hidden;">
+            <div style="width: ${confidence}%; height: 100%; background: ${directionColor}; border-radius: 4px;"></div>
+          </div>
+        </div>
+
+        <!-- AI Models Card -->
+        <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 10px;">
+          <div style="font-size: 0.85rem; color: rgba(250,248,245,0.7); margin-bottom: 10px;">AI Analysis</div>
+          ${hasDualModel ? `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div style="padding: 8px; background: rgba(${gemma?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${gemma?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">Gemma Sea Lion</div>
+                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${gemma?.direction?.toUpperCase() || 'N/A'}</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${gemma?.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
+              </div>
+              <div style="padding: 8px; background: rgba(${distilbert?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${distilbert?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">DistilBERT</div>
+                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${distilbert?.direction?.toUpperCase() || 'N/A'}</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${distilbert?.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
+              </div>
+            </div>
+          ` : `
+            <div style="text-align: center; opacity: 0.6; padding: 12px;">Dual model data not available</div>
+          `}
+          <div style="margin-top: 10px; font-size: 0.75rem; color: rgba(250,248,245,0.5); text-align: right;">
+            Source: ${marketPulse.source || 'DAC'}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }

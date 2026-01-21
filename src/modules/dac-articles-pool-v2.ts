@@ -177,6 +177,60 @@ export class DACArticlesPoolClientV2 {
   }
 
   /**
+   * Get market index articles (v3.10.0+)
+   * Uses DAC admin accessor endpoint: /api/admin/article-pool/accessor/market/:symbol
+   * For SPY, QQQ, DIA, IWM market sentiment
+   */
+  async getMarketArticles(symbol: string): Promise<ArticlePoolResponse> {
+    try {
+      const request = new Request(
+        `https://dac-backend/api/admin/article-pool/accessor/market/${symbol.toUpperCase()}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-API-Key': this.apiKey,
+            'Content-Type': 'application/json',
+            'User-Agent': 'CCT-Service-Binding/2.0'
+          }
+        }
+      );
+
+      const response = await this.dacBackend.fetch(request);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return {
+            success: false,
+            articles: [],
+            error: 'NOT_FOUND',
+            errorMessage: `No articles found for market index ${symbol}`
+          };
+        }
+        throw new Error(`DAC API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json() as any;
+
+      return {
+        success: data.success || false,
+        articles: data.articles || [],
+        metadata: data.metadata,
+        error: data.error,
+        errorMessage: data.errorMessage
+      };
+
+    } catch (error) {
+      console.error(`[DAC_POOL_V2] Failed to get market articles for ${symbol}:`, error);
+      return {
+        success: false,
+        articles: [],
+        error: 'UNEXPECTED_ERROR',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
    * Get all category articles (v3.7.0+)
    * Uses DAC admin probe endpoint: /api/admin/article-pool/probe/categories
    */

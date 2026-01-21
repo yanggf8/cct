@@ -40,7 +40,7 @@ export async function handlePortfolioManagementRoutes(
     }
 
     const doId = env.PORTFOLIO_DO.idFromName('default');
-    const doStub = env.PORTFOLIO_DO.get(doId);
+    const doStub = (env.PORTFOLIO_DO as any).get(doId);
 
     // GET /api/v1/portfolio/symbols - Get current portfolio
     if (path === '/api/v1/portfolio/symbols' && request.method === 'GET') {

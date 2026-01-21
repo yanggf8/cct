@@ -738,7 +738,7 @@ export async function getPortfolioSymbols(env: CloudflareEnvironment): Promise<s
     // Try to get from Portfolio DO first (allows web-based management)
     if (env.PORTFOLIO_DO) {
       const doId = env.PORTFOLIO_DO.idFromName('default');
-      const doStub = env.PORTFOLIO_DO.get(doId);
+      const doStub = (env.PORTFOLIO_DO as any).get(doId);
       const response = await doStub.fetch('https://portfolio.internal/symbols');
 
       if (response.ok) {
