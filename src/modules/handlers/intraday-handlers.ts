@@ -19,8 +19,26 @@ import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/htm
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';
 import { resolveQueryDate } from './date-utils.js';
+import type { IntradaySymbolComparison, PeriodSentimentData, ModelDisplayResult } from '../intraday-data-bridge.js';
 
 const logger: Logger = createLogger('intraday-handlers');
+
+// ============================================================================
+// Security Helpers
+// ============================================================================
+
+/**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str: string | null | undefined): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
 
 // ============================================================================
 // Type Definitions
@@ -189,6 +207,7 @@ export const handleIntradayCheck = createHandler(
 
     // Read from D1 scheduled_job_results (same as API endpoint)
     let intradayData: IntradayPerformanceData | null = null;
+    let comparisons: IntradaySymbolComparison[] = [];
     let hasRealJobData = false;
 
     if (env.PREDICT_JOBS_DB) {
@@ -204,6 +223,15 @@ export const handleIntradayCheck = createHandler(
             : snapshot.report_content;
 
           hasRealJobData = true;
+
+          // Extract comparisons if available (new format)
+          if (content.comparisons && Array.isArray(content.comparisons)) {
+            comparisons = content.comparisons;
+            logger.info('📊 [INTRADAY] Loaded comparisons from D1', {
+              count: comparisons.length,
+              requestId
+            });
+          }
 
           // Transform D1 data to IntradayPerformanceData format
           const symbols = content.symbols || [];
@@ -375,7 +403,7 @@ export const handleIntradayCheck = createHandler(
       });
     }
 
-    const html: string = await generateIntradayCheckHTML(intradayData, today, env);
+    const html: string = await generateIntradayCheckHTML(intradayData, today, env, comparisons);
     const totalTime: number = Date.now() - startTime;
 
     // Cache HTML for fast subsequent loads
@@ -412,7 +440,158 @@ export const handleIntradayCheck = createHandler(
 // ============================================================================
 
 /**
- * Generate signal cards HTML with dual model display
+ * Generate side-by-side comparison card for a single symbol
+ */
+function generateSymbolComparisonCard(comparison: IntradaySymbolComparison): string {
+  const { symbol, premarket, intraday, comparison: cmp } = comparison;
+
+  // Status badge
+  const statusConfig: Record<string, { emoji: string; label: string; color: string }> = {
+    consistent: { emoji: '✅', label: 'CONSISTENT', color: '#4CAF50' },
+    shifted: { emoji: '🔄', label: 'SHIFTED', color: '#ff9800' },
+    reversed: { emoji: '🔃', label: 'REVERSED', color: '#f44336' },
+    incomplete: { emoji: '⚠️', label: 'INCOMPLETE', color: '#9e9e9e' }
+  };
+  const status = statusConfig[cmp.status] || statusConfig.incomplete;
+
+  // Helper to render a period column
+  const renderPeriodColumn = (period: PeriodSentimentData, label: string): string => {
+    const dirEmoji = getDirectionEmoji(period.direction);
+    const conf = period.confidence !== null ? `${Math.round(period.confidence * 100)}%` : '—';
+
+    // Model result renderer (with XSS protection)
+    const renderModel = (model: ModelDisplayResult, name: string): string => {
+      if (model.status === 'no_data') {
+        return `<div class="model-row no-data"><span class="model-name">${escapeHtml(name)}</span><span class="model-status">No data</span></div>`;
+      }
+      if (model.status === 'failed' || model.status === 'timeout') {
+        const errorMsg = model.error || (model.status === 'timeout' ? 'Timeout' : 'Failed');
+        const escapedError = escapeHtml(errorMsg);
+        const truncatedError = errorMsg.length > 25 ? escapeHtml(errorMsg.substring(0, 25)) + '...' : escapedError;
+        return `<div class="model-row failed"><span class="model-name">${escapeHtml(name)}</span><span class="model-error" title="${escapedError}">✗ ${truncatedError}</span></div>`;
+      }
+      const modelConf = model.confidence !== null ? `${Math.round(model.confidence * 100)}%` : '—';
+      const modelDir = escapeHtml(model.direction) || '—';
+      return `<div class="model-row success"><span class="model-name">${escapeHtml(name)}</span><span class="model-result">${modelDir.toUpperCase()} (${modelConf})</span></div>`;
+    };
+
+    // Agreement badge
+    const agreementClass = period.agreement === 'AGREE' ? 'agree' : period.agreement === 'DISAGREE' ? 'disagree' : period.agreement === 'ERROR' ? 'error' : 'partial';
+
+    // Period status indicator
+    const periodStatusClass = period.status === 'success' ? 'success' : period.status === 'partial' ? 'partial' : 'failed';
+
+    // Escape user-controlled content
+    const escapedError = escapeHtml(period.error || 'Analysis failed');
+    const escapedDirection = escapeHtml(period.direction);
+    const escapedReasoning = escapeHtml(period.reasoning);
+    const truncatedReasoning = period.reasoning.length > 80
+      ? escapeHtml(period.reasoning.substring(0, 80)) + '...'
+      : escapedReasoning;
+
+    return `
+      <div class="period-column ${periodStatusClass}">
+        <div class="period-header">${escapeHtml(label)}</div>
+        ${period.status === 'failed' ? `
+          <div class="period-error">
+            <span class="error-icon">⚠️</span>
+            <span class="error-text">${escapedError}</span>
+          </div>
+        ` : `
+          <div class="direction-row">
+            <span class="direction-emoji">${dirEmoji}</span>
+            <span class="direction-text ${escapedDirection}">${escapedDirection.toUpperCase()}</span>
+            <span class="confidence">${conf}</span>
+          </div>
+          <div class="models-section">
+            ${renderModel(period.gemma, 'Gemma')}
+            ${renderModel(period.distilbert, 'DistilBERT')}
+          </div>
+          <div class="agreement-badge ${agreementClass}">${escapeHtml(period.agreement)}</div>
+          <div class="reasoning">"${truncatedReasoning}"</div>
+        `}
+      </div>
+    `;
+  };
+
+  // Confidence change indicator
+  let confChangeHtml = '';
+  if (cmp.confidence_change !== null) {
+    const changeVal = Math.round(cmp.confidence_change * 100);
+    const changeClass = changeVal > 0 ? 'positive' : changeVal < 0 ? 'negative' : 'neutral';
+    confChangeHtml = `<span class="conf-change ${changeClass}">${changeVal > 0 ? '+' : ''}${changeVal}%</span>`;
+  }
+
+  return `
+    <div class="comparison-card">
+      <div class="card-header">
+        <h4 class="symbol-name">${escapeHtml(symbol)}</h4>
+        <div class="status-badge" style="background: ${status.color}20; color: ${status.color}; border: 1px solid ${status.color}40;">
+          ${status.emoji} ${status.label}
+        </div>
+      </div>
+      <div class="comparison-grid">
+        ${renderPeriodColumn(premarket, 'PRE-MARKET')}
+        <div class="comparison-divider">
+          <div class="arrow">→</div>
+          ${confChangeHtml}
+        </div>
+        ${renderPeriodColumn(intraday, 'INTRADAY')}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Generate summary stats for comparisons
+ */
+function generateComparisonSummary(comparisons: IntradaySymbolComparison[]): string {
+  if (!comparisons || comparisons.length === 0) {
+    return '<div class="summary-empty">No comparison data available</div>';
+  }
+
+  const consistent = comparisons.filter(c => c.comparison.status === 'consistent').length;
+  const shifted = comparisons.filter(c => c.comparison.status === 'shifted').length;
+  const reversed = comparisons.filter(c => c.comparison.status === 'reversed').length;
+  const incomplete = comparisons.filter(c => c.comparison.status === 'incomplete').length;
+
+  return `
+    <div class="comparison-summary">
+      <div class="summary-stat consistent">
+        <span class="stat-value">${consistent}</span>
+        <span class="stat-label">Consistent</span>
+      </div>
+      <div class="summary-stat shifted">
+        <span class="stat-value">${shifted}</span>
+        <span class="stat-label">Shifted</span>
+      </div>
+      <div class="summary-stat reversed">
+        <span class="stat-value">${reversed}</span>
+        <span class="stat-label">Reversed</span>
+      </div>
+      ${incomplete > 0 ? `
+        <div class="summary-stat incomplete">
+          <span class="stat-value">${incomplete}</span>
+          <span class="stat-label">Incomplete</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Generate all comparison cards
+ */
+function generateComparisonCards(comparisons: IntradaySymbolComparison[]): string {
+  if (!comparisons || comparisons.length === 0) {
+    return '<div class="no-comparisons">No comparison data available yet. Run the intraday job to generate comparisons.</div>';
+  }
+
+  return comparisons.map(c => generateSymbolComparisonCard(c)).join('');
+}
+
+/**
+ * Generate signal cards HTML with dual model display (LEGACY - kept for backward compatibility)
  */
 function generateSignalCards(signals: any[]): string {
   if (!signals || signals.length === 0) {
@@ -502,12 +681,13 @@ function getDirectionEmoji(direction?: string): string {
 }
 
 /**
- * Generate comprehensive intraday check HTML
+ * Generate comprehensive intraday check HTML with side-by-side comparison
  */
 async function generateIntradayCheckHTML(
   intradayData: IntradayPerformanceData | null,
   date: Date,
-  env: CloudflareEnvironment
+  env: CloudflareEnvironment,
+  comparisons?: IntradaySymbolComparison[]
 ): Promise<string> {
   // Process intraday data for HTML format
   const formattedData: IntradayPerformanceData = intradayData || getDefaultIntradayData();
@@ -521,7 +701,8 @@ async function generateIntradayCheckHTML(
   }
 
   // Check for real data vs scheduled
-  const hasRealData = formattedData.totalSignals > 0;
+  const hasComparisons = comparisons && comparisons.length > 0;
+  const hasRealData = hasComparisons || formattedData.totalSignals > 0;
   const scheduledUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 17, 0); // 12:00 PM ET = 17:00 UTC
   const beforeSchedule = Date.now() < scheduledUtc;
 
@@ -541,88 +722,218 @@ async function generateIntradayCheckHTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Intraday Performance Check - ${date}</title>
+    <title>📊 Intraday Sentiment Comparison - ${date}</title>
     <link rel="stylesheet" href="/css/reports.css">
     ${getNavScripts()}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Intraday Specific Components */
+        /* Comparison Card Styles */
+        .comparison-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .symbol-name {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin: 0;
+            color: #f0b90b;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 15px;
+            align-items: stretch;
+        }
+        .period-column {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .period-column.failed {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+        .period-column.partial {
+            background: rgba(255, 152, 0, 0.1);
+            border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+        .period-header {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #888;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .period-error {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #f44336;
+            font-size: 0.9rem;
+            padding: 10px;
+            background: rgba(244, 67, 54, 0.1);
+            border-radius: 6px;
+        }
+        .direction-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .direction-emoji {
+            font-size: 1.5rem;
+        }
+        .direction-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .direction-text.bullish, .direction-text.up { color: #4CAF50; }
+        .direction-text.bearish, .direction-text.down { color: #f44336; }
+        .direction-text.neutral { color: #9e9e9e; }
+        .confidence {
+            margin-left: auto;
+            font-size: 1.1rem;
+            color: #f0b90b;
+        }
+        .models-section {
+            margin-bottom: 12px;
+        }
+        .model-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .model-row:last-child { border-bottom: none; }
+        .model-name { color: #aaa; }
+        .model-result { color: #4CAF50; }
+        .model-row.failed .model-error { color: #f44336; font-size: 0.8rem; }
+        .model-row.no-data .model-status { color: #666; font-style: italic; }
+        .agreement-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .agreement-badge.agree { background: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+        .agreement-badge.disagree { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+        .agreement-badge.partial { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .agreement-badge.error { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+        .reasoning {
+            font-size: 0.85rem;
+            color: #aaa;
+            font-style: italic;
+            line-height: 1.4;
+        }
+        .comparison-divider {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+        }
+        .comparison-divider .arrow {
+            font-size: 1.5rem;
+            color: #666;
+        }
+        .conf-change {
+            font-size: 0.85rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+        .conf-change.positive { background: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+        .conf-change.negative { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+        .conf-change.neutral { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+
+        /* Summary Styles */
+        .comparison-summary {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        .summary-stat {
+            text-align: center;
+            padding: 15px 25px;
+            border-radius: 8px;
+            min-width: 100px;
+        }
+        .summary-stat.consistent { background: rgba(76, 175, 80, 0.15); border: 1px solid rgba(76, 175, 80, 0.3); }
+        .summary-stat.shifted { background: rgba(255, 152, 0, 0.15); border: 1px solid rgba(255, 152, 0, 0.3); }
+        .summary-stat.reversed { background: rgba(244, 67, 54, 0.15); border: 1px solid rgba(244, 67, 54, 0.3); }
+        .summary-stat.incomplete { background: rgba(158, 158, 158, 0.15); border: 1px solid rgba(158, 158, 158, 0.3); }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+        .summary-stat.consistent .stat-value { color: #4CAF50; }
+        .summary-stat.shifted .stat-value { color: #ff9800; }
+        .summary-stat.reversed .stat-value { color: #f44336; }
+        .summary-stat.incomplete .stat-value { color: #9e9e9e; }
+        .stat-label {
+            font-size: 0.85rem;
+            color: #888;
+            text-transform: uppercase;
+        }
+        .no-comparisons {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            font-style: italic;
+        }
+
+        /* Model Health */
         .model-health {
             text-align: center;
-            margin-bottom: 40px;
-            padding: 25px;
-            background: rgba(255, 255, 255, 0.08);
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 12px;
             border-left: 4px solid #4CAF50;
         }
-
-        .model-health.warning {
-            border-left-color: #ff9800;
-            background: rgba(255, 152, 0, 0.1);
-        }
-
-        .model-health.error {
-            border-left-color: #f44336;
-            background: rgba(244, 67, 54, 0.1);
-        }
-
-        .health-status {
-            font-size: 2.5rem;
-            margin: 15px 0;
-        }
-
+        .model-health.warning { border-left-color: #ff9800; }
+        .model-health.error, .model-health.off-track { border-left-color: #f44336; }
+        .health-status { font-size: 2rem; margin: 10px 0; }
         .health-status.on-track { color: #4CAF50; }
         .health-status.divergence { color: #ff9800; }
         .health-status.off-track { color: #f44336; }
         .health-status.pending { color: #9e9e9e; }
 
-        .accuracy-metric {
-            font-size: 1.8rem;
-            margin: 10px 0;
-        }
-
-        .tracking-summary {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .tracking-summary h3 {
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            color: #f0b90b;
-        }
-
-        .recalibration-section {
-            background: rgba(255, 152, 0, 0.1);
-            border-radius: 12px;
-            padding: 25px;
-            border: 2px solid #ff9800;
-            margin-bottom: 30px;
-        }
-
-        .recalibration-section h3 {
-            color: #ff9800;
-            margin-bottom: 15px;
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .recalibration-alert {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-        }
-
-        .recalibration-alert.yes {
-            color: #f44336;
-            font-weight: bold;
-        }
-
-        .recalibration-alert.no {
-            color: #4CAF50;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+            .comparison-divider {
+                flex-direction: row;
+                padding: 10px 0;
+            }
+            .comparison-divider .arrow {
+                transform: rotate(90deg);
+            }
         }
     </style>
 </head>
@@ -630,7 +941,7 @@ async function generateIntradayCheckHTML(
     ${getSharedNavHTML('intraday')}
     <div class="container">
         <div class="header">
-            <h1>🎯 Intraday Performance Check</h1>
+            <h1>📊 Intraday Sentiment Comparison</h1>
             <div class="date-display">
               <div class="target-date">
                 <span class="date-label">Target Day:</span>
@@ -648,80 +959,29 @@ async function generateIntradayCheckHTML(
             </div>
         </div>
 
-        <div class="model-health ${formattedData.modelHealth.status}">
+        ${hasComparisons ? `
+          <div class="model-health ${formattedData.modelHealth.status}">
             <div class="health-status ${formattedData.modelHealth.status}">${formattedData.modelHealth.display}</div>
-            <div class="accuracy-metric">${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
-      ? '⏳ Awaiting validation data'
-      : `Live Accuracy: ${formattedData.liveAccuracy}%`
-    }</div>
-            <div>${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
-      ? 'High-confidence signals will be tracked after job execution'
-      : `Tracking ${formattedData.totalSignals} high-confidence signals from this morning`
-    }</div>
-        </div>
+            <div>Comparing ${comparisons!.length} symbols: Pre-Market vs Intraday</div>
+          </div>
 
-        <div class="tracking-summary">
-            <h3>📊 High-Confidence Signal Tracking</h3>
-            ${formattedData.modelHealth.status === 'pending' || formattedData.modelHealth.status === 'scheduled'
-      ? `<div style="text-align: center; padding: 20px; opacity: 0.7;">
-                  <div style="font-size: 1.2rem; margin-bottom: 10px;">⏳ Awaiting job execution</div>
-                  <div>Signal tracking data will appear after the scheduled job runs</div>
-                </div>`
-      : `<div class="summary-grid">
-                <div class="summary-metric">
-                    <div class="value">${formattedData.correctCalls}</div>
-                    <div class="label">Correct Calls</div>
-                </div>
-                <div class="summary-metric">
-                    <div class="value">${formattedData.wrongCalls}</div>
-                    <div class="label">Wrong Calls</div>
-                </div>
-                <div class="summary-metric">
-                    <div class="value">${formattedData.pendingCalls}</div>
-                    <div class="label">Still Tracking</div>
-                </div>
-                <div class="summary-metric">
-                    <div class="value">${formattedData.avgDivergence}%</div>
-                    <div class="label">Avg Divergence</div>
-                </div>
-            </div>`}
-        </div>
+          ${generateComparisonSummary(comparisons!)}
 
-        <div class="performance-grid">
-            <div class="performance-card" style="grid-column: 1 / -1;">
-                <h3>🚨 Significant Divergences</h3>
-                <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
-                    High-confidence signals (≥70%) not performing as expected
-                </div>
-                <div class="signal-grid">
-                    ${generateSignalCards(formattedData.divergences || [])}
-                </div>
-            </div>
-
-            <div class="performance-card" style="grid-column: 1 / -1;">
-                <h3>✅ On-Track Signals</h3>
-                <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">
-                    High-confidence signals performing as expected
-                </div>
-                <div class="signal-grid">
-                    ${generateSignalCards(formattedData.onTrackSignals || [])}
-                </div>
-            </div>
-        </div>
-
-        <div class="recalibration-section">
-            <h3>⚠️ Recalibration Alert</h3>
-            <div class="recalibration-alert ${formattedData.recalibrationAlert.status}">
-                ${formattedData.recalibrationAlert.message}
-            </div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">
-                Threshold: Recalibration triggered if live accuracy drops below 60%
-            </div>
-        </div>
+          <div class="comparisons-section">
+            ${generateComparisonCards(comparisons!)}
+          </div>
+        ` : `
+          <div class="model-health pending">
+            <div class="health-status pending">⏳ Awaiting Data</div>
+            <div>${beforeSchedule
+              ? 'Intraday comparison will be available after the scheduled job runs at 12:00 PM ET'
+              : 'No comparison data available. Run the intraday job to generate comparisons.'}</div>
+          </div>
+        `}
 
         <div class="footer">
-            <p>Last updated: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EDT</p>
-            <p>Next update: End-of-Day Summary at 4:05 PM EDT</p>
+            <p>Last updated: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET</p>
+            <p>Next update: End-of-Day Summary at 4:05 PM ET</p>
             <div class="disclaimer">
                 ⚠️ <strong>DISCLAIMER:</strong> Real-time tracking for research and educational purposes only.
                 Market conditions change rapidly. Not financial advice - consult licensed professionals before trading.
@@ -739,7 +999,7 @@ async function generateIntradayCheckHTML(
         const local = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
         el.textContent = et + ' ET (' + local + ' local)';
       });
-      // Render generated times with ET and local (include full date for both)
+      // Render generated times with ET and local
       document.querySelectorAll('.gen-time').forEach(el => {
         const ts = parseInt(el.dataset.ts);
         const d = new Date(ts);

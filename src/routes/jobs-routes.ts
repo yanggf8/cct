@@ -529,7 +529,7 @@ async function handleIntradayJob(
     const analysisData = await bridge.generateIntradayAnalysis();
     const today = new Date().toISOString().split('T')[0];
 
-    // Build job result for D1 storage
+    // Build job result for D1 storage (includes comparisons for new layout)
     const jobResult = {
       date: today,
       job_type: 'intraday',
@@ -539,6 +539,7 @@ async function handleIntradayJob(
       overall_accuracy: analysisData.overall_accuracy,
       market_status: analysisData.market_status,
       symbols: analysisData.symbols,
+      comparisons: analysisData.comparisons,  // NEW: Side-by-side comparison data
       timestamp: analysisData.timestamp
     };
 

@@ -262,22 +262,22 @@ function getCurrentSymbolPerformance(symbol: string, currentPrices: CurrentPrice
 
 /**
  * Generate reason for signal divergence
+ * NOTE: This function is deprecated - real reasoning comes from AI analysis
  */
 function generateDivergenceReason(
   symbol: string,
   predictedDirection: string,
   actualPerformance: SymbolPerformance
 ): string {
-  const reasons: Record<string, string[]> = {
-    'AAPL': ['Product announcement impact', 'Supply chain news', 'iPhone sales data'],
-    'MSFT': ['Cloud earnings beat/miss', 'Azure growth rates', 'Corporate spending'],
-    'GOOGL': ['Ad revenue concerns', 'Search trends', 'YouTube performance'],
-    'TSLA': ['Production numbers', 'Delivery reports', 'Competitor news'],
-    'NVDA': ['AI demand shifts', 'Semiconductor cycle', 'Data center orders']
-  };
+  // Return actual performance-based reason instead of random fake reasons
+  const direction = actualPerformance.change > 0 ? 'up' : 'down';
+  const changeAbs = Math.abs(actualPerformance.change).toFixed(2);
 
-  const symbolReasons = reasons[symbol] || ['Market sentiment shift', 'Unexpected news', 'Sector rotation'];
-  return symbolReasons[Math.floor(Math.random() * symbolReasons.length)];
+  if (predictedDirection === direction) {
+    return `Prediction aligned: ${symbol} moved ${direction} ${changeAbs}%`;
+  }
+
+  return `Direction mismatch: predicted ${predictedDirection}, actual ${direction} (${changeAbs}% change)`;
 }
 
 /**

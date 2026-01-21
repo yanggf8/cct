@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Stock Articles v3.10.1 Complete
-- **Current Version**: Latest (2026-01-21 - Stock Articles v3.10.1)
+**Status**: ✅ **PRODUCTION READY** - Intraday Comparison v3.10.2 Complete
+- **Current Version**: Latest (2026-01-22 - Intraday Comparison v3.10.2)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -56,6 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **Scheduled Jobs Fix** | ✅ Complete | Fixed query bug and job status tracking - dashboard now shows historical runs correctly |
 | **Market Pulse v3.10.0** | ✅ Complete | SPY broad market sentiment via DAC service binding - bullish/bearish direction with AI confidence scoring |
 | **Stock Articles v3.10.1** | ✅ Complete | Finnhub-first news flow for stocks (60 calls/min), cache warming fix ensures fresh data after job completion |
+| **Intraday Comparison v3.10.2** | ✅ Complete | Side-by-side Pre-Market vs Intraday sentiment comparison with full dual model details, actual failure reasons displayed |
 
 ---
 
@@ -116,6 +117,32 @@ Market Pulse: direction (bullish/bearish) + confidence score
 - **Service Binding**: Direct Worker-to-Worker calls (no external HTTP)
 - **Output**: direction, confidence (0-1), articles_count
 - **Caching**: 1-hour TTL in CCT's Durable Objects cache
+
+### **Intraday Comparison (v3.10.2)**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 📊 Intraday Sentiment Comparison                            │
+│ Summary: 3/5 consistent | 1 shifted | 1 reversed            │
+├─────────────────────────────────────────────────────────────┤
+│ ┌─── AAPL ──────────────────────────────────────────────┐  │
+│ │     PRE-MARKET          │        INTRADAY             │  │
+│ ├─────────────────────────┼─────────────────────────────┤  │
+│ │ Direction: 📈 Bullish   │ Direction: 📉 Bearish       │  │
+│ │ Confidence: 85%         │ Confidence: 72%             │  │
+│ │ Gemma: UP (0.85)        │ Gemma: DOWN (0.70)          │  │
+│ │ DistilBERT: UP (0.90)   │ DistilBERT: DOWN (0.75)     │  │
+│ │ Agreement: ✓ AGREE      │ Agreement: ✓ AGREE          │  │
+│ │ "Strong earnings..."    │ "Market shifted on..."      │  │
+│ └─────────────────────────┴─────────────────────────────┘  │
+│                    Status: 🔃 REVERSED                      │
+└─────────────────────────────────────────────────────────────┘
+```
+- **Side-by-Side Display**: Pre-Market column | Intraday column per symbol
+- **Full Model Details**: Gemma and DistilBERT status, confidence, direction for each period
+- **Failure Visibility**: Shows actual error messages (timeout, rate limit, etc.) instead of "N/A"
+- **Status Badges**: CONSISTENT (✅), SHIFTED (🔄), REVERSED (🔃), INCOMPLETE (⚠️)
+- **Responsive**: Works on mobile with vertical layout
+- **Data Flow**: D1 `scheduled_job_results` stores full `comparisons` array
 
 ### **Stock Articles (v3.10.1)**
 ```
@@ -624,9 +651,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-21
-**Current Version**: Production Ready with Market Pulse v3.10.0
+**Last Updated**: 2026-01-22
+**Current Version**: Production Ready with Intraday Comparison v3.10.2
 **Major Updates**:
+- **Intraday Comparison v3.10.2**: Redesigned intraday report with side-by-side Pre-Market vs Intraday sentiment comparison, full dual model details (Gemma/DistilBERT status, confidence, errors), actual failure reasons displayed instead of "N/A"
 - **Market Pulse v3.10.0**: SPY broad market sentiment analysis integrated via DAC service binding - fixed entrypoint config and response parsing for Worker-to-Worker calls
 - **Scheduled Jobs Fix**: Fixed query bug (trigger_mode → job_type) and added job status tracking to scheduler - dashboard now displays historical job runs correctly
 - **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories

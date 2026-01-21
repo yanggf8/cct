@@ -176,9 +176,15 @@ Not scheduled:
 | Report      | D1 Fallback | Notes |
 |-------------|-------------|-------|
 | Pre-Market  | ✅ Yes      | Includes `sentiment_signals → signals` transformation in `briefing-handlers.ts`. |
-| Intraday    | ✅ Yes      | Uses prediction-shaped data; no sentiment transform needed. |
+| Intraday    | ✅ Yes      | Uses prediction-shaped data; no sentiment transform needed. Intraday **report** uses Yahoo prices; intraday **job** uses AI sentiment (details below). |
 | End-of-Day  | ✅ Yes      | Uses prediction-shaped data; no sentiment transform needed. |
 | Weekly      | ✅ Yes      | Aggregates daily data; no sentiment transform needed. |
+
+### Intraday Data Sources (Price vs Sentiment)
+- Intraday **report module** (`src/modules/report/intraday-analysis.ts`) uses live Yahoo Finance quotes via `getBatchMarketData()` (`src/modules/yahoo-finance-integration.ts`) and treats `regularMarketChangePercent` sign as direction.
+- Intraday **job endpoint** (`POST /api/v1/jobs/intraday`) runs `src/modules/intraday-data-bridge.ts` and compares morning predictions vs **fresh dual-AI sentiment** (`batchDualAIAnalysis`), not vs price change.
+- Yahoo `regularMarketChangePercent` is typically a fraction vs prior close (e.g. `0.0123` = `+1.23%`); avoid assuming “from open”, and handle `0` as a neutral/no-move case (current code treats `0` as “down”).
+- `generateDivergenceReason()` in `src/modules/report/intraday-analysis.ts` now returns deterministic performance-based strings (e.g., "Prediction aligned: AAPL moved up 1.23%") instead of randomized placeholders. The intraday comparison view (v3.10.2) shows actual AI reasoning from the dual model analysis.
 
 ### D1 Storage Policy (Reports)
 - All report results (pre-market, intraday, end-of-day, weekly) must be written to D1 and treated as the history record of truth.

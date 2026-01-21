@@ -1,6 +1,7 @@
 // Shared Navigation Component - Left Sidebar
-// Bootstrap API key for personal use (sessionStorage can override this)
-window.CCT_API_KEY = 'yanggf';
+// API key is loaded from sessionStorage (set via Settings page)
+// No hardcoded API key - user must configure via Settings
+window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
 
 (function() {
     const navHTML = `
@@ -22,15 +23,15 @@ window.CCT_API_KEY = 'yanggf';
 
             <div class="nav-group">
                 <div class="nav-group-title">Today's Reports</div>
-                <a href="/pre-market-briefing" class="nav-item" data-page="pre-market">
+                <a href="/pre-market-briefing" class="nav-item nav-today" data-page="pre-market" data-base="/pre-market-briefing">
                     <span class="nav-icon">🌅</span>
                     <span class="nav-text">Pre-Market</span>
                 </a>
-                <a href="/intraday-check" class="nav-item" data-page="intraday">
+                <a href="/intraday-check" class="nav-item nav-today" data-page="intraday" data-base="/intraday-check">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">Intraday</span>
                 </a>
-                <a href="/end-of-day-summary" class="nav-item" data-page="end-of-day">
+                <a href="/end-of-day-summary" class="nav-item nav-today" data-page="end-of-day" data-base="/end-of-day-summary">
                     <span class="nav-icon">🌆</span>
                     <span class="nav-text">End-of-Day</span>
                 </a>
@@ -38,15 +39,15 @@ window.CCT_API_KEY = 'yanggf';
 
             <div class="nav-group">
                 <div class="nav-group-title">Yesterday's Reports</div>
-                <a href="/pre-market-briefing?date=yesterday" class="nav-item" data-page="pre-market-yesterday">
+                <a href="/pre-market-briefing" class="nav-item nav-yesterday" data-page="pre-market-yesterday" data-base="/pre-market-briefing">
                     <span class="nav-icon">🌅</span>
                     <span class="nav-text">Pre-Market</span>
                 </a>
-                <a href="/intraday-check?date=yesterday" class="nav-item" data-page="intraday-yesterday">
+                <a href="/intraday-check" class="nav-item nav-yesterday" data-page="intraday-yesterday" data-base="/intraday-check">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">Intraday</span>
                 </a>
-                <a href="/end-of-day-summary?date=yesterday" class="nav-item" data-page="end-of-day-yesterday">
+                <a href="/end-of-day-summary" class="nav-item nav-yesterday" data-page="end-of-day-yesterday" data-base="/end-of-day-summary">
                     <span class="nav-icon">🌆</span>
                     <span class="nav-text">End-of-Day</span>
                 </a>
@@ -98,10 +99,30 @@ window.CCT_API_KEY = 'yanggf';
         return path.replace(/\/$/, '');
     }
 
+    // NOTE: We use semantic date values (no date param for "today", ?date=yesterday for yesterday)
+    // instead of computing local dates, because the server uses ET (Eastern Time) for all date logic.
+    // Using local timezone dates could cause mismatches for users outside ET.
+
     function initNav() {
         // Insert nav at start of body
         document.body.insertAdjacentHTML('afterbegin', navHTML);
         document.body.classList.add('has-nav');
+
+        // "Today" links: no date param - server defaults to ET today
+        document.querySelectorAll('.nav-today').forEach(link => {
+            const basePath = link.getAttribute('data-base');
+            if (basePath) {
+                link.setAttribute('href', basePath);  // No ?date= param - server uses ET today
+            }
+        });
+
+        // "Yesterday" links: use semantic ?date=yesterday which server interprets in ET
+        document.querySelectorAll('.nav-yesterday').forEach(link => {
+            const basePath = link.getAttribute('data-base');
+            if (basePath) {
+                link.setAttribute('href', `${basePath}?date=yesterday`);
+            }
+        });
 
         // Set active state based on current page
         const path = window.location.pathname;
@@ -114,8 +135,9 @@ window.CCT_API_KEY = 'yanggf';
         const dateParam = urlParams.get('date');
         const weekParam = urlParams.get('week');
 
-        // Check context
-        const isYesterday = dateParam === 'yesterday' || (dateParam && dateParam !== new Date().toISOString().slice(0, 10));
+        // Check context - compare with user's local dates (reuse todayDate/yesterdayDate from above)
+        const isYesterday = dateParam === yesterdayDate;
+        const isToday = !dateParam || dateParam === todayDate;
         const isLastWeek = weekParam === 'last';
 
         navItems.forEach(item => {
@@ -128,15 +150,16 @@ window.CCT_API_KEY = 'yanggf';
 
             // Parse item parameters
             const itemParams = new URLSearchParams(itemSearch || '');
-            const itemHasYesterday = itemParams.get('date') === 'yesterday';
             const itemHasLastWeek = itemParams.get('week') === 'last';
+            const itemIsToday = item.classList.contains('nav-today');
+            const itemIsYesterday = item.classList.contains('nav-yesterday');
 
             // Determine if this item should be active
             let shouldBeActive = false;
 
-            // Daily reports: match yesterday/today
+            // Daily reports: match yesterday/today based on date param
             if (currentPath === '/pre-market-briefing' || currentPath === '/intraday-check' || currentPath === '/end-of-day-summary') {
-                shouldBeActive = (isYesterday && itemHasYesterday) || (!isYesterday && !itemHasYesterday);
+                shouldBeActive = (isYesterday && itemIsYesterday) || (isToday && itemIsToday);
             }
             // Weekly reports: match last week/this week
             else if (currentPath === '/weekly-review') {
