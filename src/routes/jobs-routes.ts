@@ -250,7 +250,7 @@ async function handleJobTrigger(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  let body: { triggerMode?: string } = {};
+  let body: { triggerMode?: string; scheduledDate?: string } = {};
   try {
     body = await request.json();
   } catch {
@@ -273,7 +273,39 @@ async function handleJobTrigger(
 
   logger.info('Manual job trigger', { triggerMode, requestId });
 
-  const controller = { scheduledTime: new Date() };
+  // Derive scheduled time based on triggerMode (GitHub Actions manual triggers)
+  const now = new Date();
+  const { triggerMode: mode = '' } = body;
+  const utcDate = {
+    year: now.getUTCFullYear(),
+    month: now.getUTCMonth(),
+    day: now.getUTCDate(),
+  };
+
+  // Optional explicit scheduledDate (YYYY-MM-DD) to override "today"
+  let scheduledDateOverride: Date | null = null;
+  if (body.scheduledDate && typeof body.scheduledDate === 'string') {
+    const [y, m, d] = body.scheduledDate.split('-').map((v: string) => parseInt(v, 10));
+    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
+      scheduledDateOverride = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+    }
+  }
+
+  const cronTimes: Record<string, { hour: number; minute: number }> = {
+    morning_prediction_alerts: { hour: 12, minute: 30 },          // 08:30 ET
+    midday_validation_prediction: { hour: 16, minute: 0 },        // 12:00 ET
+    next_day_market_prediction: { hour: 1, minute: 0 },           // example: 01:00 UTC (adjust if needed)
+    weekly_review_analysis: { hour: 14, minute: 0 },              // example: 09:00 ET (adjust if needed)
+    sector_rotation_refresh: { hour: 11, minute: 0 }              // example: 06:00 ET (adjust if needed)
+  };
+
+  const cronTime = cronTimes[mode] || null;
+  const dateBase = scheduledDateOverride || new Date(Date.UTC(utcDate.year, utcDate.month, utcDate.day, 0, 0, 0));
+  const scheduledTime = cronTime
+    ? new Date(Date.UTC(dateBase.getUTCFullYear(), dateBase.getUTCMonth(), dateBase.getUTCDate(), cronTime.hour, cronTime.minute, 0))
+    : now;
+
+  const controller = { scheduledTime };
   const ctx = { waitUntil: (p: Promise<any>) => p, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 
   const result = await handleScheduledEvent(controller, env, ctx, triggerMode);
@@ -365,6 +397,7 @@ async function handlePreMarketJob(
           0
         ) > 0.7).length,
       trading_signals: analysisData.trading_signals,
+      market_pulse: analysisData.market_pulse, // v3.10.0: SPY market sentiment
       generated_at: analysisData.generated_at,
       timestamp: analysisData.timestamp
     };

@@ -7,6 +7,11 @@
 - System Status surfaces a Market Indices card alongside the portfolio article pool to show SPY harvest health and counts.
 - DAC client now supports `getMarketArticles()` and maps `WORKER_API_KEY` → `X_API_KEY` when creating the service-binding client.
 
+## 2026-01-21 - Manual Trigger Date Alignment ✅
+
+- `/api/v1/jobs/trigger` now derives scheduled time from triggerMode cron targets (e.g., intraday 16:00 UTC, pre-market 12:30 UTC) and supports an optional `scheduledDate` (YYYY-MM-DD) to avoid wrong-day writes when GitHub Actions triggers jobs.
+- D1 writes continue to capture `trigger_source` (`github-actions`/`manual-api`/etc.) via `detectTriggerSource` for auditability.
+
 ## 2026-01-21 - Pre-Market UI Trim & Status Ratio Fix ✅
 
 - Pre-market briefing summary now shows only two cards (High Confidence, Total Signals); removed the Market Sentiment card for a leaner header (`src/modules/handlers/briefing-handlers.ts`).
