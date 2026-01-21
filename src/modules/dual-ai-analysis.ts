@@ -34,7 +34,7 @@ export type SignalAction = 'STRONG_BUY' | 'BUY' | 'WEAK_BUY' | 'STRONG_SELL' | '
 export interface ModelResult {
   model: string;
   direction: Direction;
-  confidence: number;
+  confidence: number | null;  // null = failed/no data, number = valid confidence
   reasoning: string;
   response_time_ms?: number;
   error?: string;
@@ -295,7 +295,7 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
     return {
       model: 'gpt-oss-120b',
       direction: 'neutral',
-      confidence: 0,
+      confidence: null,  // null = no data/failed
       reasoning: 'No news data available',
       error: 'No data'
     };
@@ -362,7 +362,7 @@ Respond ONLY with valid JSON, no other text.`;
       return {
         model: 'gpt-oss-120b',
         direction: 'neutral',
-        confidence: 0,
+        confidence: null,  // null = failed
         reasoning: 'Model timed out - temporary issue',
         error: 'TIMEOUT'
       };
@@ -372,7 +372,7 @@ Respond ONLY with valid JSON, no other text.`;
       return {
         model: 'gpt-oss-120b',
         direction: 'neutral',
-        confidence: 0,
+        confidence: null,  // null = failed
         reasoning: 'AI model temporarily unavailable - circuit breaker active',
         error: 'CIRCUIT_BREAKER_OPEN'
       };
@@ -381,7 +381,7 @@ Respond ONLY with valid JSON, no other text.`;
     return {
       model: 'gpt-oss-120b',
       direction: 'neutral',
-      confidence: 0,
+      confidence: null,  // null = failed
       reasoning: `Analysis failed: ${error.message}`,
       error: error.message
     };
@@ -396,7 +396,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
     return {
       model: 'distilbert-sst-2-int8',
       direction: 'neutral',
-      confidence: 0,
+      confidence: null,  // null = no data/failed
       reasoning: 'No news data available',
       error: 'No data'
     };
@@ -486,7 +486,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
       return {
         model: 'distilbert-sst-2-int8',
         direction: 'neutral',
-        confidence: 0,
+        confidence: null,  // null = failed
         reasoning: 'Model timed out - temporary issue',
         error: 'TIMEOUT'
       };
@@ -496,7 +496,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
       return {
         model: 'distilbert-sst-2-int8',
         direction: 'neutral',
-        confidence: 0,
+        confidence: null,  // null = failed
         reasoning: 'AI model temporarily unavailable - circuit breaker active',
         error: 'CIRCUIT_BREAKER_OPEN'
       };
@@ -505,7 +505,7 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
     return {
       model: 'distilbert-sst-2-int8',
       direction: 'neutral',
-      confidence: 0,
+      confidence: null,  // null = failed
       reasoning: `Analysis failed: ${error.message}`,
       error: error.message
     };
@@ -514,19 +514,38 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
 
 /**
  * Simple Agreement Check
+ * IMPORTANT: If both models have null confidence (no data case), this is NOT agreement - it's failure
  */
 function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): Agreement {
   const gptDir = gptResult.direction;
   const dbDir = distilBERTResult.direction;
+  const gptConf = gptResult.confidence;
+  const dbConf = distilBERTResult.confidence;
 
-  // Full agreement: same direction
-  if (gptDir === dbDir) {
+  // Check for no-data failure: both models have null confidence or both have errors
+  const bothNoData = (gptConf === null && dbConf === null) ||
+                     (gptResult.error === 'No data' && distilBERTResult.error === 'No data');
+
+  if (bothNoData) {
+    return {
+      agree: false,
+      type: 'error',
+      details: {
+        error: 'No news data available - both models failed to analyze',
+        gpt_direction: gptDir,
+        distilbert_direction: dbDir
+      }
+    };
+  }
+
+  // Full agreement: same direction AND at least one model has meaningful confidence (not null)
+  if (gptDir === dbDir && (gptConf !== null || dbConf !== null)) {
     return {
       agree: true,
       type: 'full_agreement',
       details: {
         match_direction: gptDir,
-        confidence_spread: Math.abs(gptResult.confidence - distilBERTResult.confidence)
+        confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0))
       }
     };
   }
@@ -551,22 +570,35 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
     details: {
       gpt_direction: gptDir,
       distilbert_direction: dbDir,
-      confidence_spread: Math.abs(gptResult.confidence - distilBERTResult.confidence)
+      confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0))
     }
   };
 }
 
 /**
  * Simple Signal Generation Rules
+ * IMPORTANT: Returns FAILED status when no data available
  */
 function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERTResult: ModelResult): Signal {
-  const gptOk = !gptResult.error && gptResult.confidence > 0;
-  const dbOk = !distilBERTResult.error && distilBERTResult.confidence > 0;
-  
+  const gptOk = !gptResult.error && gptResult.confidence !== null && gptResult.confidence > 0;
+  const dbOk = !distilBERTResult.error && distilBERTResult.confidence !== null && distilBERTResult.confidence > 0;
+
   // Track which models actually contributed
   const sourceModels: string[] = [];
   if (gptOk) sourceModels.push('gemma-sea-lion-v4-27b-it');
   if (dbOk) sourceModels.push('distilbert-sst-2-int8');
+
+  // Handle error/no-data case first - this is a FAILURE, not a weak signal
+  if (agreement.type === 'error' || (!gptOk && !dbOk)) {
+    return {
+      type: 'ERROR',
+      direction: 'UNCLEAR',
+      strength: 'FAILED',
+      reasoning: agreement.details.error || 'No news data available - analysis failed',
+      action: 'SKIP',
+      source_models: []
+    };
+  }
 
   if (agreement.agree) {
     return {
@@ -604,8 +636,8 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
 /**
  * Action rules for agreement signals
  */
-function getActionForAgreement(direction: Direction, gptConfidence: number, dbConfidence: number): SignalAction {
-  const avgConfidence = (gptConfidence + dbConfidence) / 2;
+function getActionForAgreement(direction: Direction, gptConfidence: number | null, dbConfidence: number | null): SignalAction {
+  const avgConfidence = ((gptConfidence ?? 0) + (dbConfidence ?? 0)) / 2;
 
   if (avgConfidence >= 0.8) {
     return direction === 'bullish' ? 'STRONG_BUY' : 'STRONG_SELL';
@@ -619,8 +651,11 @@ function getActionForAgreement(direction: Direction, gptConfidence: number, dbCo
 /**
  * Calculate agreement strength
  */
-function calculateAgreementStrength(gptConfidence: number, dbConfidence: number): SignalStrength {
-  const avgConfidence = (gptConfidence + dbConfidence) / 2;
+function calculateAgreementStrength(gptConfidence: number | null, dbConfidence: number | null): SignalStrength {
+  // If both are null, this is a failure
+  if (gptConfidence === null && dbConfidence === null) return 'FAILED';
+
+  const avgConfidence = ((gptConfidence ?? 0) + (dbConfidence ?? 0)) / 2;
   if (avgConfidence >= 0.8) return 'STRONG';
   if (avgConfidence >= 0.6) return 'MODERATE';
   return 'WEAK';

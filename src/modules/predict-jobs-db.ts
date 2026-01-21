@@ -25,7 +25,7 @@ export interface SymbolPrediction {
   symbol: string;
   prediction_date: string;
   sentiment: string;
-  confidence: number;
+  confidence: number | null;  // null = analysis failed/no data
   direction: string;
   model: string;
   analysis_type: string;
@@ -34,11 +34,11 @@ export interface SymbolPrediction {
   // Dual model tracking
   gemma_status?: string;
   gemma_error?: string;
-  gemma_confidence?: number;
+  gemma_confidence?: number | null;
   gemma_response_time_ms?: number;
   distilbert_status?: string;
   distilbert_error?: string;
-  distilbert_confidence?: number;
+  distilbert_confidence?: number | null;
   distilbert_response_time_ms?: number;
   model_selection_reason?: string;
 }

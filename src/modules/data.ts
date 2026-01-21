@@ -451,14 +451,20 @@ export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: st
 
     const dualModelData = extractDualModelData(analysisData);
 
+    // Determine if this is a failed analysis (confidence is null)
+    const confidence = analysisData.confidence_metrics?.overall_confidence ?? null;
+    const isFailed = confidence === null;
+
     await db.savePrediction({
       symbol,
       prediction_date: dateStr,
       sentiment: analysisData.sentiment_layers?.[0]?.sentiment || 'neutral',
-      confidence: analysisData.confidence_metrics?.overall_confidence || 0.5,
-      direction: analysisData.trading_signals?.primary_direction || 'NEUTRAL',
-      model: analysisData.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
-      analysis_type: analysisData.analysis_type || 'fine_grained_sentiment',
+      // Use null if confidence is null/undefined - NO FAKE 0.5
+      confidence,
+      // Use failure-indicating defaults only when confidence is null, preserve legacy defaults otherwise
+      direction: analysisData.trading_signals?.primary_direction || (isFailed ? 'UNCLEAR' : 'NEUTRAL'),
+      model: analysisData.sentiment_layers?.[0]?.model || (isFailed ? 'none' : 'GPT-OSS-120B'),
+      analysis_type: analysisData.analysis_type || (isFailed ? 'failed' : 'fine_grained_sentiment'),
       trading_signals: analysisData.trading_signals,
       ...dualModelData
     });
@@ -509,10 +515,11 @@ export async function batchStoreAnalysisResults(env: CloudflareEnvironment, anal
         symbol: result.symbol,
         prediction_date: date,
         sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
-        confidence: result.confidence_metrics?.overall_confidence || 0.5,
-        direction: result.trading_signals?.primary_direction || 'NEUTRAL',
-        model: result.sentiment_layers?.[0]?.model || 'GPT-OSS-120B',
-        analysis_type: result.analysis_type || 'fine_grained_sentiment',
+        // Use null if confidence is null/undefined - NO FAKE 0.5
+        confidence: result.confidence_metrics?.overall_confidence ?? null,
+        direction: result.trading_signals?.primary_direction || 'UNCLEAR',
+        model: result.sentiment_layers?.[0]?.model || 'none',
+        analysis_type: result.analysis_type || 'unknown',
         trading_signals: result.trading_signals,
         ...dualModelData
       };
@@ -561,10 +568,11 @@ function createCompactAnalysisData(analysisData: any): CompactAnalysisData {
     })),
 
     confidence_metrics: {
-      overall_confidence: analysisData.confidence_metrics?.overall_confidence || 0,
-      base_confidence: analysisData.confidence_metrics?.base_confidence || 0,
-      consistency_bonus: analysisData.confidence_metrics?.consistency_bonus || 0,
-      agreement_bonus: analysisData.confidence_metrics?.agreement_bonus || 0
+      // Use ?? null to preserve null values (null = analysis failed)
+      overall_confidence: analysisData.confidence_metrics?.overall_confidence ?? null,
+      base_confidence: analysisData.confidence_metrics?.base_confidence ?? null,
+      consistency_bonus: analysisData.confidence_metrics?.consistency_bonus ?? 0,
+      agreement_bonus: analysisData.confidence_metrics?.agreement_bonus ?? 0
     },
 
     trading_signals: analysisData.trading_signals,

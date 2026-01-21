@@ -319,12 +319,14 @@ export async function handleWeeklyAnalysisPage(request: any, env: any) {
                 };
 
                 // Format layer consistency with appropriate styling
-                const layerConsistency = prediction.layer_consistency !== undefined ?
-                    (prediction.layer_consistency * 100).toFixed(1) + '%' : '-';
+                // Use != null to catch both null and undefined
+                const layerConsistency = prediction.layer_consistency != null ?
+                    (prediction.layer_consistency * 100).toFixed(1) + '%' : 'N/A';
 
                 // Format overall confidence
-                const overallConfidence = prediction.overall_confidence !== undefined ?
-                    (prediction.overall_confidence * 100).toFixed(1) + '%' : '-';
+                // Use != null to catch both null and undefined (null = analysis failed)
+                const overallConfidence = prediction.overall_confidence != null ?
+                    (prediction.overall_confidence * 100).toFixed(1) + '%' : 'N/A';
 
                 row.innerHTML = \`
                     <td>\${new Date(prediction.date).toLocaleDateString()}</td>

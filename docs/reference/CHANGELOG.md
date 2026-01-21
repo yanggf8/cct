@@ -59,7 +59,7 @@
 - **Pre-market, Intraday, End-of-Day, Weekly**: Target day/week now shown separately from generated timestamp (ET + local); clearer labels and styling in handler-rendered pages.
 
 ### 🎯 Confidence Mapping
-- **Pre-market signals**: Confidence now resolves from `confidence_metrics.overall_confidence` → `enhanced_prediction.confidence` → `sentiment_layers[0].confidence` → `confidence` → `0`, preventing 0% confidence displays when sentiment_layers are absent.
+- **Pre-market signals**: Confidence now resolves from `confidence_metrics.overall_confidence` → `enhanced_prediction.confidence` → `sentiment_layers[0].confidence` → `confidence` → `null` (failed/no data), avoiding fake confidence defaults and making failures explicit in both API responses and persistence.
 
 ### 🛠️ Bug Fixes
 - **Immutable headers**: Cloned responses before setting headers in `index-enhanced.ts`, `canary-toggle.ts`, and `enhanced-request-handler.ts` to resolve “Can't modify immutable headers” 500s.

@@ -35,16 +35,16 @@ export interface SentimentLayer {
 }
 
 export interface ConfidenceMetrics {
-  overall_confidence: number;
-  base_confidence: number;
+  overall_confidence: number | null;  // null = failed/no data
+  base_confidence: number | null;     // null = failed/no data
   consistency_bonus: number;
   agreement_bonus: number;
   confidence_breakdown?: {
     layer_confidence?: number[];
     consistency_factor?: string;
     agreement_factor?: number;
-    gpt_confidence?: number;
-    distilbert_confidence?: number;
+    gpt_confidence?: number | null;
+    distilbert_confidence?: number | null;
     agreement_score?: number;
   };
   reliability_score?: number;
@@ -54,7 +54,7 @@ export interface ConfidenceMetrics {
 export interface TradingSignals {
   symbol: string;
   primary_direction: string;
-  overall_confidence: number;
+  overall_confidence: number | null;  // null = failed/no data
   recommendation?: string;
   signal_strength?: string;
   signal_type?: string;
@@ -129,7 +129,7 @@ export interface PipelineResult {
 
 export interface SentimentResult {
   sentiment: string;
-  confidence: number;
+  confidence: number | null;  // null = failed/no analysis
   model?: string;
   average_score?: number;
   articles_processed?: number;
@@ -216,12 +216,13 @@ function convertDualAIToLegacyFormat(
     },
 
     // Convert dual AI models to sentiment layers format
+    // Note: SentimentLayer.confidence is number (not nullable), use ?? 0
     sentiment_layers: [
       {
         layer_type: 'gemma_sea_lion',
         model: 'gemma-sea-lion-v4-27b-it',
         sentiment: gptModel ? gptModel.direction.toLowerCase() : 'neutral',
-        confidence: gptModel ? gptModel.confidence : 0,
+        confidence: gptModel?.confidence ?? 0,  // Use ?? to handle null
         detailed_analysis: {
           reasoning: gptModel ? gptModel.reasoning : 'No analysis available',
           articles_analyzed: gptModel ? gptModel.articles_analyzed : 0
@@ -231,7 +232,7 @@ function convertDualAIToLegacyFormat(
         layer_type: 'distilbert_sst_2',
         model: 'distilbert-sst-2-int8',
         sentiment: distilbertModel ? distilbertModel.direction.toLowerCase() : 'neutral',
-        confidence: distilbertModel ? distilbertModel.confidence : 0,
+        confidence: distilbertModel?.confidence ?? 0,  // Use ?? to handle null
         sentiment_breakdown: distilbertModel ? distilbertModel.sentiment_breakdown : undefined,
         articles_analyzed: distilbertModel ? distilbertModel.articles_analyzed : 0
       }
@@ -247,15 +248,19 @@ function convertDualAIToLegacyFormat(
     },
 
     // Confidence metrics based on dual AI comparison
+    // IMPORTANT: Use null when both models have null confidence (no data case)
     confidence_metrics: {
       overall_confidence: calculateDualAIConfidence(dualAIResult),
-      base_confidence: ((gptModel?.confidence || 0) + (distilbertModel?.confidence || 0)) / 2,
-      consistency_bonus: dualAIResult.comparison.agree ? 0.15 : 0,
-      agreement_bonus: dualAIResult.comparison.agree ? 0.1 : 0,
+      base_confidence: (gptModel?.confidence === null && distilbertModel?.confidence === null)
+        ? null
+        : ((gptModel?.confidence ?? 0) + (distilbertModel?.confidence ?? 0)) / 2,
+      // Only add consistency_bonus if there's real data (at least one model has confidence !== null)
+      consistency_bonus: (dualAIResult.comparison.agree && (gptModel?.confidence !== null || distilbertModel?.confidence !== null)) ? 0.15 : 0,
+      agreement_bonus: (dualAIResult.comparison.agree && (gptModel?.confidence !== null || distilbertModel?.confidence !== null)) ? 0.1 : 0,
       confidence_breakdown: {
-        gpt_confidence: gptModel?.confidence || 0,
-        distilbert_confidence: distilbertModel?.confidence || 0,
-        agreement_score: dualAIResult.comparison.agree ? 1.0 : 0.0
+        gpt_confidence: gptModel?.confidence ?? null,
+        distilbert_confidence: distilbertModel?.confidence ?? null,
+        agreement_score: (dualAIResult.comparison.agree && dualAIResult.comparison.agreement_type !== 'error') ? 1.0 : 0.0
       }
     },
 
@@ -291,14 +296,26 @@ function convertDualAIToLegacyFormat(
 
 /**
  * Calculate confidence based on dual AI comparison
+ * IMPORTANT: Returns null when there's no real data - NO FAKE CONFIDENCE
  */
-function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number {
-  const gptConf = dualAIResult.models.gpt?.confidence || 0;
-  const dbConf = dualAIResult.models.distilbert?.confidence || 0;
-  const baseConf = (gptConf + dbConf) / 2;
+function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number | null {
+  const gptConf = dualAIResult.models.gpt?.confidence;
+  const dbConf = dualAIResult.models.distilbert?.confidence;
 
-  // Boost confidence if models agree
-  if (dualAIResult.comparison.agree) {
+  // If both models have null confidence (no data), return null - FAILED
+  if (gptConf === null && dbConf === null) {
+    return null;
+  }
+
+  // If this is an error/failure case, return null
+  if (dualAIResult.comparison.agreement_type === 'error' || dualAIResult.signal?.strength === 'FAILED') {
+    return null;
+  }
+
+  const baseConf = ((gptConf ?? 0) + (dbConf ?? 0)) / 2;
+
+  // Boost confidence if models agree (only when there's real data)
+  if (dualAIResult.comparison.agree && baseConf > 0) {
     return Math.min(0.95, baseConf + 0.15);
   }
 
@@ -307,8 +324,12 @@ function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number
     return Math.max(0.05, baseConf - 0.2);
   }
 
-  // Partial agreement - small boost
-  return Math.min(0.9, baseConf + 0.05);
+  // Partial agreement - small boost (only when there's real data)
+  if (baseConf > 0) {
+    return Math.min(0.9, baseConf + 0.05);
+  }
+
+  return baseConf > 0 ? baseConf : null;
 }
 
 /**
@@ -466,36 +487,40 @@ export async function analyzeSymbolWithFallback(
     } catch (fallbackError: any) {
       logError(`Fallback analysis also failed for ${symbol}:`, fallbackError.message);
 
-      // Fallback 2: Neutral result (ensures cron always completes)
+      // Fallback 2: FAILED result - use null for confidence
+      // When analysis truly fails, report null confidence and failed status
       const neutralAnalysis: SymbolAnalysis = {
         symbol,
-        analysis_type: 'neutral_fallback',
+        analysis_type: 'failed',
         timestamp: new Date().toISOString(),
 
         sentiment_layers: [{
-          layer_type: 'neutral_fallback',
+          layer_type: 'failed',
           sentiment: 'neutral',
-          confidence: 0.3,
-          model: 'fallback_neutral'
+          confidence: 0,  // SentimentLayer.confidence is number, not nullable
+          model: 'none',
+          error: 'All analysis methods failed'
         }],
 
         confidence_metrics: {
-          overall_confidence: 0.3,
-          base_confidence: 0.3,
+          overall_confidence: null,  // null = failed
+          base_confidence: null,     // null = failed
           consistency_bonus: 0,
-          agreement_bonus: 0
+          agreement_bonus: 0,
+          error: 'Analysis failed - no data available'
         },
 
         trading_signals: {
           symbol: symbol,
-          primary_direction: 'NEUTRAL',
-          overall_confidence: 0.3,
-          recommendation: 'hold'
+          primary_direction: 'UNCLEAR',
+          overall_confidence: null,  // null = failed
+          recommendation: 'SKIP',
+          error: 'Analysis failed'
         },
 
         analysis_metadata: {
-          method: 'neutral_fallback',
-          models_used: ['fallback_neutral'],
+          method: 'failed',
+          models_used: [],
           total_processing_time: Date.now() - startTime,
           fully_failed: true,
           errors: [primaryError.message, fallbackError.message]
@@ -513,15 +538,18 @@ export async function analyzeSymbolWithFallback(
 }
 
 /**
- * Placeholder for sentiment fallback chain
+ * Sentiment fallback chain - throws error if we can't analyze
+ * NO FAKE CONFIDENCE - if we can't analyze, we throw to trigger failure path
  */
 async function getSentimentWithFallbackChain(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<SentimentResult> {
-  // Simplified placeholder - in real implementation would try multiple models
-  return {
-    sentiment: 'neutral',
-    confidence: 0.5,
-    model: 'GPT-OSS-120B'
-  };
+  // If no news data, throw error to trigger failure path
+  if (!newsData || newsData.length === 0) {
+    throw new Error('No news data available for fallback analysis');
+  }
+
+  // Even with news data, we can't provide real analysis in this simplified fallback
+  // Throw to trigger the failure path rather than returning fake confidence
+  throw new Error('Fallback sentiment chain not implemented - cannot provide real analysis');
 }
 
 /**
@@ -553,11 +581,11 @@ export async function batchAnalyzeSymbolsForCron(
       results.push(symbolResult);
 
       // Track statistics
-      if (symbolResult.analysis_type === 'fine_grained_sentiment') {
+      if (symbolResult.analysis_type === 'fine_grained_sentiment' || symbolResult.analysis_type === 'dual_ai_comparison') {
         statistics.successful_full_analysis++;
       } else if (symbolResult.analysis_type === 'fallback_sentiment_only') {
         statistics.fallback_sentiment_used++;
-      } else if (symbolResult.analysis_type === 'neutral_fallback') {
+      } else if (symbolResult.analysis_type === 'neutral_fallback' || symbolResult.analysis_type === 'failed' || symbolResult.analysis_type === 'error') {
         statistics.neutral_fallback_used++;
       }
 
@@ -573,8 +601,8 @@ export async function batchAnalyzeSymbolsForCron(
         timestamp: new Date().toISOString(),
         error: error.message,
         sentiment_layers: [{ layer_type: 'error', sentiment: 'neutral', confidence: 0, model: 'error' }],
-        confidence_metrics: { overall_confidence: 0, base_confidence: 0, consistency_bonus: 0, agreement_bonus: 0 },
-        trading_signals: { symbol, primary_direction: 'NEUTRAL', overall_confidence: 0 },
+        confidence_metrics: { overall_confidence: null, base_confidence: null, consistency_bonus: 0, agreement_bonus: 0 },
+        trading_signals: { symbol, primary_direction: 'UNCLEAR', overall_confidence: null },
         analysis_metadata: { method: 'critical_failure', models_used: [], total_processing_time: 0, fully_failed: true }
       });
     }
@@ -762,8 +790,8 @@ export async function analyzeSingleSymbol(
       timestamp: new Date().toISOString(),
       error: error.message,
       sentiment_layers: [],
-      confidence_metrics: { overall_confidence: 0, base_confidence: 0, consistency_bonus: 0, agreement_bonus: 0 },
-      trading_signals: { symbol, primary_direction: 'NEUTRAL', overall_confidence: 0 },
+      confidence_metrics: { overall_confidence: null, base_confidence: null, consistency_bonus: 0, agreement_bonus: 0 },
+      trading_signals: { symbol, primary_direction: 'UNCLEAR', overall_confidence: null },
       analysis_metadata: { method: 'error', models_used: [], total_processing_time: Date.now() - startTime },
       execution_metadata: {
         total_execution_time: Date.now() - startTime,

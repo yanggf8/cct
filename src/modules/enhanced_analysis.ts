@@ -536,8 +536,8 @@ function convertPipelineToLegacyFormat(pipelineResult: any, options: AnalysisOpt
         symbol: result.symbol,
         predicted_price: null,
         current_price: null,
-        direction: result.trading_signals?.primary_direction || 'NEUTRAL',
-        confidence: result.confidence_metrics?.overall_confidence || 0.5,
+        direction: result.trading_signals?.primary_direction || 'UNCLEAR',
+        confidence: result.confidence_metrics?.overall_confidence ?? null,  // Allow null - no fake 0.5
         model: 'dual_ai_comparison',
 
         sentiment_layers: result.sentiment_layers,
@@ -547,13 +547,13 @@ function convertPipelineToLegacyFormat(pipelineResult: any, options: AnalysisOpt
         analysis_metadata: result.analysis_metadata,
 
         enhanced_prediction: {
-          direction: result.trading_signals?.primary_direction || 'NEUTRAL',
-          confidence: result.confidence_metrics?.overall_confidence || 0.5,
+          direction: result.trading_signals?.primary_direction || 'UNCLEAR',
+          confidence: result.confidence_metrics?.overall_confidence ?? null,  // Allow null
           method: 'dual_ai_comparison',
           sentiment_analysis: {
             sentiment: result.sentiment_patterns?.model_agreement ?
               result.trading_signals?.primary_direction?.toLowerCase() : 'neutral',
-            confidence: result.confidence_metrics?.overall_confidence || 0.5,
+            confidence: result.confidence_metrics?.overall_confidence ?? null,  // Allow null
             source: 'dual_ai_comparison',
             model: 'GPT-OSS-120B + DistilBERT',
             dual_ai_specific: {

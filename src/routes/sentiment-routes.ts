@@ -366,13 +366,13 @@ async function handleSymbolSentiment(
       analysis: {
         gpt_analysis: {
           sentiment: transformedSignal.gpt_sentiment || 'neutral',
-          confidence: transformedSignal.gpt_confidence || 0.5,
+          confidence: transformedSignal.gpt_confidence,  // Allow null to propagate
           reasoning: transformedSignal.gpt_reasoning || '',
           model: 'GPT-OSS-120B',
         },
         distilbert_analysis: {
           sentiment: transformedSignal.distilbert_sentiment || 'neutral',
-          confidence: transformedSignal.distilbert_confidence || 0.5,
+          confidence: transformedSignal.distilbert_confidence,  // Allow null to propagate
           sentiment_breakdown: {
             positive: transformedSignal.distilbert_positive || 0,
             negative: transformedSignal.distilbert_negative || 0,
@@ -382,7 +382,7 @@ async function handleSymbolSentiment(
         },
         agreement: {
           type: transformedSignal.agreement_type || 'DISAGREE',
-          confidence: transformedSignal.overall_confidence || 0.5,
+          confidence: transformedSignal.overall_confidence,  // Allow null to propagate
           recommendation: transformedSignal.recommendation || 'HOLD',
         },
       },
@@ -721,7 +721,8 @@ async function handleSectorSentiment(
             name: sectorNames[sector] || sector,
             sentiment: sentiment * (transformedSignal.recommendation === 'SELL' ? -1 : 1), // Convert to -1 to 1 scale
             sentiment_label: sentimentLabel,
-            confidence: Math.abs(transformedSignal.overall_confidence || 0.5),
+            // Allow null confidence to propagate - null means analysis failed
+            confidence: transformedSignal.overall_confidence != null ? Math.abs(transformedSignal.overall_confidence) : null,
             ai_context: transformedSignal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
             news_count: transformedSignal.news_count || 0,
             price_change: (priceData as any)?.changePercent || 0,
@@ -848,16 +849,29 @@ function getSentimentLabel(sentiment: number): string {
   return 'NEUTRAL';
 }
 
-function calculateOverallConfidence(results: any[]): number {
-  if (!results || results.length === 0) return 0.5;
+function calculateOverallConfidence(results: any[]): number | null {
+  if (!results || results.length === 0) return null;
 
-  const validResults = results.filter(r => !r.error && r.models);
-  if (validResults.length === 0) return 0.5;
+  // Filter out failed results (error, FAILED signal, or both models null confidence)
+  const validResults = results.filter(r => {
+    if (r.error) return false;
+    if (!r.models) return false;
+    if (r.signal?.strength === 'FAILED') return false;
+    // Both models must have failed (null/undefined confidence) to be invalid
+    const gptConf = r.models.gpt?.confidence;
+    const dbConf = r.models.distilbert?.confidence;
+    if (gptConf == null && dbConf == null) return false;
+    return true;
+  });
+
+  if (validResults.length === 0) return null;
 
   const confidences = validResults.map(r => {
-    const gptConf = r.models.gpt?.confidence || 0;
-    const dbConf = r.models.distilbert?.confidence || 0;
-    return (gptConf + dbConf) / 2;
+    const gptConf = r.models.gpt?.confidence;
+    const dbConf = r.models.distilbert?.confidence;
+    // Only average non-null confidences to avoid undervaluing partial results
+    const validConfs = [gptConf, dbConf].filter((c): c is number => c !== null && c !== undefined);
+    return validConfs.length > 0 ? validConfs.reduce((a, b) => a + b, 0) / validConfs.length : 0;
   });
 
   return confidences.reduce((sum: any, conf: any) => sum + conf, 0) / confidences.length;
@@ -866,16 +880,18 @@ function calculateOverallConfidence(results: any[]): number {
 function transformBatchResultsToSignals(results: any[]): any[] {
   if (!results || results.length === 0) return [];
 
-  return results.filter(r => !r.error).map(result => ({
+  // Include all results but mark failed ones appropriately
+  // Don't filter out failed results - let consumers see null confidence
+  return results.filter(r => r.models).map(result => ({
     symbol: result.symbol,
     overall_confidence: calculateOverallConfidence([result]),
     recommendation: getRecommendationFromSignal(result.signal),
     agreement_type: result.comparison?.agreement_type || 'DISAGREE',
     gpt_sentiment: result.models.gpt?.direction || 'neutral',
-    gpt_confidence: result.models.gpt?.confidence || 0.5,
+    gpt_confidence: result.models.gpt?.confidence ?? null,  // null = failed/no data
     gpt_reasoning: result.models.gpt?.reasoning || '',
     distilbert_sentiment: result.models.distilbert?.direction || 'neutral',
-    distilbert_confidence: result.models.distilbert?.confidence || 0.5,
+    distilbert_confidence: result.models.distilbert?.confidence ?? null,  // null = failed/no data
     distilbert_positive: result.models.distilbert?.sentiment_breakdown?.bullish || 0,
     distilbert_negative: result.models.distilbert?.sentiment_breakdown?.bearish || 0,
     distilbert_neutral: result.models.distilbert?.sentiment_breakdown?.neutral || 0,
