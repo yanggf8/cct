@@ -469,7 +469,15 @@ async function handlePreMarketJob(
             0
           ) > 0.7).length,
         generated_at: analysisData.generated_at,
-        symbols: symbols
+        symbols: symbols,
+        // v3.10.0: Include market pulse status in response
+        market_pulse: analysisData.market_pulse ? {
+          status: analysisData.market_pulse.status,
+          direction: analysisData.market_pulse.direction,
+          confidence: analysisData.market_pulse.confidence,
+          articles_count: analysisData.market_pulse.articles_count,
+          error: analysisData.market_pulse.error
+        } : null
       },
       processing_time_ms: timer.getElapsedMs(),
       timestamp: new Date().toISOString()

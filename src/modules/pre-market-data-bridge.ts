@@ -30,16 +30,20 @@ interface TradingSignal {
 
 /**
  * Market Pulse data structure for market index sentiment (v3.10.0)
+ * Now includes status and error fields for failure tracking
  */
 interface MarketPulseData {
   symbol: string;
   name: string;
-  direction: string;
-  confidence: number;
+  status: 'success' | 'failed' | 'unavailable';
+  direction?: string;
+  confidence?: number;
   articles_count: number;
   source: string;
   reasoning?: string;
+  error?: string;  // Failure reason when status != 'success'
   dual_model?: DualModelData;
+  generated_at?: string;
 }
 
 /**
@@ -266,10 +270,34 @@ export class PreMarketDataBridge {
    * Generate Market Pulse data for market index sentiment (v3.10.0)
    * Fetches SPY articles from DAC and analyzes market sentiment
    * Uses 1-hour cache to reduce AI calls
+   * Returns failure info instead of null for better observability
    */
-  async generateMarketPulse(): Promise<MarketPulseData | null> {
+  async generateMarketPulse(): Promise<MarketPulseData> {
     const CACHE_TTL_HOURS = 1;
     const cacheKey = 'market_pulse_SPY';
+    const now = new Date().toISOString();
+
+    // Helper to create failure response
+    const failureResponse = (error: string): MarketPulseData => ({
+      symbol: 'SPY',
+      name: 'S&P 500 ETF',
+      status: 'failed',
+      articles_count: 0,
+      source: 'none',
+      error,
+      generated_at: now
+    });
+
+    // Helper to create unavailable response
+    const unavailableResponse = (error: string): MarketPulseData => ({
+      symbol: 'SPY',
+      name: 'S&P 500 ETF',
+      status: 'unavailable',
+      articles_count: 0,
+      source: 'none',
+      error,
+      generated_at: now
+    });
 
     logger.info('PreMarketDataBridge: Generating market pulse for SPY');
 
@@ -291,9 +319,16 @@ export class PreMarketDataBridge {
       }
 
       // Get DAC client - map WORKER_API_KEY to X_API_KEY as expected by factory
-      if (!this.env.DAC_BACKEND || !this.env.WORKER_API_KEY) {
-        logger.warn('PreMarketDataBridge: DAC_BACKEND or WORKER_API_KEY not available for market pulse');
-        return null;
+      if (!this.env.DAC_BACKEND) {
+        const error = 'DAC_BACKEND service binding not configured';
+        logger.warn('PreMarketDataBridge: ' + error);
+        return unavailableResponse(error);
+      }
+
+      if (!this.env.WORKER_API_KEY) {
+        const error = 'WORKER_API_KEY secret not configured';
+        logger.warn('PreMarketDataBridge: ' + error);
+        return unavailableResponse(error);
       }
 
       const dacClient = createDACArticlesPoolClientV2({
@@ -301,19 +336,27 @@ export class PreMarketDataBridge {
         X_API_KEY: this.env.WORKER_API_KEY
       });
       if (!dacClient) {
-        logger.warn('PreMarketDataBridge: DAC client creation failed');
-        return null;
+        const error = 'DAC client creation failed';
+        logger.warn('PreMarketDataBridge: ' + error);
+        return failureResponse(error);
       }
 
       // Fetch SPY articles from DAC market pool
       const marketArticles = await dacClient.getMarketArticles('SPY');
 
-      if (!marketArticles.success || marketArticles.articles.length === 0) {
+      if (!marketArticles.success) {
+        const error = `DAC fetch failed: ${marketArticles.errorMessage || marketArticles.error || 'unknown'}`;
         logger.warn('PreMarketDataBridge: No SPY articles available for market pulse', {
           error: marketArticles.error,
           errorMessage: marketArticles.errorMessage
         });
-        return null;
+        return failureResponse(error);
+      }
+
+      if (marketArticles.articles.length === 0) {
+        const error = 'No SPY articles in DAC pool - harvest may be needed';
+        logger.warn('PreMarketDataBridge: ' + error);
+        return failureResponse(error);
       }
 
       logger.info('PreMarketDataBridge: Fetched SPY articles from DAC', {
@@ -327,12 +370,35 @@ export class PreMarketDataBridge {
       const result = await performDualAIComparison('SPY', marketArticles.articles as any, this.env);
 
       if (result.error || (!result.models?.gpt && !result.models?.distilbert)) {
+        const error = `AI analysis failed: ${result.error || 'both models returned no results'}`;
         logger.warn('PreMarketDataBridge: SPY analysis failed', {
           error: result.error,
           hasGPT: !!result.models?.gpt,
           hasDistilBERT: !!result.models?.distilbert
         });
-        return null;
+        return {
+          symbol: 'SPY',
+          name: 'S&P 500 ETF',
+          status: 'failed',
+          articles_count: marketArticles.articles.length,
+          source: marketArticles.metadata?.source || 'DAC',
+          error,
+          dual_model: {
+            gemma: result.models?.gpt ? {
+              status: result.models.gpt.error ? 'failed' : 'success',
+              confidence: result.models.gpt.confidence,
+              direction: result.models.gpt.direction,
+              error: result.models.gpt.error
+            } : { status: 'skipped' },
+            distilbert: result.models?.distilbert ? {
+              status: result.models.distilbert.error ? 'failed' : 'success',
+              confidence: result.models.distilbert.confidence,
+              direction: result.models.distilbert.direction,
+              error: result.models.distilbert.error
+            } : { status: 'skipped' }
+          },
+          generated_at: now
+        };
       }
 
       // Use GPT (Gemma) if available, fall back to DistilBERT
@@ -341,6 +407,7 @@ export class PreMarketDataBridge {
       const marketPulse: MarketPulseData = {
         symbol: 'SPY',
         name: 'S&P 500 ETF',
+        status: 'success',
         direction: this.normalizeSentiment(selectedModel!.direction),
         confidence: selectedModel!.confidence,
         articles_count: marketArticles.articles.length,
@@ -359,13 +426,14 @@ export class PreMarketDataBridge {
             direction: result.models.distilbert.direction,
             error: result.models.distilbert.error
           } : { status: 'skipped' }
-        }
+        },
+        generated_at: now
       };
 
       // Add cached_at timestamp and cache for 1 hour
       const marketPulseWithCache = {
         ...marketPulse,
-        cached_at: new Date().toISOString()
+        cached_at: now
       };
 
       try {
@@ -376,6 +444,7 @@ export class PreMarketDataBridge {
       }
 
       logger.info('PreMarketDataBridge: Market pulse generated', {
+        status: marketPulse.status,
         direction: marketPulse.direction,
         confidence: marketPulse.confidence,
         articles_count: marketPulse.articles_count
@@ -384,8 +453,17 @@ export class PreMarketDataBridge {
       return marketPulseWithCache;
 
     } catch (error) {
-      logger.error('PreMarketDataBridge: Failed to generate market pulse', { error });
-      return null;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error('PreMarketDataBridge: Failed to generate market pulse', { error: errorMsg });
+      return {
+        symbol: 'SPY',
+        name: 'S&P 500 ETF',
+        status: 'failed',
+        articles_count: 0,
+        source: 'none',
+        error: `Exception: ${errorMsg}`,
+        generated_at: new Date().toISOString()
+      };
     }
   }
 
@@ -500,12 +578,13 @@ export class PreMarketDataBridge {
       }
 
       // Generate Market Pulse (SPY sentiment) - v3.10.0
+      // Now always returns a MarketPulseData with status (success/failed/unavailable)
       const marketPulse = await this.generateMarketPulse();
 
       // Create the analysis data structure
       const analysisData: AnalysisData = {
         trading_signals,
-        market_pulse: marketPulse || undefined,
+        market_pulse: marketPulse,
         timestamp: new Date().toISOString(),
         generated_at: new Date().toISOString()
       };
@@ -517,8 +596,9 @@ export class PreMarketDataBridge {
       logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,
         analysis_key: analysisKey,
-        has_market_pulse: !!marketPulse,
-        market_pulse_direction: marketPulse?.direction,
+        market_pulse_status: marketPulse.status,
+        market_pulse_direction: marketPulse.direction,
+        market_pulse_error: marketPulse.error,
         high_confidence_signals: Object.values(trading_signals).filter(s => (
           (s as any).confidence_metrics?.overall_confidence ??
           (s as any).enhanced_prediction?.confidence ??

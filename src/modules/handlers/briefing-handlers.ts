@@ -608,6 +608,7 @@ function getDirectionEmoji(direction?: string): string {
 /**
  * Generate Market Pulse section HTML (v3.10.0)
  * Shows overall market sentiment based on SPY analysis
+ * Now displays failure info when status != 'success'
  */
 function generateMarketPulseSection(marketPulse: any): string {
   if (!marketPulse) {
@@ -622,6 +623,67 @@ function generateMarketPulseSection(marketPulse: any): string {
     `;
   }
 
+  // Handle failed/unavailable status
+  if (marketPulse.status === 'failed' || marketPulse.status === 'unavailable') {
+    const statusIcon = marketPulse.status === 'unavailable' ? '⚙️' : '⚠️';
+    const statusColor = marketPulse.status === 'unavailable' ? '#f59e0b' : '#ef4444';
+    const statusLabel = marketPulse.status === 'unavailable' ? 'Configuration Issue' : 'Analysis Failed';
+
+    // Dual model display for partial failures
+    const gemma = marketPulse.dual_model?.gemma;
+    const distilbert = marketPulse.dual_model?.distilbert;
+    const hasDualModel = gemma || distilbert;
+
+    return `
+      <div class="market-pulse-section" style="margin-bottom: 24px; padding: 20px; background: rgba(239,68,68,0.05); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">
+        <h2 style="margin: 0 0 16px 0; font-size: 1.2rem; color: rgba(250,248,245,0.95);">📊 Market Pulse</h2>
+
+        <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 10px;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <span style="font-size: 2rem;">${statusIcon}</span>
+            <div>
+              <div style="font-size: 1.2rem; font-weight: 600; color: ${statusColor};">
+                ${statusLabel}
+              </div>
+              <div style="font-size: 0.85rem; color: rgba(250,248,245,0.7);">
+                ${marketPulse.symbol} • ${marketPulse.name}
+              </div>
+            </div>
+          </div>
+
+          <div style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+            <div style="font-size: 0.8rem; color: rgba(250,248,245,0.6); margin-bottom: 4px;">Error Details:</div>
+            <div style="font-size: 0.9rem; color: rgba(250,248,245,0.9); font-family: monospace; word-break: break-word;">
+              ${marketPulse.error || 'Unknown error'}
+            </div>
+          </div>
+
+          ${hasDualModel ? `
+            <div style="font-size: 0.8rem; color: rgba(250,248,245,0.6); margin-bottom: 8px;">AI Model Status:</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div style="padding: 8px; background: rgba(${gemma?.status === 'success' ? '34,197,94' : gemma?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${gemma?.status === 'success' ? '34,197,94' : gemma?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">Gemma Sea Lion</div>
+                <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${gemma?.status?.toUpperCase() || 'N/A'}</div>
+                ${gemma?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${gemma.error}</div>` : ''}
+              </div>
+              <div style="padding: 8px; background: rgba(${distilbert?.status === 'success' ? '34,197,94' : distilbert?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${distilbert?.status === 'success' ? '34,197,94' : distilbert?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">DistilBERT</div>
+                <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${distilbert?.status?.toUpperCase() || 'N/A'}</div>
+                ${distilbert?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${distilbert.error}</div>` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.75rem; color: rgba(250,248,245,0.5);">
+            <span>Articles: ${marketPulse.articles_count || 0}</span>
+            <span>Generated: ${marketPulse.generated_at ? new Date(marketPulse.generated_at).toLocaleString() : 'N/A'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Success case - original rendering
   const confidence = Math.round((marketPulse.confidence || 0) * 100);
   const directionColor = marketPulse.direction === 'bullish' ? '#22c55e' :
                          marketPulse.direction === 'bearish' ? '#ef4444' : '#f59e0b';

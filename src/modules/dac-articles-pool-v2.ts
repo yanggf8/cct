@@ -87,7 +87,7 @@ export class DACArticlesPoolClientV2 {
   async getStockArticles(symbol: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `https://dac-backend/api/admin/article-pool/accessor/stock/${symbol}`,
+        `/api/admin/article-pool/accessor/stock/${symbol}`,
         {
           method: 'GET',
           headers: {
@@ -142,7 +142,7 @@ export class DACArticlesPoolClientV2 {
   async getSectorArticles(sector: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `https://dac-backend/api/admin/article-pool/probe/sector/${sector}`,
+        `/api/admin/article-pool/probe/sector/${sector}`,
         {
           method: 'GET',
           headers: {
@@ -184,7 +184,7 @@ export class DACArticlesPoolClientV2 {
   async getMarketArticles(symbol: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `https://dac-backend/api/admin/article-pool/accessor/market/${symbol.toUpperCase()}`,
+        `/api/admin/article-pool/accessor/market/${symbol.toUpperCase()}`,
         {
           method: 'GET',
           headers: {
@@ -237,7 +237,7 @@ export class DACArticlesPoolClientV2 {
   async getCategoryArticles(): Promise<CategoriesResponse> {
     try {
       const request = new Request(
-        `https://dac-backend/api/admin/article-pool/probe/categories`,
+        `/api/admin/article-pool/probe/categories`,
         {
           method: 'GET',
           headers: {
@@ -277,7 +277,7 @@ export class DACArticlesPoolClientV2 {
   async getEnhancedStatus(): Promise<PoolEnhancedStatus | null> {
     try {
       const request = new Request(
-        `https://dac-backend/api/admin/article-pool/enhanced-status`,
+        `/api/admin/article-pool/enhanced-status`,
         {
           method: 'GET',
           headers: {
@@ -306,7 +306,7 @@ export class DACArticlesPoolClientV2 {
    */
   async checkHealth(): Promise<boolean> {
     try {
-      const request = new Request('https://dac-backend/health', {
+      const request = new Request('/health', {
         method: 'GET',
         headers: {
           'X-API-Key': this.apiKey,
