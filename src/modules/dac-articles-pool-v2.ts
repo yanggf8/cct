@@ -73,6 +73,8 @@ export interface PoolEnhancedStatus {
 export class DACArticlesPoolClientV2 {
   private readonly dacBackend: Fetcher;
   private readonly apiKey: string;
+  // Placeholder hostname for service binding - Cloudflare ignores this but Request constructor requires valid URL
+  private readonly baseUrl = 'https://dac-backend.internal';
 
   constructor(dacBackend: Fetcher, apiKey: string) {
     this.dacBackend = dacBackend;
@@ -87,7 +89,7 @@ export class DACArticlesPoolClientV2 {
   async getStockArticles(symbol: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `/api/admin/article-pool/accessor/stock/${symbol}`,
+        `${this.baseUrl}/api/admin/article-pool/accessor/stock/${symbol}`,
         {
           method: 'GET',
           headers: {
@@ -142,7 +144,7 @@ export class DACArticlesPoolClientV2 {
   async getSectorArticles(sector: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `/api/admin/article-pool/probe/sector/${sector}`,
+        `${this.baseUrl}/api/admin/article-pool/probe/sector/${sector}`,
         {
           method: 'GET',
           headers: {
@@ -184,7 +186,7 @@ export class DACArticlesPoolClientV2 {
   async getMarketArticles(symbol: string): Promise<ArticlePoolResponse> {
     try {
       const request = new Request(
-        `/api/admin/article-pool/accessor/market/${symbol.toUpperCase()}`,
+        `${this.baseUrl}/api/admin/article-pool/accessor/market/${symbol.toUpperCase()}`,
         {
           method: 'GET',
           headers: {
@@ -211,12 +213,15 @@ export class DACArticlesPoolClientV2 {
 
       const data = await response.json() as any;
 
+      // DAC accessor response wraps articles under data.data
+      const payload = data.data || data;
+
       return {
         success: data.success || false,
-        articles: data.articles || [],
-        metadata: data.metadata,
-        error: data.error,
-        errorMessage: data.errorMessage
+        articles: payload.articles || [],
+        metadata: payload.metadata,
+        error: payload.error,
+        errorMessage: payload.errorMessage
       };
 
     } catch (error) {
@@ -237,7 +242,7 @@ export class DACArticlesPoolClientV2 {
   async getCategoryArticles(): Promise<CategoriesResponse> {
     try {
       const request = new Request(
-        `/api/admin/article-pool/probe/categories`,
+        `${this.baseUrl}/api/admin/article-pool/probe/categories`,
         {
           method: 'GET',
           headers: {
@@ -277,7 +282,7 @@ export class DACArticlesPoolClientV2 {
   async getEnhancedStatus(): Promise<PoolEnhancedStatus | null> {
     try {
       const request = new Request(
-        `/api/admin/article-pool/enhanced-status`,
+        `${this.baseUrl}/api/admin/article-pool/enhanced-status`,
         {
           method: 'GET',
           headers: {
@@ -306,7 +311,7 @@ export class DACArticlesPoolClientV2 {
    */
   async checkHealth(): Promise<boolean> {
     try {
-      const request = new Request('/health', {
+      const request = new Request(`${this.baseUrl}/health`, {
         method: 'GET',
         headers: {
           'X-API-Key': this.apiKey,

@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Scheduled Jobs Fix Complete
-- **Current Version**: Latest (2026-01-19 - Scheduled Jobs Fix)
+**Status**: ✅ **PRODUCTION READY** - Market Pulse v3.10.0 Complete
+- **Current Version**: Latest (2026-01-21 - Market Pulse v3.10.0)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Integration**: All components properly connected ✅
 - **Code Quality**: Enhanced with refactored metrics and cleanup ✅
 - **Test Organization**: 54 scripts organized into logical structure ✅
+- **Market Pulse**: SPY sentiment via DAC service binding ✅
 
 ### ✅ **Revolutionary Achievements (Latest)**
 
@@ -53,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **TypeScript Audit** | ✅ 97.6% Complete | 1,398 → 34 errors (1,364 fixed) |
 | **AI Model Stability** | ✅ Complete | 95% reduction in intermittent errors |
 | **Scheduled Jobs Fix** | ✅ Complete | Fixed query bug and job status tracking - dashboard now shows historical runs correctly |
+| **Market Pulse v3.10.0** | ✅ Complete | SPY broad market sentiment via DAC service binding - bullish/bearish direction with AI confidence scoring |
 
 ---
 
@@ -87,12 +89,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### **Core System Features**
 - **Dual AI Analysis**: Gemma Sea Lion 27B + DistilBERT-SST-2 with agreement logic
 - **4-Moment Workflow**: Pre-Market → Intraday → End-of-Day → Weekly Review
+- **Market Pulse (v3.10.0)**: SPY broad market sentiment via DAC service binding
 - **Real-Time Data**: Yahoo Finance + Federal Reserve (FRED) integration with rate limiting
 - **Production Market Indicators**: Real SOFR, VIX percentiles, Treasury yields
 - **Local Time Display**: Report schedules show both ET and user's local timezone (browser-based conversion)
 - **Notifications**: Chrome browser notifications
 - **Scheduling**: GitHub Actions (100% free, unlimited)
 - **Cost**: $0/month (Cloudflare + GitHub)
+
+### **Market Pulse (v3.10.0)**
+```
+CCT Pre-Market Job
+    ↓
+DACArticlesPoolClientV2.getMarketArticles('SPY')
+    ↓
+Service Binding → DAC /api/admin/article-pool/accessor/market/SPY
+    ↓
+DAC KV: article:pool:market:SPY:latest
+    ↓
+CF AI Sentiment Analysis (Gemma + DistilBERT)
+    ↓
+Market Pulse: direction (bullish/bearish) + confidence score
+```
+- **Data Source**: DAC Article Pool (Finnhub news for SPY)
+- **Service Binding**: Direct Worker-to-Worker calls (no external HTTP)
+- **Output**: direction, confidence (0-1), articles_count
+- **Caching**: 1-hour TTL in CCT's Durable Objects cache
 
 ### **AI Model Policy**
 - **Primary Model**: `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B)
@@ -579,9 +601,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-19
-**Current Version**: Production Ready with Scheduled Jobs Fix
+**Last Updated**: 2026-01-21
+**Current Version**: Production Ready with Market Pulse v3.10.0
 **Major Updates**:
+- **Market Pulse v3.10.0**: SPY broad market sentiment analysis integrated via DAC service binding - fixed entrypoint config and response parsing for Worker-to-Worker calls
 - **Scheduled Jobs Fix**: Fixed query bug (trigger_mode → job_type) and added job status tracking to scheduler - dashboard now displays historical job runs correctly
 - **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories
 - **Dead Code Cleanup**: Removed orphaned route files (canary-management, exemption-management, integration-test, sector-routes-simple)

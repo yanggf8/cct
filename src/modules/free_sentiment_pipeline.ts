@@ -148,61 +148,35 @@ const FREE_SENTIMENT_CONFIG: FreeSentimentConfig = {
 };
 
 /**
- * Get free stock news with sentiment analysis
+ * Get stock news from DAC article pool only.
+ * No external API fallbacks - if DAC fails, return empty and report failure.
  */
 export async function getFreeStockNews(symbol: string, env: any): Promise<NewsArticle[]> {
-  const newsData: NewsArticle[] = [];
+  // Use ONLY DAC article pool - no external API fallbacks
+  if (!env.DAC_BACKEND) {
+    console.log(`[DAC Pool] DAC_BACKEND not configured for ${symbol}`);
+    return [];
+  }
 
-  // 0. Try DAC Articles Pool (Highest Priority)
   try {
     const dacAdapter = new DACArticlesAdapterV2(env);
-    // Only use DAC if configured
-    if (env.DAC_BACKEND) {
-      const dacResult = await dacAdapter.getArticlesForSentiment(symbol);
-      if (dacResult.source === 'dac_pool' && dacResult.articles.length > 0) {
-        console.log(`[DAC Pool] HIT for ${symbol} (${dacResult.articles.length} articles)`);
-        // Add source type if missing
-        return dacResult.articles.map(article => ({
-          ...article,
-          source_type: 'dac_pool'
-        })) as unknown as NewsArticle[];
-      }
-    }
-  } catch (error: any) {
-    console.log(`DAC Pool lookup failed for ${symbol} (continuing to fallbacks):`, (error instanceof Error ? error.message : String(error)));
-  }
+    const dacResult = await dacAdapter.getArticlesForSentiment(symbol);
 
-  try {
-    // 1. Financial Modeling Prep (has built-in sentiment!)
-    const fmpNews = await getFMPNews(symbol, env);
-    if (fmpNews?.length > 0) {
-      newsData.push(...fmpNews);
+    if (dacResult.source === 'dac_pool' && dacResult.articles.length > 0) {
+      console.log(`[DAC Pool] HIT for ${symbol} (${dacResult.articles.length} articles)`);
+      return dacResult.articles.map(article => ({
+        ...article,
+        source_type: 'dac_pool'
+      })) as unknown as NewsArticle[];
     }
-  } catch (error: any) {
-    console.log(`FMP news failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
-  }
 
-  try {
-    // 2. NewsAPI.org (broader coverage)
-    const newsApiData = await getNewsAPIData(symbol, env);
-    if (newsApiData?.length > 0) {
-      newsData.push(...newsApiData);
-    }
-  } catch (error: any) {
-    console.log(`NewsAPI failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
-  }
+    console.log(`[DAC Pool] MISS for ${symbol} - no articles available`);
+    return [];
 
-  try {
-    // 3. Yahoo Finance news (backup)
-    const yahooNews = await getYahooNews(symbol, env);
-    if (yahooNews?.length > 0) {
-      newsData.push(...yahooNews);
-    }
   } catch (error: any) {
-    console.log(`Yahoo news failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
+    console.log(`[DAC Pool] FAILED for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
+    return [];
   }
-
-  return newsData;
 }
 
 /**

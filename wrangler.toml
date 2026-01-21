@@ -51,7 +51,6 @@ binding = "AI"
 [[services]]
 binding = "DAC_BACKEND"
 service = "dac-backend"
-entrypoint = "handleRequest"
 
 # Durable Objects for cache
 [[durable_objects.bindings]]
