@@ -194,7 +194,7 @@ export const handleIntradayCheck = createHandler(
     if (env.PREDICT_JOBS_DB) {
       try {
         const snapshot = await env.PREDICT_JOBS_DB
-          .prepare('SELECT report_content FROM scheduled_job_results WHERE execution_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+          .prepare('SELECT report_content FROM scheduled_job_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
           .bind(dateStr, 'intraday')
           .first();
 

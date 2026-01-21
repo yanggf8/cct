@@ -54,12 +54,11 @@ export interface D1JobExecution {
 
 export interface D1ScheduledJobResult {
   id: number;
-  execution_date: string;
-  scheduled_date: string | null;  // The market date this report is FOR
+  scheduled_date: string;  // The market date this report is FOR (primary key with report_type)
   report_type: string;
   report_content: string;
   metadata: string;
-  created_at: string;
+  created_at: string;      // When the report was generated
 }
 
 /**
@@ -69,19 +68,22 @@ export type TriggerSource = 'github-actions' | 'manual-api' | 'cron' | 'schedule
 
 /**
  * Write report snapshot to D1 scheduled_job_results table
+ * Primary key: scheduled_date + report_type
  * Safe: returns false if table doesn't exist (migration not applied)
  *
- * @param scheduledDate - The market date this report is FOR (ET date string)
- * @param generatedAt - When the job actually finished (ISO timestamp)
+ * @param scheduledDate - The market date this report is FOR (primary key)
+ * @param reportType - Type of report (pre-market, intraday, etc.)
+ * @param reportContent - The report data
+ * @param metadata - Optional metadata
+ * @param triggerSource - What triggered this job
  */
 export async function writeD1JobResult(
   env: CloudflareEnvironment,
-  executionDate: string,
+  scheduledDate: string,
   reportType: string,
   reportContent: any,
   metadata?: any,
-  triggerSource: TriggerSource = 'unknown',
-  options?: { scheduledDate?: string; generatedAt?: string }
+  triggerSource: TriggerSource = 'unknown'
 ): Promise<boolean> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -91,46 +93,30 @@ export async function writeD1JobResult(
 
   const contentJson = JSON.stringify(reportContent);
   const metadataJson = metadata ? JSON.stringify(metadata) : null;
-  const scheduledDate = options?.scheduledDate || executionDate;  // Default to executionDate for backward compat
-  const generatedAt = options?.generatedAt || new Date().toISOString();
+  const createdAt = new Date().toISOString();
 
   try {
-    // Try new schema with scheduled_date first
     await db.prepare(`
-      INSERT OR REPLACE INTO scheduled_job_results (execution_date, scheduled_date, report_type, report_content, metadata, trigger_source, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(executionDate, scheduledDate, reportType, contentJson, metadataJson, triggerSource, generatedAt).run();
+      INSERT OR REPLACE INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, trigger_source, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(scheduledDate, reportType, contentJson, metadataJson, triggerSource, createdAt).run();
 
-    logger.info('D1 report snapshot written', { executionDate, scheduledDate, reportType, triggerSource });
+    logger.info('D1 report snapshot written', { scheduledDate, reportType, triggerSource });
     return true;
   } catch (error) {
     const errMsg = (error as Error).message;
-    // Gracefully handle missing scheduled_date column (migration not applied)
-    if (errMsg.includes('no column named scheduled_date')) {
-      // Fallback: try without scheduled_date
-      logger.warn('scheduled_date column not found - using legacy write', { executionDate, reportType });
-      try {
-        await db.prepare(`
-          INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, trigger_source, created_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).bind(executionDate, reportType, contentJson, metadataJson, triggerSource, generatedAt).run();
-        return true;
-      } catch (fallbackError) {
-        logger.error('D1 legacy write also failed', { error: (fallbackError as Error).message, executionDate, reportType });
-        return false;
-      }
-    } else if (errMsg.includes('no column named trigger_source')) {
+    if (errMsg.includes('no column named trigger_source')) {
       // Fallback: write without trigger_source if column doesn't exist yet
-      logger.warn('trigger_source column not found - using older legacy write', { executionDate, reportType });
+      logger.warn('trigger_source column not found - writing without it', { scheduledDate, reportType });
       await db.prepare(`
-        INSERT OR REPLACE INTO scheduled_job_results (execution_date, report_type, report_content, metadata, created_at)
+        INSERT OR REPLACE INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, created_at)
         VALUES (?, ?, ?, ?, ?)
-      `).bind(executionDate, reportType, contentJson, metadataJson, generatedAt).run();
+      `).bind(scheduledDate, reportType, contentJson, metadataJson, createdAt).run();
       return true;
     } else if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
-      logger.warn('D1 scheduled_job_results table not found - migration not applied', { executionDate, reportType });
+      logger.warn('D1 scheduled_job_results table not found - migration not applied', { scheduledDate, reportType });
     } else {
-      logger.error('D1 write failed', { error: errMsg, executionDate, reportType });
+      logger.error('D1 write failed', { error: errMsg, scheduledDate, reportType });
     }
     return false;
   }
@@ -138,7 +124,6 @@ export async function writeD1JobResult(
 
 /**
  * Delete existing report snapshot for a specific scheduled_date + report_type
- * Cleans up old schema records (before scheduled_date column) to allow reruns
  * Safe: returns true even if table doesn't exist (graceful no-op)
  */
 export async function deleteD1ReportSnapshot(
@@ -153,44 +138,19 @@ export async function deleteD1ReportSnapshot(
   }
 
   try {
-    // Try new schema first: delete by scheduled_date
     await db.prepare(
       `DELETE FROM scheduled_job_results
        WHERE scheduled_date = ? AND report_type = ?`
     ).bind(scheduledDate, reportType).run();
 
-    logger.info('Deleted old D1 report snapshot for rerun (new schema)', { scheduledDate, reportType });
+    logger.info('Deleted D1 report snapshot', { scheduledDate, reportType });
     return true;
   } catch (error) {
     const errMsg = (error as Error).message;
-
-    // If scheduled_date column doesn't exist, fall back to execution_date (old schema cleanup)
-    if (errMsg.includes('no column named scheduled_date')) {
-      logger.debug('scheduled_date column not found - trying old schema cleanup', { scheduledDate, reportType });
-      try {
-        await db.prepare(
-          `DELETE FROM scheduled_job_results
-           WHERE execution_date = ? AND report_type = ?`
-        ).bind(scheduledDate, reportType).run();
-
-        logger.info('Deleted old D1 report snapshot for rerun (old schema)', { scheduledDate, reportType });
-        return true;
-      } catch (fallbackError) {
-        const fallbackErrMsg = (fallbackError as Error).message;
-        if (fallbackErrMsg.includes('no such table') || fallbackErrMsg.includes('scheduled_job_results')) {
-          logger.warn('D1 scheduled_job_results table not found - skipping delete', { scheduledDate, reportType });
-          return true; // Graceful no-op if table doesn't exist
-        }
-        logger.error('D1 delete failed (old schema)', { error: fallbackErrMsg, scheduledDate, reportType });
-        return false;
-      }
-    }
-
     if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
       logger.warn('D1 scheduled_job_results table not found - skipping delete', { scheduledDate, reportType });
       return true; // Graceful no-op if table doesn't exist
     }
-
     logger.error('D1 delete failed', { error: errMsg, scheduledDate, reportType });
     return false;
   }
@@ -198,37 +158,25 @@ export async function deleteD1ReportSnapshot(
 
 /**
  * Read report snapshot from D1
- * Key selector: scheduled_date + report_type (picks latest generated_at if multiple)
+ * Key selector: scheduled_date + report_type
  * Safe: returns null if table doesn't exist
  */
 export async function readD1ReportSnapshot(
   env: CloudflareEnvironment,
   scheduledDate: string,
   reportType: string
-): Promise<{ data: any; createdAt: string; scheduledDate?: string } | null> {
+): Promise<{ data: any; createdAt: string; scheduledDate: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
   try {
-    // Try new schema: query by scheduled_date, pick latest generated_at (created_at)
-    let result = await db.prepare(
+    const result = await db.prepare(
       `SELECT report_content, metadata, created_at, scheduled_date
        FROM scheduled_job_results
        WHERE scheduled_date = ? AND report_type = ?
        ORDER BY created_at DESC
        LIMIT 1`
-    ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date?: string }>();
-
-    // Fallback: if scheduled_date column doesn't exist or no results, try execution_date
-    if (!result) {
-      result = await db.prepare(
-        `SELECT report_content, metadata, created_at
-         FROM scheduled_job_results
-         WHERE execution_date = ? AND report_type = ?
-         ORDER BY created_at DESC
-         LIMIT 1`
-      ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string }>();
-    }
+    ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date: string }>();
 
     if (result?.report_content) {
       try {
@@ -236,8 +184,8 @@ export async function readD1ReportSnapshot(
         content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
         content._source = 'd1_snapshot';
         content._d1_created_at = result.created_at;
-        content._scheduled_date = result.scheduled_date || scheduledDate;  // Track the scheduled date
-        return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date || scheduledDate };
+        content._scheduled_date = result.scheduled_date;
+        return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date };
       } catch (parseError) {
         logger.error('D1 JSON parse failed', { scheduledDate, reportType, error: (parseError as Error).message });
         return null;
@@ -246,33 +194,10 @@ export async function readD1ReportSnapshot(
     return null;
   } catch (error) {
     const errMsg = (error as Error).message;
-    // If scheduled_date column doesn't exist, try legacy query
-    if (errMsg.includes('no column named scheduled_date')) {
-      logger.debug('scheduled_date column not found - using legacy query', { scheduledDate, reportType });
-      try {
-        const result = await db.prepare(
-          `SELECT report_content, metadata, created_at
-           FROM scheduled_job_results
-           WHERE execution_date = ? AND report_type = ?
-           LIMIT 1`
-        ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string }>();
-
-        if (result?.report_content) {
-          const content = JSON.parse(result.report_content);
-          content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
-          content._source = 'd1_snapshot';
-          content._d1_created_at = result.created_at;
-          return { data: content, createdAt: result.created_at, scheduledDate };
-        }
-      } catch (legacyError) {
-        logger.debug('Legacy query also failed', { error: (legacyError as Error).message });
-      }
-      return null;
-    }
     if (errMsg.includes('no such table')) {
       logger.debug('D1 scheduled_job_results table not found - using predictions fallback');
     } else {
-      logger.error('D1 read failed', { error: errMsg });
+      logger.error('D1 read failed', { error: errMsg, scheduledDate, reportType });
     }
     return null;
   }
@@ -286,30 +211,18 @@ export async function readD1ReportSnapshot(
 export async function getD1LatestReportSnapshot(
   env: CloudflareEnvironment,
   reportType: string
-): Promise<{ data: any; scheduledDate: string; executionDate: string; createdAt: string } | null> {
+): Promise<{ data: any; scheduledDate: string; createdAt: string } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
   try {
-    // Try new schema with scheduled_date
-    let result = await db.prepare(
-      `SELECT execution_date, scheduled_date, report_content, metadata, created_at
+    const result = await db.prepare(
+      `SELECT scheduled_date, report_content, metadata, created_at
        FROM scheduled_job_results
        WHERE report_type = ?
-       ORDER BY coalesce(scheduled_date, execution_date) DESC, created_at DESC
+       ORDER BY scheduled_date DESC, created_at DESC
        LIMIT 1`
-    ).bind(reportType).first<{ execution_date: string; scheduled_date?: string; report_content: string; metadata: string; created_at: string }>();
-
-    // Fallback to execution_date if scheduled_date doesn't exist
-    if (!result) {
-      result = await db.prepare(
-        `SELECT execution_date, report_content, metadata, created_at
-         FROM scheduled_job_results
-         WHERE report_type = ?
-         ORDER BY execution_date DESC, created_at DESC
-         LIMIT 1`
-      ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string; created_at: string; scheduled_date?: string }>();
-    }
+    ).bind(reportType).first<{ scheduled_date: string; report_content: string; metadata: string; created_at: string }>();
 
     if (result?.report_content) {
       try {
@@ -317,10 +230,9 @@ export async function getD1LatestReportSnapshot(
         content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
         content._source = 'd1_snapshot';
         content._d1_created_at = result.created_at;
-        const scheduledDate = result.scheduled_date || result.execution_date;
-        content._scheduled_date = scheduledDate;
-        content.source_date = scheduledDate;
-        return { data: content, scheduledDate, executionDate: result.execution_date, createdAt: result.created_at };
+        content._scheduled_date = result.scheduled_date;
+        content.source_date = result.scheduled_date;
+        return { data: content, scheduledDate: result.scheduled_date, createdAt: result.created_at };
       } catch (parseError) {
         logger.error('D1 JSON parse failed', { reportType, error: (parseError as Error).message });
         return null;
@@ -329,30 +241,8 @@ export async function getD1LatestReportSnapshot(
     return null;
   } catch (error) {
     const errMsg = (error as Error).message;
-    if (errMsg.includes('no column named scheduled_date')) {
-      // Fallback: try without scheduled_date
-      try {
-        const result = await db.prepare(
-          `SELECT execution_date, report_content, metadata, created_at
-           FROM scheduled_job_results
-           WHERE report_type = ?
-           ORDER BY execution_date DESC, created_at DESC
-           LIMIT 1`
-        ).bind(reportType).first<{ execution_date: string; report_content: string; metadata: string; created_at: string }>();
-
-        if (result?.report_content) {
-          const content = JSON.parse(result.report_content);
-          content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
-          content._source = 'd1_snapshot';
-          content._d1_created_at = result.created_at;
-          return { data: content, scheduledDate: result.execution_date, executionDate: result.execution_date, createdAt: result.created_at };
-        }
-      } catch {
-        // Ignore fallback errors
-      }
-    }
     if (!errMsg.includes('no such table')) {
-      logger.error('D1 latest read failed', { error: errMsg });
+      logger.error('D1 latest read failed', { error: errMsg, reportType });
     }
     return null;
   }
@@ -607,7 +497,7 @@ export async function getD1FallbackData(
     
     // If querying today and latest is from a different day, only return if explicitly allowed or after schedule
     if (isQueryingToday && isStale && !allowStaleForToday && isBeforeSchedule) {
-      logger.debug('D1 fallback: stale snapshot exists but querying today before schedule', { reportType, dateStr, snapshotDate: latestSnapshot.executionDate, currentHourET, currentMinuteET, scheduleHour, scheduleMinute });
+      logger.debug('D1 fallback: stale snapshot exists but querying today before schedule', { reportType, dateStr, snapshotDate: latestSnapshot.scheduledDate, currentHourET, currentMinuteET, scheduleHour, scheduleMinute });
       return null;
     }
     

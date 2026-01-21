@@ -183,7 +183,7 @@ async function handleJobsLatest(
     return new Response(
       JSON.stringify(ApiResponseFactory.success({
         reportType,
-        executionDate: snapshot.executionDate,
+        scheduledDate: snapshot.scheduledDate,
         data: snapshot.data
       }, { requestId, processingTime: timer.getElapsedMs() })),
       { status: HttpStatus.OK, headers }
@@ -197,7 +197,7 @@ async function handleJobsLatest(
   return new Response(
     JSON.stringify(ApiResponseFactory.success({
       reportType,
-      executionDate: today,
+      scheduledDate: today,
       predictions: predictions || [],
       source: 'predictions_fallback'
     }, { requestId, processingTime: timer.getElapsedMs() })),
@@ -405,10 +405,9 @@ async function handlePreMarketJob(
     // Detect trigger source for audit trail
     const triggerSource = detectTriggerSource(request);
 
-    // Write to D1 with proper date separation
-    // - execution_date: actual date of run (today)
-    // - scheduled_date: planned/report date (from user or today)
-    // - created_at: precise timestamp from options.generatedAt
+    // Write to D1 with scheduled_date as primary key
+    // - scheduled_date: the market date this report is FOR (primary key with report_type)
+    // - created_at: when the report was generated (auto-set)
     const actualToday = new Date().toISOString().split('T')[0];
 
     // Warn if user provided a date but migration hasn't been applied
@@ -430,11 +429,10 @@ async function handlePreMarketJob(
 
     const writeSuccess = await writeD1JobResult(
       env,
-      actualToday,  // execution_date = when job actually ran
+      scheduledDate,  // Primary key: the market date this report is FOR
       'pre-market',
       jobResult,
       {
-        // Metadata (extra context)
         processingTimeMs: timer.getElapsedMs(),
         symbolsRequested: symbols,
         ai_models: {
@@ -442,12 +440,7 @@ async function handlePreMarketJob(
           secondary: '@cf/huggingface/distilbert-sst-2-int8'
         }
       },
-      triggerSource,
-      {
-        // Options (D1 column values)
-        scheduledDate,  // scheduled_date = report date for queries
-        generatedAt: analysisData.generated_at ?? new Date().toISOString()  // created_at = precise timestamp
-      }
+      triggerSource
     );
 
     if (!writeSuccess) {

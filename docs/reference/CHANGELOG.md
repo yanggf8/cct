@@ -29,9 +29,9 @@
 
 ## 2026-01-24 - Pre-Market Rerun Date Storage ✅
 
-- Pre-market job writes store scheduled date separately from execution date in `scheduled_job_results`.
-- `execution_date` records the date portion of the actual run timestamp (`created_at`/`generated_at`).
-- Reruns can backfill a prior scheduled date while preserving actual run time via `created_at`/`generated_at`.
+- Pre-market job writes use `scheduled_date` + `report_type` as the primary key in `scheduled_job_results`.
+- `created_at` records the actual run timestamp (ISO) when the report snapshot was generated.
+- Reruns can backfill a prior `scheduled_date` while preserving actual run time via `created_at`/`generated_at`.
 
 ---
 

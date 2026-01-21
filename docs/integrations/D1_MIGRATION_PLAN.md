@@ -43,16 +43,17 @@
 CREATE TABLE IF NOT EXISTS scheduled_job_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   scheduled_date TEXT NOT NULL,
-  execution_date TEXT NOT NULL,
   report_type TEXT NOT NULL,
   report_content TEXT,
   metadata TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
+  trigger_source TEXT DEFAULT 'unknown',
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(scheduled_date, report_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_results_date ON scheduled_job_results(scheduled_date DESC);
 CREATE INDEX IF NOT EXISTS idx_scheduled_results_type ON scheduled_job_results(report_type);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_results_date_type ON scheduled_job_results(scheduled_date, report_type);
+CREATE INDEX IF NOT EXISTS idx_scheduled_results_created ON scheduled_job_results(created_at DESC);
 ```
 
 **Deferred**: Adding columns/FKs on `job_executions` (not required for snapshot storage).
@@ -64,8 +65,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_results_date_type ON scheduled_j
 ### Task 1: Migration Script (ready to run)
 
 - **File**: `schema/scheduled-jobs-migration.sql`
-- Creates `scheduled_job_results` (scheduled_date, execution_date, report_type, report_content, metadata, created_at) with indexes; no FK to job_executions by design.
-- Query/report date uses `scheduled_date`; `execution_date` stores the actual run date (date portion of `created_at`/`generated_at`).
+- Creates `scheduled_job_results` keyed by `scheduled_date` + `report_type`, with `trigger_source` and `created_at`; no FK to job_executions by design.
+- Query/report date uses `scheduled_date`; actual generation time is recorded in `created_at` (and may also be present in payload as `generated_at`).
 - Does **not** alter `job_executions` (deferred).
 
 **Apply migration**
@@ -89,148 +90,11 @@ npx wrangler d1 execute cct-predict-jobs --remote --command "SELECT COUNT(*) FRO
 
 ### Task 2: Create D1 Storage Adapter
 
-**File**: `src/modules/d1-scheduled-job-storage.ts`
+**File**: `src/modules/d1-job-storage.ts`
 
-```typescript
-import { createLogger } from './logging.js';
-import type { CloudflareEnvironment } from '../types.js';
-
-const logger = createLogger('d1-scheduled-job-storage');
-
-export interface ScheduledJobExecutionData {
-  job_type: string;
-  execution_date: string;           // YYYY-MM-DD
-  report_type?: string;             // 'pre-market', 'intraday', etc.
-  status: 'success' | 'failure' | 'partial';
-  execution_time_ms?: number;
-  symbols_processed?: number;
-  symbols_successful?: number;
-  symbols_failed?: number;
-  errors?: string;
-  metadata?: Record<string, any>;
-}
-
-export interface ScheduledJobResultData {
-  result_type: 'analysis_detail' | 'report_snapshot';
-  symbol?: string;
-  sentiment?: string;
-  confidence?: number;
-  direction?: string;
-  reasoning?: string;
-  signals?: any[];
-  report_content?: any;
-  html_snapshot?: string;
-}
-
-export class D1ScheduledJobStorage {
-  constructor(private db: D1Database) {}
-
-  /**
-   * Store scheduled job execution
-   */
-  async storeJobExecution(data: ScheduledJobExecutionData): Promise<number> {
-    const result = await this.db.prepare(`
-      INSERT INTO job_executions (
-        job_type, execution_date, report_type, executed_at, status,
-        execution_time_ms, symbols_processed, symbols_successful, symbols_failed,
-        errors, metadata
-      ) VALUES (?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      data.job_type,
-      data.execution_date,
-      data.report_type || null,
-      data.status,
-      data.execution_time_ms || null,
-      data.symbols_processed || null,
-      data.symbols_successful || null,
-      data.symbols_failed || null,
-      data.errors || null,
-      data.metadata ? JSON.stringify(data.metadata) : null
-    ).run();
-
-    logger.info('Scheduled job execution stored', {
-      executionId: result.meta.last_row_id,
-      jobType: data.job_type,
-      reportType: data.report_type
-    });
-
-    return result.meta.last_row_id as number;
-  }
-
-  /**
-   * Store job results (analysis details or report snapshot)
-   */
-  async storeJobResults(executionId: number, results: ScheduledJobResultData[]): Promise<void> {
-    const stmt = this.db.prepare(`
-      INSERT INTO scheduled_job_results (
-        job_execution_id, result_type, symbol, sentiment, confidence,
-        direction, reasoning, signals, report_content, html_snapshot
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const batch = results.map(r => stmt.bind(
-      executionId,
-      r.result_type,
-      r.symbol || null,
-      r.sentiment || null,
-      r.confidence || null,
-      r.direction || null,
-      r.reasoning || null,
-      r.signals ? JSON.stringify(r.signals) : null,
-      r.report_content ? JSON.stringify(r.report_content) : null,
-      r.html_snapshot || null
-    ));
-
-    await this.db.batch(batch);
-
-    logger.info('Job results stored', { executionId, count: results.length });
-  }
-
-  /**
-   * Get latest job by type and report type
-   */
-  async getLatestJob(jobType: string, reportType?: string): Promise<any | null> {
-    let query = 'SELECT * FROM job_executions WHERE job_type = ?';
-    const bindings: any[] = [jobType];
-
-    if (reportType) {
-      query += ' AND report_type = ?';
-      bindings.push(reportType);
-    }
-
-    query += ' ORDER BY executed_at DESC LIMIT 1';
-
-    const result = await this.db.prepare(query).bind(...bindings).first();
-    return result;
-  }
-
-  /**
-   * Get job results for an execution
-   */
-  async getJobResults(executionId: number, resultType?: string): Promise<any[]> {
-    let query = 'SELECT * FROM scheduled_job_results WHERE job_execution_id = ?';
-    const bindings: any[] = [executionId];
-
-    if (resultType) {
-      query += ' AND result_type = ?';
-      bindings.push(resultType);
-    }
-
-    const result = await this.db.prepare(query).bind(...bindings).all();
-    return result.results || [];
-  }
-}
-
-/**
- * Factory function
- */
-export function createD1ScheduledJobStorage(env: CloudflareEnvironment): D1ScheduledJobStorage {
-  if (!env.PREDICT_JOBS_DB) {
-    throw new Error('PREDICT_JOBS_DB binding not found');
-  }
-  return new D1ScheduledJobStorage(env.PREDICT_JOBS_DB);
-}
-```
+This repo uses a lightweight snapshot approach:
+- `writeD1JobResult(env, scheduledDate, reportType, reportContent, metadata?, triggerSource?)` writes report snapshots into `scheduled_job_results`.
+- `readD1ReportSnapshot()` / `getD1LatestReportSnapshot()` provide D1 fallback reads when the DO cache misses.
 
 ### Task 3: Update handleManualAnalysis
 
@@ -238,36 +102,15 @@ export function createD1ScheduledJobStorage(env: CloudflareEnvironment): D1Sched
 
 ```typescript
 // Persist to D1 first (source of truth)
-const d1Storage = createD1JobStorage(env);
-const executionId = await d1Storage.storeJobExecution({
-  job_type: 'analysis',
-  execution_date: dateStr,
-  report_type: 'pre-market',
-  status: 'success',
-  execution_time_ms: analysis.execution_metrics?.total_time_ms,
-  symbols_processed: analysis.symbols_analyzed?.length || 0,
-  symbols_successful: analysis.symbols_analyzed?.length || 0,
-  symbols_failed: 0
-});
-
-// Store analysis results
-if (analysis.symbols_analyzed?.length) {
-  const results = analysis.symbols_analyzed.map(symbol => ({
-    result_type: 'analysis_detail' as const,
-    symbol,
-    sentiment: (analysis as any)[symbol]?.sentiment,
-    confidence: (analysis as any)[symbol]?.confidence,
-    direction: (analysis as any)[symbol]?.direction,
-    reasoning: (analysis as any)[symbol]?.reasoning
-  }));
-  await d1Storage.storeJobResults(executionId, results);
-}
+await writeD1JobResult(env, dateStr, 'analysis', analysis, {
+  trigger: 'manual_analysis'
+}, 'manual-api');
 
 // Warm DO cache for fast reads
 const dal = createSimplifiedEnhancedDAL(env);
 const analysisKey = `analysis_${dateStr}`;
 await dal.write(analysisKey, analysis, { expirationTtl: 86400 });
-logger.info('✅ Analysis stored in D1 and DO cache', { executionId, dateStr });
+logger.info('✅ Analysis stored in D1 and DO cache', { dateStr });
 ```
 
 ### Task 4: Update Report Handlers (D1-first with DO cache rehydration)
@@ -390,7 +233,7 @@ function renderJobHistory(jobs) {
         <span class="job-status">${job.status}</span>
       </div>
       <div class="job-details">
-        <div>Date: ${job.execution_date}</div>
+        <div>Date: ${job.scheduled_date}</div>
         <div>Duration: ${job.duration_ms}ms</div>
         <div>Symbols: ${job.symbols_processed}</div>
       </div>
@@ -417,11 +260,11 @@ fetchJobHistory().then(renderJobHistory);
 1) **Validate recent data in D1**
 ```bash
 npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
-  SELECT report_type, execution_date, COUNT(*) AS cnt
+  SELECT job_type, scheduled_date, COUNT(*) AS cnt
   FROM job_executions
-  WHERE execution_date >= date('now','-14 days')
-  GROUP BY report_type, execution_date
-  ORDER BY execution_date DESC, report_type;
+  WHERE scheduled_date >= date('now','-14 days')
+  GROUP BY job_type, scheduled_date
+  ORDER BY scheduled_date DESC, job_type;
 "
 ```
 
@@ -430,7 +273,7 @@ npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
 TARGET_DATE=2026-01-08
 npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
   SELECT * FROM job_executions 
-  WHERE execution_date = '$TARGET_DATE' AND report_type = 'pre-market'
+  WHERE scheduled_date = '$TARGET_DATE' AND job_type = 'pre-market'
   ORDER BY executed_at DESC
   LIMIT 1;
 "
@@ -440,9 +283,9 @@ npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
 ```bash
 # Fetch from D1
 npx wrangler d1 execute PREDICT_JOBS_DB --remote --command "
-  SELECT id, execution_date FROM job_executions 
-  WHERE execution_date = '$TARGET_DATE' 
-    AND report_type = 'pre-market' 
+  SELECT id, scheduled_date FROM job_executions 
+  WHERE scheduled_date = '$TARGET_DATE' 
+    AND job_type = 'pre-market' 
   ORDER BY executed_at DESC LIMIT 1;
 "
 

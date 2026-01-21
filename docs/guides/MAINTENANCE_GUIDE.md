@@ -103,7 +103,6 @@ curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pr
 # Expected flow:
 # POST /api/v1/jobs/pre-market → D1 (scheduled_job_results)
 # - scheduled_date: report date for queries (YYYY-MM-DD or today)
-# - execution_date: date portion of the actual run timestamp
 # - created_at / generated_at: actual run timestamp
 # GET /pre-market-briefing → DO cache (hit) else D1 fallback → warm DO
 # Re-run behavior: same-day rerun overwrites D1 row; first read after rerun warms DO with the new data; subsequent reads hit DO.

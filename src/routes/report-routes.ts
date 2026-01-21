@@ -600,7 +600,7 @@ async function handlePreMarketReport(
       const latestSnapshot = await getD1LatestReportSnapshot(env, 'pre-market');
       if (latestSnapshot) {
         d1Data = latestSnapshot.data;
-        sourceDate = latestSnapshot.executionDate;
+        sourceDate = latestSnapshot.scheduledDate;
         isStale = sourceDate !== today;
         logger.info('PreMarketReport: Using latest D1 snapshot', { sourceDate, isStale, requestId });
       }
@@ -838,7 +838,7 @@ async function handleIntradayReport(
     }
 
     const snapshot = await env.PREDICT_JOBS_DB
-      .prepare('SELECT report_content, created_at FROM scheduled_job_results WHERE execution_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+      .prepare('SELECT report_content, created_at FROM scheduled_job_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
       .bind(today, 'intraday')
       .first();
 

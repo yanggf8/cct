@@ -1789,7 +1789,7 @@ async function handleMigrate5PctToFailed(
 
     while (true) {
       const records = await db.prepare(
-        "SELECT id, execution_date, report_type, report_content FROM scheduled_job_results WHERE report_type = 'analysis' LIMIT ? OFFSET ?"
+        "SELECT id, scheduled_date, report_type, report_content FROM scheduled_job_results WHERE report_type = 'analysis' LIMIT ? OFFSET ?"
       ).bind(BATCH_SIZE, offset).all();
 
       if (!records.results || records.results.length === 0) break;
