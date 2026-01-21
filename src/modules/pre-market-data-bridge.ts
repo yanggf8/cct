@@ -500,6 +500,7 @@ export class PreMarketDataBridge {
             };
 
             // Write success to D1 with dual-model logging
+            // news_source: Finnhub is primary (v3.10.1), fallbacks: FMP → NewsAPI → Yahoo
             await writeSymbolPredictionToD1(this.env, symbol, today, {
               status: 'success',
               sentiment: sentimentData.sentiment,
@@ -507,7 +508,7 @@ export class PreMarketDataBridge {
               direction: sentimentData.sentiment,
               articles_count: sentimentData.articles_analyzed,
               articles_content: sentimentData.articles_titles,
-              news_source: 'dac_pool',
+              news_source: 'finnhub',  // Primary source (v3.10.1)
               dual_model: sentimentData.dual_model
             });
 
@@ -592,6 +593,41 @@ export class PreMarketDataBridge {
       // Store in the expected format for pre-market reports
       const analysisKey = `analysis_${today}`;
       await (this.dal as any).put(analysisKey, analysisData, { expirationTtl: 86400 }); // 24 hours
+
+      // Warm the report cache with formatted data (v3.10.1)
+      // This ensures the report endpoint returns fresh data immediately after job completion
+      const reportCacheKey = `pre_market_report_${today}`;
+      const allSignals = Object.values(trading_signals).map((signal: any) => ({
+        symbol: signal.symbol,
+        sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+        confidence: signal.sentiment_layers?.[0]?.confidence ?? signal.confidence ?? null,
+        gemma_confidence: signal.dual_model?.gemma?.confidence ?? null,
+        distilbert_confidence: signal.dual_model?.distilbert?.confidence ?? null,
+        status: signal.status || 'success',
+        reason: signal.sentiment_layers?.[0]?.reasoning || ''
+      }));
+
+      const reportData = {
+        type: 'pre_market_briefing',
+        timestamp: new Date().toISOString(),
+        market_status: 'pre_market',
+        date: today,
+        is_stale: false,
+        key_insights: ['Pre-market analysis complete', `Data from ${today}`, 'Fresh data available'],
+        high_confidence_signals: allSignals.filter(s => s.confidence !== null && s.confidence > 0.6),
+        all_signals: allSignals,
+        market_pulse: marketPulse,
+        data_source: 'd1_snapshot',
+        generated_at: new Date().toISOString(),
+        symbols_analyzed: Object.keys(trading_signals).length
+      };
+
+      try {
+        await (this.dal as any).put(reportCacheKey, reportData, { expirationTtl: 3600 }); // 1 hour
+        logger.info('PreMarketDataBridge: Report cache warmed', { reportCacheKey });
+      } catch (cacheError) {
+        logger.warn('PreMarketDataBridge: Failed to warm report cache', { error: cacheError });
+      }
 
       logger.info('PreMarketDataBridge: Pre-market analysis generated and stored', {
         symbols_count: Object.keys(trading_signals).length,

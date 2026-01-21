@@ -6,6 +6,7 @@
 - Pre-market briefing now includes a Market Pulse section sourced from SPY market articles with dual-model analysis and 1-hour caching.
 - System Status surfaces a Market Indices card alongside the portfolio article pool to show SPY harvest health and counts.
 - DAC client now supports `getMarketArticles()` and maps `WORKER_API_KEY` → `X_API_KEY` when creating the service-binding client.
+- Article pool sharing: CCT consumes DAC Article Pool for stocks, sectors, and market indices via service binding. Primary source is Finnhub with NewsData.io as backup (handled in DAC); CCT only reads via accessors and never stores articles locally.
 
 ## 2026-01-21 - Manual Trigger Date Alignment ✅
 

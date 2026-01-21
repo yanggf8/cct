@@ -119,6 +119,7 @@ FRED_ALLOW_DEGRADATION = "true"
 # - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
 #
 # Free News API keys:
+# - FINNHUB_API_KEY: Finnhub API key (primary, 60 calls/min) - finnhub.io
 # - FMP_API_KEY: Financial Modeling Prep free API key (financialmodelingprep.com)
 # - NEWSAPI_KEY: NewsAPI.org free development key (newsapi.org)
 #

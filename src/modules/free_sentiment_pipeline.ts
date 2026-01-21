@@ -5,7 +5,7 @@
  */
 
 import type { CloudflareEnvironment } from '../types.js';
-import { DACArticlesAdapterV2 } from './dac-articles-pool-v2.js';
+import { fetchFinnhubCompanyNews } from './finnhub-client.js';
 
 // Type definitions
 interface FreeSentimentConfig {
@@ -148,35 +148,81 @@ const FREE_SENTIMENT_CONFIG: FreeSentimentConfig = {
 };
 
 /**
- * Get stock news from DAC article pool only.
- * No external API fallbacks - if DAC fails, return empty and report failure.
+ * Get free stock news with sentiment analysis (v3.10.1)
+ * Flow: Finnhub (primary, 60/min) → FMP → NewsAPI → Yahoo (fallbacks)
+ * Finnhub provides higher-quality finance-focused news
  */
 export async function getFreeStockNews(symbol: string, env: any): Promise<NewsArticle[]> {
-  // Use ONLY DAC article pool - no external API fallbacks
-  if (!env.DAC_BACKEND) {
-    console.log(`[DAC Pool] DAC_BACKEND not configured for ${symbol}`);
-    return [];
-  }
-
-  try {
-    const dacAdapter = new DACArticlesAdapterV2(env);
-    const dacResult = await dacAdapter.getArticlesForSentiment(symbol);
-
-    if (dacResult.source === 'dac_pool' && dacResult.articles.length > 0) {
-      console.log(`[DAC Pool] HIT for ${symbol} (${dacResult.articles.length} articles)`);
-      return dacResult.articles.map(article => ({
-        ...article,
-        source_type: 'dac_pool'
-      })) as unknown as NewsArticle[];
+  // 1. Try Finnhub first (primary - 60 calls/min, finance-focused)
+  const finnhubKey = env.FINNHUB_API_KEY;
+  if (finnhubKey) {
+    try {
+      const finnhubNews = await fetchFinnhubCompanyNews(symbol, finnhubKey);
+      if (finnhubNews?.length > 0) {
+        console.log(`[Stock News] Finnhub SUCCESS: ${finnhubNews.length} articles for ${symbol}`);
+        // Transform Finnhub articles to local NewsArticle format
+        return finnhubNews.map(a => ({
+          title: a.title,
+          summary: a.content || a.summary || '',
+          publishedAt: a.publishedAt || new Date().toISOString(),
+          source: a.source || 'Finnhub',
+          url: a.url || '',
+          sentiment: { label: 'neutral', score: 0.5 },  // Default - AI will analyze
+          confidence: 0.5,  // Default - AI will update
+          source_type: 'finnhub'
+        }));
+      }
+      console.log(`[Stock News] Finnhub returned 0 articles for ${symbol}, trying fallbacks`);
+    } catch (error: any) {
+      console.log(`[Stock News] Finnhub failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
     }
-
-    console.log(`[DAC Pool] MISS for ${symbol} - no articles available`);
-    return [];
-
-  } catch (error: any) {
-    console.log(`[DAC Pool] FAILED for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
-    return [];
+  } else {
+    console.log(`[Stock News] FINNHUB_API_KEY not configured, using fallbacks`);
   }
+
+  // Fallback: combine FMP + NewsAPI + Yahoo for broader coverage
+  const newsData: NewsArticle[] = [];
+
+  // 2. Financial Modeling Prep (has built-in sentiment!)
+  try {
+    const fmpNews = await getFMPNews(symbol, env);
+    if (fmpNews?.length > 0) {
+      console.log(`[Stock News] FMP: ${fmpNews.length} articles for ${symbol}`);
+      newsData.push(...fmpNews);
+    }
+  } catch (error: any) {
+    console.log(`[Stock News] FMP failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
+  }
+
+  // 3. NewsAPI.org (broader coverage)
+  try {
+    const newsApiData = await getNewsAPIData(symbol, env);
+    if (newsApiData?.length > 0) {
+      console.log(`[Stock News] NewsAPI: ${newsApiData.length} articles for ${symbol}`);
+      newsData.push(...newsApiData);
+    }
+  } catch (error: any) {
+    console.log(`[Stock News] NewsAPI failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
+  }
+
+  // 4. Yahoo Finance news (backup - no API key needed)
+  try {
+    const yahooNews = await getYahooNews(symbol, env);
+    if (yahooNews?.length > 0) {
+      console.log(`[Stock News] Yahoo: ${yahooNews.length} articles for ${symbol}`);
+      newsData.push(...yahooNews);
+    }
+  } catch (error: any) {
+    console.log(`[Stock News] Yahoo failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
+  }
+
+  if (newsData.length === 0) {
+    console.log(`[Stock News] ALL SOURCES FAILED for ${symbol}`);
+  } else {
+    console.log(`[Stock News] Fallback total: ${newsData.length} articles for ${symbol}`);
+  }
+
+  return newsData;
 }
 
 /**

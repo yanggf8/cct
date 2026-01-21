@@ -116,14 +116,15 @@ export class DACArticlesPoolClientV2 {
 
       const data = await response.json() as any;
 
-      // DAC accessor endpoint returns direct structure (not nested like probe)
-      // Note: metadata can be undefined - let getArticlesForSentiment handle defaults via || operators
+      // DAC accessor response wraps articles under data.data
+      const payload = data.data || data;
+
       return {
         success: data.success || false,
-        articles: data.articles || [],
-        metadata: data.metadata, // Pass through as-is (can be undefined)
-        error: data.error,
-        errorMessage: data.errorMessage
+        articles: payload.articles || [],
+        metadata: payload.metadata,
+        error: payload.error,
+        errorMessage: payload.errorMessage
       };
 
     } catch (error) {

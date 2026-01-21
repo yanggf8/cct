@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Market Pulse v3.10.0 Complete
-- **Current Version**: Latest (2026-01-21 - Market Pulse v3.10.0)
+**Status**: ✅ **PRODUCTION READY** - Stock Articles v3.10.1 Complete
+- **Current Version**: Latest (2026-01-21 - Stock Articles v3.10.1)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -55,6 +55,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **AI Model Stability** | ✅ Complete | 95% reduction in intermittent errors |
 | **Scheduled Jobs Fix** | ✅ Complete | Fixed query bug and job status tracking - dashboard now shows historical runs correctly |
 | **Market Pulse v3.10.0** | ✅ Complete | SPY broad market sentiment via DAC service binding - bullish/bearish direction with AI confidence scoring |
+| **Stock Articles v3.10.1** | ✅ Complete | Finnhub-first news flow for stocks (60 calls/min), cache warming fix ensures fresh data after job completion |
 
 ---
 
@@ -115,6 +116,28 @@ Market Pulse: direction (bullish/bearish) + confidence score
 - **Service Binding**: Direct Worker-to-Worker calls (no external HTTP)
 - **Output**: direction, confidence (0-1), articles_count
 - **Caching**: 1-hour TTL in CCT's Durable Objects cache
+
+### **Stock Articles (v3.10.1)**
+```
+getFreeStockNews(symbol)
+    │
+    ├─► Finnhub (primary, if FINNHUB_API_KEY set)
+    │       • 60 calls/min free tier
+    │       • Finance-focused, company news
+    │       • 30-day window
+    │       • Returns immediately if successful
+    │
+    └─► Fallbacks (if Finnhub fails or no key):
+            ├─► FMP (if FMP_API_KEY set) - 300/day, has sentiment
+            ├─► NewsAPI (if NEWSAPI_KEY set) - 1000/day
+            └─► Yahoo (no key needed) - unofficial API
+```
+- **Primary**: Finnhub (`src/modules/finnhub-client.ts`) - best for finance news
+- **Fallbacks**: FMP → NewsAPI → Yahoo (`src/modules/free_sentiment_pipeline.ts`)
+- **Caching**: FMP cached daily, NewsAPI cached hourly
+- **Cache Warming**: Job warms `pre_market_report_${date}` DO cache after completion
+- **Secrets**: `FINNHUB_API_KEY`, `FMP_API_KEY`, `NEWSAPI_KEY` (in wrangler secrets)
+- **D1 Tracking**: `news_source: 'finnhub'` recorded in symbol_predictions table
 
 ### **AI Model Policy**
 - **Primary Model**: `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B)
