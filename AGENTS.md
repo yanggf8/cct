@@ -35,6 +35,11 @@ When asked to perform a review, examine the relevant code changes thoroughly (no
 - If a review is requested, verify code diffs directly (not just reported summaries) and call out any endpoints/pages that may lack auth or load failures.
 - Prediction job storage moved to D1 (`PREDICT_JOBS_DB`, table `job_executions`/`symbol_predictions`/`daily_analysis`) with KV fallback. Make sure the D1 schema is applied and staging/prod use distinct DB IDs.
 
+## scheduled_date Tag Contract
+- `scheduled_job_results.scheduled_date` is a write-time tag/key (paired with `report_type`); it is not derived at read time.
+- Frontend `?date=YYYY-MM-DD` is used verbatim to query `scheduled_date` (no backend reinterpretation/conversion).
+- Prefer explicit `YYYY-MM-DD` values in UI/navigation; avoid semantic values like `?date=yesterday` (ambiguous).
+
 ## Environment & Configuration
 Deployment targets are defined in `wrangler.toml` (production) and `wrangler-enhanced.toml` (staging). Manage secrets through `wrangler secret put`; never check them into source control. Durable Object behavior is centralized in `src/modules/cache-durable-object.ts`, so coordinate script updates such as `validate-enhanced-cache.sh` when modifying it. When adding KV namespaces or bindings, update the corresponding entry in `docs/` and capture migration steps in your PR notes.
 

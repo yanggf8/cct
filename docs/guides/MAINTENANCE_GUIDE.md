@@ -194,6 +194,11 @@ Not scheduled:
 - All report endpoints must source results from D1 snapshots (scheduled_job_results/job_executions) — do not rely on GitHub Actions history, KV, or stale cache when D1 data is available.
 - Report handlers are read-only: no AI generation on request paths. AI-powered outlooks must be produced in scheduled jobs and stored in D1.
 
+### scheduled_date vs Query date
+- `scheduled_date` in D1 (`scheduled_job_results.scheduled_date`) is a stable tag/key for a snapshot row (paired with `report_type`) chosen by the triggering/manual process at write time.
+- Frontend `?date=YYYY-MM-DD` is a lookup key only: backend queries `WHERE scheduled_date = ?` and does not reinterpret/convert the date (no ET/local conversion).
+- “Today/Yesterday” in the UI are just conveniences for selecting a `YYYY-MM-DD` query value; correctness depends on the selected date matching an existing `scheduled_date` tag in D1.
+
 ### Build Validation
 - TypeScript compilation runs once via `npm run build:check` during deploy validation; frontend/backend build scripts skip additional `tsc` passes to avoid redundancy.
 - Worker bundle is minified; current size ~992KB (253KB gzipped) with ~12s upload during deploy. Further deploy time is dominated by Wrangler publish.

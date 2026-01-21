@@ -144,6 +144,12 @@ Market Pulse: direction (bullish/bearish) + confidence score
 - **Responsive**: Works on mobile with vertical layout
 - **Data Flow**: D1 `scheduled_job_results` stores full `comparisons` array
 
+### **scheduled_date Tag Contract (Do Not Reinterpret)**
+- `scheduled_job_results.scheduled_date` is a **tag/key** chosen at write time by the triggering/manual process (paired with `report_type`).
+- Report pages and APIs treat frontend `?date=YYYY-MM-DD` as a **lookup key only**: backend queries `WHERE scheduled_date = ?` and does not convert/reinterpret the value.
+- Always pass explicit `YYYY-MM-DD` values in links/UI; do not use ambiguous semantic values like `?date=yesterday`.
+- If a page shows “no data”, first confirm the requested `?date` matches an existing `scheduled_date` row for that `report_type`.
+
 ### **Stock Articles (v3.10.1)**
 ```
 getFreeStockNews(symbol)
