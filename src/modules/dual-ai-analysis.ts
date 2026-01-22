@@ -17,6 +17,8 @@
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
+import { getFreeStockNewsWithErrorTracking, type NewsFetchResult } from './free-stock-news-with-error-tracking.js';
+import type { ErrorSummary } from './news-provider-error-aggregator.js';
 import { parseNaturalLanguageResponse, mapSentimentToDirection } from './sentiment-utils.js';
 import { initLogging, logInfo, logError, logAIDebug } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
@@ -109,6 +111,7 @@ export interface DualAIComparisonResult {
   };
   signal: Signal;
   performance_metrics?: PerformanceMetrics;
+  news_fetch_errors?: ErrorSummary | null;  // Tracks which news providers failed (DAC/FMP/NewsAPI/Yahoo)
 }
 
 export interface BatchAnalysisResult {
@@ -751,11 +754,14 @@ export async function batchDualAIAnalysis(
     try {
       logAIDebug(`Analyzing ${symbol} (${i + 1}/${symbols.length}) with dual AI...`);
 
-      // Get news data
-      const newsData = await getFreeStockNews(symbol, env);
+      // Get news data with error tracking (tracks which providers failed)
+      const newsFetchResult = await getFreeStockNewsWithErrorTracking(symbol, env);
 
       // Run dual AI comparison with rate limit retry
-      const dualAIResult = await performDualAIComparisonWithRetry(symbol, newsData, env);
+      const dualAIResult = await performDualAIComparisonWithRetry(symbol, newsFetchResult.articles, env);
+
+      // Add news fetch error tracking to result
+      dualAIResult.news_fetch_errors = newsFetchResult.errorSummary;
 
       // Track statistics
       if (dualAIResult.error) {
@@ -884,17 +890,20 @@ export async function enhancedBatchDualAIAnalysis(
       try {
         logAIDebug(`Analyzing ${symbol} with enhanced batch dual AI...`);
 
-        // Get news data
-        const newsData = await getFreeStockNews(symbol,  env);
+        // Get news data with error tracking (tracks which providers failed)
+        const newsFetchResult = await getFreeStockNewsWithErrorTracking(symbol, env);
 
         // Run dual AI comparison
-        const dualAIResult = await performDualAIComparison(symbol,  newsData,  env);
+        const dualAIResult = await performDualAIComparison(symbol, newsFetchResult.articles, env);
+
+        // Add news fetch error tracking to result
+        dualAIResult.news_fetch_errors = newsFetchResult.errorSummary;
 
         return {
           symbol,
           success: !dualAIResult.error,
           result: dualAIResult,
-          newsCount: newsData?.length || 0
+          newsCount: newsFetchResult.articles?.length || 0
         };
 
       } catch (error: any) {
