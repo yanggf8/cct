@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Intraday Comparison v3.10.2 Complete
-- **Current Version**: Latest (2026-01-22 - Intraday Comparison v3.10.2)
+- **Current Version**: Latest (2026-01-23 - News Provider Error Tracking v3.10.3)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -24,6 +24,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **News Provider Error Tracking** | ✅ Complete | Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis results |
+| **Nav Timezone Settings** | ✅ Complete | User-configurable timezone for navigation date links, DST-safe date arithmetic |
+| **HTML Cache Invalidation** | ✅ Complete | Pre-market job now invalidates HTML cache on rerun for fresh page rendering |
 | **Handler & Cache Cleanup** | ✅ Complete | Removed orphaned handlers, unused dashboards/examples, cleaned `.wrangler/tmp`, consolidated request ID generation |
 | **Test & Script Organization** | ✅ Complete | 51 scripts reorganized - 35 tests + 16 scripts, removed 3 redundant DAC tests |
 | **Critical Issues Resolution** | ✅ Complete | Fixed hardcoded DXY values, type safety, mock detection false positives, graceful degradation, circuit breaker integration |
@@ -657,9 +660,12 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-22
-**Current Version**: Production Ready with Intraday Comparison v3.10.2
+**Last Updated**: 2026-01-23
+**Current Version**: Production Ready with News Provider Error Tracking v3.10.3
 **Major Updates**:
+- **News Provider Error Tracking v3.10.3**: Sentiment analysis now tracks which news provider (DAC/FMP/NewsAPI/Yahoo) failed, stored in `news_fetch_errors` field for debugging "No news data available" issues
+- **Nav Timezone Settings**: User-configurable timezone (Settings page) for navigation date links; DST-safe arithmetic; localStorage caching with validation
+- **HTML Cache Invalidation**: Pre-market job now invalidates HTML cache (`premarket_html_${date}`) on rerun, ensuring fresh page rendering without needing `?bypass=true`
 - **Intraday Comparison v3.10.2**: Redesigned intraday report with side-by-side Pre-Market vs Intraday sentiment comparison, full dual model details (Gemma/DistilBERT status, confidence, errors), actual failure reasons displayed instead of "N/A"
 - **Market Pulse v3.10.0**: SPY broad market sentiment analysis integrated via DAC service binding - fixed entrypoint config and response parsing for Worker-to-Worker calls
 - **Scheduled Jobs Fix**: Fixed query bug (trigger_mode → job_type) and added job status tracking to scheduler - dashboard now displays historical job runs correctly
