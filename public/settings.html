@@ -85,6 +85,8 @@
             cctApi.getTimezone().then(data => {
                 if (data.timezone) {
                     tzSelect.value = data.timezone;
+                    // Cache timezone locally for quick access by nav.js
+                    try { localStorage.setItem('cct_timezone', data.timezone); } catch {}
                     detected.textContent = 'Browser: ' + browserTz + ' | Saved: ' + data.timezone;
                 } else {
                     tzSelect.value = browserTz;
@@ -142,6 +144,8 @@
 
             cctApi.setTimezone(tzSelect.value).then(result => {
                 if (result && result.success) {
+                    // Cache timezone locally for quick access by nav.js
+                    try { localStorage.setItem('cct_timezone', tzSelect.value); } catch {}
                     document.getElementById('success').style.display = 'block';
                     setTimeout(() => document.getElementById('success').style.display = 'none', 2000);
                     detected.textContent = 'Browser detected: ' + browserTz + ' | Saved: ' + tzSelect.value;

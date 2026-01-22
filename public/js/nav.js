@@ -99,32 +99,94 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
         return path.replace(/\/$/, '');
     }
 
-    // NOTE: We use semantic date values (no date param for "today", ?date=yesterday for yesterday)
-    // instead of computing local dates, because the server uses ET (Eastern Time) for all date logic.
-    // Using local timezone dates could cause mismatches for users outside ET.
+    // NOTE: We use explicit YYYY-MM-DD date values computed in the user's configured timezone
+    // (from Settings page, cached in localStorage). This ensures consistent date handling across
+    // nav links and active state highlighting. Server treats ?date= as a lookup key.
 
     function initNav() {
         // Insert nav at start of body
         document.body.insertAdjacentHTML('afterbegin', navHTML);
         document.body.classList.add('has-nav');
 
-        // "Today" links: no date param - server defaults to ET today
+        // --- Compute dates first (needed for link hrefs and active state) ---
+
+        // Capture current time once to avoid midnight rollover inconsistencies
+        const now = new Date();
+
+        // Get user's preferred timezone (from settings) or browser default
+        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        let userTimezone = browserTimezone;
+
+        // Try to read stored timezone (localStorage can throw in private/restricted contexts)
+        try {
+            const storedTimezone = localStorage.getItem('cct_timezone');
+            if (storedTimezone) {
+                // Validate timezone before using
+                try {
+                    Intl.DateTimeFormat('en-CA', { timeZone: storedTimezone });
+                    userTimezone = storedTimezone;
+                } catch (e) {
+                    console.warn('Invalid stored timezone, using browser default:', storedTimezone);
+                    try { localStorage.removeItem('cct_timezone'); } catch {}
+                }
+            }
+        } catch (e) {
+            // localStorage not available (private browsing, etc.) - use browser default
+        }
+
+        // Format date in user's timezone
+        const formatDateInTimezone = (date, tz) => {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: tz,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(date);
+            const year = parts.find(p => p.type === 'year').value;
+            const month = parts.find(p => p.type === 'month').value;
+            const day = parts.find(p => p.type === 'day').value;
+            return `${year}-${month}-${day}`;
+        };
+
+        // Get yesterday's date string (pure arithmetic on date components - no Date object reinterpretation)
+        const getYesterdayStr = (todayStr) => {
+            let [year, month, day] = todayStr.split('-').map(Number);
+            day -= 1;
+            if (day < 1) {
+                month -= 1;
+                if (month < 1) {
+                    month = 12;
+                    year -= 1;
+                }
+                // Days in the new month (handles leap years)
+                day = new Date(year, month, 0).getDate();
+            }
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        };
+
+        const todayDate = formatDateInTimezone(now, userTimezone);
+        const yesterdayDate = getYesterdayStr(todayDate);
+
+        // --- Set nav link hrefs ---
+
+        // "Today" links: use explicit YYYY-MM-DD date (per repo guidance - consistent date base)
         document.querySelectorAll('.nav-today').forEach(link => {
             const basePath = link.getAttribute('data-base');
             if (basePath) {
-                link.setAttribute('href', basePath);  // No ?date= param - server uses ET today
+                link.setAttribute('href', `${basePath}?date=${todayDate}`);
             }
         });
 
-        // "Yesterday" links: use semantic ?date=yesterday which server interprets in ET
+        // "Yesterday" links: use explicit YYYY-MM-DD date (per repo guidance)
         document.querySelectorAll('.nav-yesterday').forEach(link => {
             const basePath = link.getAttribute('data-base');
             if (basePath) {
-                link.setAttribute('href', `${basePath}?date=yesterday`);
+                link.setAttribute('href', `${basePath}?date=${yesterdayDate}`);
             }
         });
 
-        // Set active state based on current page
+        // --- Set active state based on current page ---
+
         const path = window.location.pathname;
         const search = window.location.search;
         const navItems = document.querySelectorAll('.nav-item');
@@ -135,7 +197,7 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
         const dateParam = urlParams.get('date');
         const weekParam = urlParams.get('week');
 
-        // Check context - compare with user's local dates (reuse todayDate/yesterdayDate from above)
+        // Check context - match explicit YYYY-MM-DD dates only (per repo guidance)
         const isYesterday = dateParam === yesterdayDate;
         const isToday = !dateParam || dateParam === todayDate;
         const isLastWeek = weekParam === 'last';

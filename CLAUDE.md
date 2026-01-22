@@ -94,7 +94,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Market Pulse (v3.10.0)**: SPY broad market sentiment via DAC service binding
 - **Real-Time Data**: Yahoo Finance + Federal Reserve (FRED) integration with rate limiting
 - **Production Market Indicators**: Real SOFR, VIX percentiles, Treasury yields
-- **Local Time Display**: Report schedules show both ET and user's local timezone (browser-based conversion)
+- **Timezone Settings**: User-configurable timezone (Settings page) for navigation date links; falls back to browser timezone
 - **Notifications**: Chrome browser notifications
 - **Scheduling**: GitHub Actions (100% free, unlimited)
 - **Cost**: $0/month (Cloudflare + GitHub)
