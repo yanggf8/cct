@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Market Clock**: Real-time with unified logic ✅
 - **Integration**: All components properly connected ✅
 - **Code Quality**: Enhanced with refactored metrics and cleanup ✅
-- **Test Organization**: 54 scripts organized into logical structure ✅
+- **Test Organization**: 51 scripts organized into logical structure ✅
 - **Market Pulse**: SPY sentiment via DAC service binding ✅
 
 ### ✅ **Revolutionary Achievements (Latest)**
@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Feature | Status | Impact |
 |---------|--------|--------|
 | **Handler & Cache Cleanup** | ✅ Complete | Removed orphaned handlers, unused dashboards/examples, cleaned `.wrangler/tmp`, consolidated request ID generation |
-| **Test & Script Organization** | ✅ Complete | 54 scripts reorganized into logical structure - 38 tests + 16 scripts, improved maintainability |
+| **Test & Script Organization** | ✅ Complete | 51 scripts reorganized - 35 tests + 16 scripts, removed 3 redundant DAC tests |
 | **Critical Issues Resolution** | ✅ Complete | Fixed hardcoded DXY values, type safety, mock detection false positives, graceful degradation, circuit breaker integration |
 | **Mock Data Elimination Implementation** | ✅ Complete | 100% mock data removed, real FRED/Yahoo integration, production guards |
 | **Real DXY Integration** | ✅ Complete | Yahoo Finance DX-Y.NYB futures integration replacing hardcoded values |
@@ -412,15 +412,15 @@ Sunday (10:00 AM):  Weekly Review        → Pattern analysis
 - `src/routes/report-routes.ts` - Report endpoints with data bridge
 - `src/routes/sentiment-routes.ts` - Sentiment analysis endpoints
 - `src/routes/data-routes.ts` - Data access endpoints
-### **Test & Script Organization** ⭐ **REORGANIZED 2025-12-19**
+### **Test & Script Organization** ⭐ **STREAMLINED 2026-01-22**
 
-**54 scripts organized** into logical directories for better maintainability:
+**51 scripts organized** into logical directories for better maintainability:
 
-**Test Scripts** (`tests/` - 38 scripts)
+**Test Scripts** (`tests/` - 35 scripts)
 ```
 tests/
-├── integration/        # Integration & system tests (8)
-│   ├── dac/           # DO cache integration (4)
+├── integration/        # Integration & system tests (5)
+│   ├── dac/           # DO cache integration (1 comprehensive)
 │   ├── frontend/      # Frontend integration (2)
 │   ├── data-bridge/   # Data bridge tests (1)
 │   └── *.sh           # General integration (1)
@@ -448,11 +448,11 @@ scripts/
 ```
 
 **Key Scripts:**
-- `tests/integration/dac/test-dac-integration.sh` - DO cache validation (9 scenarios)
+- `tests/integration/dac/test-dac-service-binding-comprehensive.sh` - Primary DAC test (25+ scenarios)
 - `tests/integration/data-bridge/test-pre-market-data-bridge.sh` - Pre-market testing
+- `tests/regression/run-regression-tests.sh` - Baseline comparison with 5% threshold
 - `scripts/deployment/deploy-production.sh` - Production deployment
 - `scripts/monitoring/test-cache-economics.sh` - Cache economics validation
-- `scripts/monitoring/test-d1-rollups.sh` - Aggregation query testing
 
 **Documentation:**
 - `tests/README.md` - Comprehensive test suite guide
@@ -514,7 +514,7 @@ scripts/
 ```bash
 npm run test:performance    # Playwright performance tests
 npm run test:workflows      # End-to-end workflows
-./tests/integration/dac/test-dac-integration.sh         # DO cache validation
+./tests/integration/dac/test-dac-service-binding-comprehensive.sh         # DO cache/service binding validation
 ./tests/integration/data-bridge/test-pre-market-data-bridge.sh  # Pre-market testing
 ./scripts/utilities/validate-enhanced-cache.sh       # Cache endpoint coverage
 ./scripts/monitoring/test-cache-economics.sh  # Cache economics validation
@@ -535,7 +535,7 @@ wrangler secret put FEATURE_FLAG_DO_CACHE
 # Enter: true
 
 # Validate deployment
-./tests/integration/dac/test-dac-integration.sh
+./tests/integration/dac/test-dac-service-binding-comprehensive.sh
 ./tests/integration/test-working-cache-endpoints.sh
 ```
 
@@ -666,6 +666,6 @@ Transform from individual stock analysis to institutional-grade market intellige
 - **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories
 - **Dead Code Cleanup**: Removed orphaned route files (canary-management, exemption-management, integration-test, sector-routes-simple)
 - **New Documented Categories**: Market Intelligence, Market Drivers, Sector Analysis, Risk Management, Advanced Analytics, Predictive Analytics, Backtesting, Technical Analysis, Realtime Data
-- **Test & Script Organization**: 54 scripts reorganized (38 tests + 16 operational scripts) into logical structure with comprehensive documentation
+- **Test & Script Organization**: 51 scripts (35 tests + 16 scripts) - removed 3 redundant DAC tests, trimmed low-value optimization tests
 - **Documentation**: tests/README.md, scripts/README.md, TEST_AND_SCRIPT_INDEX.md
 - **CI/CD Updates**: All GitHub Actions workflows and npm scripts updated with new paths

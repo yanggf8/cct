@@ -29,10 +29,8 @@ tests/
 ### Integration Tests (`integration/`)
 
 **DAC Integration (`integration/dac/`)**
-- `test-dac-integration.sh` - Comprehensive DO cache validation (9 scenarios)
-- `test-dac-integration-simple.sh` - Simplified DAC integration test
-- `test-dac-quick-validation.sh` - Quick validation for CI/CD
-- `test-dac-service-binding-comprehensive.sh` - Service binding tests with baselines
+- `test-dac-service-binding-comprehensive.sh` - Primary DO cache/service binding suite (25+ scenarios)
+- `test-do-hot-read.ts` - Hot read validation for Durable Objects
 
 **Frontend Integration (`integration/frontend/`)**
 - `test-frontend-integration.sh` - Frontend API integration tests
@@ -129,7 +127,7 @@ npm run test:workflows
 ### Run directly
 ```bash
 # Integration tests
-./tests/integration/dac/test-dac-integration.sh
+./tests/integration/dac/test-dac-service-binding-comprehensive.sh
 ./tests/integration/data-bridge/test-pre-market-data-bridge.sh
 
 # Security suite

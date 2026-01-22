@@ -1,11 +1,11 @@
 # Test and Script Organization Index
 
-This document provides a comprehensive overview of the reorganized test and script structure.
+This document provides a comprehensive overview of the current test and script structure.
 
 ## Overview
 
-All 54 shell scripts have been organized into logical directories:
-- **38 test scripts** in `tests/` (organized by type)
+All 51 scripts have been organized into logical directories:
+- **35 test scripts** in `tests/` (organized by type)
 - **16 operational scripts** in `scripts/` (organized by purpose)
 
 ## Quick Navigation
@@ -34,10 +34,10 @@ All 54 shell scripts have been organized into logical directories:
 
 ```
 /
-├── tests/                          # All test scripts (38 scripts)
-│   ├── integration/                # Integration tests (8 scripts)
-│   │   ├── dac/                   # DO cache tests (4 scripts)
-│   │   ├── frontend/              # Frontend tests (2 scripts)
+├── tests/                          # All test scripts (35 scripts)
+│   ├── integration/                # Integration tests (6 scripts)
+│   │   ├── dac/                   # DO cache tests (1 primary + 1 TS hot-read)
+│   │   ├── frontend/              # Frontend tests (3 scripts)
 │   │   ├── data-bridge/           # Data bridge (1 script)
 │   │   └── *.sh                   # General integration (1 script)
 │   ├── security/                   # Security tests (6 scripts)
@@ -165,13 +165,13 @@ Run these commands to verify the migration:
 ls -la *.sh 2>/dev/null && echo "❌ Scripts still in root!" || echo "✅ Root is clean"
 
 # Count test scripts
-find tests -name "*.sh" -type f | wc -l  # Should be 38
+find tests -name "*.sh" -type f | wc -l  # Should be 35
 
 # Count operational scripts
 find scripts -name "*.sh" -type f | wc -l  # Should be 16
 
 # Total scripts
-find tests scripts -name "*.sh" -type f | wc -l  # Should be 54
+find tests scripts -name "*.sh" -type f | wc -l  # Should be 51
 
 # Verify npm scripts work
 npm run test:guards-smoke --dry-run
@@ -183,7 +183,7 @@ npm run deploy:verify --dry-run
 ### Run Test Suites
 ```bash
 # Integration tests
-./tests/integration/dac/test-dac-integration.sh
+./tests/integration/dac/test-dac-service-binding-comprehensive.sh
 
 # Security tests
 ./tests/security/run-all-security-tests.sh
@@ -244,5 +244,5 @@ If needed, scripts can be moved back to root, but this is not recommended. The n
 ---
 
 **Migration Completed**: 2025-12-19
-**Scripts Organized**: 54 total (38 tests + 16 scripts)
+**Scripts Organized**: 51 total (35 tests + 16 scripts)
 **Status**: ✅ Complete and Verified

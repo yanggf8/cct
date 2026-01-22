@@ -62,6 +62,13 @@ export interface AgreementDetails {
   gpt_direction?: Direction;
   distilbert_direction?: Direction;
   dominant_direction?: Direction;
+  winner_model?: 'gpt' | 'distilbert';
+  winner_confidence?: number | null;
+  loser_confidence?: number | null;
+  gpt_confidence?: number | null;
+  distilbert_confidence?: number | null;
+  is_tie?: boolean;
+  is_perfect_tie?: boolean;
   error?: string;
 }
 
@@ -540,12 +547,23 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
 
   // Full agreement: same direction AND at least one model has meaningful confidence (not null)
   if (gptDir === dbDir && (gptConf !== null || dbConf !== null)) {
+    const gptScore = gptConf ?? -1;
+    const dbScore = dbConf ?? -1;
+    const winnerIsGpt = gptScore > dbScore; // Changed >= to > for true winner
+    const winnerModel = winnerIsGpt ? 'gpt' : (gptScore === dbScore ? 'gpt' : 'distilbert'); // Explicit tie-breaker
+    const winnerConfidence = winnerIsGpt ? gptConf : dbConf;
+    const loserConfidence = winnerIsGpt ? dbConf : gptConf;
+    const isPerfectTie = gptScore === dbScore && gptScore !== -1;
     return {
       agree: true,
       type: 'full_agreement',
       details: {
         match_direction: gptDir,
-        confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0))
+        confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0)),
+        winner_model: winnerModel,
+        winner_confidence: winnerConfidence ?? null,
+        loser_confidence: loserConfidence ?? null,
+        is_perfect_tie: isPerfectTie
       }
     };
   }
@@ -563,14 +581,40 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
     };
   }
 
-  // Full disagreement: opposite directions
+  // Full disagreement: opposite directions -> pick higher confidence winner
+  const gptScore = gptConf ?? -1;
+  const dbScore = dbConf ?? -1;
+  
+  // Check for equal-confidence disagreement (true tie)
+  if (gptScore === dbScore && gptScore !== -1) {
+    return {
+      agree: false,
+      type: 'disagreement',
+      details: {
+        gpt_direction: gptDir,
+        distilbert_direction: dbDir,
+        gpt_confidence: gptConf,
+        distilbert_confidence: dbConf,
+        is_tie: true
+      }
+    };
+  }
+  
+  const winnerIsGpt = gptScore > dbScore; // Changed >= to >
+  const winnerModel = winnerIsGpt ? 'gpt' : 'distilbert';
+  const matchDirection = winnerIsGpt ? gptDir : dbDir;
+
   return {
-    agree: false,
-    type: 'disagreement',
+    agree: true,
+    type: 'full_agreement',
     details: {
+      match_direction: matchDirection,
+      confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0)),
       gpt_direction: gptDir,
       distilbert_direction: dbDir,
-      confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0))
+      winner_model: winnerModel,
+      winner_confidence: winnerIsGpt ? gptConf ?? null : dbConf ?? null,
+      loser_confidence: winnerIsGpt ? dbConf ?? null : gptConf ?? null
     }
   };
 }
@@ -601,12 +645,18 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
   }
 
   if (agreement.agree) {
+    const details = agreement.details as AgreementDetails;
+    const winnerModel = details.winner_model || 'gpt';
+    const direction = details.match_direction || gptResult.direction;
+    const winnerConfidence = winnerModel === 'gpt' ? gptResult.confidence : distilBERTResult.confidence;
+    const loserConfidence = winnerModel === 'gpt' ? distilBERTResult.confidence : gptResult.confidence;
+    const confidenceSpread = Math.abs((winnerConfidence ?? 0) - (loserConfidence ?? 0));
     return {
       type: 'AGREEMENT',
-      direction: gptResult.direction,
-      strength: calculateAgreementStrength(gptResult.confidence, distilBERTResult.confidence),
-      reasoning: `Both AI models agree on ${gptResult.direction} sentiment`,
-      action: getActionForAgreement(gptResult.direction, gptResult.confidence, distilBERTResult.confidence),
+      direction,
+      strength: calculateAgreementStrength(winnerConfidence),
+      reasoning: `Higher-confidence winner (${winnerModel}) on ${direction} sentiment (spread ${confidenceSpread.toFixed(2)})`,
+      action: getActionForAgreement(direction, winnerConfidence),
       source_models: sourceModels
     };
   }
@@ -619,6 +669,20 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
       strength: 'MODERATE',
       reasoning: `Mixed signals: ${(agreement.details as any).gpt_direction} vs ${(agreement.details as any).distilbert_direction}`,
       action: directionalModel.confidence > 0.7 ? 'CONSIDER' : 'HOLD',
+      source_models: sourceModels
+    };
+  }
+
+  // Handle disagreement
+  const details = agreement.details as any;
+  if (details.is_tie) {
+    // Equal confidence, different directions -> true tie
+    return {
+      type: 'DISAGREEMENT',
+      direction: 'UNCLEAR',
+      strength: 'WEAK',
+      reasoning: `Models disagree with equal confidence (${(details.gpt_confidence ?? 0).toFixed(2)}): GPT ${details.gpt_direction}, DistilBERT ${details.distilbert_direction}. No clear signal.`,
+      action: 'HOLD',
       source_models: sourceModels
     };
   }
@@ -636,12 +700,12 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
 /**
  * Action rules for agreement signals
  */
-function getActionForAgreement(direction: Direction, gptConfidence: number | null, dbConfidence: number | null): SignalAction {
-  const avgConfidence = ((gptConfidence ?? 0) + (dbConfidence ?? 0)) / 2;
+function getActionForAgreement(direction: Direction, confidence: number | null): SignalAction {
+  const effectiveConfidence = confidence ?? 0;
 
-  if (avgConfidence >= 0.8) {
+  if (effectiveConfidence >= 0.8) {
     return direction === 'bullish' ? 'STRONG_BUY' : 'STRONG_SELL';
-  } else if (avgConfidence >= 0.6) {
+  } else if (effectiveConfidence >= 0.6) {
     return direction === 'bullish' ? 'BUY' : 'SELL';
   } else {
     return direction === 'bullish' ? 'WEAK_BUY' : 'WEAK_SELL';
@@ -651,13 +715,11 @@ function getActionForAgreement(direction: Direction, gptConfidence: number | nul
 /**
  * Calculate agreement strength
  */
-function calculateAgreementStrength(gptConfidence: number | null, dbConfidence: number | null): SignalStrength {
-  // If both are null, this is a failure
-  if (gptConfidence === null && dbConfidence === null) return 'FAILED';
+function calculateAgreementStrength(confidence: number | null): SignalStrength {
+  if (confidence === null) return 'FAILED';
 
-  const avgConfidence = ((gptConfidence ?? 0) + (dbConfidence ?? 0)) / 2;
-  if (avgConfidence >= 0.8) return 'STRONG';
-  if (avgConfidence >= 0.6) return 'MODERATE';
+  if (confidence >= 0.8) return 'STRONG';
+  if (confidence >= 0.6) return 'MODERATE';
   return 'WEAK';
 }
 

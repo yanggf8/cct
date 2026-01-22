@@ -11,10 +11,8 @@
 tests/
 ├── integration/
 │   ├── dac/
-│   │   ├── test-dac-integration.sh
-│   │   ├── test-dac-integration-simple.sh
-│   │   ├── test-dac-quick-validation.sh
-│   │   └── test-dac-service-binding-comprehensive.sh
+│   │   ├── test-dac-service-binding-comprehensive.sh
+│   │   └── test-do-hot-read.ts
 │   ├── frontend/
 │   │   ├── test-frontend-integration.sh
 │   │   └── test-html-structure-validation.sh
