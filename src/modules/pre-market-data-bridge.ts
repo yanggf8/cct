@@ -623,6 +623,13 @@ export class PreMarketDataBridge {
       };
 
       try {
+        // Invalidate HTML cache first to ensure fresh page rendering
+        const htmlCacheKey = `premarket_html_${today}`;
+        try {
+          await (this.dal as any).delete(htmlCacheKey);
+          logger.info('PreMarketDataBridge: HTML cache invalidated', { htmlCacheKey });
+        } catch (e) { /* ignore - may not exist */ }
+
         await (this.dal as any).put(reportCacheKey, reportData, { expirationTtl: 3600 }); // 1 hour
         logger.info('PreMarketDataBridge: Report cache warmed', { reportCacheKey });
       } catch (cacheError) {
