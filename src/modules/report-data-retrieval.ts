@@ -274,11 +274,106 @@ export class ReportDataRetrieval {
 
       if (!predictionsResult.data) {
         logger.info('DO predictions cache miss, trying D1 fallback', { key: predictionsKey, date: dateStr });
-        const predictionsFallback = await getD1FallbackData(env, dateStr, 'predictions');
+
+        // Prefer the dedicated morning_predictions snapshot if present in D1
+        let predictionsFallback = await getD1FallbackData(env, dateStr, 'morning_predictions');
+
+        // Otherwise, transform the pre-market snapshot shape into PredictionsData
+        if (!predictionsFallback) {
+          const preMarketSnapshot = await readD1ReportSnapshot(env, dateStr, 'pre-market');
+          if (preMarketSnapshot?.data?.trading_signals) {
+            // Verify snapshot date matches requested date (stale check)
+            const snapshotDate = preMarketSnapshot.scheduledDate || preMarketSnapshot.data?._scheduled_date;
+            const isStale = snapshotDate !== dateStr;
+
+            const predictions: Prediction[] = Object.entries(preMarketSnapshot.data.trading_signals).map(([symbol, data]: [string, any]) => {
+              const direction = data.dual_model?.gemma?.direction || data.sentiment || 'neutral';
+              const predictionTyped: 'up' | 'down' | 'neutral' =
+                direction.toLowerCase() === 'bullish' || direction.toLowerCase() === 'up' ? 'up' :
+                direction.toLowerCase() === 'bearish' || direction.toLowerCase() === 'down' ? 'down' : 'neutral';
+
+              return {
+                symbol,
+                prediction: predictionTyped,
+                confidence: data.dual_model?.gemma?.confidence || data.confidence || 0,
+                sentiment: data.sentiment || 'neutral',
+                status: 'tracking' as const,
+                timestamp: preMarketSnapshot.data.generated_at || preMarketSnapshot.data.timestamp
+              };
+            });
+
+            predictionsFallback = {
+              data: {
+                predictions,
+                generatedAt: preMarketSnapshot.data.generated_at || new Date().toISOString(),
+                _fallback_source: 'd1_pre_market_snapshot',
+                _fallback_date: snapshotDate || dateStr
+              },
+              source: 'd1_snapshot',
+              sourceDate: snapshotDate || dateStr,
+              isStale,
+              createdAt: preMarketSnapshot.createdAt
+            };
+
+            if (isStale) {
+              logger.warn('D1 pre-market snapshot date mismatch', { requested: dateStr, found: snapshotDate });
+            }
+          }
+        }
+
+        // If pre-market fails, try symbol_predictions table directly
+        if (!predictionsFallback) {
+          const d1Predictions = await getD1Predictions(env, dateStr);
+          if (d1Predictions && d1Predictions.length > 0) {
+            // Check if predictions are actually from the requested date
+            const firstPredDate = d1Predictions[0]?.prediction_date || d1Predictions[0]?.created_at?.split('T')[0];
+            const isStale = firstPredDate && firstPredDate !== dateStr;
+
+            // Transform to predictions format, preserving error info for visibility
+            const predictions: Prediction[] = d1Predictions.map(p => {
+              const direction = p.direction || p.sentiment || 'neutral';
+              const predictionTyped: 'up' | 'down' | 'neutral' =
+                direction.toLowerCase() === 'bullish' || direction.toLowerCase() === 'up' ? 'up' :
+                direction.toLowerCase() === 'bearish' || direction.toLowerCase() === 'down' ? 'down' : 'neutral';
+              const statusTyped: 'validated' | 'divergent' | 'tracking' | 'unknown' =
+                p.status === 'success' ? 'tracking' :
+                p.status === 'failed' ? 'divergent' : 'unknown';
+              return {
+                symbol: p.symbol,
+                prediction: predictionTyped,
+                confidence: p.confidence || 0,
+                sentiment: p.sentiment || 'neutral',
+                status: statusTyped,
+                // Preserve error info for debugging
+                _error: p.error_message || p.error_summary || undefined
+              };
+            });
+
+            predictionsFallback = {
+              data: {
+                predictions,
+                generatedAt: new Date().toISOString(),
+                _fallback_source: 'd1_symbol_predictions',
+                _fallback_date: firstPredDate || dateStr
+              },
+              source: 'd1_predictions',
+              sourceDate: firstPredDate || dateStr,
+              isStale: !!isStale
+            };
+
+            if (isStale) {
+              logger.warn('D1 symbol_predictions date mismatch', { requested: dateStr, found: firstPredDate });
+            }
+          }
+        }
+
         if (predictionsFallback) {
+          // Only warm DO cache if data is fresh (not stale)
           if (!predictionsFallback.isStale) {
             await dal.write(predictionsKey, predictionsFallback.data, { expirationTtl: 86400 });
             logger.info('D1 predictions fallback success, warmed DO cache', { source: predictionsFallback.source, date: dateStr });
+          } else {
+            logger.info('D1 predictions fallback using stale data (not cached)', { source: predictionsFallback.source, sourceDate: predictionsFallback.sourceDate, requested: dateStr });
           }
           predictionsResult = { success: true, data: predictionsFallback.data, cached: false, responseTime: 0, timestamp: new Date().toISOString() };
         }
@@ -647,12 +742,14 @@ export class ReportDataRetrieval {
 
   /**
    * Get single day performance data
+   * Reads from DO cache first, falls back to D1 scheduled_job_results, then symbol_predictions
+   * Returns both summary and predictions when available for weekly aggregation
    */
   async getSingleDayPerformanceData(env: CloudflareEnvironment, dateStr: string): Promise<SingleDayPerformance | null> {
     try {
       const dal = createSimplifiedEnhancedDAL(env);
 
-      // Try to get end-of-day summary first
+      // FAST PATH: Try to get end-of-day summary from DO cache
       const summaryKey = `end_of_day_summary_${dateStr}`;
       const summaryResult = await dal.read(summaryKey);
 
@@ -665,20 +762,132 @@ export class ReportDataRetrieval {
         };
       }
 
-      // Fall back to morning predictions
+      // DO CACHE MISS: Try D1 end-of-day snapshot directly
+      const endOfDaySnapshot = await readD1ReportSnapshot(env, dateStr, 'end-of-day');
+      if (endOfDaySnapshot?.data) {
+        // Transform D1 end-of-day data to EndOfDaySummary shape
+        const rawData = endOfDaySnapshot.data;
+        const endOfDaySummary: EndOfDaySummary = {
+          totalSignals: rawData.totalSignals || rawData.symbols_analyzed || 0,
+          averageAccuracy: rawData.overallAccuracy ? rawData.overallAccuracy * 100 : 0,
+          validatedSignals: rawData.correctCalls || 0,
+          divergentSignals: rawData.wrongCalls || 0,
+          trackingSignals: rawData.totalSignals ? rawData.totalSignals - (rawData.correctCalls || 0) - (rawData.wrongCalls || 0) : 0,
+          signalsByStatus: {},
+          bullishSignals: 0,
+          bearishSignals: 0,
+          topPerformers: rawData.topWinners || [],
+          underperformers: rawData.topLosers || [],
+          successRate: rawData.overallAccuracy ? rawData.overallAccuracy * 100 : 0
+        };
+
+        const transformed = {
+          type: 'summary' as const,
+          summary: endOfDaySummary,
+          tomorrowOutlook: rawData.tomorrowOutlook || null
+        };
+        // Warm DO cache for next time
+        await dal.write(summaryKey, {
+          summary: transformed.summary,
+          tomorrowOutlook: transformed.tomorrowOutlook
+        }, { expirationTtl: 86400 }); // 24 hours
+        return transformed;
+      }
+
+      // Try morning predictions from DO cache
       const predictionsKey = `morning_predictions_${dateStr}`;
       const predictionsResult = await dal.read(predictionsKey);
 
       if (predictionsResult.data) {
         const parsed = predictionsResult.data;
         const performanceSummary = this.generateIntradayPerformanceSummary(parsed);
+        const endOfDaySummary = this.generateEndOfDaySummary(parsed);
         return {
           type: 'predictions',
           predictions: parsed.predictions,
-          performanceSummary
+          performanceSummary,
+          summary: endOfDaySummary  // EndOfDaySummary for weekly aggregation
         };
       }
 
+      // DO CACHE MISS: Try D1 pre-market snapshot directly
+      const preMarketSnapshot = await readD1ReportSnapshot(env, dateStr, 'pre-market');
+      if (preMarketSnapshot?.data?.trading_signals) {
+        // Transform trading_signals to predictions format
+        const predictions: Prediction[] = Object.entries(preMarketSnapshot.data.trading_signals).map(([symbol, data]: [string, any]) => {
+          const direction = data.dual_model?.gemma?.direction || data.sentiment || 'neutral';
+          // Map direction string to typed prediction
+          const predictionTyped: 'up' | 'down' | 'neutral' =
+            direction.toLowerCase() === 'bullish' || direction.toLowerCase() === 'up' ? 'up' :
+            direction.toLowerCase() === 'bearish' || direction.toLowerCase() === 'down' ? 'down' : 'neutral';
+
+          return {
+            symbol,
+            prediction: predictionTyped,
+            confidence: data.dual_model?.gemma?.confidence || data.confidence || 0,
+            sentiment: data.sentiment || 'neutral',
+            status: 'tracking' as const,
+            timestamp: preMarketSnapshot.data.generated_at || preMarketSnapshot.data.timestamp
+          };
+        });
+
+        const predictionsData = { predictions, generatedAt: preMarketSnapshot.data.generated_at || new Date().toISOString() };
+        const performanceSummary = this.generateIntradayPerformanceSummary(predictionsData);
+        const endOfDaySummary = this.generateEndOfDaySummary(predictionsData);
+
+        const transformed = {
+          type: 'predictions' as const,
+          predictions,
+          performanceSummary,
+          summary: endOfDaySummary  // EndOfDaySummary for weekly aggregation
+        };
+
+        // Warm DO cache for next time
+        await dal.write(predictionsKey, predictionsData, { expirationTtl: 86400 }); // 24 hours
+        return transformed;
+      }
+
+      // LAST RESORT: Try symbol_predictions table directly
+      const d1Predictions = await getD1Predictions(env, dateStr);
+      if (d1Predictions && d1Predictions.length > 0) {
+        const predictions: Prediction[] = d1Predictions.map(p => {
+          const direction = p.direction || p.sentiment || 'neutral';
+          // Map direction string to typed prediction
+          const predictionTyped: 'up' | 'down' | 'neutral' =
+            direction.toLowerCase() === 'bullish' || direction.toLowerCase() === 'up' ? 'up' :
+            direction.toLowerCase() === 'bearish' || direction.toLowerCase() === 'down' ? 'down' : 'neutral';
+
+          // Map D1 status to Prediction status
+          const statusTyped: 'validated' | 'divergent' | 'tracking' | 'unknown' =
+            p.status === 'success' ? 'tracking' : 'unknown';
+
+          return {
+            symbol: p.symbol,
+            prediction: predictionTyped,
+            confidence: p.confidence || 0,
+            sentiment: p.sentiment || 'neutral',
+            status: statusTyped,
+            timestamp: p.created_at
+          };
+        });
+
+        const predictionsData = { predictions, generatedAt: new Date().toISOString() };
+        const performanceSummary = this.generateIntradayPerformanceSummary(predictionsData);
+        const endOfDaySummary = this.generateEndOfDaySummary(predictionsData);
+
+        const transformed = {
+          type: 'predictions' as const,
+          predictions,
+          performanceSummary,
+          summary: endOfDaySummary  // EndOfDaySummary for weekly aggregation
+        };
+
+        // Warm DO cache for next time
+        await dal.write(predictionsKey, predictionsData, { expirationTtl: 86400 }); // 24 hours
+        return transformed;
+      }
+
+      logger.warn('⚠️ [WEEKLY-REVIEW] No data found for date after all fallbacks', { date: dateStr });
       return null;
 
     } catch (error: unknown) {
@@ -895,7 +1104,11 @@ export class ReportDataRetrieval {
 
   getWeeklyPeriod(date: Date): WeeklyPeriod {
     const startOfWeek = new Date(date);
-    startOfWeek.setDate(date.getDate() - date.getDay() + 1); // Monday
+    const dayOfWeek = date.getDay();
+    // Handle Sunday (day 0) correctly: go back 6 days to Monday
+    // For Mon-Sat: go back (dayOfWeek - 1) days to Monday
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startOfWeek.setDate(date.getDate() - daysToMonday);
 
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 4); // Friday
@@ -903,7 +1116,7 @@ export class ReportDataRetrieval {
     return {
       start: startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       end: endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      year: date.getFullYear()
+      year: startOfWeek.getFullYear() // Use startOfWeek's year in case date spans year boundary
     };
   }
 

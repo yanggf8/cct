@@ -16,10 +16,15 @@ export interface D1SymbolPrediction {
   sentiment: string;
   confidence: number;
   direction: string;
-  model: string;
-  analysis_type: string;
-  trading_signals: string;
+  model: string | null;
+  analysis_type: string | null;
+  trading_signals: string | null;
   created_at: string;
+  // Status and error tracking
+  status?: string;
+  error_message?: string | null;
+  raw_response?: string | null;
+  error_summary?: string | null;
   // Article tracking
   articles_count?: number;
   articles_content?: string;
@@ -542,7 +547,7 @@ export async function updateD1JobStatus(
   env: CloudflareEnvironment,
   jobType: string,
   date: string,
-  status: 'done' | 'failed' | 'running' | 'pending',
+  status: 'done' | 'partial' | 'failed' | 'running' | 'pending',
   metadata: {
     symbols_processed?: number;
     execution_time_ms?: number;

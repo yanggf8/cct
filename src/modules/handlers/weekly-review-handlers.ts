@@ -91,7 +91,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
       title: 'Weekly Review',
       reportType: 'weekly',
       dateStr: weekStr,
-      scheduledHourUTC: 15,
+      scheduledHourUTC: 14, // 14:00 UTC = 9:00 AM ET (matches cron schedule in scheduler.ts)
       scheduledMinuteUTC: 0
     });
     return new Response(pendingPage, {
@@ -157,8 +157,15 @@ function generateWeeklyReviewHTML(
   // Check for actual data
   const hasRealData = weeklyData && (weeklyData.totalSignals > 0 || weeklyData.tradingDays > 0);
 
-  // Scheduled time: Sunday 10:00 AM ET = 15:00 UTC
-  const scheduledUtc = Date.UTC(weekSunday.getUTCFullYear(), weekSunday.getUTCMonth(), weekSunday.getUTCDate(), 15, 0);
+  // Check generation status for failure visibility
+  const genMeta = weeklyData?._generation;
+  const genStatus = genMeta?.status || (hasRealData ? 'success' : 'unknown');
+  const genErrors = genMeta?.errors || [];
+  const genWarnings = genMeta?.warnings || [];
+  const isPartialOrFailed = genStatus === 'partial' || genStatus === 'failed' || genStatus === 'default';
+
+  // Scheduled time: Sunday 14:00 UTC (≈ 9:00 AM ET / 10:00 AM EDT depending on DST)
+  const scheduledUtc = Date.UTC(weekSunday.getUTCFullYear(), weekSunday.getUTCMonth(), weekSunday.getUTCDate(), 14, 0);
 
   // Determine display status - show both ET and local time
   let statusDisplay: string;
@@ -169,6 +176,25 @@ function generateWeeklyReviewHTML(
     statusDisplay = `Data available`;
   } else {
     statusDisplay = `⚠️ No data available`;
+  }
+
+  // Build status banner for partial/failed generation
+  let statusBanner = '';
+  if (isPartialOrFailed) {
+    const bannerClass = genStatus === 'failed' ? 'error-banner' : 'warning-banner';
+    const icon = genStatus === 'failed' ? '❌' : '⚠️';
+    const title = genStatus === 'failed' ? 'Generation Failed' : genStatus === 'partial' ? 'Partial Data' : 'Default Data';
+    const messages = [...genErrors, ...genWarnings];
+    statusBanner = `
+        <div class="${bannerClass}" style="background: ${genStatus === 'failed' ? '#dc262620' : '#f59e0b20'}; border: 1px solid ${genStatus === 'failed' ? '#dc2626' : '#f59e0b'}; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <h4 style="margin: 0 0 8px 0; color: ${genStatus === 'failed' ? '#dc2626' : '#f59e0b'};">${icon} ${title}</h4>
+            <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">
+              ${messages.length > 0 ? messages.join('<br>') : 'Check job execution logs for details.'}
+            </p>
+            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.7;">
+              Data source: ${genMeta?.dataSource || 'unknown'} | Trading days found: ${genMeta?.tradingDaysFound || 0}
+            </p>
+        </div>`;
   }
 
   return `<!DOCTYPE html>
@@ -199,6 +225,8 @@ function generateWeeklyReviewHTML(
               </div>
             </div>
         </div>
+
+        ${statusBanner}
 
         ${!hasRealData ? `
         <div class="no-data">
@@ -450,10 +478,9 @@ export async function sendWeeklyReviewWithTracking(
   console.log(`🚀 [WEEKLY-REVIEW] ${cronExecutionId} Starting weekly review with Facebook messaging`);
 
   // Generate the weekly analysis data using the report module
-  // Use the same week reference as page generation (previous Sunday)
+  // Use current Sunday as anchor - analysis functions look back to find Mon-Fri
+  // This aligns with scheduler.ts and getWeekSunday() in date-utils.ts
   const weekSunday = new Date();
-  weekSunday.setDate(weekSunday.getDate() - 7);
-  const weekStr = weekSunday.toISOString().split('T')[0];
   const weeklyData = analysisResult || await generateWeeklyReviewAnalysis(env as any, weekSunday);
 
   const now = new Date();

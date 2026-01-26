@@ -91,9 +91,9 @@ export function getCurrentTimeET(): { hour: number; minute: number } {
  * Uses timezone from ?tz, DO setting, or defaults to ET
  */
 export async function getWeekSunday(weekParam: string | null, url: URL, cacheDO?: any): Promise<Date> {
-  // Resolve timezone: ?tz > DO setting > Asia/Taipei default
+  // Resolve timezone: ?tz > DO setting > America/New_York default (aligns with market hours)
   const tzParam = url.searchParams.get('tz');
-  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'Asia/Taipei';
+  const tz = tzParam || await getTimezoneFromDO(cacheDO) || 'America/New_York';
   const todayStr = getTodayInZone(tz);
   const today = new Date(todayStr + 'T12:00:00Z');
 

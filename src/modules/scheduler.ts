@@ -172,41 +172,77 @@ export async function handleScheduledEvent(
     }
 
     if (triggerMode === 'weekly_review_analysis') {
-      // Sunday 10:00 AM - Weekly Review Analysis
+      // Sunday 14:00 UTC (9:00 AM ET / 10:00 AM EDT) - Weekly Review Analysis
       console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly review analysis`);
 
-      // Analyze the previous week (Sunday prior to current execution)
+      // Use current Sunday as week anchor - getLastTradingDays() will look back
+      // to find the Mon-Fri that just completed. This aligns with the UI's
+      // getWeekSunday() which also returns the current Sunday.
       const weekSunday = new Date(estTime);
-      weekSunday.setDate(weekSunday.getDate() - 7);
+      // Note: Do NOT subtract 7 days here. The analysis functions already look
+      // back from the anchor date to find the previous trading week (Mon-Fri).
 
       // Generate weekly analysis result for that week
       analysisResult = await generateWeeklyReviewAnalysis(env as any, weekSunday);
+
+      // Check generation status for failure visibility
+      const genMeta = (analysisResult as any)?._generation;
+      const genStatus = genMeta?.status || 'unknown';
+      const genErrors = genMeta?.errors || [];
+      const genWarnings = genMeta?.warnings || [];
+
+      console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generation status: ${genStatus}`, {
+        tradingDaysFound: genMeta?.tradingDaysFound,
+        dataSource: genMeta?.dataSource,
+        errors: genErrors,
+        warnings: genWarnings
+      });
 
       console.log(`📱 [CRON-FB-WEEKLY] ${cronExecutionId} Sending weekly review via Facebook`);
       await sendWeeklyReviewWithTracking(analysisResult, env, cronExecutionId);
       console.log(`✅ [CRON-FB-WEEKLY] ${cronExecutionId} Weekly Facebook message completed`);
 
-      console.log(`✅ [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly review analysis completed`);
+      // Map generation status to job status
+      // 'success' -> 'done', 'partial' -> 'partial', 'failed'/'default' -> 'failed'
+      let jobStatus: 'done' | 'partial' | 'failed' = 'done';
+      if (genStatus === 'partial') {
+        jobStatus = 'partial';
+        console.warn(`⚠️ [CRON-WEEKLY] ${cronExecutionId} Weekly review completed with PARTIAL data`);
+      } else if (genStatus === 'failed' || genStatus === 'default') {
+        jobStatus = 'failed';
+        console.error(`❌ [CRON-WEEKLY] ${cronExecutionId} Weekly review FAILED - using default data`);
+      }
+
+      console.log(`${jobStatus === 'done' ? '✅' : jobStatus === 'partial' ? '⚠️' : '❌'} [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly review analysis completed with status: ${jobStatus}`);
 
       // Write job execution status to job_executions table for dashboard tracking
       try {
         const jobType = 'weekly';
-        await updateD1JobStatus(env, jobType, dateStr, 'done', {
-          symbols_processed: 0,
+        await updateD1JobStatus(env, jobType, dateStr, jobStatus, {
+          symbols_processed: genMeta?.tradingDaysFound || 0,
           execution_time_ms: Date.now() - scheduledTime.getTime(),
-          symbols_successful: 0,
-          symbols_fallback: 0,
-          symbols_failed: 0,
-          errors: []
+          symbols_successful: genStatus === 'success' ? genMeta?.tradingDaysFound || 0 : 0,
+          symbols_fallback: genStatus === 'partial' ? 1 : 0,
+          symbols_failed: genStatus === 'failed' ? 1 : 0,
+          errors: genErrors,
+          warnings: genWarnings,
+          generation_status: genStatus,
+          data_source: genMeta?.dataSource
         });
-        console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Weekly job status written to job_executions`);
+        console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Weekly job status written to job_executions: ${jobStatus}`);
       } catch (statusError: any) {
         console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write weekly job status:`, {
           error: statusError.message
         });
       }
 
-      return new Response('Weekly review analysis completed successfully', { status: 200 });
+      const statusMessage = jobStatus === 'done'
+        ? 'Weekly review analysis completed successfully'
+        : jobStatus === 'partial'
+        ? `Weekly review completed with partial data: ${genWarnings.join(', ')}`
+        : `Weekly review failed: ${genErrors.join(', ')}`;
+
+      return new Response(statusMessage, { status: jobStatus === 'failed' ? 500 : 200 });
 
     } else if (triggerMode === 'sector_rotation_refresh') {
       // 9:30 AM EST - Sector Rotation Data Refresh

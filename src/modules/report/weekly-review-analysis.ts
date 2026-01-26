@@ -195,6 +195,20 @@ export interface WeeklyOverview {
 }
 
 /**
+ * Generation status for visibility into failures
+ */
+export type GenerationStatus = 'success' | 'partial' | 'default' | 'failed';
+
+export interface GenerationMeta {
+  status: GenerationStatus;
+  errors: string[];
+  warnings: string[];
+  dataSource: 'live' | 'cache' | 'fallback' | 'default';
+  tradingDaysFound: number;
+  generatedAt: string;
+}
+
+/**
  * Complete weekly review analysis result
  */
 export interface WeeklyReviewAnalysis {
@@ -212,6 +226,8 @@ export interface WeeklyReviewAnalysis {
     distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
     agreementRate: number | null;
   };
+  /** Generation metadata for failure visibility - check this to detect default/failed data */
+  _generation?: GenerationMeta;
 }
 
 /**
@@ -245,6 +261,7 @@ export interface AnalysisData {
 
 /**
  * Generate comprehensive weekly review analysis
+ * Returns generation metadata (_generation) for failure visibility
  */
 export async function generateWeeklyReviewAnalysis(
   env: CloudflareEnvironment,
@@ -252,9 +269,20 @@ export async function generateWeeklyReviewAnalysis(
 ): Promise<WeeklyReviewAnalysis> {
   logger.info('Generating comprehensive weekly review analysis');
 
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
   try {
     // Get weekly performance data
     const weeklyData = await getWeeklyPerformanceData(env, currentTime);
+
+    // Check for meaningful data
+    const tradingDaysFound = weeklyData.dailyResults?.length || 0;
+    const hasRealData = tradingDaysFound > 0 && weeklyData.totalSignals > 0;
+
+    if (!hasRealData) {
+      warnings.push(`No trading data found (${tradingDaysFound} days, ${weeklyData.totalSignals} signals)`);
+    }
 
     // Analyze weekly patterns
     const patternAnalysis = analyzeWeeklyPatterns(weeklyData);
@@ -271,6 +299,19 @@ export async function generateWeeklyReviewAnalysis(
     // Get dual-model stats from D1 symbol_predictions
     const modelStats = await getWeeklyDualModelStats(env, currentTime);
 
+    if (!modelStats) {
+      warnings.push('No dual-model stats available from D1');
+    }
+
+    // Determine generation status
+    let status: GenerationStatus = 'success';
+    if (!hasRealData && !modelStats) {
+      status = 'partial'; // Some data missing
+    }
+    if (tradingDaysFound === 0) {
+      status = 'partial'; // No trading days found
+    }
+
     return {
       weeklyOverview: {
         totalTradingDays: weeklyData.tradingDays,
@@ -286,12 +327,32 @@ export async function generateWeeklyReviewAnalysis(
       underperformers: weeklyData.underperformers,
       sectorRotation: analyzeSectorRotation(weeklyData),
       nextWeekOutlook: generateNextWeekOutlook(trends, patternAnalysis),
-      modelStats
+      modelStats,
+      _generation: {
+        status,
+        errors,
+        warnings,
+        dataSource: hasRealData ? 'live' : 'fallback',
+        tradingDaysFound,
+        generatedAt: new Date().toISOString()
+      }
     };
 
   } catch (error: unknown) {
-    logger.error('Error generating weekly review analysis', { error: (error as Error).message });
-    return getDefaultWeeklyReviewData();
+    const errorMsg = (error as Error).message;
+    logger.error('Error generating weekly review analysis', { error: errorMsg });
+    errors.push(errorMsg);
+
+    const defaultData = getDefaultWeeklyReviewData();
+    defaultData._generation = {
+      status: 'failed',
+      errors,
+      warnings,
+      dataSource: 'default',
+      tradingDaysFound: 0,
+      generatedAt: new Date().toISOString()
+    };
+    return defaultData;
   }
 }
 
