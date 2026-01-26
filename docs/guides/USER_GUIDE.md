@@ -40,7 +40,7 @@ The dashboard is your central hub for:
 Our system delivers comprehensive sentiment insights through four specialized reports:
 
 ```
-🌅 Morning (8:30 AM) → 📊 Midday (12:00 PM) → 🌆 Evening (4:05 PM) → 🔍 Weekly (Sunday 10:00 AM)
+🌅 Morning (8:30 AM) → 📊 Midday (12:00 PM) → 🌆 Evening (4:05 PM) → 🔍 Weekly (Sunday 14:00 UTC)
     ↓                        ↓                        ↓                         ↓
 Pre-Market Briefing    Intraday Check        End-of-Day Summary      Weekly Review
 ```
@@ -52,7 +52,7 @@ Pre-Market Briefing    Intraday Check        End-of-Day Summary      Weekly Revi
 | **Pre-Market Briefing** | 8:30 AM | Morning preparation | High-confidence signals (≥70%) |
 | **Intraday Check** | 12:00 PM | Performance tracking | Real-time signal validation |
 | **End-of-Day Summary** | 4:05 PM | Market close analysis | Daily performance + tomorrow outlook |
-| **Weekly Review** | Sunday 10:00 AM | Pattern analysis | Comprehensive weekly trends |
+| **Weekly Review** | Sunday 14:00 UTC (≈ 9:00 AM ET / 10:00 AM EDT) | Pattern analysis | Comprehensive weekly trends |
 
 ---
 
@@ -155,7 +155,7 @@ Our system doesn't hide behind complex algorithms. We use **simple, transparent 
 - `/weekly-review` (this week)
 - `/weekly-review?week=last` (last week)
 - `/weekly-review?week=YYYY-MM-DD` (specific week; any date within the week)
-**Best Time**: After 10:00 AM on Sundays
+**Best Time**: After the Sunday weekly cron (14:00 UTC)
 **Content**: Comprehensive weekly pattern analysis
 
 **What You'll Find**:
@@ -163,6 +163,7 @@ Our system doesn't hide behind complex algorithms. We use **simple, transparent 
 - Pattern recognition and insights
 - Model performance metrics
 - Optimization recommendations
+  - If weekly generation was partial/failed, the page shows a banner with `_generation.status` plus warnings/errors for visibility (so failures are not silently treated as success).
 
 ---
 

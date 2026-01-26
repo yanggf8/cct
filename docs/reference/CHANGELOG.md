@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-01-26 - Weekly Report Reliability & Failure Visibility ✅
+
+- Weekly cron now uses the same Sunday anchor as `/weekly-review` (removed the extra `-7 days` week shift), preventing off-by-one-week reports.
+- Weekly review analysis now emits `_generation` metadata and the weekly UI surfaces a banner when generation is `partial`/`failed`/`default` so failures don’t look like success.
+- D1 prediction fallback chain hardened with stale detection and provenance fields (`_fallback_source`, `_fallback_date`, `_error`), and only warms DO cache when fallback data is fresh.
+- Regression scripts updated for auth and week-anchor validation; fixed the dual-AI regression test import path.
+
 ## 2026-01-21 - Market Pulse & Indices (v3.10.0) ✅
 
 - Added DAC market pool support (SPY) with market accessor and harvest endpoints; ArticleCacheDO accepts `market:` prefix.
