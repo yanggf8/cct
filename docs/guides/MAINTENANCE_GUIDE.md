@@ -106,6 +106,10 @@ curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pr
 # - created_at / generated_at: actual run timestamp
 # GET /pre-market-briefing → DO cache (hit) else D1 fallback → warm DO
 # Re-run behavior: same-day rerun overwrites D1 row; first read after rerun warms DO with the new data; subsequent reads hit DO.
+#
+# Failure visibility:
+# - If the pre-market job fails, `/pre-market-briefing` can show a “Job Execution Failed” banner sourced from D1 `job_executions`
+#   for the requested scheduled_date (even if no snapshot was written to `scheduled_job_results`).
 
 # Check morning predictions accuracy
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/results

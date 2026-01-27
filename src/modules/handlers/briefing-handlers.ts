@@ -12,8 +12,9 @@
 
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
-import { getD1FallbackData } from '../d1-job-storage.js';
+import { getD1FallbackData, getD1JobStatus } from '../d1-job-storage.js';
 import { validateRequest, validateEnvironment } from '../validation.js';
+import { validateApiKey } from '../api-v1-responses.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
@@ -89,15 +90,23 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   // Show scheduled if: querying future date OR (querying ET's today AND before schedule)
   const showScheduled = isQueryingFuture || (isQueryingToday && beforeScheduleET);
 
+  // Fetch job execution status to show failure reasons
+  const jobStatus = await getD1JobStatus(env, 'pre-market', queryDateStr);
+
+  // Check if user is authenticated (for showing detailed error info)
+  const isAuthenticated = validateApiKey(request, env).valid;
+
   // Generate HTML based on D1 data availability
-  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture, isQueryingToday);
+  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture, isQueryingToday, jobStatus, isAuthenticated);
 
-  // Cache HTML for fast subsequent loads
-  try {
-    await dal.write(`premarket_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
-  } catch (e) { /* ignore */ }
+  // Cache HTML for fast subsequent loads (skip if job failed - don't cache error state)
+  if (!jobStatus || jobStatus.status !== 'failed') {
+    try {
+      await dal.write(`premarket_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
+    } catch (e) { /* ignore */ }
+  }
 
-  logger.info('🎯 [PRE-MARKET] Pre-market briefing completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result });
+  logger.info('🎯 [PRE-MARKET] Pre-market briefing completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result, jobStatus: jobStatus?.status });
 
   return new Response(htmlContent, {
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'X-Request-ID': requestId }
@@ -112,14 +121,26 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
  * 2. If data is stale (from different date) → show stale warning
  * 3. If no D1 data AND querying today AND before 8:30 AM ET → show "Scheduled"
  * 4. If no D1 data AND past scheduled time → show "No data available"
+ * 5. If job failed → show failure reason in title section
  */
 function generatePreMarketHTML(
   d1Result: { data: any; createdAt: string; isStale?: boolean; sourceDate?: string } | null,
   queryDateStr: string,
   showScheduled: boolean,
   isQueryingFuture: boolean,
-  isQueryingToday: boolean
+  isQueryingToday: boolean,
+  jobStatus?: { status: string; timestamp: string; metadata: any; scheduled_date?: string } | null
 ): string {
+  const escapeHtml = (value: unknown): string => {
+    const str = String(value ?? '');
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+
   const briefingData = d1Result?.data;
   const d1CreatedAt = d1Result?.createdAt;
   const sourceDate = d1Result?.sourceDate || queryDateStr;
@@ -128,6 +149,10 @@ function generatePreMarketHTML(
   // isPending: querying today with no exact match data, and before schedule
   // Show pending even if stale fallback data exists - don't show yesterday's data as "today"
   const isPending = (!d1Result || isStale) && isQueryingToday && showScheduled;
+
+  // Check if job failed
+  const jobFailed = jobStatus?.status === 'failed';
+  const jobErrors = jobStatus?.metadata?.errors || [];
 
   // D1 record exists = we have data (regardless of signal count)
   const hasD1Data = !!d1Result;
@@ -226,6 +251,22 @@ function generatePreMarketHTML(
         </div>
         ` : '';
 
+  // Job failure warning - show when job execution failed
+  const jobFailureWarning = jobFailed ? `
+        <div class="job-failure-warning" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span style="font-size: 1.2rem;">❌</span>
+                <strong style="color: #ef4444;">Job Execution Failed</strong>
+                <span style="font-size: 0.85rem; color: rgba(250,248,245,0.7);">${jobStatus?.timestamp ? new Date(jobStatus.timestamp).toLocaleString() : ''}</span>
+            </div>
+            ${jobErrors.length > 0 ? `
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; color: rgba(250,248,245,0.9);">
+                ${jobErrors.map((e: string) => `<div>• ${escapeHtml(e)}</div>`).join('')}
+            </div>
+            ` : '<div style="color: rgba(250,248,245,0.7); font-size: 0.9rem;">No error details available. Check GitHub Actions logs for more information.</div>'}
+        </div>
+        ` : '';
+
   // Display date: use actual D1 sourceDate when data exists, queryDate only for pending/no-data
   const displayDate = hasD1Data ? sourceDate : queryDateStr;
 
@@ -235,16 +276,15 @@ function generatePreMarketHTML(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pre-Market Briefing - ${displayDate}</title>
-    ${getNavScripts()}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
-    <script src="js/cct-api.js"></script>
-    <style>
-        /* Core styles handled by reports.css */
-    </style>
-</head>
-</head>
-<body>
-    ${getSharedNavHTML('pre-market')}
+	    ${getNavScripts()}
+	    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+	    <script src="js/cct-api.js"></script>
+	    <style>
+	        /* Core styles handled by reports.css */
+	    </style>
+	</head>
+	<body>
+	    ${getSharedNavHTML('pre-market')}
     <div class="container">
         <div class="header">
             <h1>🚀 Pre-Market Briefing</h1>
@@ -265,6 +305,7 @@ function generatePreMarketHTML(
               </div>
             </div>
             ${staleWarning}
+            ${jobFailureWarning}
             <div class="market-status">
                 <span class="status-dot"></span>
                 <span>Pre-Market Active</span>

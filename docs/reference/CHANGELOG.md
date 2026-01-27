@@ -5,6 +5,8 @@
 - Weekly cron now persists the Weekly Review payload to D1 `scheduled_job_results` (`report_type='weekly'`) so the frontend can reliably load weekly report data.
 - `/weekly-review` now prefers the cron-written D1 snapshot (read-first) and no longer overwrites it from the request handler; live generation remains a fallback when no snapshot exists.
 - Normalization in the weekly review renderer now supports the cron snapshot shape and computes `avgConfidence` from `modelStats.*.avgConfidence` (0..1) to avoid misleading UI values.
+- Pre-market briefing now shows a “Job Execution Failed” banner when `job_executions` reports a failed run for the requested date (useful when GitHub Actions fails before writing any D1 snapshot).
+- GitHub Actions schedule window detection fixed bash `[[ ... ]]` syntax so pre-market/weekly/intraday/EOD job selection no longer fails on time-range comparisons.
 
 ## 2026-01-26 - Weekly Report Reliability & Failure Visibility ✅
 
