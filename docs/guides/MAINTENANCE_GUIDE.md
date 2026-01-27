@@ -363,6 +363,7 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=7d | grep 
 **Notes**
 - `/weekly-review` prefers the cron-written D1 snapshot (`scheduled_job_results`, `report_type='weekly'`) and only falls back to live generation if the snapshot is missing.
 - Some charts may be empty when viewing cron snapshots if the underlying fields aren’t available yet (cosmetic; follow-up improvement).
+- Week selection uses strict Mon–Fri boundaries for the anchor week (no cross-week spillover). In holiday weeks, fewer trading days may be found and `_generation.status` may be `partial` with warnings.
 
 #### **2. Data Cleanup**
 ```bash
