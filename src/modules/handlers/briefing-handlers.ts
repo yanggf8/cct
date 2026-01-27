@@ -129,7 +129,8 @@ function generatePreMarketHTML(
   showScheduled: boolean,
   isQueryingFuture: boolean,
   isQueryingToday: boolean,
-  jobStatus?: { status: string; timestamp: string; metadata: any; scheduled_date?: string } | null
+  jobStatus?: { status: string; timestamp: string; metadata: any; scheduled_date?: string } | null,
+  isAuthenticated?: boolean
 ): string {
   const escapeHtml = (value: unknown): string => {
     const str = String(value ?? '');
@@ -252,18 +253,18 @@ function generatePreMarketHTML(
         ` : '';
 
   // Job failure warning - show when job execution failed
+  // Only show detailed errors to authenticated users to avoid exposing internal info
   const jobFailureWarning = jobFailed ? `
         <div class="job-failure-warning" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                 <span style="font-size: 1.2rem;">❌</span>
                 <strong style="color: #ef4444;">Job Execution Failed</strong>
-                <span style="font-size: 0.85rem; color: rgba(250,248,245,0.7);">${jobStatus?.timestamp ? new Date(jobStatus.timestamp).toLocaleString() : ''}</span>
             </div>
-            ${jobErrors.length > 0 ? `
+            ${isAuthenticated && jobErrors.length > 0 ? `
             <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; color: rgba(250,248,245,0.9);">
-                ${jobErrors.map((e: string) => `<div>• ${escapeHtml(e)}</div>`).join('')}
+                ${jobErrors.slice(0, 5).map((e: string) => `<div>• ${escapeHtml(String(e).slice(0, 200))}</div>`).join('')}
             </div>
-            ` : '<div style="color: rgba(250,248,245,0.7); font-size: 0.9rem;">No error details available. Check GitHub Actions logs for more information.</div>'}
+            ` : '<div style="color: rgba(250,248,245,0.7); font-size: 0.9rem;">The scheduled job failed to complete. Please try again later or check system status.</div>'}
         </div>
         ` : '';
 

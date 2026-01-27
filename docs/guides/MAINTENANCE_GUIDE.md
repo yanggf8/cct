@@ -110,6 +110,7 @@ curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/pr
 # Failure visibility:
 # - If the pre-market job fails, `/pre-market-briefing` can show a “Job Execution Failed” banner sourced from D1 `job_executions`
 #   for the requested scheduled_date (even if no snapshot was written to `scheduled_job_results`).
+# - Detailed error messages are only shown when an API key is provided (to avoid exposing internal errors publicly).
 
 # Check morning predictions accuracy
 curl -H "X-API-KEY: $X_API_KEY" https://tft-trading-system.yanggf.workers.dev/results

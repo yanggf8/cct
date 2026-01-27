@@ -131,26 +131,34 @@ export async function getWeekSunday(weekParam: string | null, url: URL, cacheDO?
 }
 
 /**
- * Get last trading days (excluding weekends)
+ * Get weekdays (Mon-Fri) for the week ending at the anchor date.
+ * Strict week boundaries: only returns dates from that specific week, no cross-week spillover.
+ *
+ * @param anchorDate - Typically a Sunday; returns Mon-Fri of the week ending on that Sunday
+ * @param count - Max days to return (default 5 for Mon-Fri)
+ * @returns Array of dates [Mon, Tue, Wed, Thu, Fri] in chronological order
  */
-export function getLastTradingDays(currentTime: number | string | Date, count: number): Date[] {
+export function getLastTradingDays(anchorDate: number | string | Date, count: number = 5): Date[] {
+  const anchor = new Date(anchorDate);
+  const dayOfWeek = anchor.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  // Calculate Monday of the week that just ended
+  // If anchor is Sunday (0), Monday was 6 days ago
+  // If anchor is Saturday (6), Monday was 5 days ago
+  // If anchor is Friday (5), Monday was 4 days ago, etc.
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+  const monday = new Date(anchor);
+  monday.setDate(anchor.getDate() - daysToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  // Return Mon-Fri of that specific week (strict boundaries)
   const dates: Date[] = [];
-  const current = new Date(currentTime);
-
-  // Go back to find trading days (weekdays)
-  let daysBack = 0;
-  while (dates.length < count && daysBack < count * 2) {
-    const checkDate = new Date(current);
-    checkDate.setDate(current.getDate() - daysBack);
-
-    // Check if it's a weekday (Monday = 1, Friday = 5)
-    const dayOfWeek = checkDate.getDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      dates.push(checkDate);
-    }
-
-    daysBack++;
+  for (let i = 0; i < Math.min(count, 5); i++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
+    dates.push(date);
   }
 
-  return dates.reverse(); // Return in chronological order
+  return dates; // Already in chronological order [Mon, Tue, Wed, Thu, Fri]
 }

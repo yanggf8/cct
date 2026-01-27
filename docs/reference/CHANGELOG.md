@@ -7,6 +7,8 @@
 - Normalization in the weekly review renderer now supports the cron snapshot shape and computes `avgConfidence` from `modelStats.*.avgConfidence` (0..1) to avoid misleading UI values.
 - Pre-market briefing now shows a “Job Execution Failed” banner when `job_executions` reports a failed run for the requested date (useful when GitHub Actions fails before writing any D1 snapshot).
 - GitHub Actions schedule window detection fixed bash `[[ ... ]]` syntax so pre-market/weekly/intraday/EOD job selection no longer fails on time-range comparisons.
+- Pre-market failure details are now auth-aware and XSS-safe: unauthenticated users see a generic failure message; authenticated users see truncated, escaped error details.
+- Weekly review date selection now enforces strict Mon–Fri boundaries for the anchor week (no cross-week spillover).
 
 ## 2026-01-26 - Weekly Report Reliability & Failure Visibility ✅
 
