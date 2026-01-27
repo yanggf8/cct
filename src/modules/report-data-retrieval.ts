@@ -662,6 +662,8 @@ export class ReportDataRetrieval {
       if (weeklyData.length === 0) {
         logger.info('DO cache miss for weekly, trying D1 fallback', { date: dateStr });
         const fallback = await getD1FallbackData(env, dateStr, 'weekly');
+        // Note: WeeklyReviewAnalysis from cron is now handled directly by the handler
+        // via readD1ReportSnapshot. This fallback only handles legacy weeklyData array format.
         if (fallback?.data?.weeklyData) {
           weeklyData = fallback.data.weeklyData;
           isStale = fallback.isStale;
@@ -672,7 +674,7 @@ export class ReportDataRetrieval {
       // Aggregate dual-model weekly stats from symbol_predictions (last 7 days ending on date)
       const modelStats = await getWeeklyDualModelStats(env as any, date);
 
-      // Generate weekly analysis
+      // Generate weekly analysis from performance data
       const weeklyAnalysis: WeeklyAnalysis = this.generateWeeklyAnalysis(weeklyData);
 
       const result: WeeklyReviewData = {

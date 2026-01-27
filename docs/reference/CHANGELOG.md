@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-01-27 - Weekly Review D1 Snapshot Fix ✅
+
+- Weekly cron now persists the Weekly Review payload to D1 `scheduled_job_results` (`report_type='weekly'`) so the frontend can reliably load weekly report data.
+- `/weekly-review` now prefers the cron-written D1 snapshot (read-first) and no longer overwrites it from the request handler; live generation remains a fallback when no snapshot exists.
+- Normalization in the weekly review renderer now supports the cron snapshot shape and computes `avgConfidence` from `modelStats.*.avgConfidence` (0..1) to avoid misleading UI values.
+
 ## 2026-01-26 - Weekly Report Reliability & Failure Visibility ✅
 
 - Weekly cron now uses the same Sunday anchor as `/weekly-review` (removed the extra `-7 days` week shift), preventing off-by-one-week reports.

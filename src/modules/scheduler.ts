@@ -236,6 +236,32 @@ export async function handleScheduledEvent(
         });
       }
 
+      // Write weekly report to scheduled_job_results table for frontend retrieval
+      // This parallels the writeD1JobResult calls for pre-market/intraday/EOD jobs
+      try {
+        const d1Written = await writeD1JobResult(env, dateStr, 'weekly', {
+          ...analysisResult,
+          cron_execution_id: cronExecutionId,
+          trigger_mode: triggerMode,
+          generated_at: estTime.toISOString(),
+          job_status: jobStatus,
+          _generation: genMeta
+        }, {
+          processingTimeMs: Date.now() - scheduledTime.getTime(),
+          generation_status: genStatus,
+          errors: genErrors,
+          warnings: genWarnings
+        }, 'cron');
+        console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: weekly for ${dateStr}, success: ${d1Written}`);
+      } catch (d1Error: any) {
+        console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 weekly write failed:`, {
+          error: d1Error.message,
+          stack: d1Error.stack,
+          dateStr
+        });
+        // Continue execution even if D1 fails
+      }
+
       const statusMessage = jobStatus === 'done'
         ? 'Weekly review analysis completed successfully'
         : jobStatus === 'partial'

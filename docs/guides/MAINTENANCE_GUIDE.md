@@ -355,6 +355,10 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --since=7d | grep 
 # Look for successful completions with "Analysis completed successfully" logs
 ```
 
+**Notes**
+- `/weekly-review` prefers the cron-written D1 snapshot (`scheduled_job_results`, `report_type='weekly'`) and only falls back to live generation if the snapshot is missing.
+- Some charts may be empty when viewing cron snapshots if the underlying fields aren’t available yet (cosmetic; follow-up improvement).
+
 #### **2. Data Cleanup**
 ```bash
 # Clean up old tracking records (automated through MessageTracker)

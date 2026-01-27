@@ -7,7 +7,7 @@ import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
-import { writeD1JobResult } from '../d1-job-storage.js';
+import { readD1ReportSnapshot } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import { generatePendingPageHTML } from './pending-page.js';
@@ -56,16 +56,44 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   });
 
   let weeklyData: any = null;
+  let dataSource: 'd1_cron' | 'd1_fallback' | 'live' = 'live';
 
   try {
-    weeklyData = await getWeeklyReviewData(env, weekSunday);
+    // First, try to read the cron job's WeeklyReviewAnalysis from D1 (scheduled_job_results)
+    // This is the primary source - written by scheduler.ts with full analysis
+    const d1Snapshot = await readD1ReportSnapshot(env, weekStr, 'weekly');
+
+    if (d1Snapshot?.data) {
+      // Check if this is a WeeklyReviewAnalysis from the cron (has weeklyOverview, patternAnalysis)
+      if (d1Snapshot.data.weeklyOverview && d1Snapshot.data.patternAnalysis) {
+        logger.info('✅ [WEEKLY-REVIEW] Using cron analysis from D1', {
+          requestId,
+          week: weekStr,
+          generatedAt: d1Snapshot.data.generated_at || d1Snapshot.createdAt,
+          generationStatus: d1Snapshot.data._generation?.status
+        });
+        weeklyData = d1Snapshot.data;
+        dataSource = 'd1_cron';
+      }
+    }
+
+    // If no cron data, fall back to getWeeklyReviewData (live generation)
+    if (!weeklyData) {
+      logger.info('📊 [WEEKLY-REVIEW] No cron data, falling back to live generation', {
+        requestId,
+        week: weekStr
+      });
+      weeklyData = await getWeeklyReviewData(env, weekSunday);
+      dataSource = weeklyData?._generation ? 'd1_fallback' : 'live';
+    }
 
     if (weeklyData) {
       logger.info('✅ [WEEKLY-REVIEW] Weekly data retrieved successfully', {
         requestId,
         week: weekStr,
-        totalSignals: weeklyData.totalSignals || 0,
-        tradingDays: weeklyData.tradingDays || 0,
+        dataSource,
+        totalSignals: weeklyData.weeklyOverview?.totalSignals || weeklyData.totalSignals || 0,
+        tradingDays: weeklyData.weeklyOverview?.totalTradingDays || weeklyData.tradingDays || 0,
         hasData: true
       });
     } else {
@@ -110,17 +138,9 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
 
   const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, weekSunday, weekLabel);
 
-  // Write snapshot to D1 and cache HTML
+  // Cache HTML in DO (don't write to D1 - cron job is the source of truth for scheduled_job_results)
   const dal = createSimplifiedEnhancedDAL(env);
   if (weeklyData) {
-    await writeD1JobResult(env, weekStr, 'weekly', weeklyData, {
-      processingTimeMs: Date.now() - startTime,
-      tradingDays: weeklyData.tradingDays || 0,
-      ai_models: {
-        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-        secondary: '@cf/huggingface/distilbert-sst-2-int8'
-      }
-    }, 'scheduler');
     await dal.write(`weekly_${weekStr}`, weeklyData, { expirationTtl: 86400 });
   }
   await dal.write(cacheKey, htmlContent, { expirationTtl: 600 });
@@ -154,11 +174,39 @@ function generateWeeklyReviewHTML(
 
   const weekRange = `${weekSunday.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`;
 
+  // Normalize data: WeeklyReviewAnalysis (cron) uses weeklyOverview, WeeklyReviewData uses flat fields
+  // This ensures the renderer works with both formats
+  const isCronFormat = weeklyData?.weeklyOverview && weeklyData?.patternAnalysis;
+  const normalizedData = isCronFormat ? {
+    // avgConfidence should be a 0..1 fraction (UI multiplies by 100). Prefer modelStats if present.
+    avgConfidence: (() => {
+      const confidences = [
+        weeklyData.modelStats?.gemma?.avgConfidence,
+        weeklyData.modelStats?.distilbert?.avgConfidence,
+      ].filter((v: any) => typeof v === 'number' && Number.isFinite(v));
+      if (confidences.length === 0) return null;
+      return confidences.reduce((a: number, b: number) => a + b, 0) / confidences.length;
+    })(),
+    totalSignals: weeklyData.weeklyOverview?.totalSignals || 0,
+    tradingDays: weeklyData.weeklyOverview?.totalTradingDays || 0,
+    accuracyRate: (weeklyData.accuracyMetrics?.weeklyAverage || 0) / 100, // Convert percentage to decimal
+    modelStats: weeklyData.modelStats,
+    generatedAt: weeklyData._generation?.generatedAt || weeklyData.generated_at,
+    _generation: weeklyData._generation,
+    // Extended cron data
+    insights: weeklyData.insights,
+    topPerformers: weeklyData.topPerformers,
+    underperformers: weeklyData.underperformers,
+    nextWeekOutlook: weeklyData.nextWeekOutlook,
+    patternAnalysis: weeklyData.patternAnalysis,
+    trends: weeklyData.trends
+  } : weeklyData;
+
   // Check for actual data
-  const hasRealData = weeklyData && (weeklyData.totalSignals > 0 || weeklyData.tradingDays > 0);
+  const hasRealData = normalizedData && (normalizedData.totalSignals > 0 || normalizedData.tradingDays > 0);
 
   // Check generation status for failure visibility
-  const genMeta = weeklyData?._generation;
+  const genMeta = normalizedData?._generation;
   const genStatus = genMeta?.status || (hasRealData ? 'success' : 'unknown');
   const genErrors = genMeta?.errors || [];
   const genWarnings = genMeta?.warnings || [];
@@ -169,8 +217,8 @@ function generateWeeklyReviewHTML(
 
   // Determine display status - show both ET and local time
   let statusDisplay: string;
-  if (hasRealData && weeklyData.generatedAt) {
-    const ts = new Date(weeklyData.generatedAt).getTime();
+  if (hasRealData && normalizedData.generatedAt) {
+    const ts = new Date(normalizedData.generatedAt).getTime();
     statusDisplay = `Generated <span class="gen-time" data-ts="${ts}"></span>`;
   } else if (hasRealData) {
     statusDisplay = `Data available`;
@@ -239,22 +287,22 @@ function generateWeeklyReviewHTML(
         <div class="summary-grid">
             <div class="summary-card">
                 <h3>Total Signals</h3>
-                <div class="value">${weeklyData.totalSignals || 0}</div>
+                <div class="value">${normalizedData.totalSignals || 0}</div>
                 <div class="label">High-confidence predictions</div>
             </div>
             <div class="summary-card">
                 <h3>Accuracy Rate</h3>
-                <div class="value">${weeklyData.accuracyRate ? Math.round(weeklyData.accuracyRate * 100) + '%' : 'N/A'}</div>
+                <div class="value">${normalizedData.accuracyRate ? Math.round(normalizedData.accuracyRate * 100) + '%' : 'N/A'}</div>
                 <div class="label">Overall success rate</div>
             </div>
             <div class="summary-card">
                 <h3>Trading Days</h3>
-                <div class="value">${weeklyData.tradingDays || 0}</div>
+                <div class="value">${normalizedData.tradingDays || 0}</div>
                 <div class="label">Days analyzed</div>
             </div>
             <div class="summary-card">
                 <h3>Avg Confidence</h3>
-                <div class="value">${weeklyData.avgConfidence ? Math.round(weeklyData.avgConfidence * 100) + '%' : 'N/A'}</div>
+                <div class="value">${normalizedData.avgConfidence ? Math.round(normalizedData.avgConfidence * 100) + '%' : 'N/A'}</div>
                 <div class="label">Prediction confidence</div>
             </div>
         </div>
@@ -265,25 +313,25 @@ function generateWeeklyReviewHTML(
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 800px; margin: 0 auto;">
                 <div class="summary-card">
                     <h3>Gemma Sea Lion</h3>
-                    <div class="value">${weeklyData.modelStats?.gemma?.accuracy ? Math.round(weeklyData.modelStats.gemma.accuracy * 100) + '%' : 'N/A'}</div>
-                    <div class="label">${weeklyData.modelStats?.gemma?.total || 0} predictions</div>
+                    <div class="value">${normalizedData.modelStats?.gemma?.accuracy ? Math.round(normalizedData.modelStats.gemma.accuracy * 100) + '%' : 'N/A'}</div>
+                    <div class="label">${normalizedData.modelStats?.gemma?.total || 0} predictions</div>
                     <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
-                        ✓ ${weeklyData.modelStats?.gemma?.success || 0} success | 
-                        ✗ ${weeklyData.modelStats?.gemma?.failed || 0} failed
+                        ✓ ${normalizedData.modelStats?.gemma?.success || 0} success | 
+                        ✗ ${normalizedData.modelStats?.gemma?.failed || 0} failed
                     </div>
                 </div>
                 <div class="summary-card">
                     <h3>DistilBERT</h3>
-                    <div class="value">${weeklyData.modelStats?.distilbert?.accuracy ? Math.round(weeklyData.modelStats.distilbert.accuracy * 100) + '%' : 'N/A'}</div>
-                    <div class="label">${weeklyData.modelStats?.distilbert?.total || 0} predictions</div>
+                    <div class="value">${normalizedData.modelStats?.distilbert?.accuracy ? Math.round(normalizedData.modelStats.distilbert.accuracy * 100) + '%' : 'N/A'}</div>
+                    <div class="label">${normalizedData.modelStats?.distilbert?.total || 0} predictions</div>
                     <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
-                        ✓ ${weeklyData.modelStats?.distilbert?.success || 0} success | 
-                        ✗ ${weeklyData.modelStats?.distilbert?.failed || 0} failed
+                        ✓ ${normalizedData.modelStats?.distilbert?.success || 0} success | 
+                        ✗ ${normalizedData.modelStats?.distilbert?.failed || 0} failed
                     </div>
                 </div>
             </div>
             <div style="text-align: center; margin-top: 15px; font-size: 0.9rem; opacity: 0.8;">
-                Agreement Rate: ${weeklyData.modelStats?.agreementRate ? Math.round(weeklyData.modelStats.agreementRate * 100) + '%' : 'N/A'}
+                Agreement Rate: ${normalizedData.modelStats?.agreementRate ? Math.round(normalizedData.modelStats.agreementRate * 100) + '%' : 'N/A'}
             </div>
         </div>
 
@@ -326,7 +374,7 @@ function generateWeeklyReviewHTML(
                     </tr>
                 </thead>
                 <tbody>
-                    ${generatePerformanceTableRows(weeklyData)}
+                    ${generatePerformanceTableRows(normalizedData)}
                 </tbody>
             </table>
         </div>
@@ -334,7 +382,7 @@ function generateWeeklyReviewHTML(
         <!-- Insights Section -->
         <div class="insights-section">
             <h2>🔍 Weekly Insights</h2>
-            ${generateInsightsHTML(weeklyData)}
+            ${generateInsightsHTML(normalizedData)}
         </div>
         `}
     </div>
@@ -372,10 +420,10 @@ function generateWeeklyReviewHTML(
             new Chart(accuracyCtx, {
                 type: 'line',
                 data: {
-                    labels: ${JSON.stringify(weeklyData.dailyData?.map((d: any) => d.date) || [])},
+                    labels: ${JSON.stringify(normalizedData.dailyData?.map((d: any) => d.date) || normalizedData.patternAnalysis?.dailyVariations?.map((d: any) => d.day) || [])},
                     datasets: [{
                         label: 'Daily Accuracy (%)',
-                        data: ${JSON.stringify(weeklyData.dailyData?.map((d: any) => (d.accuracy || 0) * 100) || [])},
+                        data: ${JSON.stringify(normalizedData.dailyData?.map((d: any) => (d.accuracy || 0) * 100) || normalizedData.patternAnalysis?.dailyVariations?.map((d: any) => d.accuracy || 0) || [])},
                         borderColor: '#f0b90b',
                         backgroundColor: 'rgba(240, 185, 11, 0.1)',
                         tension: 0.4
@@ -392,9 +440,9 @@ function generateWeeklyReviewHTML(
                     labels: ['Bullish', 'Bearish', 'Neutral'],
                     datasets: [{
                         data: ${JSON.stringify([
-    weeklyData.signalDistribution?.bullish || 0,
-    weeklyData.signalDistribution?.bearish || 0,
-    weeklyData.signalDistribution?.neutral || 0
+    normalizedData.signalDistribution?.bullish || 0,
+    normalizedData.signalDistribution?.bearish || 0,
+    normalizedData.signalDistribution?.neutral || 0
   ])},
                         backgroundColor: ['#10b981', '#ef4444', '#f59e0b'],
                         borderWidth: 0
@@ -411,10 +459,10 @@ function generateWeeklyReviewHTML(
             new Chart(symbolCtx, {
                 type: 'bar',
                 data: {
-                    labels: ${JSON.stringify(weeklyData.symbolPerformance?.map((s: any) => s.symbol) || [])},
+                    labels: ${JSON.stringify(normalizedData.symbolPerformance?.map((s: any) => s.symbol) || normalizedData.topPerformers?.map((p: any) => p.symbol) || [])},
                     datasets: [{
                         label: 'Accuracy (%)',
-                        data: ${JSON.stringify(weeklyData.symbolPerformance?.map((s: any) => (s.accuracy || 0) * 100) || [])},
+                        data: ${JSON.stringify(normalizedData.symbolPerformance?.map((s: any) => (s.accuracy || 0) * 100) || normalizedData.topPerformers?.map((p: any) => (p.accuracy || p.avgReturn || 0) * 100) || [])},
                         backgroundColor: 'rgba(240, 185, 11, 0.8)',
                         borderColor: '#f0b90b',
                         borderWidth: 1
@@ -445,20 +493,25 @@ function generateWeeklyReviewHTML(
  * Generate performance table rows HTML
  */
 function generatePerformanceTableRows(weeklyData: any): string {
-  if (!weeklyData.dailyData || weeklyData.dailyData.length === 0) {
+  // Support both formats: dailyData (legacy) or patternAnalysis.dailyVariations (cron)
+  const dailyData = weeklyData.dailyData || weeklyData.patternAnalysis?.dailyVariations;
+
+  if (!dailyData || dailyData.length === 0) {
     return '<tr><td colspan="6" style="text-align: center; padding: 20px;">No daily performance data available</td></tr>';
   }
 
-  return weeklyData.dailyData.map((day: any) => {
-    const accuracy = day.accuracy ? Math.round(day.accuracy * 100) : 0;
+  return dailyData.map((day: any) => {
+    // Handle both formats: accuracy as percentage (cron) or decimal (legacy)
+    const rawAccuracy = day.accuracy || 0;
+    const accuracy = rawAccuracy > 1 ? Math.round(rawAccuracy) : Math.round(rawAccuracy * 100);
     const confidence = day.avgConfidence ? Math.round(day.avgConfidence * 100) : 0;
     const accuracyClass = accuracy >= 70 ? 'accuracy-high' : accuracy >= 50 ? 'accuracy-medium' : 'accuracy-low';
 
     return `
       <tr>
-        <td>${day.date}</td>
-        <td>${day.totalSignals || 0}</td>
-        <td>${day.correctSignals || 0}</td>
+        <td>${day.date || day.day || 'N/A'}</td>
+        <td>${day.totalSignals || day.signals || 0}</td>
+        <td>${day.correctSignals || Math.round((day.signals || 0) * (rawAccuracy > 1 ? rawAccuracy / 100 : rawAccuracy)) || 0}</td>
         <td><span class="accuracy-badge ${accuracyClass}">${accuracy}%</span></td>
         <td>${confidence}%</td>
         <td>${day.status || 'Completed'}</td>
@@ -506,29 +559,48 @@ export async function sendWeeklyReviewWithTracking(
 function generateInsightsHTML(weeklyData: any): string {
   const insights = [];
 
-  if (weeklyData.accuracyRate && weeklyData.accuracyRate > 0.7) {
-    insights.push({
-      title: '🎯 Excellent Performance',
-      content: `Your trading accuracy of ${Math.round(weeklyData.accuracyRate * 100)}% this week exceeds the 70% target threshold. Keep up the great work!`
+  // Use pre-generated insights from cron if available
+  if (weeklyData.insights?.length > 0) {
+    weeklyData.insights.forEach((insight: any) => {
+      insights.push({
+        title: insight.title || insight.type || '📊 Insight',
+        content: insight.content || insight.description || insight.message || JSON.stringify(insight)
+      });
     });
-  } else if (weeklyData.accuracyRate && weeklyData.accuracyRate < 0.5) {
-    insights.push({
-      title: '⚠️ Performance Alert',
-      content: `This week's accuracy of ${Math.round(weeklyData.accuracyRate * 100)}% is below 50%. Consider reviewing your signal generation criteria.`
-    });
+  } else {
+    // Generate insights from normalized data
+    if (weeklyData.accuracyRate && weeklyData.accuracyRate > 0.7) {
+      insights.push({
+        title: '🎯 Excellent Performance',
+        content: `Your trading accuracy of ${Math.round(weeklyData.accuracyRate * 100)}% this week exceeds the 70% target threshold. Keep up the great work!`
+      });
+    } else if (weeklyData.accuracyRate && weeklyData.accuracyRate < 0.5) {
+      insights.push({
+        title: '⚠️ Performance Alert',
+        content: `This week's accuracy of ${Math.round(weeklyData.accuracyRate * 100)}% is below 50%. Consider reviewing your signal generation criteria.`
+      });
+    }
+
+    if (weeklyData.avgConfidence && weeklyData.avgConfidence > 0.8) {
+      insights.push({
+        title: '💪 High Confidence',
+        content: `Average prediction confidence of ${Math.round(weeklyData.avgConfidence * 100)}% indicates strong signal quality this week.`
+      });
+    }
+
+    if (weeklyData.totalSignals && weeklyData.totalSignals > 20) {
+      insights.push({
+        title: '📊 Active Trading',
+        content: `Generated ${weeklyData.totalSignals} high-confidence signals this week, showing consistent market engagement.`
+      });
+    }
   }
 
-  if (weeklyData.avgConfidence && weeklyData.avgConfidence > 0.8) {
+  // Add next week outlook if available from cron
+  if (weeklyData.nextWeekOutlook) {
     insights.push({
-      title: '💪 High Confidence',
-      content: `Average prediction confidence of ${Math.round(weeklyData.avgConfidence * 100)}% indicates strong signal quality this week.`
-    });
-  }
-
-  if (weeklyData.totalSignals && weeklyData.totalSignals > 20) {
-    insights.push({
-      title: '📊 Active Trading',
-      content: `Generated ${weeklyData.totalSignals} high-confidence signals this week, showing consistent market engagement.`
+      title: '🔮 Next Week Outlook',
+      content: weeklyData.nextWeekOutlook.summary || weeklyData.nextWeekOutlook.description || 'See detailed outlook below.'
     });
   }
 
