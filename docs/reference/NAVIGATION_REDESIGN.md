@@ -47,3 +47,18 @@ This document outlines the transition from a top-bar navigation to a persistent 
 
 ## Usage
 The system automatically injects this navigation (including the mobile toggle button) into any page referencing `nav.js`. No manual HTML changes are required for individual pages.
+
+---
+
+## V2 Proposal (Date-Based Report Hierarchy)
+
+For the updated, date-based navigation design (last N trading days with per-report ✅/❌/⏳ status), see:
+
+- `docs/NAVIGATION_REDESIGN_V2.md`
+
+Key concepts introduced in V2:
+
+- A “Reports” tree grouped by **trading day (ET)** with children: **Pre-Market**, **Intraday**, **End-of-Day**.
+- Weekly remains a standalone top-level link (`/weekly-review`).
+- A materialized D1 summary table (`job_date_results`) intended to power nav status cheaply, even when `scheduled_job_results` snapshots are missing (e.g., job failed before snapshot write).
+- A status endpoint (`GET /api/v1/reports/status?days=N`) to fetch the last N trading days’ status map for nav rendering.
