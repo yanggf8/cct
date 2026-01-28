@@ -426,21 +426,59 @@ export class IntradayDataBridge {
     }
 
     try {
-      const result = await this.env.PREDICT_JOBS_DB
+      // Get latest successful pre-market run for this date
+      const runResult = await this.env.PREDICT_JOBS_DB
         .prepare(`
-          SELECT
-            symbol, sentiment, confidence, articles_count, direction, trading_signals,
-            gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
-            distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
-            model_selection_reason
-          FROM symbol_predictions
-          WHERE prediction_date = ?
-          ORDER BY confidence DESC
+          SELECT run_id
+          FROM job_run_results
+          WHERE scheduled_date = ? 
+            AND report_type = 'pre-market'
+            AND status IN ('success', 'partial')
+          ORDER BY created_at DESC
+          LIMIT 1
         `)
         .bind(date)
-        .all();
+        .first();
 
-      return (result.results || []) as MorningPrediction[];
+      if (!runResult || !runResult.run_id) {
+        logger.warn('IntradayDataBridge: No successful pre-market run found', { date });
+        return [];
+      }
+
+      const runId = runResult.run_id as string;
+      logger.info('IntradayDataBridge: Using pre-market run', { date, runId });
+
+      // Get report snapshot for this specific run
+      const { readD1ReportSnapshotByRunId } = await import('./d1-job-storage.js');
+      const snapshot = await readD1ReportSnapshotByRunId(this.env, runId);
+
+      if (!snapshot || !snapshot.data) {
+        logger.warn('IntradayDataBridge: No snapshot data for run', { runId });
+        return [];
+      }
+
+      // Extract predictions from snapshot
+      const reportData = snapshot.data;
+      const tradingSignals = reportData.trading_signals || [];
+
+      // Transform to MorningPrediction format
+      return tradingSignals.map((signal: any) => ({
+        symbol: signal.symbol || signal.ticker,
+        sentiment: signal.sentiment,
+        confidence: signal.confidence,
+        articles_count: signal.articles_count || 0,
+        direction: signal.direction,
+        trading_signals: signal,
+        gemma_status: signal.gemma_status,
+        gemma_error: signal.gemma_error,
+        gemma_confidence: signal.gemma_confidence,
+        gemma_response_time_ms: signal.gemma_response_time_ms,
+        distilbert_status: signal.distilbert_status,
+        distilbert_error: signal.distilbert_error,
+        distilbert_confidence: signal.distilbert_confidence,
+        distilbert_response_time_ms: signal.distilbert_response_time_ms,
+        model_selection_reason: signal.model_selection_reason
+      }));
     } catch (error: unknown) {
       logger.error('IntradayDataBridge: Failed to fetch morning predictions', { error, date });
       return [];
