@@ -92,6 +92,8 @@ export async function handleScheduledEvent(
   let predictionHorizons: number[];
   let runId: string | null = null;
   let runTrackingEnabled = false;
+  let intradayRunId: string | null = null;
+  let intradayRunTrackingEnabled = false;
 
   // Use override if provided and valid
   if (overrideTriggerMode) {
@@ -295,6 +297,17 @@ export async function handleScheduledEvent(
       // 9:30 AM EST - Sector Rotation Data Refresh
       console.log(`🔄 [CRON-SECTORS] ${cronExecutionId} Refreshing sector rotation data`);
 
+      // Start multi-run tracking for sector-rotation
+      const sectorRunId = await startJobRun(env, {
+        scheduledDate: dateStr,
+        reportType: 'sector-rotation',
+        triggerSource: 'cron'
+      });
+      const sectorRunTrackingEnabled = !!sectorRunId;
+
+      let sectorStatus: 'success' | 'failed' = 'success';
+      let sectorErrors: string[] = [];
+
       try {
         // Perform sector rotation analysis
         const sectorResult = await performSectorRotationAnalysis(env, {
@@ -311,13 +324,29 @@ export async function handleScheduledEvent(
           });
         } else {
           console.log(`⚠️ [CRON-SECTORS] ${cronExecutionId} Sector rotation analysis returned null`);
+          sectorStatus = 'failed';
+          sectorErrors.push('Sector rotation analysis returned null');
         }
       } catch (sectorError: any) {
         console.error(`❌ [CRON-SECTORS] ${cronExecutionId} Sector rotation refresh failed:`, {
           error: sectorError.message,
           stack: sectorError.stack
         });
+        sectorStatus = 'failed';
+        sectorErrors.push(sectorError.message);
         // Continue execution - sector refresh failure is not critical
+      }
+
+      // Complete multi-run tracking
+      if (sectorRunTrackingEnabled && sectorRunId) {
+        await completeJobRun(env, {
+          runId: sectorRunId,
+          scheduledDate: dateStr,
+          reportType: 'sector-rotation',
+          status: sectorStatus,
+          errors: sectorErrors.length > 0 ? sectorErrors : undefined
+        });
+        console.log(`✅ [CRON-SECTORS] ${cronExecutionId} Job run recorded: ${sectorRunId} (${sectorStatus})`);
       }
 
       console.log(`✅ [CRON-COMPLETE-SECTORS] ${cronExecutionId} Sector rotation refresh completed`);
@@ -327,22 +356,30 @@ export async function handleScheduledEvent(
     } else if (triggerMode === 'midday_validation_prediction') {
       // Intraday Performance Check
       console.log(`📊 [CRON-INTRADAY] ${cronExecutionId} Generating intraday analysis`);
-      
+
+      // Start multi-run tracking for intraday
+      intradayRunId = await startJobRun(env, {
+        scheduledDate: dateStr,
+        reportType: 'intraday',
+        triggerSource: 'cron'
+      });
+      intradayRunTrackingEnabled = !!intradayRunId;
+
       try {
         const { IntradayDataBridge } = await import('./intraday-data-bridge.js');
         const bridge = new IntradayDataBridge(env);
         const intradayResult = await bridge.generateIntradayAnalysis();
-        
+
         // Validate intradayResult before creating analysisResult
         if (!intradayResult || !intradayResult.symbols || !Array.isArray(intradayResult.symbols)) {
           throw new Error(`Invalid intraday result: ${JSON.stringify(intradayResult)}`);
         }
-        
+
         // Treat empty symbols array as a failure (no symbols analyzed)
         if (intradayResult.symbols.length === 0) {
           throw new Error('Intraday analysis produced no symbols - empty result');
         }
-        
+
         // Transform to scheduler expected shape
         // Note: symbols_analyzed must be a number (not array) to match intraday UI expectations
         // and be consistent with /api/v1/jobs/intraday endpoint
@@ -353,13 +390,15 @@ export async function handleScheduledEvent(
           timestamp: intradayResult.timestamp,
           trigger_mode: triggerMode
         };
-        
+
         console.log(`✅ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis completed`, {
           symbols_count: intradayResult.symbols.length,
           overall_accuracy: intradayResult.overall_accuracy,
           on_track_count: intradayResult.on_track_count,
           diverged_count: intradayResult.diverged_count
         });
+
+        // Note: completeJobRun() will be called after D1 write in shared section
       } catch (intradayError: any) {
         console.error(`❌ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis failed:`, {
           error: intradayError.message,
@@ -367,8 +406,20 @@ export async function handleScheduledEvent(
         });
         // Set analysisResult to null to ensure fail-fast check works
         analysisResult = null;
+
+        // Complete multi-run tracking with failure
+        if (intradayRunTrackingEnabled && intradayRunId) {
+          await completeJobRun(env, {
+            runId: intradayRunId,
+            scheduledDate: dateStr,
+            reportType: 'intraday',
+            status: 'failed',
+            errors: [intradayError.message]
+          });
+          console.log(`✅ [CRON-INTRADAY] ${cronExecutionId} Job run recorded: ${intradayRunId} (failed)`);
+        }
       }
-      
+
       // Facebook messaging has been migrated to Chrome web notifications
       console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
 
@@ -631,9 +682,17 @@ export async function handleScheduledEvent(
       };
       const d1ReportType = reportTypeMap[triggerMode];
       if (d1ReportType) {
+        // Determine which run tracking variables to use
+        const activeRunId = d1ReportType === 'pre-market' ? runId : 
+                           d1ReportType === 'intraday' ? intradayRunId : 
+                           null;
+        const activeRunTrackingEnabled = d1ReportType === 'pre-market' ? runTrackingEnabled :
+                                        d1ReportType === 'intraday' ? intradayRunTrackingEnabled :
+                                        false;
+
         // Start storage stage for jobs with run tracking
-        if (runTrackingEnabled && d1ReportType === 'pre-market') {
-          await startJobStage(env, { runId: runId!, scheduledDate: dateStr, reportType: 'pre-market', stage: 'storage' });
+        if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
+          await startJobStage(env, { runId: activeRunId, scheduledDate: dateStr, reportType: d1ReportType, stage: 'storage' });
         }
 
         try {
@@ -648,23 +707,23 @@ export async function handleScheduledEvent(
               primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
               secondary: '@cf/huggingface/distilbert-sst-2-int8'
             }
-          }, 'cron', runTrackingEnabled ? runId! : undefined);
+          }, 'cron', activeRunTrackingEnabled ? activeRunId! : undefined);
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
 
           // End storage stage for jobs with run tracking
-          if (runTrackingEnabled && d1ReportType === 'pre-market') {
-            await endJobStage(env, { runId: runId!, stage: 'storage' });
+          if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
+            await endJobStage(env, { runId: activeRunId, stage: 'storage' });
           }
 
-          // Complete job run for pre-market
-          if (runTrackingEnabled && d1ReportType === 'pre-market') {
+          // Complete job run for pre-market and intraday
+          if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
             await completeJobRun(env, {
-              runId: runId!,
+              runId: activeRunId,
               scheduledDate: dateStr,
-              reportType: 'pre-market',
+              reportType: d1ReportType,
               status: 'success'
             });
-            console.log(`✅ [CRON-PRE-MARKET] ${cronExecutionId} Job run completed successfully with run_id: ${runId}`);
+            console.log(`✅ [CRON-${d1ReportType.toUpperCase()}] ${cronExecutionId} Job run completed successfully with run_id: ${activeRunId}`);
           }
         } catch (d1Error: any) {
           console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 write failed:`, {
@@ -674,17 +733,17 @@ export async function handleScheduledEvent(
             dateStr
           });
 
-          // End dangling storage stage for pre-market
-          if (runTrackingEnabled && d1ReportType === 'pre-market') {
-            await endJobStage(env, { runId: runId!, stage: 'storage' });
+          // End dangling storage stage for pre-market and intraday
+          if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
+            await endJobStage(env, { runId: activeRunId, stage: 'storage' });
           }
 
-          // Complete job run with failure for pre-market
-          if (runTrackingEnabled && d1ReportType === 'pre-market') {
+          // Complete job run with failure for pre-market and intraday
+          if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
             await completeJobRun(env, {
-              runId: runId!,
+              runId: activeRunId,
               scheduledDate: dateStr,
-              reportType: 'pre-market',
+              reportType: d1ReportType,
               status: 'failed',
               errors: [d1Error.message]
             });

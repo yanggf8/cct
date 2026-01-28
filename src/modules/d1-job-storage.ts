@@ -774,7 +774,7 @@ export async function getD1JobStatus(
 // Navigation Status Tables (job_date_results + job_stage_log)
 // ============================================================================
 
-export type ReportType = 'pre-market' | 'intraday' | 'end-of-day' | 'weekly';
+export type ReportType = 'pre-market' | 'intraday' | 'end-of-day' | 'weekly' | 'sector-rotation';
 export type JobStatus = 'running' | 'success' | 'partial' | 'failed';
 export type JobStage = 'init' | 'data_fetch' | 'ai_analysis' | 'storage' | 'finalize';
 export type JobTriggerSource = 'cron' | 'manual' | 'github_actions';
