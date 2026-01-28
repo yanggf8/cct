@@ -523,17 +523,17 @@ export class IntradayDataBridge {
         sentiment: signal.sentiment,
         confidence: signal.confidence,
         articles_count: signal.articles_count || 0,
-        direction: signal.direction,
+        direction: signal.direction || signal.dual_model?.gemma?.direction || signal.dual_model?.distilbert?.direction, // Extract from dual_model if needed
         trading_signals: signal,
-        gemma_status: signal.gemma_status,
+        gemma_status: signal.gemma_status || signal.dual_model?.gemma?.status,
         gemma_error: signal.gemma_error,
-        gemma_confidence: signal.gemma_confidence,
+        gemma_confidence: signal.gemma_confidence || signal.dual_model?.gemma?.confidence,
         gemma_response_time_ms: signal.gemma_response_time_ms,
-        distilbert_status: signal.distilbert_status,
+        distilbert_status: signal.distilbert_status || signal.dual_model?.distilbert?.status,
         distilbert_error: signal.distilbert_error,
-        distilbert_confidence: signal.distilbert_confidence,
+        distilbert_confidence: signal.distilbert_confidence || signal.dual_model?.distilbert?.confidence,
         distilbert_response_time_ms: signal.distilbert_response_time_ms,
-        model_selection_reason: signal.model_selection_reason
+        model_selection_reason: signal.model_selection_reason || signal.dual_model?.selection_reason
       })), preMarketRunId: runId };
     } catch (error: unknown) {
       logger.error('IntradayDataBridge: Failed to fetch morning predictions', { error, date });
