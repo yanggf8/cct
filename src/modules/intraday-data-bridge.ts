@@ -467,15 +467,16 @@ export class IntradayDataBridge {
       }
 
       // trading_signals is an object with symbol keys, not an array
+      // Use Object.entries() to preserve the symbol key
       const signalsArray = typeof tradingSignals === 'object' && !Array.isArray(tradingSignals)
-        ? Object.values(tradingSignals)
+        ? Object.entries(tradingSignals).map(([symbol, signal]: [string, any]) => ({ symbol, ...signal }))
         : Array.isArray(tradingSignals)
         ? tradingSignals
         : [];
 
       // Transform to MorningPrediction format
       return signalsArray.map((signal: any) => ({
-        symbol: signal.symbol || signal.ticker,
+        symbol: signal.symbol || signal.ticker, // Prefer signal.symbol, fallback to ticker
         sentiment: signal.sentiment,
         confidence: signal.confidence,
         articles_count: signal.articles_count || 0,
