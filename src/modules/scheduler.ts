@@ -13,7 +13,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { writeD1JobResult, updateD1JobStatus } from './d1-job-storage.js';
+import { writeD1JobResult, updateD1JobStatus, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -175,6 +175,25 @@ export async function handleScheduledEvent(
       // Sunday 14:00 UTC (9:00 AM ET / 10:00 AM EDT) - Weekly Review Analysis
       console.log(`📊 [CRON-WEEKLY] ${cronExecutionId} Generating weekly review analysis`);
 
+      // Start multi-run tracking
+      const runId = await startJobRun(env, {
+        scheduledDate: dateStr,
+        reportType: 'weekly',
+        triggerSource: 'cron'
+      });
+      const runTrackingEnabled = !!runId;
+
+      // Fallback if run tracking unavailable
+      if (!runId) {
+        console.warn(`⚠️ [CRON-WEEKLY] ${cronExecutionId} Run tracking unavailable, using fallback`);
+      }
+
+      if (runTrackingEnabled) {
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'weekly', stage: 'init' });
+        await endJobStage(env, { runId, stage: 'init' });
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'weekly', stage: 'ai_analysis' });
+      }
+
       // Use current Sunday as week anchor - getLastTradingDays() will look back
       // to find the Mon-Fri that just completed. This aligns with the UI's
       // getWeekSunday() which also returns the current Sunday.
@@ -198,6 +217,10 @@ export async function handleScheduledEvent(
         warnings: genWarnings
       });
 
+      if (runTrackingEnabled) {
+        await endJobStage(env, { runId, stage: 'ai_analysis' });
+      }
+
       console.log(`📱 [CRON-FB-WEEKLY] ${cronExecutionId} Sending weekly review via Facebook`);
       await sendWeeklyReviewWithTracking(analysisResult, env, cronExecutionId);
       console.log(`✅ [CRON-FB-WEEKLY] ${cronExecutionId} Weekly Facebook message completed`);
@@ -215,29 +238,12 @@ export async function handleScheduledEvent(
 
       console.log(`${jobStatus === 'done' ? '✅' : jobStatus === 'partial' ? '⚠️' : '❌'} [CRON-COMPLETE-WEEKLY] ${cronExecutionId} Weekly review analysis completed with status: ${jobStatus}`);
 
-      // Write job execution status to job_executions table for dashboard tracking
-      try {
-        const jobType = 'weekly';
-        await updateD1JobStatus(env, jobType, dateStr, jobStatus, {
-          symbols_processed: genMeta?.tradingDaysFound || 0,
-          execution_time_ms: Date.now() - scheduledTime.getTime(),
-          symbols_successful: genStatus === 'success' ? genMeta?.tradingDaysFound || 0 : 0,
-          symbols_fallback: genStatus === 'partial' ? 1 : 0,
-          symbols_failed: genStatus === 'failed' ? 1 : 0,
-          errors: genErrors,
-          warnings: genWarnings,
-          generation_status: genStatus,
-          data_source: genMeta?.dataSource
-        });
-        console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Weekly job status written to job_executions: ${jobStatus}`);
-      } catch (statusError: any) {
-        console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write weekly job status:`, {
-          error: statusError.message
-        });
+      // Start storage stage
+      if (runTrackingEnabled) {
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'weekly', stage: 'storage' });
       }
 
       // Write weekly report to scheduled_job_results table for frontend retrieval
-      // This parallels the writeD1JobResult calls for pre-market/intraday/EOD jobs
       try {
         const d1Written = await writeD1JobResult(env, dateStr, 'weekly', {
           ...analysisResult,
@@ -251,7 +257,7 @@ export async function handleScheduledEvent(
           generation_status: genStatus,
           errors: genErrors,
           warnings: genWarnings
-        }, 'cron');
+        }, 'cron', runTrackingEnabled ? runId : undefined);
         console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: weekly for ${dateStr}, success: ${d1Written}`);
       } catch (d1Error: any) {
         console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 weekly write failed:`, {
@@ -260,6 +266,19 @@ export async function handleScheduledEvent(
           dateStr
         });
         // Continue execution even if D1 fails
+      }
+
+      // End storage stage and complete job
+      if (runTrackingEnabled) {
+        await endJobStage(env, { runId, stage: 'storage' });
+        await completeJobRun(env, {
+          runId,
+          scheduledDate: dateStr,
+          reportType: 'weekly',
+          status: jobStatus === 'done' ? 'success' : jobStatus === 'partial' ? 'partial' : 'failed',
+          warnings: genWarnings.length > 0 ? genWarnings : undefined,
+          errors: genErrors.length > 0 ? genErrors : undefined
+        });
       }
 
       const statusMessage = jobStatus === 'done'
@@ -429,6 +448,24 @@ export async function handleScheduledEvent(
       // End-of-Day Summary (~4:05 PM ET)
       console.log(`🏁 [CRON-EOD] ${cronExecutionId} Generating end-of-day analysis`);
 
+      // Start multi-run tracking
+      const runId = await startJobRun(env, {
+        scheduledDate: dateStr,
+        reportType: 'end-of-day',
+        triggerSource: 'cron'
+      });
+      const runTrackingEnabled = !!runId;
+
+      if (!runId) {
+        console.warn(`⚠️ [CRON-EOD] ${cronExecutionId} Run tracking unavailable, using fallback`);
+      }
+
+      if (runTrackingEnabled) {
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'init' });
+        await endJobStage(env, { runId, stage: 'init' });
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'data_fetch' });
+      }
+
       try {
         const { generateEndOfDayAnalysis } = await import('./report/end-of-day-analysis.js');
         const dal = createSimplifiedEnhancedDAL(env);
@@ -451,6 +488,11 @@ export async function handleScheduledEvent(
         if (!intradayData) {
           console.warn(`⚠️ [CRON-EOD] ${cronExecutionId} Intraday data missing for ${dateStr}; continuing with morning-only data`);
         }
+
+        if (runTrackingEnabled) {
+          await endJobStage(env, { runId, stage: 'data_fetch' });
+          await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'ai_analysis' });
+        }
         
         // Morning predictions from pre-market
         const morningPredictions = analysisData?.trading_signals || null;
@@ -459,6 +501,10 @@ export async function handleScheduledEvent(
 
         if (!eodResult) {
           throw new Error('End-of-day analysis returned null');
+        }
+
+        if (runTrackingEnabled) {
+          await endJobStage(env, { runId, stage: 'ai_analysis' });
         }
 
         // Normalize to scheduler expected shape
@@ -475,33 +521,60 @@ export async function handleScheduledEvent(
           signals_count: signalsCount,
           accuracy_rate: eodResult.overallAccuracy
         });
+
+        // Write to D1 for report retrieval
+        if (runTrackingEnabled) {
+          await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'storage' });
+        }
+
+        try {
+          await writeD1JobResult(env, dateStr, 'end-of-day', analysisResult, {
+            processingTimeMs: Date.now() - scheduledTime.getTime(),
+            signalsCount,
+            accuracyRate: eodResult.overallAccuracy
+          }, 'cron', runTrackingEnabled ? runId : undefined);
+          console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: end-of-day for ${dateStr}`);
+        } catch (d1Error: any) {
+          console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 end-of-day write failed:`, {
+            error: d1Error.message
+          });
+        }
+
+        if (runTrackingEnabled) {
+          await endJobStage(env, { runId, stage: 'storage' });
+        }
+
+        // Complete job successfully
+        if (runTrackingEnabled) {
+          await completeJobRun(env, {
+            runId,
+            scheduledDate: dateStr,
+            reportType: 'end-of-day',
+            status: 'success'
+          });
+        }
+
       } catch (eodError: any) {
         console.error(`❌ [CRON-EOD] ${cronExecutionId} End-of-day analysis failed:`, {
           error: eodError.message,
           stack: eodError.stack
         });
         analysisResult = null;
+
+        // Complete job with failure
+        if (runTrackingEnabled) {
+          await completeJobRun(env, {
+            runId,
+            scheduledDate: dateStr,
+            reportType: 'end-of-day',
+            status: 'failed',
+            errors: [eodError.message]
+          });
+        }
       }
 
       // If end-of-day failed, write failure status and stop before generic writer runs
       if (!analysisResult) {
-        try {
-          const jobType = 'end-of-day';
-          await updateD1JobStatus(env, jobType, dateStr, 'failed', {
-            symbols_processed: 0,
-            execution_time_ms: Date.now() - scheduledTime.getTime(),
-            symbols_successful: 0,
-            symbols_fallback: 0,
-            symbols_failed: 0,
-            errors: ['End-of-day analysis failed']
-          });
-          console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} End-of-day failure status written to job_executions`);
-        } catch (statusError: any) {
-          console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write end-of-day failure status:`, {
-            error: statusError.message
-          });
-        }
-
         const errorResponse: CronResponse = {
           success: false,
           trigger_mode: triggerMode,

@@ -7,7 +7,7 @@ import { createLogger, type Logger } from '../logging.js';
 import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
-import { writeD1JobResult } from '../d1-job-storage.js';
+import { readD1ReportSnapshotByRunId, writeD1JobResult } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { generatePendingPageHTML } from './pending-page.js';
 import {
@@ -177,13 +177,15 @@ export const handleIntradayCheck = createHandler(
     const startTime: number = Date.now();
     const url = new URL(request.url);
     const bypassCache = url.searchParams.get('bypass') === '1';
+    const runId = url.searchParams.get('run_id');
+    const isRunIdView = !!runId;
 
     // Resolve query date: ?date > ?tz > DO setting > ET default
-    const dateStr = await resolveQueryDate(url, env.CACHE_DO as any);
-    const today = new Date(dateStr + 'T12:00:00Z');
+    let dateStr = await resolveQueryDate(url, env.CACHE_DO as any);
+    let today = new Date(dateStr + 'T12:00:00Z');
 
     // Fast path: check DO cache first (unless bypass requested)
-    if (!bypassCache) {
+    if (!bypassCache && !isRunIdView) {
       try {
         const dal = createSimplifiedEnhancedDAL(env);
         const cached = await dal.read(`intraday_html_${dateStr}`);
@@ -212,15 +214,33 @@ export const handleIntradayCheck = createHandler(
 
     if (env.PREDICT_JOBS_DB) {
       try {
-        const snapshot = await env.PREDICT_JOBS_DB
-          .prepare('SELECT report_content FROM scheduled_job_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
-          .bind(dateStr, 'intraday')
-          .first();
+        // Prefer exact run_id lookup when provided
+        let content: any | null = null;
+        if (runId) {
+          const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
+          if (runSnapshot) {
+            dateStr = runSnapshot.scheduledDate;
+            today = new Date(dateStr + 'T12:00:00Z');
+            content = runSnapshot.data;
+            logger.info('📊 [INTRADAY] Loaded snapshot by run_id', { requestId, runId, scheduledDate: dateStr });
+          } else {
+            logger.warn('📊 [INTRADAY] run_id not found; falling back to latest-by-date', { requestId, runId, dateStr });
+          }
+        }
 
-        if (snapshot && snapshot.report_content) {
-          const content = typeof snapshot.report_content === 'string'
-            ? JSON.parse(snapshot.report_content)
-            : snapshot.report_content;
+        if (!content) {
+          const snapshot = await env.PREDICT_JOBS_DB
+            .prepare('SELECT report_content FROM scheduled_job_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+            .bind(dateStr, 'intraday')
+            .first();
+          if (snapshot && snapshot.report_content) {
+            content = typeof snapshot.report_content === 'string'
+              ? JSON.parse(snapshot.report_content)
+              : snapshot.report_content;
+          }
+        }
+
+        if (content) {
 
           hasRealJobData = true;
 
@@ -409,11 +429,13 @@ export const handleIntradayCheck = createHandler(
     // Cache HTML for fast subsequent loads
     try {
       const dal = createSimplifiedEnhancedDAL(env);
-      await dal.write(`intraday_html_${dateStr}`, html, { expirationTtl: 180 });
+      if (!isRunIdView) {
+        await dal.write(`intraday_html_${dateStr}`, html, { expirationTtl: 180 });
+      }
     } catch (e) { /* ignore cache write errors */ }
 
     // Write to D1 as source of truth
-    if (intradayData) {
+    if (!isRunIdView && intradayData) {
       try {
         await writeD1JobResult(env, dateStr, 'intraday', intradayData, {
           ai_models: {

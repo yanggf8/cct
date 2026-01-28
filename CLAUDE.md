@@ -688,8 +688,8 @@ Transform from individual stock analysis to institutional-grade market intellige
 **Last Updated**: 2026-01-28
 **Current Version**: Production Ready with Multi-Run Support v3.10.5
 **Major Updates**:
-- **Multi-Run Support v3.10.5**: Multiple job runs per date preserved in D1 history. Dashboard shows all runs with create/delete capability. New endpoints: `GET /api/v1/jobs/runs`, `DELETE /api/v1/jobs/runs/:runId`. Centralized `cctApi` client for consistent auth handling.
-- **Navigation Redesign V2 v3.10.4**: Date-based report hierarchy with 4-table schema (`job_date_results`, `job_run_results`, `job_stage_log`, `scheduled_job_results`). Public endpoints for navigation (`/api/v1/reports/status`, `/api/v1/jobs/runs`).
+- **Multi-Run Support v3.10.5**: Multiple job runs per date preserved in D1 history. Dashboard shows all runs with create/delete capability. New endpoints: `GET /api/v1/jobs/runs`, `DELETE /api/v1/jobs/runs/:runId`. Report pages support `?run_id=` parameter. Partial status logic (⚠️) for mixed success/failure. Centralized `cctApi` client for consistent auth handling.
+- **Navigation Redesign V2 v3.10.4**: Date-based report hierarchy with 4-table schema (`job_date_results`, `job_run_results`, `job_stage_log`, `scheduled_job_results`). Public endpoints for navigation (`/api/v1/reports/status`, `/api/v1/jobs/runs`). All cron jobs (weekly, end-of-day) migrated to multi-run tracking.
 - **Market Pulse Dual Model**: Both Gemma Sea Lion and DistilBERT results displayed side-by-side in Market Pulse section
 - **News Provider Error Tracking v3.10.3**: Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis
 - **Intraday Comparison v3.10.2**: Side-by-side Pre-Market vs Intraday sentiment comparison with full dual model details

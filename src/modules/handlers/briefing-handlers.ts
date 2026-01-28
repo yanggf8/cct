@@ -12,7 +12,7 @@
 
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
-import { getD1FallbackData, getD1JobStatus } from '../d1-job-storage.js';
+import { getD1FallbackData, getD1JobStatus, readD1ReportSnapshotByRunId } from '../d1-job-storage.js';
 import { validateRequest, validateEnvironment } from '../validation.js';
 import { validateApiKey } from '../api-v1-responses.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
@@ -31,9 +31,10 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const startTime = Date.now();
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
+  const runId = url.searchParams.get('run_id');
 
   // Resolve query date: ?date > ?tz > DO setting > ET default
-  const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
+  let queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
   const todayET = getTodayInZone('America/New_York');
 
   logger.info('🚀 [PRE-MARKET] Starting pre-market briefing generation', { requestId, queryDate: queryDateStr, bypassCache });
@@ -43,8 +44,9 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
 
   const dal = createSimplifiedEnhancedDAL(env);
 
-  // Fast path: check DO HTML cache first (unless bypass)
-  if (!bypassCache) {
+  const isRunIdView = !!runId;
+  // Fast path: check DO HTML cache first (unless bypass or run_id view)
+  if (!bypassCache && !isRunIdView) {
     try {
       const cached = await dal.read(`premarket_html_${queryDateStr}`);
       if (cached.success && cached.data) {
@@ -55,14 +57,36 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
     } catch (e) { /* continue */ }
   }
 
+  // Prefer exact run_id lookup when provided
+  let d1Result: { data: any; createdAt: string; isStale?: boolean; sourceDate?: string } | null = null;
+  if (runId) {
+    const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
+    if (runSnapshot) {
+      queryDateStr = runSnapshot.scheduledDate;
+      d1Result = {
+        data: runSnapshot.data,
+        createdAt: runSnapshot.createdAt,
+        isStale: false,
+        sourceDate: runSnapshot.scheduledDate
+      };
+      logger.info('PRE-MARKET: Loaded snapshot by run_id', { requestId, runId, scheduledDate: runSnapshot.scheduledDate });
+    } else {
+      logger.warn('PRE-MARKET: run_id not found; falling back to date-based lookup', { requestId, runId, queryDateStr });
+    }
+  }
+
   // Use getD1FallbackData which handles full fallback chain and returns createdAt
-  const fallback = await getD1FallbackData(env, queryDateStr, 'pre-market');
-  let d1Result = fallback ? {
-    data: fallback.data,
-    createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString(),
-    isStale: fallback.isStale || false,
-    sourceDate: fallback.sourceDate || queryDateStr
-  } : null;
+  const fallback = d1Result
+    ? null
+    : await getD1FallbackData(env, queryDateStr, 'pre-market');
+  if (!d1Result) {
+    d1Result = fallback ? {
+      data: fallback.data,
+      createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString(),
+      isStale: fallback.isStale || false,
+      sourceDate: fallback.sourceDate || queryDateStr
+    } : null;
+  }
 
   if (fallback) {
     logger.info('PRE-MARKET: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
@@ -99,8 +123,8 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   // Generate HTML based on D1 data availability
   const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture, isQueryingToday, jobStatus, isAuthenticated);
 
-  // Cache HTML for fast subsequent loads (skip if job failed - don't cache error state)
-  if (!jobStatus || jobStatus.status !== 'failed') {
+  // Cache HTML for fast subsequent loads (skip if job failed - don't cache error state; skip run_id views)
+  if (!isRunIdView && (!jobStatus || jobStatus.status !== 'failed')) {
     try {
       await dal.write(`premarket_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
     } catch (e) { /* ignore */ }

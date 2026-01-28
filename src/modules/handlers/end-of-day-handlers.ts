@@ -12,7 +12,7 @@
 
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
-import { getD1FallbackData } from '../d1-job-storage.js';
+import { getD1FallbackData, readD1ReportSnapshotByRunId } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
@@ -29,13 +29,15 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     const startTime = Date.now();
     const url = new URL(request.url);
     const bypassCache = url.searchParams.get('bypass') === '1';
+    const runId = url.searchParams.get('run_id');
 
     // Resolve query date: ?date > ?tz > DO setting > ET default
-    const queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
+    let queryDateStr = await resolveQueryDate(url, env.CACHE_DO as any);
     const todayET = getTodayInZone('America/New_York');
 
     // Fast path: check DO HTML cache first (unless bypass)
-    if (!bypassCache) {
+    const isRunIdView = !!runId;
+    if (!bypassCache && !isRunIdView) {
         try {
             const dal = createSimplifiedEnhancedDAL(env);
             const cached = await dal.read(`end_of_day_html_${queryDateStr}`);
@@ -49,12 +51,34 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
 
     logger.info('🏁 [END-OF-DAY] Starting end-of-day summary generation', { requestId, queryDate: queryDateStr, bypassCache });
 
+    // Prefer exact run_id lookup when provided
+    let d1Result: { data: any; createdAt: string; isStale?: boolean; sourceDate?: string } | null = null;
+    if (runId) {
+        const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
+        if (runSnapshot) {
+            queryDateStr = runSnapshot.scheduledDate;
+            d1Result = {
+                data: runSnapshot.data,
+                createdAt: runSnapshot.createdAt,
+                isStale: false,
+                sourceDate: runSnapshot.scheduledDate
+            };
+            logger.info('END-OF-DAY: Loaded snapshot by run_id', { requestId, runId, scheduledDate: runSnapshot.scheduledDate });
+        } else {
+            logger.warn('END-OF-DAY: run_id not found; falling back to date-based lookup', { requestId, runId, queryDateStr });
+        }
+    }
+
     // Use getD1FallbackData which handles full fallback chain and returns createdAt
-    const fallback = await getD1FallbackData(env, queryDateStr, 'end-of-day');
-    const d1Result = fallback ? {
-        data: fallback.data,
-        createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString()
-    } : null;
+    const fallback = d1Result ? null : await getD1FallbackData(env, queryDateStr, 'end-of-day');
+    if (!d1Result) {
+        d1Result = fallback ? {
+            data: fallback.data,
+            createdAt: fallback.createdAt || fallback.data?._d1_created_at || fallback.data?.generated_at || new Date().toISOString(),
+            isStale: fallback.isStale || false,
+            sourceDate: fallback.sourceDate || queryDateStr
+        } : null;
+    }
 
     if (fallback) {
         logger.info('END-OF-DAY: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
@@ -83,7 +107,9 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     // Cache HTML for fast subsequent loads
     try {
         const dal = createSimplifiedEnhancedDAL(env);
-        await dal.write(`end_of_day_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
+        if (!isRunIdView) {
+            await dal.write(`end_of_day_html_${queryDateStr}`, htmlContent, { expirationTtl: 300 });
+        }
     } catch (e) { /* ignore */ }
 
     logger.info('🎯 [END-OF-DAY] End-of-day summary completed', { requestId, duration: Date.now() - startTime, hasD1Data: !!d1Result });

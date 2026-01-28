@@ -218,6 +218,43 @@ export async function readD1ReportSnapshot(
 }
 
 /**
+ * Read report snapshot by run_id (for accessing specific historical runs)
+ */
+export async function readD1ReportSnapshotByRunId(
+  env: CloudflareEnvironment,
+  runId: string
+): Promise<{ data: any; createdAt: string; scheduledDate: string; reportType: string } | null> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return null;
+
+  try {
+    const result = await db.prepare(`
+      SELECT report_content, created_at, scheduled_date, report_type
+      FROM scheduled_job_results
+      WHERE run_id = ?
+      LIMIT 1
+    `).bind(runId).first<{ report_content: string; created_at: string; scheduled_date: string; report_type: string }>();
+
+    if (!result?.report_content) return null;
+
+    const content = JSON.parse(result.report_content);
+    content._source = 'd1_snapshot_by_run_id';
+    content._d1_created_at = result.created_at;
+    content._scheduled_date = result.scheduled_date;
+    
+    return {
+      data: content,
+      createdAt: result.created_at,
+      scheduledDate: result.scheduled_date,
+      reportType: result.report_type
+    };
+  } catch (error) {
+    logger.error('readD1ReportSnapshotByRunId failed', { error: (error as Error).message, runId });
+    return null;
+  }
+}
+
+/**
  * Get latest report snapshot from D1 (any date)
  * Returns the most recent report by scheduled_date
  * Safe: returns null if table doesn't exist

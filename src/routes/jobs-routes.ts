@@ -700,14 +700,32 @@ async function handlePreMarketJob(
       await endJobStage(env, { runId, stage: 'finalize' });
     }
 
-    // Mark job as success
+    // Compute final status (check for partial success)
+    let finalStatus: 'success' | 'partial' | 'failed' = 'success';
+    const warnings: string[] = [];
+    
+    const symbolsRequested = symbols.length;
+    const symbolsAnalyzed = Object.keys(analysisData.trading_signals).length;
+    
+    if (symbolsAnalyzed < symbolsRequested) {
+      const symbolsFailed = symbolsRequested - symbolsAnalyzed;
+      if (symbolsAnalyzed > 0) {
+        finalStatus = 'partial';
+        warnings.push(`${symbolsFailed} of ${symbolsRequested} symbols failed analysis`);
+      } else {
+        finalStatus = 'failed';
+      }
+    }
+
+    // Mark job as complete with appropriate status
     if (runTrackingEnabled) {
       if (writeSuccess) {
         await completeJobRun(env, {
           runId,
           scheduledDate,
           reportType: 'pre-market',
-          status: 'success'
+          status: finalStatus,
+          warnings: warnings.length > 0 ? warnings : undefined
         });
       } else {
         await completeJobRun(env, {
@@ -722,9 +740,10 @@ async function handlePreMarketJob(
       await writeJobDateResult(env, {
         scheduledDate,
         reportType: 'pre-market',
-        status: writeSuccess ? 'success' : 'failed',
+        status: writeSuccess ? finalStatus : 'failed',
         currentStage: 'finalize',
         errors: writeSuccess ? undefined : ['Failed to write results to D1'],
+        warnings: writeSuccess && warnings.length > 0 ? warnings : undefined,
         triggerSource: navTriggerSource
       });
     }
@@ -913,20 +932,32 @@ async function handleIntradayJob(
       await endJobStage(env, { runId, stage: 'finalize' });
     }
 
-    // Mark job as success
+    // Compute final status (check for partial success)
+    let finalStatus: 'success' | 'partial' | 'failed' = 'success';
+    const warnings: string[] = [];
+    
+    // Check if any symbols diverged significantly
+    if (analysisData.diverged_count > 0 && analysisData.on_track_count > 0) {
+      finalStatus = 'partial';
+      warnings.push(`${analysisData.diverged_count} of ${analysisData.total_symbols} symbols diverged from predictions`);
+    }
+
+    // Mark job as complete with appropriate status
     if (runTrackingEnabled) {
       await completeJobRun(env, {
         runId,
         scheduledDate: today,
         reportType: 'intraday',
-        status: 'success'
+        status: finalStatus,
+        warnings: warnings.length > 0 ? warnings : undefined
       });
     } else {
       await writeJobDateResult(env, {
         scheduledDate: today,
         reportType: 'intraday',
-        status: 'success',
+        status: finalStatus,
         currentStage: 'finalize',
+        warnings: warnings.length > 0 ? warnings : undefined,
         triggerSource: navTriggerSource
       });
     }

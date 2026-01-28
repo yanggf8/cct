@@ -27,6 +27,7 @@ import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
 import {
   readD1ReportSnapshot,
+  readD1ReportSnapshotByRunId,
   getD1LatestReportSnapshot,
   getJobDateResults,
   type ReportType,
@@ -557,7 +558,7 @@ async function handleWeeklyReport(
  * Handle pre-market report
  * GET /api/v1/reports/pre-market
  */
-async function handlePreMarketReport(
+export async function handlePreMarketReport(
   request: Request,
   env: CloudflareEnvironment,
   headers: Record<string, string>,
@@ -568,10 +569,36 @@ async function handlePreMarketReport(
   const dataBridge = createPreMarketDataBridge(env);
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === 'true' || url.searchParams.get('nocache') === 'true';
+  const runId = url.searchParams.get('run_id');
 
   try {
     const today = new Date().toISOString().split('T')[0];
     const cacheKey = `pre_market_report_${today}`;
+
+    // If run_id specified, load that specific run
+    if (runId) {
+      logger.info('PreMarketReport: Loading specific run', { runId, requestId });
+      const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
+      
+      if (runSnapshot) {
+        return new Response(
+          JSON.stringify(
+            ApiResponseFactory.success(runSnapshot.data, {
+              source: 'd1_run_id',
+              run_id: runId,
+              scheduled_date: runSnapshot.scheduledDate,
+              created_at: runSnapshot.createdAt,
+              requestId,
+              processingTime: timer.getElapsedMs()
+            })
+          ),
+          { status: HttpStatus.OK, headers }
+        );
+      }
+      
+      // Run ID not found, fall through to latest
+      logger.warn('PreMarketReport: run_id not found, falling back to latest', { runId, requestId });
+    }
 
     // 1. Check DO cache first (unless bypass)
     if (!bypassCache) {
@@ -832,16 +859,38 @@ async function handlePreMarketReport(
  * Handle intraday report
  * GET /api/v1/reports/intraday
  */
-async function handleIntradayReport(
+export async function handleIntradayReport(
   request: Request,
   env: CloudflareEnvironment,
   headers: Record<string, string>,
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
+  const url = new URL(request.url);
+  const runId = url.searchParams.get('run_id');
 
   try {
     const today = new Date().toISOString().split('T')[0];
+    
+    // If run_id specified, load that specific run
+    if (runId) {
+      const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
+      if (runSnapshot) {
+        return new Response(
+          JSON.stringify(
+            ApiResponseFactory.success(runSnapshot.data, {
+              source: 'd1_run_id',
+              run_id: runId,
+              scheduled_date: runSnapshot.scheduledDate,
+              created_at: runSnapshot.createdAt,
+              requestId,
+              processingTime: timer.getElapsedMs()
+            })
+          ),
+          { status: HttpStatus.OK, headers }
+        );
+      }
+    }
     
     // Read from D1 report snapshots
     if (!env.PREDICT_JOBS_DB) {
@@ -929,7 +978,7 @@ async function handleIntradayReport(
  * Handle end-of-day report
  * GET /api/v1/reports/end-of-day
  */
-async function handleEndOfDayReport(
+export async function handleEndOfDayReport(
   request: Request,
   env: CloudflareEnvironment,
   headers: Record<string, string>,
@@ -937,8 +986,30 @@ async function handleEndOfDayReport(
 ): Promise<Response> {
   const timer = new ProcessingTimer();
   const dal = createSimplifiedEnhancedDAL(env);
+  const url = new URL(request.url);
+  const runId = url.searchParams.get('run_id');
 
   try {
+    // If run_id specified, load that specific run
+    if (runId) {
+      const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
+      if (runSnapshot) {
+        return new Response(
+          JSON.stringify(
+            ApiResponseFactory.success(runSnapshot.data, {
+              source: 'd1_run_id',
+              run_id: runId,
+              scheduled_date: runSnapshot.scheduledDate,
+              created_at: runSnapshot.createdAt,
+              requestId,
+              processingTime: timer.getElapsedMs()
+            })
+          ),
+          { status: HttpStatus.OK, headers }
+        );
+      }
+    }
+
     const today = new Date().toISOString().split('T')[0];
     const analysisKey = `analysis_${today}`;
     const analysisData = await (dal as any).get(analysisKey, 'ANALYSIS');
