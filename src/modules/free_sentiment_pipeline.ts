@@ -153,6 +153,19 @@ const FREE_SENTIMENT_CONFIG: FreeSentimentConfig = {
  * Finnhub provides higher-quality finance-focused news
  */
 export async function getFreeStockNews(symbol: string, env: any): Promise<NewsArticle[]> {
+  // Check cache first (15-minute TTL)
+  const cacheKey = `news_all_${symbol}_${Math.floor(Date.now() / 900000)}`; // 15-min bucket
+  const { createSimplifiedEnhancedDAL } = await import('./simplified-enhanced-dal.js');
+  const dal = createSimplifiedEnhancedDAL(env, { enableCache: true });
+  const cached = await dal.read<NewsArticle[]>(cacheKey);
+
+  if (cached.success && cached.data && cached.data.length > 0) {
+    console.log(`[Stock News Cache] HIT for ${symbol} (${cached.data.length} articles)`);
+    return cached.data;
+  }
+
+  console.log(`[Stock News Cache] MISS for ${symbol}, fetching from providers...`);
+
   // 1. Try Finnhub first (primary - 60 calls/min, finance-focused)
   const finnhubKey = env.FINNHUB_API_KEY;
   if (finnhubKey) {
@@ -161,7 +174,7 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
       if (finnhubNews?.length > 0) {
         console.log(`[Stock News] Finnhub SUCCESS: ${finnhubNews.length} articles for ${symbol}`);
         // Transform Finnhub articles to local NewsArticle format
-        return finnhubNews.map(a => ({
+        const articles = finnhubNews.map(a => ({
           title: a.title,
           summary: a.content || a.summary || '',
           publishedAt: a.publishedAt || new Date().toISOString(),
@@ -171,6 +184,9 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
           confidence: 0.5,  // Default - AI will update
           source_type: 'finnhub'
         }));
+        // Cache the result
+        await dal.write(cacheKey, articles, { expirationTtl: 900 }); // 15 minutes
+        return articles;
       }
       console.log(`[Stock News] Finnhub returned 0 articles for ${symbol}, trying fallbacks`);
     } catch (error: any) {
@@ -220,6 +236,8 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
     console.log(`[Stock News] ALL SOURCES FAILED for ${symbol}`);
   } else {
     console.log(`[Stock News] Fallback total: ${newsData.length} articles for ${symbol}`);
+    // Cache the combined result
+    await dal.write(cacheKey, newsData, { expirationTtl: 900 }); // 15 minutes
   }
 
   return newsData;
