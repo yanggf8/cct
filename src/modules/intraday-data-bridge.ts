@@ -441,20 +441,44 @@ export class IntradayDataBridge {
         .bind(date)
         .first();
 
-      if (!runResult || !runResult.run_id) {
-        logger.warn('IntradayDataBridge: No successful pre-market run found', { date });
-        return [];
+      let runId: string | null = null;
+      let snapshot: any = null;
+
+      // Try to get snapshot by run_id first
+      if (runResult && runResult.run_id) {
+        runId = runResult.run_id as string;
+        logger.info('IntradayDataBridge: Using pre-market run', { date, runId });
+
+        const { readD1ReportSnapshotByRunId } = await import('./d1-job-storage.js');
+        snapshot = await readD1ReportSnapshotByRunId(this.env, runId);
       }
 
-      const runId = runResult.run_id as string;
-      logger.info('IntradayDataBridge: Using pre-market run', { date, runId });
+      // Fallback: Get latest pre-market snapshot by date (handles legacy rows with run_id = null)
+      if (!snapshot || !snapshot.data) {
+        logger.warn('IntradayDataBridge: No snapshot by run_id, trying latest by date', { date, runId });
+        
+        const latestSnapshot = await this.env.PREDICT_JOBS_DB
+          .prepare(`
+            SELECT report_content
+            FROM scheduled_job_results
+            WHERE scheduled_date = ? AND report_type = 'pre-market'
+            ORDER BY created_at DESC
+            LIMIT 1
+          `)
+          .bind(date)
+          .first();
 
-      // Get report snapshot for this specific run
-      const { readD1ReportSnapshotByRunId } = await import('./d1-job-storage.js');
-      const snapshot = await readD1ReportSnapshotByRunId(this.env, runId);
+        if (latestSnapshot && latestSnapshot.report_content) {
+          const content = typeof latestSnapshot.report_content === 'string'
+            ? JSON.parse(latestSnapshot.report_content)
+            : latestSnapshot.report_content;
+          snapshot = { data: content };
+          logger.info('IntradayDataBridge: Using latest pre-market snapshot by date', { date });
+        }
+      }
 
       if (!snapshot || !snapshot.data) {
-        logger.warn('IntradayDataBridge: No snapshot data for run', { runId });
+        logger.warn('IntradayDataBridge: No pre-market data found', { date });
         return [];
       }
 
@@ -463,7 +487,7 @@ export class IntradayDataBridge {
       const tradingSignals = reportData.trading_signals;
 
       if (!tradingSignals) {
-        logger.warn('IntradayDataBridge: No trading_signals in snapshot', { runId });
+        logger.warn('IntradayDataBridge: No trading_signals in snapshot', { runId: runId || 'legacy' });
         return [];
       }
 
