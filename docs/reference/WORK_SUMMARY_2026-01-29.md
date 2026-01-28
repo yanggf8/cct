@@ -45,6 +45,13 @@ Fix intraday report to show proper pre-market vs intraday sentiment comparisons 
 - User cleans and recreates tables as needed
 - No data preservation during development
 
+### 8. **News Cache Integration** ⭐ NEW
+- Added cache check at top of `getFreeStockNews()`
+- Cache key: `news_all_{symbol}_{15min_bucket}`
+- TTL: 15 minutes (fresh for intraday, reusable for reruns)
+- Caches results from all providers (Finnhub, FMP, NewsAPI, Yahoo)
+- Reduces API calls and prevents rate limiting
+
 ## 📊 Current Status
 
 ### Working ✅
@@ -53,6 +60,7 @@ Fix intraday report to show proper pre-market vs intraday sentiment comparisons 
 - 2 symbols with full comparison (AAPL, MSFT)
 - Dashboard links include run_id
 - Provider failure tracking infrastructure ready
+- News cache integrated into dual sentiment pipeline
 
 ### Partial ⚠️
 - 3 symbols incomplete (GOOGL, NVDA, TSLA)
@@ -77,38 +85,37 @@ Fix intraday report to show proper pre-market vs intraday sentiment comparisons 
 
 ### Proposed Solutions
 
-**Option A: Build CCT Article Pool (Recommended)**
-- Store articles in CCT's Durable Objects
-- Populate from all providers during pre-market
-- Reuse for intraday and end-of-day
-- Reduces API calls by 66%
-- Ensures data availability
-
-**Option B: Add More Providers**
+**Option A: Add More Providers (Recommended)**
 - Alpha Vantage (25 calls/day)
 - Polygon.io (5 calls/min)
 - IEX Cloud
 - Reddit/Twitter scraping
 
-**Option C: Use Stale Data Fallback**
+**Option B: Use Stale Data Fallback**
 - Allow articles from last 24-48 hours
 - Better than showing "No data"
 - Mark as "stale" in UI
 
+**Option C: Improve Provider Reliability**
+- Monitor provider failures in D1
+- Implement retry logic
+- Add circuit breakers
+
 ## 📝 Next Steps
 
-1. **Decide on solution** (A, B, or C above)
-2. **Include provider failures in reports** (infrastructure ready, needs integration)
-3. **Test with full data** once article availability improves
+1. **Deploy and test news cache** - Should improve article availability
+2. **Monitor provider failures** - Use D1 table to identify weak providers
+3. **Add more providers** if cache doesn't solve the issue
+4. **Include provider failures in reports** (infrastructure ready, needs integration)
 
 ## 🔧 Technical Debt
 - Remove DAC dependency (external service)
-- Implement CCT's own article caching
-- Add provider failure visibility in UI
+- Wire job context into news failure logger
+- Add `pre_market_run_id` to D1 metadata (not just report content)
 
 ---
 
-**Key Achievement**: Intraday report now properly tracks and displays pre-market dependencies with audit trail. The "incomplete" status is correct behavior when news data is unavailable.
+**Key Achievement**: Intraday report now properly tracks and displays pre-market dependencies with audit trail. News cache integrated to reduce API calls and improve reliability.
 
 **Files Modified**: 
 - `src/modules/intraday-data-bridge.ts` - Pre-market dependency tracking and data extraction
@@ -119,5 +126,7 @@ Fix intraday report to show proper pre-market vs intraday sentiment comparisons 
 - `public/dashboard.html` - Dashboard links with run_id
 - `src/modules/free-stock-news-with-error-tracking.ts` - Provider failure tracking
 - `src/modules/news-provider-failure-tracker.ts` - New module for D1 logging
+- `src/modules/free_sentiment_pipeline.ts` - News cache integration
+- `src/modules/cache-config.ts` - NEWS_ARTICLES TTL set to 15 minutes
 - `schema/migrations/add-news-provider-failures.sql` - D1 table schema
 - `AGENTS.md` - D1 schema management policy
