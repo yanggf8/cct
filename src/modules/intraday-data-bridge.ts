@@ -466,14 +466,19 @@ export class IntradayDataBridge {
             LIMIT 1
           `)
           .bind(date)
-          .first();
+          .first<{ report_content: string }>();
 
         if (latestSnapshot && latestSnapshot.report_content) {
-          const content = typeof latestSnapshot.report_content === 'string'
-            ? JSON.parse(latestSnapshot.report_content)
-            : latestSnapshot.report_content;
-          snapshot = { data: content };
-          logger.info('IntradayDataBridge: Using latest pre-market snapshot by date', { date });
+          try {
+            const content = typeof latestSnapshot.report_content === 'string'
+              ? JSON.parse(latestSnapshot.report_content)
+              : latestSnapshot.report_content;
+            snapshot = { data: content };
+            logger.info('IntradayDataBridge: Using latest pre-market snapshot by date', { date });
+          } catch (parseError) {
+            logger.error('IntradayDataBridge: Failed to parse pre-market content', { date, error: (parseError as Error).message });
+            return [];
+          }
         }
       }
 
