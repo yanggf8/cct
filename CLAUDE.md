@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-28 - Multi-Run Support v3.10.6)
+- **Current Version**: Latest (2026-01-28 - Multi-Run Navigation v3.10.7)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Expandable Multi-Run Navigation v3.10.7** | ✅ Complete | Report types expand to show all runs with trigger icon (⏰/👤), time, status, "latest" badge. Links include ?run_id= for specific run access. Auto-expand when multiple runs exist |
 | **Multi-Run Architecture v3.10.6** | ✅ Complete | All job types support multiple runs per date, run history in job_run_results, ?run_id= parameter for specific run access, partial status (⚠️) for mixed results |
 | **Navigation Redesign V2** | ✅ Complete | Date-based report hierarchy with job status tracking, ET timezone handling via formatToParts(), public nav status endpoints |
 | **News Provider Error Tracking** | ✅ Complete | Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis results |
@@ -687,8 +688,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 ---
 
 **Last Updated**: 2026-01-28
-**Current Version**: Production Ready with Multi-Run Support v3.10.5
+**Current Version**: Production Ready with Multi-Run Navigation v3.10.7
 **Major Updates**:
+- **Expandable Multi-Run Navigation v3.10.7**: Navigation sidebar shows expandable report types when multiple runs exist. Each run displays trigger icon (⏰ cron/👤 manual), timestamp, status icon, and "latest" badge. Clicking a run navigates with `?run_id=` parameter. Active run highlighted in nav. localStorage persists expanded state.
+- **Multi-Run Architecture v3.10.6**: All job types (pre-market, intraday, end-of-day, weekly, sector-rotation) support multi-run tracking via `startJobRun()`/`completeJobRun()`. Legacy `job_executions` table removed for fail-fast behavior.
 - **Multi-Run Support v3.10.5**: Multiple job runs per date preserved in D1 history. Dashboard shows all runs with create/delete capability. New endpoints: `GET /api/v1/jobs/runs`, `DELETE /api/v1/jobs/runs/:runId`. Report pages support `?run_id=` parameter. Partial status logic (⚠️) for mixed success/failure. Centralized `cctApi` client for consistent auth handling.
 - **Navigation Redesign V2 v3.10.4**: Date-based report hierarchy with 4-table schema (`job_date_results`, `job_run_results`, `job_stage_log`, `scheduled_job_results`). Public endpoints for navigation (`/api/v1/reports/status`, `/api/v1/jobs/runs`). All cron jobs (weekly, end-of-day) migrated to multi-run tracking.
 - **Market Pulse Dual Model**: Both Gemma Sea Lion and DistilBERT results displayed side-by-side in Market Pulse section

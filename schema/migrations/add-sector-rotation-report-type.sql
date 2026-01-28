@@ -2,6 +2,9 @@
 -- Date: 2026-01-28
 -- Purpose: Support sector-rotation as a separate report type (was incorrectly aliased to 'weekly')
 
+-- Disable foreign keys during migration
+PRAGMA foreign_keys = OFF;
+
 -- Drop and recreate job_run_results with updated CHECK constraint
 DROP TABLE IF EXISTS job_run_results_new;
 CREATE TABLE job_run_results_new (
@@ -9,11 +12,13 @@ CREATE TABLE job_run_results_new (
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   status TEXT NOT NULL CHECK(status IN ('running','success','failed','partial')),
-  trigger_source TEXT CHECK(trigger_source IN ('cron','manual','api')),
   current_stage TEXT,
-  started_at TEXT,
+  errors_json TEXT,
+  warnings_json TEXT,
+  started_at TEXT NOT NULL,
   executed_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  trigger_source TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Copy existing data
@@ -31,13 +36,19 @@ CREATE INDEX idx_job_run_results_created ON job_run_results(created_at DESC);
 -- Drop and recreate job_date_results with updated CHECK constraint
 DROP TABLE IF EXISTS job_date_results_new;
 CREATE TABLE job_date_results_new (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
-  latest_run_id TEXT NOT NULL,
-  latest_status TEXT NOT NULL CHECK(latest_status IN ('running','success','failed','partial')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(scheduled_date, report_type)
+  status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
+  current_stage TEXT,
+  errors_json TEXT,
+  warnings_json TEXT,
+  executed_at TEXT,
+  started_at TEXT,
+  trigger_source TEXT,
+  latest_run_id TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (scheduled_date, report_type)
 );
 
 -- Copy existing data
@@ -50,6 +61,7 @@ ALTER TABLE job_date_results_new RENAME TO job_date_results;
 -- Recreate indexes
 CREATE INDEX idx_job_date_results_date ON job_date_results(scheduled_date DESC);
 CREATE INDEX idx_job_date_results_type ON job_date_results(report_type);
+CREATE INDEX idx_job_date_results_status ON job_date_results(status) WHERE status = 'running';
 
 -- Drop and recreate scheduled_job_results with updated CHECK constraint
 DROP TABLE IF EXISTS scheduled_job_results_new;
@@ -57,11 +69,11 @@ CREATE TABLE scheduled_job_results_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
-  run_id TEXT,
   report_content TEXT NOT NULL,
   metadata TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(scheduled_date, report_type, run_id)
+  trigger_source TEXT,
+  run_id TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Copy existing data
@@ -75,3 +87,6 @@ ALTER TABLE scheduled_job_results_new RENAME TO scheduled_job_results;
 CREATE INDEX idx_scheduled_job_results_date_type ON scheduled_job_results(scheduled_date, report_type);
 CREATE INDEX idx_scheduled_job_results_run_id ON scheduled_job_results(run_id);
 CREATE INDEX idx_scheduled_job_results_created ON scheduled_job_results(created_at DESC);
+
+-- Re-enable foreign keys
+PRAGMA foreign_keys = ON;
