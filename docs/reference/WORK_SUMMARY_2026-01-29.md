@@ -1,0 +1,123 @@
+# Work Summary - 2026-01-29
+
+## 🎯 Original Goal
+Fix intraday report to show proper pre-market vs intraday sentiment comparisons with actual data instead of "No Comparison Data" or "Awaiting Data".
+
+## ✅ Completed Work
+
+### 1. **Run ID Display on All Reports**
+- Added `run_id` display to pre-market, intraday, end-of-day, and weekly reports
+- Shows last 12 characters of run_id below Generated/Scheduled timestamp
+- Only displayed when viewing specific runs via `?run_id=` parameter
+
+### 2. **Dashboard Links Fixed**
+- Dashboard cards now include `run_id` in links
+- Clicking a card opens the exact run shown on that card
+- Prevents confusion when multiple runs exist for same date
+
+### 3. **Intraday Pre-Market Dependency Tracking**
+- Intraday jobs now record which `pre_market_run_id` they used
+- Added `pre_market_run_id` field to `IntradayAnalysisData`
+- Displayed on intraday page: "Pre-Market Run: 4e283cc84bfd"
+- Creates audit trail for debugging data consistency
+
+### 4. **Fixed Pre-Market Data Lookup**
+- Intraday fallback query now filters `run_id IS NOT NULL`
+- Prevents using legacy empty data (rows without run_id)
+- Ensures intraday only uses tracked pre-market runs
+
+### 5. **Fixed Pre-Market Data Extraction**
+- Extract `direction` from `dual_model.gemma.direction`
+- Extract `sentiment` from `sentiment_layers[0].sentiment`
+- Extract `confidence` from `sentiment_layers[0].confidence`
+- Handles different pre-market data structures
+
+### 6. **News Provider Failure Tracking (Infrastructure Ready)**
+- Created `news_provider_failures` D1 table schema
+- Created `news-provider-failure-tracker.ts` module
+- Modified `getFreeStockNewsWithErrorTracking` to log failures to D1
+- Added `providerFailures` field to results
+- Logs: symbol, provider, error_type, error_message, job_type, run_id
+
+### 7. **D1 Schema Policy Documented**
+- Active development mode: clean slate approach
+- Update `schema/predict-jobs.sql` directly
+- User cleans and recreates tables as needed
+- No data preservation during development
+
+## 📊 Current Status
+
+### Working ✅
+- Intraday report shows 5 symbols with pre-market data
+- Pre-market run_id tracked: `2026-01-28_pre-market_8c4f29ef-d527-43e5-aeb8-4e283cc84bfd`
+- 2 symbols with full comparison (AAPL, MSFT)
+- Dashboard links include run_id
+- Provider failure tracking infrastructure ready
+
+### Partial ⚠️
+- 3 symbols incomplete (GOOGL, NVDA, TSLA)
+- Reason: No news articles available during intraday run
+- Shows "INCOMPLETE" status (correct behavior)
+
+## 🎯 Remaining Goal
+
+**Make intraday report show all 5 symbols with complete comparisons**
+
+### Root Cause
+- Intraday runs at 12:00 PM ET (midday)
+- Less fresh news available compared to pre-market (8:30 AM)
+- 5 news providers all failed for GOOGL, NVDA, TSLA
+
+### Current Providers
+1. DAC (external service)
+2. Finnhub (60 calls/min)
+3. FMP (Financial Modeling Prep)
+4. NewsAPI
+5. Yahoo Finance
+
+### Proposed Solutions
+
+**Option A: Build CCT Article Pool (Recommended)**
+- Store articles in CCT's Durable Objects
+- Populate from all providers during pre-market
+- Reuse for intraday and end-of-day
+- Reduces API calls by 66%
+- Ensures data availability
+
+**Option B: Add More Providers**
+- Alpha Vantage (25 calls/day)
+- Polygon.io (5 calls/min)
+- IEX Cloud
+- Reddit/Twitter scraping
+
+**Option C: Use Stale Data Fallback**
+- Allow articles from last 24-48 hours
+- Better than showing "No data"
+- Mark as "stale" in UI
+
+## 📝 Next Steps
+
+1. **Decide on solution** (A, B, or C above)
+2. **Include provider failures in reports** (infrastructure ready, needs integration)
+3. **Test with full data** once article availability improves
+
+## 🔧 Technical Debt
+- Remove DAC dependency (external service)
+- Implement CCT's own article caching
+- Add provider failure visibility in UI
+
+---
+
+**Key Achievement**: Intraday report now properly tracks and displays pre-market dependencies with audit trail. The "incomplete" status is correct behavior when news data is unavailable.
+
+**Files Modified**: 
+- `src/modules/intraday-data-bridge.ts` - Pre-market dependency tracking and data extraction
+- `src/modules/handlers/intraday-handlers.ts` - Run ID display
+- `src/modules/handlers/briefing-handlers.ts` - Run ID display
+- `src/modules/handlers/end-of-day-handlers.ts` - Run ID display
+- `src/modules/handlers/weekly-review-handlers.ts` - Run ID display
+- `public/dashboard.html` - Dashboard links with run_id
+- `src/modules/free-stock-news-with-error-tracking.ts` - Provider failure tracking
+- `src/modules/news-provider-failure-tracker.ts` - New module for D1 logging
+- `schema/migrations/add-news-provider-failures.sql` - D1 table schema
+- `AGENTS.md` - D1 schema management policy
