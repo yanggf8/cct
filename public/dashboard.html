@@ -378,13 +378,25 @@
                 return;
             }
 
+            const reportLinks = {
+                'pre-market': '/pre-market-briefing',
+                'intraday': '/intraday-check',
+                'end-of-day': '/end-of-day-summary',
+                'weekly': '/weekly-review'
+            };
+
             const rows = jobRuns.map(run => {
                 const statusClass = run.status === 'success' ? 'success' : run.status === 'running' ? 'running' : 'failed';
                 const statusIcon = run.status === 'success' ? '✅' : run.status === 'running' ? '🔄' : '❌';
+                const reportUrl = reportLinks[run.report_type] ? `${reportLinks[run.report_type]}?run_id=${run.run_id}` : '#';
+                const typeDisplay = reportLinks[run.report_type] 
+                    ? `<a href="${reportUrl}" style="color: var(--gold); text-decoration: none;">${run.report_type}</a>`
+                    : run.report_type;
+                
                 return `
                     <tr>
                         <td>${run.scheduled_date}</td>
-                        <td>${run.report_type}</td>
+                        <td>${typeDisplay}</td>
                         <td><span class="run-status ${statusClass}">${statusIcon} ${run.status}</span></td>
                         <td>${formatRunTime(run.started_at)}</td>
                         <td>${formatRunTime(run.executed_at)}</td>

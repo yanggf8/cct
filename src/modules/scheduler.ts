@@ -13,7 +13,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { writeD1JobResult, updateD1JobStatus, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId } from './d1-job-storage.js';
+import { writeD1JobResult, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -322,24 +322,6 @@ export async function handleScheduledEvent(
 
       console.log(`✅ [CRON-COMPLETE-SECTORS] ${cronExecutionId} Sector rotation refresh completed`);
 
-      // Write job execution status to job_executions table for dashboard tracking
-      try {
-        const jobType = 'sector-rotation';
-        await updateD1JobStatus(env, jobType, dateStr, 'done', {
-          symbols_processed: 0,
-          execution_time_ms: Date.now() - scheduledTime.getTime(),
-          symbols_successful: 0,
-          symbols_fallback: 0,
-          symbols_failed: 0,
-          errors: []
-        });
-        console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Sector rotation job status written to job_executions`);
-      } catch (statusError: any) {
-        console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write sector rotation job status:`, {
-          error: statusError.message
-        });
-      }
-
       return new Response('Sector rotation refresh completed successfully', { status: 200 });
 
     } else if (triggerMode === 'midday_validation_prediction') {
@@ -394,24 +376,6 @@ export async function handleScheduledEvent(
       if (!analysisResult) {
         console.error(`❌ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis did not produce a valid result`);
 
-        // Write failure status to job_executions
-        try {
-          const jobType = 'intraday';
-          await updateD1JobStatus(env, jobType, dateStr, 'failed', {
-            symbols_processed: 0,
-            execution_time_ms: Date.now() - scheduledTime.getTime(),
-            symbols_successful: 0,
-            symbols_fallback: 0,
-            symbols_failed: 0,
-            errors: ['Intraday analysis failed - no valid result generated']
-          });
-          console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Intraday failure status written to job_executions`);
-        } catch (statusError: any) {
-          console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write intraday error status:`, {
-            error: statusError.message
-          });
-        }
-
         const errorResponse: CronResponse = {
           success: false,
           trigger_mode: triggerMode,
@@ -422,27 +386,6 @@ export async function handleScheduledEvent(
         return new Response(JSON.stringify(errorResponse), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
-        });
-      }
-
-      // Write success status to job_executions
-      try {
-        const jobType = 'intraday';
-        const symbolsAnalyzed = Array.isArray(analysisResult.symbols_analyzed)
-          ? analysisResult.symbols_analyzed.length
-          : (typeof analysisResult.symbols_analyzed === 'number' ? analysisResult.symbols_analyzed : 0);
-        await updateD1JobStatus(env, jobType, dateStr, 'done', {
-          symbols_processed: symbolsAnalyzed,
-          execution_time_ms: Date.now() - scheduledTime.getTime(),
-          symbols_successful: symbolsAnalyzed,
-          symbols_fallback: 0,
-          symbols_failed: 0,
-          errors: []
-        });
-        console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Intraday job status written to job_executions`);
-      } catch (statusError: any) {
-        console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write intraday job status:`, {
-          error: statusError.message
         });
       }
 
@@ -723,35 +666,6 @@ export async function handleScheduledEvent(
             });
             console.log(`✅ [CRON-PRE-MARKET] ${cronExecutionId} Job run completed successfully with run_id: ${runId}`);
           }
-
-          // Write job execution status to job_executions table for dashboard tracking
-          try {
-            const jobTypeMap: Record<string, string> = {
-              'morning_prediction_alerts': 'pre-market',
-              'midday_validation_prediction': 'intraday',
-              'next_day_market_prediction': 'end-of-day'
-            };
-            const jobType = jobTypeMap[triggerMode] || triggerMode;
-            const symbolsAnalyzedRaw = analysisResult?.symbols_analyzed;
-            const symbolsAnalyzed: number = Array.isArray(symbolsAnalyzedRaw)
-              ? symbolsAnalyzedRaw.length
-              : (typeof symbolsAnalyzedRaw === 'number' ? symbolsAnalyzedRaw : 0);
-
-            await updateD1JobStatus(env, jobType, dateStr, 'done', {
-              symbols_processed: symbolsAnalyzed,
-              execution_time_ms: Date.now() - scheduledTime.getTime(),
-              symbols_successful: symbolsAnalyzed,
-              symbols_fallback: 0,
-              symbols_failed: 0,
-              errors: []
-            });
-            console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Job status written to job_executions: ${jobType}`);
-          } catch (statusError: any) {
-            console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write job status:`, {
-              error: statusError.message,
-              jobType: triggerMode
-            });
-          }
         } catch (d1Error: any) {
           console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 write failed:`, {
             error: d1Error.message,
@@ -776,20 +690,6 @@ export async function handleScheduledEvent(
             });
           }
 
-          // Also update job_executions for dashboard compatibility
-          try {
-            await updateD1JobStatus(env, d1ReportType, dateStr, 'failed', {
-              symbols_processed: 0,
-              execution_time_ms: Date.now() - scheduledTime.getTime(),
-              symbols_successful: 0,
-              symbols_fallback: 0,
-              symbols_failed: 0,
-              errors: [d1Error.message]
-            });
-          } catch (statusError: any) {
-            console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write D1 error status:`, { error: statusError.message });
-          }
-
           // Continue execution even if D1 fails
         }
       }
@@ -808,16 +708,6 @@ export async function handleScheduledEvent(
           errors: [failureError]
         });
       }
-
-      // Also update job_executions for dashboard compatibility
-      await updateD1JobStatus(env, 'pre-market', dateStr, 'failed', {
-        symbols_processed: 0,
-        execution_time_ms: Date.now() - scheduledTime.getTime(),
-        symbols_successful: 0,
-        symbols_fallback: 0,
-        symbols_failed: 0,
-        errors: [failureError]
-      });
 
       // Return failure response
       const errorResponse: CronResponse = {
@@ -887,8 +777,8 @@ export async function handleScheduledEvent(
       }
     }
 
-    // Write failure status to job_executions table for dashboard tracking
-    try {
+    // Update multi-run tables for pre-market failures
+    if (runTrackingEnabled && runId) {
       const jobTypeMap: Record<string, string> = {
         'morning_prediction_alerts': 'pre-market',
         'midday_validation_prediction': 'intraday',
@@ -899,31 +789,20 @@ export async function handleScheduledEvent(
       const jobType = jobTypeMap[triggerMode] || triggerMode;
       const dateStr = estTime.toISOString().split('T')[0];
 
-      await updateD1JobStatus(env, jobType, dateStr, 'failed', {
-        symbols_processed: 0,
-        execution_time_ms: Date.now() - scheduledTime.getTime(),
-        symbols_successful: 0,
-        symbols_fallback: 0,
-        symbols_failed: 0,
-        errors: [error.message]
-      });
-      console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Failed job status written to job_executions: ${jobType}`);
-
-      // Bug fix: Also update multi-run tables for pre-market failures
-      if (runTrackingEnabled && jobType === 'pre-market' && runId) {
+      try {
         await completeJobRun(env, {
           runId,
           scheduledDate: dateStr,
-          reportType: 'pre-market',
+          reportType: jobType as 'pre-market' | 'intraday' | 'end-of-day' | 'weekly',
           status: 'failed',
           errors: [error.message]
         });
-        console.log(`✅ [CRON-PRE-MARKET] ${cronExecutionId} Failed job run recorded in multi-run tables: ${runId}`);
+        console.log(`✅ [CRON] ${cronExecutionId} Failed job run recorded: ${runId}`);
+      } catch (statusError: any) {
+        console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to update multi-run tables:`, {
+          error: statusError.message
+        });
       }
-    } catch (statusError: any) {
-      console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write error status:`, {
-        error: statusError.message
-      });
     }
 
     const errorResponse: CronResponse = {
