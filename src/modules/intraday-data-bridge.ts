@@ -459,10 +459,22 @@ export class IntradayDataBridge {
 
       // Extract predictions from snapshot
       const reportData = snapshot.data;
-      const tradingSignals = reportData.trading_signals || [];
+      const tradingSignals = reportData.trading_signals;
+
+      if (!tradingSignals) {
+        logger.warn('IntradayDataBridge: No trading_signals in snapshot', { runId });
+        return [];
+      }
+
+      // trading_signals is an object with symbol keys, not an array
+      const signalsArray = typeof tradingSignals === 'object' && !Array.isArray(tradingSignals)
+        ? Object.values(tradingSignals)
+        : Array.isArray(tradingSignals)
+        ? tradingSignals
+        : [];
 
       // Transform to MorningPrediction format
-      return tradingSignals.map((signal: any) => ({
+      return signalsArray.map((signal: any) => ({
         symbol: signal.symbol || signal.ticker,
         sentiment: signal.sentiment,
         confidence: signal.confidence,

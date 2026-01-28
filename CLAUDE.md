@@ -646,7 +646,8 @@ npm run build:frontend:only
 
 ## 📊 D1 Schema Status (2026-01-28)
 
-### Multi-Run Schema v2.3
+### Multi-Run Schema v2.4
+**Supported report_type values**: `pre-market`, `intraday`, `end-of-day`, `weekly`, `sector-rotation`
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
 | **job_date_results** | Navigation summary (1 row per date/type) | `scheduled_date`, `report_type`, `status`, `latest_run_id` |
@@ -664,7 +665,9 @@ Analysis → symbol_predictions (per symbol)
     ↓
 Completion → completeJobRun() → scheduled_job_results (append-only)
     ↓
-Navigation → job_date_results.latest_run_id → latest status
+Navigation Sidebar → /api/v1/jobs/runs → expandable runs per report type
+    ↓
+Report Page → ?run_id= → specific run from scheduled_job_results
     ↓
 Dashboard → job_run_results → full history with delete capability
 ```

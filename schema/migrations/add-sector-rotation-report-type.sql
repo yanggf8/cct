@@ -63,12 +63,13 @@ CREATE INDEX idx_job_date_results_date ON job_date_results(scheduled_date DESC);
 CREATE INDEX idx_job_date_results_type ON job_date_results(report_type);
 CREATE INDEX idx_job_date_results_status ON job_date_results(status) WHERE status = 'running';
 
--- Drop and recreate scheduled_job_results with updated CHECK constraint
+-- Drop and recreate scheduled_job_results WITHOUT CHECK constraint
+-- (This table stores many report types: analysis, morning_predictions, etc.)
 DROP TABLE IF EXISTS scheduled_job_results_new;
 CREATE TABLE scheduled_job_results_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   scheduled_date TEXT NOT NULL,
-  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
+  report_type TEXT NOT NULL,
   report_content TEXT NOT NULL,
   metadata TEXT,
   trigger_source TEXT,
