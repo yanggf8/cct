@@ -229,8 +229,12 @@ export const handleIntradayCheck = createHandler(
         }
 
         if (!content) {
+          // Prefer rows with run_id (tracked runs) over legacy rows without
           const snapshot = await env.PREDICT_JOBS_DB
-            .prepare('SELECT report_content FROM scheduled_job_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
+            .prepare(`SELECT report_content FROM scheduled_job_results
+                      WHERE scheduled_date = ? AND report_type = ?
+                      ORDER BY CASE WHEN run_id IS NOT NULL THEN 0 ELSE 1 END, created_at DESC
+                      LIMIT 1`)
             .bind(dateStr, 'intraday')
             .first();
           if (snapshot && snapshot.report_content) {
