@@ -114,6 +114,7 @@ export interface IntradayPerformanceData {
   recalibrationAlert: RecalibrationAlert;
   lastUpdated?: string;
   generatedAt?: string;
+  pre_market_run_id?: string | null;
 }
 
 /**
@@ -309,7 +310,8 @@ export const handleIntradayCheck = createHandler(
               currentValue: accuracy
             },
             lastUpdated: content.timestamp,
-            generatedAt: content.timestamp
+            generatedAt: content.timestamp,
+            pre_market_run_id: content.pre_market_run_id || null
           };
 
           logger.info('📊 [INTRADAY] Loaded data from D1', {
@@ -1001,6 +1003,10 @@ async function generateIntradayCheckHTML(
               ${runId ? `<div class="run-id-display">
                 <span class="date-label">Run ID:</span>
                 <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${runId.slice(-12)}</span>
+              </div>` : ''}
+              ${formattedData.pre_market_run_id ? `<div class="run-id-display">
+                <span class="date-label">Pre-Market Run:</span>
+                <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${formattedData.pre_market_run_id.slice(-12)}</span>
               </div>` : ''}
             </div>
         </div>
