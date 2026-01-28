@@ -101,6 +101,7 @@ interface IntradayAnalysisData {
   on_track_count: number;
   diverged_count: number;
   total_symbols: number;
+  message?: string;  // Optional message for empty/error states
 }
 
 export class IntradayDataBridge {

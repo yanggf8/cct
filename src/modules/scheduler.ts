@@ -375,21 +375,34 @@ export async function handleScheduledEvent(
           throw new Error(`Invalid intraday result: ${JSON.stringify(intradayResult)}`);
         }
 
-        // Treat empty symbols array as a failure (no symbols analyzed)
+        // Handle empty symbols array gracefully (no pre-market data available)
         if (intradayResult.symbols.length === 0) {
-          throw new Error('Intraday analysis produced no symbols - empty result');
+          console.warn(`⚠️ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis produced no symbols - empty pre-market data`);
+          // Create valid empty result structure
+          analysisResult = {
+            symbols: [],
+            symbols_analyzed: 0,
+            symbols_list: [],
+            overall_accuracy: 0,
+            on_track_count: 0,
+            diverged_count: 0,
+            timestamp: intradayResult.timestamp || new Date().toISOString(),
+            trigger_mode: triggerMode,
+            market_status: intradayResult.market_status || 'unknown',
+            message: intradayResult.message || 'No intraday data available. No pre-market analysis found.'
+          };
+        } else {
+          // Transform to scheduler expected shape
+          // Note: symbols_analyzed must be a number (not array) to match intraday UI expectations
+          // and be consistent with /api/v1/jobs/intraday endpoint
+          analysisResult = {
+            ...intradayResult,
+            symbols_analyzed: intradayResult.symbols.length, // Store as number, not array
+            symbols_list: intradayResult.symbols.map(s => s.symbol), // Keep symbols array in separate field
+            timestamp: intradayResult.timestamp,
+            trigger_mode: triggerMode
+          };
         }
-
-        // Transform to scheduler expected shape
-        // Note: symbols_analyzed must be a number (not array) to match intraday UI expectations
-        // and be consistent with /api/v1/jobs/intraday endpoint
-        analysisResult = {
-          ...intradayResult,
-          symbols_analyzed: intradayResult.symbols.length, // Store as number, not array
-          symbols_list: intradayResult.symbols.map(s => s.symbol), // Keep symbols array in separate field
-          timestamp: intradayResult.timestamp,
-          trigger_mode: triggerMode
-        };
 
         console.log(`✅ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis completed`, {
           symbols_count: intradayResult.symbols.length,
@@ -709,6 +722,18 @@ export async function handleScheduledEvent(
             }
           }, 'cron', activeRunTrackingEnabled ? activeRunId! : undefined);
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
+
+          // Invalidate HTML cache to ensure fresh page rendering
+          if (d1ReportType === 'intraday' || d1ReportType === 'end-of-day') {
+            try {
+              const dal = createSimplifiedEnhancedDAL(env);
+              const htmlCacheKey = d1ReportType === 'intraday'
+                ? `intraday_html_${dateStr}`
+                : `end_of_day_html_${dateStr}`;
+              await dal.deleteKey(htmlCacheKey);
+              console.log(`🗑️ [CRON-CACHE] ${cronExecutionId} ${d1ReportType} HTML cache invalidated: ${htmlCacheKey}`);
+            } catch (cacheErr) { /* ignore - cache key may not exist */ }
+          }
 
           // End storage stage for jobs with run tracking
           if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
