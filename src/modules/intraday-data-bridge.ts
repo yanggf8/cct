@@ -408,7 +408,7 @@ export class IntradayDataBridge {
    * Parse model status string to typed status
    */
   private parseModelStatus(status: string | null | undefined): ModelDisplayResult['status'] {
-    if (!status) return 'no_data';
+    if (!status || typeof status !== 'string') return 'no_data';
     const s = status.toLowerCase();
     if (s === 'success' || s === 'ok') return 'success';
     if (s === 'timeout' || s.includes('timeout')) return 'timeout';
@@ -586,7 +586,8 @@ export class IntradayDataBridge {
   /**
    * Normalize sentiment to up/down/neutral
    */
-  private normalizeSentiment(sentiment: string): 'up' | 'down' | 'neutral' {
+  private normalizeSentiment(sentiment: string | null | undefined): 'up' | 'down' | 'neutral' {
+    if (!sentiment || typeof sentiment !== 'string') return 'neutral';
     const s = sentiment.toLowerCase();
     if (s.includes('bull') || s === 'up' || s === 'positive') return 'up';
     if (s.includes('bear') || s === 'down' || s === 'negative') return 'down';
