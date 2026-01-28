@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-28 - Partial Status v3.10.10)
+- **Current Version**: Latest (2026-01-28 - Intraday Display Fix v3.10.11)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Intraday No-Comparisons Display v3.10.11** | ✅ Complete | Intraday page now shows "⚠️ No Comparison Data" with explanation when job ran but had no pre-market data, instead of misleading "Awaiting Data" |
 | **Intraday Empty Symbols Partial Status v3.10.10** | ✅ Complete | Intraday jobs with no pre-market data now marked `partial` (⚠️) instead of `success`, with warning message. Prevents misleading dashboard status |
 | **Intraday/EOD Cache Invalidation v3.10.9** | ✅ Complete | Scheduler now invalidates `intraday_html_` and `end_of_day_html_` DO cache after D1 write, fixing stale "Awaiting Data" pages |
 | **Dashboard Job History Icons v3.10.8** | ✅ Complete | Job history table shows trigger icons (⏰ cron/👤 manual), report icons (🌅/📊/🌆/📋), status icons with legend bar explaining all symbols |

@@ -411,6 +411,18 @@ export const handleIntradayCheck = createHandler(
 
     // If no real data (no predictions from job), show pending page
     if (!hasRealJobData) {
+      // Debug: Return diagnostic info instead of pending page when bypass=1
+      if (url.searchParams.get('bypass') === '1' || url.searchParams.get('debug') === '1') {
+        return new Response(JSON.stringify({
+          error: 'No real job data found',
+          dateStr,
+          runId,
+          hasD1: !!env.PREDICT_JOBS_DB,
+          requestId
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
       const pendingPage = generatePendingPageHTML({
         title: 'Intraday Performance Check',
         reportType: 'intraday',
@@ -427,7 +439,7 @@ export const handleIntradayCheck = createHandler(
       });
     }
 
-    const html: string = await generateIntradayCheckHTML(intradayData, today, env, comparisons);
+    const html: string = await generateIntradayCheckHTML(intradayData, today, env, comparisons, hasRealJobData);
     const totalTime: number = Date.now() - startTime;
 
     // Cache HTML for fast subsequent loads
@@ -713,7 +725,8 @@ async function generateIntradayCheckHTML(
   intradayData: IntradayPerformanceData | null,
   date: Date,
   env: CloudflareEnvironment,
-  comparisons?: IntradaySymbolComparison[]
+  comparisons?: IntradaySymbolComparison[],
+  hasJobData?: boolean
 ): Promise<string> {
   // Process intraday data for HTML format
   const formattedData: IntradayPerformanceData = intradayData || getDefaultIntradayData();
@@ -995,6 +1008,15 @@ async function generateIntradayCheckHTML(
 
           <div class="comparisons-section">
             ${generateComparisonCards(comparisons!)}
+          </div>
+        ` : hasJobData ? `
+          <div class="model-health divergence">
+            <div class="health-status divergence">⚠️ No Comparison Data</div>
+            <div>The intraday job ran but no pre-market predictions were available for comparison.</div>
+            <div style="margin-top: 10px; font-size: 0.9rem; color: #888;">
+              This typically happens when the pre-market job didn't run or failed before the intraday check.
+              Check the <a href="/dashboard.html" style="color: #f0b90b;">Dashboard</a> for job history.
+            </div>
           </div>
         ` : `
           <div class="model-health pending">
