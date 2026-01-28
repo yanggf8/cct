@@ -52,6 +52,12 @@ Fix intraday report to show proper pre-market vs intraday sentiment comparisons 
 - Caches results from all providers (Finnhub, FMP, NewsAPI, Yahoo)
 - Reduces API calls and prevents rate limiting
 
+### 9. **Cache Hit/Miss Tracking** ⭐ NEW
+- Created `news_cache_stats` D1 table
+- Logs every cache hit/miss with symbol, articles_count, timestamp
+- Enables monitoring of cache effectiveness
+- Query hit rate: `SELECT cache_result, COUNT(*) FROM news_cache_stats GROUP BY cache_result`
+
 ## 📊 Current Status
 
 ### Working ✅
@@ -126,7 +132,8 @@ Fix intraday report to show proper pre-market vs intraday sentiment comparisons 
 - `public/dashboard.html` - Dashboard links with run_id
 - `src/modules/free-stock-news-with-error-tracking.ts` - Provider failure tracking
 - `src/modules/news-provider-failure-tracker.ts` - New module for D1 logging
-- `src/modules/free_sentiment_pipeline.ts` - News cache integration
+- `src/modules/free_sentiment_pipeline.ts` - News cache integration + hit/miss tracking
 - `src/modules/cache-config.ts` - NEWS_ARTICLES TTL set to 15 minutes
+- `schema/predict-jobs.sql` - Added news_cache_stats table
 - `schema/migrations/add-news-provider-failures.sql` - D1 table schema
 - `AGENTS.md` - D1 schema management policy
