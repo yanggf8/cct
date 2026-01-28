@@ -520,8 +520,8 @@ export class IntradayDataBridge {
       // Transform to MorningPrediction format and return with run_id
       return { predictions: signalsArray.map((signal: any) => ({
         symbol: signal.symbol || signal.ticker, // Prefer signal.symbol, fallback to ticker
-        sentiment: signal.sentiment,
-        confidence: signal.confidence,
+        sentiment: signal.sentiment || signal.sentiment_layers?.[0]?.sentiment,
+        confidence: signal.confidence || signal.sentiment_layers?.[0]?.confidence || signal.dual_model?.gemma?.confidence,
         articles_count: signal.articles_count || 0,
         direction: signal.direction || signal.dual_model?.gemma?.direction || signal.dual_model?.distilbert?.direction, // Extract from dual_model if needed
         trading_signals: signal,
