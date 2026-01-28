@@ -18,6 +18,7 @@ export interface AnalysisOptions {
   cronExecutionId?: string;
   marketData?: any;
   symbol?: string;
+  jobContext?: { job_type?: 'pre-market' | 'intraday' | 'end-of-day'; run_id?: string };
   [key: string]: any;
 }
 

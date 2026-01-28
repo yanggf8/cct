@@ -737,6 +737,7 @@ export async function batchDualAIAnalysis(
   const startTime = Date.now();
   ensureLoggingInitialized(env);
   logInfo(`Starting batch dual AI analysis for ${symbols.length} symbols (sequential mode)...`);
+  const jobContext = options.jobContext as { job_type?: 'pre-market' | 'intraday' | 'end-of-day'; run_id?: string } | undefined;
 
   const results: DualAIComparisonResult[] = [];
   const statistics: BatchStatistics = {
@@ -755,7 +756,7 @@ export async function batchDualAIAnalysis(
       logAIDebug(`Analyzing ${symbol} (${i + 1}/${symbols.length}) with dual AI...`);
 
       // Get news data with error tracking (tracks which providers failed)
-      const newsFetchResult = await getFreeStockNewsWithErrorTracking(symbol, env);
+      const newsFetchResult = await getFreeStockNewsWithErrorTracking(symbol, env, jobContext);
 
       // Run dual AI comparison with rate limit retry
       const dualAIResult = await performDualAIComparisonWithRetry(symbol, newsFetchResult.articles, env);

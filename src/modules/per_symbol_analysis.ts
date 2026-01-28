@@ -13,6 +13,7 @@ import type { CloudflareEnvironment } from '../types.js';
 // Type Definitions
 export interface AnalysisOptions {
   startTime?: number;
+  jobContext?: { job_type?: 'pre-market' | 'intraday' | 'end-of-day'; run_id?: string };
   [key: string]: any;
 }
 

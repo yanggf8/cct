@@ -629,7 +629,11 @@ export async function handleScheduledEvent(
         triggerMode,
         predictionHorizons,
         currentTime: estTime,
-        cronExecutionId
+        cronExecutionId,
+        jobContext: {
+          job_type: 'pre-market',
+          run_id: runId || undefined
+        }
       });
 
       if (runTrackingEnabled) {
@@ -714,18 +718,23 @@ export async function handleScheduledEvent(
         }
 
         try {
-          const d1Written = await writeD1JobResult(env, dateStr, d1ReportType, {
-            ...analysisResult,
-            cron_execution_id: cronExecutionId,
-            trigger_mode: triggerMode,
-            generated_at: estTime.toISOString()
-          }, {
+          const d1Metadata: Record<string, any> = {
             processingTimeMs: Date.now() - scheduledTime.getTime(),
             ai_models: {
               primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
               secondary: '@cf/huggingface/distilbert-sst-2-int8'
             }
-          }, 'cron', activeRunTrackingEnabled ? activeRunId! : undefined);
+          };
+          if (d1ReportType === 'intraday') {
+            d1Metadata.pre_market_run_id = (analysisResult as any)?.pre_market_run_id || null;
+          }
+
+          const d1Written = await writeD1JobResult(env, dateStr, d1ReportType, {
+            ...analysisResult,
+            cron_execution_id: cronExecutionId,
+            trigger_mode: triggerMode,
+            generated_at: estTime.toISOString()
+          }, d1Metadata, 'cron', activeRunTrackingEnabled ? activeRunId! : undefined);
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
 
           // Invalidate HTML cache to ensure fresh page rendering

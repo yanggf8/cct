@@ -485,7 +485,7 @@ export const CACHE_MONITORING = {
 export const DUAL_CACHE_CONFIGS = {
   STOCK_SENTIMENT: { ttl: CACHE_TTL.MEDIUM, namespace: 'sentiment' },
   MARKET_DATA: { ttl: CACHE_TTL.SHORT, namespace: 'market' },
-  NEWS_ARTICLES: { ttl: CACHE_TTL.EXTENDED, namespace: 'news' }, // Changed from MEDIUM (5min) to EXTENDED (6h) to reuse pre-market articles for intraday
+  NEWS_ARTICLES: { ttl: 900, namespace: 'news' }, // 15 minutes - fresh enough for intraday, reusable for reruns
   AI_RESULTS: { ttl: CACHE_TTL.LONG, namespace: 'ai' },
   REPORTS: { ttl: CACHE_TTL.EXTENDED, namespace: 'reports' }
 } as const;
