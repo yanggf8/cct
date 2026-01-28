@@ -32,6 +32,7 @@
 - `/health` - System health check
 - `/model-health` - AI model health check
 - `/api/v1/data/health` - API health endpoint
+- `/api/v1/reports/status` - Navigation job status (read-only, no writes)
 
 ### Protected Endpoints (API Key Required)
 All other `/api/v1/*` endpoints require authentication:
@@ -408,6 +409,50 @@ GET /weekly-review
 - Weekly performance trends and consistency metrics
 - Model optimization recommendations
 - Interactive Chart.js visualizations
+
+#### **Navigation Status (v3.10.4)**
+```bash
+GET /api/v1/reports/status?days=3
+```
+
+**Description**: Job status for navigation display. Returns status of Pre-Market, Intraday, and End-of-Day jobs for the last N trading days.
+
+**Authentication**: None (public, read-only endpoint)
+
+**Query Parameters**:
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `days` | number | 3 | Number of trading days (max 10) |
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "2026-01-28": {
+      "label": "Jan 28 (Wed)",
+      "pre-market": { "status": "success", "executed_at": "2026-01-28T13:33:14Z" },
+      "intraday": { "status": "running", "started_at": "2026-01-28T17:00:05Z", "current_stage": "ai_analysis" },
+      "end-of-day": { "status": "missed" }
+    }
+  },
+  "meta": { "timezone": "America/New_York", "cutover_date": "2026-01-28" }
+}
+```
+
+**Status Values**:
+- `success` - Job completed successfully
+- `partial` - Job completed with some failures
+- `failed` - Job failed completely
+- `running` - Job currently executing
+- `missed` - Post-cutover date with no job run
+- `n/a` - Pre-cutover historical data
+
+**Implementation Notes**:
+- Read-only: No database writes from this endpoint
+- Stale job cleanup performed by authenticated job handlers only
+- Uses ET timezone via `Intl.DateTimeFormat().formatToParts()` for reliability
+- See `docs/NAVIGATION_REDESIGN_V2.md` for full design
 
 ### **💻 System Health & Monitoring**
 

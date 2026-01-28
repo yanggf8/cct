@@ -698,3 +698,328 @@ export async function getD1JobStatus(
     return null;
   }
 }
+
+// ============================================================================
+// Navigation Status Tables (job_date_results + job_stage_log)
+// ============================================================================
+
+export type ReportType = 'pre-market' | 'intraday' | 'end-of-day' | 'weekly';
+export type JobStatus = 'running' | 'success' | 'partial' | 'failed';
+export type JobStage = 'init' | 'data_fetch' | 'ai_analysis' | 'storage' | 'finalize';
+export type JobTriggerSource = 'cron' | 'manual' | 'github_actions';
+
+export interface JobDateResult {
+  scheduled_date: string;
+  report_type: ReportType;
+  status: JobStatus;
+  current_stage: JobStage | null;
+  errors_json: string | null;
+  warnings_json: string | null;
+  executed_at: string | null;
+  started_at: string | null;
+  trigger_source: JobTriggerSource | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobStageLogEntry {
+  id: number;
+  scheduled_date: string;
+  report_type: ReportType;
+  stage: JobStage;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+/**
+ * Write or update job status in job_date_results table
+ * Used for navigation status display
+ */
+export async function writeJobDateResult(
+  env: CloudflareEnvironment,
+  params: {
+    scheduledDate: string;
+    reportType: ReportType;
+    status: JobStatus;
+    currentStage?: JobStage;
+    errors?: string[];
+    warnings?: string[];
+    triggerSource: JobTriggerSource;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    logger.warn('D1 database not available for writeJobDateResult');
+    return false;
+  }
+
+  const now = new Date().toISOString();
+
+  try {
+    if (params.status === 'running') {
+      // Job starting - insert with running status, preserve created_at on update
+      await db.prepare(`
+        INSERT INTO job_date_results
+        (scheduled_date, report_type, status, started_at, trigger_source, current_stage, updated_at, created_at)
+        VALUES (?, ?, 'running', ?, ?, ?, ?, ?)
+        ON CONFLICT(scheduled_date, report_type) DO UPDATE SET
+          status = excluded.status,
+          started_at = excluded.started_at,
+          trigger_source = excluded.trigger_source,
+          current_stage = excluded.current_stage,
+          updated_at = excluded.updated_at
+      `).bind(
+        params.scheduledDate,
+        params.reportType,
+        now,
+        params.triggerSource,
+        params.currentStage ?? 'init',
+        now,
+        now
+      ).run();
+    } else {
+      // Job completed - update with final status, preserve started_at and created_at
+      await db.prepare(`
+        INSERT INTO job_date_results
+        (scheduled_date, report_type, status, errors_json, warnings_json, executed_at, trigger_source, current_stage, updated_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(scheduled_date, report_type) DO UPDATE SET
+          status = excluded.status,
+          errors_json = excluded.errors_json,
+          warnings_json = excluded.warnings_json,
+          executed_at = excluded.executed_at,
+          trigger_source = COALESCE(job_date_results.trigger_source, excluded.trigger_source),
+          current_stage = excluded.current_stage,
+          updated_at = excluded.updated_at
+      `).bind(
+        params.scheduledDate,
+        params.reportType,
+        params.status,
+        params.errors ? JSON.stringify(params.errors) : null,
+        params.warnings ? JSON.stringify(params.warnings) : null,
+        now,
+        params.triggerSource,
+        params.currentStage ?? 'finalize',
+        now,
+        now
+      ).run();
+    }
+
+    logger.info('Job date result written', {
+      scheduledDate: params.scheduledDate,
+      reportType: params.reportType,
+      status: params.status,
+      stage: params.currentStage
+    });
+    return true;
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    if (errMsg.includes('no such table')) {
+      logger.warn('job_date_results table not found - migration not applied');
+    } else {
+      logger.error('writeJobDateResult failed', { error: errMsg, ...params });
+    }
+    return false;
+  }
+}
+
+/**
+ * Update current stage in job_date_results (for progress tracking)
+ */
+export async function updateJobStage(
+  env: CloudflareEnvironment,
+  scheduledDate: string,
+  reportType: ReportType,
+  stage: JobStage
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  try {
+    await db.prepare(`
+      UPDATE job_date_results
+      SET current_stage = ?, updated_at = ?
+      WHERE scheduled_date = ? AND report_type = ?
+    `).bind(stage, new Date().toISOString(), scheduledDate, reportType).run();
+    return true;
+  } catch (error) {
+    logger.debug('updateJobStage failed', { error: (error as Error).message });
+    return false;
+  }
+}
+
+/**
+ * Start a job stage - append to job_stage_log
+ */
+export async function startJobStage(
+  env: CloudflareEnvironment,
+  params: {
+    scheduledDate: string;
+    reportType: ReportType;
+    stage: JobStage;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    logger.warn('D1 database not available for startJobStage');
+    return false;
+  }
+
+  const now = new Date().toISOString();
+
+  try {
+    // Insert stage start
+    await db.prepare(`
+      INSERT INTO job_stage_log (scheduled_date, report_type, stage, started_at)
+      VALUES (?, ?, ?, ?)
+    `).bind(params.scheduledDate, params.reportType, params.stage, now).run();
+
+    // Also update current_stage in job_date_results
+    await updateJobStage(env, params.scheduledDate, params.reportType, params.stage);
+
+    logger.debug('Job stage started', params);
+    return true;
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    if (errMsg.includes('no such table')) {
+      logger.warn('job_stage_log table not found - migration not applied');
+    } else {
+      logger.error('startJobStage failed', { error: errMsg, ...params });
+    }
+    return false;
+  }
+}
+
+/**
+ * End a job stage - update ended_at in job_stage_log
+ */
+export async function endJobStage(
+  env: CloudflareEnvironment,
+  params: {
+    scheduledDate: string;
+    reportType: ReportType;
+    stage: JobStage;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    logger.warn('D1 database not available for endJobStage');
+    return false;
+  }
+
+  const now = new Date().toISOString();
+
+  try {
+    await db.prepare(`
+      UPDATE job_stage_log
+      SET ended_at = ?
+      WHERE scheduled_date = ? AND report_type = ? AND stage = ? AND ended_at IS NULL
+    `).bind(now, params.scheduledDate, params.reportType, params.stage).run();
+
+    logger.debug('Job stage ended', params);
+    return true;
+  } catch (error) {
+    logger.error('endJobStage failed', { error: (error as Error).message, ...params });
+    return false;
+  }
+}
+
+/**
+ * Get job date results for multiple dates (for navigation)
+ */
+export async function getJobDateResults(
+  env: CloudflareEnvironment,
+  dates: string[]
+): Promise<Map<string, Map<ReportType, JobDateResult>>> {
+  const db = env.PREDICT_JOBS_DB;
+  const results = new Map<string, Map<ReportType, JobDateResult>>();
+
+  if (!db || dates.length === 0) return results;
+
+  try {
+    // Query all results for the given dates
+    const placeholders = dates.map(() => '?').join(',');
+    const query = `
+      SELECT * FROM job_date_results
+      WHERE scheduled_date IN (${placeholders})
+    `;
+    const stmt = db.prepare(query);
+    const bound = stmt.bind(...dates);
+    const queryResult = await bound.all<JobDateResult>();
+
+    // Organize results by date and report_type
+    for (const row of queryResult.results || []) {
+      if (!results.has(row.scheduled_date)) {
+        results.set(row.scheduled_date, new Map());
+      }
+      results.get(row.scheduled_date)!.set(row.report_type, row);
+    }
+
+    return results;
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    if (!errMsg.includes('no such table')) {
+      logger.error('getJobDateResults failed', { error: errMsg, dates });
+    }
+    return results;
+  }
+}
+
+/**
+ * Get stage log for a specific job (for debugging/display)
+ */
+export async function getJobStageLog(
+  env: CloudflareEnvironment,
+  scheduledDate: string,
+  reportType: ReportType
+): Promise<JobStageLogEntry[]> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return [];
+
+  try {
+    const result = await db.prepare(`
+      SELECT * FROM job_stage_log
+      WHERE scheduled_date = ? AND report_type = ?
+      ORDER BY started_at ASC
+    `).bind(scheduledDate, reportType).all<JobStageLogEntry>();
+
+    return result.results || [];
+  } catch (error) {
+    logger.debug('getJobStageLog failed', { error: (error as Error).message });
+    return [];
+  }
+}
+
+/**
+ * Mark stale running jobs as failed (for cleanup)
+ * Jobs running for more than 30 minutes are considered stale
+ */
+export async function markStaleJobsAsFailed(
+  env: CloudflareEnvironment
+): Promise<number> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return 0;
+
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  try {
+    const result = await db.prepare(`
+      UPDATE job_date_results
+      SET status = 'failed',
+          errors_json = json_array('Job stalled - marked as failed after 30 minutes'),
+          executed_at = ?,
+          updated_at = ?
+      WHERE status = 'running' AND started_at < ?
+    `).bind(new Date().toISOString(), new Date().toISOString(), thirtyMinutesAgo).run();
+
+    const affected = result.meta?.changes ?? 0;
+    if (affected > 0) {
+      logger.warn('Marked stale jobs as failed', { count: affected });
+    }
+    return affected;
+  } catch (error) {
+    logger.error('markStaleJobsAsFailed failed', { error: (error as Error).message });
+    return 0;
+  }
+}

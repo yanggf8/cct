@@ -25,7 +25,20 @@ import {
 } from '../modules/validation.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js';
-import { readD1ReportSnapshot, getD1LatestReportSnapshot } from '../modules/d1-job-storage.js';
+import {
+  readD1ReportSnapshot,
+  getD1LatestReportSnapshot,
+  getJobDateResults,
+  type ReportType,
+  type JobDateResult
+} from '../modules/d1-job-storage.js';
+import {
+  getLastNTradingDays,
+  formatDateForNav,
+  getStatusForMissingRow,
+  isMarketHours,
+  NAV_CUTOVER_DATE
+} from '../modules/trading-calendar.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment, ReportSignal } from '../types.js';
 import { getPrimarySentiment } from '../types.js';
@@ -94,6 +107,11 @@ export async function handleReportRoutes(
     // GET /api/v1/reports/end-of-day - End-of-day summary
     if (path === '/api/v1/reports/end-of-day' && method === 'GET') {
       return await handleEndOfDayReport(request, env, headers, requestId);
+    }
+
+    // GET /api/v1/reports/status - Navigation status for last N trading days
+    if (path === '/api/v1/reports/status' && method === 'GET') {
+      return await handleReportsStatus(request, env, headers, requestId);
     }
 
     // Method not allowed for existing paths
@@ -983,6 +1001,146 @@ async function handleEndOfDayReport(
       }
     );
   }
+}
+
+/**
+ * Handle reports status for navigation
+ * GET /api/v1/reports/status?days=3
+ * Returns job status for last N trading days
+ */
+async function handleReportsStatus(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+  const url = new URL(request.url);
+
+  try {
+    // Parse days parameter (default 3, max 10)
+    const daysParam = url.searchParams.get('days');
+    const days = Math.min(Math.max(parseInt(daysParam || '3', 10) || 3, 1), 10);
+
+    // Note: Stale job cleanup moved to authenticated job handlers (jobs-routes.ts)
+    // to avoid public write amplification
+
+    // Get last N trading days
+    const tradingDays = getLastNTradingDays(days);
+
+    // Fetch job results from D1
+    const jobResults = await getJobDateResults(env, tradingDays);
+
+    // Build response data
+    const data: Record<string, {
+      label: string;
+      'pre-market': JobStatusEntry;
+      'intraday': JobStatusEntry;
+      'end-of-day': JobStatusEntry;
+    }> = {};
+
+    const reportTypes: ReportType[] = ['pre-market', 'intraday', 'end-of-day'];
+
+    for (const date of tradingDays) {
+      const dateResults = jobResults.get(date);
+      const dateEntry: Record<string, JobStatusEntry> = {};
+
+      for (const reportType of reportTypes) {
+        const result = dateResults?.get(reportType);
+
+        if (result) {
+          // Row exists - return stored status
+          const entry: JobStatusEntry = {
+            status: result.status
+          };
+
+          if (result.executed_at) {
+            entry.executed_at = result.executed_at;
+          }
+          if (result.started_at && result.status === 'running') {
+            entry.started_at = result.started_at;
+          }
+          if (result.current_stage) {
+            entry.current_stage = result.current_stage;
+          }
+          if (result.errors_json) {
+            try {
+              entry.errors = JSON.parse(result.errors_json);
+            } catch { /* ignore */ }
+          }
+
+          dateEntry[reportType] = entry;
+        } else {
+          // No row - compute n/a or missed based on cutover
+          dateEntry[reportType] = {
+            status: getStatusForMissingRow(date)
+          };
+        }
+      }
+
+      data[date] = {
+        label: formatDateForNav(date),
+        'pre-market': dateEntry['pre-market'],
+        'intraday': dateEntry['intraday'],
+        'end-of-day': dateEntry['end-of-day']
+      };
+    }
+
+    const response = {
+      success: true,
+      data,
+      meta: {
+        timezone: 'America/New_York',
+        cutover_date: NAV_CUTOVER_DATE,
+        generated_at: new Date().toISOString()
+      }
+    };
+
+    logger.info('ReportsStatus: Generated', {
+      requestId,
+      days,
+      tradingDays: tradingDays.length,
+      processingTime: timer.getElapsedMs()
+    });
+
+    // Cache TTL: 60s during market hours, 5min otherwise
+    const cacheTtl = isMarketHours() ? 60 : 300;
+
+    return new Response(
+      JSON.stringify(response),
+      {
+        status: HttpStatus.OK,
+        headers: {
+          ...headers,
+          'Cache-Control': `public, max-age=${cacheTtl}`
+        }
+      }
+    );
+  } catch (error: unknown) {
+    logger.error('ReportsStatus Error', { error, requestId });
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Database unavailable',
+        fallback: true,
+        data: {}
+      }),
+      {
+        status: HttpStatus.OK, // Return 200 with fallback flag
+        headers
+      }
+    );
+  }
+}
+
+// Type for job status entry in response
+interface JobStatusEntry {
+  status: string;
+  executed_at?: string;
+  started_at?: string;
+  current_stage?: string;
+  errors?: string[];
 }
 
 // Helper functions

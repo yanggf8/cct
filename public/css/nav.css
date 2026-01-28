@@ -169,6 +169,86 @@ body.has-nav {
     padding: 30px;
 }
 
+/* Expandable Navigation */
+.nav-expandable {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+.nav-expandable:hover {
+    color: rgba(250, 248, 245, 0.9);
+}
+
+.nav-expand-icon {
+    font-size: 0.65rem;
+    opacity: 0.6;
+    transition: transform 0.2s ease;
+}
+
+.nav-expandable-content {
+    margin-top: 4px;
+}
+
+/* Date Groups */
+.nav-date-group {
+    margin-bottom: 4px;
+}
+
+.nav-date-header {
+    font-size: 0.8rem;
+    color: rgba(250, 248, 245, 0.75);
+    padding: 6px 12px;
+    border-radius: 4px;
+    margin-bottom: 2px;
+}
+
+.nav-date-header:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-date-group.expanded .nav-date-header {
+    color: rgba(250, 248, 245, 0.9);
+}
+
+.nav-date-content {
+    padding-left: 8px;
+}
+
+.nav-date-content .nav-item {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+}
+
+/* Status Icons */
+.status-icon {
+    margin-left: auto;
+    font-size: 0.75rem;
+}
+
+.nav-report-item {
+    position: relative;
+}
+
+.nav-report-item .status-icon {
+    opacity: 0.9;
+}
+
+/* Loading and Error States */
+.nav-loading,
+.nav-error {
+    padding: 12px;
+    font-size: 0.8rem;
+    color: rgba(250, 248, 245, 0.5);
+    text-align: center;
+}
+
+.nav-error {
+    color: rgba(239, 68, 68, 0.7);
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     .dashboard-navigation {

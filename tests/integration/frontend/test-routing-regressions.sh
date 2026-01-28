@@ -94,6 +94,24 @@ check_api_health() {
   fi
 }
 
+check_job_status_endpoint() {
+  # Verify job status endpoint works (supports failure visibility feature)
+  local response
+  if [ -n "$API_KEY" ]; then
+    response=$(timeout "$TIMEOUT" curl -s -w "\nHTTP_CODE:%{http_code}" -H "X-API-Key: $API_KEY" "$BASE_URL/api/v1/jobs/history?limit=1" || true)
+  else
+    response=$(timeout "$TIMEOUT" curl -s -w "\nHTTP_CODE:%{http_code}" "$BASE_URL/api/v1/jobs/history?limit=1" || true)
+  fi
+  local status
+  status=$(echo "$response" | tail -1 | cut -d: -f2)
+
+  if [ "$status" = "200" ]; then
+    record_result "true" "Job history endpoint (supports failure visibility)"
+  else
+    record_result "false" "Job history endpoint (supports failure visibility)"
+  fi
+}
+
 echo -e "${YELLOW}🛡️  Frontend Routing Regression Guard${NC}"
 echo "Base URL: $BASE_URL"
 if [ -n "$API_KEY" ]; then
@@ -114,6 +132,7 @@ check_static "/css/nav.css" "Nav stylesheet served"
 
 print_header "API guardrails"
 check_api_health
+check_job_status_endpoint
 
 echo -e "\n${BLUE}Summary${NC}"
 echo "Passed: $PASSED / $TOTAL"

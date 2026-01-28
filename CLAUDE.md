@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Intraday Comparison v3.10.2 Complete
-- **Current Version**: Latest (2026-01-23 - News Provider Error Tracking v3.10.3)
+**Status**: ✅ **PRODUCTION READY** - Navigation Redesign V2 Complete
+- **Current Version**: Latest (2026-01-28 - Navigation Redesign V2 v3.10.4)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Navigation Redesign V2** | ✅ Complete | Date-based report hierarchy with job status tracking, ET timezone handling via formatToParts(), read-only public status endpoint |
 | **News Provider Error Tracking** | ✅ Complete | Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis results |
 | **Nav Timezone Settings** | ✅ Complete | User-configurable timezone for navigation date links, DST-safe date arithmetic |
 | **HTML Cache Invalidation** | ✅ Complete | Pre-market job now invalidates HTML cache on rerun for fresh page rendering |
@@ -660,9 +661,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-23
-**Current Version**: Production Ready with News Provider Error Tracking v3.10.3
+**Last Updated**: 2026-01-28
+**Current Version**: Production Ready with Navigation Redesign V2 v3.10.4
 **Major Updates**:
+- **Navigation Redesign V2 v3.10.4**: Date-based report hierarchy with `job_date_results` table for status tracking. Key implementation details: (1) `INSERT...ON CONFLICT DO UPDATE` preserves `started_at`/`created_at`, (2) `getCurrentTimeET()` uses `formatToParts()` for reliable Workers timezone handling, (3) `nav.js` polling uses ET timezone and dynamic interval re-evaluation, (4) stale job cleanup moved to authenticated job handlers (zero public writes), (5) failure path uses correct `scheduledDate` scope
 - **News Provider Error Tracking v3.10.3**: Sentiment analysis now tracks which news provider (DAC/FMP/NewsAPI/Yahoo) failed, stored in `news_fetch_errors` field for debugging "No news data available" issues
 - **Nav Timezone Settings**: User-configurable timezone (Settings page) for navigation date links; DST-safe arithmetic; localStorage caching with validation
 - **HTML Cache Invalidation**: Pre-market job now invalidates HTML cache (`premarket_html_${date}`) on rerun, ensuring fresh page rendering without needing `?bypass=true`

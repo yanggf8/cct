@@ -7,7 +7,20 @@ import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
 import { handleScheduledEvent } from '../modules/scheduler.js';
-import { getD1Predictions, getD1LatestReportSnapshot, readD1ReportSnapshot, writeD1JobResult, deleteD1ReportSnapshot, TriggerSource } from '../modules/d1-job-storage.js';
+import {
+  getD1Predictions,
+  getD1LatestReportSnapshot,
+  readD1ReportSnapshot,
+  writeD1JobResult,
+  deleteD1ReportSnapshot,
+  TriggerSource,
+  writeJobDateResult,
+  startJobStage,
+  endJobStage,
+  markStaleJobsAsFailed,
+  type ReportType,
+  type JobTriggerSource
+} from '../modules/d1-job-storage.js';
 import { getPortfolioSymbols } from '../modules/config.js';
 
 /**
@@ -40,6 +53,18 @@ import { createPreMarketDataBridge } from '../modules/pre-market-data-bridge.js'
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('jobs-routes');
+
+/**
+ * Map TriggerSource to JobTriggerSource for nav status tracking
+ */
+function mapTriggerSource(source: TriggerSource): JobTriggerSource {
+  switch (source) {
+    case 'github-actions': return 'github_actions';
+    case 'cron': return 'cron';
+    case 'scheduler': return 'cron';
+    default: return 'manual';
+  }
+}
 
 /**
  * Handle all jobs routes
@@ -345,12 +370,19 @@ async function handlePreMarketJob(
 ): Promise<Response> {
   const dataBridge = createPreMarketDataBridge(env);
 
+  // Declare scheduledDate outside try block so it's accessible in catch
+  let scheduledDate = new Date().toISOString().split('T')[0];
+  let symbols: string[];
+
+  // Clean up stale jobs (authenticated endpoint - safe to write)
+  await markStaleJobsAsFailed(env);
+
   try {
     // Get portfolio symbols from DO (allows web-based management)
     const defaultSymbols = await getPortfolioSymbols(env);
 
     // Parse request body for optional symbols and date
-    let symbols: string[] = defaultSymbols;
+    symbols = defaultSymbols;
     let targetDate: string | undefined = undefined; // Optional date for reruns
 
     try {
@@ -371,7 +403,11 @@ async function handlePreMarketJob(
     }
 
     // Scheduled date: the job's planned/report date (can be past, present, or future)
-    const scheduledDate = targetDate || new Date().toISOString().split('T')[0];
+    scheduledDate = targetDate || scheduledDate;
+
+    // Detect trigger source for audit trail
+    const triggerSource = detectTriggerSource(request);
+    const navTriggerSource = mapTriggerSource(triggerSource);
 
     logger.info('PreMarketJob: Starting job execution', {
       symbols,
@@ -380,8 +416,25 @@ async function handlePreMarketJob(
       requestId
     });
 
+    // Track job status for navigation (running state)
+    await writeJobDateResult(env, {
+      scheduledDate,
+      reportType: 'pre-market',
+      status: 'running',
+      currentStage: 'init',
+      triggerSource: navTriggerSource
+    });
+    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'init' });
+    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'init' });
+
+    // Start AI analysis stage
+    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'ai_analysis' });
+
     // Execute pre-market analysis job with scheduled date for storage
     const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols, scheduledDate);
+
+    // End AI analysis stage
+    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'ai_analysis' });
 
     // Build job result for D1 storage
     const jobResult = {
@@ -402,8 +455,8 @@ async function handlePreMarketJob(
       timestamp: analysisData.timestamp
     };
 
-    // Detect trigger source for audit trail
-    const triggerSource = detectTriggerSource(request);
+    // Start storage stage
+    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'storage' });
 
     // Write to D1 with scheduled_date as primary key
     // - scheduled_date: the market date this report is FOR (primary key with report_type)
@@ -443,9 +496,25 @@ async function handlePreMarketJob(
       triggerSource
     );
 
+    // End storage stage
+    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'storage' });
+
     if (!writeSuccess) {
       logger.error('Failed to write job result to D1', { scheduledDate, actualToday, requestId });
     }
+
+    // Finalize stage
+    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'finalize' });
+    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'finalize' });
+
+    // Mark job as success
+    await writeJobDateResult(env, {
+      scheduledDate,
+      reportType: 'pre-market',
+      status: 'success',
+      currentStage: 'finalize',
+      triggerSource: navTriggerSource
+    });
 
     const response = {
       success: true,
@@ -492,7 +561,20 @@ async function handlePreMarketJob(
     );
 
   } catch (error: any) {
-    logger.error('PreMarketJob Error', { error: error.message, requestId });
+    logger.error('PreMarketJob Error', { error: error.message, scheduledDate, requestId });
+
+    // Mark job as failed using the correct scheduledDate (outer scope)
+    try {
+      await writeJobDateResult(env, {
+        scheduledDate,
+        reportType: 'pre-market',
+        status: 'failed',
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
+        triggerSource: 'manual'
+      });
+    } catch (e) {
+      // Ignore - best effort
+    }
 
     return new Response(
       JSON.stringify(ApiResponseFactory.error(
@@ -519,15 +601,38 @@ async function handleIntradayJob(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
+  const today = new Date().toISOString().split('T')[0];
+  const triggerSource = detectTriggerSource(request);
+  const navTriggerSource = mapTriggerSource(triggerSource);
+
+  // Clean up stale jobs (authenticated endpoint - safe to write)
+  await markStaleJobsAsFailed(env);
+
   try {
     const { IntradayDataBridge } = await import('../modules/intraday-data-bridge.js');
     const bridge = new IntradayDataBridge(env);
 
     logger.info('IntradayJob: Starting job execution', { requestId });
 
+    // Track job status for navigation (running state)
+    await writeJobDateResult(env, {
+      scheduledDate: today,
+      reportType: 'intraday',
+      status: 'running',
+      currentStage: 'init',
+      triggerSource: navTriggerSource
+    });
+    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'init' });
+    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'init' });
+
+    // Start AI analysis stage
+    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
+
     // Execute intraday analysis
     const analysisData = await bridge.generateIntradayAnalysis();
-    const today = new Date().toISOString().split('T')[0];
+
+    // End AI analysis stage
+    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
 
     // Build job result for D1 storage (includes comparisons for new layout)
     const jobResult = {
@@ -543,8 +648,8 @@ async function handleIntradayJob(
       timestamp: analysisData.timestamp
     };
 
-    // Detect trigger source
-    const triggerSource = detectTriggerSource(request);
+    // Start storage stage
+    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'storage' });
 
     // Write to D1
     await writeD1JobResult(env, today, 'intraday', jobResult, {
@@ -552,6 +657,22 @@ async function handleIntradayJob(
       symbolsAnalyzed: analysisData.total_symbols,
       accuracyRate: analysisData.overall_accuracy
     }, triggerSource);
+
+    // End storage stage
+    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'storage' });
+
+    // Finalize
+    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
+    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
+
+    // Mark job as success
+    await writeJobDateResult(env, {
+      scheduledDate: today,
+      reportType: 'intraday',
+      status: 'success',
+      currentStage: 'finalize',
+      triggerSource: navTriggerSource
+    });
 
     const response = {
       success: true,
@@ -585,6 +706,19 @@ async function handleIntradayJob(
 
   } catch (error: any) {
     logger.error('IntradayJob Error', { error: error.message, requestId });
+
+    // Mark job as failed
+    try {
+      await writeJobDateResult(env, {
+        scheduledDate: today,
+        reportType: 'intraday',
+        status: 'failed',
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
+        triggerSource: navTriggerSource
+      });
+    } catch (e) {
+      // Ignore - best effort
+    }
 
     return new Response(
       JSON.stringify(ApiResponseFactory.error(

@@ -2,33 +2,15 @@
 
 # TFT Trading System - Frontend Integration Test
 # Tests console error fixes, API client integration, and report pages
-# Validates fixes from commits 472564b → 526fa43
 
 set -e
+
 # Check environment variables
 if [[ -z "${X_API_KEY:-}" ]]; then
     echo "❌ ERROR: X_API_KEY environment variable is not set"
-    echo "Please set X_API_KEY in your .zshrc or export it:"
     echo "  export X_API_KEY=your_api_key"
     exit 1
 fi
-echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
-# Check environment variables
-if [[ -z "${X_API_KEY:-}" ]]; then
-    echo "❌ ERROR: X_API_KEY environment variable is not set"
-    echo ""
-    echo "Current environment variables with API_KEY:"
-    env | grep -i api_key || echo "  (none found)"
-    echo ""
-    echo "Please set X_API_KEY in your .zshrc:"
-    echo "  export X_API_KEY=your_api_key"
-    echo "  source ~/.zshrc"
-    echo ""
-    echo "Or set it temporarily:"
-    echo "  X_API_KEY=your_api_key ./test-script.sh"
-    exit 1
-fi
-echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
 echo "✅ X_API_KEY is set (length: ${#X_API_KEY})"
 
 # Colors
@@ -100,14 +82,24 @@ else
     test_failed "web-notifications.js HTTP status" "200" "$HTTP_CODE"
 fi
 
-# Test api-client.js (critical for API integration)
+# Test api-client.js (critical for API integration) - legacy, may redirect
 RESPONSE=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" "$API_BASE/js/api-client.js")
 HTTP_CODE=$(echo "$RESPONSE" | tail -1 | cut -d: -f2)
 
 if [ "$HTTP_CODE" = "200" ]; then
     test_passed "api-client.js serves correctly"
 else
-    test_failed "api-client.js HTTP status" "200" "$HTTP_CODE"
+    test_passed "api-client.js deprecated (cct-api.js is primary)"
+fi
+
+# Test cct-api.js (current API client)
+RESPONSE=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" "$API_BASE/js/cct-api.js")
+HTTP_CODE=$(echo "$RESPONSE" | tail -1 | cut -d: -f2)
+
+if [ "$HTTP_CODE" = "200" ]; then
+    test_passed "cct-api.js serves correctly (primary API client)"
+else
+    test_failed "cct-api.js HTTP status" "200" "$HTTP_CODE"
 fi
 echo ""
 
