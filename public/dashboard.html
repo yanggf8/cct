@@ -137,6 +137,16 @@
         .trigger-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(240, 185, 11, 0.3); }
         .run-id { font-family: monospace; font-size: 0.7rem; color: var(--text-muted); }
 
+        /* Trigger source icons */
+        .trigger-icon { font-size: 0.9rem; cursor: help; }
+        .trigger-icon.cron { color: var(--text-muted); }
+        .trigger-icon.manual { color: var(--gold); }
+
+        /* Legend tooltip */
+        .legend-container { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; padding: 8px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; }
+        .legend-item { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+        .legend-item span:first-child { font-size: 1rem; }
+
         .loading { text-align: center; padding: 30px; color: var(--text-muted); }
         @media (max-width: 600px) { .daily-grid { grid-template-columns: 1fr; } .weekly-grid { grid-template-columns: 1fr; } }
     </style>
@@ -383,17 +393,30 @@
                 'weekly': '/weekly-review'
             };
 
+            const reportIcons = {
+                'pre-market': '🌅',
+                'intraday': '📊',
+                'end-of-day': '🌆',
+                'weekly': '📋'
+            };
+
             const rows = jobRuns.map(run => {
-                const statusClass = run.status === 'success' ? 'success' : run.status === 'running' ? 'running' : 'failed';
-                const statusIcon = run.status === 'success' ? '✅' : run.status === 'running' ? '🔄' : '❌';
+                const statusClass = run.status === 'success' ? 'success' : run.status === 'running' ? 'running' : run.status === 'partial' ? 'partial' : 'failed';
+                const statusIcon = run.status === 'success' ? '✅' : run.status === 'running' ? '🔄' : run.status === 'partial' ? '⚠️' : '❌';
                 const reportUrl = reportLinks[run.report_type] ? `${reportLinks[run.report_type]}?run_id=${run.run_id}` : '#';
-                const typeDisplay = reportLinks[run.report_type] 
-                    ? `<a href="${reportUrl}" style="color: var(--gold); text-decoration: none;">${run.report_type}</a>`
-                    : run.report_type;
-                
+                const reportIcon = reportIcons[run.report_type] || '📄';
+                const typeDisplay = reportLinks[run.report_type]
+                    ? `<a href="${reportUrl}" style="color: var(--gold); text-decoration: none;">${reportIcon} ${run.report_type}</a>`
+                    : `${reportIcon} ${run.report_type}`;
+
+                // Trigger source icon with tooltip
+                const triggerIcon = run.trigger_source === 'manual'
+                    ? '<span class="trigger-icon manual" title="Manually triggered">👤</span>'
+                    : '<span class="trigger-icon cron" title="Scheduled (cron)">⏰</span>';
+
                 return `
                     <tr>
-                        <td>${run.scheduled_date}</td>
+                        <td>${triggerIcon} ${run.scheduled_date}</td>
                         <td>${typeDisplay}</td>
                         <td><span class="run-status ${statusClass}">${statusIcon} ${run.status}</span></td>
                         <td>${formatRunTime(run.started_at)}</td>
@@ -407,6 +430,15 @@
             }).join('');
 
             container.innerHTML = `
+                <div class="legend-container">
+                    <span style="color: var(--text-muted); font-weight: 500;">Legend:</span>
+                    <div class="legend-item"><span>⏰</span> Scheduled (cron)</div>
+                    <div class="legend-item"><span>👤</span> Manual trigger</div>
+                    <div class="legend-item"><span>✅</span> Success</div>
+                    <div class="legend-item"><span>⚠️</span> Partial</div>
+                    <div class="legend-item"><span>❌</span> Failed</div>
+                    <div class="legend-item"><span>🔄</span> Running</div>
+                </div>
                 <table class="runs-table">
                     <thead>
                         <tr>

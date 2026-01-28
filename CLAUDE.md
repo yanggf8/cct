@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-28 - Multi-Run Navigation v3.10.7)
+- **Current Version**: Latest (2026-01-28 - Dashboard Icons v3.10.8)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Dashboard Job History Icons v3.10.8** | ✅ Complete | Job history table shows trigger icons (⏰ cron/👤 manual), report icons (🌅/📊/🌆/📋), status icons with legend bar explaining all symbols |
 | **Expandable Multi-Run Navigation v3.10.7** | ✅ Complete | Report types expand to show all runs with trigger icon (⏰/👤), time, status, "latest" badge. Links include ?run_id= for specific run access. Auto-expand when multiple runs exist |
 | **Multi-Run Architecture v3.10.6** | ✅ Complete | All job types support multiple runs per date, run history in job_run_results, ?run_id= parameter for specific run access, partial status (⚠️) for mixed results |
 | **Navigation Redesign V2** | ✅ Complete | Date-based report hierarchy with job status tracking, ET timezone handling via formatToParts(), public nav status endpoints |
@@ -691,8 +692,9 @@ Transform from individual stock analysis to institutional-grade market intellige
 ---
 
 **Last Updated**: 2026-01-28
-**Current Version**: Production Ready with Multi-Run Navigation v3.10.7
+**Current Version**: Production Ready with Dashboard Icons v3.10.8
 **Major Updates**:
+- **Dashboard Job History Icons v3.10.8**: Job history table now displays trigger icons (⏰ cron/👤 manual) before dates, report type icons (🌅/📊/🌆/📋), and a legend bar explaining all symbols (trigger source, status icons). Hover tooltips on trigger icons.
 - **Expandable Multi-Run Navigation v3.10.7**: Navigation sidebar shows expandable report types when multiple runs exist. Each run displays trigger icon (⏰ cron/👤 manual), timestamp, status icon, and "latest" badge. Clicking a run navigates with `?run_id=` parameter. Active run highlighted in nav. localStorage persists expanded state.
 - **Multi-Run Architecture v3.10.6**: All job types (pre-market, intraday, end-of-day, weekly, sector-rotation) support multi-run tracking via `startJobRun()`/`completeJobRun()`. Legacy `job_executions` table removed for fail-fast behavior.
 - **Multi-Run Support v3.10.5**: Multiple job runs per date preserved in D1 history. Dashboard shows all runs with create/delete capability. New endpoints: `GET /api/v1/jobs/runs`, `DELETE /api/v1/jobs/runs/:runId`. Report pages support `?run_id=` parameter. Partial status logic (⚠️) for mixed success/failure. Centralized `cctApi` client for consistent auth handling.
