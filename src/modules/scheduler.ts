@@ -392,7 +392,8 @@ export async function handleScheduledEvent(
             timestamp: intradayResult.timestamp || new Date().toISOString(),
             trigger_mode: triggerMode,
             market_status: intradayResult.market_status || 'unknown',
-            message: intradayResult.message || 'No intraday data available. No pre-market analysis found.'
+            message: intradayResult.message || 'No intraday data available. No pre-market analysis found.',
+            pre_market_run_id: intradayResult.pre_market_run_id || null
           };
         } else {
           // Transform to scheduler expected shape
@@ -403,7 +404,8 @@ export async function handleScheduledEvent(
             symbols_analyzed: intradayResult.symbols.length, // Store as number, not array
             symbols_list: intradayResult.symbols.map(s => s.symbol), // Keep symbols array in separate field
             timestamp: intradayResult.timestamp,
-            trigger_mode: triggerMode
+            trigger_mode: triggerMode,
+            pre_market_run_id: intradayResult.pre_market_run_id || null  // NEW: Track pre-market source
           };
         }
 

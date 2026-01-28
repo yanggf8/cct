@@ -102,6 +102,7 @@ interface IntradayAnalysisData {
   diverged_count: number;
   total_symbols: number;
   message?: string;  // Optional message for empty/error states
+  pre_market_run_id?: string | null;  // NEW: Track which pre-market run was used
 }
 
 export class IntradayDataBridge {
@@ -122,12 +123,18 @@ export class IntradayDataBridge {
 
     try {
       // 1. Get morning predictions from D1 (with full dual model data)
-      const morningPredictions = await this.getMorningPredictions(today);
+      const { predictions: morningPredictions, preMarketRunId } = await this.getMorningPredictions(today);
 
       if (morningPredictions.length === 0) {
         logger.warn('IntradayDataBridge: No morning predictions found', { date: today });
         return this.createEmptyAnalysis();
       }
+
+      logger.info('IntradayDataBridge: Using pre-market data', { 
+        date: today, 
+        preMarketRunId, 
+        symbolsCount: morningPredictions.length 
+      });
 
       // 2. Get current sentiment for same symbols
       const symbols = morningPredictions.map(p => p.symbol);
@@ -182,7 +189,8 @@ export class IntradayDataBridge {
         overall_accuracy: overallAccuracy,
         on_track_count: onTrackCount,
         diverged_count: comparisons.filter(c => c.comparison.status === 'reversed').length,
-        total_symbols: comparisons.length
+        total_symbols: comparisons.length,
+        pre_market_run_id: preMarketRunId  // NEW: Track which pre-market run was used
       };
 
       logger.info('IntradayDataBridge: Intraday analysis generated', {
@@ -419,11 +427,12 @@ export class IntradayDataBridge {
 
   /**
    * Get morning predictions from D1 with full dual model data
+   * Returns both predictions and the run_id used
    */
-  private async getMorningPredictions(date: string): Promise<MorningPrediction[]> {
+  private async getMorningPredictions(date: string): Promise<{ predictions: MorningPrediction[]; preMarketRunId: string | null }> {
     if (!this.env.PREDICT_JOBS_DB) {
       logger.warn('IntradayDataBridge: PREDICT_JOBS_DB not available');
-      return [];
+      return { predictions: [], preMarketRunId: null };
     }
 
     try {
@@ -477,14 +486,14 @@ export class IntradayDataBridge {
             logger.info('IntradayDataBridge: Using latest pre-market snapshot by date', { date });
           } catch (parseError) {
             logger.error('IntradayDataBridge: Failed to parse pre-market content', { date, error: (parseError as Error).message });
-            return [];
+            return { predictions: [], preMarketRunId: null };
           }
         }
       }
 
       if (!snapshot || !snapshot.data) {
         logger.warn('IntradayDataBridge: No pre-market data found', { date });
-        return [];
+        return { predictions: [], preMarketRunId: null };
       }
 
       // Extract predictions from snapshot
@@ -493,7 +502,7 @@ export class IntradayDataBridge {
 
       if (!tradingSignals) {
         logger.warn('IntradayDataBridge: No trading_signals in snapshot', { runId: runId || 'legacy' });
-        return [];
+        return { predictions: [], preMarketRunId: null };
       }
 
       // trading_signals is an object with symbol keys, not an array
@@ -504,8 +513,8 @@ export class IntradayDataBridge {
         ? tradingSignals
         : [];
 
-      // Transform to MorningPrediction format
-      return signalsArray.map((signal: any) => ({
+      // Transform to MorningPrediction format and return with run_id
+      return { predictions: signalsArray.map((signal: any) => ({
         symbol: signal.symbol || signal.ticker, // Prefer signal.symbol, fallback to ticker
         sentiment: signal.sentiment,
         confidence: signal.confidence,
@@ -521,10 +530,10 @@ export class IntradayDataBridge {
         distilbert_confidence: signal.distilbert_confidence,
         distilbert_response_time_ms: signal.distilbert_response_time_ms,
         model_selection_reason: signal.model_selection_reason
-      }));
+      })), preMarketRunId: runId };
     } catch (error: unknown) {
       logger.error('IntradayDataBridge: Failed to fetch morning predictions', { error, date });
-      return [];
+      return { predictions: [], preMarketRunId: null };
     }
   }
 
