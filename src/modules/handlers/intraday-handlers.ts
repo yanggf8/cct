@@ -411,8 +411,10 @@ export const handleIntradayCheck = createHandler(
 
     // If no real data (no predictions from job), show pending page
     if (!hasRealJobData) {
-      // Debug: Return diagnostic info instead of pending page when bypass=1
-      if (url.searchParams.get('bypass') === '1' || url.searchParams.get('debug') === '1') {
+      // Debug: Return diagnostic info instead of pending page when bypass or debug param is set
+      const bypassParam = url.searchParams.get('bypass');
+      const debugParam = url.searchParams.get('debug');
+      if (bypassParam === '1' || bypassParam === 'true' || debugParam === '1' || debugParam === 'true') {
         return new Response(JSON.stringify({
           error: 'No real job data found',
           dateStr,
