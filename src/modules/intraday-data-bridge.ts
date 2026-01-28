@@ -466,16 +466,19 @@ export class IntradayDataBridge {
       if (!snapshot || !snapshot.data) {
         logger.warn('IntradayDataBridge: No snapshot by run_id, trying latest by date', { date, runId });
         
+        // Fallback: Only use rows with run_id to avoid legacy empty data
         const latestSnapshot = await this.env.PREDICT_JOBS_DB
           .prepare(`
-            SELECT report_content
+            SELECT report_content, run_id
             FROM scheduled_job_results
-            WHERE scheduled_date = ? AND report_type = 'pre-market'
+            WHERE scheduled_date = ? 
+              AND report_type = 'pre-market'
+              AND run_id IS NOT NULL
             ORDER BY created_at DESC
             LIMIT 1
           `)
           .bind(date)
-          .first<{ report_content: string }>();
+          .first<{ report_content: string; run_id: string }>();
 
         if (latestSnapshot && latestSnapshot.report_content) {
           try {
@@ -483,7 +486,8 @@ export class IntradayDataBridge {
               ? JSON.parse(latestSnapshot.report_content)
               : latestSnapshot.report_content;
             snapshot = { data: content };
-            logger.info('IntradayDataBridge: Using latest pre-market snapshot by date', { date });
+            runId = latestSnapshot.run_id; // Use the run_id from this snapshot
+            logger.info('IntradayDataBridge: Using latest pre-market snapshot by date', { date, runId });
           } catch (parseError) {
             logger.error('IntradayDataBridge: Failed to parse pre-market content', { date, error: (parseError as Error).message });
             return { predictions: [], preMarketRunId: null };
