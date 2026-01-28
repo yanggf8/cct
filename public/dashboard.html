@@ -73,10 +73,11 @@
             box-shadow: 0 4px 12px rgba(240, 185, 11, 0.08);
         }
         .job-card.success { border-top: 3px solid var(--green); }
-        .job-card.failure { border-top: 3px solid var(--red); }
+        .job-card.failed { border-top: 3px solid var(--red); }
+        .job-card.running { border-top: 3px solid var(--yellow); }
+        .job-card.partial { border-top: 3px solid var(--yellow); }
         .job-card.scheduled { border-top: 3px solid var(--gold); }
         .job-card.skipped { border-top: 3px solid var(--border); opacity: 0.6; }
-        .job-card.in_progress { border-top: 3px solid var(--yellow); }
 
         .job-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
         .job-icon { font-size: 1.3rem; }
@@ -101,7 +102,9 @@
             box-shadow: 0 4px 12px rgba(240, 185, 11, 0.08);
         }
         .weekly-card.success { border-left: 4px solid var(--green); }
-        .weekly-card.failure { border-left: 4px solid var(--red); }
+        .weekly-card.failed { border-left: 4px solid var(--red); }
+        .weekly-card.running { border-left: 4px solid var(--yellow); }
+        .weekly-card.partial { border-left: 4px solid var(--yellow); }
         .weekly-card.scheduled { border-left: 4px solid var(--gold); }
         .weekly-card.skipped { border-left: 4px solid var(--border); opacity: 0.6; }
         .weekly-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
@@ -118,6 +121,7 @@
         .run-status.success { background: rgba(16, 185, 129, 0.2); color: var(--green); }
         .run-status.failed { background: rgba(239, 68, 68, 0.2); color: var(--red); }
         .run-status.running { background: rgba(245, 158, 11, 0.2); color: var(--yellow); }
+        .run-status.partial { background: rgba(245, 158, 11, 0.2); color: var(--yellow); }
         .delete-btn {
             background: transparent; border: 1px solid var(--red); color: var(--red);
             padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
@@ -179,20 +183,20 @@
             { id: 'end-of-day', name: 'End-of-Day', icon: '🌆', hour: 20, min: 5, type: 'analysis' }
         ];
 
-        let d1Jobs = [];
+        let jobRuns = [];
 
-        async function fetchD1Jobs() {
+        async function fetchJobRuns() {
             try {
-                const data = await cctApi.jobsHistory(50);
-                return data.success ? (data.data.jobs || []) : [];
+                const data = await cctApi.jobRuns(100);
+                return data.success ? (data.data.runs || []) : [];
             } catch (e) {
-                console.error('Failed to fetch D1 jobs:', e);
+                console.error('Failed to fetch job runs:', e);
                 return [];
             }
         }
 
         function statusText(status) {
-            return { success: '✅ Completed', failure: '❌ Failed', in_progress: '🔄 Running', skipped: '⚪ Skipped' }[status] || '⚪ No run';
+            return { success: '✅ Completed', failed: '❌ Failed', running: '🔄 Running', partial: '⚠️ Partial' }[status] || '⚪ No run';
         }
 
         function formatTime(h, m) {
@@ -212,17 +216,12 @@
             return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
         }
 
-        function getJobRunForDate(dateStr, jobId) {
-            // Match by date and expected hour window (±2h tolerance)
-            const jobHours = { 'pre-market': 12, 'intraday': 16, 'end-of-day': 20 };
-            const expectedHour = jobHours[jobId];
-            if (expectedHour === undefined) return null;
-            
-            return d1Jobs.find(j => {
-                const execDate = j.executed_at.slice(0, 10);
-                const execHour = new Date(j.executed_at).getUTCHours();
-                return execDate === dateStr && Math.abs(execHour - expectedHour) <= 2;
-            });
+        function getLatestJobRunForDate(dateStr, reportType) {
+            // Get latest run for this date and report type
+            const runs = jobRuns.filter(j => j.scheduled_date === dateStr && j.report_type === reportType);
+            if (runs.length === 0) return null;
+            // Sort by created_at descending and return first
+            return runs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
         }
 
         function renderDailySection() {
@@ -247,13 +246,13 @@
                 const isToday = getDateStr(today) === dateStr;
 
                 const cards = DAILY_JOBS.map(job => {
-                    const run = getJobRunForDate(dateStr, job.id);
+                    const run = getLatestJobRunForDate(dateStr, job.id);
                     const scheduledTime = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), job.hour, job.min));
                     const isPast = scheduledTime < now;
 
                     let status, sText;
                     if (run) {
-                        status = run.status === 'success' ? 'success' : 'failure';
+                        status = run.status; // success, failed, running, partial
                         sText = statusText(status);
                     } else if (!isToday || isPast) {
                         status = 'skipped';
@@ -278,7 +277,7 @@
                             </div>
                             <div class="job-name">${job.name}</div>
                             <div class="job-status">${sText}</div>
-                            ${run ? `<div class="job-meta">${run.symbols_processed || 0} symbols</div>` : ''}
+                            ${run ? `<div class="job-meta">Run: ${run.run_id.slice(-12)}</div>` : ''}
                         </a>
                     `;
                 });
@@ -306,15 +305,11 @@
                 const dateStr = getDateStr(sunday);
                 const isFuture = sunday > today;
                 const isLastWeek = label === 'Last Week';
-                const run = d1Jobs.find(j => {
-                    const execDate = j.executed_at.slice(0, 10);
-                    const execHour = new Date(j.executed_at).getUTCHours();
-                    return execDate === dateStr && Math.abs(execHour - 14) <= 2;
-                });
+                const run = getLatestJobRunForDate(dateStr, 'weekly');
 
                 let status, sText;
                 if (run) {
-                    status = run.status === 'success' ? 'success' : 'failure';
+                    status = run.status; // success, failed, running, partial
                     sText = statusText(status);
                 } else if (isFuture) {
                     status = 'scheduled';
@@ -331,6 +326,7 @@
                         <div class="weekly-label">${label}</div>
                         <div class="weekly-date">📋 ${sunday.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
                         <div class="weekly-status">${sText}</div>
+                        ${run ? `<div class="job-meta">Run: ${run.run_id.slice(-12)}</div>` : ''}
                     </a>
                 `;
             };
@@ -477,8 +473,8 @@
             // Render market status first
             renderMarketStatus();
 
-            // Fetch both in parallel
-            [d1Jobs, jobRuns] = await Promise.all([fetchD1Jobs(), fetchJobRuns()]);
+            // Fetch job runs (single source of truth)
+            jobRuns = await fetchJobRuns();
             renderDailySection();
             renderWeeklySection();
             renderRunsSection();
