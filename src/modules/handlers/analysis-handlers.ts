@@ -16,7 +16,7 @@ import { createAnalysisResponse, type AnalysisResponseOptions } from '../respons
 import { BusinessMetrics } from '../monitoring.js';
 import { getJobStatus, validateDependencies } from '../kv-utils.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
-import { writeD1JobResult, updateD1JobStatus } from '../d1-job-storage.js';
+import { writeD1JobResult } from '../d1-job-storage.js';
 import type { CloudflareEnvironment } from '../../types.js';
 
 const logger = createLogger('analysis-handlers');
