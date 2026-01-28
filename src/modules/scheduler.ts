@@ -776,6 +776,20 @@ export async function handleScheduledEvent(
             });
           }
 
+          // Also update job_executions for dashboard compatibility
+          try {
+            await updateD1JobStatus(env, d1ReportType, dateStr, 'failed', {
+              symbols_processed: 0,
+              execution_time_ms: Date.now() - scheduledTime.getTime(),
+              symbols_successful: 0,
+              symbols_fallback: 0,
+              symbols_failed: 0,
+              errors: [d1Error.message]
+            });
+          } catch (statusError: any) {
+            console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write D1 error status:`, { error: statusError.message });
+          }
+
           // Continue execution even if D1 fails
         }
       }
