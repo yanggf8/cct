@@ -50,14 +50,20 @@ When asked to perform a review, examine the relevant code changes thoroughly (no
 Deployment targets are defined in `wrangler.toml` (production) and `wrangler-enhanced.toml` (staging). Manage secrets through `wrangler secret put`; never check them into source control. Durable Object behavior is centralized in `src/modules/cache-durable-object.ts`, so coordinate script updates such as `validate-enhanced-cache.sh` when modifying it. When adding KV namespaces or bindings, update the corresponding entry in `docs/` and capture migration steps in your PR notes.
 
 ## D1 Schema Management Policy
-**NO DATA MIGRATIONS until code is stable.** When schema changes are needed:
-1. Update the base schema file: `schema/predict-jobs.sql`
-2. Document the change in comments with date
-3. User will manually clean old data and recreate tables when ready
-4. Do NOT create migration files in `schema/migrations/` during active development
-5. Do NOT run `wrangler d1 execute` commands automatically
+**ACTIVE DEVELOPMENT MODE - Clean slate approach:**
 
-This policy prevents migration conflicts and data corruption during rapid development cycles. Once the codebase stabilizes, we will implement proper migration workflows.
+We are still in development, not production. When schema changes are needed:
+1. Update base schema: `schema/predict-jobs.sql`
+2. Document change with date in comments
+3. User will clean up old data and recreate tables from scratch
+4. No data preservation needed during development
+
+**Process:**
+- Modify `schema/predict-jobs.sql` directly
+- User runs: Drop tables → Recreate from base schema
+- Once we reach production, we'll implement proper migrations
+
+This allows rapid iteration without migration complexity.
 
 **Wrangler Authentication**: Always unset `CLOUDFLARE_API_TOKEN` before running wrangler commands to use OAuth login instead:
 ```bash
