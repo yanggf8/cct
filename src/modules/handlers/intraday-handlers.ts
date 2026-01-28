@@ -441,7 +441,7 @@ export const handleIntradayCheck = createHandler(
       });
     }
 
-    const html: string = await generateIntradayCheckHTML(intradayData, today, env, comparisons, hasRealJobData);
+    const html: string = await generateIntradayCheckHTML(intradayData, today, env, comparisons, hasRealJobData, runId || undefined);
     const totalTime: number = Date.now() - startTime;
 
     // Cache HTML for fast subsequent loads
@@ -728,7 +728,8 @@ async function generateIntradayCheckHTML(
   date: Date,
   env: CloudflareEnvironment,
   comparisons?: IntradaySymbolComparison[],
-  hasJobData?: boolean
+  hasJobData?: boolean,
+  runId?: string
 ): Promise<string> {
   // Process intraday data for HTML format
   const formattedData: IntradayPerformanceData = intradayData || getDefaultIntradayData();
@@ -997,6 +998,10 @@ async function generateIntradayCheckHTML(
                 <span class="date-label">${hasRealData ? 'Generated:' : 'Scheduled:'}</span>
                 <span class="date-value">${statusDisplay}</span>
               </div>
+              ${runId ? `<div class="run-id-display">
+                <span class="date-label">Run ID:</span>
+                <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${runId.slice(-12)}</span>
+              </div>` : ''}
             </div>
         </div>
 

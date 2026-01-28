@@ -25,6 +25,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get('bypass') === '1';
   const weekParam = url.searchParams.get('week');
+  const runId = url.searchParams.get('run_id');
 
   // Determine which week to show (uses timezone from ?tz > DO setting > ET)
   const weekSunday = await getWeekSunday(weekParam, url, env.CACHE_DO as any);
@@ -136,7 +137,7 @@ export const handleWeeklyReview = createHandler('weekly-review', async (request:
   const isThisWeek = weekSunday.toDateString() === thisSunday.toDateString();
   const weekLabel = isThisWeek ? 'This Week' : 'Week of ' + weekSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, weekSunday, weekLabel);
+  const htmlContent = generateWeeklyReviewHTML(weeklyData, requestId, weekSunday, weekLabel, runId || undefined);
 
   // Cache HTML in DO (don't write to D1 - cron job is the source of truth for scheduled_job_results)
   const dal = createSimplifiedEnhancedDAL(env);
@@ -167,7 +168,8 @@ function generateWeeklyReviewHTML(
   weeklyData: any,
   requestId: string,
   weekSunday: Date,
-  weekLabel: string
+  weekLabel: string,
+  runId?: string
 ): string {
   const weekEnd = new Date(weekSunday);
   weekEnd.setDate(weekSunday.getDate() + 6);
@@ -271,6 +273,10 @@ function generateWeeklyReviewHTML(
                 <span class="date-label">${hasRealData ? 'Generated:' : 'Scheduled:'}</span>
                 <span class="date-value">${statusDisplay}</span>
               </div>
+              ${runId ? `<div class="run-id-display">
+                <span class="date-label">Run ID:</span>
+                <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${runId.slice(-12)}</span>
+              </div>` : ''}
             </div>
         </div>
 

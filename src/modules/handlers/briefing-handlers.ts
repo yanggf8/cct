@@ -121,7 +121,7 @@ export const handlePreMarketBriefing = createHandler('pre-market-briefing', asyn
   const isAuthenticated = validateApiKey(request, env).valid;
 
   // Generate HTML based on D1 data availability
-  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture, isQueryingToday, jobStatus, isAuthenticated);
+  const htmlContent = generatePreMarketHTML(d1Result, queryDateStr, showScheduled, isQueryingFuture, isQueryingToday, jobStatus, isAuthenticated, runId || undefined);
 
   // Cache HTML for fast subsequent loads (skip if job failed - don't cache error state; skip run_id views)
   if (!isRunIdView && (!jobStatus || jobStatus.status !== 'failed')) {
@@ -154,7 +154,8 @@ function generatePreMarketHTML(
   isQueryingFuture: boolean,
   isQueryingToday: boolean,
   jobStatus?: { status: string; timestamp: string; metadata: any; scheduled_date?: string } | null,
-  isAuthenticated?: boolean
+  isAuthenticated?: boolean,
+  runId?: string
 ): string {
   const escapeHtml = (value: unknown): string => {
     const str = String(value ?? '');
@@ -328,6 +329,10 @@ function generatePreMarketHTML(
                 <span class="date-label">${hasD1Data ? 'Generated:' : 'Scheduled:'}</span>
                 <span class="date-value">${statusDisplay}</span>
               </div>
+              ${runId ? `<div class="run-id-display">
+                <span class="date-label">Run ID:</span>
+                <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${runId.slice(-12)}</span>
+              </div>` : ''}
             </div>
             ${staleWarning}
             ${jobFailureWarning}

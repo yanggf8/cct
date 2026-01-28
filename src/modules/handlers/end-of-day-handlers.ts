@@ -102,7 +102,7 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     const isPending = (!d1Result || isStale || dataDateDiffers) && isQueryingTodayOrFuture && beforeScheduleET;
 
     // Generate HTML based on D1 data availability
-    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers);
+    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers, runId || undefined);
 
     // Cache HTML for fast subsequent loads
     try {
@@ -134,7 +134,8 @@ function generateEndOfDayHTML(
     beforeScheduleET: boolean,
     isPending: boolean,
     sourceDate: string,
-    dataDateDiffers: boolean
+    dataDateDiffers: boolean,
+    runId?: string
 ): string {
     const endOfDayData = d1Result?.data;
     const d1CreatedAt = d1Result?.createdAt;
@@ -253,6 +254,11 @@ function generateEndOfDayHTML(
               <div class="generated-date">
                 <span class="date-label">${hasD1Data ? 'Generated:' : 'Scheduled:'}</span>
                 <span class="date-value">${statusDisplay}</span>
+              </div>
+              ${runId ? `<div class="run-id-display">
+                <span class="date-label">Run ID:</span>
+                <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${runId.slice(-12)}</span>
+              </div>` : ''}
               </div>
             </div>
             ${dataDateWarning}
