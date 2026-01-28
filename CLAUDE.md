@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-28 - Multi-Run Support v3.10.5)
+- **Current Version**: Latest (2026-01-28 - Multi-Run Support v3.10.6)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -19,12 +19,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Code Quality**: Enhanced with refactored metrics and cleanup ✅
 - **Test Organization**: 51 scripts organized into logical structure ✅
 - **Market Pulse**: SPY sentiment via DAC service binding ✅
+- **Multi-Run Architecture**: Complete job history with run_id access ✅
 
 ### ✅ **Revolutionary Achievements (Latest)**
 
 | Feature | Status | Impact |
 |---------|--------|--------|
-| **Multi-Run Support v3.10.5** | ✅ Complete | Multiple job runs per date preserved in history, dashboard management UI with create/delete, centralized cctApi client |
+| **Multi-Run Architecture v3.10.6** | ✅ Complete | All job types support multiple runs per date, run history in job_run_results, ?run_id= parameter for specific run access, partial status (⚠️) for mixed results |
 | **Navigation Redesign V2** | ✅ Complete | Date-based report hierarchy with job status tracking, ET timezone handling via formatToParts(), public nav status endpoints |
 | **News Provider Error Tracking** | ✅ Complete | Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis results |
 | **Nav Timezone Settings** | ✅ Complete | User-configurable timezone for navigation date links, DST-safe date arithmetic |

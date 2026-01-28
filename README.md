@@ -10,6 +10,20 @@
 
 ## 🚀 Latest Updates
 
+### **🔄 Navigation Multi-Run Complete (2026-01-28)**
+- ✅ **Multi-Run Architecture**: All job types support multiple runs per date/type
+- ✅ **Run History**: Preserved in `job_run_results` table with unique run_ids
+- ✅ **Run Access**: All reports support `?run_id=` parameter to view specific runs
+- ✅ **Partial Status**: Jobs show ⚠️ icon when some symbols fail/diverge
+- ✅ **Stage Tracking**: Full timeline (init → data_fetch → ai_analysis → storage → finalize)
+- ✅ **Dashboard Integration**: Shows run_id with delete capability
+
+**Implementation**:
+- Weekly & end-of-day cron jobs use `startJobRun()` / `completeJobRun()`
+- Pre-market & intraday jobs already had multi-run support
+- HTML handlers render proper HTML for `?run_id=` views (no JSON)
+- Navigation displays latest run status with partial indicators
+
 ### **🔐 Auth Policy Overhaul (2026-01-15)**
 - ✅ **Protected Backend**: All `/api/v1/*` endpoints require auth except health checks
 - ✅ **Session-Only Keys**: API keys stored in sessionStorage (tab-bound, cleared on close)
