@@ -94,3 +94,20 @@ CREATE INDEX IF NOT EXISTS idx_provider_failures_symbol ON news_provider_failure
 CREATE INDEX IF NOT EXISTS idx_provider_failures_provider ON news_provider_failures(provider);
 CREATE INDEX IF NOT EXISTS idx_provider_failures_created ON news_provider_failures(created_at);
 CREATE INDEX IF NOT EXISTS idx_provider_failures_run_id ON news_provider_failures(run_id);
+
+
+-- News Cache Statistics (added 2026-01-29)
+-- Track cache hit/miss rates for monitoring
+CREATE TABLE IF NOT EXISTS news_cache_stats (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL,
+  cache_result TEXT NOT NULL CHECK(cache_result IN ('hit', 'miss')),
+  articles_count INTEGER DEFAULT 0,
+  job_type TEXT, -- 'pre-market', 'intraday', 'end-of-day'
+  run_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_cache_stats_symbol ON news_cache_stats(symbol);
+CREATE INDEX IF NOT EXISTS idx_news_cache_stats_result ON news_cache_stats(cache_result);
+CREATE INDEX IF NOT EXISTS idx_news_cache_stats_created ON news_cache_stats(created_at);

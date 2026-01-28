@@ -161,10 +161,31 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
 
   if (cached.success && cached.data && cached.data.length > 0) {
     console.log(`[Stock News Cache] HIT for ${symbol} (${cached.data.length} articles)`);
+    
+    // Log cache hit for statistics
+    if (env.PREDICT_JOBS_DB) {
+      try {
+        await env.PREDICT_JOBS_DB
+          .prepare(`INSERT INTO news_cache_stats (symbol, cache_result, articles_count) VALUES (?, ?, ?)`)
+          .bind(symbol, 'hit', cached.data.length)
+          .run();
+      } catch (e) { /* ignore */ }
+    }
+    
     return cached.data;
   }
 
   console.log(`[Stock News Cache] MISS for ${symbol}, fetching from providers...`);
+  
+  // Log cache miss
+  if (env.PREDICT_JOBS_DB) {
+    try {
+      await env.PREDICT_JOBS_DB
+        .prepare(`INSERT INTO news_cache_stats (symbol, cache_result, articles_count) VALUES (?, ?, ?)`)
+        .bind(symbol, 'miss', 0)
+        .run();
+    } catch (e) { /* ignore */ }
+  }
 
   // 1. Try Finnhub first (primary - 60 calls/min, finance-focused)
   const finnhubKey = env.FINNHUB_API_KEY;
