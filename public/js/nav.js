@@ -110,25 +110,123 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
         return `<span class="status-icon" title="${tooltip}">${icon}</span>`;
     }
 
-    // Render a single date's reports
-    function renderDateReports(date, dateData, isExpanded) {
+    // Get report URL path from report type
+    function getReportPath(reportType) {
+        const paths = {
+            'pre-market': '/pre-market-briefing',
+            'intraday': '/intraday-check',
+            'end-of-day': '/end-of-day-summary'
+        };
+        return paths[reportType] || `/${reportType}`;
+    }
+
+    // Format time from ISO string (e.g., "14:09" from "2026-01-28T14:09:41.187Z")
+    function formatRunTime(isoString) {
+        if (!isoString) return '';
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        } catch (e) {
+            return '';
+        }
+    }
+
+    // Render runs for a report type
+    function renderRunsList(date, reportType, runs, isLatest) {
+        if (!runs || runs.length === 0) {
+            return '';
+        }
+
+        // Sort by started_at descending (latest first)
+        const sortedRuns = [...runs].sort((a, b) =>
+            new Date(b.started_at || b.executed_at) - new Date(a.started_at || a.executed_at)
+        );
+
+        return sortedRuns.map((run, index) => {
+            const isLatestRun = index === 0;
+            const time = formatRunTime(run.started_at || run.executed_at);
+            const statusIcon = renderStatusIcon(run.status);
+            const href = `${getReportPath(reportType)}?date=${date}&run_id=${run.run_id}`;
+            const triggerIcon = run.trigger_source === 'manual' ? '\uD83D\uDC64' : '\u23F0'; // 👤 or ⏰
+            const latestClass = isLatestRun ? 'nav-run-latest' : '';
+            const latestBadge = isLatestRun ? '<span class="nav-run-badge">latest</span>' : '';
+
+            return `
+                <a href="${href}" class="nav-item nav-run-item ${latestClass}" data-date="${date}" data-report="${reportType}" data-run-id="${run.run_id}">
+                    <span class="nav-run-time">${triggerIcon} ${time}</span>
+                    ${statusIcon}
+                    ${latestBadge}
+                </a>
+            `;
+        }).join('');
+    }
+
+    // Render a single date's reports with expandable runs
+    function renderDateReports(date, dateData, runsData, isExpanded, expandedReports) {
         const label = dateData.label || date;
         const expandedClass = isExpanded ? 'expanded' : '';
         const contentStyle = isExpanded ? '' : 'style="display: none;"';
+
+        // Group runs by report type for this date
+        const runsByType = {};
+        if (runsData) {
+            runsData.forEach(run => {
+                if (!runsByType[run.report_type]) {
+                    runsByType[run.report_type] = [];
+                }
+                runsByType[run.report_type].push(run);
+            });
+        }
 
         const reports = ['pre-market', 'intraday', 'end-of-day'].map(reportType => {
             const reportData = dateData[reportType] || { status: 'n/a' };
             const statusIcon = renderStatusIcon(reportData.status, reportData.errors);
             const icon = REPORT_ICONS[reportType];
             const displayName = reportType.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
-            const href = `/${reportType === 'pre-market' ? 'pre-market-briefing' : reportType === 'intraday' ? 'intraday-check' : 'end-of-day-summary'}?date=${date}`;
+            const href = `${getReportPath(reportType)}?date=${date}`;
+            const runs = runsByType[reportType] || [];
+            const hasRuns = runs.length > 0;
+            const runCount = runs.length;
+
+            // Check if this report type should be expanded (show runs)
+            const reportKey = `${date}_${reportType}`;
+            const isReportExpanded = expandedReports[reportKey] !== undefined
+                ? expandedReports[reportKey]
+                : (hasRuns && runCount > 1); // Auto-expand if multiple runs
+            const runsContentStyle = isReportExpanded ? '' : 'style="display: none;"';
+            const reportExpandIcon = isReportExpanded ? '\u25BC' : '\u25B6';
+
+            // If no runs or single run, render simple link
+            if (!hasRuns || runCount <= 1) {
+                return `
+                    <a href="${href}" class="nav-item nav-report-item" data-date="${date}" data-report="${reportType}">
+                        <span class="nav-icon">${icon}</span>
+                        <span class="nav-text">${displayName}</span>
+                        ${statusIcon}
+                    </a>
+                `;
+            }
+
+            // Multiple runs - render expandable
+            const runsHtml = renderRunsList(date, reportType, runs, true);
 
             return `
-                <a href="${href}" class="nav-item nav-report-item" data-date="${date}" data-report="${reportType}">
-                    <span class="nav-icon">${icon}</span>
-                    <span class="nav-text">${displayName}</span>
-                    ${statusIcon}
-                </a>
+                <div class="nav-report-group" data-date="${date}" data-report="${reportType}">
+                    <div class="nav-report-header nav-expandable" data-target="runs-${date}-${reportType}">
+                        <span class="nav-icon">${icon}</span>
+                        <span class="nav-text">${displayName}</span>
+                        <span class="nav-run-count">(${runCount})</span>
+                        ${statusIcon}
+                        <span class="nav-expand-icon">${reportExpandIcon}</span>
+                    </div>
+                    <div class="nav-runs-content" id="runs-${date}-${reportType}" ${runsContentStyle}>
+                        ${runsHtml}
+                    </div>
+                </div>
             `;
         }).join('');
 
@@ -151,27 +249,54 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
         if (!container) return;
 
         try {
-            const response = await fetch('/api/v1/reports/status?days=3');
-            if (!response.ok) throw new Error('API error');
-            const result = await response.json();
+            // Fetch both status and runs in parallel
+            const [statusResponse, runsResponse] = await Promise.all([
+                fetch('/api/v1/reports/status?days=3'),
+                fetch('/api/v1/jobs/runs?days=3&limit=100')
+            ]);
 
-            if (!result.success || !result.data) {
-                throw new Error('Invalid response');
+            if (!statusResponse.ok) throw new Error('Status API error');
+            const statusResult = await statusResponse.json();
+
+            if (!statusResult.success || !statusResult.data) {
+                throw new Error('Invalid status response');
             }
+
+            // Parse runs data (may fail gracefully)
+            let runsData = [];
+            if (runsResponse.ok) {
+                const runsResult = await runsResponse.json();
+                if (runsResult.success && runsResult.data && runsResult.data.runs) {
+                    runsData = runsResult.data.runs;
+                }
+            }
+
+            // Group runs by date
+            const runsByDate = {};
+            runsData.forEach(run => {
+                const date = run.scheduled_date;
+                if (!runsByDate[date]) {
+                    runsByDate[date] = [];
+                }
+                runsByDate[date].push(run);
+            });
 
             // Get saved expanded state from localStorage
             let expandedDates = {};
+            let expandedReports = {};
             try {
-                const saved = localStorage.getItem('cct_nav_expanded_dates');
-                if (saved) expandedDates = JSON.parse(saved);
+                const savedDates = localStorage.getItem('cct_nav_expanded_dates');
+                if (savedDates) expandedDates = JSON.parse(savedDates);
+                const savedReports = localStorage.getItem('cct_nav_expanded_reports');
+                if (savedReports) expandedReports = JSON.parse(savedReports);
             } catch (e) { /* ignore */ }
 
             // Render dates (first date auto-expanded if no saved state)
-            const dates = Object.keys(result.data).sort().reverse(); // Most recent first
+            const dates = Object.keys(statusResult.data).sort().reverse(); // Most recent first
             let html = '';
             dates.forEach((date, index) => {
                 const isExpanded = expandedDates[date] !== undefined ? expandedDates[date] : (index === 0);
-                html += renderDateReports(date, result.data[date], isExpanded);
+                html += renderDateReports(date, statusResult.data[date], runsByDate[date] || [], isExpanded, expandedReports);
             });
 
             container.innerHTML = html;
@@ -189,12 +314,37 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
                         content.style.display = 'block';
                         dateGroup.classList.add('expanded');
                         icon.textContent = '\u25BC';
-                        saveExpandedState(date, true);
+                        saveExpandedState('date', date, true);
                     } else {
                         content.style.display = 'none';
                         dateGroup.classList.remove('expanded');
                         icon.textContent = '\u25B6';
-                        saveExpandedState(date, false);
+                        saveExpandedState('date', date, false);
+                    }
+                });
+            });
+
+            // Attach expand/collapse handlers for report type headers (multi-run)
+            container.querySelectorAll('.nav-report-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const reportGroup = header.closest('.nav-report-group');
+                    const date = reportGroup.dataset.date;
+                    const reportType = reportGroup.dataset.report;
+                    const content = document.getElementById(`runs-${date}-${reportType}`);
+                    const icon = header.querySelector('.nav-expand-icon');
+
+                    if (content.style.display === 'none') {
+                        content.style.display = 'block';
+                        reportGroup.classList.add('expanded');
+                        icon.textContent = '\u25BC';
+                        saveExpandedState('report', `${date}_${reportType}`, true);
+                    } else {
+                        content.style.display = 'none';
+                        reportGroup.classList.remove('expanded');
+                        icon.textContent = '\u25B6';
+                        saveExpandedState('report', `${date}_${reportType}`, false);
                     }
                 });
             });
@@ -209,12 +359,13 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
     }
 
     // Save expanded state to localStorage
-    function saveExpandedState(date, isExpanded) {
+    function saveExpandedState(type, key, isExpanded) {
         try {
-            const saved = localStorage.getItem('cct_nav_expanded_dates');
+            const storageKey = type === 'date' ? 'cct_nav_expanded_dates' : 'cct_nav_expanded_reports';
+            const saved = localStorage.getItem(storageKey);
             const state = saved ? JSON.parse(saved) : {};
-            state[date] = isExpanded;
-            localStorage.setItem('cct_nav_expanded_dates', JSON.stringify(state));
+            state[key] = isExpanded;
+            localStorage.setItem(storageKey, JSON.stringify(state));
         } catch (e) { /* ignore */ }
     }
 
@@ -223,23 +374,46 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
         const path = normalizePath(window.location.pathname);
         const params = new URLSearchParams(window.location.search);
         const dateParam = params.get('date');
+        const runIdParam = params.get('run_id');
 
         // Clear existing active states
         document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
 
-        // Set active on matching report items
-        document.querySelectorAll('.nav-report-item').forEach(item => {
-            const itemDate = item.dataset.date;
-            const itemReport = item.dataset.report;
-            const itemPath = item.getAttribute('href')?.split('?')[0];
+        // If run_id is present, highlight the specific run item
+        if (runIdParam) {
+            document.querySelectorAll('.nav-run-item').forEach(item => {
+                const itemRunId = item.dataset.runId;
+                if (itemRunId === runIdParam) {
+                    item.classList.add('active');
+                    // Auto-expand the parent report group if collapsed
+                    const reportGroup = item.closest('.nav-report-group');
+                    if (reportGroup) {
+                        const content = reportGroup.querySelector('.nav-runs-content');
+                        const icon = reportGroup.querySelector('.nav-expand-icon');
+                        if (content && content.style.display === 'none') {
+                            content.style.display = 'block';
+                            reportGroup.classList.add('expanded');
+                            if (icon) icon.textContent = '\u25BC';
+                        }
+                    }
+                }
+            });
+        }
 
-            if (path === itemPath && dateParam === itemDate) {
-                item.classList.add('active');
-            }
-        });
+        // Set active on matching report items (only if no run_id or no matching run found)
+        if (!runIdParam || !document.querySelector('.nav-run-item.active')) {
+            document.querySelectorAll('.nav-report-item').forEach(item => {
+                const itemDate = item.dataset.date;
+                const itemPath = item.getAttribute('href')?.split('?')[0];
+
+                if (path === itemPath && dateParam === itemDate) {
+                    item.classList.add('active');
+                }
+            });
+        }
 
         // Set active on other nav items (dashboard, weekly, system pages)
-        document.querySelectorAll('.nav-item:not(.nav-report-item)').forEach(item => {
+        document.querySelectorAll('.nav-item:not(.nav-report-item):not(.nav-run-item)').forEach(item => {
             const href = item.getAttribute('href') || '';
             const itemPath = normalizePath(href.split('?')[0]);
             if (path === itemPath) {

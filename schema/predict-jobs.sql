@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_symbol_predictions_symbol ON symbol_predictions(s
 -- Navigation Status Summary (fresh start, no historical data)
 CREATE TABLE IF NOT EXISTS job_date_results (
   scheduled_date TEXT NOT NULL,
-  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
   current_stage TEXT,
   errors_json TEXT,
@@ -67,7 +67,7 @@ CREATE INDEX IF NOT EXISTS idx_job_date_results_status ON job_date_results(statu
 CREATE TABLE IF NOT EXISTS job_stage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   scheduled_date TEXT NOT NULL,
-  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   stage TEXT NOT NULL CHECK(stage IN ('init','data_fetch','ai_analysis','storage','finalize')),
   started_at TEXT NOT NULL,
   ended_at TEXT,

@@ -236,6 +236,116 @@ body.has-nav {
     opacity: 0.9;
 }
 
+/* Multi-Run Report Groups */
+.nav-report-group {
+    margin-bottom: 2px;
+}
+
+.nav-report-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    color: var(--nav-text);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.nav-report-header:hover {
+    background-color: var(--nav-item-hover);
+    color: #fff;
+}
+
+.nav-report-header .nav-icon {
+    font-size: 1rem;
+    width: 18px;
+    text-align: center;
+    color: rgba(250, 248, 245, 0.65);
+}
+
+.nav-report-header .nav-text {
+    flex: 1;
+}
+
+.nav-report-header .status-icon {
+    font-size: 0.7rem;
+    margin-left: 0;
+}
+
+.nav-report-header .nav-expand-icon {
+    font-size: 0.6rem;
+    opacity: 0.5;
+    margin-left: 4px;
+}
+
+.nav-run-count {
+    font-size: 0.7rem;
+    color: rgba(250, 248, 245, 0.5);
+    font-weight: normal;
+}
+
+.nav-report-group.expanded .nav-report-header {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Individual Run Items */
+.nav-runs-content {
+    padding-left: 12px;
+    margin-top: 2px;
+}
+
+.nav-run-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    color: rgba(250, 248, 245, 0.7);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin-bottom: 1px;
+    border-left: 2px solid transparent;
+}
+
+.nav-run-item:hover {
+    background-color: var(--nav-item-hover);
+    color: #fff;
+}
+
+.nav-run-item.active {
+    background-color: var(--nav-item-active);
+    color: var(--nav-text-active);
+    border-left-color: var(--nav-text-active);
+}
+
+.nav-run-item.nav-run-latest {
+    color: rgba(250, 248, 245, 0.85);
+}
+
+.nav-run-time {
+    flex: 1;
+    font-family: monospace;
+    font-size: 0.75rem;
+}
+
+.nav-run-item .status-icon {
+    font-size: 0.65rem;
+    margin-left: 0;
+}
+
+.nav-run-badge {
+    font-size: 0.6rem;
+    background-color: rgba(240, 185, 11, 0.2);
+    color: var(--nav-text-active);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
 /* Loading and Error States */
 .nav-loading,
 .nav-error {

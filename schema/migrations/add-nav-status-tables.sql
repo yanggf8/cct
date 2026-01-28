@@ -15,7 +15,7 @@ DROP TABLE IF EXISTS scheduled_job_results;
 -- ============================================================================
 CREATE TABLE job_date_results (
   scheduled_date TEXT NOT NULL,
-  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
   current_stage TEXT,
   errors_json TEXT,
@@ -38,7 +38,7 @@ CREATE INDEX idx_job_date_results_status ON job_date_results(status) WHERE statu
 CREATE TABLE job_run_results (
   run_id TEXT PRIMARY KEY,
   scheduled_date TEXT NOT NULL,
-  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
   current_stage TEXT,
   errors_json TEXT,
@@ -59,7 +59,7 @@ CREATE TABLE job_stage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   run_id TEXT NOT NULL,
   scheduled_date TEXT NOT NULL,
-  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   stage TEXT NOT NULL CHECK(stage IN ('init','data_fetch','ai_analysis','storage','finalize')),
   started_at TEXT NOT NULL,
   ended_at TEXT,
