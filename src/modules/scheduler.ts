@@ -94,6 +94,7 @@ export async function handleScheduledEvent(
   let runTrackingEnabled = false;
   let intradayRunId: string | null = null;
   let intradayRunTrackingEnabled = false;
+  let intradayHasEmptySymbols = false;  // Track if intraday has no pre-market data (for partial status)
 
   // Use override if provided and valid
   if (overrideTriggerMode) {
@@ -376,8 +377,10 @@ export async function handleScheduledEvent(
         }
 
         // Handle empty symbols array gracefully (no pre-market data available)
+        // Mark as partial status - job ran but produced no useful data
         if (intradayResult.symbols.length === 0) {
           console.warn(`⚠️ [CRON-INTRADAY] ${cronExecutionId} Intraday analysis produced no symbols - empty pre-market data`);
+          intradayHasEmptySymbols = true;  // Flag for partial status
           // Create valid empty result structure
           analysisResult = {
             symbols: [],
@@ -742,13 +745,20 @@ export async function handleScheduledEvent(
 
           // Complete job run for pre-market and intraday
           if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
+            // Use partial status for intraday with empty symbols (no pre-market data)
+            const jobStatus = (d1ReportType === 'intraday' && intradayHasEmptySymbols) ? 'partial' : 'success';
+            const warnings = (d1ReportType === 'intraday' && intradayHasEmptySymbols)
+              ? ['No pre-market data available for intraday comparison']
+              : undefined;
             await completeJobRun(env, {
               runId: activeRunId,
               scheduledDate: dateStr,
               reportType: d1ReportType,
-              status: 'success'
+              status: jobStatus,
+              warnings
             });
-            console.log(`✅ [CRON-${d1ReportType.toUpperCase()}] ${cronExecutionId} Job run completed successfully with run_id: ${activeRunId}`);
+            const statusEmoji = jobStatus === 'partial' ? '⚠️' : '✅';
+            console.log(`${statusEmoji} [CRON-${d1ReportType.toUpperCase()}] ${cronExecutionId} Job run completed with status: ${jobStatus}, run_id: ${activeRunId}`);
           }
         } catch (d1Error: any) {
           console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 write failed:`, {

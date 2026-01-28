@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-28 - Cache Invalidation v3.10.9)
+- **Current Version**: Latest (2026-01-28 - Partial Status v3.10.10)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Intraday Empty Symbols Partial Status v3.10.10** | ✅ Complete | Intraday jobs with no pre-market data now marked `partial` (⚠️) instead of `success`, with warning message. Prevents misleading dashboard status |
 | **Intraday/EOD Cache Invalidation v3.10.9** | ✅ Complete | Scheduler now invalidates `intraday_html_` and `end_of_day_html_` DO cache after D1 write, fixing stale "Awaiting Data" pages |
 | **Dashboard Job History Icons v3.10.8** | ✅ Complete | Job history table shows trigger icons (⏰ cron/👤 manual), report icons (🌅/📊/🌆/📋), status icons with legend bar explaining all symbols |
 | **Expandable Multi-Run Navigation v3.10.7** | ✅ Complete | Report types expand to show all runs with trigger icon (⏰/👤), time, status, "latest" badge. Links include ?run_id= for specific run access. Auto-expand when multiple runs exist |
@@ -693,8 +694,9 @@ Transform from individual stock analysis to institutional-grade market intellige
 ---
 
 **Last Updated**: 2026-01-28
-**Current Version**: Production Ready with Cache Invalidation v3.10.9
+**Current Version**: Production Ready with Partial Status v3.10.10
 **Major Updates**:
+- **Intraday Empty Symbols Partial Status v3.10.10**: Intraday jobs with no pre-market data (empty symbols) now marked `partial` (⚠️) instead of misleading `success`. Includes warning message "No pre-market data available for intraday comparison" in job_run_results.
 - **Intraday/EOD Cache Invalidation v3.10.9**: Fixed stale "Awaiting Data" pages by invalidating DO HTML cache (`intraday_html_`, `end_of_day_html_`) after scheduler D1 write. Root cause: DO cache served old pending page without checking D1 for fresh data.
 - **Dashboard Job History Icons v3.10.8**: Job history table now displays trigger icons (⏰ cron/👤 manual) before dates, report type icons (🌅/📊/🌆/📋), and a legend bar explaining all symbols (trigger source, status icons). Hover tooltips on trigger icons.
 - **Expandable Multi-Run Navigation v3.10.7**: Navigation sidebar shows expandable report types when multiple runs exist. Each run displays trigger icon (⏰ cron/👤 manual), timestamp, status icon, and "latest" badge. Clicking a run navigates with `?run_id=` parameter. Active run highlighted in nav. localStorage persists expanded state.
