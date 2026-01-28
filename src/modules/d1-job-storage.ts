@@ -184,11 +184,14 @@ export async function readD1ReportSnapshot(
   if (!db) return null;
 
   try {
+    // Prefer rows with run_id (from proper job tracking) over legacy rows without
     const result = await db.prepare(
       `SELECT report_content, metadata, created_at, scheduled_date
        FROM scheduled_job_results
        WHERE scheduled_date = ? AND report_type = ?
-       ORDER BY created_at DESC
+       ORDER BY
+         CASE WHEN run_id IS NOT NULL THEN 0 ELSE 1 END,
+         created_at DESC
        LIMIT 1`
     ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date: string }>();
 

@@ -90,6 +90,8 @@ export async function handleScheduledEvent(
   const cronExecutionId = `cron_${Date.now()}`;
   let triggerMode: string;
   let predictionHorizons: number[];
+  let runId: string | null = null;
+  let runTrackingEnabled = false;
 
   // Use override if provided and valid
   if (overrideTriggerMode) {
@@ -592,12 +594,35 @@ export async function handleScheduledEvent(
     } else {
       // Enhanced pre-market analysis with sentiment (morning_prediction_alerts)
       console.log(`🚀 [CRON-ENHANCED] ${cronExecutionId} Running enhanced analysis with sentiment...`);
+
+      // Start multi-run tracking
+      runId = await startJobRun(env, {
+        scheduledDate: dateStr,
+        reportType: 'pre-market',
+        triggerSource: 'cron'
+      });
+      runTrackingEnabled = !!runId;
+
+      if (!runId) {
+        console.warn(`⚠️ [CRON-PRE-MARKET] ${cronExecutionId} Run tracking unavailable, using fallback`);
+      }
+
+      if (runTrackingEnabled) {
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'pre-market', stage: 'init' });
+        await endJobStage(env, { runId, stage: 'init' });
+        await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'pre-market', stage: 'ai_analysis' });
+      }
+
       analysisResult = await runEnhancedPreMarketAnalysis(env, {
         triggerMode,
         predictionHorizons,
         currentTime: estTime,
         cronExecutionId
       });
+
+      if (runTrackingEnabled) {
+        await endJobStage(env, { runId, stage: 'ai_analysis' });
+      }
 
       // Facebook messaging has been migrated to Chrome web notifications
       console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
@@ -663,6 +688,11 @@ export async function handleScheduledEvent(
       };
       const d1ReportType = reportTypeMap[triggerMode];
       if (d1ReportType) {
+        // Start storage stage for jobs with run tracking
+        if (runTrackingEnabled && d1ReportType === 'pre-market') {
+          await startJobStage(env, { runId: runId!, scheduledDate: dateStr, reportType: 'pre-market', stage: 'storage' });
+        }
+
         try {
           const d1Written = await writeD1JobResult(env, dateStr, d1ReportType, {
             ...analysisResult,
@@ -675,8 +705,24 @@ export async function handleScheduledEvent(
               primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
               secondary: '@cf/huggingface/distilbert-sst-2-int8'
             }
-          }, 'cron');
+          }, 'cron', runTrackingEnabled ? runId! : undefined);
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
+
+          // End storage stage for jobs with run tracking
+          if (runTrackingEnabled && d1ReportType === 'pre-market') {
+            await endJobStage(env, { runId: runId!, stage: 'storage' });
+          }
+
+          // Complete job run for pre-market
+          if (runTrackingEnabled && d1ReportType === 'pre-market') {
+            await completeJobRun(env, {
+              runId: runId!,
+              scheduledDate: dateStr,
+              reportType: 'pre-market',
+              status: 'success'
+            });
+            console.log(`✅ [CRON-PRE-MARKET] ${cronExecutionId} Job run completed successfully with run_id: ${runId}`);
+          }
 
           // Write job execution status to job_executions table for dashboard tracking
           try {
@@ -713,9 +759,31 @@ export async function handleScheduledEvent(
             reportType: d1ReportType,
             dateStr
           });
+
+          // Complete job run with failure for pre-market
+          if (runTrackingEnabled && d1ReportType === 'pre-market') {
+            await completeJobRun(env, {
+              runId: runId!,
+              scheduledDate: dateStr,
+              reportType: 'pre-market',
+              status: 'failed',
+              errors: [d1Error.message]
+            });
+          }
+
           // Continue execution even if D1 fails
         }
       }
+    } else if (runTrackingEnabled && triggerMode === 'morning_prediction_alerts') {
+      // Bug fix: Handle null analysisResult - mark job as failed in multi-run tables
+      console.warn(`⚠️ [CRON-PRE-MARKET] ${cronExecutionId} Analysis returned null, marking job as failed`);
+      await completeJobRun(env, {
+        runId: runId!,
+        scheduledDate: dateStr,
+        reportType: 'pre-market',
+        status: 'failed',
+        errors: ['Analysis returned null or undefined - no valid result generated']
+      });
     }
 
     const cronDuration = Date.now() - scheduledTime.getTime();
@@ -793,6 +861,18 @@ export async function handleScheduledEvent(
         errors: [error.message]
       });
       console.log(`✅ [CRON-JOB-STATUS] ${cronExecutionId} Failed job status written to job_executions: ${jobType}`);
+
+      // Bug fix: Also update multi-run tables for pre-market failures
+      if (runTrackingEnabled && jobType === 'pre-market' && runId) {
+        await completeJobRun(env, {
+          runId,
+          scheduledDate: dateStr,
+          reportType: 'pre-market',
+          status: 'failed',
+          errors: [error.message]
+        });
+        console.log(`✅ [CRON-PRE-MARKET] ${cronExecutionId} Failed job run recorded in multi-run tables: ${runId}`);
+      }
     } catch (statusError: any) {
       console.error(`❌ [CRON-JOB-STATUS-ERROR] ${cronExecutionId} Failed to write error status:`, {
         error: statusError.message

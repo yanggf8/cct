@@ -40,6 +40,12 @@ When asked to perform a review, examine the relevant code changes thoroughly (no
 - Frontend `?date=YYYY-MM-DD` is used verbatim to query `scheduled_date` (no backend reinterpretation/conversion).
 - Prefer explicit `YYYY-MM-DD` values in UI/navigation; avoid semantic values like `?date=yesterday` (ambiguous).
 
+## Multi-Run Tracking
+- All job types (pre-market, intraday, end-of-day, weekly) use `startJobRun()` / `completeJobRun()` for multi-run support.
+- Each run creates a unique `run_id` in `job_run_results` table with stage tracking (init → ai_analysis → storage → finalize).
+- Frontend supports `?run_id=` parameter to view specific runs; dashboard shows run history with delete capability.
+- Fixed 2026-01-28: Pre-market jobs now use multi-run tracking (was missing, causing single-run behavior).
+
 ## Environment & Configuration
 Deployment targets are defined in `wrangler.toml` (production) and `wrangler-enhanced.toml` (staging). Manage secrets through `wrangler secret put`; never check them into source control. Durable Object behavior is centralized in `src/modules/cache-durable-object.ts`, so coordinate script updates such as `validate-enhanced-cache.sh` when modifying it. When adding KV namespaces or bindings, update the corresponding entry in `docs/` and capture migration steps in your PR notes.
 

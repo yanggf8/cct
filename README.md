@@ -10,6 +10,19 @@
 
 ## 🚀 Latest Updates
 
+### **🔄 Pre-Market Multi-Run Fix (2026-01-28)**
+- ✅ **Multi-Run Support**: Pre-market jobs now support multiple runs per date (was missing)
+- ✅ **Consistent Architecture**: All job types (pre-market, intraday, end-of-day, weekly) use same tracking
+- ✅ **Run History**: Pre-market runs now preserved in `job_run_results` table
+- ✅ **Stage Tracking**: Full timeline (init → ai_analysis → storage → finalize)
+- ✅ **Dashboard Integration**: Pre-market runs visible in dashboard with delete capability
+
+**Root Cause**: Pre-market job handler was not using `startJobRun()` / `completeJobRun()` while other jobs were.
+
+**Fix**: Added multi-run tracking to `morning_prediction_alerts` trigger mode in `scheduler.ts`.
+
+See `PRE_MARKET_MULTI_RUN_FIX.md` for detailed analysis.
+
 ### **🔄 Navigation Multi-Run Complete (2026-01-28)**
 - ✅ **Multi-Run Architecture**: All job types support multiple runs per date/type
 - ✅ **Run History**: Preserved in `job_run_results` table with unique run_ids
