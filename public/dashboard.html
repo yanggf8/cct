@@ -277,7 +277,11 @@
                         'intraday': '/intraday-check',
                         'end-of-day': '/end-of-day-summary'
                     };
-                    const reportLink = isToday ? reportLinks[job.id] : `${reportLinks[job.id]}?date=${dateStr}`;
+                    // Include run_id in link if available to view the specific run shown on card
+                    const baseLink = reportLinks[job.id];
+                    const reportLink = run?.run_id 
+                        ? `${baseLink}?date=${dateStr}&run_id=${run.run_id}`
+                        : (isToday ? baseLink : `${baseLink}?date=${dateStr}`);
 
                     return `
                         <a href="${reportLink}" class="job-card ${status}" style="text-decoration:none;color:inherit;display:block;">
