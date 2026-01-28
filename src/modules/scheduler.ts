@@ -760,6 +760,11 @@ export async function handleScheduledEvent(
             dateStr
           });
 
+          // End dangling storage stage for pre-market
+          if (runTrackingEnabled && d1ReportType === 'pre-market') {
+            await endJobStage(env, { runId: runId!, stage: 'storage' });
+          }
+
           // Complete job run with failure for pre-market
           if (runTrackingEnabled && d1ReportType === 'pre-market') {
             await completeJobRun(env, {
@@ -774,15 +779,43 @@ export async function handleScheduledEvent(
           // Continue execution even if D1 fails
         }
       }
-    } else if (runTrackingEnabled && triggerMode === 'morning_prediction_alerts') {
-      // Bug fix: Handle null analysisResult - mark job as failed in multi-run tables
-      console.warn(`⚠️ [CRON-PRE-MARKET] ${cronExecutionId} Analysis returned null, marking job as failed`);
-      await completeJobRun(env, {
-        runId: runId!,
-        scheduledDate: dateStr,
-        reportType: 'pre-market',
-        status: 'failed',
-        errors: ['Analysis returned null or undefined - no valid result generated']
+    } else if (triggerMode === 'morning_prediction_alerts') {
+      // Bug fix: Handle null analysisResult - mark job as failed
+      const failureError = 'Analysis returned null or undefined - no valid result generated';
+      console.warn(`⚠️ [CRON-PRE-MARKET] ${cronExecutionId} ${failureError}`);
+
+      // Update multi-run tables if tracking enabled
+      if (runTrackingEnabled && runId) {
+        await completeJobRun(env, {
+          runId,
+          scheduledDate: dateStr,
+          reportType: 'pre-market',
+          status: 'failed',
+          errors: [failureError]
+        });
+      }
+
+      // Also update job_executions for dashboard compatibility
+      await updateD1JobStatus(env, 'pre-market', dateStr, 'failed', {
+        symbols_processed: 0,
+        execution_time_ms: Date.now() - scheduledTime.getTime(),
+        symbols_successful: 0,
+        symbols_fallback: 0,
+        symbols_failed: 0,
+        errors: [failureError]
+      });
+
+      // Return failure response
+      const errorResponse: CronResponse = {
+        success: false,
+        trigger_mode: triggerMode,
+        error: failureError,
+        execution_id: cronExecutionId,
+        timestamp: estTime.toISOString()
+      };
+      return new Response(JSON.stringify(errorResponse), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 

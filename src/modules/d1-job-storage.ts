@@ -183,6 +183,22 @@ export async function readD1ReportSnapshot(
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
+  // Helper to parse result
+  const parseResult = (result: { report_content: string; metadata: string; created_at: string; scheduled_date: string } | null) => {
+    if (!result?.report_content) return null;
+    try {
+      const content = JSON.parse(result.report_content);
+      content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
+      content._source = 'd1_snapshot';
+      content._d1_created_at = result.created_at;
+      content._scheduled_date = result.scheduled_date;
+      return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date };
+    } catch (parseError) {
+      logger.error('D1 JSON parse failed', { scheduledDate, reportType, error: (parseError as Error).message });
+      return null;
+    }
+  };
+
   try {
     // Prefer rows with run_id (from proper job tracking) over legacy rows without
     const result = await db.prepare(
@@ -195,22 +211,28 @@ export async function readD1ReportSnapshot(
        LIMIT 1`
     ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date: string }>();
 
-    if (result?.report_content) {
+    return parseResult(result);
+  } catch (error) {
+    const errMsg = (error as Error).message;
+
+    // Fallback: If run_id column doesn't exist, retry without it
+    if (errMsg.includes('no such column') && errMsg.includes('run_id')) {
+      logger.warn('run_id column not found in scheduled_job_results - using legacy query', { scheduledDate, reportType });
       try {
-        const content = JSON.parse(result.report_content);
-        content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
-        content._source = 'd1_snapshot';
-        content._d1_created_at = result.created_at;
-        content._scheduled_date = result.scheduled_date;
-        return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date };
-      } catch (parseError) {
-        logger.error('D1 JSON parse failed', { scheduledDate, reportType, error: (parseError as Error).message });
+        const result = await db.prepare(
+          `SELECT report_content, metadata, created_at, scheduled_date
+           FROM scheduled_job_results
+           WHERE scheduled_date = ? AND report_type = ?
+           ORDER BY created_at DESC
+           LIMIT 1`
+        ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date: string }>();
+        return parseResult(result);
+      } catch (fallbackError) {
+        logger.error('D1 fallback read failed', { error: (fallbackError as Error).message, scheduledDate, reportType });
         return null;
       }
     }
-    return null;
-  } catch (error) {
-    const errMsg = (error as Error).message;
+
     if (errMsg.includes('no such table')) {
       logger.debug('D1 scheduled_job_results table not found - using predictions fallback');
     } else {
