@@ -28,6 +28,7 @@ export interface NewsFetchResult {
   articles: any[];
   errorSummary: ErrorSummary | null;
   providerErrors: ProviderError[];
+  providerFailures?: Array<{ provider: string; error_type: string; error_message: string }>; // NEW: For report inclusion
   success: boolean;
 }
 
@@ -43,10 +44,15 @@ export interface NewsFetchResult {
  */
 export async function getFreeStockNewsWithErrorTracking(
   symbol: string,
-  env: CloudflareEnvironment
+  env: CloudflareEnvironment,
+  jobContext?: { job_type?: 'pre-market' | 'intraday' | 'end-of-day'; run_id?: string }
 ): Promise<NewsFetchResult> {
   const providerErrors: ProviderError[] = [];
+  const providerFailures: Array<{ provider: string; error_type: string; error_message: string }> = [];
   let articles: any[] = [];
+
+  // Import failure tracker
+  const { logProviderFailure } = await import('./news-provider-failure-tracker.js');
 
   // Track DAC errors (only actual failures, not "not configured" or "miss")
   if (env.DAC_BACKEND) {
@@ -62,16 +68,34 @@ export async function getFreeStockNewsWithErrorTracking(
         if (dacResult.articles.length > 0) {
           articles = dacResult.articles;
           console.log(`[Error Tracking] DAC Pool SUCCESS for ${symbol} (${dacResult.articles.length} articles)`);
+        } else {
+          // DAC returned 0 articles - log as no_data
+          providerFailures.push({ provider: 'DAC', error_type: 'no_data', error_message: 'DAC pool returned 0 articles' });
+          await logProviderFailure(env, {
+            symbol,
+            provider: 'DAC',
+            error_type: 'no_data',
+            error_message: 'DAC pool returned 0 articles',
+            job_type: jobContext?.job_type,
+            run_id: jobContext?.run_id
+          });
         }
-        // DAC_NOT_FOUND is expected behavior (no articles), not an error - don't track
       }
-      // DAC_FALLBACK is expected behavior (pool miss), not an error - don't track
     } catch (error: unknown) {
       // Only track actual DAC failures (exceptions)
+      const errorMsg = error instanceof Error ? error.message : String(error);
       providerErrors.push(extractProviderError('DAC', error, `getArticlesForSentiment(${symbol})`));
+      providerFailures.push({ provider: 'DAC', error_type: 'api_error', error_message: errorMsg });
+      await logProviderFailure(env, {
+        symbol,
+        provider: 'DAC',
+        error_type: 'api_error',
+        error_message: errorMsg,
+        job_type: jobContext?.job_type,
+        run_id: jobContext?.run_id
+      });
     }
   }
-  // DAC_UNAVAILABLE is expected (not configured), not an error - don't track
 
   // If DAC succeeded, return early (highest priority)
   if (articles.length > 0) {
@@ -82,6 +106,7 @@ export async function getFreeStockNewsWithErrorTracking(
       articles,
       errorSummary: summary.totalErrors > 0 ? summary : null,
       providerErrors,
+      providerFailures, // NEW: Include in result
       success: true,
     };
   }
@@ -113,6 +138,7 @@ export async function getFreeStockNewsWithErrorTracking(
     articles,
     errorSummary: summary.totalErrors > 0 ? summary : null,
     providerErrors,
+    providerFailures, // NEW: Include in result
     success: articles.length > 0,
   };
 }

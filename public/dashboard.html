@@ -139,7 +139,7 @@
 
         /* Trigger source icons */
         .trigger-icon { font-size: 0.9rem; cursor: help; }
-        .trigger-icon.cron { color: var(--text-muted); }
+        .trigger-icon.scheduled { color: var(--text-muted); }
         .trigger-icon.manual { color: var(--gold); }
 
         /* Legend tooltip */
@@ -413,10 +413,13 @@
                     ? `<a href="${reportUrl}" style="color: var(--gold); text-decoration: none;">${reportIcon} ${run.report_type}</a>`
                     : `${reportIcon} ${run.report_type}`;
 
-                // Trigger source icon with tooltip
-                const triggerIcon = run.trigger_source === 'manual'
+                // Trigger source icon with tooltip: ⏰ scheduled (GitHub Actions), 👤 manual
+                // Handle variations: github_actions/github-actions/cron → scheduled, manual/manual-api → manual
+                const src = (run.trigger_source || '').toLowerCase().replace(/-/g, '_');
+                const isManual = src === 'manual' || src === 'manual_api' || src === 'unknown' || src === '';
+                const triggerIcon = isManual
                     ? '<span class="trigger-icon manual" title="Manually triggered">👤</span>'
-                    : '<span class="trigger-icon cron" title="Scheduled (cron)">⏰</span>';
+                    : '<span class="trigger-icon scheduled" title="Scheduled (GitHub Actions)">⏰</span>';
 
                 return `
                     <tr>
@@ -436,7 +439,7 @@
             container.innerHTML = `
                 <div class="legend-container">
                     <span style="color: var(--text-muted); font-weight: 500;">Legend:</span>
-                    <div class="legend-item"><span>⏰</span> Scheduled (cron)</div>
+                    <div class="legend-item"><span>⏰</span> Scheduled (GitHub Actions)</div>
                     <div class="legend-item"><span>👤</span> Manual trigger</div>
                     <div class="legend-item"><span>✅</span> Success</div>
                     <div class="legend-item"><span>⚠️</span> Partial</div>

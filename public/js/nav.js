@@ -151,7 +151,11 @@ window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
             const time = formatRunTime(run.started_at || run.executed_at);
             const statusIcon = renderStatusIcon(run.status);
             const href = `${getReportPath(reportType)}?date=${date}&run_id=${run.run_id}`;
-            const triggerIcon = run.trigger_source === 'manual' ? '\uD83D\uDC64' : '\u23F0'; // 👤 or ⏰
+            // Trigger icons: ⏰ scheduled (GitHub Actions), 👤 manual
+            // Handle variations: github_actions/github-actions/cron → scheduled, manual/manual-api → manual
+            const src = (run.trigger_source || '').toLowerCase().replace(/-/g, '_');
+            const isManual = src === 'manual' || src === 'manual_api' || src === 'unknown' || src === '';
+            const triggerIcon = isManual ? '\uD83D\uDC64' : '\u23F0'; // 👤 manual, ⏰ scheduled
             const latestClass = isLatestRun ? 'nav-run-latest' : '';
             const latestBadge = isLatestRun ? '<span class="nav-run-badge">latest</span>' : '';
 
