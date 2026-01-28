@@ -163,6 +163,11 @@ class CCTApi {
     return this.request(endpoint, { method: 'POST', body });
   }
 
+  // DELETE request
+  delete(endpoint) {
+    return this.request(endpoint, { method: 'DELETE' });
+  }
+
   // ============ API Methods ============
 
   // Health & Status
@@ -244,7 +249,21 @@ class CCTApi {
   // Jobs
   jobsHistory(limit = 50) { return this.get('/jobs/history', { limit }); }
   jobsLatest() { return this.get('/jobs/latest'); }
+  jobRuns(limit = 50) { return this.get('/jobs/runs', { limit }); }
+  deleteJobRun(runId) { return this.delete(`/jobs/runs/${encodeURIComponent(runId)}`); }
+  triggerJob(jobType, symbols) {
+    // Map job types to endpoints/trigger modes
+    if (jobType === 'pre-market') return this.post('/jobs/pre-market', { symbols });
+    if (jobType === 'intraday') return this.post('/jobs/intraday', { symbols });
+    // end-of-day and weekly use generic trigger endpoint
+    const triggerModes = {
+      'end-of-day': 'next_day_market_prediction',
+      'weekly': 'weekly_review_analysis'
+    };
+    return this.post('/jobs/trigger', { triggerMode: triggerModes[jobType] || jobType, symbols });
+  }
   getJobsHistory(limit) { return this.jobsHistory(limit); }
+  getJobRuns(limit) { return this.jobRuns(limit); }
 
   // System
   systemStatus() { return this.get('/data/system-status'); }

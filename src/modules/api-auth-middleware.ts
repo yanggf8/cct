@@ -24,7 +24,9 @@ const PUBLIC_PREFIXES = [
 
 // Public endpoints for GET method only (read access, writes require auth)
 const PUBLIC_GET_ONLY: string[] = [
-  // No GET-only public endpoints - all require auth
+  '/api/v1/reports/status',   // Navigation status for Reports menu
+  '/api/v1/jobs/history',     // Job history for dashboard
+  '/api/v1/jobs/runs',        // Job runs list for dashboard
 ];
 
 // Endpoints that serve HTML pages (no auth required)

@@ -1054,6 +1054,9 @@ async function handleReportsStatus(
             status: result.status
           };
 
+          if (result.latest_run_id) {
+            entry.run_id = result.latest_run_id;
+          }
           if (result.executed_at) {
             entry.executed_at = result.executed_at;
           }
@@ -1137,6 +1140,7 @@ async function handleReportsStatus(
 // Type for job status entry in response
 interface JobStatusEntry {
   status: string;
+  run_id?: string;
   executed_at?: string;
   started_at?: string;
   current_stage?: string;

@@ -59,7 +59,7 @@ export interface D1JobExecution {
 
 export interface D1ScheduledJobResult {
   id: number;
-  scheduled_date: string;  // The market date this report is FOR (primary key with report_type)
+  scheduled_date: string;  // The market date this report is FOR
   report_type: string;
   report_content: string;
   metadata: string;
@@ -73,10 +73,10 @@ export type TriggerSource = 'github-actions' | 'manual-api' | 'cron' | 'schedule
 
 /**
  * Write report snapshot to D1 scheduled_job_results table
- * Primary key: scheduled_date + report_type
+ * Multi-run: inserts a new row per write (latest is selected by created_at)
  * Safe: returns false if table doesn't exist (migration not applied)
  *
- * @param scheduledDate - The market date this report is FOR (primary key)
+ * @param scheduledDate - The market date this report is FOR
  * @param reportType - Type of report (pre-market, intraday, etc.)
  * @param reportContent - The report data
  * @param metadata - Optional metadata
@@ -88,7 +88,8 @@ export async function writeD1JobResult(
   reportType: string,
   reportContent: any,
   metadata?: any,
-  triggerSource: TriggerSource = 'unknown'
+  triggerSource: TriggerSource = 'unknown',
+  runId?: string
 ): Promise<boolean> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -102,9 +103,9 @@ export async function writeD1JobResult(
 
   try {
     await db.prepare(`
-      INSERT OR REPLACE INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, trigger_source, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(scheduledDate, reportType, contentJson, metadataJson, triggerSource, createdAt).run();
+      INSERT INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, trigger_source, run_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(scheduledDate, reportType, contentJson, metadataJson, triggerSource, runId ?? null, createdAt).run();
 
     logger.info('D1 report snapshot written', { scheduledDate, reportType, triggerSource });
     return true;
@@ -114,9 +115,17 @@ export async function writeD1JobResult(
       // Fallback: write without trigger_source if column doesn't exist yet
       logger.warn('trigger_source column not found - writing without it', { scheduledDate, reportType });
       await db.prepare(`
-        INSERT OR REPLACE INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(scheduledDate, reportType, contentJson, metadataJson, createdAt).run();
+        INSERT INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, run_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(scheduledDate, reportType, contentJson, metadataJson, runId ?? null, createdAt).run();
+      return true;
+    } else if (errMsg.includes('no column named run_id')) {
+      // Fallback: older schema without run_id
+      logger.warn('run_id column not found - writing without it', { scheduledDate, reportType });
+      await db.prepare(`
+        INSERT INTO scheduled_job_results (scheduled_date, report_type, report_content, metadata, trigger_source, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(scheduledDate, reportType, contentJson, metadataJson, triggerSource, createdAt).run();
       return true;
     } else if (errMsg.includes('no such table') || errMsg.includes('scheduled_job_results')) {
       logger.warn('D1 scheduled_job_results table not found - migration not applied', { scheduledDate, reportType });
@@ -718,18 +727,153 @@ export interface JobDateResult {
   executed_at: string | null;
   started_at: string | null;
   trigger_source: JobTriggerSource | null;
+  latest_run_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface JobStageLogEntry {
   id: number;
+  run_id: string;
   scheduled_date: string;
   report_type: ReportType;
   stage: JobStage;
   started_at: string;
   ended_at: string | null;
   created_at: string;
+}
+
+export interface JobRunResult {
+  run_id: string;
+  scheduled_date: string;
+  report_type: ReportType;
+  status: JobStatus;
+  current_stage: JobStage | null;
+  errors_json: string | null;
+  warnings_json: string | null;
+  started_at: string;
+  executed_at: string | null;
+  trigger_source: JobTriggerSource | null;
+  created_at: string;
+}
+
+export function generateRunId(scheduledDate: string, reportType: ReportType): string {
+  return `${scheduledDate}_${reportType}_${crypto.randomUUID()}`;
+}
+
+export async function startJobRun(
+  env: CloudflareEnvironment,
+  params: {
+    scheduledDate: string;
+    reportType: ReportType;
+    triggerSource: JobTriggerSource;
+  }
+): Promise<string | null> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return null;
+
+  const runId = generateRunId(params.scheduledDate, params.reportType);
+  const now = new Date().toISOString();
+
+  try {
+    await db.batch([
+      db.prepare(`
+        INSERT INTO job_run_results
+        (run_id, scheduled_date, report_type, status, current_stage, started_at, trigger_source, created_at)
+        VALUES (?, ?, ?, 'running', 'init', ?, ?, ?)
+      `).bind(runId, params.scheduledDate, params.reportType, now, params.triggerSource, now),
+      db.prepare(`
+        INSERT INTO job_date_results
+        (scheduled_date, report_type, status, started_at, trigger_source, current_stage, latest_run_id, updated_at, created_at)
+        VALUES (?, ?, 'running', ?, ?, 'init', ?, ?, ?)
+        ON CONFLICT(scheduled_date, report_type) DO UPDATE SET
+          status = excluded.status,
+          started_at = excluded.started_at,
+          trigger_source = excluded.trigger_source,
+          current_stage = excluded.current_stage,
+          latest_run_id = excluded.latest_run_id,
+          updated_at = excluded.updated_at,
+          errors_json = NULL,
+          warnings_json = NULL,
+          executed_at = NULL
+      `).bind(params.scheduledDate, params.reportType, now, params.triggerSource, runId, now, now),
+    ]);
+
+    return runId;
+  } catch (error) {
+    logger.error('startJobRun failed', { error: (error as Error).message, ...params });
+    return null;
+  }
+}
+
+export async function updateRunStage(
+  env: CloudflareEnvironment,
+  params: {
+    runId: string;
+    scheduledDate: string;
+    reportType: ReportType;
+    stage: JobStage;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+
+  try {
+    await db.batch([
+      db.prepare(`UPDATE job_run_results SET current_stage = ? WHERE run_id = ?`).bind(params.stage, params.runId),
+      db.prepare(`
+        UPDATE job_date_results
+        SET current_stage = ?, updated_at = ?
+        WHERE scheduled_date = ? AND report_type = ? AND latest_run_id = ?
+      `).bind(params.stage, now, params.scheduledDate, params.reportType, params.runId),
+    ]);
+    return true;
+  } catch (error) {
+    logger.debug('updateRunStage failed', { error: (error as Error).message, ...params });
+    return false;
+  }
+}
+
+export async function completeJobRun(
+  env: CloudflareEnvironment,
+  params: {
+    runId: string;
+    scheduledDate: string;
+    reportType: ReportType;
+    status: Exclude<JobStatus, 'running'>;
+    errors?: string[];
+    warnings?: string[];
+    currentStage?: JobStage;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+  const errorsJson = params.errors ? JSON.stringify(params.errors) : null;
+  const warningsJson = params.warnings ? JSON.stringify(params.warnings) : null;
+  const stage = params.currentStage ?? 'finalize';
+
+  try {
+    await db.batch([
+      db.prepare(`
+        UPDATE job_run_results
+        SET status = ?, current_stage = ?, errors_json = ?, warnings_json = ?, executed_at = ?
+        WHERE run_id = ?
+      `).bind(params.status, stage, errorsJson, warningsJson, now, params.runId),
+      db.prepare(`
+        UPDATE job_date_results
+        SET status = ?, current_stage = ?, errors_json = ?, warnings_json = ?, executed_at = ?, updated_at = ?
+        WHERE scheduled_date = ? AND report_type = ? AND latest_run_id = ?
+      `).bind(params.status, stage, errorsJson, warningsJson, now, now, params.scheduledDate, params.reportType, params.runId),
+    ]);
+    return true;
+  } catch (error) {
+    logger.error('completeJobRun failed', { error: (error as Error).message, ...params });
+    return false;
+  }
 }
 
 /**
@@ -855,6 +999,7 @@ export async function updateJobStage(
 export async function startJobStage(
   env: CloudflareEnvironment,
   params: {
+    runId: string;
     scheduledDate: string;
     reportType: ReportType;
     stage: JobStage;
@@ -871,12 +1016,16 @@ export async function startJobStage(
   try {
     // Insert stage start
     await db.prepare(`
-      INSERT INTO job_stage_log (scheduled_date, report_type, stage, started_at)
-      VALUES (?, ?, ?, ?)
-    `).bind(params.scheduledDate, params.reportType, params.stage, now).run();
+      INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, started_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(params.runId, params.scheduledDate, params.reportType, params.stage, now).run();
 
-    // Also update current_stage in job_date_results
-    await updateJobStage(env, params.scheduledDate, params.reportType, params.stage);
+    await updateRunStage(env, {
+      runId: params.runId,
+      scheduledDate: params.scheduledDate,
+      reportType: params.reportType,
+      stage: params.stage,
+    });
 
     logger.debug('Job stage started', params);
     return true;
@@ -897,8 +1046,7 @@ export async function startJobStage(
 export async function endJobStage(
   env: CloudflareEnvironment,
   params: {
-    scheduledDate: string;
-    reportType: ReportType;
+    runId: string;
     stage: JobStage;
   }
 ): Promise<boolean> {
@@ -914,8 +1062,8 @@ export async function endJobStage(
     await db.prepare(`
       UPDATE job_stage_log
       SET ended_at = ?
-      WHERE scheduled_date = ? AND report_type = ? AND stage = ? AND ended_at IS NULL
-    `).bind(now, params.scheduledDate, params.reportType, params.stage).run();
+      WHERE run_id = ? AND stage = ? AND ended_at IS NULL
+    `).bind(now, params.runId, params.stage).run();
 
     logger.debug('Job stage ended', params);
     return true;
@@ -971,18 +1119,32 @@ export async function getJobDateResults(
  */
 export async function getJobStageLog(
   env: CloudflareEnvironment,
-  scheduledDate: string,
-  reportType: ReportType
+  params: {
+    scheduledDate?: string;
+    reportType?: ReportType;
+    runId?: string;
+  }
 ): Promise<JobStageLogEntry[]> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return [];
 
   try {
+    if (params.runId) {
+      const result = await db.prepare(`
+        SELECT * FROM job_stage_log
+        WHERE run_id = ?
+        ORDER BY started_at ASC
+      `).bind(params.runId).all<JobStageLogEntry>();
+      return result.results || [];
+    }
+
+    if (!params.scheduledDate || !params.reportType) return [];
+
     const result = await db.prepare(`
       SELECT * FROM job_stage_log
       WHERE scheduled_date = ? AND report_type = ?
       ORDER BY started_at ASC
-    `).bind(scheduledDate, reportType).all<JobStageLogEntry>();
+    `).bind(params.scheduledDate, params.reportType).all<JobStageLogEntry>();
 
     return result.results || [];
   } catch (error) {
@@ -1002,18 +1164,28 @@ export async function markStaleJobsAsFailed(
   if (!db) return 0;
 
   const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
 
   try {
-    const result = await db.prepare(`
-      UPDATE job_date_results
-      SET status = 'failed',
-          errors_json = json_array('Job stalled - marked as failed after 30 minutes'),
-          executed_at = ?,
-          updated_at = ?
-      WHERE status = 'running' AND started_at < ?
-    `).bind(new Date().toISOString(), new Date().toISOString(), thirtyMinutesAgo).run();
+    const results = await db.batch([
+      db.prepare(`
+        UPDATE job_run_results
+        SET status = 'failed',
+            errors_json = json_array('Job stalled - marked as failed after 30 minutes'),
+            executed_at = ?
+        WHERE status = 'running' AND started_at < ?
+      `).bind(now, thirtyMinutesAgo),
+      db.prepare(`
+        UPDATE job_date_results
+        SET status = 'failed',
+            errors_json = json_array('Job stalled - marked as failed after 30 minutes'),
+            executed_at = ?,
+            updated_at = ?
+        WHERE status = 'running' AND started_at < ?
+      `).bind(now, now, thirtyMinutesAgo),
+    ]);
 
-    const affected = result.meta?.changes ?? 0;
+    const affected = results.reduce((sum, r) => sum + (r.meta?.changes ?? 0), 0);
     if (affected > 0) {
       logger.warn('Marked stale jobs as failed', { count: affected });
     }

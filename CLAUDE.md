@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
-**Status**: ✅ **PRODUCTION READY** - Navigation Redesign V2 Complete
-- **Current Version**: Latest (2026-01-28 - Navigation Redesign V2 v3.10.4)
+**Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
+- **Current Version**: Latest (2026-01-28 - Multi-Run Support v3.10.5)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -24,7 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
-| **Navigation Redesign V2** | ✅ Complete | Date-based report hierarchy with job status tracking, ET timezone handling via formatToParts(), read-only public status endpoint |
+| **Multi-Run Support v3.10.5** | ✅ Complete | Multiple job runs per date preserved in history, dashboard management UI with create/delete, centralized cctApi client |
+| **Navigation Redesign V2** | ✅ Complete | Date-based report hierarchy with job status tracking, ET timezone handling via formatToParts(), public nav status endpoints |
 | **News Provider Error Tracking** | ✅ Complete | Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis results |
 | **Nav Timezone Settings** | ✅ Complete | User-configurable timezone for navigation date links, DST-safe date arithmetic |
 | **HTML Cache Invalidation** | ✅ Complete | Pre-market job now invalidates HTML cache on rerun for fresh page rendering |
@@ -226,16 +227,26 @@ GET /api/v1/sentiment/market          # Market-wide sentiment
 GET /api/v1/sentiment/sectors         # Sector sentiment
 ```
 
-#### Reports (7 endpoints)
+#### Reports (8 endpoints)
 ```bash
 GET /api/v1/reports/daily/:date       # Daily reports
 GET /api/v1/reports/daily             # Latest daily report
 GET /api/v1/reports/weekly/:week      # Weekly reports
 GET /api/v1/reports/weekly            # Latest weekly report
 GET /api/v1/reports/pre-market        # Pre-market briefing
-POST /api/v1/jobs/pre-market          # Trigger pre-market job 🔒 PROTECTED
 GET /api/v1/reports/intraday          # Intraday check
 GET /api/v1/reports/end-of-day        # End-of-day summary
+GET /api/v1/reports/status            # Navigation status 🔓 PUBLIC
+```
+
+#### Jobs (6 endpoints)
+```bash
+POST /api/v1/jobs/pre-market          # Trigger pre-market job 🔒 PROTECTED
+POST /api/v1/jobs/intraday            # Trigger intraday job 🔒 PROTECTED
+GET /api/v1/jobs/history              # Job execution history 🔓 PUBLIC
+GET /api/v1/jobs/runs                 # Job run history (multi-run) 🔓 PUBLIC
+DELETE /api/v1/jobs/runs/:runId       # Delete a job run 🔒 PROTECTED
+GET /api/v1/jobs/latest               # Latest job results
 ```
 
 #### Market Intelligence (5 endpoints)
@@ -369,9 +380,11 @@ GET /api/v1/security/config           # Security configuration (admin only)
 
 
 ### **Frontend API Client**
-- **Location**: `public/js/api-client.js`
-- **Features**: Type-safe, intelligent caching, batch processing
-- **Integration**: Automatic error handling, retry logic
+- **Location**: `public/js/cct-api.js`
+- **Singleton**: `cctApi` instance available globally
+- **Auth**: Session-based API key storage (`sessionStorage`), auto-attached to all requests
+- **Methods**: `jobRuns()`, `deleteJobRun()`, `triggerPreMarket()`, `get()`, `post()`, `delete()`
+- **Features**: Retry logic, timeout handling, request/response interceptors
 
 ---
 
@@ -629,25 +642,36 @@ npm run build:frontend:only
 
 ---
 
-## 📊 D1 Migration Status (2026-01-09)
+## 📊 D1 Schema Status (2026-01-28)
 
-### Current State
-| Component | Status | Details |
-|-----------|--------|---------|
-| **D1 Schema** | ✅ Updated | `job_executions`, `symbol_predictions`, `daily_analysis`, `scheduled_job_results` (with status/error fields for symbol predictions) |
-| **D1 Writes** | ✅ All | Cron health → `job_executions`; predictions → `symbol_predictions`/`daily_analysis`; report snapshots → `scheduled_job_results` |
-| **D1 Reads** | ✅ All | Pre-market, intraday, end-of-day, weekly read D1 (DO cache first, D1 fallback) |
-| **DO Cache** | ✅ Primary | All reports read DO cache first |
-| **Cache Warm-after-write** | ✅ Implemented | D1 reads warm DO cache on miss; cache used on subsequent reads |
-| **KV Usage** | ✅ Eliminated | KV unused for job storage; validation guards remain in code |
-| **Job Status Tracking** | ✅ Fixed | Fixed query bug and added scheduler writes - dashboard now displays job execution history |
+### Multi-Run Schema v2.3
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| **job_date_results** | Navigation summary (1 row per date/type) | `scheduled_date`, `report_type`, `status`, `latest_run_id` |
+| **job_run_results** | Run history (multiple rows per date/type) | `run_id`, `scheduled_date`, `report_type`, `status`, `started_at`, `executed_at` |
+| **job_stage_log** | Stage timeline per run | `run_id`, `stage`, `started_at`, `ended_at` |
+| **scheduled_job_results** | Report content snapshots (append-only) | `id`, `scheduled_date`, `report_type`, `report_content`, `run_id` |
+| **symbol_predictions** | Per-symbol analysis results | `symbol`, `date`, `status`, `dual_model` data |
+| **job_executions** | Legacy cron health tracking | `job_type`, `executed_at`, `status` |
 
-### What Works Now
-- Report data flow: DO cache → D1 fallback → warm DO (all reports: pre-market, intraday, end-of-day, weekly)
-- Job execution tracking in D1
-- Symbol predictions stored in D1 with status/error/news_source/raw_response for troubleshooting
-- Pre-market job write/read flow uses `INSERT OR REPLACE` per date/type; reruns overwrite and re-warm DO
-6. Remove unused KV validation guards
+### Data Flow
+```
+Job Trigger → startJobRun() → job_run_results + job_date_results
+    ↓
+Analysis → symbol_predictions (per symbol)
+    ↓
+Completion → completeJobRun() → scheduled_job_results (append-only)
+    ↓
+Navigation → job_date_results.latest_run_id → latest status
+    ↓
+Dashboard → job_run_results → full history with delete capability
+```
+
+### Key Design Decisions
+- **Append-only snapshots**: `scheduled_job_results` uses auto-increment `id`, multiple runs preserved
+- **Run tracking**: `run_id` format: `${date}_${type}_${uuid}` links all tables
+- **Navigation summary**: `job_date_results` always points to latest run via `latest_run_id`
+- **Upsert pattern**: `INSERT...ON CONFLICT DO UPDATE` preserves `started_at`/`created_at`
 
 ---
 
@@ -662,18 +686,11 @@ Transform from individual stock analysis to institutional-grade market intellige
 ---
 
 **Last Updated**: 2026-01-28
-**Current Version**: Production Ready with Navigation Redesign V2 v3.10.4
+**Current Version**: Production Ready with Multi-Run Support v3.10.5
 **Major Updates**:
-- **Navigation Redesign V2 v3.10.4**: Date-based report hierarchy with `job_date_results` table for status tracking. Key implementation details: (1) `INSERT...ON CONFLICT DO UPDATE` preserves `started_at`/`created_at`, (2) `getCurrentTimeET()` uses `formatToParts()` for reliable Workers timezone handling, (3) `nav.js` polling uses ET timezone and dynamic interval re-evaluation, (4) stale job cleanup moved to authenticated job handlers (zero public writes), (5) failure path uses correct `scheduledDate` scope
-- **News Provider Error Tracking v3.10.3**: Sentiment analysis now tracks which news provider (DAC/FMP/NewsAPI/Yahoo) failed, stored in `news_fetch_errors` field for debugging "No news data available" issues
-- **Nav Timezone Settings**: User-configurable timezone (Settings page) for navigation date links; DST-safe arithmetic; localStorage caching with validation
-- **HTML Cache Invalidation**: Pre-market job now invalidates HTML cache (`premarket_html_${date}`) on rerun, ensuring fresh page rendering without needing `?bypass=true`
-- **Intraday Comparison v3.10.2**: Redesigned intraday report with side-by-side Pre-Market vs Intraday sentiment comparison, full dual model details (Gemma/DistilBERT status, confidence, errors), actual failure reasons displayed instead of "N/A"
-- **Market Pulse v3.10.0**: SPY broad market sentiment analysis integrated via DAC service binding - fixed entrypoint config and response parsing for Worker-to-Worker calls
-- **Scheduled Jobs Fix**: Fixed query bug (trigger_mode → job_type) and added job status tracking to scheduler - dashboard now displays historical job runs correctly
-- **API Documentation Update**: Comprehensive endpoint catalog (65 → 100+ endpoints) across 15 categories
-- **Dead Code Cleanup**: Removed orphaned route files (canary-management, exemption-management, integration-test, sector-routes-simple)
-- **New Documented Categories**: Market Intelligence, Market Drivers, Sector Analysis, Risk Management, Advanced Analytics, Predictive Analytics, Backtesting, Technical Analysis, Realtime Data
-- **Test & Script Organization**: 51 scripts (35 tests + 16 scripts) - removed 3 redundant DAC tests, trimmed low-value optimization tests
-- **Documentation**: tests/README.md, scripts/README.md, TEST_AND_SCRIPT_INDEX.md
-- **CI/CD Updates**: All GitHub Actions workflows and npm scripts updated with new paths
+- **Multi-Run Support v3.10.5**: Multiple job runs per date preserved in D1 history. Dashboard shows all runs with create/delete capability. New endpoints: `GET /api/v1/jobs/runs`, `DELETE /api/v1/jobs/runs/:runId`. Centralized `cctApi` client for consistent auth handling.
+- **Navigation Redesign V2 v3.10.4**: Date-based report hierarchy with 4-table schema (`job_date_results`, `job_run_results`, `job_stage_log`, `scheduled_job_results`). Public endpoints for navigation (`/api/v1/reports/status`, `/api/v1/jobs/runs`).
+- **Market Pulse Dual Model**: Both Gemma Sea Lion and DistilBERT results displayed side-by-side in Market Pulse section
+- **News Provider Error Tracking v3.10.3**: Tracks which provider (DAC/FMP/NewsAPI/Yahoo) failed in sentiment analysis
+- **Intraday Comparison v3.10.2**: Side-by-side Pre-Market vs Intraday sentiment comparison with full dual model details
+- **Market Pulse v3.10.0**: SPY broad market sentiment via DAC service binding with dual AI confidence scoring

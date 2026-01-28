@@ -1,8 +1,8 @@
 # Navigation Redesign V2: Date-Based Report Hierarchy
 
 **Date**: 2026-01-28
-**Status**: Implemented ✅
-**Version**: 2.2
+**Status**: In Progress
+**Version**: 2.3 (Multi-Run Support)
 
 ## Overview
 
@@ -62,13 +62,32 @@ Replace the "Today/Yesterday" navigation pattern with a date-based hierarchy sho
 /weekly-review
 ```
 
-## New D1 Entities: `job_date_results` + `job_stage_log`
+## D1 Schema: Four-Table Architecture
 
-### Purpose
-Materialized summary table optimized for navigation status display. Authoritative source for report status even when `scheduled_job_results` is missing (job failed before snapshot).
+### Design Rationale
+Support **multiple job runs per day** while keeping navigation fast:
+- **`job_date_results`**: Summary table for nav (ONE row per date/type = latest status)
+- **`job_run_results`**: Run metadata history (multiple rows per date/type = all runs)
+- **`job_stage_log`**: Stage timeline per run (references `run_id`)
+- **`scheduled_job_results`**: Report content (trading signals, etc.) keyed by `run_id`
 
-### Approach
-**Fresh start** - no migration, no backfill. Add tables to `schema.sql` and let them populate naturally as jobs run. Historical dates before cutover display as `n/a`. Post-cutover dates with no row display as `missed` (job never started).
+This separation allows:
+1. Fast nav lookups (query `job_date_results` only)
+2. Full run history for debugging/testing (query `job_run_results`)
+3. Report pages can load any historical run's **full content** via `?run_id=`
+
+### Critical Design Decision: Fresh Start (True Multi-Run)
+
+This v2.3 migration is intentionally **destructive**: old D1 rows are dropped and not preserved.
+
+**Goal**: allow multiple runs per `(scheduled_date, report_type)` without overwriting.
+
+| Table | Cardinality | Purpose |
+|-------|-------------|---------|
+| `job_date_results` | 1 row per date/type | Navigation summary (latest status) |
+| `job_run_results` | N rows per date/type | Run history (one row per run_id) |
+| `job_stage_log` | N rows per run | Stage timeline per run_id |
+| `scheduled_job_results` | N rows per date/type | Snapshot history (one row per write; latest chosen by `created_at`) |
 
 ### Cutover Definition
 Fixed date constant set to deployment day. Any trading date before cutover returns `n/a`. Any trading date on/after cutover with no row returns `missed`.
@@ -83,8 +102,13 @@ export function getStatusForMissingRow(date: string): 'n/a' | 'missed' {
 }
 ```
 
-### Schema (Summary + Stage Log)
+### Schema
+
 ```sql
+-- ============================================================================
+-- job_date_results: Summary table for navigation (ONE row per date/type)
+-- Navigation queries this table only - always shows LATEST run status
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS job_date_results (
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
@@ -95,6 +119,7 @@ CREATE TABLE IF NOT EXISTS job_date_results (
   executed_at TEXT,              -- ISO timestamp (when job completed or failed)
   started_at TEXT,               -- ISO timestamp (when job started)
   trigger_source TEXT,           -- 'cron' | 'manual' | 'github_actions'
+  latest_run_id TEXT,            -- Points to job_run_results(run_id) for latest run
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (scheduled_date, report_type)
@@ -103,130 +128,356 @@ CREATE TABLE IF NOT EXISTS job_date_results (
 CREATE INDEX idx_job_date_results_date ON job_date_results(scheduled_date DESC);
 CREATE INDEX idx_job_date_results_status ON job_date_results(status) WHERE status = 'running';
 
+-- ============================================================================
+-- job_run_results: History table (multiple rows per date/type = all runs)
+-- Each job execution creates a new row with unique run_id
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS job_run_results (
+  run_id TEXT PRIMARY KEY,       -- UUID: `${date}_${type}_${timestamp}` e.g. "2026-01-28_pre-market_1706400000000"
+  scheduled_date TEXT NOT NULL,
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
+  current_stage TEXT,
+  errors_json TEXT,
+  warnings_json TEXT,
+  started_at TEXT NOT NULL,
+  executed_at TEXT,              -- When job completed (null if running)
+  trigger_source TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_job_run_results_lookup ON job_run_results(scheduled_date, report_type, created_at DESC);
+CREATE INDEX idx_job_run_results_status ON job_run_results(status) WHERE status = 'running';
+
+-- ============================================================================
+-- job_stage_log: Stage timeline per run
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS job_stage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,          -- Links to job_run_results(run_id)
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
   stage TEXT NOT NULL CHECK(stage IN ('init','data_fetch','ai_analysis','storage','finalize')),
   started_at TEXT NOT NULL,
   ended_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (scheduled_date, report_type) REFERENCES job_date_results(scheduled_date, report_type)
+  FOREIGN KEY (run_id) REFERENCES job_run_results(run_id)
 );
 
+CREATE INDEX idx_job_stage_log_run ON job_stage_log(run_id, stage);
 CREATE INDEX idx_job_stage_log_lookup ON job_stage_log(scheduled_date, report_type, stage);
+
+-- ============================================================================
+-- scheduled_job_results: Report content snapshots (multi-run)
+-- NOTE: report_type is intentionally unconstrained (supports analysis/morning_predictions/etc.)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS scheduled_job_results (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scheduled_date TEXT NOT NULL,
+  report_type TEXT NOT NULL,
+  report_content TEXT NOT NULL,  -- JSON: trading signals, market pulse, etc.
+  metadata TEXT,
+  trigger_source TEXT,
+  run_id TEXT,                   -- Optional link to job_run_results(run_id)
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_scheduled_job_results_lookup ON scheduled_job_results(scheduled_date DESC, report_type, created_at DESC);
+CREATE INDEX idx_scheduled_job_results_run ON scheduled_job_results(run_id);
+CREATE UNIQUE INDEX idx_scheduled_job_results_run_unique ON scheduled_job_results(run_id);
 ```
 
-**Note**: Only `success`, `partial`, `failed`, `running` are stored. `n/a` and `missed` are computed from cutover + presence/absence of a row.
+**Note**: Only `success`, `partial`, `failed`, `running` are stored in status tables. `n/a` and `missed` are computed from cutover + presence/absence of a row in `job_date_results`.
 
-### Write Semantics
-- **Single writer**: Create new `writeJobDateResult()` in `src/modules/d1-job-storage.ts`
-- **Upsert pattern**: `INSERT ... ON CONFLICT DO UPDATE` to preserve `created_at` and avoid wiping `started_at`
-- **Lifecycle writes**: Write on job start (`running`) and job completion (`success`/`partial`/`failed`)
-- **Stage log**: Append on stage start, update ended_at on stage completion
+### Race Condition Behavior (Documented)
+
+**Scenario**: Two runs for the same date/type overlap:
+```
+Run A starts (08:30) → latest_run_id = A
+Run B starts (08:35) → latest_run_id = B (overwrites A)
+Run A completes (08:40) → WHERE latest_run_id = A fails, summary NOT updated
+Run B fails (08:42) → summary shows 'failed'
+```
+
+**Expected behavior**: The **last-started run** determines the summary status. This is intentional:
+- Navigation shows the most recent attempt's status
+- Older runs complete silently into `job_run_results` (history preserved)
+- Users can still view Run A's successful content via `?run_id=`
+
+**If you need "latest-completed wins"**, change `completeJobRun()` to unconditionally update `job_date_results` (not recommended - leads to status flickering).
+
+### Data Retention & Cleanup
+
+**Policy**: Retain run history for 30 days. Older runs are deleted by cleanup job.
 
 ```typescript
-// New function in src/modules/d1-job-storage.ts
-export async function writeJobDateResult(
-  db: D1Database,
+// Cleanup function - run daily via GitHub Actions
+export async function cleanupOldRuns(env: CloudflareEnvironment, retentionDays = 30): Promise<number> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return 0;
+
+  const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
+  // Delete old runs (cascade to stage_log via FK, delete from scheduled_job_results)
+  const result = await db.batch([
+    db.prepare(`DELETE FROM job_stage_log WHERE run_id IN (SELECT run_id FROM job_run_results WHERE created_at < ?)`).bind(cutoffDate),
+    db.prepare(`DELETE FROM scheduled_job_results WHERE run_id IN (SELECT run_id FROM job_run_results WHERE created_at < ?)`).bind(cutoffDate),
+    db.prepare(`DELETE FROM job_run_results WHERE created_at < ?`).bind(cutoffDate)
+  ]);
+
+  return result[2].meta?.changes ?? 0;
+}
+```
+
+**Note**: `job_date_results` is NOT cleaned - it always retains the latest status per date (for navigation).
+
+### Stale Job Handling (Updated for Multi-Run)
+
+`markStaleJobsAsFailed()` must update **both** tables:
+
+```typescript
+export async function markStaleJobsAsFailed(env: CloudflareEnvironment): Promise<number> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return 0;
+
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  // Update both history table and summary table
+  const results = await db.batch([
+    // 1. Update stale runs in history table
+    db.prepare(`
+      UPDATE job_run_results
+      SET status = 'failed', errors_json = '["Job stalled - marked failed after 30 minutes"]', executed_at = ?
+      WHERE status = 'running' AND started_at < ?
+    `).bind(now, thirtyMinutesAgo),
+
+    // 2. Update summary table where latest_run_id points to a stale run
+    db.prepare(`
+      UPDATE job_date_results
+      SET status = 'failed', errors_json = '["Job stalled - marked failed after 30 minutes"]', executed_at = ?, updated_at = ?
+      WHERE status = 'running' AND started_at < ?
+    `).bind(now, now, thirtyMinutesAgo)
+  ]);
+
+  return (results[0].meta?.changes ?? 0) + (results[1].meta?.changes ?? 0);
+}
+```
+
+### Write Semantics (Multi-Run)
+
+**Job Start Flow:**
+1. Generate `run_id`: `${scheduledDate}_${reportType}_${Date.now()}`
+2. INSERT into `job_run_results` (running status)
+3. UPSERT `job_date_results` with `latest_run_id` pointing to new run
+4. INSERT init stage into `job_stage_log` with `run_id`
+
+**Job Completion Flow:**
+1. UPDATE `job_run_results` with final status/errors
+2. UPSERT `job_date_results` to reflect latest status
+3. UPDATE final stage in `job_stage_log`
+
+**Key Invariants:**
+- `job_date_results` always reflects the **latest** run's status
+- `job_run_results` preserves **all** runs (insert-only, never overwrite)
+- `job_stage_log` is scoped to `run_id` (each run has its own timeline)
+
+```typescript
+// src/modules/d1-job-storage.ts
+
+/**
+ * Generate unique run ID for job execution
+ */
+export function generateRunId(scheduledDate: string, reportType: ReportType): string {
+  return `${scheduledDate}_${reportType}_${Date.now()}`;
+}
+
+/**
+ * Start a new job run - creates entries in both history and summary tables
+ * Returns the run_id for use in subsequent calls
+ */
+export async function startJobRun(
+  env: CloudflareEnvironment,
   params: {
     scheduledDate: string;
-    reportType: 'pre-market' | 'intraday' | 'end-of-day' | 'weekly';
-    status: 'running' | 'success' | 'partial' | 'failed';
-    currentStage?: 'init' | 'data_fetch' | 'ai_analysis' | 'storage' | 'finalize';
-    errors?: string[];
-    warnings?: string[];
-    triggerSource: 'cron' | 'manual' | 'github_actions';
+    reportType: ReportType;
+    triggerSource: JobTriggerSource;
   }
-): Promise<void> {
+): Promise<string | null> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return null;
+
+  const runId = generateRunId(params.scheduledDate, params.reportType);
   const now = new Date().toISOString();
 
-  if (params.status === 'running') {
-    // Job starting - insert with running status (preserve created_at on updates)
+  try {
+    // 1. Insert into history table (job_run_results)
+    await db.prepare(`
+      INSERT INTO job_run_results
+      (run_id, scheduled_date, report_type, status, current_stage, started_at, trigger_source)
+      VALUES (?, ?, ?, 'running', 'init', ?, ?)
+    `).bind(runId, params.scheduledDate, params.reportType, now, params.triggerSource).run();
+
+    // 2. Upsert summary table (job_date_results) - always points to latest run
     await db.prepare(`
       INSERT INTO job_date_results
-      (scheduled_date, report_type, status, started_at, trigger_source, current_stage, updated_at, created_at)
-      VALUES (?, ?, 'running', ?, ?, ?, ?, ?)
+      (scheduled_date, report_type, status, current_stage, started_at, trigger_source, latest_run_id, updated_at, created_at)
+      VALUES (?, ?, 'running', 'init', ?, ?, ?, ?, ?)
       ON CONFLICT(scheduled_date, report_type) DO UPDATE SET
-        status = excluded.status,
+        status = 'running',
+        current_stage = 'init',
         started_at = excluded.started_at,
         trigger_source = excluded.trigger_source,
-        current_stage = excluded.current_stage,
-        updated_at = excluded.updated_at
-    `).bind(
-      params.scheduledDate,
-      params.reportType,
-      now,
-      params.triggerSource,
-      params.currentStage ?? 'init',
-      now,
-      now
-    ).run();
-  } else {
-    // Job completed - update with final status (preserve started_at and created_at)
+        latest_run_id = excluded.latest_run_id,
+        updated_at = excluded.updated_at,
+        errors_json = NULL,
+        warnings_json = NULL,
+        executed_at = NULL
+    `).bind(params.scheduledDate, params.reportType, now, params.triggerSource, runId, now, now).run();
+
+    return runId;
+  } catch (error) {
+    logger.error('startJobRun failed', { error: (error as Error).message, ...params });
+    return null;
+  }
+}
+
+/**
+ * Complete a job run - updates both history and summary tables
+ */
+export async function completeJobRun(
+  env: CloudflareEnvironment,
+  params: {
+    runId: string;
+    scheduledDate: string;
+    reportType: ReportType;
+    status: 'success' | 'partial' | 'failed';
+    currentStage?: JobStage;
+    errors?: string[];
+    warnings?: string[];
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+  const errorsJson = params.errors ? JSON.stringify(params.errors) : null;
+  const warningsJson = params.warnings ? JSON.stringify(params.warnings) : null;
+
+  try {
+    // 1. Update history table (job_run_results)
     await db.prepare(`
-      INSERT INTO job_date_results
-      (scheduled_date, report_type, status, errors_json, warnings_json, executed_at, trigger_source, current_stage, updated_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(scheduled_date, report_type) DO UPDATE SET
-        status = excluded.status,
-        errors_json = excluded.errors_json,
-        warnings_json = excluded.warnings_json,
-        executed_at = excluded.executed_at,
-        trigger_source = COALESCE(job_date_results.trigger_source, excluded.trigger_source),
-        current_stage = excluded.current_stage,
-        updated_at = excluded.updated_at
-    `).bind(
-      params.scheduledDate,
-      params.reportType,
-      params.status,
-      params.errors ? JSON.stringify(params.errors) : null,
-      params.warnings ? JSON.stringify(params.warnings) : null,
-      now,
-      params.triggerSource,
-      params.currentStage ?? 'finalize',
-      now,
-      now
-    ).run();
+      UPDATE job_run_results
+      SET status = ?, current_stage = ?, errors_json = ?, warnings_json = ?, executed_at = ?
+      WHERE run_id = ?
+    `).bind(params.status, params.currentStage ?? 'finalize', errorsJson, warningsJson, now, params.runId).run();
+
+    // 2. Update summary table (job_date_results) - only if this is still the latest run
+    await db.prepare(`
+      UPDATE job_date_results
+      SET status = ?, current_stage = ?, errors_json = ?, warnings_json = ?, executed_at = ?, updated_at = ?
+      WHERE scheduled_date = ? AND report_type = ? AND latest_run_id = ?
+    `).bind(params.status, params.currentStage ?? 'finalize', errorsJson, warningsJson, now, now,
+            params.scheduledDate, params.reportType, params.runId).run();
+
+    return true;
+  } catch (error) {
+    logger.error('completeJobRun failed', { error: (error as Error).message, ...params });
+    return false;
+  }
+}
+
+/**
+ * Update current stage for a run
+ */
+export async function updateRunStage(
+  env: CloudflareEnvironment,
+  runId: string,
+  scheduledDate: string,
+  reportType: ReportType,
+  stage: JobStage
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+
+  try {
+    // Update both tables
+    await db.batch([
+      db.prepare(`UPDATE job_run_results SET current_stage = ? WHERE run_id = ?`).bind(stage, runId),
+      db.prepare(`UPDATE job_date_results SET current_stage = ?, updated_at = ? WHERE scheduled_date = ? AND report_type = ? AND latest_run_id = ?`)
+        .bind(stage, now, scheduledDate, reportType, runId)
+    ]);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Start a job stage - append to job_stage_log with run_id
+ */
+export async function startJobStage(
+  env: CloudflareEnvironment,
+  params: {
+    runId: string;
+    scheduledDate: string;
+    reportType: ReportType;
+    stage: JobStage;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+  try {
+    await db.prepare(`
+      INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, started_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(params.runId, params.scheduledDate, params.reportType, params.stage, now).run();
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * End a job stage - update ended_at by run_id
+ */
+export async function endJobStage(
+  env: CloudflareEnvironment,
+  params: {
+    runId: string;
+    stage: JobStage;
+  }
+): Promise<boolean> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return false;
+
+  const now = new Date().toISOString();
+  try {
+    await db.prepare(`
+      UPDATE job_stage_log
+      SET ended_at = ?
+      WHERE run_id = ? AND stage = ? AND ended_at IS NULL
+    `).bind(now, params.runId, params.stage).run();
+    return true;
+  } catch (error) {
+    return false;
   }
 }
 ```
 
-```typescript
-// Stage log helpers
-export async function startJobStage(
-  db: D1Database,
-  params: { scheduledDate: string; reportType: 'pre-market' | 'intraday' | 'end-of-day' | 'weekly'; stage: 'init' | 'data_fetch' | 'ai_analysis' | 'storage' | 'finalize' }
-): Promise<void> {
-  const now = new Date().toISOString();
-  await db.prepare(`
-    INSERT INTO job_stage_log (scheduled_date, report_type, stage, started_at)
-    VALUES (?, ?, ?, ?)
-  `).bind(params.scheduledDate, params.reportType, params.stage, now).run();
-}
+## API Endpoints
 
-export async function endJobStage(
-  db: D1Database,
-  params: { scheduledDate: string; reportType: 'pre-market' | 'intraday' | 'end-of-day' | 'weekly'; stage: 'init' | 'data_fetch' | 'ai_analysis' | 'storage' | 'finalize' }
-): Promise<void> {
-  const now = new Date().toISOString();
-  await db.prepare(`
-    UPDATE job_stage_log
-    SET ended_at = ?
-    WHERE scheduled_date = ? AND report_type = ? AND stage = ? AND ended_at IS NULL
-  `).bind(now, params.scheduledDate, params.reportType, params.stage).run();
-}
-```
+### `GET /api/v1/reports/status` (Navigation Status)
 
-## New API Endpoint
+**Purpose**: Fast lookup for navigation display - returns **latest** run status per date/type.
 
-### `GET /api/v1/reports/status`
+**Authentication**: None (public, read-only)
 
-**Authentication**: None (public endpoint - status information is not sensitive)
-
-**Caching**:
-- HTTP caching via `Cache-Control` with 60-second TTL during market hours
-- 5-minute TTL outside market hours
+**Caching**: `Cache-Control` with 60s TTL during market hours, 5min otherwise
 
 **Query Parameters**:
 | Param | Type | Default | Description |
@@ -240,50 +491,138 @@ export async function endJobStage(
   "data": {
     "2026-01-28": {
       "label": "Jan 28 (Wed)",
-      "pre-market": { "status": "success", "executed_at": "2026-01-28T13:33:14Z" },
-      "intraday": { "status": "running", "started_at": "2026-01-28T17:00:05Z" },
+      "pre-market": { "status": "success", "executed_at": "2026-01-28T13:33:14Z", "run_id": "2026-01-28_pre-market_1706400000000" },
+      "intraday": { "status": "running", "started_at": "2026-01-28T17:00:05Z", "current_stage": "ai_analysis" },
       "end-of-day": { "status": "missed" }
     },
     "2026-01-27": {
       "label": "Jan 27 (Tue)",
-      "pre-market": { "status": "success", "executed_at": "2026-01-27T13:31:00Z" },
+      "pre-market": { "status": "success", "executed_at": "2026-01-27T13:31:00Z", "run_id": "2026-01-27_pre-market_1706313060000" },
       "intraday": { "status": "success", "executed_at": "2026-01-27T17:02:00Z" },
-      "end-of-day": { "status": "failed", "current_stage": "ai_analysis", "errors": ["Gemma model timeout after 30s"], "executed_at": "2026-01-27T21:06:00Z" }
-    },
-    "2026-01-26": {
-      "label": "Jan 26 (Mon)",
-      "pre-market": { "status": "n/a" },
-      "intraday": { "status": "n/a" },
-      "end-of-day": { "status": "n/a" }
+      "end-of-day": { "status": "failed", "current_stage": "ai_analysis", "errors": ["Gemma model timeout after 30s"] }
     }
   },
-	  "meta": {
-	    "timezone": "America/New_York",
-	    "cutover_date": "2026-01-28",
-	    "generated_at": "2026-01-28T17:05:00Z"
-	  }
-	}
-```
-
-**Error Response** (API failure):
-```json
-{
-  "success": false,
-  "error": "Database unavailable",
-  "fallback": true,
-  "data": {}
+  "meta": {
+    "timezone": "America/New_York",
+    "cutover_date": "2026-01-28",
+    "generated_at": "2026-01-28T17:05:00Z"
+  }
 }
 ```
 
 **Status Resolution Logic**:
-1. If row exists in `job_date_results` → return stored status
+1. If row exists in `job_date_results` → return stored status (latest run)
 2. If no row exists AND date < cutover → `n/a`
 3. If no row exists AND date ≥ cutover → `missed`
 4. If row has `running` status for >30 minutes → treat as `failed` (stale job)
 
 **Notes**:
-- The API returns only trading days from the trading calendar. Weekends and holidays never appear.
-- **Read-only endpoint**: Stale job cleanup is performed by authenticated job handlers (`/api/v1/jobs/pre-market`, `/api/v1/jobs/intraday`), not this public endpoint. This prevents write amplification and abuse from unauthenticated requests.
+- Queries `job_date_results` only (summary table) - fast O(1) per date
+- **Read-only**: Stale cleanup performed by authenticated job handlers only
+
+---
+
+### `GET /api/v1/reports/runs` (Run History)
+
+**Purpose**: Query all job runs for a specific date/type - supports viewing historical runs.
+
+**Authentication**: Optional (public for read, but rate-limited)
+
+**Query Parameters**:
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `date` | string | Yes | Date in YYYY-MM-DD format |
+| `type` | string | Yes | Report type: `pre-market`, `intraday`, `end-of-day`, `weekly` |
+| `limit` | number | No | Max runs to return (default 10, max 50) |
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "date": "2026-01-28",
+    "type": "pre-market",
+    "runs": [
+      {
+        "run_id": "2026-01-28_pre-market_1706410000000",
+        "status": "success",
+        "started_at": "2026-01-28T14:33:00Z",
+        "executed_at": "2026-01-28T14:35:22Z",
+        "trigger_source": "manual",
+        "is_latest": true
+      },
+      {
+        "run_id": "2026-01-28_pre-market_1706400000000",
+        "status": "failed",
+        "started_at": "2026-01-28T13:30:00Z",
+        "executed_at": "2026-01-28T13:32:15Z",
+        "trigger_source": "github_actions",
+        "errors": ["Rate limit exceeded"],
+        "is_latest": false
+      }
+    ],
+    "total_runs": 2
+  }
+}
+```
+
+**Use Cases**:
+- Debugging: "Why did the 8:30 AM run fail?"
+- Testing: "I want to see results from my test run, not the scheduled one"
+- Audit: "Show me all runs for this date"
+
+---
+
+### `GET /api/v1/reports/run/:runId` (Single Run Details)
+
+**Purpose**: Get full details for a specific run including stage timeline.
+
+**Authentication**: Optional
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "run_id": "2026-01-28_pre-market_1706400000000",
+    "scheduled_date": "2026-01-28",
+    "report_type": "pre-market",
+    "status": "success",
+    "started_at": "2026-01-28T13:30:00Z",
+    "executed_at": "2026-01-28T13:35:22Z",
+    "trigger_source": "github_actions",
+    "stages": [
+      { "stage": "init", "started_at": "...", "ended_at": "...", "duration_ms": 120 },
+      { "stage": "data_fetch", "started_at": "...", "ended_at": "...", "duration_ms": 5200 },
+      { "stage": "ai_analysis", "started_at": "...", "ended_at": "...", "duration_ms": 45000 },
+      { "stage": "storage", "started_at": "...", "ended_at": "...", "duration_ms": 800 },
+      { "stage": "finalize", "started_at": "...", "ended_at": "...", "duration_ms": 150 }
+    ]
+  }
+}
+```
+
+---
+
+### Report Page URL Pattern (Updated)
+
+Report pages now accept optional `run_id` parameter:
+
+```
+/pre-market-briefing?date=YYYY-MM-DD              # Load latest run (default)
+/pre-market-briefing?date=YYYY-MM-DD&run_id=...   # Load specific run
+
+/intraday-check?date=YYYY-MM-DD
+/intraday-check?date=YYYY-MM-DD&run_id=...
+
+/end-of-day-summary?date=YYYY-MM-DD
+/end-of-day-summary?date=YYYY-MM-DD&run_id=...
+```
+
+**Behavior**:
+- No `run_id` → load latest run's data from `scheduled_job_results`
+- With `run_id` → load that specific run's data (if exists)
+- Invalid `run_id` → 404 or fallback to latest
 
 ## Trading Day Calculation
 
@@ -438,115 +777,200 @@ async function fetchNavStatus() {
 - Collapsed by default on screens < 768px width
 - Swipe gestures not required (tap to expand/collapse)
 
-## Data Flow Diagram
+## Data Flow Diagram (v2.3 - Multi-Run)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           JOB EXECUTION FLOW                            │
+│                      JOB EXECUTION FLOW (Multi-Run)                     │
 └─────────────────────────────────────────────────────────────────────────┘
 
-  GitHub Actions / Cron                    D1 Database
-  ┌─────────────────┐                 ┌─────────────────────┐
-  │  Trigger Job    │                 │  job_date_results   │
-  │  (pre-market)   │                 │                     │
-  └────────┬────────┘                 │  scheduled_date     │
-           │                          │  report_type        │
-           ▼                          │  status             │
-  ┌─────────────────┐    INSERT       │  errors_json        │
-  │  Job Starts     │───(running)────▶│  started_at         │
-  │                 │                 │                     │
-  └────────┬────────┘                 └──────────┬──────────┘
-           │                                     │
-           ▼                                     │
-  ┌─────────────────┐                           │
-  │  AI Analysis    │                           │
-  │  Data Fetch     │                           │
-  └────────┬────────┘                           │
-           │                                     │
-           ▼                                     │
-  ┌─────────────────┐    UPDATE                 │
-  │  Job Completes  │──(success/fail)──────────▶│
-  │                 │                           │
-  └─────────────────┘                           │
-                                                ▼
+  GitHub Actions / Manual                         D1 Database
+  ┌─────────────────┐                    ┌────────────────────────────────┐
+  │  Trigger Job    │                    │                                │
+  │  (pre-market)   │                    │  job_run_results (HISTORY)     │
+  └────────┬────────┘                    │  ├─ run_id (PK)                │
+           │                             │  ├─ scheduled_date             │
+           ▼                             │  ├─ status                     │
+  ┌─────────────────┐                    │  └─ started_at, executed_at    │
+  │  Generate       │                    │                                │
+  │  run_id         │                    │  job_date_results (SUMMARY)    │
+  │  (unique ID)    │                    │  ├─ (date, type) PK            │
+  └────────┬────────┘                    │  ├─ status (latest)            │
+           │                             │  └─ latest_run_id ─────────────┼──┐
+           ▼                             │                                │  │
+  ┌─────────────────┐    INSERT          │  job_stage_log (TIMELINE)      │  │
+  │  Job Starts     │───────────────────▶│  ├─ run_id (FK) ◀──────────────┼──┘
+  │  startJobRun()  │    run_results     │  ├─ stage                      │
+  │                 │    + date_results  │  └─ started_at, ended_at       │
+  └────────┬────────┘    + stage_log     └────────────────────────────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │  AI Analysis    │    updateRunStage()
+  │  Data Fetch     │───────────────────▶ UPDATE stage in all tables
+  │  (stages)       │
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐    completeJobRun()
+  │  Job Completes  │───────────────────▶ UPDATE run_results + date_results
+  │  success/fail   │                     (date_results only if still latest)
+  └─────────────────┘
+
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         NAVIGATION FETCH FLOW                           │
 └─────────────────────────────────────────────────────────────────────────┘
 
-  Browser                    Worker                    D1 + HTTP Cache
-  ┌──────────┐          ┌─────────────┐          ┌─────────────────┐
-  │  nav.js  │──GET────▶│ /api/v1/    │──check──▶│  HTTP Cache     │
-  │          │          │ reports/    │          │  Cache-Control  │
-  │          │          │ status      │          └────────┬────────┘
-  │          │          │             │                   │
-  │          │          │             │◀──cached──────────┘
-  │          │          │             │
-  │          │          │             │──miss──▶┌─────────────────┐
-  │          │          │             │         │ job_date_results│
-  │          │          │             │◀────────│ (D1 query)      │
-  │          │◀──JSON───│             │         └─────────────────┘
-  │          │          │             │
-  │  Render  │          │  Return     │
-  │  Icons   │          │  status /   │
-  │          │          │  n/a /      │
-  │          │          │  missed     │
-  └──────────┘          └─────────────┘
+  Browser                    Worker                         D1
+  ┌──────────┐          ┌─────────────┐          ┌──────────────────────┐
+  │  nav.js  │──GET────▶│ /api/v1/    │──query──▶│  job_date_results    │
+  │          │          │ reports/    │          │  (summary table)     │
+  │          │          │ status      │          │  ONE row per date    │
+  │          │◀──JSON───│             │◀─────────│  Fast O(n) lookup    │
+  │  Render  │          └─────────────┘          └──────────────────────┘
+  │  Icons   │
+  └──────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         RUN HISTORY FETCH FLOW                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+  Browser/Debug              Worker                         D1
+  ┌──────────┐          ┌─────────────┐          ┌──────────────────────┐
+  │  Report  │──GET────▶│ /api/v1/    │──query──▶│  job_run_results     │
+  │  Page    │          │ reports/    │          │  (history table)     │
+  │          │          │ runs?date=  │          │  ALL runs for date   │
+  │          │◀──JSON───│ &type=      │◀─────────│  Ordered by time     │
+  │  Show    │          └─────────────┘          └──────────────────────┘
+  │  History │
+  └──────────┘
+           │
+           │  User selects specific run
+           ▼
+  ┌──────────┐          ┌─────────────┐          ┌──────────────────────┐
+  │  Report  │──GET────▶│ /report     │──query──▶│ scheduled_job_results│
+  │  ?run_id │          │ ?run_id=    │          │ + job_run_results    │
+  │          │◀─────────│             │◀─────────│ + job_stage_log      │
+  │  Display │          └─────────────┘          └──────────────────────┘
+  │  Run     │
+  └──────────┘
 ```
 
 ## Implementation Tasks
 
-### Phase 1: Database & Core
-- [ ] Add `job_date_results` + `job_stage_log` tables to `schema.sql` (no migration, fresh start)
-- [ ] Create `src/modules/trading-calendar.ts` with NYSE holidays
-- [ ] Create `writeJobDateResult()` in `src/modules/d1-job-storage.ts`
-- [ ] Create stage log helpers (`startJobStage`, `endJobStage`)
-- [ ] Add writes to job executors (pre-market, intraday, end-of-day jobs)
+### Phase 1: Database & Core (v2.2 - Complete ✅)
+- [x] Add `job_date_results` + `job_stage_log` tables to `schema.sql`
+- [x] Create `src/modules/trading-calendar.ts` with NYSE holidays
+- [x] Create `writeJobDateResult()` in `src/modules/d1-job-storage.ts`
+- [x] Create stage log helpers (`startJobStage`, `endJobStage`)
+- [x] Add writes to job executors (pre-market, intraday)
+- [x] Fix `INSERT...ON CONFLICT DO UPDATE` to preserve timestamps
+- [x] Fix `getCurrentTimeET()` to use `formatToParts()`
+- [x] Fix nav.js polling to use ET timezone
+- [x] Move stale cleanup to authenticated job handlers
 
-### Phase 2: API
-- [ ] Create `GET /api/v1/reports/status` endpoint in `src/routes/report-routes.ts`
-- [ ] Implement trading day calculation using `trading-calendar.ts`
-- [ ] Implement status resolution logic with cutover + missed
-- [ ] Set `Cache-Control` TTL (60s market hours, 5min otherwise)
-- [ ] Add to API documentation (`/api/v1`)
+### Phase 2: Multi-Run Support (v2.3 - In Progress)
 
-### Phase 3: Frontend
-- [ ] Update `public/js/nav.js` with new hierarchical structure
-- [ ] Add status fetch on page load
-- [ ] Add polling during market hours (60s interval)
-- [ ] Implement expand/collapse with localStorage persistence
-- [ ] Add status icons with tooltip rendering
-- [ ] Update `public/css/style.css` for nested nav items
-- [ ] Add mobile responsive styles
-- [ ] Add fallback UI for API errors
+**Database Migration:**
+- [ ] Backup existing D1 data
+- [ ] Add `latest_run_id` column to `job_date_results`
+- [ ] Create `job_run_results` table
+- [ ] Add `run_id` column to `job_stage_log`
+- [ ] Migrate `scheduled_job_results` to use `run_id` as PK
+- [ ] Backfill legacy records with synthetic `run_id`
+- [ ] Verify migration integrity
 
-### Phase 4: Testing
+**Backend Implementation:**
+- [ ] Implement `generateRunId()`, `startJobRun()`, `completeJobRun()`
+- [ ] Update `startJobStage()` / `endJobStage()` to use `run_id`
+- [ ] Update `markStaleJobsAsFailed()` for multi-run
+- [ ] Add `cleanupOldRuns()` for 30-day retention
+- [ ] Update job executors to use new multi-run functions
+- [ ] Update `writeD1JobResult()` to use `run_id`
+
+**API Endpoints:**
+- [ ] Create `GET /api/v1/reports/runs` endpoint (run history)
+- [ ] Create `GET /api/v1/reports/run/:runId` endpoint (single run details)
+- [ ] Update `/api/v1/reports/status` to include `run_id` in response
+
+**Frontend:**
+- [ ] Update report pages to accept `?run_id=` parameter
+- [ ] Add run selector dropdown (when multiple runs exist)
+- [ ] Show "Run History" link on report pages
+
+### Phase 3: API (v2.2 - Complete ✅)
+- [x] Create `GET /api/v1/reports/status` endpoint
+- [x] Implement trading day calculation
+- [x] Implement status resolution logic with cutover + missed
+- [x] Set `Cache-Control` TTL (60s market hours, 5min otherwise)
+- [x] Read-only public endpoint (no writes)
+
+### Phase 4: Frontend (v2.2 - Complete ✅)
+- [x] Update `public/js/nav.js` with hierarchical structure
+- [x] Add status fetch on page load
+- [x] Add dynamic polling (re-evaluate interval each poll)
+- [x] Implement expand/collapse with localStorage persistence
+- [x] Add status icons with tooltip rendering
+- [x] Update CSS for nested nav items
+- [x] Add fallback UI for API errors
+
+### Phase 5: Frontend Multi-Run (v2.3 - Pending)
+- [ ] Add run selector dropdown on report pages (when multiple runs exist)
+- [ ] Show "Run History" link on report pages
+- [ ] Add run comparison view (diff between runs)
+
+### Phase 6: Testing
 - [ ] Update `tests/integration/frontend/test-routing-regressions.sh`
 - [ ] Add `tests/feature/test-nav-status-api.sh`
-- [ ] Add `tests/feature/test-trading-calendar.sh`
-- [ ] Verify status icons render correctly across browsers
-- [ ] Test mobile expand/collapse behavior
+- [ ] Add `tests/feature/test-multi-run-history.sh`
+- [ ] Test run_id parameter on report pages
 
-## Schema Addition (No Migration)
+## Schema Addition (v2.3 - Four Tables)
 
-**Approach**: Fresh start - no migration, no backfill. Table starts empty and populates as jobs run.
+**Approach**: Migration required from v2.2. New tables created, existing `scheduled_job_results` modified.
 
-- Existing `scheduled_job_results` remains unchanged (report content storage)
-- Existing `job_executions` remains unchanged (fine-grain event log)
-- `job_date_results` is new summary table optimized for nav status queries
-- No breaking changes to existing report URLs
-- Job executors need updates to call `writeJobDateResult()` on start and completion
+**Table Purposes**:
+| Table | Purpose | Cardinality | Change in v2.3 |
+|-------|---------|-------------|----------------|
+| `job_date_results` | Nav status lookup (latest) | 1 row per date/type | Add `latest_run_id` |
+| `job_run_results` | Run metadata history | N rows per date/type | **NEW** |
+| `job_stage_log` | Stage timeline per run | N rows per run | Add `run_id` FK |
+| `scheduled_job_results` | Report content | N rows per date/type | **Change PK to `run_id`** |
+
+**Existing table unchanged**:
+- `job_executions` - fine-grain event log (no changes needed)
 
 **Behavior after deployment**:
-- Pre-cutover dates with no record show `n/a` (non-reproducible, not a failure)
+- Pre-cutover dates with no record show `n/a` (non-reproducible)
 - Post-cutover dates with no record show `missed` (job never started)
-- As new jobs execute, statuses populate naturally (success/partial/failed/running)
-- Full status visibility achieved within 1-2 trading days
+- Each job run creates new rows in `job_run_results` AND `scheduled_job_results`
+- `job_date_results` always reflects latest run (fast nav lookup)
+- Report pages can load any historical run's **full content** via `?run_id=`
 
-### Add to `schema.sql`
+---
+
+## Schema Transition: v2.2 → v2.3
+
+**Approach**: Drop old tables, create new schema compatible with existing code. Fresh start, no data migration.
+
+### Schema Transition SQL
 
 ```sql
--- Navigation status summary table (fresh start, no historical data)
-CREATE TABLE IF NOT EXISTS job_date_results (
+-- ============================================================================
+-- Schema Transition: v2.2 → v2.3 (Fresh Start)
+-- Drop old tables, create new schema compatible with existing code
+-- ============================================================================
+
+-- Step 1: Drop old tables
+DROP TABLE IF EXISTS job_stage_log;
+DROP TABLE IF EXISTS job_date_results;
+DROP TABLE IF EXISTS job_run_results;
+DROP TABLE IF EXISTS scheduled_job_results;
+
+-- Step 2: Create v2.3 schema (compatible with existing code)
+
+-- Navigation summary (latest status per date/type)
+CREATE TABLE job_date_results (
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
   status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
@@ -556,27 +980,77 @@ CREATE TABLE IF NOT EXISTS job_date_results (
   executed_at TEXT,
   started_at TEXT,
   trigger_source TEXT,
+  latest_run_id TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (scheduled_date, report_type)
 );
 
-CREATE INDEX IF NOT EXISTS idx_job_date_results_date ON job_date_results(scheduled_date DESC);
-CREATE INDEX IF NOT EXISTS idx_job_date_results_status ON job_date_results(status) WHERE status = 'running';
+CREATE INDEX idx_job_date_results_date ON job_date_results(scheduled_date DESC);
+CREATE INDEX idx_job_date_results_status ON job_date_results(status) WHERE status = 'running';
 
-CREATE TABLE IF NOT EXISTS job_stage_log (
+-- Run history (NEW - multiple runs per date/type)
+CREATE TABLE job_run_results (
+  run_id TEXT PRIMARY KEY,
+  scheduled_date TEXT NOT NULL,
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
+  current_stage TEXT,
+  errors_json TEXT,
+  warnings_json TEXT,
+  started_at TEXT NOT NULL,
+  executed_at TEXT,
+  trigger_source TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_job_run_results_lookup ON job_run_results(scheduled_date, report_type, created_at DESC);
+CREATE INDEX idx_job_run_results_status ON job_run_results(status) WHERE status = 'running';
+
+-- Stage timeline (run_id nullable for backward compatibility)
+CREATE TABLE job_stage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT,
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
   stage TEXT NOT NULL CHECK(stage IN ('init','data_fetch','ai_analysis','storage','finalize')),
   started_at TEXT NOT NULL,
   ended_at TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (scheduled_date, report_type) REFERENCES job_date_results(scheduled_date, report_type)
+  created_at TEXT DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_job_stage_log_lookup ON job_stage_log(scheduled_date, report_type, stage);
+CREATE INDEX idx_job_stage_log_run ON job_stage_log(run_id, stage);
+CREATE INDEX idx_job_stage_log_lookup ON job_stage_log(scheduled_date, report_type, stage);
+
+-- Report content (PK unchanged, run_id added as optional)
+CREATE TABLE scheduled_job_results (
+  scheduled_date TEXT NOT NULL,
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
+  report_content TEXT NOT NULL,
+  metadata TEXT,
+  trigger_source TEXT,
+  run_id TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (scheduled_date, report_type)
+);
+
+CREATE INDEX idx_scheduled_job_results_lookup ON scheduled_job_results(scheduled_date, report_type, created_at DESC);
+CREATE INDEX idx_scheduled_job_results_run ON scheduled_job_results(run_id);
 ```
+
+### Verify Schema
+
+```bash
+wrangler d1 execute PREDICT_JOBS_DB --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+# Expected: job_date_results, job_run_results, job_stage_log, scheduled_job_results
+```
+
+### Post-Transition Behavior
+
+- All historical data cleared (fresh start)
+- Existing code works unchanged (`run_id` columns nullable)
+- Navigation shows `n/a` for pre-cutover dates, `missed` for post-cutover
+- New job runs populate tables normally
 
 ## Rollback Plan
 

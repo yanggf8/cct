@@ -32,7 +32,9 @@
 - `/health` - System health check
 - `/model-health` - AI model health check
 - `/api/v1/data/health` - API health endpoint
-- `/api/v1/reports/status` - Navigation job status (read-only, no writes)
+- `/api/v1/reports/status` - Navigation job status (read-only)
+- `/api/v1/jobs/history` - Job execution history (read-only)
+- `/api/v1/jobs/runs` - Job run history for multi-run support (read-only)
 
 ### Protected Endpoints (API Key Required)
 All other `/api/v1/*` endpoints require authentication:
@@ -453,6 +455,84 @@ GET /api/v1/reports/status?days=3
 - Stale job cleanup performed by authenticated job handlers only
 - Uses ET timezone via `Intl.DateTimeFormat().formatToParts()` for reliability
 - See `docs/NAVIGATION_REDESIGN_V2.md` for full design
+
+#### **Job Run History (v3.10.5)**
+```bash
+GET /api/v1/jobs/runs?limit=50
+```
+
+**Description**: List all job runs from the multi-run history table. Supports multiple runs per date/type.
+
+**Authentication**: None (public, read-only endpoint)
+
+**Query Parameters**:
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | number | 50 | Max runs to return (max 200) |
+| `date` | string | - | Filter by scheduled_date (YYYY-MM-DD) |
+| `type` | string | - | Filter by report_type (pre-market/intraday/etc) |
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "runs": [
+      {
+        "run_id": "2026-01-28_pre-market_6bda10c9-...",
+        "scheduled_date": "2026-01-28",
+        "report_type": "pre-market",
+        "status": "success",
+        "started_at": "2026-01-28T06:16:09.258Z",
+        "executed_at": "2026-01-28T06:16:16.359Z",
+        "trigger_source": "manual"
+      }
+    ],
+    "count": 2,
+    "limit": 50
+  }
+}
+```
+
+#### **Delete Job Run (v3.10.5)**
+```bash
+DELETE /api/v1/jobs/runs/:runId
+```
+
+**Description**: Delete a job run and its associated data (stage log, snapshot, run record). Updates navigation summary to point to next latest run.
+
+**Authentication**: Required (X-API-Key header)
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": true,
+    "runId": "2026-01-28_pre-market_6bda10c9-...",
+    "scheduledDate": "2026-01-28",
+    "reportType": "pre-market"
+  }
+}
+```
+
+#### **Trigger Pre-Market Job**
+```bash
+POST /api/v1/jobs/pre-market
+```
+
+**Description**: Trigger a pre-market analysis job for specified symbols.
+
+**Authentication**: Required (X-API-Key header)
+
+**Request Body**:
+```json
+{
+  "symbols": ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA"]
+}
+```
+
+**Response**: Returns job result with `market_pulse` (including `dual_model` with Gemma/DistilBERT details).
 
 ### **💻 System Health & Monitoring**
 

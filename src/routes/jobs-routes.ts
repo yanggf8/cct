@@ -14,6 +14,9 @@ import {
   writeD1JobResult,
   deleteD1ReportSnapshot,
   TriggerSource,
+  startJobRun,
+  completeJobRun,
+  generateRunId,
   writeJobDateResult,
   startJobStage,
   endJobStage,
@@ -80,7 +83,7 @@ export async function handleJobsRoutes(
   const url = new URL(request.url);
 
   // Read-only endpoints are public, write endpoints require auth
-  const isWriteEndpoint = path === '/api/v1/jobs/trigger' || path === '/api/v1/jobs/pre-market' || path === '/api/v1/jobs/intraday';
+  const isWriteEndpoint = path === '/api/v1/jobs/trigger' || path === '/api/v1/jobs/pre-market' || path === '/api/v1/jobs/intraday' || path.startsWith('/api/v1/jobs/runs/');
 
   if (isWriteEndpoint) {
     const authResult = validateApiKey(request, env);
@@ -123,6 +126,18 @@ export async function handleJobsRoutes(
     if (snapshotMatch) {
       const [, date, reportType] = snapshotMatch;
       return await handleJobSnapshot(env, date, reportType, headers, requestId, timer);
+    }
+
+    // GET /api/v1/jobs/runs - List all job runs (public)
+    if (path === '/api/v1/jobs/runs' && request.method === 'GET') {
+      return await handleJobRunsList(env, url, headers, requestId, timer);
+    }
+
+    // DELETE /api/v1/jobs/runs/:runId - Delete a job run (protected)
+    const runDeleteMatch = path.match(/^\/api\/v1\/jobs\/runs\/([^/]+)$/);
+    if (runDeleteMatch && request.method === 'DELETE') {
+      const [, runId] = runDeleteMatch;
+      return await handleDeleteJobRun(env, runId, headers, requestId, timer);
     }
 
     return new Response(
@@ -185,6 +200,158 @@ async function handleJobsHistory(
         { status: HttpStatus.OK, headers }
       );
     }
+    throw error;
+  }
+}
+
+/**
+ * GET /api/v1/jobs/runs
+ * List all job runs from job_run_results table
+ * Query params: ?limit=50&date=2026-01-28&type=pre-market
+ */
+async function handleJobRunsList(
+  env: CloudflareEnvironment,
+  url: URL,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('D1 database not available', 'DB_UNAVAILABLE', { requestId })),
+      { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+    );
+  }
+
+  const parsedLimit = parseInt(url.searchParams.get('limit') || '50');
+  const limit = Math.min(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 200);
+  const dateFilter = url.searchParams.get('date');
+  const typeFilter = url.searchParams.get('type');
+
+  try {
+    let query = 'SELECT run_id, scheduled_date, report_type, status, current_stage, started_at, executed_at, trigger_source, created_at FROM job_run_results';
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (dateFilter) {
+      conditions.push('scheduled_date = ?');
+      params.push(dateFilter);
+    }
+    if (typeFilter) {
+      conditions.push('report_type = ?');
+      params.push(typeFilter);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    query += ' ORDER BY created_at DESC LIMIT ?';
+    params.push(limit);
+
+    const stmt = db.prepare(query).bind(...params);
+    const result = await stmt.all();
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({
+        runs: result.results || [],
+        count: result.results?.length || 0,
+        limit
+      }, { requestId, processingTime: timer.getElapsedMs() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    if (errMsg.includes('no such table')) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.success({ runs: [], count: 0, message: 'job_run_results table not found' }, { requestId })),
+        { status: HttpStatus.OK, headers }
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * DELETE /api/v1/jobs/runs/:runId
+ * Delete a job run and its associated data (protected)
+ */
+async function handleDeleteJobRun(
+  env: CloudflareEnvironment,
+  runId: string,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('D1 database not available', 'DB_UNAVAILABLE', { requestId })),
+      { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+    );
+  }
+
+  try {
+    // Get run info first
+    const runResult = await db.prepare('SELECT scheduled_date, report_type FROM job_run_results WHERE run_id = ?').bind(runId).first();
+    if (!runResult) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Run not found', 'NOT_FOUND', { runId })),
+        { status: HttpStatus.NOT_FOUND, headers }
+      );
+    }
+
+    // Delete in order: stage_log → scheduled_job_results → job_run_results
+    await db.prepare('DELETE FROM job_stage_log WHERE run_id = ?').bind(runId).run();
+    await db.prepare('DELETE FROM scheduled_job_results WHERE run_id = ?').bind(runId).run();
+    await db.prepare('DELETE FROM job_run_results WHERE run_id = ?').bind(runId).run();
+
+    // Update job_date_results to point to the next latest run (if any)
+    const nextRun = await db.prepare(
+      'SELECT run_id FROM job_run_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(runResult.scheduled_date, runResult.report_type).first<{ run_id: string }>();
+
+    if (nextRun) {
+      // Update to point to the next latest run
+      const latestRunDetails = await db.prepare(
+        'SELECT status, current_stage, started_at, executed_at, trigger_source FROM job_run_results WHERE run_id = ?'
+      ).bind(nextRun.run_id).first();
+
+      if (latestRunDetails) {
+        await db.prepare(`
+          UPDATE job_date_results
+          SET latest_run_id = ?, status = ?, current_stage = ?, started_at = ?, executed_at = ?, trigger_source = ?, updated_at = datetime('now')
+          WHERE scheduled_date = ? AND report_type = ?
+        `).bind(
+          nextRun.run_id,
+          latestRunDetails.status,
+          latestRunDetails.current_stage,
+          latestRunDetails.started_at,
+          latestRunDetails.executed_at,
+          latestRunDetails.trigger_source,
+          runResult.scheduled_date,
+          runResult.report_type
+        ).run();
+      }
+    } else {
+      // No more runs - delete the date summary
+      await db.prepare('DELETE FROM job_date_results WHERE scheduled_date = ? AND report_type = ?')
+        .bind(runResult.scheduled_date, runResult.report_type).run();
+    }
+
+    logger.info('Deleted job run', { runId, scheduledDate: runResult.scheduled_date, reportType: runResult.report_type });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({
+        deleted: true,
+        runId,
+        scheduledDate: runResult.scheduled_date,
+        reportType: runResult.report_type
+      }, { requestId, processingTime: timer.getElapsedMs() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error) {
+    logger.error('Failed to delete job run', { error: (error as Error).message, runId });
     throw error;
   }
 }
@@ -372,6 +539,8 @@ async function handlePreMarketJob(
 
   // Declare scheduledDate outside try block so it's accessible in catch
   let scheduledDate = new Date().toISOString().split('T')[0];
+  let runId: string | null = null;
+  let runTrackingEnabled = false;
   let symbols: string[];
 
   // Clean up stale jobs (authenticated endpoint - safe to write)
@@ -416,25 +585,42 @@ async function handlePreMarketJob(
       requestId
     });
 
-    // Track job status for navigation (running state)
-    await writeJobDateResult(env, {
+    runId = await startJobRun(env, {
       scheduledDate,
       reportType: 'pre-market',
-      status: 'running',
-      currentStage: 'init',
       triggerSource: navTriggerSource
     });
-    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'init' });
-    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'init' });
+    runTrackingEnabled = !!runId;
+
+    // Fallback: still execute the job even if run tracking is unavailable
+    if (!runId) {
+      await writeJobDateResult(env, {
+        scheduledDate,
+        reportType: 'pre-market',
+        status: 'running',
+        currentStage: 'init',
+        triggerSource: navTriggerSource
+      });
+      runId = generateRunId(scheduledDate, 'pre-market');
+    }
+
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate, reportType: 'pre-market', stage: 'init' });
+      await endJobStage(env, { runId, stage: 'init' });
+    }
 
     // Start AI analysis stage
-    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'ai_analysis' });
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate, reportType: 'pre-market', stage: 'ai_analysis' });
+    }
 
     // Execute pre-market analysis job with scheduled date for storage
     const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols, scheduledDate);
 
     // End AI analysis stage
-    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'ai_analysis' });
+    if (runTrackingEnabled) {
+      await endJobStage(env, { runId, stage: 'ai_analysis' });
+    }
 
     // Build job result for D1 storage
     const jobResult = {
@@ -456,7 +642,9 @@ async function handlePreMarketJob(
     };
 
     // Start storage stage
-    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'storage' });
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate, reportType: 'pre-market', stage: 'storage' });
+    }
 
     // Write to D1 with scheduled_date as primary key
     // - scheduled_date: the market date this report is FOR (primary key with report_type)
@@ -493,28 +681,53 @@ async function handlePreMarketJob(
           secondary: '@cf/huggingface/distilbert-sst-2-int8'
         }
       },
-      triggerSource
+      triggerSource,
+      runId
     );
 
     // End storage stage
-    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'storage' });
+    if (runTrackingEnabled) {
+      await endJobStage(env, { runId, stage: 'storage' });
+    }
 
     if (!writeSuccess) {
       logger.error('Failed to write job result to D1', { scheduledDate, actualToday, requestId });
     }
 
     // Finalize stage
-    await startJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'finalize' });
-    await endJobStage(env, { scheduledDate, reportType: 'pre-market', stage: 'finalize' });
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate, reportType: 'pre-market', stage: 'finalize' });
+      await endJobStage(env, { runId, stage: 'finalize' });
+    }
 
     // Mark job as success
-    await writeJobDateResult(env, {
-      scheduledDate,
-      reportType: 'pre-market',
-      status: 'success',
-      currentStage: 'finalize',
-      triggerSource: navTriggerSource
-    });
+    if (runTrackingEnabled) {
+      if (writeSuccess) {
+        await completeJobRun(env, {
+          runId,
+          scheduledDate,
+          reportType: 'pre-market',
+          status: 'success'
+        });
+      } else {
+        await completeJobRun(env, {
+          runId,
+          scheduledDate,
+          reportType: 'pre-market',
+          status: 'failed',
+          errors: ['Failed to write results to D1']
+        });
+      }
+    } else {
+      await writeJobDateResult(env, {
+        scheduledDate,
+        reportType: 'pre-market',
+        status: writeSuccess ? 'success' : 'failed',
+        currentStage: 'finalize',
+        errors: writeSuccess ? undefined : ['Failed to write results to D1'],
+        triggerSource: navTriggerSource
+      });
+    }
 
     const response = {
       success: true,
@@ -532,13 +745,14 @@ async function handlePreMarketJob(
           ) > 0.7).length,
         generated_at: analysisData.generated_at,
         symbols: symbols,
-        // v3.10.0: Include market pulse status in response
+        // v3.10.0: Include market pulse status in response with dual model details
         market_pulse: analysisData.market_pulse ? {
           status: analysisData.market_pulse.status,
           direction: analysisData.market_pulse.direction,
           confidence: analysisData.market_pulse.confidence,
           articles_count: analysisData.market_pulse.articles_count,
-          error: analysisData.market_pulse.error
+          error: analysisData.market_pulse.error,
+          dual_model: analysisData.market_pulse.dual_model
         } : null
       },
       processing_time_ms: timer.getElapsedMs(),
@@ -565,13 +779,23 @@ async function handlePreMarketJob(
 
     // Mark job as failed using the correct scheduledDate (outer scope)
     try {
-      await writeJobDateResult(env, {
-        scheduledDate,
-        reportType: 'pre-market',
-        status: 'failed',
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-        triggerSource: 'manual'
-      });
+      if (runTrackingEnabled && runId) {
+        await completeJobRun(env, {
+          runId,
+          scheduledDate,
+          reportType: 'pre-market',
+          status: 'failed',
+          errors: [error instanceof Error ? error.message : 'Unknown error']
+        });
+      } else {
+        await writeJobDateResult(env, {
+          scheduledDate,
+          reportType: 'pre-market',
+          status: 'failed',
+          errors: [error instanceof Error ? error.message : 'Unknown error'],
+          triggerSource: 'manual'
+        });
+      }
     } catch (e) {
       // Ignore - best effort
     }
@@ -604,6 +828,8 @@ async function handleIntradayJob(
   const today = new Date().toISOString().split('T')[0];
   const triggerSource = detectTriggerSource(request);
   const navTriggerSource = mapTriggerSource(triggerSource);
+  let runId: string | null = null;
+  let runTrackingEnabled = false;
 
   // Clean up stale jobs (authenticated endpoint - safe to write)
   await markStaleJobsAsFailed(env);
@@ -614,25 +840,41 @@ async function handleIntradayJob(
 
     logger.info('IntradayJob: Starting job execution', { requestId });
 
-    // Track job status for navigation (running state)
-    await writeJobDateResult(env, {
+    runId = await startJobRun(env, {
       scheduledDate: today,
       reportType: 'intraday',
-      status: 'running',
-      currentStage: 'init',
       triggerSource: navTriggerSource
     });
-    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'init' });
-    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'init' });
+    runTrackingEnabled = !!runId;
+
+    if (!runId) {
+      await writeJobDateResult(env, {
+        scheduledDate: today,
+        reportType: 'intraday',
+        status: 'running',
+        currentStage: 'init',
+        triggerSource: navTriggerSource
+      });
+      runId = generateRunId(today, 'intraday');
+    }
+
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'init' });
+      await endJobStage(env, { runId, stage: 'init' });
+    }
 
     // Start AI analysis stage
-    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
+    }
 
     // Execute intraday analysis
     const analysisData = await bridge.generateIntradayAnalysis();
 
     // End AI analysis stage
-    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
+    if (runTrackingEnabled) {
+      await endJobStage(env, { runId, stage: 'ai_analysis' });
+    }
 
     // Build job result for D1 storage (includes comparisons for new layout)
     const jobResult = {
@@ -649,30 +891,45 @@ async function handleIntradayJob(
     };
 
     // Start storage stage
-    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'storage' });
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'storage' });
+    }
 
     // Write to D1
     await writeD1JobResult(env, today, 'intraday', jobResult, {
       processingTimeMs: timer.getElapsedMs(),
       symbolsAnalyzed: analysisData.total_symbols,
       accuracyRate: analysisData.overall_accuracy
-    }, triggerSource);
+    }, triggerSource, runId);
 
     // End storage stage
-    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'storage' });
+    if (runTrackingEnabled) {
+      await endJobStage(env, { runId, stage: 'storage' });
+    }
 
     // Finalize
-    await startJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
-    await endJobStage(env, { scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
+    if (runTrackingEnabled) {
+      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
+      await endJobStage(env, { runId, stage: 'finalize' });
+    }
 
     // Mark job as success
-    await writeJobDateResult(env, {
-      scheduledDate: today,
-      reportType: 'intraday',
-      status: 'success',
-      currentStage: 'finalize',
-      triggerSource: navTriggerSource
-    });
+    if (runTrackingEnabled) {
+      await completeJobRun(env, {
+        runId,
+        scheduledDate: today,
+        reportType: 'intraday',
+        status: 'success'
+      });
+    } else {
+      await writeJobDateResult(env, {
+        scheduledDate: today,
+        reportType: 'intraday',
+        status: 'success',
+        currentStage: 'finalize',
+        triggerSource: navTriggerSource
+      });
+    }
 
     const response = {
       success: true,
@@ -709,13 +966,23 @@ async function handleIntradayJob(
 
     // Mark job as failed
     try {
-      await writeJobDateResult(env, {
-        scheduledDate: today,
-        reportType: 'intraday',
-        status: 'failed',
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-        triggerSource: navTriggerSource
-      });
+      if (runTrackingEnabled && runId) {
+        await completeJobRun(env, {
+          runId,
+          scheduledDate: today,
+          reportType: 'intraday',
+          status: 'failed',
+          errors: [error instanceof Error ? error.message : 'Unknown error']
+        });
+      } else {
+        await writeJobDateResult(env, {
+          scheduledDate: today,
+          reportType: 'intraday',
+          status: 'failed',
+          errors: [error instanceof Error ? error.message : 'Unknown error'],
+          triggerSource: navTriggerSource
+        });
+      }
     } catch (e) {
       // Ignore - best effort
     }
