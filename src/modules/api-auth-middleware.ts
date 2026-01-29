@@ -22,6 +22,11 @@ const PUBLIC_PREFIXES = [
   // No public prefixes - all require auth
 ];
 
+// Public GET endpoints with pattern matching (for dynamic paths like /api/v1/jobs/runs/:runId/stages)
+const PUBLIC_GET_PATTERNS = [
+  /^\/api\/v1\/jobs\/runs\/[^/]+\/stages$/,  // Job run stages (for diagnostics display)
+];
+
 // Public endpoints for GET method only (read access, writes require auth)
 const PUBLIC_GET_ONLY: string[] = [
   '/api/v1/reports/status',   // Navigation status for Reports menu
@@ -55,6 +60,10 @@ export function requiresAuth(path: string, method?: string): boolean {
   }
   // GET-only public endpoints
   if (method === 'GET' && PUBLIC_GET_ONLY.some(e => path === e || path === e + '/')) {
+    return false;
+  }
+  // GET-only public patterns (for dynamic paths)
+  if (method === 'GET' && PUBLIC_GET_PATTERNS.some(p => p.test(path))) {
     return false;
   }
   // Public prefixes (for dynamic paths like /api/v1/jobs/snapshots/:date/:type)
