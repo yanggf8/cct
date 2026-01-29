@@ -21,23 +21,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Market Pulse**: SPY sentiment via DAC service binding ✅
 - **Multi-Run Architecture**: Complete job history with run_id access ✅
 
-## 🔐 Security Decision (Temporary API Key Phase)
+## 🔐 Security Decision (No Auth Phase)
 
 **Decision Date**: 2026-01-29
 
-Until we implement true login/auth (session-based login / identity), treat the API key flow as a **temporary stopgap**:
+Until we implement true login/auth (session-based login / identity), **all endpoints are public**:
 
-- **Do not add new “auth UX” features** (global redirects, login-like flows, complex client auth state).
-- **Only do API-key protection** where needed: keep `/api/v1/*` protected per current middleware rules; keep explicit public GET allowlists/patterns minimal and intentional.
-- **Defer “security enhancements”** (beyond API-key protection) until after the reporting work is complete and validated (dashboards + report pages).
+- **No API key input UI** - removed from settings page
+- **All `/api/v1/jobs/*` endpoints public** - trigger, delete, history (api-auth-middleware.ts:21-23)
+- **Settings endpoints public** - timezone save/load works without auth
+- **IP rate limiting still active** - protects against abuse (api-security.ts:440-447)
 
-When reporting is finished, start a dedicated security enhancement phase (real login + tightened access control + review of any public endpoints).
+When reporting is finished, start a dedicated security enhancement phase (real login + tightened access control).
 
 ### ✅ **Revolutionary Achievements (Latest)**
 
 | Feature | Status | Impact |
 |---------|--------|--------|
-| **EOD Display & Centralized Auth v3.10.15** | ✅ Complete | EOD data transformation (`transformEodDataForFrontend()` at eod-handlers:766-833) maps stored schema to frontend: signalBreakdown→signals, overallAccuracy→accuracyRate, tomorrowOutlook fields. Centralized auth: localStorage persistence (cct-api.js:21,35), dashboard redirects to Settings (dashboard.html:469,489) instead of inline prompts |
+| **EOD Display & No Auth v3.10.15** | ✅ Complete | EOD data transformation (`transformEodDataForFrontend()` at eod-handlers:766-833) maps stored schema to frontend. **Auth removed**: all `/api/v1/jobs/*` public (api-auth-middleware.ts:21-23), settings public (api-v1.ts:272), API key input removed from settings.html |
 | **Security & Cache Fixes v3.10.14** | ✅ Complete | XSS: `escapeJs()` (eod-handlers:778,787-788), `escapeHtml()` via `formatErrorsJson()` (eod-handlers:765,794,799-807). Cache: pre-market shape gate (scheduler:495-497,509-513), write restriction (scheduler:694-697). Auth: two-layer bypass for stages endpoint (jobs-routes:87-93 + api-auth-middleware:26-28,66-67). Rate limiting (api-security:440-447). EOD D1 fallback verified (73% accuracy, B+ grade) |
 | **EOD Failure Diagnostics v3.10.13** | ✅ Complete | End-of-day report page displays comprehensive failure diagnostics for failed/partial runs: status badge, last stage, formatted errors/warnings, stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages` |
 | **EOD D1 Fallback & Run Lineage v3.10.12** | ✅ Complete | EOD job now falls back to D1 when DO cache expires (was 1-hour TTL vs 7.5-hour gap). Tracks `pre_market_run_id` and `intraday_run_id` in EOD metadata for debugging lineage |
@@ -261,14 +262,14 @@ GET /api/v1/reports/end-of-day        # End-of-day summary
 GET /api/v1/reports/status            # Navigation status 🔓 PUBLIC
 ```
 
-#### Jobs (6 endpoints)
+#### Jobs (6 endpoints) - All PUBLIC (no auth required)
 ```bash
-POST /api/v1/jobs/pre-market          # Trigger pre-market job 🔒 PROTECTED
-POST /api/v1/jobs/intraday            # Trigger intraday job 🔒 PROTECTED
+POST /api/v1/jobs/pre-market          # Trigger pre-market job 🔓 PUBLIC
+POST /api/v1/jobs/intraday            # Trigger intraday job 🔓 PUBLIC
 GET /api/v1/jobs/history              # Job execution history 🔓 PUBLIC
 GET /api/v1/jobs/runs                 # Job run history (multi-run) 🔓 PUBLIC
-DELETE /api/v1/jobs/runs/:runId       # Delete a job run 🔒 PROTECTED
-GET /api/v1/jobs/latest               # Latest job results
+DELETE /api/v1/jobs/runs/:runId       # Delete a job run 🔓 PUBLIC
+GET /api/v1/jobs/latest               # Latest job results 🔓 PUBLIC
 ```
 
 #### Market Intelligence (5 endpoints)

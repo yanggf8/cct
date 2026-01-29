@@ -270,10 +270,7 @@ export async function handleApiV1Request(
         }
         return new Response(JSON.stringify({ timezone: timezone || 'Asia/Taipei' }), { status: HttpStatus.OK, headers });
       } else if (request.method === 'PUT') {
-        // Require API key for writes
-        if (!apiKey) {
-          return new Response(JSON.stringify({ error: 'API key required' }), { status: HttpStatus.UNAUTHORIZED, headers });
-        }
+        // Security decision 2026-01-29: All settings public, defer auth to future phase
         const reqBody = await request.json() as { timezone?: string };
         if (!reqBody.timezone) {
           return new Response(JSON.stringify({ error: 'timezone required' }), { status: HttpStatus.BAD_REQUEST, headers });
