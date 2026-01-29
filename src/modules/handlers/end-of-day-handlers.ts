@@ -193,7 +193,9 @@ function generateEndOfDayHTML(
     runId?: string,
     jobRunDetails?: { status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null } | null
 ): string {
-    const endOfDayData = d1Result?.data;
+    const rawData = d1Result?.data;
+    // Transform stored schema to frontend expected schema
+    const endOfDayData = rawData ? transformEodDataForFrontend(rawData) : null;
     const d1CreatedAt = d1Result?.createdAt;
     const isStale = d1Result?.isStale || false;
 
@@ -757,6 +759,90 @@ function generateEndOfDayHTML(
     </script>
 </body>
 </html>`;
+}
+
+/**
+ * Transform stored EOD schema to frontend expected schema
+ * Stored: signalBreakdown, overallAccuracy (0-100), tomorrowOutlook.marketBias
+ * Frontend: signals, accuracyRate (0-1), tomorrowOutlook.direction
+ */
+function transformEodDataForFrontend(raw: any): any {
+    if (!raw) return null;
+
+    // Map signalBreakdown to signals array expected by frontend
+    const signals = (raw.signalBreakdown || []).map((s: any) => ({
+        symbol: s.ticker,
+        predicted: s.predicted,
+        predictedDirection: s.predictedDirection,
+        actual: s.actual,
+        actualDirection: s.actualDirection,
+        confidence: (s.confidence || 0) / 100, // Convert 0-100 to 0-1
+        confidenceLevel: s.confidenceLevel,
+        correct: s.correct
+    }));
+
+    // Calculate performance distribution from signals
+    const performanceDistribution = {
+        correct: raw.correctCalls || signals.filter((s: any) => s.correct).length,
+        incorrect: raw.wrongCalls || signals.filter((s: any) => !s.correct && s.actual).length,
+        pending: signals.filter((s: any) => !s.actual).length
+    };
+
+    // Build confidence data from signals
+    const confidenceData = signals.map((s: any) => ({
+        symbol: s.symbol,
+        confidence: s.confidence
+    }));
+
+    // Build symbol performance from signals + topWinners/topLosers
+    const symbolPerformance = [
+        ...(raw.topWinners || []).map((w: any) => ({
+            symbol: w.ticker,
+            performance: parseFloat(w.performance?.replace('%', '').replace('+', '') || '0') / 100
+        })),
+        ...(raw.topLosers || []).map((l: any) => ({
+            symbol: l.ticker,
+            performance: parseFloat(l.performance?.replace('%', '').replace('+', '') || '0') / 100
+        }))
+    ];
+
+    // Transform tomorrowOutlook
+    const biasToDirection: Record<string, string> = {
+        'Bullish': 'bullish',
+        'Neutral-Bullish': 'bullish',
+        'Bearish': 'bearish',
+        'Neutral-Bearish': 'bearish',
+        'Neutral': 'neutral'
+    };
+    const levelToConfidence: Record<string, number> = {
+        'High': 0.8,
+        'Medium': 0.6,
+        'Low': 0.4
+    };
+    const tomorrowOutlook = raw.tomorrowOutlook ? {
+        direction: biasToDirection[raw.tomorrowOutlook.marketBias] || 'neutral',
+        confidence: levelToConfidence[raw.tomorrowOutlook.confidenceLevel] || 0.5,
+        reasoning: raw.tomorrowOutlook.keyFocus ?
+            `Focus: ${raw.tomorrowOutlook.keyFocus}. Volatility: ${raw.tomorrowOutlook.volatilityLevel || 'Moderate'}.` :
+            raw.insights?.modelPerformance || 'Analysis in progress...'
+    } : null;
+
+    // Calculate average confidence
+    const avgConfidence = signals.length > 0
+        ? signals.reduce((sum: number, s: any) => sum + (s.confidence || 0), 0) / signals.length
+        : 0;
+
+    return {
+        ...raw,
+        signals,
+        accuracyRate: (raw.overallAccuracy || 0) / 100, // Convert 0-100 to 0-1
+        avgConfidence,
+        marketClose: raw.marketCloseTime ? 'Closed' : null,
+        performanceDistribution,
+        confidenceData,
+        symbolPerformance,
+        tomorrowOutlook: tomorrowOutlook || raw.tomorrowOutlook
+    };
 }
 
 /**
