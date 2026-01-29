@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-29 - EOD Display & Centralized Auth v3.10.15)
+- **Current Version**: Latest (2026-01-29 - Dashboard Timezone v3.10.16)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -38,6 +38,7 @@ When reporting is finished, start a dedicated security enhancement phase (real l
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Dashboard Timezone v3.10.16** | ✅ Complete | Job history timestamps now display in user's configured timezone from Settings. `formatRunTime()` (dashboard.html:381-393) uses localStorage `cct_timezone` with API fallback, graceful error handling for invalid timezones |
 | **EOD Display & No Auth v3.10.15** | ✅ Complete | EOD data transformation (`transformEodDataForFrontend()` at eod-handlers:766-833) maps stored schema to frontend. **Auth removed**: all `/api/v1/jobs/*` public (api-auth-middleware.ts:21-23), settings public (api-v1.ts:272), API key input removed from settings.html |
 | **Security & Cache Fixes v3.10.14** | ✅ Complete | XSS: `escapeJs()` (eod-handlers:778,787-788), `escapeHtml()` via `formatErrorsJson()` (eod-handlers:765,794,799-807). Cache: pre-market shape gate (scheduler:495-497,509-513), write restriction (scheduler:694-697). Auth: two-layer bypass for stages endpoint (jobs-routes:87-93 + api-auth-middleware:26-28,66-67). Rate limiting (api-security:440-447). EOD D1 fallback verified (73% accuracy, B+ grade) |
 | **EOD Failure Diagnostics v3.10.13** | ✅ Complete | End-of-day report page displays comprehensive failure diagnostics for failed/partial runs: status badge, last stage, formatted errors/warnings, stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages` |
@@ -712,8 +713,9 @@ Transform from individual stock analysis to institutional-grade market intellige
 ---
 
 **Last Updated**: 2026-01-29
-**Current Version**: Production Ready with Security & Cache Fixes v3.10.14
+**Current Version**: Production Ready with Dashboard Timezone v3.10.16
 **Major Updates**:
+- **Dashboard Timezone v3.10.16**: Job history timestamps in dashboard now display in user's configured timezone from Settings page. Uses localStorage cache for speed with API fallback, graceful error handling for invalid timezone values.
 - **Security & Cache Fixes v3.10.14**: (1) XSS prevention: HTML/JS escaping for runId and errors/warnings in EOD page. (2) EOD cache validation: only accepts pre-market shaped data (trigger_mode + trading_signals check). (3) Only pre-market writes to `analysis_${dateStr}` cache. (4) Stages endpoint truly public for GET requests.
 - **EOD Failure Diagnostics v3.10.13**: End-of-day report page now displays comprehensive failure diagnostics when viewing failed/partial job runs. Shows status badge (❌/⚠️), last failed stage, formatted errors/warnings, and complete stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages`.
 - **EOD D1 Fallback & Run Lineage v3.10.12**: Fixed EOD job failure caused by 1-hour cache TTL expiring before 4:05 PM run (7.5-hour gap from pre-market). EOD now falls back to `getD1FallbackData()` when cache misses. Also tracks source run IDs (`pre_market_run_id`, `intraday_run_id`) in EOD metadata for lineage/debugging.

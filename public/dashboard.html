@@ -194,6 +194,7 @@
         ];
 
         let jobRuns = [];
+        let userTimezone = null; // User's timezone preference from settings
 
         async function fetchJobRuns() {
             try {
@@ -380,7 +381,15 @@
         function formatRunTime(isoStr) {
             if (!isoStr) return '-';
             const d = new Date(isoStr);
-            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+            const baseOpts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+            if (userTimezone) {
+                try {
+                    return d.toLocaleString('en-US', { ...baseOpts, timeZone: userTimezone });
+                } catch {
+                    // Invalid timezone, fall back to browser default
+                }
+            }
+            return d.toLocaleString('en-US', baseOpts);
         }
 
         function renderRunsSection() {
@@ -509,6 +518,17 @@
 
             // Render market status first
             renderMarketStatus();
+
+            // Load user timezone preference (always re-read to catch Settings changes)
+            try {
+                userTimezone = localStorage.getItem('cct_timezone');
+                if (!userTimezone) {
+                    const tzData = await cctApi.getTimezone();
+                    userTimezone = tzData.timezone || null;
+                }
+            } catch {
+                userTimezone = null;
+            }
 
             // Fetch job runs (single source of truth)
             jobRuns = await fetchJobRuns();
