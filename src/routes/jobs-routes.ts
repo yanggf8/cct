@@ -83,7 +83,14 @@ export async function handleJobsRoutes(
   const url = new URL(request.url);
 
   // Read-only endpoints are public, write endpoints require auth
-  const isWriteEndpoint = path === '/api/v1/jobs/trigger' || path === '/api/v1/jobs/pre-market' || path === '/api/v1/jobs/intraday' || path.startsWith('/api/v1/jobs/runs/');
+  // Note: /api/v1/jobs/runs/:runId/stages is public (GET-only for stage log viewing)
+  const isStagesEndpoint = path.match(/^\/api\/v1\/jobs\/runs\/[^/]+\/stages$/) && request.method === 'GET';
+  const isWriteEndpoint = !isStagesEndpoint && (
+    path === '/api/v1/jobs/trigger' ||
+    path === '/api/v1/jobs/pre-market' ||
+    path === '/api/v1/jobs/intraday' ||
+    path.startsWith('/api/v1/jobs/runs/')
+  );
 
   if (isWriteEndpoint) {
     const authResult = validateApiKey(request, env);

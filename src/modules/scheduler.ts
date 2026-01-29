@@ -489,14 +489,24 @@ export async function handleScheduledEvent(
         let intradayRunIdSource: string | null = null;
 
         // Fetch morning predictions and analysis data from cache, fallback to D1
+        // Validate cache hit is actually pre-market shaped (has trading_signals)
         let analysisData: any = null;
         const morningAnalysis = await dal.read(`analysis_${dateStr}`);
-        if (morningAnalysis.success) {
+        const isValidPreMarketCache = morningAnalysis.success &&
+          morningAnalysis.data?.trigger_mode === 'morning_prediction_alerts' &&
+          morningAnalysis.data?.trading_signals;
+
+        if (isValidPreMarketCache) {
           analysisData = morningAnalysis.data;
           // Extract run_id from cached data for lineage tracking
           preMarketRunId = analysisData?.run_id || analysisData?._run_id || null;
           console.log(`✅ [CRON-EOD] ${cronExecutionId} Pre-market data from cache (run_id: ${preMarketRunId || 'unknown'})`);
-        } else {
+        } else if (morningAnalysis.success) {
+          // Cache hit but not valid pre-market data - force D1 fallback
+          console.warn(`⚠️ [CRON-EOD] ${cronExecutionId} Cache hit but not pre-market shaped (trigger_mode: ${morningAnalysis.data?.trigger_mode}), forcing D1 fallback...`);
+        }
+
+        if (!isValidPreMarketCache) {
           // Fallback to D1 snapshot
           console.log(`⚠️ [CRON-EOD] ${cronExecutionId} Cache miss for analysis_${dateStr}, trying D1 fallback...`);
           const d1Fallback = await getD1FallbackData(env, dateStr, 'pre-market');
@@ -681,9 +691,10 @@ export async function handleScheduledEvent(
       console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
     }
 
-    // Store results in KV using DAL (skip for intraday to prevent overwriting pre-market data)
+    // Store results in KV using DAL (ONLY for pre-market to prevent overwriting)
+    // EOD and intraday should NOT overwrite analysis_${dateStr} - EOD reads it for lineage
     // dateStr is needed for both KV and D1 writes
-    if (analysisResult && triggerMode !== 'midday_validation_prediction') {
+    if (analysisResult && triggerMode === 'morning_prediction_alerts') {
       const dal = createSimplifiedEnhancedDAL(env);
       const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, '');
 

@@ -651,7 +651,7 @@ function generateEndOfDayHTML(
     ` : ''}
     <script>
       // Fetch and render stage log if run_id is present
-      const runId = '${runId || ''}';
+      const runId = '${escapeJs(runId || '')}';
       const embeddedStageLog = ${jobRunDetails && (jobRunDetails as any).stageLog ? JSON.stringify((jobRunDetails as any).stageLog) : 'null'};
       
       if (runId) {
@@ -760,23 +760,50 @@ function generateEndOfDayHTML(
 }
 
 /**
- * Format errors JSON for display
+ * HTML-escape a string to prevent XSS
+ */
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * Escape for safe JS string interpolation (prevents script injection)
+ */
+function escapeJs(str: string): string {
+    return str
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/</g, '\\x3c')
+        .replace(/>/g, '\\x3e')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+}
+
+/**
+ * Format errors JSON for display (HTML-escaped)
  */
 function formatErrorsJson(errorsJson: string): string {
     try {
         const errors = JSON.parse(errorsJson);
         if (Array.isArray(errors)) {
             return errors.map((err, idx) => {
-                if (typeof err === 'string') return `${idx + 1}. ${err}`;
+                if (typeof err === 'string') return escapeHtml(`${idx + 1}. ${err}`);
                 if (typeof err === 'object') {
-                    return `${idx + 1}. ${err.symbol || err.stage || 'Error'}: ${err.error || err.message || JSON.stringify(err)}`;
+                    const msg = `${idx + 1}. ${err.symbol || err.stage || 'Error'}: ${err.error || err.message || JSON.stringify(err)}`;
+                    return escapeHtml(msg);
                 }
-                return `${idx + 1}. ${JSON.stringify(err)}`;
+                return escapeHtml(`${idx + 1}. ${JSON.stringify(err)}`);
             }).join('\n');
         }
-        return JSON.stringify(errors, null, 2);
+        return escapeHtml(JSON.stringify(errors, null, 2));
     } catch {
-        return errorsJson;
+        return escapeHtml(errorsJson);
     }
 }
 
