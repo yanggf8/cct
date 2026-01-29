@@ -545,7 +545,7 @@ function generateEndOfDayHTML(
         <div class="signals-section">
             <h2>🔍 Detailed Signal Analysis</h2>
             <div class="signal-grid">
-                ${generateSignalCards(endOfDayData.signalBreakdown || [])}
+                ${generateSignalCards(endOfDayData.signals || endOfDayData.signalBreakdown || [])}
             </div>
         </div>
 

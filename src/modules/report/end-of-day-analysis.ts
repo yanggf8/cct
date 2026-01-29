@@ -334,6 +334,23 @@ function analyzeHighConfidenceSignals(
           performance: `${closePerformance.dayChange.toFixed(1)}%`
         });
       }
+    } else {
+      // No market data - add as pending
+      signalBreakdown.push({
+        ticker: symbol,
+        predicted: `${predictedDirection === 'up' ? '↑' : '↓'} Expected`,
+        predictedDirection,
+        actual: 'Pending',
+        actualDirection: 'pending',
+        confidence: Math.round(confidence),
+        confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
+        correct: false, // Will be updated when market data available
+        ...(isDualModel && {
+          gemma_direction: gemma?.direction,
+          distilbert_direction: distilbert?.direction,
+          models_agree: comparison?.agree
+        })
+      });
     }
   });
 
