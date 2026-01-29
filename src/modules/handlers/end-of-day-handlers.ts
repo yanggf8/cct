@@ -773,6 +773,7 @@ function escapeHtml(str: string): string {
 
 /**
  * Escape for safe JS string interpolation (prevents script injection)
+ * Handles: quotes, backslashes, HTML delimiters, newlines, and U+2028/U+2029 line separators
  */
 function escapeJs(str: string): string {
     return str
@@ -782,7 +783,9 @@ function escapeJs(str: string): string {
         .replace(/</g, '\\x3c')
         .replace(/>/g, '\\x3e')
         .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r');
+        .replace(/\r/g, '\\r')
+        .replace(/\u2028/g, '\\u2028')  // Line separator
+        .replace(/\u2029/g, '\\u2029'); // Paragraph separator
 }
 
 /**
