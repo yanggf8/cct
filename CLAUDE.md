@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-28 - Intraday Display Fix v3.10.11)
+- **Current Version**: Latest (2026-01-29 - Failure Diagnostics v3.10.13)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -25,6 +25,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **EOD Failure Diagnostics v3.10.13** | ✅ Complete | End-of-day report page displays comprehensive failure diagnostics for failed/partial runs: status badge, last stage, formatted errors/warnings, stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages` |
+| **EOD D1 Fallback & Run Lineage v3.10.12** | ✅ Complete | EOD job now falls back to D1 when DO cache expires (was 1-hour TTL vs 7.5-hour gap). Tracks `pre_market_run_id` and `intraday_run_id` in EOD metadata for debugging lineage |
 | **Intraday No-Comparisons Display v3.10.11** | ✅ Complete | Intraday page now shows "⚠️ No Comparison Data" with explanation when job ran but had no pre-market data, instead of misleading "Awaiting Data" |
 | **Intraday Empty Symbols Partial Status v3.10.10** | ✅ Complete | Intraday jobs with no pre-market data now marked `partial` (⚠️) instead of `success`, with warning message. Prevents misleading dashboard status |
 | **Intraday/EOD Cache Invalidation v3.10.9** | ✅ Complete | Scheduler now invalidates `intraday_html_` and `end_of_day_html_` DO cache after D1 write, fixing stale "Awaiting Data" pages |
@@ -694,9 +696,11 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-28
-**Current Version**: Production Ready with Partial Status v3.10.10
+**Last Updated**: 2026-01-29
+**Current Version**: Production Ready with Failure Diagnostics v3.10.13
 **Major Updates**:
+- **EOD Failure Diagnostics v3.10.13**: End-of-day report page now displays comprehensive failure diagnostics when viewing failed/partial job runs. Shows status badge (❌/⚠️), last failed stage, formatted errors/warnings, and complete stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages`.
+- **EOD D1 Fallback & Run Lineage v3.10.12**: Fixed EOD job failure caused by 1-hour cache TTL expiring before 4:05 PM run (7.5-hour gap from pre-market). EOD now falls back to `getD1FallbackData()` when cache misses. Also tracks source run IDs (`pre_market_run_id`, `intraday_run_id`) in EOD metadata for lineage/debugging.
 - **Intraday Empty Symbols Partial Status v3.10.10**: Intraday jobs with no pre-market data (empty symbols) now marked `partial` (⚠️) instead of misleading `success`. Includes warning message "No pre-market data available for intraday comparison" in job_run_results.
 - **Intraday/EOD Cache Invalidation v3.10.9**: Fixed stale "Awaiting Data" pages by invalidating DO HTML cache (`intraday_html_`, `end_of_day_html_`) after scheduler D1 write. Root cause: DO cache served old pending page without checking D1 for fresh data.
 - **Dashboard Job History Icons v3.10.8**: Job history table now displays trigger icons (⏰ cron/👤 manual) before dates, report type icons (🌅/📊/🌆/📋), and a legend bar explaining all symbols (trigger source, status icons). Hover tooltips on trigger icons.

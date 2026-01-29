@@ -140,6 +140,13 @@ export async function handleJobsRoutes(
       return await handleDeleteJobRun(env, runId, headers, requestId, timer);
     }
 
+    // GET /api/v1/jobs/runs/:runId/stages - Get stage log for a run (public)
+    const runStagesMatch = path.match(/^\/api\/v1\/jobs\/runs\/([^/]+)\/stages$/);
+    if (runStagesMatch && request.method === 'GET') {
+      const [, runId] = runStagesMatch;
+      return await handleJobRunStages(env, runId, headers, requestId, timer);
+    }
+
     return new Response(
       JSON.stringify(ApiResponseFactory.error('Jobs endpoint not found', 'NOT_FOUND', { path })),
       { status: HttpStatus.NOT_FOUND, headers }
@@ -268,6 +275,54 @@ async function handleJobRunsList(
         { status: HttpStatus.OK, headers }
       );
     }
+    throw error;
+  }
+}
+
+/**
+ * GET /api/v1/jobs/runs/:runId/stages
+ * Get stage log for a specific job run (public)
+ */
+async function handleJobRunStages(
+  env: CloudflareEnvironment,
+  runId: string,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('D1 database not available', 'DB_UNAVAILABLE', { requestId })),
+      { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+    );
+  }
+
+  try {
+    const result = await db.prepare(`
+      SELECT stage, started_at, ended_at
+      FROM job_stage_log
+      WHERE run_id = ?
+      ORDER BY started_at ASC
+    `).bind(runId).all();
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({
+        runId,
+        stages: result.results || [],
+        count: result.results?.length || 0
+      }, { requestId, processingTime: timer.getElapsedMs() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error) {
+    const errMsg = (error as Error).message;
+    if (errMsg.includes('no such table')) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.success({ runId, stages: [], count: 0, message: 'job_stage_log table not found' }, { requestId })),
+        { status: HttpStatus.OK, headers }
+      );
+    }
+    logger.error('Failed to fetch job run stages', { error: errMsg, runId });
     throw error;
   }
 }

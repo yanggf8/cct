@@ -13,7 +13,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 // No-op stubs for compatibility
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { writeD1JobResult, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId } from './d1-job-storage.js';
+import { writeD1JobResult, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId, getD1FallbackData, readD1ReportSnapshotByRunId } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -483,19 +483,53 @@ export async function handleScheduledEvent(
       try {
         const { generateEndOfDayAnalysis } = await import('./report/end-of-day-analysis.js');
         const dal = createSimplifiedEnhancedDAL(env);
-        
-        // Fetch morning predictions and analysis data from cache/D1
+
+        // Track source run IDs for lineage
+        let preMarketRunId: string | null = null;
+        let intradayRunIdSource: string | null = null;
+
+        // Fetch morning predictions and analysis data from cache, fallback to D1
+        let analysisData: any = null;
         const morningAnalysis = await dal.read(`analysis_${dateStr}`);
-        const analysisData = morningAnalysis.success ? morningAnalysis.data : null;
-        
-        // Fetch intraday data if available
+        if (morningAnalysis.success) {
+          analysisData = morningAnalysis.data;
+          // Extract run_id from cached data for lineage tracking
+          preMarketRunId = analysisData?.run_id || analysisData?._run_id || null;
+          console.log(`✅ [CRON-EOD] ${cronExecutionId} Pre-market data from cache (run_id: ${preMarketRunId || 'unknown'})`);
+        } else {
+          // Fallback to D1 snapshot
+          console.log(`⚠️ [CRON-EOD] ${cronExecutionId} Cache miss for analysis_${dateStr}, trying D1 fallback...`);
+          const d1Fallback = await getD1FallbackData(env, dateStr, 'pre-market');
+          if (d1Fallback?.data) {
+            analysisData = d1Fallback.data;
+            // Use runId from D1 result directly (plumbed from SELECT query)
+            preMarketRunId = d1Fallback.runId || null;
+            console.log(`✅ [CRON-EOD] ${cronExecutionId} Pre-market data from D1 (source: ${d1Fallback.source}, run_id: ${preMarketRunId || 'unknown'})`);
+          }
+        }
+
+        // Fetch intraday data if available (cache then D1 fallback)
+        let intradayData: any = null;
         const intradayResult = await dal.read(`intraday_${dateStr}`);
-        const intradayData = intradayResult.success ? intradayResult.data : null;
+        if (intradayResult.success) {
+          intradayData = intradayResult.data;
+          intradayRunIdSource = intradayData?.run_id || intradayData?.pre_market_run_id || null;
+          console.log(`✅ [CRON-EOD] ${cronExecutionId} Intraday data from cache`);
+        } else {
+          // Fallback to D1 snapshot
+          const intradayD1Fallback = await getD1FallbackData(env, dateStr, 'intraday');
+          if (intradayD1Fallback?.data) {
+            intradayData = intradayD1Fallback.data;
+            // Use runId from D1 result directly (plumbed from SELECT query)
+            intradayRunIdSource = intradayD1Fallback.runId || null;
+            console.log(`✅ [CRON-EOD] ${cronExecutionId} Intraday data from D1 (source: ${intradayD1Fallback.source}, run_id: ${intradayRunIdSource || 'unknown'})`);
+          }
+        }
 
         // Validate required inputs so failures are explicit (not silent zero-signal runs)
         const missingInputs: string[] = [];
-        if (!analysisData) missingInputs.push('morning analysis (analysis cache)');
-        if (!analysisData?.trading_signals) missingInputs.push('morning predictions (trading_signals)');
+        if (!analysisData) missingInputs.push('morning analysis (cache miss + D1 fallback failed)');
+        if (!analysisData?.trading_signals) missingInputs.push('morning predictions (trading_signals missing in data)');
         if (missingInputs.length) {
           throw new Error(`Missing required data for end-of-day analysis: ${missingInputs.join(', ')}`);
         }
@@ -545,9 +579,12 @@ export async function handleScheduledEvent(
           await writeD1JobResult(env, dateStr, 'end-of-day', analysisResult, {
             processingTimeMs: Date.now() - scheduledTime.getTime(),
             signalsCount,
-            accuracyRate: eodResult.overallAccuracy
+            accuracyRate: eodResult.overallAccuracy,
+            // Track source run IDs for lineage/debugging
+            pre_market_run_id: preMarketRunId || null,
+            intraday_run_id: intradayRunIdSource || null
           }, 'cron', runTrackingEnabled ? runId : undefined);
-          console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: end-of-day for ${dateStr}`);
+          console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: end-of-day for ${dateStr} (pre-market: ${preMarketRunId || 'unknown'}, intraday: ${intradayRunIdSource || 'none'})`);
         } catch (d1Error: any) {
           console.error(`❌ [CRON-D1-ERROR] ${cronExecutionId} D1 end-of-day write failed:`, {
             error: d1Error.message
@@ -670,17 +707,19 @@ export async function handleScheduledEvent(
         console.log(`✅ [CRON-DAL] ${cronExecutionId} Timestamped key stored: ${timestampedKey}`);
 
         // Update the daily summary using enhanced DAL
+        // Include run_id so EOD can track lineage when reading from cache
         const dailyResult = await dal.write(
           dailyKey,
           {
             ...analysisResult,
             cron_execution_id: cronExecutionId,
             trigger_mode: triggerMode,
-            last_updated: estTime.toISOString()
+            last_updated: estTime.toISOString(),
+            run_id: runId || null  // Track run_id for EOD lineage
           }
         );
 
-        console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey}`);
+        console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey} (run_id: ${runId || 'none'})`);
       } catch (dalError: any) {
         console.error(`❌ [CRON-DAL-ERROR] ${cronExecutionId} DAL operation failed:`, {
           error: dalError.message,

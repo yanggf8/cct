@@ -179,12 +179,15 @@ export async function readD1ReportSnapshot(
   env: CloudflareEnvironment,
   scheduledDate: string,
   reportType: string
-): Promise<{ data: any; createdAt: string; scheduledDate: string } | null> {
+): Promise<{ data: any; createdAt: string; scheduledDate: string; runId: string | null } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
+  // Row type including run_id
+  type SnapshotRow = { report_content: string; metadata: string; created_at: string; scheduled_date: string; run_id: string | null };
+
   // Helper to parse result
-  const parseResult = (result: { report_content: string; metadata: string; created_at: string; scheduled_date: string } | null) => {
+  const parseResult = (result: SnapshotRow | null) => {
     if (!result?.report_content) return null;
     try {
       const content = JSON.parse(result.report_content);
@@ -192,7 +195,8 @@ export async function readD1ReportSnapshot(
       content._source = 'd1_snapshot';
       content._d1_created_at = result.created_at;
       content._scheduled_date = result.scheduled_date;
-      return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date };
+      content._run_id = result.run_id;  // Inject run_id into content for lineage
+      return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date, runId: result.run_id };
     } catch (parseError) {
       logger.error('D1 JSON parse failed', { scheduledDate, reportType, error: (parseError as Error).message });
       return null;
@@ -202,14 +206,14 @@ export async function readD1ReportSnapshot(
   try {
     // Prefer rows with run_id (from proper job tracking) over legacy rows without
     const result = await db.prepare(
-      `SELECT report_content, metadata, created_at, scheduled_date
+      `SELECT report_content, metadata, created_at, scheduled_date, run_id
        FROM scheduled_job_results
        WHERE scheduled_date = ? AND report_type = ?
        ORDER BY
          CASE WHEN run_id IS NOT NULL THEN 0 ELSE 1 END,
          created_at DESC
        LIMIT 1`
-    ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date: string }>();
+    ).bind(scheduledDate, reportType).first<SnapshotRow>();
 
     return parseResult(result);
   } catch (error) {
@@ -226,7 +230,20 @@ export async function readD1ReportSnapshot(
            ORDER BY created_at DESC
            LIMIT 1`
         ).bind(scheduledDate, reportType).first<{ report_content: string; metadata: string; created_at: string; scheduled_date: string }>();
-        return parseResult(result);
+        // Legacy path: no run_id column
+        if (!result?.report_content) return null;
+        try {
+          const content = JSON.parse(result.report_content);
+          content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
+          content._source = 'd1_snapshot';
+          content._d1_created_at = result.created_at;
+          content._scheduled_date = result.scheduled_date;
+          content._run_id = null;
+          return { data: content, createdAt: result.created_at, scheduledDate: result.scheduled_date, runId: null };
+        } catch (parseError) {
+          logger.error('D1 JSON parse failed (legacy)', { scheduledDate, reportType, error: (parseError as Error).message });
+          return null;
+        }
       } catch (fallbackError) {
         logger.error('D1 fallback read failed', { error: (fallbackError as Error).message, scheduledDate, reportType });
         return null;
@@ -287,18 +304,20 @@ export async function readD1ReportSnapshotByRunId(
 export async function getD1LatestReportSnapshot(
   env: CloudflareEnvironment,
   reportType: string
-): Promise<{ data: any; scheduledDate: string; createdAt: string } | null> {
+): Promise<{ data: any; scheduledDate: string; createdAt: string; runId: string | null } | null> {
   const db = env.PREDICT_JOBS_DB;
   if (!db) return null;
 
+  type LatestRow = { scheduled_date: string; report_content: string; metadata: string; created_at: string; run_id: string | null };
+
   try {
     const result = await db.prepare(
-      `SELECT scheduled_date, report_content, metadata, created_at
+      `SELECT scheduled_date, report_content, metadata, created_at, run_id
        FROM scheduled_job_results
        WHERE report_type = ?
        ORDER BY scheduled_date DESC, created_at DESC
        LIMIT 1`
-    ).bind(reportType).first<{ scheduled_date: string; report_content: string; metadata: string; created_at: string }>();
+    ).bind(reportType).first<LatestRow>();
 
     if (result?.report_content) {
       try {
@@ -307,8 +326,9 @@ export async function getD1LatestReportSnapshot(
         content._source = 'd1_snapshot';
         content._d1_created_at = result.created_at;
         content._scheduled_date = result.scheduled_date;
+        content._run_id = result.run_id;
         content.source_date = result.scheduled_date;
-        return { data: content, scheduledDate: result.scheduled_date, createdAt: result.created_at };
+        return { data: content, scheduledDate: result.scheduled_date, createdAt: result.created_at, runId: result.run_id };
       } catch (parseError) {
         logger.error('D1 JSON parse failed', { reportType, error: (parseError as Error).message });
         return null;
@@ -317,6 +337,33 @@ export async function getD1LatestReportSnapshot(
     return null;
   } catch (error) {
     const errMsg = (error as Error).message;
+    // Handle missing run_id column gracefully (legacy schema)
+    if (errMsg.includes('no such column') && errMsg.includes('run_id')) {
+      logger.warn('run_id column not found in getD1LatestReportSnapshot - using legacy query', { reportType });
+      try {
+        const result = await db.prepare(
+          `SELECT scheduled_date, report_content, metadata, created_at
+           FROM scheduled_job_results
+           WHERE report_type = ?
+           ORDER BY scheduled_date DESC, created_at DESC
+           LIMIT 1`
+        ).bind(reportType).first<{ scheduled_date: string; report_content: string; metadata: string; created_at: string }>();
+        if (result?.report_content) {
+          const content = JSON.parse(result.report_content);
+          content._d1_metadata = result.metadata ? JSON.parse(result.metadata) : null;
+          content._source = 'd1_snapshot';
+          content._d1_created_at = result.created_at;
+          content._scheduled_date = result.scheduled_date;
+          content._run_id = null;
+          content.source_date = result.scheduled_date;
+          return { data: content, scheduledDate: result.scheduled_date, createdAt: result.created_at, runId: null };
+        }
+        return null;
+      } catch (fallbackError) {
+        logger.error('D1 latest read failed (legacy fallback)', { error: (fallbackError as Error).message, reportType });
+        return null;
+      }
+    }
     if (!errMsg.includes('no such table')) {
       logger.error('D1 latest read failed', { error: errMsg, reportType });
     }
@@ -507,7 +554,7 @@ export async function getD1FallbackData(
   dateStr: string,
   reportType: string,
   options: { skipTodaySnapshot?: boolean; allowStaleForToday?: boolean } = {}
-): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean; createdAt?: string | null } | null> {
+): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean; createdAt?: string | null; runId?: string | null } | null> {
   const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day' || reportType === 'predictions';
 
   // Determine if querying "today" in ET
@@ -547,7 +594,7 @@ export async function getD1FallbackData(
       const isExactMatch = snapshotScheduledDate === dateStr;
 
       if (isExactMatch) {
-        return { data: snapshotResult.data, source: 'd1_snapshot', sourceDate: dateStr, isStale: false, createdAt: snapshotResult.createdAt };
+        return { data: snapshotResult.data, source: 'd1_snapshot', sourceDate: dateStr, isStale: false, createdAt: snapshotResult.createdAt, runId: snapshotResult.runId };
       }
       // scheduled_date mismatch - treat as not found
       logger.debug('D1 fallback: scheduled_date mismatch', { requested: dateStr, found: snapshotScheduledDate, reportType });
@@ -584,7 +631,8 @@ export async function getD1FallbackData(
       source: 'd1_snapshot',
       sourceDate: latestSnapshot.scheduledDate,
       isStale,
-      createdAt: latestSnapshot.createdAt
+      createdAt: latestSnapshot.createdAt,
+      runId: latestSnapshot.runId
     };
   }
 

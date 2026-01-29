@@ -22,6 +22,50 @@ import { generatePendingPageHTML } from './pending-page.js';
 const logger = createLogger('end-of-day-handlers');
 
 /**
+ * Fetch job run details including errors and stage information
+ */
+async function fetchJobRunDetails(env: CloudflareEnvironment, runId: string): Promise<{ status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null } | null> {
+    const db = env.PREDICT_JOBS_DB;
+    if (!db) return null;
+
+    try {
+        const result = await db.prepare(`
+            SELECT status, current_stage, errors_json, warnings_json
+            FROM job_run_results
+            WHERE run_id = ?
+            LIMIT 1
+        `).bind(runId).first<{ status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null }>();
+
+        return result || null;
+    } catch (error) {
+        logger.error('Failed to fetch job run details', { error: (error as Error).message, runId });
+        return null;
+    }
+}
+
+/**
+ * Fetch job stage log for a run
+ */
+async function fetchJobStageLog(env: CloudflareEnvironment, runId: string): Promise<Array<{ stage: string; started_at: string; ended_at: string | null }>> {
+    const db = env.PREDICT_JOBS_DB;
+    if (!db) return [];
+
+    try {
+        const result = await db.prepare(`
+            SELECT stage, started_at, ended_at
+            FROM job_stage_log
+            WHERE run_id = ?
+            ORDER BY started_at ASC
+        `).bind(runId).all();
+
+        return (result.results || []) as Array<{ stage: string; started_at: string; ended_at: string | null }>;
+    } catch (error) {
+        logger.error('Failed to fetch job stage log', { error: (error as Error).message, runId });
+        return [];
+    }
+}
+
+/**
  * Generate End-of-Day Summary Page
  */
 export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (request: Request, env: CloudflareEnvironment, ctx: any) => {
@@ -53,6 +97,8 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
 
     // Prefer exact run_id lookup when provided
     let d1Result: { data: any; createdAt: string; isStale?: boolean; sourceDate?: string } | null = null;
+    let jobRunDetails: { status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null } | null = null;
+    
     if (runId) {
         const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
         if (runSnapshot) {
@@ -64,6 +110,15 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
                 sourceDate: runSnapshot.scheduledDate
             };
             logger.info('END-OF-DAY: Loaded snapshot by run_id', { requestId, runId, scheduledDate: runSnapshot.scheduledDate });
+            
+            // Fetch job run details for failure info
+            jobRunDetails = await fetchJobRunDetails(env, runId);
+            
+            // Also fetch stage log to embed in page
+            if (jobRunDetails && (jobRunDetails.status === 'failed' || jobRunDetails.status === 'partial')) {
+                const stageLog = await fetchJobStageLog(env, runId);
+                (jobRunDetails as any).stageLog = stageLog;
+            }
         } else {
             logger.warn('END-OF-DAY: run_id not found; falling back to date-based lookup', { requestId, runId, queryDateStr });
         }
@@ -102,7 +157,7 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     const isPending = (!d1Result || isStale || dataDateDiffers) && isQueryingTodayOrFuture && beforeScheduleET;
 
     // Generate HTML based on D1 data availability
-    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers, runId || undefined);
+    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers, runId || undefined, jobRunDetails);
 
     // Cache HTML for fast subsequent loads
     try {
@@ -135,7 +190,8 @@ function generateEndOfDayHTML(
     isPending: boolean,
     sourceDate: string,
     dataDateDiffers: boolean,
-    runId?: string
+    runId?: string,
+    jobRunDetails?: { status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null } | null
 ): string {
     const endOfDayData = d1Result?.data;
     const d1CreatedAt = d1Result?.createdAt;
@@ -192,6 +248,136 @@ function generateEndOfDayHTML(
     <script src="js/cct-api.js"></script>
     <style>
         /* End-of-Day Specific Components */
+        .failure-section {
+            background: rgba(239, 68, 68, 0.1);
+            border: 2px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+
+        .failure-section h2 {
+            color: #ef4444;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .failure-info {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .failure-status, .failure-stage {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .failure-status .label, .failure-stage .label {
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .failure-status .value {
+            font-weight: bold;
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+
+        .failure-status .value.failed {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .failure-status .value.partial {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+
+        .failure-errors, .failure-warnings {
+            margin-top: 12px;
+        }
+
+        .failure-errors h3, .failure-warnings h3 {
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .error-log, .warning-log {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #fcd535;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .stage-log-section {
+            margin-top: 20px;
+        }
+
+        .stage-log-section h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+
+        .stage-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .stage-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid;
+        }
+
+        .stage-item.completed {
+            border-left-color: #10b981;
+        }
+
+        .stage-item.running {
+            border-left-color: #f59e0b;
+        }
+
+        .stage-item.failed {
+            border-left-color: #ef4444;
+        }
+
+        .stage-icon {
+            font-size: 1.2rem;
+        }
+
+        .stage-name {
+            flex: 1;
+            font-weight: 600;
+        }
+
+        .stage-time {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .stage-duration {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.5);
+            font-style: italic;
+        }
+
         .tomorrow-outlook {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
@@ -263,6 +449,40 @@ function generateEndOfDayHTML(
             </div>
             ${dataDateWarning}
         </div>
+
+        ${jobRunDetails && (jobRunDetails.status === 'failed' || jobRunDetails.status === 'partial') ? `
+        <div class="failure-section">
+            <h2>🔍 Job Execution Details</h2>
+            <div class="failure-info">
+                <div class="failure-status">
+                    <span class="label">Status:</span>
+                    <span class="value ${jobRunDetails.status}">${jobRunDetails.status === 'failed' ? '❌ Failed' : '⚠️ Partial Success'}</span>
+                </div>
+                ${jobRunDetails.current_stage ? `
+                <div class="failure-stage">
+                    <span class="label">Last Stage:</span>
+                    <span class="value">${jobRunDetails.current_stage}</span>
+                </div>
+                ` : ''}
+                ${jobRunDetails.errors_json ? `
+                <div class="failure-errors">
+                    <h3>❌ Errors</h3>
+                    <pre class="error-log">${formatErrorsJson(jobRunDetails.errors_json)}</pre>
+                </div>
+                ` : ''}
+                ${jobRunDetails.warnings_json ? `
+                <div class="failure-warnings">
+                    <h3>⚠️ Warnings</h3>
+                    <pre class="warning-log">${formatErrorsJson(jobRunDetails.warnings_json)}</pre>
+                </div>
+                ` : ''}
+                <div class="stage-log-section" id="stage-log-container">
+                    <h3>📋 Job Progress Log</h3>
+                    <div class="loading">Loading stage log...</div>
+                </div>
+            </div>
+        </div>
+        ` : ''}
 
         ${!hasD1Data ? `
         <div class="no-data">
@@ -430,6 +650,90 @@ function generateEndOfDayHTML(
     </script>
     ` : ''}
     <script>
+      // Fetch and render stage log if run_id is present
+      const runId = '${runId || ''}';
+      const embeddedStageLog = ${jobRunDetails && (jobRunDetails as any).stageLog ? JSON.stringify((jobRunDetails as any).stageLog) : 'null'};
+      
+      if (runId) {
+        if (embeddedStageLog && embeddedStageLog.length > 0) {
+          // Use embedded stage log (faster, no extra API call)
+          renderStageLog(embeddedStageLog);
+        } else {
+          // Fetch from API
+          fetchStageLog(runId);
+        }
+      }
+
+      async function fetchStageLog(runId) {
+        try {
+          const response = await fetch(\`/api/v1/jobs/runs/\${runId}/stages\`);
+          const data = await response.json();
+          
+          if (data.success && data.data.stages && data.data.stages.length > 0) {
+            renderStageLog(data.data.stages);
+          } else {
+            document.getElementById('stage-log-container').innerHTML = '<p style="color: rgba(255,255,255,0.6); font-style: italic;">No stage log available</p>';
+          }
+        } catch (error) {
+          console.error('Failed to fetch stage log:', error);
+          document.getElementById('stage-log-container').innerHTML = '<p style="color: #ef4444;">Failed to load stage log</p>';
+        }
+      }
+
+      function renderStageLog(stages) {
+        const stageIcons = {
+          init: '🚀',
+          data_fetch: '📥',
+          ai_analysis: '🤖',
+          storage: '💾',
+          finalize: '✅'
+        };
+
+        const stageNames = {
+          init: 'Initialization',
+          data_fetch: 'Data Fetch',
+          ai_analysis: 'AI Analysis',
+          storage: 'Storage',
+          finalize: 'Finalization'
+        };
+
+        const items = stages.map(stage => {
+          const isCompleted = !!stage.ended_at;
+          const statusClass = isCompleted ? 'completed' : 'running';
+          const icon = stageIcons[stage.stage] || '📋';
+          const name = stageNames[stage.stage] || stage.stage;
+          
+          const startTime = new Date(stage.started_at).toLocaleTimeString('en-US', { 
+            hour: 'numeric', 
+            minute: '2-digit', 
+            second: '2-digit',
+            hour12: true 
+          });
+          
+          let duration = '';
+          if (isCompleted) {
+            const start = new Date(stage.started_at).getTime();
+            const end = new Date(stage.ended_at).getTime();
+            const durationMs = end - start;
+            duration = durationMs < 1000 ? \`\${durationMs}ms\` : \`\${(durationMs / 1000).toFixed(1)}s\`;
+          }
+
+          return \`
+            <div class="stage-item \${statusClass}">
+              <span class="stage-icon">\${icon}</span>
+              <span class="stage-name">\${name}</span>
+              <span class="stage-time">\${startTime}</span>
+              \${duration ? \`<span class="stage-duration">(\${duration})</span>\` : '<span class="stage-duration">In progress...</span>'}
+            </div>
+          \`;
+        }).join('');
+
+        document.getElementById('stage-log-container').innerHTML = \`
+          <h3>📋 Job Progress Log</h3>
+          <div class="stage-timeline">\${items}</div>
+        \`;
+      }
+
       // Render scheduled times with ET and local
       document.querySelectorAll('.sched-time').forEach(el => {
         const utcH = parseInt(el.dataset.utch);
@@ -453,6 +757,27 @@ function generateEndOfDayHTML(
     </script>
 </body>
 </html>`;
+}
+
+/**
+ * Format errors JSON for display
+ */
+function formatErrorsJson(errorsJson: string): string {
+    try {
+        const errors = JSON.parse(errorsJson);
+        if (Array.isArray(errors)) {
+            return errors.map((err, idx) => {
+                if (typeof err === 'string') return `${idx + 1}. ${err}`;
+                if (typeof err === 'object') {
+                    return `${idx + 1}. ${err.symbol || err.stage || 'Error'}: ${err.error || err.message || JSON.stringify(err)}`;
+                }
+                return `${idx + 1}. ${JSON.stringify(err)}`;
+            }).join('\n');
+        }
+        return JSON.stringify(errors, null, 2);
+    } catch {
+        return errorsJson;
+    }
 }
 
 /**
