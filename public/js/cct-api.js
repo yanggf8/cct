@@ -18,22 +18,24 @@ class CCTApi {
     this.responseInterceptors = [];
   }
 
-  // Get API key (priority: session > window fallback for staging)
+  // Get API key (priority: localStorage > sessionStorage > window fallback)
   _getStoredKey() {
     try {
-      return sessionStorage.getItem('cct_api_key') || window.CCT_API_KEY || '';
+      return localStorage.getItem('cct_api_key') || sessionStorage.getItem('cct_api_key') || window.CCT_API_KEY || '';
     } catch {
       return window.CCT_API_KEY || '';
     }
   }
 
-  // Set API key (session-only, tab-bound)
+  // Set API key (persisted in localStorage for cross-session access)
   setApiKey(key) {
     this.apiKey = key;
     try {
       if (key) {
-        sessionStorage.setItem('cct_api_key', key);
+        localStorage.setItem('cct_api_key', key);
+        sessionStorage.setItem('cct_api_key', key); // Also session for immediate use
       } else {
+        localStorage.removeItem('cct_api_key');
         sessionStorage.removeItem('cct_api_key');
       }
     } catch {}

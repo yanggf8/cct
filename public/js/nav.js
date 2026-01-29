@@ -1,7 +1,7 @@
 // Shared Navigation Component - Left Sidebar
-// API key is loaded from sessionStorage (set via Settings page)
+// API key is loaded from localStorage (persists) or sessionStorage (set via Settings page)
 // No hardcoded API key - user must configure via Settings
-window.CCT_API_KEY = sessionStorage.getItem('cct_api_key') || '';
+window.CCT_API_KEY = localStorage.getItem('cct_api_key') || sessionStorage.getItem('cct_api_key') || '';
 
 (function() {
     // Status icons mapping

@@ -545,7 +545,7 @@ function generateEndOfDayHTML(
         <div class="signals-section">
             <h2>🔍 Detailed Signal Analysis</h2>
             <div class="signal-grid">
-                ${generateSignalCards(endOfDayData.signals || [])}
+                ${generateSignalCards(endOfDayData.signalBreakdown || [])}
             </div>
         </div>
 
@@ -905,59 +905,63 @@ function generateSignalCards(signals: any[]): string {
     }
 
     return signals.map(signal => {
-        const accuracyClass = signal.status === 'correct' ? 'accuracy-correct' :
-            signal.status === 'incorrect' ? 'accuracy-incorrect' : 'accuracy-pending';
+        // Map signalBreakdown structure to expected format
+        const symbol = signal.ticker || signal.symbol;
+        const predictedDirection = signal.predictedDirection || signal.direction;
+        const actualDirection = signal.actualDirection;
+        const confidence = signal.confidence || 0;
+        const isCorrect = signal.correct;
         
-        const confidence = Math.round((signal.confidence || 0) * 100);
-
-        // Extract dual model data
-        const gemma = signal.dual_model?.gemma || signal.models?.gpt || {};
-        const distilbert = signal.dual_model?.distilbert || signal.models?.distilbert || {};
-        const agreement = signal.agreement?.status || signal.dual_model?.agreement || 
-          (gemma.direction && distilbert.direction && gemma.direction === distilbert.direction ? 'AGREE' : 
-           gemma.direction && distilbert.direction ? 'DISAGREE' : 'PARTIAL');
+        const accuracyClass = isCorrect ? 'accuracy-correct' : 'accuracy-incorrect';
         
-        const hasDualModel = gemma.status || distilbert.status || gemma.direction || distilbert.direction;
+        // Extract dual model data if available
+        const gemmaDir = signal.gemma_direction;
+        const distilbertDir = signal.distilbert_direction;
+        const modelsAgree = signal.models_agree;
+        
+        const hasDualModel = gemmaDir || distilbertDir;
         
         // Agreement badge
         const agreementBadge = hasDualModel ? `
-          <div class="agreement-badge ${agreement.toLowerCase()}">
-            ${agreement === 'AGREE' ? '✓ MODELS AGREE' : agreement === 'DISAGREE' ? '✗ MODELS DISAGREE' : '◐ PARTIAL AGREEMENT'}
+          <div class="agreement-badge ${modelsAgree ? 'agree' : 'disagree'}">
+            ${modelsAgree ? '✓ MODELS AGREE' : '✗ MODELS DISAGREE'}
           </div>
         ` : '';
         
         // Dual model cards
         const dualModelCards = hasDualModel ? `
           <div class="dual-model-grid">
-            <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
+            <div class="model-card">
               <div class="model-name">Gemma Sea Lion</div>
-              <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : gemma.direction ? '✓ SUCCESS' : '—'}</div>
-              <div class="model-result">${gemma.direction?.toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
+              <div class="model-result">${gemmaDir?.toUpperCase() || 'N/A'}</div>
             </div>
-            <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
+            <div class="model-card">
               <div class="model-name">DistilBERT</div>
-              <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : distilbert.direction ? '✓ SUCCESS' : '—'}</div>
-              <div class="model-result">${distilbert.direction?.toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
+              <div class="model-result">${distilbertDir?.toUpperCase() || 'N/A'}</div>
             </div>
           </div>
         ` : '';
 
         return `
       <div class="signal-card">
-        <h4>${signal.symbol} ${getDirectionEmoji(signal.direction)}</h4>
+        <h4>${escapeHtml(symbol)} ${getDirectionEmoji(predictedDirection)}</h4>
         <div class="signal-detail">
-          <span class="label">Direction:</span>
-          <span class="value">${signal.direction?.toUpperCase() || 'N/A'}</span>
+          <span class="label">Predicted:</span>
+          <span class="value">${escapeHtml(signal.predicted || predictedDirection?.toUpperCase() || 'N/A')}</span>
+        </div>
+        <div class="signal-detail">
+          <span class="label">Actual:</span>
+          <span class="value">${escapeHtml(signal.actual || actualDirection?.toUpperCase() || 'N/A')}</span>
         </div>
         <div class="signal-detail">
           <span class="label">Confidence:</span>
           <span class="value">${confidence}%</span>
         </div>
         <div class="signal-detail">
-          <span class="label">Status:</span>
+          <span class="label">Result:</span>
           <span class="value">
             <span class="accuracy-badge ${accuracyClass}">
-              ${signal.status?.toUpperCase() || 'PENDING'}
+              ${isCorrect ? '✅ CORRECT' : '❌ INCORRECT'}
             </span>
           </span>
         </div>

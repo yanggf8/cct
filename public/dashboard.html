@@ -467,9 +467,9 @@
             if (!confirm('Delete this job run? This cannot be undone.')) return;
 
             if (!cctApi.isAuthenticated()) {
-                const apiKey = prompt('Enter API key:');
-                if (!apiKey) return;
-                cctApi.setApiKey(apiKey);
+                alert('Please set your API key in Settings first.');
+                window.location.href = '/settings.html';
+                return;
             }
 
             try {
@@ -486,14 +486,14 @@
         }
 
         async function triggerJob(jobType) {
+            if (!cctApi.isAuthenticated()) {
+                alert('Please set your API key in Settings first.');
+                window.location.href = '/settings.html';
+                return;
+            }
+
             const symbols = prompt('Enter symbols (comma-separated):', 'AAPL,MSFT,GOOGL,NVDA,TSLA');
             if (!symbols) return;
-
-            if (!cctApi.isAuthenticated()) {
-                const apiKey = prompt('Enter API key:');
-                if (!apiKey) return;
-                cctApi.setApiKey(apiKey);
-            }
 
             // Show loading state immediately
             document.getElementById('runs-section').innerHTML = `<div class="loading">Triggering ${jobType} job...</div>`;
