@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | Feature | Status | Impact |
 |---------|--------|--------|
-| **Security & Cache Fixes v3.10.14** | ✅ Complete | XSS prevention (HTML/JS escaping for runId, errors, U+2028/U+2029 line separators), EOD cache validation (only accepts pre-market shaped data), stages endpoint auth fix (PUBLIC_GET_PATTERNS in global middleware + jobs-routes), EOD D1 fallback verified working (73% accuracy, B+ grade) |
+| **Security & Cache Fixes v3.10.14** | ✅ Complete | XSS: `escapeJs()` (eod-handlers:778,787-788), `escapeHtml()` via `formatErrorsJson()` (eod-handlers:765,794,799-807). Cache: pre-market shape gate (scheduler:495-497,509-513), write restriction (scheduler:694-697). Auth: two-layer bypass for stages endpoint (jobs-routes:87-93 + api-auth-middleware:26-28,66-67). Rate limiting (api-security:440-447). EOD D1 fallback verified (73% accuracy, B+ grade) |
 | **EOD Failure Diagnostics v3.10.13** | ✅ Complete | End-of-day report page displays comprehensive failure diagnostics for failed/partial runs: status badge, last stage, formatted errors/warnings, stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages` |
 | **EOD D1 Fallback & Run Lineage v3.10.12** | ✅ Complete | EOD job now falls back to D1 when DO cache expires (was 1-hour TTL vs 7.5-hour gap). Tracks `pre_market_run_id` and `intraday_run_id` in EOD metadata for debugging lineage |
 | **Intraday No-Comparisons Display v3.10.11** | ✅ Complete | Intraday page now shows "⚠️ No Comparison Data" with explanation when job ran but had no pre-market data, instead of misleading "Awaiting Data" |
