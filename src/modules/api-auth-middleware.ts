@@ -18,8 +18,9 @@ const PUBLIC_ENDPOINTS = [
 ];
 
 // Public endpoint prefixes (for dynamic paths)
+// Security decision 2026-01-29: All job endpoints public, defer auth to future phase
 const PUBLIC_PREFIXES = [
-  // No public prefixes - all require auth
+  '/api/v1/jobs/',  // All job endpoints (trigger, delete, etc.)
 ];
 
 // Public GET endpoints with pattern matching (for dynamic paths like /api/v1/jobs/runs/:runId/stages)

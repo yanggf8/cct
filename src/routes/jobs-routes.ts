@@ -82,25 +82,8 @@ export async function handleJobsRoutes(
   const requestId = generateRequestId();
   const url = new URL(request.url);
 
-  // Read-only endpoints are public, write endpoints require auth
-  // Note: /api/v1/jobs/runs/:runId/stages is public (GET-only for stage log viewing)
-  const isStagesEndpoint = path.match(/^\/api\/v1\/jobs\/runs\/[^/]+\/stages$/) && request.method === 'GET';
-  const isWriteEndpoint = !isStagesEndpoint && (
-    path === '/api/v1/jobs/trigger' ||
-    path === '/api/v1/jobs/pre-market' ||
-    path === '/api/v1/jobs/intraday' ||
-    path.startsWith('/api/v1/jobs/runs/')
-  );
-
-  if (isWriteEndpoint) {
-    const authResult = validateApiKey(request, env);
-    if (!authResult.valid) {
-      return new Response(
-        JSON.stringify(ApiResponseFactory.error('API key required', 'UNAUTHORIZED', { requestId })),
-        { status: HttpStatus.UNAUTHORIZED, headers }
-      );
-    }
-  }
+  // All job endpoints are public (no API key required)
+  // Security decision 2026-01-29: Remove API key input UX, defer auth to future phase
 
   try {
     // POST /api/v1/jobs/pre-market - Execute pre-market analysis job (protected)

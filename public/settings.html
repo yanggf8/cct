@@ -30,13 +30,6 @@
             <h1>⚙️ Settings</h1>
 
             <div class="setting-group">
-                <label for="apikey">API Key (required to save)</label>
-                <input type="password" id="apikey" placeholder="Enter your API key">
-                <div class="detected" id="auth-status"></div>
-                <button onclick="clearKey()" style="margin-top: 0.5rem; background: #6e7681; padding: 0.5rem 1rem; font-size: 0.9rem;">Clear API Key</button>
-            </div>
-
-            <div class="setting-group">
                 <label for="timezone">Your Timezone</label>
                 <select id="timezone"></select>
                 <div class="detected" id="detected"></div>
@@ -54,30 +47,8 @@
         const tzSelect = document.getElementById('timezone');
         const warning = document.getElementById('warning');
         const detected = document.getElementById('detected');
-        const apiKeyInput = document.getElementById('apikey');
-        const authStatus = document.getElementById('auth-status');
         const errorEl = document.getElementById('error');
         const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-        // Load stored API key
-        const storedKey = cctApi.apiKey;
-        if (storedKey) {
-            apiKeyInput.value = storedKey;
-            authStatus.textContent = 'API key loaded from storage';
-        }
-
-        // Update API key when changed
-        apiKeyInput.addEventListener('change', () => {
-            const key = apiKeyInput.value.trim();
-            if (key) {
-                cctApi.setApiKey(key);
-                authStatus.textContent = 'API key updated';
-                // Reload timezone with new key
-                loadTimezone();
-            } else {
-                authStatus.textContent = '';
-            }
-        });
 
         // Load timezone function
         function loadTimezone() {
@@ -94,14 +65,10 @@
                 }
                 checkMatch();
             }).catch(err => {
-                if (err.message.includes('Unauthorized')) {
-                    errorEl.textContent = 'Enter your API key above to load/save settings.';
-                } else {
-                    errorEl.textContent = 'Failed to load: ' + (err.message || 'Network error');
-                }
+                errorEl.textContent = 'Failed to load: ' + (err.message || 'Network error');
                 errorEl.style.display = 'block';
                 tzSelect.value = browserTz;
-                detected.textContent = 'Browser: ' + browserTz + ' (enter API key to load saved)';
+                detected.textContent = 'Browser: ' + browserTz + ' (using browser default)';
                 checkMatch();
             });
         }
@@ -134,12 +101,6 @@
         }
 
         function save() {
-            if (!cctApi.isAuthenticated()) {
-                errorEl.textContent = 'Please enter your API key above to save settings.';
-                errorEl.style.display = 'block';
-                apiKeyInput.focus();
-                return;
-            }
             errorEl.style.display = 'none';
 
             cctApi.setTimezone(tzSelect.value).then(result => {
@@ -154,19 +115,9 @@
                     errorEl.style.display = 'block';
                 }
             }).catch(error => {
-                if (error.message.includes('Unauthorized')) {
-                    errorEl.textContent = 'Invalid API key. Please check and try again.';
-                } else {
-                    errorEl.textContent = 'Network error: ' + error.message;
-                }
+                errorEl.textContent = 'Failed to save: ' + error.message;
                 errorEl.style.display = 'block';
             });
-        }
-
-        function clearKey() {
-            cctApi.setApiKey('');
-            apiKeyInput.value = '';
-            authStatus.textContent = 'API key cleared';
         }
     </script>
 </body>

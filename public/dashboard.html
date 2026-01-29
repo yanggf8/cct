@@ -466,12 +466,6 @@
         async function deleteRun(runId) {
             if (!confirm('Delete this job run? This cannot be undone.')) return;
 
-            if (!cctApi.isAuthenticated()) {
-                alert('Please set your API key in Settings first.');
-                window.location.href = '/settings.html';
-                return;
-            }
-
             try {
                 const data = await cctApi.deleteJobRun(runId);
                 if (data.success) {
@@ -486,12 +480,6 @@
         }
 
         async function triggerJob(jobType) {
-            if (!cctApi.isAuthenticated()) {
-                alert('Please set your API key in Settings first.');
-                window.location.href = '/settings.html';
-                return;
-            }
-
             const symbols = prompt('Enter symbols (comma-separated):', 'AAPL,MSFT,GOOGL,NVDA,TSLA');
             if (!symbols) return;
 

@@ -21,6 +21,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Market Pulse**: SPY sentiment via DAC service binding ✅
 - **Multi-Run Architecture**: Complete job history with run_id access ✅
 
+## 🔐 Security Decision (Temporary API Key Phase)
+
+**Decision Date**: 2026-01-29
+
+Until we implement true login/auth (session-based login / identity), treat the API key flow as a **temporary stopgap**:
+
+- **Do not add new “auth UX” features** (global redirects, login-like flows, complex client auth state).
+- **Only do API-key protection** where needed: keep `/api/v1/*` protected per current middleware rules; keep explicit public GET allowlists/patterns minimal and intentional.
+- **Defer “security enhancements”** (beyond API-key protection) until after the reporting work is complete and validated (dashboards + report pages).
+
+When reporting is finished, start a dedicated security enhancement phase (real login + tightened access control + review of any public endpoints).
+
 ### ✅ **Revolutionary Achievements (Latest)**
 
 | Feature | Status | Impact |
