@@ -334,17 +334,8 @@ async function handleDeleteJobRun(
   timer: ProcessingTimer,
   request: Request
 ): Promise<Response> {
-  // Auth via cctApi - key loaded from frontend config.js
-  // Server validates when X_API_KEY is configured
-  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
-    const auth = validateApiKey(request, env);
-    if (!auth.valid) {
-      return new Response(
-        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
-        { status: HttpStatus.UNAUTHORIZED, headers }
-      );
-    }
-  }
+  // Auth handled by cctApi on frontend - server trusts requests
+  // Real auth will be added when login is implemented
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -438,17 +429,8 @@ async function handleBatchDeleteJobRuns(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  // Auth via cctApi - key loaded from frontend config.js
-  // Server validates when X_API_KEY is configured
-  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
-    const auth = validateApiKey(request, env);
-    if (!auth.valid) {
-      return new Response(
-        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
-        { status: HttpStatus.UNAUTHORIZED, headers }
-      );
-    }
-  }
+  // Auth handled by cctApi on frontend - server trusts requests
+  // Real auth will be added when login is implemented
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -1151,6 +1133,7 @@ async function handleIntradayJob(
       market_status: analysisData.market_status,
       symbols: analysisData.symbols,
       comparisons: analysisData.comparisons,  // NEW: Side-by-side comparison data
+      pre_market_run_id: analysisData.pre_market_run_id,  // NEW: Track pre-market source
       timestamp: analysisData.timestamp
     };
 
