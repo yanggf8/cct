@@ -82,7 +82,7 @@ export async function handleJobsRoutes(
   const requestId = generateRequestId();
   const url = new URL(request.url);
 
-  // All job endpoints are public (no API key required)
+  // Job endpoints are public unless X_API_KEY is configured
   // Security decision 2026-01-29: Remove API key input UX, defer auth to future phase
 
   try {
@@ -127,7 +127,7 @@ export async function handleJobsRoutes(
     const runDeleteMatch = path.match(/^\/api\/v1\/jobs\/runs\/([^/]+)$/);
     if (runDeleteMatch && request.method === 'DELETE') {
       const [, runId] = runDeleteMatch;
-      return await handleDeleteJobRun(env, runId, headers, requestId, timer);
+      return await handleDeleteJobRun(env, runId, headers, requestId, timer, request);
     }
 
     // POST /api/v1/jobs/runs/batch-delete - Delete multiple job runs (protected)
@@ -331,8 +331,20 @@ async function handleDeleteJobRun(
   runId: string,
   headers: Record<string, string>,
   requestId: string,
-  timer: ProcessingTimer
+  timer: ProcessingTimer,
+  request: Request
 ): Promise<Response> {
+  // Validate API key for destructive operation (only if X_API_KEY configured)
+  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
+    const auth = validateApiKey(request, env);
+    if (!auth.valid) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+        { status: HttpStatus.UNAUTHORIZED, headers }
+      );
+    }
+  }
+
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
     return new Response(
@@ -342,12 +354,19 @@ async function handleDeleteJobRun(
   }
 
   try {
-    // Get run info first
-    const runResult = await db.prepare('SELECT scheduled_date, report_type FROM job_run_results WHERE run_id = ?').bind(runId).first();
+    // Get run info first (including status to guard against deleting running jobs)
+    const runResult = await db.prepare('SELECT scheduled_date, report_type, status FROM job_run_results WHERE run_id = ?').bind(runId).first();
     if (!runResult) {
       return new Response(
         JSON.stringify(ApiResponseFactory.error('Run not found', 'NOT_FOUND', { runId })),
         { status: HttpStatus.NOT_FOUND, headers }
+      );
+    }
+
+    if (runResult.status === 'running') {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Cannot delete running job', 'BAD_REQUEST', { runId })),
+        { status: HttpStatus.BAD_REQUEST, headers }
       );
     }
 
@@ -418,6 +437,17 @@ async function handleBatchDeleteJobRuns(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
+  // Validate API key for destructive batch operation (only if X_API_KEY configured)
+  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
+    const auth = validateApiKey(request, env);
+    if (!auth.valid) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+        { status: HttpStatus.UNAUTHORIZED, headers }
+      );
+    }
+  }
+
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
     return new Response(
@@ -460,10 +490,16 @@ async function handleBatchDeleteJobRuns(
   try {
     for (const runId of runIds) {
       try {
-        // Get run info first
-        const runResult = await db.prepare('SELECT scheduled_date, report_type FROM job_run_results WHERE run_id = ?').bind(runId).first();
+        // Get run info first (including status to guard against deleting running jobs)
+        const runResult = await db.prepare('SELECT scheduled_date, report_type, status FROM job_run_results WHERE run_id = ?').bind(runId).first();
         if (!runResult) {
           results.push({ runId, deleted: false, error: 'Run not found' });
+          continue;
+        }
+
+        // Server-side guard: prevent deleting running jobs
+        if (runResult.status === 'running') {
+          results.push({ runId, deleted: false, error: 'Cannot delete running job' });
           continue;
         }
 

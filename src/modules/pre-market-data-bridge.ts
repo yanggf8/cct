@@ -331,6 +331,14 @@ export class PreMarketDataBridge {
         count: spyNews.length
       });
 
+      // Derive actual source from news articles
+      const sourceTypes = new Set(spyNews.map(n => n.source_type).filter(Boolean));
+      const actualSource = sourceTypes.size === 1 
+        ? Array.from(sourceTypes)[0] 
+        : sourceTypes.size > 1 
+          ? 'mixed' 
+          : 'unknown';
+
       // Run dual AI analysis on SPY with the fetched news
       const result = await performDualAIComparison('SPY', spyNews, this.env);
 
@@ -346,7 +354,7 @@ export class PreMarketDataBridge {
           name: 'S&P 500 ETF',
           status: 'failed',
           articles_count: spyNews.length,
-          source: 'Finnhub',
+          source: actualSource,
           error,
           dual_model: {
             gemma: result.models?.gpt ? {
@@ -376,7 +384,7 @@ export class PreMarketDataBridge {
         direction: this.normalizeSentiment(selectedModel!.direction),
         confidence: selectedModel!.confidence,
         articles_count: spyNews.length,
-        source: 'Finnhub',
+        source: actualSource,
         reasoning: selectedModel!.reasoning,
         dual_model: {
           gemma: result.models.gpt ? {

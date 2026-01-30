@@ -24,6 +24,8 @@ All endpoints are currently public until real login/auth is implemented:
 - All `/api/v1/jobs/*` endpoints public (api-auth-middleware.ts:21-23)
 - Settings endpoints public
 - IP rate limiting active (api-security.ts:440-447)
+- **Delete endpoints**: Require `X-API-Key` only when `X_API_KEY` env is configured
+- **Running job protection**: Server-side guard blocks deleting jobs with `status: 'running'`
 
 ---
 
