@@ -28,7 +28,7 @@
 
 ## 🔐 Authentication
 
-### Public Endpoints (No Auth Required)
+### Public Endpoints (No API Key Input Required)
 - `/health` - System health check
 - `/model-health` - AI model health check
 - `/api/v1/data/health` - API health endpoint
@@ -36,8 +36,8 @@
 - `/api/v1/jobs/history` - Job execution history (read-only)
 - `/api/v1/jobs/runs` - Job run history for multi-run support (read-only)
 
-### Protected Endpoints (API Key Required)
-All other `/api/v1/*` endpoints require authentication:
+### Protected Endpoints (API Key Required When `X_API_KEY` Is Configured)
+When `X_API_KEY` is set in the environment, all non-public `/api/v1/*` endpoints require authentication:
 
 ```bash
 curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/api/v1/endpoint
@@ -45,20 +45,17 @@ curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/api/
 
 ### Frontend API Client (`cctApi`)
 
-**Storage Policy** (session-only, tab-bound):
-1. `sessionStorage.cct_api_key` - User-entered key (first priority)
-2. `window.CCT_API_KEY` - Baked-in fallback (personal use, set in `nav.js`)
+**Storage Policy**:
+1. `sessionStorage.cct_api_key` - Optional key (first priority)
+2. `window.CCT_API_KEY` - Optional fallback (set before loading `cct-api.js`)
 
 **⚠️ Security Note**: This is a personal system with `window.CCT_API_KEY = 'yanggf'` baked into `public/js/nav.js`. Before sharing or deploying publicly, remove or replace this value.
 
 **Timezone Default**: Asia/Taipei (baked-in fallback when no `tz` param or saved setting)
 
-**Setting the API Key**:
+**Setting the API Key (Optional)**:
 ```javascript
-// Via Settings UI (/settings.html)
-cctApi.setApiKey('your_key');
-
-// Or programmatically (must be before loading cct-api.js)
+// Programmatically (must be before loading cct-api.js)
 window.CCT_API_KEY = 'your_key';
 ```
 

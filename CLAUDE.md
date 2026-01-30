@@ -20,7 +20,7 @@ Guidance for Claude Code when working with this repository.
 
 **Decision Date**: 2026-01-29
 
-All endpoints are currently public until real login/auth is implemented:
+All endpoints public until real login/auth is implemented:
 - All `/api/v1/jobs/*` endpoints public (including delete)
 - Settings endpoints public
 - IP rate limiting active (api-security.ts:440-447)

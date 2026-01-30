@@ -399,6 +399,18 @@ export async function handleScheduledEvent(
             pre_market_run_id: intradayResult.pre_market_run_id || null
           };
         } else {
+          // Check if all symbols have incomplete/failed data
+          const allIncomplete = intradayResult.comparisons?.every((comp: any) => 
+            comp.comparison?.status === 'incomplete' || 
+            comp.intraday?.status === 'failed' ||
+            comp.intraday?.articles_count === 0
+          );
+          
+          if (allIncomplete) {
+            console.warn(`⚠️ [CRON-INTRADAY] ${cronExecutionId} All symbols incomplete - news fetch failed for all symbols`);
+            intradayHasEmptySymbols = true;  // Flag for partial status
+          }
+
           // Transform to scheduler expected shape
           // Note: symbols_analyzed must be a number (not array) to match intraday UI expectations
           // and be consistent with /api/v1/jobs/intraday endpoint
@@ -866,7 +878,7 @@ export async function handleScheduledEvent(
             // Use partial status for intraday with empty symbols (no pre-market data)
             const jobStatus = (d1ReportType === 'intraday' && intradayHasEmptySymbols) ? 'partial' : 'success';
             const warnings = (d1ReportType === 'intraday' && intradayHasEmptySymbols)
-              ? ['No pre-market data available for intraday comparison']
+              ? ['Intraday analysis incomplete - news fetch failed for all symbols or no pre-market data available']
               : undefined;
             await completeJobRun(env, {
               runId: activeRunId,

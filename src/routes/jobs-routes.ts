@@ -83,7 +83,7 @@ export async function handleJobsRoutes(
   const url = new URL(request.url);
 
   // Job endpoints are public unless X_API_KEY is configured
-  // Security decision 2026-01-29: Remove API key input UX, defer auth to future phase
+  // Security decision 2026-01-29: No API key input required in UI
 
   try {
     // POST /api/v1/jobs/pre-market - Execute pre-market analysis job (protected)
@@ -334,8 +334,8 @@ async function handleDeleteJobRun(
   timer: ProcessingTimer,
   request: Request
 ): Promise<Response> {
-  // No auth required during "No Auth Phase" (2026-01-29 decision)
-  // All /api/v1/jobs/* endpoints are public until real login/auth is implemented
+  // No Auth Phase (2026-01-29): All /api/v1/jobs/* endpoints public
+  // Delete uses centralized cctApi client but no API key input in UI
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -429,8 +429,8 @@ async function handleBatchDeleteJobRuns(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  // No auth required during "No Auth Phase" (2026-01-29 decision)
-  // All /api/v1/jobs/* endpoints are public until real login/auth is implemented
+  // No Auth Phase (2026-01-29): All /api/v1/jobs/* endpoints public
+  // Delete uses centralized cctApi client but no API key input in UI
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {

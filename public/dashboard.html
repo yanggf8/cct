@@ -394,15 +394,22 @@
         function formatRunTime(isoStr) {
             if (!isoStr) return '-';
             const d = new Date(isoStr);
-            const baseOpts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
-            if (userTimezone) {
-                try {
-                    return d.toLocaleString('en-US', { ...baseOpts, timeZone: userTimezone });
-                } catch {
-                    // Invalid timezone, fall back to browser default
-                }
-            }
-            return d.toLocaleString('en-US', baseOpts);
+            // Always use ET timezone for consistency with market hours
+            const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' };
+            return d.toLocaleString('en-US', opts);
+        }
+
+        // Format scheduled_date in ET timezone (America/New_York)
+        function formatDateET(dateStr) {
+            if (!dateStr) return '-';
+            // dateStr is YYYY-MM-DD, parse as noon UTC to avoid date shift issues
+            const d = new Date(dateStr + 'T12:00:00Z');
+            return d.toLocaleDateString('en-US', {
+                timeZone: 'America/New_York',
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+            });
         }
 
         // Track selected run IDs
@@ -562,7 +569,7 @@
                                 ${isChecked ? 'checked' : ''} ${!hasRunId || isRunning ? 'disabled' : ''} 
                                 onchange="toggleRunSelection('${run.run_id || ''}', this)">
                         </td>
-                        <td>${triggerIcon} ${run.scheduled_date}</td>
+                        <td>${triggerIcon} ${formatDateET(run.scheduled_date)}</td>
                         <td>${typeDisplay}</td>
                         <td><span class="run-status ${statusClass}">${statusIcon} ${run.status}</span></td>
                         <td>${formatRunTime(run.started_at)}</td>
@@ -589,11 +596,11 @@
                     <thead>
                         <tr>
                             <th><input type="checkbox" id="select-all-checkbox" class="select-all-checkbox" onchange="toggleSelectAll(this)" title="Select all"></th>
-                            <th>Date</th>
+                            <th title="Market date in Eastern Time">Market Date (ET)</th>
                             <th>Type</th>
                             <th>Status</th>
-                            <th>Started (Local)</th>
-                            <th>Completed (Local)</th>
+                            <th>Started (ET)</th>
+                            <th>Completed (ET)</th>
                             <th>Run ID</th>
                             <th>Actions</th>
                         </tr>

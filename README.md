@@ -37,21 +37,19 @@ See `PRE_MARKET_MULTI_RUN_FIX.md` for detailed analysis.
 - HTML handlers render proper HTML for `?run_id=` views (no JSON)
 - Navigation displays latest run status with partial indicators
 
-### **🔐 Auth Policy Overhaul (2026-01-15)**
-- ✅ **Protected Backend**: All `/api/v1/*` endpoints require auth except health checks
-- ✅ **Session-Only Keys**: API keys stored in sessionStorage (tab-bound, cleared on close)
-- ✅ **Baked-in Fallback**: `window.CCT_API_KEY` set via `nav.js` for convenience
-- ✅ **Settings UI**: API key input with clear button, auto-reloads data when key entered
+### **🔐 Auth Policy (No API Key Input Required, 2026-01-29)**
+- ✅ **Public by Default**: `/api/v1/*` endpoints are public unless `X_API_KEY` is configured
+- ✅ **Optional Keys**: API keys can be provided via `sessionStorage` or `window.CCT_API_KEY`
+- ✅ **No UI Prompt**: Settings no longer require API key input
 - ✅ **Centralized Client**: All pages use `cctApi` - no more direct `fetch()` calls
 
-**Public Endpoints** (no auth):
+**Public Endpoints** (no API key input required):
 - `/health` - System health
 - `/model-health` - AI model health
 - `/api/v1/data/health` - API health
 
-**Protected Endpoints** (require `X-API-KEY`):
-- All `/api/v1/*` except `/api/v1/data/health`
-- Jobs history, system status, API docs, settings, etc.
+**Protected Endpoints** (require `X-API-KEY` only when configured):
+- Non-public `/api/v1/*` endpoints when `X_API_KEY` is set
 
 ### **🕐 Local Time Display (2026-01-13)**
 - ✅ **Browser-Based Conversion**: Report schedules show both ET and user's local timezone
