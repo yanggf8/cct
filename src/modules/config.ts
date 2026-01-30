@@ -251,6 +251,12 @@ export interface SystemConfig {
   ERROR_MESSAGES: ErrorMessagesConfig;
 }
 
+// AI Model Display Names & IDs (single source of truth for frontend labels)
+export const AI_MODEL_DISPLAY = {
+  primary: { name: 'GPT-OSS 120B', short: 'GPT-OSS', id: '@cf/openai/gpt-oss-120b' },
+  secondary: { name: 'DeepSeek-R1', short: 'DeepSeek-R1', id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b' }
+} as const;
+
 // Configuration Object
 export const CONFIG: SystemConfig = {
   // API Timeouts (milliseconds)
@@ -325,7 +331,7 @@ export const CONFIG: SystemConfig = {
       primary: true
     },
     DISTILBERT: {
-      name: 'distilbert-sst-2-int8',
+      name: 'deepseek-r1-32b',
       fallback: true
     }
   },

@@ -13,6 +13,7 @@
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { getD1FallbackData, readD1ReportSnapshotByRunId } from '../d1-job-storage.js';
+import { AI_MODEL_DISPLAY } from '../config.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
@@ -932,11 +933,11 @@ function generateSignalCards(signals: any[]): string {
         const dualModelCards = hasDualModel ? `
           <div class="dual-model-grid">
             <div class="model-card">
-              <div class="model-name">Gemma Sea Lion</div>
+              <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
               <div class="model-result">${gemmaDir?.toUpperCase() || 'N/A'}</div>
             </div>
             <div class="model-card">
-              <div class="model-name">DistilBERT</div>
+              <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
               <div class="model-result">${distilbertDir?.toUpperCase() || 'N/A'}</div>
             </div>
           </div>

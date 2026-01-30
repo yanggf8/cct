@@ -5,6 +5,7 @@
 
 import { createLogger, logHealthCheck } from '../logging.js';
 import { createHealthHandler } from '../handler-factory.js';
+import { AI_MODEL_DISPLAY } from '../config.js';
 import { createHealthResponse } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
@@ -88,20 +89,20 @@ export async function handleModelHealth(
     // Test Cloudflare AI availability
     if (env.AI) {
       try {
-        // Test Gemma Sea Lion model with minimal input
-        const gptTest = await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+        // Test primary model with minimal input
+        const gptTest = await (env.AI as any).run(AI_MODEL_DISPLAY.primary.id, {
           messages: [{ role: 'user', content: 'Test' }],
           max_tokens: 5
         });
 
         healthResults.models.gpt_oss_120b = {
           status: 'healthy',
-          model: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+          model: AI_MODEL_DISPLAY.primary.id,
           test_response: (gptTest as any)?.response || 'Success',
           latency_ms: 'measured'
         };
 
-        logger.debug('Gemma Sea Lion model test successful', { requestId });
+        logger.debug(`${AI_MODEL_DISPLAY.primary.name} model test successful`, { requestId });
       } catch (gptError: any) {
         healthResults.models.gpt_oss_120b = {
           status: 'unhealthy',
@@ -109,36 +110,37 @@ export async function handleModelHealth(
         };
         healthResults.overall_status = 'degraded';
 
-        logger.warn('Gemma Sea Lion model test failed', {
+        logger.warn(`${AI_MODEL_DISPLAY.primary.name} model test failed`, {
           requestId,
           error: gptError.message
         });
       }
 
-      // Test DistilBERT model
+      // Test secondary model
       try {
-        const distilbertTest = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', {
-          text: 'Test sentiment'
+        const secondaryTest = await (env.AI as any).run(AI_MODEL_DISPLAY.secondary.id, {
+          messages: [{ role: 'user', content: 'Test' }],
+          max_tokens: 5
         });
 
         healthResults.models.distilbert = {
           status: 'healthy',
-          model: '@cf/huggingface/distilbert-sst-2-int8',
-          test_response: distilbertTest,
+          model: AI_MODEL_DISPLAY.secondary.id,
+          test_response: secondaryTest,
           latency_ms: 'measured'
         };
 
-        logger.debug('DistilBERT model test successful', { requestId });
-      } catch (distilbertError: any) {
+        logger.debug(`${AI_MODEL_DISPLAY.secondary.name} model test successful`, { requestId });
+      } catch (secondaryError: any) {
         healthResults.models.distilbert = {
           status: 'unhealthy',
-          error: distilbertError.message
+          error: secondaryError.message
         };
         healthResults.overall_status = 'degraded';
 
-        logger.warn('DistilBERT model test failed', {
+        logger.warn(`${AI_MODEL_DISPLAY.secondary.name} model test failed`, {
           requestId,
-          error: distilbertError.message
+          error: secondaryError.message
         });
       }
     } else {

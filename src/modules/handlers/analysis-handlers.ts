@@ -12,6 +12,7 @@ import { runIndependentTechnicalAnalysis } from '../independent_technical_analys
 import { analyzeSingleSymbol, type SymbolAnalysis } from '../per_symbol_analysis.js';
 import { createLogger } from '../logging.js';
 import { createHandler, createAPIHandler, type EnhancedContext } from '../handler-factory.js';
+import { AI_MODEL_DISPLAY } from '../config.js';
 import { createAnalysisResponse, type AnalysisResponseOptions } from '../response-factory.js';
 import { BusinessMetrics } from '../monitoring.js';
 import { getJobStatus, validateDependencies } from '../kv-utils.js';
@@ -179,8 +180,8 @@ export const handleManualAnalysis = createAPIHandler('enhanced-analysis', async 
       execution_time_ms: analysis.execution_metrics?.total_time_ms || 0,
       trigger: 'manual_analysis',
       ai_models: {
-        primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-        secondary: '@cf/huggingface/distilbert-sst-2-int8'
+        primary: AI_MODEL_DISPLAY.primary.id,
+        secondary: AI_MODEL_DISPLAY.secondary.id
       }
     }, 'manual-api');
     logger.info('D1 report snapshot write', { success: d1Written, dateStr, reportType: 'analysis' });

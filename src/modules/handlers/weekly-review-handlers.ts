@@ -6,6 +6,7 @@
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { generateWeeklyReviewAnalysis } from '../report/weekly-review-analysis.js';
+import { AI_MODEL_DISPLAY } from '../config.js';
 import { getWeeklyReviewData } from '../report-data-retrieval.js';
 import { readD1ReportSnapshot } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
@@ -318,16 +319,16 @@ function generateWeeklyReviewHTML(
             <h2 style="text-align: center; margin-bottom: 20px;">🤖 AI Model Performance</h2>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 800px; margin: 0 auto;">
                 <div class="summary-card">
-                    <h3>Gemma Sea Lion</h3>
+                    <h3>${AI_MODEL_DISPLAY.primary.name}</h3>
                     <div class="value">${normalizedData.modelStats?.gemma?.accuracy ? Math.round(normalizedData.modelStats.gemma.accuracy * 100) + '%' : 'N/A'}</div>
                     <div class="label">${normalizedData.modelStats?.gemma?.total || 0} predictions</div>
                     <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
-                        ✓ ${normalizedData.modelStats?.gemma?.success || 0} success | 
+                        ✓ ${normalizedData.modelStats?.gemma?.success || 0} success |
                         ✗ ${normalizedData.modelStats?.gemma?.failed || 0} failed
                     </div>
                 </div>
                 <div class="summary-card">
-                    <h3>DistilBERT</h3>
+                    <h3>${AI_MODEL_DISPLAY.secondary.name}</h3>
                     <div class="value">${normalizedData.modelStats?.distilbert?.accuracy ? Math.round(normalizedData.modelStats.distilbert.accuracy * 100) + '%' : 'N/A'}</div>
                     <div class="label">${normalizedData.modelStats?.distilbert?.total || 0} predictions</div>
                     <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">

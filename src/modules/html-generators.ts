@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from './logging.js';
+import { AI_MODEL_DISPLAY } from './config.js';
 
 // Type definitions
 interface Metric {
@@ -580,7 +581,7 @@ export function generateDualAISignalItem(signal: DualAISignal): string {
                 </div>
 
                 <div class="model-result">
-                    <h4><span class="model-icon">🧠</span> DistilBERT</h4>
+                    <h4><span class="model-icon">🧠</span> ${AI_MODEL_DISPLAY.secondary.name}</h4>
                     <div class="model-confidence-indicator">
                         <span class="model-direction ${distilbertResult.direction?.toLowerCase() || 'neutral'}">
                             ${distilbertResult.direction?.toUpperCase() || 'N/A'}

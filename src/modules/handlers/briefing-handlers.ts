@@ -13,6 +13,7 @@
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
 import { getD1FallbackData, getD1JobStatus, readD1ReportSnapshotByRunId } from '../d1-job-storage.js';
+import { AI_MODEL_DISPLAY } from '../config.js';
 import { validateRequest, validateEnvironment } from '../validation.js';
 import { validateApiKey } from '../api-v1-responses.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
@@ -561,11 +562,11 @@ function generateSignalCards(signals: any[]): string {
         ${signal.dual_model ? `
         <div class="dual-model-grid" style="margin-top: 10px;">
           <div class="model-card ${signal.dual_model.gemma?.status === 'failed' ? 'failed' : ''}">
-            <div class="model-name">Gemma</div>
+            <div class="model-name">${AI_MODEL_DISPLAY.primary.short}</div>
             <div class="model-status" style="font-size: 0.75rem;">${signal.dual_model.gemma?.status || 'N/A'}</div>
           </div>
           <div class="model-card ${signal.dual_model.distilbert?.status === 'failed' ? 'failed' : ''}">
-            <div class="model-name">DistilBERT</div>
+            <div class="model-name">${AI_MODEL_DISPLAY.secondary.short}</div>
             <div class="model-status" style="font-size: 0.75rem;">${signal.dual_model.distilbert?.status || 'N/A'}</div>
           </div>
         </div>
@@ -594,12 +595,12 @@ function generateSignalCards(signals: any[]): string {
     const dualModelCards = hasDualModel ? `
       <div class="dual-model-grid">
         <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
-          <div class="model-name">Gemma Sea Lion</div>
+          <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
           <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : gemma.direction ? '✓ SUCCESS' : '—'}</div>
           <div class="model-result">${gemma.direction?.toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
         </div>
         <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
-          <div class="model-name">DistilBERT</div>
+          <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
           <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : distilbert.direction ? '✓ SUCCESS' : '—'}</div>
           <div class="model-result">${distilbert.direction?.toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
         </div>
@@ -733,12 +734,12 @@ function generateMarketPulseSection(marketPulse: any): string {
             <div style="font-size: 0.8rem; color: rgba(250,248,245,0.6); margin-bottom: 8px;">AI Model Status:</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
               <div style="padding: 8px; background: rgba(${gemma?.status === 'success' ? '34,197,94' : gemma?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${gemma?.status === 'success' ? '34,197,94' : gemma?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
-                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">Gemma Sea Lion</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.primary.name}</div>
                 <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${gemma?.status?.toUpperCase() || 'N/A'}</div>
                 ${gemma?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${gemma.error}</div>` : ''}
               </div>
               <div style="padding: 8px; background: rgba(${distilbert?.status === 'success' ? '34,197,94' : distilbert?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${distilbert?.status === 'success' ? '34,197,94' : distilbert?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
-                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">DistilBERT</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.secondary.name}</div>
                 <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${distilbert?.status?.toUpperCase() || 'N/A'}</div>
                 ${distilbert?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${distilbert.error}</div>` : ''}
               </div>
@@ -799,12 +800,12 @@ function generateMarketPulseSection(marketPulse: any): string {
           ${hasDualModel ? `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
               <div style="padding: 8px; background: rgba(${gemma?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${gemma?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
-                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">Gemma Sea Lion</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.primary.name}</div>
                 <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${gemma?.direction?.toUpperCase() || 'N/A'}</div>
                 <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${gemma?.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
               </div>
               <div style="padding: 8px; background: rgba(${distilbert?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${distilbert?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
-                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">DistilBERT</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.secondary.name}</div>
                 <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${distilbert?.direction?.toUpperCase() || 'N/A'}</div>
                 <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${distilbert?.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
               </div>

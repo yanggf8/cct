@@ -24,7 +24,7 @@ import {
   type ReportType,
   type JobTriggerSource
 } from '../modules/d1-job-storage.js';
-import { getPortfolioSymbols } from '../modules/config.js';
+import { getPortfolioSymbols, AI_MODEL_DISPLAY } from '../modules/config.js';
 
 /**
  * Detect trigger source from request headers
@@ -916,8 +916,8 @@ async function handlePreMarketJob(
         processingTimeMs: timer.getElapsedMs(),
         symbolsRequested: symbols,
         ai_models: {
-          primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-          secondary: '@cf/huggingface/distilbert-sst-2-int8'
+          primary: AI_MODEL_DISPLAY.primary.id,
+          secondary: AI_MODEL_DISPLAY.secondary.id
         }
       },
       triggerSource,

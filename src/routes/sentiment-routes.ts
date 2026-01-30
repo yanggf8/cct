@@ -28,6 +28,7 @@ import {
 import { batchDualAIAnalysis, enhancedBatchDualAIAnalysis } from '../modules/dual-ai-analysis.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
+import { AI_MODEL_DISPLAY } from '../modules/config.js';
 import { createCacheInstance } from '../modules/cache-do.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -232,7 +233,7 @@ async function handleSentimentAnalysis(
       },
       metadata: {
         analysis_time_ms: timer.getElapsedMs(),
-        ai_models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
+        ai_models_used: [AI_MODEL_DISPLAY.primary.name, AI_MODEL_DISPLAY.secondary.name],
         data_sources: ['Yahoo Finance', 'News APIs'],
         ...((analysisResult as any).optimization && {
           optimization: {
@@ -378,7 +379,7 @@ async function handleSymbolSentiment(
             negative: transformedSignal.distilbert_negative || 0,
             neutral: transformedSignal.distilbert_neutral || 0,
           },
-          model: 'DistilBERT-SST-2',
+          model: AI_MODEL_DISPLAY.secondary.name,
         },
         agreement: {
           type: transformedSignal.agreement_type || 'DISAGREE',

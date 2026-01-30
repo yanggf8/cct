@@ -25,6 +25,7 @@ import {
 } from '../modules/validation.js';
 import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.js';
 import { createLogger } from '../modules/logging.js';
+import { AI_MODEL_DISPLAY } from '../modules/config.js';
 import { KVKeyFactory, KeyTypes } from '../modules/kv-key-factory.js';
 import { MemoryStaticDAL } from '../modules/memory-static-data.js';
 import type { CloudflareEnvironment } from '../types.js';
@@ -554,10 +555,10 @@ async function handleSystemStatus(
     };
     try {
       if (env.AI) {
-        // Test Gemma Sea Lion model
+        // Test primary model
         try {
           const gptStart = Date.now();
-          await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+          await (env.AI as any).run(AI_MODEL_DISPLAY.primary.id, {
             messages: [{ role: 'user', content: 'Hi' }],
             max_tokens: 5
           });
@@ -565,10 +566,13 @@ async function handleSystemStatus(
         } catch (e: any) {
           models.gemmaSeaLion = { status: 'unhealthy' };
         }
-        // Test DistilBERT model
+        // Test secondary model
         try {
           const bertStart = Date.now();
-          await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', { text: 'test' });
+          await (env.AI as any).run(AI_MODEL_DISPLAY.secondary.id, {
+            messages: [{ role: 'user', content: 'Hi' }],
+            max_tokens: 5
+          });
           models.distilbert = { status: 'healthy', responseTime: Date.now() - bertStart };
         } catch (e) {
           models.distilbert = { status: 'unhealthy' };
@@ -818,12 +822,12 @@ async function handleModelHealth(
       models: {
         gemma_sea_lion: {
           status: gptHealthy.status,
-          model: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
+          model: AI_MODEL_DISPLAY.primary.id,
           response_time_ms: gptHealthy.responseTime
         },
         distilbert: {
           status: distilbertHealthy.status,
-          model: '@cf/huggingface/distilbert-sst-2-int8',
+          model: AI_MODEL_DISPLAY.secondary.id,
           response_time_ms: distilbertHealthy.responseTime
         }
       },
@@ -1149,7 +1153,7 @@ async function handleSystemHealth(
 async function checkGPTModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
   try {
     const start = Date.now();
-    const result = await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+    const result = await (env.AI as any).run(AI_MODEL_DISPLAY.primary.id, {
       messages: [{ role: 'user', content: 'Health check test message' }],
       temperature: 0.1,
       max_tokens: 50
@@ -1164,11 +1168,12 @@ async function checkGPTModelHealth(env: CloudflareEnvironment): Promise<{ status
 async function checkDistilBERTModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
   try {
     const start = Date.now();
-    const result = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', {
-      text: 'Health check test sentiment'
+    const result = await (env.AI as any).run(AI_MODEL_DISPLAY.secondary.id, {
+      messages: [{ role: 'user', content: 'Health check test message' }],
+      max_tokens: 5
     });
     const responseTime = Date.now() - start;
-    return { status: result && result.length > 0 ? 'healthy' : 'unhealthy', responseTime };
+    return { status: result ? 'healthy' : 'unhealthy', responseTime };
   } catch {
     return { status: 'unhealthy' };
   }
@@ -1897,10 +1902,10 @@ Respond with JSON only:
 
     const results: any = { newsText, models: {} };
 
-    // Test Gemma Sea Lion
+    // Test primary model
     try {
       const start = Date.now();
-      const response = await (env.AI as any).run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+      const response = await (env.AI as any).run(AI_MODEL_DISPLAY.primary.id, {
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: 300
@@ -1914,14 +1919,18 @@ Respond with JSON only:
       results.models.gemmaSeaLion = { error: e.message };
     }
 
-    // Test DistilBERT (classification only)
+    // Test secondary model
     try {
       const start = Date.now();
-      const response = await env.AI.run('@cf/huggingface/distilbert-sst-2-int8', { text: newsText });
+      const response = await (env.AI as any).run(AI_MODEL_DISPLAY.secondary.id, {
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 300
+      });
       results.models.distilbert = {
         responseTime: Date.now() - start,
-        rawResponse: response,
-        parsed: Array.isArray(response) ? response[0] : response
+        rawResponse: response?.response || response,
+        parsed: tryParseJSON(response?.response || JSON.stringify(response))
       };
     } catch (e: any) {
       results.models.distilbert = { error: e.message };

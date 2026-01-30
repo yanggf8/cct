@@ -4,6 +4,7 @@
  */
 
 import { runPreMarketAnalysis, runWeeklyMarketCloseAnalysis } from './analysis.js';
+import { AI_MODEL_DISPLAY } from './config.js';
 import { runEnhancedAnalysis, runEnhancedPreMarketAnalysis } from './enhanced_analysis.js';
 import { generateWeeklyReviewAnalysis } from './report/weekly-review-analysis.js';
 import { performSectorRotationAnalysis } from './sector-rotation-workflow.js';
@@ -842,8 +843,8 @@ export async function handleScheduledEvent(
           const d1Metadata: Record<string, any> = {
             processingTimeMs: Date.now() - scheduledTime.getTime(),
             ai_models: {
-              primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-              secondary: '@cf/huggingface/distilbert-sst-2-int8'
+              primary: AI_MODEL_DISPLAY.primary.id,
+              secondary: AI_MODEL_DISPLAY.secondary.id
             }
           };
           if (d1ReportType === 'intraday') {

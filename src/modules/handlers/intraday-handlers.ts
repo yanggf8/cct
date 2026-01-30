@@ -6,6 +6,7 @@
 import { createLogger, type Logger } from '../logging.js';
 import { createHandler, type HandlerFunction, type EnhancedContext } from '../handler-factory.js';
 import { generateIntradayPerformance } from '../report/intraday-analysis.js';
+import { AI_MODEL_DISPLAY } from '../config.js';
 import { getIntradayCheckData } from '../report-data-retrieval.js';
 import { readD1ReportSnapshotByRunId, writeD1JobResult } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
@@ -459,8 +460,8 @@ export const handleIntradayCheck = createHandler(
       try {
         await writeD1JobResult(env, dateStr, 'intraday', intradayData, {
           ai_models: {
-            primary: '@cf/aisingapore/gemma-sea-lion-v4-27b-it',
-            secondary: '@cf/huggingface/distilbert-sst-2-int8'
+            primary: AI_MODEL_DISPLAY.primary.id,
+            secondary: AI_MODEL_DISPLAY.secondary.id
           }
         }, 'scheduler');
       } catch (e) { /* ignore D1 write errors */ }
@@ -546,8 +547,8 @@ function generateSymbolComparisonCard(comparison: IntradaySymbolComparison): str
             <span class="confidence">${conf}</span>
           </div>
           <div class="models-section">
-            ${renderModel(period.gemma, 'Gemma')}
-            ${renderModel(period.distilbert, 'DistilBERT')}
+            ${renderModel(period.gemma, AI_MODEL_DISPLAY.primary.short)}
+            ${renderModel(period.distilbert, AI_MODEL_DISPLAY.secondary.short)}
           </div>
           <div class="agreement-badge ${agreementClass}">${escapeHtml(period.agreement)}</div>
           <div class="reasoning">"${truncatedReasoning}"</div>
@@ -675,12 +676,12 @@ function generateSignalCards(signals: any[]): string {
     const dualModelCards = hasDualModel ? `
       <div class="dual-model-grid">
         <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
-          <div class="model-name">Gemma Sea Lion</div>
+          <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
           <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : '✓ SUCCESS'}</div>
           <div class="model-result">${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : 'N/A'}</div>
         </div>
         <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
-          <div class="model-name">DistilBERT</div>
+          <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
           <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : '✓ SUCCESS'}</div>
           <div class="model-result">${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : 'N/A'}</div>
         </div>

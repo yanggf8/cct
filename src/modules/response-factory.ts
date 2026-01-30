@@ -3,7 +3,7 @@
  * Type-safe, standardized API response formatting for consistent client interaction
  */
 
-import { CONFIG } from './config.js';
+import { CONFIG, AI_MODEL_DISPLAY } from './config.js';
 
 // Type Definitions
 export interface ResponseMetadata {
@@ -300,7 +300,7 @@ export function createAnalysisResponse(
     processingTime,
     averageConfidence: confidence,
     analysisType: 'dual-ai-comparison',
-    aiModels: ['GPT-OSS-120B', 'DistilBERT']
+    aiModels: [AI_MODEL_DISPLAY.primary.name, AI_MODEL_DISPLAY.secondary.name]
   };
 
   return createSuccessResponse(analysisData, metadata, {
