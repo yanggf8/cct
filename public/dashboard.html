@@ -614,18 +614,23 @@
         }
 
         async function deleteRun(runId) {
-            if (!confirm('Delete this job run? This cannot be undone.')) return;
+            console.log('[DELETE] Starting delete for runId:', runId);
+            console.log('[DELETE] API key from config:', window.CCT_API_KEY);
+            console.log('[DELETE] cctApi.apiKey:', cctApi.apiKey);
+            console.log('[DELETE] cctApi._getStoredKey():', cctApi._getStoredKey());
 
             try {
+                console.log('[DELETE] Calling cctApi.deleteJobRun...');
                 const data = await cctApi.deleteJobRun(runId);
+                console.log('[DELETE] Response:', data);
                 if (data.success) {
-                    alert('Run deleted successfully');
+                    console.log('[DELETE] Success - reloading');
                     loadAll();
                 } else {
-                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                    console.error('[DELETE] Failed:', data.error);
                 }
             } catch (e) {
-                alert('Delete failed: ' + e.message);
+                console.error('[DELETE] Exception:', e.message, e);
             }
         }
 
