@@ -6,8 +6,6 @@
  */
 
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { getMigrationManager, migrationMiddleware } from '../routes/migration-manager.js';
-import { legacyCompatibilityMiddleware } from '../routes/legacy-compatibility.js';
 import { authenticateRequest, unauthorizedResponse } from './api-auth-middleware.js';
 import { createLogger } from './logging.js';
 import { PerformanceMonitor } from './monitoring.js';
@@ -27,7 +25,6 @@ const logger = createLogger('enhanced-request-handler');
 export class EnhancedRequestHandler {
   private env: CloudflareEnvironment;
   private dal: ReturnType<typeof createSimplifiedEnhancedDAL>;
-  private migrationManager: ReturnType<typeof getMigrationManager>;
 
   constructor(env: CloudflareEnvironment) {
     this.env = env;
@@ -40,36 +37,8 @@ export class EnhancedRequestHandler {
       maxRetries: 3
     });
 
-    // Initialize migration manager
-    this.migrationManager = getMigrationManager(env, {
-      enableNewAPI: true,
-      enableLegacyCompatibility: true,
-      enableABTesting: false, // Start with full legacy compatibility
-      newAPITrafficPercentage: 10, // 10% new API traffic initially
-      enableMigrationLogging: true,
-      enablePerformanceComparison: true,
-      endpointSettings: {
-        '/health': {
-          enabled: true,
-          migratePercentage: 100, // Low risk, fully migrate
-          forceNewAPI: true
-        },
-        '/analyze': {
-          enabled: true,
-          migratePercentage: 25, // High priority, 25% initial
-          forceNewAPI: false
-        },
-        '/results': {
-          enabled: true,
-          migratePercentage: 10, // Start with 10%
-          forceNewAPI: false
-        }
-      }
-    });
-
     logger.info('Enhanced Request Handler initialized', {
       cacheEnabled: true,
-      migrationEnabled: true,
       environment: env.ENVIRONMENT || 'production'
     });
   }
@@ -98,22 +67,8 @@ export class EnhancedRequestHandler {
         return response;
       }
 
-      // Check for legacy endpoint compatibility
-      const legacyResponse = await legacyCompatibilityMiddleware(request, this.env);
-      if (legacyResponse) {
-        monitor.complete(legacyResponse);
-        return legacyResponse;
-      }
-
-      // Apply migration logic for non-legacy endpoints
-      const { useNewAPI, reason } = await migrationMiddleware(request, this.env, url.pathname);
-
-      // Route based on migration decision
-      if (useNewAPI) {
-        return await this.handleNewAPIRequest(request, monitor, ctx, reason);
-      } else {
-        return await this.handleLegacyRequest(request, monitor, ctx, reason);
-      }
+      // Route all requests through new API (legacy compatibility removed)
+      return await this.handleNewAPIRequest(request, monitor, ctx, 'direct');
 
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -218,19 +173,6 @@ export class EnhancedRequestHandler {
       response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
 
       monitor.complete(response);
-
-      // Record migration event
-      await (this as any).migrationManager.recordMigrationEvent({
-        type: 'new_api_request',
-        endpoint: url.pathname,
-        responseTime: Date.now() - startTime,
-        success: (response as any).ok,
-        metadata: {
-          reason,
-          responseStatus: (response as any).status
-        }
-      });
-
       return response;
 
     } catch (error: unknown) {
@@ -240,16 +182,6 @@ export class EnhancedRequestHandler {
         error: message,
         reason
       });
-
-      await (this as any).migrationManager.recordMigrationEvent({
-        type: 'migration_error',
-        endpoint: url.pathname,
-        responseTime: Date.now() - startTime,
-        success: false,
-        error: message,
-        metadata: { reason }
-      });
-
       throw error;
     }
   }
@@ -398,69 +330,6 @@ export class EnhancedRequestHandler {
   }
 
   /**
-   * Handle legacy requests with enhanced monitoring
-   */
-  private async handleLegacyRequest(
-    request: Request,
-    monitor: any,
-    ctx: ExecutionContext,
-    reason: string
-  ): Promise<Response> {
-    const url = new URL(request.url);
-    const startTime = Date.now();
-
-    logger.info('Handling legacy request', {
-      path: url.pathname,
-      method: request.method,
-      reason
-    });
-
-try {
-      // Handle request directly with enhanced logic
-      let response = await this.handleDirectRequest(request, ctx);
-
-      // Clone response with enhanced headers (Response headers are immutable)
-      const newHeaders = new Headers(response.headers);
-      newHeaders.set('X-Enhanced-System', 'true');
-      newHeaders.set('X-API-Version', 'legacy');
-      newHeaders.set('X-Migration-Reason', reason);
-      if (newHeaders.get('Content-Type')?.includes('text/html')) {
-        newHeaders.set('Content-Type', 'text/html; charset=utf-8');
-      }
-      response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
-
-      monitor.complete(response);
-
-      // Record migration event
-      await (this as any).migrationManager.recordMigrationEvent({
-        type: 'legacy_request',
-        endpoint: url.pathname,
-        responseTime: Date.now() - startTime,
-        success: (response as any).ok,
-        metadata: {
-          reason,
-          responseStatus: (response as any).status
-        }
-      });
-
-      return response;
-
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      await (this as any).migrationManager.recordMigrationEvent({
-        type: 'migration_error',
-        endpoint: url.pathname,
-        responseTime: Date.now() - startTime,
-        success: false,
-        error: message,
-        metadata: { reason }
-      });
-
-      throw error;
-    }
-  }
-
-  /**
    * Handle request directly with enhanced logic
    */
   private async handleDirectRequest(request: Request, ctx: ExecutionContext): Promise<Response> {
@@ -500,11 +369,10 @@ try {
   }
 
   /**
-   * Enhanced health check with DAL and migration status
+   * Enhanced health check with DAL status
    */
   private async handleEnhancedHealthCheck(): Promise<Response> {
     const dalStats = (this as any).dal.getPerformanceStats();
-    const migrationConfig = (this as any).migrationManager.getConfig();
 
     // Create DO cache instance to get comprehensive cache metrics
     let cacheData = null;
@@ -618,15 +486,8 @@ try {
         operations: dalStats.performance
       },
       cache: cacheData,
-      migration: {
-        enabled: migrationConfig.enableNewAPI,
-        legacy_compatibility: migrationConfig.enableLegacyCompatibility,
-        new_api_percentage: migrationConfig.newAPITrafficPercentage,
-        ab_testing: migrationConfig.enableABTesting
-      },
       endpoints: {
         api_v1: '/api/v1/*',
-        legacy_compatibility: 'Enabled',
         monitoring: '/api/v1/data/*'
       }
     }, null, 2), {
@@ -659,16 +520,14 @@ try {
   }
 
   /**
-   * Migration status endpoint
+   * Migration status endpoint (deprecated - legacy migration removed)
    */
   private async handleMigrationStatus(): Promise<Response> {
-    const stats = await (this as any).migrationManager.getMigrationStatistics();
-
     return new Response(JSON.stringify({
       success: true,
       timestamp: new Date().toISOString(),
-      migration: stats,
-      config: (this as any).migrationManager.getConfig()
+      message: 'Legacy migration system has been removed. All requests use the new API.',
+      status: 'deprecated'
     }, null, 2), {
       headers: { 'Content-Type': 'application/json' }
     });
@@ -769,10 +628,10 @@ try {
   }
 
   /**
-   * Expose migration statistics for external diagnostics.
+   * Migration statistics (deprecated - legacy migration removed)
    */
   public async getMigrationStatistics(): Promise<any> {
-    return await (this as any).migrationManager.getMigrationStatistics();
+    return { status: 'deprecated', message: 'Legacy migration system has been removed' };
   }
 }
 

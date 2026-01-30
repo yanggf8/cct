@@ -20,9 +20,51 @@ import { createLogger } from './logging.js';
 import { CircuitBreakerFactory } from './circuit-breaker.js';
 import { KeyHelpers } from './kv-key-factory.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
-import { FRED_SERIES, FredSeries } from './market-drivers.legacy.js';
 
 const logger = createLogger('fred-api-client');
+
+/**
+ * FRED Series IDs for economic data
+ */
+export const FRED_SERIES = {
+  // Interest Rates
+  FED_FUNDS_RATE: 'DFF',          // Federal Funds Rate
+  TREASURY_10Y: 'DGS10',          // 10-Year Treasury Constant Maturity Rate
+  TREASURY_2Y: 'DGS2',            // 2-Year Treasury Constant Maturity Rate
+  TREASURY_30D: 'DGS1MO',         // 1-Month Treasury Rate
+
+  // Inflation
+  CPI: 'CPIAUCSL',                // Consumer Price Index for All Urban Consumers
+  PPI: 'PPIACO',                  // Producer Price Index
+  CORE_CPI: 'CPILFESL',           // Core CPI (excludes food and energy)
+
+  // Employment
+  UNEMPLOYMENT_RATE: 'UNRATE',    // Unemployment Rate
+  NON_FARM_PAYROLLS: 'PAYEMS',    // All Employees: Non-Farm Payrolls
+  LABOR_FORCE_PARTICIPATION: 'CIVPART', // Labor Force Participation Rate
+
+  // Growth
+  REAL_GDP: 'GDPC1',              // Real Gross Domestic Product
+  GDP_GROWTH: 'A191RL1Q225SBEA',  // Real GDP: Percent Change from Preceding Period
+  INDUSTRIAL_PRODUCTION: 'IPMAN', // Industrial Production: Manufacturing
+
+  // Consumer
+  CONSUMER_CONFIDENCE: 'UMCSENT', // University of Michigan Consumer Sentiment
+  RETAIL_SALES: 'RSXFS',          // Retail and Food Services Sales
+
+  // Housing
+  BUILDING_PERMITS: 'PERMIT',     // New Private Housing Units Authorized by Building Permits
+  HOUSING_STARTS: 'HOUST',        // New Private Housing Units Started
+  EXISTING_HOME_SALES: 'MSPNHSUS', // Existing Home Sales
+
+  // Money Supply
+  M2_MONEY_SUPPLY: 'M2SL',        // M2 Money Supply
+
+  // Leading Indicators
+  LEADING_INDEX: 'USSLIND',       // Leading Index for the United States
+} as const;
+
+export type FredSeries = typeof FRED_SERIES[keyof typeof FRED_SERIES];
 
 /**
  * FRED API Configuration

@@ -461,115 +461,26 @@ export class MarketDriversManager {
   }
 
   /**
-   * Legacy fallback methods (for staging/development only)
+   * Legacy fallback methods - now throw errors (mock data removed)
    */
   private async getLegacySnapshot(): Promise<MarketDriversSnapshot> {
-    logger.warn('Using legacy market drivers with mock data');
-
-    // Import legacy modules only when needed
-    const { getMockMacroDrivers, getMockMarketStructure, getMockGeopoliticalRisk } = await import('./market-drivers.legacy.js');
-
-    const mockMacro = getMockMacroDrivers();
-    const mockStructure = getMockMarketStructure();
-    const mockGeopolitical = getMockGeopoliticalRisk();
-
-    return {
-      timestamp: new Date().toISOString(),
-      source: 'legacy',
-      dataIntegrity: false,
-      macro: this.transformLegacyToReal(mockMacro),
-      marketStructure: this.transformLegacyToReal(mockStructure),
-      geopolitical: this.transformLegacyToReal(mockGeopolitical),
-      regime: {
-        currentRegime: 'goldilocks',
-        confidence: 75,
-        riskLevel: 'medium',
-        description: 'Legacy mode - using mock data',
-        favoredSectors: ['Technology', 'Healthcare'],
-        avoidedSectors: ['Utilities'],
-        strategy: 'Balanced growth',
-        positionSizing: 'Moderate',
-        duration: '3-6 months',
-        previousRegime: 'risk_on',
-        regimeChangeDate: '2024-01-15',
-        stabilityScore: 80,
-        lastUpdated: new Date().toISOString()
-      },
-      apiHealth: {
-        fred: 'degraded',
-        yahooFinance: 'degraded',
-        newsService: 'degraded'
-      },
-      mockDataViolations: 10,
-      realDataCompliance: false
-    };
+    logger.error('Legacy fallback called - mock data has been removed');
+    throw new Error('Legacy mock data has been removed. Real data sources must be available.');
   }
 
   private async getLegacyMacroDrivers(): Promise<RealMacroDrivers> {
-    // Import legacy modules only when needed
-    const { getMockMacroDrivers } = await import('./market-drivers.legacy.js');
-    const mockMacro = getMockMacroDrivers();
-
-    return this.transformLegacyToReal(mockMacro);
+    logger.error('Legacy macro drivers fallback called - mock data has been removed');
+    throw new Error('Legacy mock data has been removed. Real data sources must be available.');
   }
 
   private async getLegacyMarketStructure(): Promise<RealMarketStructure> {
-    const { getMockMarketStructure } = await import('./market-drivers.legacy.js');
-    const mockStructure = getMockMarketStructure();
-
-    return this.transformLegacyToReal(mockStructure);
+    logger.error('Legacy market structure fallback called - mock data has been removed');
+    throw new Error('Legacy mock data has been removed. Real data sources must be available.');
   }
 
   private async getLegacyGeopoliticalRisk(): Promise<RealGeopoliticalRisk> {
-    const { getMockGeopoliticalRisk } = await import('./market-drivers.legacy.js');
-    const mockGeopolitical = getMockGeopoliticalRisk();
-
-    return this.transformLegacyToReal(mockGeopolitical);
-  }
-
-  /**
-   * Transform legacy mock data to real data format
-   */
-  private transformLegacyToReal(legacyData: any): any {
-    // Transform legacy mock data to use DataSourceResult format
-    const transformValue = (value: any, source: string, seriesId?: string) => ({
-      value,
-      timestamp: new Date().toISOString(),
-      source: source as 'FRED' | 'YahooFinance',
-      seriesId,
-      quality: 'medium' as const,
-      lastValidated: new Date().toISOString(),
-      confidence: 75
-    });
-
-    if (Array.isArray(legacyData)) {
-      return legacyData.map((item: any, index: number) => {
-        if (typeof item === 'object' && item !== null) {
-          return Object.keys(item).reduce((acc, key) => {
-            if (typeof item[key] === 'number') {
-              acc[key] = transformValue(item[key], 'FRED', `legacy_${key}_${index}`);
-            } else {
-              acc[key] = item[key];
-            }
-            return acc;
-          }, {});
-        }
-        return item;
-      });
-    }
-
-    if (typeof legacyData === 'object' && legacyData !== null) {
-      return Object.keys(legacyData).reduce((acc, key) => {
-        if (typeof legacyData[key] === 'number') {
-          acc[key] = transformValue(legacyData[key], 'FRED', key);
-        } else {
-          acc[key] = legacyData[key];
-        }
-        return acc;
-      }, {});
-    }
-
-    return legacyData;
+    logger.error('Legacy geopolitical risk fallback called - mock data has been removed');
+    throw new Error('Legacy mock data has been removed. Real data sources must be available.');
   }
 }
 

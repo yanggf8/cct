@@ -523,21 +523,35 @@ export class IntradayDataBridge {
         : [];
 
       // Transform to MorningPrediction format and return with run_id
+      // Match pre-market briefing's extraction logic for consistency
       return { predictions: signalsArray.map((signal: any) => ({
-        symbol: signal.symbol || signal.ticker, // Prefer signal.symbol, fallback to ticker
+        symbol: signal.symbol || signal.ticker,
         sentiment: signal.sentiment || signal.sentiment_layers?.[0]?.sentiment,
-        confidence: signal.confidence || signal.sentiment_layers?.[0]?.confidence || signal.dual_model?.gemma?.confidence,
+        // Match briefing-handlers.ts confidence extraction
+        confidence: signal.confidence_metrics?.overall_confidence ??
+          signal.enhanced_prediction?.confidence ??
+          signal.confidence ??
+          signal.sentiment_layers?.[0]?.confidence ??
+          signal.dual_model?.gemma?.confidence ??
+          0,
         articles_count: signal.articles_count || 0,
-        direction: signal.direction || signal.dual_model?.gemma?.direction || signal.dual_model?.distilbert?.direction, // Extract from dual_model if needed
+        // Match briefing-handlers.ts direction extraction
+        direction: signal.trading_signals?.primary_direction?.toLowerCase() ||
+          signal.direction ||
+          signal.sentiment_layers?.[0]?.sentiment ||
+          signal.dual_model?.gemma?.direction ||
+          signal.dual_model?.distilbert?.direction ||
+          'neutral',
         trading_signals: signal,
+        // Dual model fields (may be undefined for current pre-market format)
         gemma_status: signal.gemma_status || signal.dual_model?.gemma?.status,
-        gemma_error: signal.gemma_error,
+        gemma_error: signal.gemma_error || signal.dual_model?.gemma?.error,
         gemma_confidence: signal.gemma_confidence || signal.dual_model?.gemma?.confidence,
-        gemma_response_time_ms: signal.gemma_response_time_ms,
+        gemma_response_time_ms: signal.gemma_response_time_ms || signal.dual_model?.gemma?.response_time_ms,
         distilbert_status: signal.distilbert_status || signal.dual_model?.distilbert?.status,
-        distilbert_error: signal.distilbert_error,
+        distilbert_error: signal.distilbert_error || signal.dual_model?.distilbert?.error,
         distilbert_confidence: signal.distilbert_confidence || signal.dual_model?.distilbert?.confidence,
-        distilbert_response_time_ms: signal.distilbert_response_time_ms,
+        distilbert_response_time_ms: signal.distilbert_response_time_ms || signal.dual_model?.distilbert?.response_time_ms,
         model_selection_reason: signal.model_selection_reason || signal.dual_model?.selection_reason
       })), preMarketRunId: runId };
     } catch (error: unknown) {
