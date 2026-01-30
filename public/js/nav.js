@@ -1,7 +1,5 @@
 // Shared Navigation Component - Left Sidebar
-// API key is loaded from localStorage (persists) or sessionStorage (set via Settings page)
-// No hardcoded API key - user must configure via Settings
-window.CCT_API_KEY = localStorage.getItem('cct_api_key') || sessionStorage.getItem('cct_api_key') || '';
+// Auth is handled inside cctApi only (no API key handling here).
 
 (function() {
     // Status icons mapping
@@ -98,6 +96,31 @@ window.CCT_API_KEY = localStorage.getItem('cct_api_key') || sessionStorage.getIt
     function normalizePath(path) {
         if (path === '/') return '/dashboard.html';
         return path.replace(/\/$/, '');
+    }
+
+    async function waitForCctApi(timeoutMs = 5000) {
+        if (window.cctApi) return window.cctApi;
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+            const interval = setInterval(() => {
+                if (window.cctApi) {
+                    clearInterval(interval);
+                    resolve(window.cctApi);
+                } else if (Date.now() - start > timeoutMs) {
+                    clearInterval(interval);
+                    reject(new Error('cctApi not available'));
+                }
+            }, 50);
+
+            const onReady = () => {
+                if (window.cctApi) {
+                    clearInterval(interval);
+                    window.removeEventListener('cctapi:ready', onReady);
+                    resolve(window.cctApi);
+                }
+            };
+            window.addEventListener('cctapi:ready', onReady);
+        });
     }
 
     // Render status icon with tooltip
@@ -253,14 +276,12 @@ window.CCT_API_KEY = localStorage.getItem('cct_api_key') || sessionStorage.getIt
         if (!container) return;
 
         try {
-            // Fetch both status and runs in parallel
-            const [statusResponse, runsResponse] = await Promise.all([
-                fetch('/api/v1/reports/status?days=3'),
-                fetch('/api/v1/jobs/runs?days=3&limit=100')
+            const api = await waitForCctApi();
+            // Fetch both status and runs in parallel via cctApi (auth handled there)
+            const [statusResult, runsResult] = await Promise.all([
+                api.get('/reports/status', { days: 3 }),
+                api.get('/jobs/runs', { days: 3, limit: 100 })
             ]);
-
-            if (!statusResponse.ok) throw new Error('Status API error');
-            const statusResult = await statusResponse.json();
 
             if (!statusResult.success || !statusResult.data) {
                 throw new Error('Invalid status response');
@@ -268,11 +289,8 @@ window.CCT_API_KEY = localStorage.getItem('cct_api_key') || sessionStorage.getIt
 
             // Parse runs data (may fail gracefully)
             let runsData = [];
-            if (runsResponse.ok) {
-                const runsResult = await runsResponse.json();
-                if (runsResult.success && runsResult.data && runsResult.data.runs) {
-                    runsData = runsResult.data.runs;
-                }
+            if (runsResult && runsResult.success && runsResult.data && runsResult.data.runs) {
+                runsData = runsResult.data.runs;
             }
 
             // Group runs by date

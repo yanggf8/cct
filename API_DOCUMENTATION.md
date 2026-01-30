@@ -45,6 +45,8 @@ curl -H "X-API-KEY: your_key" https://tft-trading-system.yanggf.workers.dev/api/
 
 ### Frontend API Client (`cctApi`)
 
+All frontend API calls go through `cctApi`, which attaches `X-API-Key` automatically when configured.
+
 **Storage Policy**:
 1. `sessionStorage.cct_api_key` - Optional key (first priority)
 2. `window.CCT_API_KEY` - Optional fallback (set before loading `cct-api.js`)

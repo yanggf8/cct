@@ -222,9 +222,11 @@ export class IntradayDataBridge {
     const distilbertStatus = this.parseModelStatus(morning.distilbert_status);
 
     // Check if we have any valid data
+    // Fallback: If model status is missing but we have direction+confidence, treat as success
+    const hasValidData = morning.direction && morning.confidence !== null && morning.confidence > 0;
     const gemmaOk = gemmaStatus === 'success' && morning.gemma_confidence !== null;
     const distilbertOk = distilbertStatus === 'success' && morning.distilbert_confidence !== null;
-    const bothFailed = !gemmaOk && !distilbertOk;
+    const bothFailed = !gemmaOk && !distilbertOk && !hasValidData;
 
     // Determine overall status
     let status: 'success' | 'partial' | 'failed';
@@ -234,6 +236,9 @@ export class IntradayDataBridge {
       status = 'failed';
       overallError = [morning.gemma_error, morning.distilbert_error].filter(Boolean).join('; ') || 'No data from pre-market job';
     } else if (gemmaOk && distilbertOk) {
+      status = 'success';
+    } else if (hasValidData) {
+      // Legacy data without dual_model but has valid prediction
       status = 'success';
     } else {
       status = 'partial';

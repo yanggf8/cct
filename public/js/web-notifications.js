@@ -88,29 +88,40 @@ class WebNotificationClient {
 
     async sendSubscriptionToServer(subscription) {
         try {
-            // Use cctApi if available (includes auth), otherwise fall back to direct fetch
-            if (window.cctApi && window.cctApi.notificationsSubscribe) {
-                await window.cctApi.notificationsSubscribe({
-                    subscription: subscription,
-                    subscriptionId: this.subscriptionId
-                });
-            } else {
-                const response = await fetch(`${this.apiUrl}/notifications/subscribe`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        subscription: subscription,
-                        subscriptionId: this.subscriptionId
-                    })
-                });
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}`);
-                }
-            }
+            const api = await this.waitForCctApi();
+            await api.notificationsSubscribe({
+                subscription: subscription,
+                subscriptionId: this.subscriptionId
+            });
             console.log('Subscription sent to server');
         } catch (error) {
             console.error('Failed to send subscription to server:', error);
         }
+    }
+
+    async waitForCctApi(timeoutMs = 5000) {
+        if (window.cctApi) return window.cctApi;
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+            const interval = setInterval(() => {
+                if (window.cctApi) {
+                    clearInterval(interval);
+                    resolve(window.cctApi);
+                } else if (Date.now() - start > timeoutMs) {
+                    clearInterval(interval);
+                    reject(new Error('cctApi not available'));
+                }
+            }, 50);
+
+            const onReady = () => {
+                if (window.cctApi) {
+                    clearInterval(interval);
+                    window.removeEventListener('cctapi:ready', onReady);
+                    resolve(window.cctApi);
+                }
+            };
+            window.addEventListener('cctapi:ready', onReady);
+        });
     }
 
     async unsubscribe() {

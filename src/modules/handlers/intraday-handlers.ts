@@ -1006,7 +1006,10 @@ async function generateIntradayCheckHTML(
               </div>` : ''}
               ${formattedData.pre_market_run_id ? `<div class="run-id-display">
                 <span class="date-label">Pre-Market Run:</span>
-                <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${formattedData.pre_market_run_id.slice(-12)}</span>
+                <a href="/api/v1/reports/pre-market?run_id=${formattedData.pre_market_run_id}" 
+                   style="font-family: monospace; font-size: 0.85em; color: #007bff; text-decoration: none;"
+                   onmouseover="this.style.textDecoration='underline'" 
+                   onmouseout="this.style.textDecoration='none'">${formattedData.pre_market_run_id.slice(-12)}</a>
               </div>` : ''}
             </div>
         </div>

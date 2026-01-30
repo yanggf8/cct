@@ -41,7 +41,7 @@ See `PRE_MARKET_MULTI_RUN_FIX.md` for detailed analysis.
 - ✅ **Public by Default**: `/api/v1/*` endpoints are public unless `X_API_KEY` is configured
 - ✅ **Optional Keys**: API keys can be provided via `sessionStorage` or `window.CCT_API_KEY`
 - ✅ **No UI Prompt**: Settings no longer require API key input
-- ✅ **Centralized Client**: All pages use `cctApi` - no more direct `fetch()` calls
+- ✅ **Centralized Client**: All pages use `cctApi` for API calls; auth headers are added there when configured
 
 **Public Endpoints** (no API key input required):
 - `/health` - System health
