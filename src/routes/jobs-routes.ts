@@ -334,16 +334,8 @@ async function handleDeleteJobRun(
   timer: ProcessingTimer,
   request: Request
 ): Promise<Response> {
-  // Validate API key for destructive operation (only if X_API_KEY configured)
-  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
-    const auth = validateApiKey(request, env);
-    if (!auth.valid) {
-      return new Response(
-        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
-        { status: HttpStatus.UNAUTHORIZED, headers }
-      );
-    }
-  }
+  // No auth required during "No Auth Phase" (2026-01-29 decision)
+  // All /api/v1/jobs/* endpoints are public until real login/auth is implemented
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -437,16 +429,8 @@ async function handleBatchDeleteJobRuns(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  // Validate API key for destructive batch operation (only if X_API_KEY configured)
-  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
-    const auth = validateApiKey(request, env);
-    if (!auth.valid) {
-      return new Response(
-        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
-        { status: HttpStatus.UNAUTHORIZED, headers }
-      );
-    }
-  }
+  // No auth required during "No Auth Phase" (2026-01-29 decision)
+  // All /api/v1/jobs/* endpoints are public until real login/auth is implemented
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {

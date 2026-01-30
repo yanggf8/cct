@@ -21,10 +21,9 @@ Guidance for Claude Code when working with this repository.
 **Decision Date**: 2026-01-29
 
 All endpoints are currently public until real login/auth is implemented:
-- All `/api/v1/jobs/*` endpoints public (api-auth-middleware.ts:21-23)
+- All `/api/v1/jobs/*` endpoints public (including delete)
 - Settings endpoints public
 - IP rate limiting active (api-security.ts:440-447)
-- **Delete endpoints**: Require `X-API-Key` only when `X_API_KEY` env is configured
 - **Running job protection**: Server-side guard blocks deleting jobs with `status: 'running'`
 
 ---
@@ -134,17 +133,18 @@ Trigger → startJobRun() → job_run_results + job_date_results
 
 1. Complete code changes
 2. Run `npm run build`
-3. Present summary to user
-4. **WAIT for explicit approval**
-5. Then deploy
+3. Read deployment script to check flags (`scripts/deployment/deploy-production.sh`)
+4. Present summary to user
+5. **WAIT for explicit approval**
+6. Deploy with `--yes` flag to skip prompts
 
 ### Deploy Commands
 ```bash
-# Standard deployment (requires user auth)
-env -u CLOUDFLARE_API_TOKEN npx wrangler deploy
-
-# Full deployment
+# Standard deployment (interactive - prompts twice)
 npm run deploy
+
+# Non-interactive deployment (recommended for Claude Code)
+npm run deploy -- --yes
 
 # Frontend only (fastest for UI)
 npm run deploy:frontend:only
