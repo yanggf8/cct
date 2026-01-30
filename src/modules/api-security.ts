@@ -26,12 +26,12 @@ interface SecurityConfig {
 
 // Default security configuration
 const DEFAULT_CONFIG: SecurityConfig = {
-  apiRequestsPerMinute: 60,    // 60 requests per minute per API key
+  apiRequestsPerMinute: 120,   // 120 requests per minute per API key
   authRequestsPerMinute: 10,   // 10 auth attempts per minute per IP
-  burstAllowance: 10,          // Allow 10 burst requests
+  burstAllowance: 20,          // Allow 20 burst requests
   maxFailedAttempts: 5,        // 5 failed attempts triggers lockout
   lockoutDurationMs: 15 * 60 * 1000, // 15 minute lockout
-  ipRequestsPerMinute: 30,     // 30 requests per minute per IP
+  ipRequestsPerMinute: 120,    // 120 requests per minute per IP (dashboard needs ~10 on load)
   suspiciousActivityThreshold: 20 // Trigger alerts at this threshold
 };
 
