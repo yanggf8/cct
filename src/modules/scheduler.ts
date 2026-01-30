@@ -14,6 +14,7 @@ import { initializeRealTimeDataManager } from './real-time-data-manager.js';
 import { sendWeeklyReviewWithTracking } from './handlers/weekly-review-handlers.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { writeD1JobResult, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId, getD1FallbackData, readD1ReportSnapshotByRunId } from './d1-job-storage.js';
+import type { JobTriggerSource } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 /**
@@ -84,10 +85,12 @@ export async function handleScheduledEvent(
   controller: ScheduledController,
   env: CloudflareEnvironment,
   ctx: ExecutionContext,
-  overrideTriggerMode?: string
+  overrideTriggerMode?: string,
+  triggerSourceOverride?: JobTriggerSource
 ): Promise<Response> {
   const scheduledTime = new Date(controller.scheduledTime);
   const cronExecutionId = `cron_${Date.now()}`;
+  const runTriggerSource: JobTriggerSource = triggerSourceOverride ?? 'cron';
   let triggerMode: string;
   let predictionHorizons: number[];
   let runId: string | null = null;
@@ -184,7 +187,7 @@ export async function handleScheduledEvent(
       const runId = await startJobRun(env, {
         scheduledDate: dateStr,
         reportType: 'weekly',
-        triggerSource: 'cron'
+        triggerSource: runTriggerSource
       });
       const runTrackingEnabled = !!runId;
 
@@ -302,7 +305,7 @@ export async function handleScheduledEvent(
       const sectorRunId = await startJobRun(env, {
         scheduledDate: dateStr,
         reportType: 'sector-rotation',
-        triggerSource: 'cron'
+        triggerSource: runTriggerSource
       });
       const sectorRunTrackingEnabled = !!sectorRunId;
 
@@ -362,7 +365,7 @@ export async function handleScheduledEvent(
       intradayRunId = await startJobRun(env, {
         scheduledDate: dateStr,
         reportType: 'intraday',
-        triggerSource: 'cron'
+        triggerSource: runTriggerSource
       });
       intradayRunTrackingEnabled = !!intradayRunId;
 
@@ -466,7 +469,7 @@ export async function handleScheduledEvent(
       const runId = await startJobRun(env, {
         scheduledDate: dateStr,
         reportType: 'end-of-day',
-        triggerSource: 'cron'
+        triggerSource: runTriggerSource
       });
       const runTrackingEnabled = !!runId;
 
@@ -658,7 +661,7 @@ export async function handleScheduledEvent(
       runId = await startJobRun(env, {
         scheduledDate: dateStr,
         reportType: 'pre-market',
-        triggerSource: 'cron'
+        triggerSource: runTriggerSource
       });
       runTrackingEnabled = !!runId;
 
@@ -672,23 +675,77 @@ export async function handleScheduledEvent(
         await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'pre-market', stage: 'ai_analysis' });
       }
 
-      analysisResult = await runEnhancedPreMarketAnalysis(env, {
-        triggerMode,
-        predictionHorizons,
-        currentTime: estTime,
-        cronExecutionId,
-        jobContext: {
-          job_type: 'pre-market',
-          run_id: runId || undefined
+      try {
+        analysisResult = await runEnhancedPreMarketAnalysis(env, {
+          triggerMode,
+          predictionHorizons,
+          currentTime: estTime,
+          cronExecutionId,
+          jobContext: {
+            job_type: 'pre-market',
+            run_id: runId || undefined
+          }
+        });
+
+        if (runTrackingEnabled) {
+          await endJobStage(env, { runId, stage: 'ai_analysis' });
         }
-      });
 
-      if (runTrackingEnabled) {
-        await endJobStage(env, { runId, stage: 'ai_analysis' });
+        // Facebook messaging has been migrated to Chrome web notifications
+        console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
+      } catch (preMarketError: any) {
+        console.error(`❌ [CRON-PRE-MARKET] ${cronExecutionId} Pre-market analysis failed:`, {
+          error: preMarketError.message,
+          stack: preMarketError.stack
+        });
+        analysisResult = null;
+
+        // End dangling ai_analysis stage (try-path's endJobStage didn't execute)
+        if (runTrackingEnabled) {
+          await endJobStage(env, { runId, stage: 'ai_analysis' });
+        }
+        // Fall through: null analysisResult handled by else-if at line ~889
       }
+    }
 
-      // Facebook messaging has been migrated to Chrome web notifications
-      console.log(`📱 [CRON-FB] ${cronExecutionId} Facebook messaging disabled - using web notifications instead`);
+    // Validate pre-market result has actual usable signals (catch truthy-but-junk results)
+    if (analysisResult && triggerMode === 'morning_prediction_alerts') {
+      const symbolsAnalyzed = analysisResult.symbols_analyzed;
+      const symbolsCount = Array.isArray(symbolsAnalyzed)
+        ? symbolsAnalyzed.length
+        : (typeof symbolsAnalyzed === 'number' ? symbolsAnalyzed : 0);
+
+      const tradingSignals = analysisResult.trading_signals;
+      const signalList = (tradingSignals && typeof tradingSignals === 'object')
+        ? Object.values(tradingSignals)
+        : [];
+
+      const totalSignals = signalList.length;
+      const usableSignals = signalList.filter((signal: any) => {
+        const direction = (signal?.enhanced_prediction?.direction ?? signal?.direction ?? '').toString().toUpperCase();
+        if (!direction || direction === 'UNCLEAR') return false;
+
+        const rawConfidence =
+          signal?.confidence_metrics?.overall_confidence ??
+          signal?.enhanced_prediction?.confidence ??
+          signal?.confidence ??
+          null;
+        const confidence = (typeof rawConfidence === 'number') ? rawConfidence : null;
+        if (confidence === null) return false;
+        if (confidence <= 0) return false;
+        if (confidence > 1) return false;
+
+        return true;
+      }).length;
+
+      if (symbolsCount === 0 || totalSignals === 0 || usableSignals === 0) {
+        console.warn(`⚠️ [CRON-PRE-MARKET] ${cronExecutionId} Analysis returned no usable signals`, {
+          symbols_count: symbolsCount,
+          total_signals: totalSignals,
+          usable_signals: usableSignals
+        });
+        analysisResult = null;
+      }
     }
 
     // Store results in KV using DAL (ONLY for pre-market to prevent overwriting)

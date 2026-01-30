@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚀 SYSTEM STATUS - PRODUCTION READY
 
 **Status**: ✅ **PRODUCTION READY** - Multi-Run Support Complete
-- **Current Version**: Latest (2026-01-29 - Dashboard Timezone v3.10.16)
+- **Current Version**: Latest (2026-01-30 - Pre-Market False Success Fix v3.10.17)
 - **Test Coverage**: 93% (A-Grade) - 152+ tests across 10 comprehensive suites
 - **Security**: All P0/P1 vulnerabilities resolved ✅
 - **Authentication**: Enterprise-grade security with active protection ✅
@@ -38,6 +38,7 @@ When reporting is finished, start a dedicated security enhancement phase (real l
 
 | Feature | Status | Impact |
 |---------|--------|--------|
+| **Pre-Market False Success Fix v3.10.17** | ✅ Complete | Pre-market analysis errors no longer produce “success with junk data”. Scheduler now (1) catches/ends dangling `ai_analysis` stage, (2) rejects truthy-but-unusable results (all `UNCLEAR` / 0-confidence), routing into the standard failure path, (3) records accurate `trigger_source` for `/api/v1/jobs/trigger`-initiated runs, and (4) fixes dashboard header to avoid claiming ET for all runs. `.kiro/` added to `.gitignore`. |
 | **Dashboard Timezone v3.10.16** | ✅ Complete | Job history timestamps now display in user's configured timezone from Settings. `formatRunTime()` (dashboard.html:381-393) uses localStorage `cct_timezone` with API fallback, graceful error handling for invalid timezones |
 | **EOD Display & No Auth v3.10.15** | ✅ Complete | EOD data transformation (`transformEodDataForFrontend()` at eod-handlers:766-833) maps stored schema to frontend. **Auth removed**: all `/api/v1/jobs/*` public (api-auth-middleware.ts:21-23), settings public (api-v1.ts:272), API key input removed from settings.html |
 | **Security & Cache Fixes v3.10.14** | ✅ Complete | XSS: `escapeJs()` (eod-handlers:778,787-788), `escapeHtml()` via `formatErrorsJson()` (eod-handlers:765,794,799-807). Cache: pre-market shape gate (scheduler:495-497,509-513), write restriction (scheduler:694-697). Auth: two-layer bypass for stages endpoint (jobs-routes:87-93 + api-auth-middleware:26-28,66-67). Rate limiting (api-security:440-447). EOD D1 fallback verified (73% accuracy, B+ grade) |
@@ -712,9 +713,10 @@ Transform from individual stock analysis to institutional-grade market intellige
 
 ---
 
-**Last Updated**: 2026-01-29
-**Current Version**: Production Ready with Dashboard Timezone v3.10.16
+**Last Updated**: 2026-01-30
+**Current Version**: Production Ready with Pre-Market False Success Fix v3.10.17
 **Major Updates**:
+- **Pre-Market False Success Fix v3.10.17**: (1) Scheduler wraps pre-market analysis and closes dangling `ai_analysis` stage on exceptions. (2) Validates usability (fails if all signals are `UNCLEAR` or have non-positive/invalid confidence) and routes to the existing failure path. (3) `/api/v1/jobs/trigger` now passes derived source into the scheduler, so D1 `trigger_source` distinguishes `github_actions` vs `manual` vs `cron`. (4) Dashboard no longer labels `scheduled_date` as “ET”. (5) `.kiro/` ignored in git.
 - **Dashboard Timezone v3.10.16**: Job history timestamps in dashboard now display in user's configured timezone from Settings page. Uses localStorage cache for speed with API fallback, graceful error handling for invalid timezone values.
 - **Security & Cache Fixes v3.10.14**: (1) XSS prevention: HTML/JS escaping for runId and errors/warnings in EOD page. (2) EOD cache validation: only accepts pre-market shaped data (trigger_mode + trading_signals check). (3) Only pre-market writes to `analysis_${dateStr}` cache. (4) Stages endpoint truly public for GET requests.
 - **EOD Failure Diagnostics v3.10.13**: End-of-day report page now displays comprehensive failure diagnostics when viewing failed/partial job runs. Shows status badge (❌/⚠️), last failed stage, formatted errors/warnings, and complete stage timeline with timestamps. New endpoint: `GET /api/v1/jobs/runs/:runId/stages`.

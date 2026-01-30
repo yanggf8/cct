@@ -508,7 +508,23 @@ async function handleJobTrigger(
     );
   }
 
-  logger.info('Manual job trigger', { triggerMode, requestId });
+  // Log derived trigger source for debugging duplicate runs
+  const explicitTriggerSourceHeader = request.headers.get('X-Trigger-Source') || null;
+  const detectedTriggerSource = detectTriggerSource(request);
+  const navTriggerSource = mapTriggerSource(detectedTriggerSource);
+  const userAgent = request.headers.get('User-Agent') || 'unknown';
+  const cfRay = request.headers.get('CF-Ray') || 'unknown';
+
+  logger.info('Job trigger request', {
+    triggerMode,
+    requestId,
+    detectedTriggerSource,
+    navTriggerSource,
+    explicitTriggerSourceHeader,
+    userAgent,
+    cfRay,
+    timestamp: new Date().toISOString()
+  });
 
   // Derive scheduled time based on triggerMode (GitHub Actions manual triggers)
   const now = new Date();
@@ -545,7 +561,7 @@ async function handleJobTrigger(
   const controller = { scheduledTime };
   const ctx = { waitUntil: (p: Promise<any>) => p, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
 
-  const result = await handleScheduledEvent(controller, env, ctx, triggerMode);
+  const result = await handleScheduledEvent(controller, env, ctx, triggerMode, navTriggerSource);
   const resultBody = await result.text();
 
   if (result.status !== 200) {
