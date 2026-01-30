@@ -334,8 +334,17 @@ async function handleDeleteJobRun(
   timer: ProcessingTimer,
   request: Request
 ): Promise<Response> {
-  // No Auth Phase (2026-01-29): All /api/v1/jobs/* endpoints public
-  // Delete uses centralized cctApi client but no API key input in UI
+  // Auth via cctApi - key loaded from frontend config.js
+  // Server validates when X_API_KEY is configured
+  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
+    const auth = validateApiKey(request, env);
+    if (!auth.valid) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+        { status: HttpStatus.UNAUTHORIZED, headers }
+      );
+    }
+  }
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -429,8 +438,17 @@ async function handleBatchDeleteJobRuns(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  // No Auth Phase (2026-01-29): All /api/v1/jobs/* endpoints public
-  // Delete uses centralized cctApi client but no API key input in UI
+  // Auth via cctApi - key loaded from frontend config.js
+  // Server validates when X_API_KEY is configured
+  if (env.X_API_KEY && env.X_API_KEY.trim().length > 0) {
+    const auth = validateApiKey(request, env);
+    if (!auth.valid) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+        { status: HttpStatus.UNAUTHORIZED, headers }
+      );
+    }
+  }
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {

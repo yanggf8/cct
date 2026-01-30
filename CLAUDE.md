@@ -16,15 +16,18 @@ Guidance for Claude Code when working with this repository.
 
 ---
 
-## Security Policy (No Auth Phase)
+## Security Policy (No API Key Input Required)
 
 **Decision Date**: 2026-01-29
 
-All endpoints public until real login/auth is implemented:
-- All `/api/v1/jobs/*` endpoints public (including delete)
-- Settings endpoints public
+No manual API key input UI - auth handled via centralized config:
+- **Frontend**: `public/js/config.js` sets `window.CCT_API_KEY`
+- **cctApi**: Loads key from config, attaches `X-API-Key` header to all requests
+- **Server**: Validates when `X_API_KEY` secret is configured
 - IP rate limiting active (api-security.ts:440-447)
 - **Running job protection**: Server-side guard blocks deleting jobs with `status: 'running'`
+
+Future: Replace config.js with login-based token system.
 
 ---
 
@@ -56,7 +59,7 @@ Self-documenting at `/api/v1`. Key endpoint groups:
 | **Data** | 10 | `GET /data/health`, `/symbols`, `/system-status` |
 | **Cache** | 7 | `GET /cache/health`, `/metrics` |
 
-**Frontend Client**: `public/js/cct-api.js` - singleton `cctApi` with retry logic
+**Frontend Client**: `public/js/cct-api.js` - singleton `cctApi` with retry logic; all endpoints are called through it and auth headers are attached there when configured
 
 ---
 
