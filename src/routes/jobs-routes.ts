@@ -82,7 +82,7 @@ export async function handleJobsRoutes(
   const requestId = generateRequestId();
   const url = new URL(request.url);
 
-  // Job endpoints are public unless X_API_KEY is configured
+  // Job endpoints require API key validation; cctApi attaches X-API-Key
   // Security decision 2026-01-29: No API key input required in UI
 
   try {
@@ -334,8 +334,14 @@ async function handleDeleteJobRun(
   timer: ProcessingTimer,
   request: Request
 ): Promise<Response> {
-  // Auth handled by cctApi on frontend - server trusts requests
-  // Real auth will be added when login is implemented
+  // Server validates API key - frontend sends via cctApi
+  const auth = validateApiKey(request, env);
+  if (!auth.valid) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+      { status: HttpStatus.UNAUTHORIZED, headers }
+    );
+  }
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
@@ -429,8 +435,14 @@ async function handleBatchDeleteJobRuns(
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
-  // Auth handled by cctApi on frontend - server trusts requests
-  // Real auth will be added when login is implemented
+  // Server validates API key - frontend sends via cctApi
+  const auth = validateApiKey(request, env);
+  if (!auth.valid) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+      { status: HttpStatus.UNAUTHORIZED, headers }
+    );
+  }
 
   const db = env.PREDICT_JOBS_DB;
   if (!db) {
