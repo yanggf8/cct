@@ -2,9 +2,9 @@
 
 ## System Overview
 
-**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.19 | **Status**: Production Ready
+**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.20 | **Status**: Production Ready
 
-- Dual AI: Gemma Sea Lion 27B + DistilBERT-SST-2
+- Dual AI: GPT-OSS 120B (reasoning) + DeepSeek-R1 32B (reasoning)
 - 4-Moment workflow: Pre-Market → Intraday → End-of-Day → Weekly
 - Durable Objects cache (<1ms), multi-run job history with `?run_id=`
 
@@ -23,11 +23,12 @@
 
 | Model | ID | Note |
 |-------|-----|------|
-| Primary | `@cf/aisingapore/gemma-sea-lion-v4-27b-it` | Contextual analysis |
-| Secondary | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | Reasoning (SOTA) |
-| ~~Deprecated~~ | `@cf/huggingface/distilbert-sst-2-int8` | Replaced by DeepSeek-R1 |
+| Primary | `@cf/openai/gpt-oss-120b` | Native `reasoning: { effort: 'high' }`, paid ($0.35/$0.75 per M tokens) |
+| Secondary | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | `<think>` reasoning prompt, free tier |
 
-On failure: `status: 'failed', confidence: null` - no fake data.
+- **Config**: `AI_MODEL_DISPLAY` in `src/modules/config.ts` (backend), `CCT_MODELS` in `public/js/config.js` (frontend)
+- **Legacy field names**: `gpt` (primary) and `distilbert` (secondary) kept in D1/API for backward compat
+- On failure: `status: 'failed', confidence: null` - no fake data
 
 ---
 
