@@ -57,9 +57,10 @@ class CCTApi {
       ...options.headers
     };
 
-    // Always add API key
-    if (this.apiKey) {
-      headers['X-API-Key'] = this.apiKey;
+    // Always add API key (re-read to catch late config.js load)
+    const apiKey = this.apiKey || this._getStoredKey();
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey;
     }
 
     const config = {
@@ -283,3 +284,6 @@ const cctApi = new CCTApi();
 // Export for global access
 window.cctApi = cctApi;
 window.CCTApi = CCTApi;
+try {
+  window.dispatchEvent(new Event('cctapi:ready'));
+} catch {}
