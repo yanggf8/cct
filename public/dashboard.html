@@ -129,6 +129,17 @@
         }
         .delete-btn:hover { background: var(--red); color: #fff; }
         .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .delete-selected-btn {
+            background: var(--red); border: none; color: #fff;
+            padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;
+            font-size: 0.8rem; transition: all 0.2s ease; display: none;
+        }
+        .delete-selected-btn:hover { background: #dc2626; transform: translateY(-1px); }
+        .delete-selected-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .delete-selected-btn.visible { display: inline-block; }
+        .run-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
+        .select-all-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
+        .selection-info { font-size: 0.85rem; color: var(--text-muted); margin-left: 10px; }
         .trigger-btn {
             background: linear-gradient(135deg, var(--gold), var(--gold-bright));
             border: none; color: #000; padding: 6px 14px; border-radius: 6px;
@@ -161,7 +172,9 @@
         <div class="section">
             <div class="section-header">
                 🗂️ Job Run History
+                <span id="selection-info" class="selection-info"></span>
                 <div style="display: flex; gap: 8px; margin-left: auto;">
+                    <button id="delete-selected-btn" class="delete-selected-btn" onclick="deleteSelectedRuns()">🗑️ Delete Selected</button>
                     <button class="trigger-btn" onclick="triggerJob('pre-market')">+ Pre-Market</button>
                     <button class="trigger-btn" onclick="triggerJob('intraday')">+ Intraday</button>
                     <button class="trigger-btn" onclick="triggerJob('end-of-day')">+ End-of-Day</button>
@@ -392,12 +405,118 @@
             return d.toLocaleString('en-US', baseOpts);
         }
 
+        // Track selected run IDs
+        let selectedRunIds = new Set();
+
+        function updateSelectionUI() {
+            const btn = document.getElementById('delete-selected-btn');
+            const info = document.getElementById('selection-info');
+            const count = selectedRunIds.size;
+            
+            if (count > 0) {
+                btn.classList.add('visible');
+                btn.textContent = `🗑️ Delete Selected (${count})`;
+                info.textContent = `${count} selected`;
+            } else {
+                btn.classList.remove('visible');
+                info.textContent = '';
+            }
+
+            // Update "Select All" checkbox state
+            const selectAllCheckbox = document.getElementById('select-all-checkbox');
+            if (selectAllCheckbox) {
+                const selectableRuns = jobRuns.filter(r => r.status !== 'running');
+                if (selectableRuns.length === 0) {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = false;
+                } else if (selectedRunIds.size === selectableRuns.length) {
+                    selectAllCheckbox.checked = true;
+                    selectAllCheckbox.indeterminate = false;
+                } else if (selectedRunIds.size > 0) {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = true;
+                } else {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = false;
+                }
+            }
+        }
+
+        function toggleRunSelection(runId, checkbox) {
+            if (checkbox.checked) {
+                selectedRunIds.add(runId);
+            } else {
+                selectedRunIds.delete(runId);
+            }
+            updateSelectionUI();
+        }
+
+        function toggleSelectAll(checkbox) {
+            if (checkbox.checked) {
+                // Select all non-running runs
+                jobRuns.forEach(run => {
+                    if (run.status !== 'running') {
+                        selectedRunIds.add(run.run_id);
+                    }
+                });
+            } else {
+                selectedRunIds.clear();
+            }
+            // Update individual checkboxes
+            document.querySelectorAll('.run-checkbox').forEach(cb => {
+                const runId = cb.dataset.runId;
+                cb.checked = selectedRunIds.has(runId);
+            });
+            updateSelectionUI();
+        }
+
+        async function deleteSelectedRuns() {
+            const count = selectedRunIds.size;
+            if (count === 0) return;
+
+            if (!confirm(`Delete ${count} selected job run${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+            const btn = document.getElementById('delete-selected-btn');
+            btn.disabled = true;
+            btn.textContent = '🗑️ Deleting...';
+
+            try {
+                const runIds = Array.from(selectedRunIds);
+                const data = await cctApi.deleteJobRuns(runIds);
+                
+                if (data.success) {
+                    const { deletedCount, failedCount } = data.data;
+                    if (failedCount > 0) {
+                        alert(`Deleted ${deletedCount} run(s). ${failedCount} failed to delete.`);
+                    } else {
+                        alert(`Successfully deleted ${deletedCount} run(s).`);
+                    }
+                    selectedRunIds.clear();
+                    updateSelectionUI();
+                    loadAll();
+                } else {
+                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Delete failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                updateSelectionUI();
+            }
+        }
+
         function renderRunsSection() {
             const container = document.getElementById('runs-section');
             if (jobRuns.length === 0) {
                 container.innerHTML = '<div class="loading">No job runs found</div>';
+                selectedRunIds.clear();
+                updateSelectionUI();
                 return;
             }
+
+            // Clear selections that no longer exist
+            const currentRunIds = new Set(jobRuns.map(r => r.run_id));
+            selectedRunIds = new Set([...selectedRunIds].filter(id => currentRunIds.has(id)));
 
             const reportLinks = {
                 'pre-market': '/pre-market-briefing',
@@ -430,8 +549,16 @@
                     ? '<span class="trigger-icon manual" title="Manually triggered">👤</span>'
                     : '<span class="trigger-icon scheduled" title="Scheduled (GitHub Actions)">⏰</span>';
 
+                const isRunning = run.status === 'running';
+                const isChecked = selectedRunIds.has(run.run_id);
+
                 return `
                     <tr>
+                        <td>
+                            <input type="checkbox" class="run-checkbox" data-run-id="${run.run_id}" 
+                                ${isChecked ? 'checked' : ''} ${isRunning ? 'disabled' : ''} 
+                                onchange="toggleRunSelection('${run.run_id}', this)">
+                        </td>
                         <td>${triggerIcon} ${run.scheduled_date}</td>
                         <td>${typeDisplay}</td>
                         <td><span class="run-status ${statusClass}">${statusIcon} ${run.status}</span></td>
@@ -439,7 +566,7 @@
                         <td>${formatRunTime(run.executed_at)}</td>
                         <td><span class="run-id">${run.run_id?.slice(-12) || '-'}</span></td>
                         <td>
-                            <button class="delete-btn" onclick="deleteRun('${run.run_id}')" ${run.status === 'running' ? 'disabled' : ''}>🗑️ Delete</button>
+                            <button class="delete-btn" onclick="deleteRun('${run.run_id}')" ${isRunning ? 'disabled' : ''}>🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -458,6 +585,7 @@
                 <table class="runs-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="select-all-checkbox" class="select-all-checkbox" onchange="toggleSelectAll(this)" title="Select all"></th>
                             <th>Date</th>
                             <th>Type</th>
                             <th>Status</th>
@@ -470,6 +598,8 @@
                     <tbody>${rows}</tbody>
                 </table>
             `;
+
+            updateSelectionUI();
         }
 
         async function deleteRun(runId) {

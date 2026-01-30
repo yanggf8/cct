@@ -8,7 +8,7 @@ import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { createLogger } from './logging.js';
 import { batchDualAIAnalysis, performDualAIComparison } from './dual-ai-analysis.js';
 import { extractDualModelData } from './data.js';
-import { createDACArticlesPoolClientV2 } from './dac-articles-pool-v2.js';
+import { getFreeStockNews } from './free_sentiment_pipeline.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('pre-market-data-bridge');
@@ -268,7 +268,7 @@ export class PreMarketDataBridge {
 
   /**
    * Generate Market Pulse data for market index sentiment (v3.10.0)
-   * Fetches SPY articles from DAC and analyzes market sentiment
+   * Fetches SPY news via Finnhub pipeline (same as other symbols)
    * Uses 1-hour cache to reduce AI calls
    * Returns failure info instead of null for better observability
    */
@@ -318,56 +318,21 @@ export class PreMarketDataBridge {
         logger.info('PreMarketDataBridge: Cache expired, regenerating market pulse');
       }
 
-      // Get DAC client - map WORKER_API_KEY to X_API_KEY as expected by factory
-      if (!this.env.DAC_BACKEND) {
-        const error = 'DAC_BACKEND service binding not configured';
-        logger.warn('PreMarketDataBridge: ' + error);
-        return unavailableResponse(error);
-      }
+      // Fetch SPY news using standard Finnhub pipeline (same as other symbols)
+      const spyNews = await getFreeStockNews('SPY', this.env);
 
-      if (!this.env.WORKER_API_KEY) {
-        const error = 'WORKER_API_KEY secret not configured';
-        logger.warn('PreMarketDataBridge: ' + error);
-        return unavailableResponse(error);
-      }
-
-      const dacClient = createDACArticlesPoolClientV2({
-        DAC_BACKEND: this.env.DAC_BACKEND as any,
-        X_API_KEY: this.env.WORKER_API_KEY
-      });
-      if (!dacClient) {
-        const error = 'DAC client creation failed';
+      if (!spyNews || spyNews.length === 0) {
+        const error = 'No SPY news available from Finnhub/fallback sources';
         logger.warn('PreMarketDataBridge: ' + error);
         return failureResponse(error);
       }
 
-      // Fetch SPY articles from DAC market pool
-      const marketArticles = await dacClient.getMarketArticles('SPY');
-
-      if (!marketArticles.success) {
-        const error = `DAC fetch failed: ${marketArticles.errorMessage || marketArticles.error || 'unknown'}`;
-        logger.warn('PreMarketDataBridge: No SPY articles available for market pulse', {
-          error: marketArticles.error,
-          errorMessage: marketArticles.errorMessage
-        });
-        return failureResponse(error);
-      }
-
-      if (marketArticles.articles.length === 0) {
-        const error = 'No SPY articles in DAC pool - harvest may be needed';
-        logger.warn('PreMarketDataBridge: ' + error);
-        return failureResponse(error);
-      }
-
-      logger.info('PreMarketDataBridge: Fetched SPY articles from DAC', {
-        count: marketArticles.articles.length,
-        source: marketArticles.metadata?.source,
-        freshCount: marketArticles.metadata?.freshCount
+      logger.info('PreMarketDataBridge: Fetched SPY news via Finnhub pipeline', {
+        count: spyNews.length
       });
 
-      // Run dual AI analysis on SPY with the fetched articles directly
-      // Cast to compatible type - runtime fields are the same (title, summary, source)
-      const result = await performDualAIComparison('SPY', marketArticles.articles as any, this.env);
+      // Run dual AI analysis on SPY with the fetched news
+      const result = await performDualAIComparison('SPY', spyNews, this.env);
 
       if (result.error || (!result.models?.gpt && !result.models?.distilbert)) {
         const error = `AI analysis failed: ${result.error || 'both models returned no results'}`;
@@ -380,8 +345,8 @@ export class PreMarketDataBridge {
           symbol: 'SPY',
           name: 'S&P 500 ETF',
           status: 'failed',
-          articles_count: marketArticles.articles.length,
-          source: marketArticles.metadata?.source || 'DAC',
+          articles_count: spyNews.length,
+          source: 'Finnhub',
           error,
           dual_model: {
             gemma: result.models?.gpt ? {
@@ -410,8 +375,8 @@ export class PreMarketDataBridge {
         status: 'success',
         direction: this.normalizeSentiment(selectedModel!.direction),
         confidence: selectedModel!.confidence,
-        articles_count: marketArticles.articles.length,
-        source: marketArticles.metadata?.source || 'DAC',
+        articles_count: spyNews.length,
+        source: 'Finnhub',
         reasoning: selectedModel!.reasoning,
         dual_model: {
           gemma: result.models.gpt ? {

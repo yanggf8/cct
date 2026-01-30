@@ -253,6 +253,7 @@ class CCTApi {
   jobsLatest() { return this.get('/jobs/latest'); }
   jobRuns(limit = 50) { return this.get('/jobs/runs', { limit }); }
   deleteJobRun(runId) { return this.delete(`/jobs/runs/${encodeURIComponent(runId)}`); }
+  deleteJobRuns(runIds) { return this.post('/jobs/runs/batch-delete', { runIds }); }
   triggerJob(jobType, symbols) {
     // Map job types to endpoints/trigger modes
     if (jobType === 'pre-market') return this.post('/jobs/pre-market', { symbols });

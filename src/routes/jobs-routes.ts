@@ -130,6 +130,11 @@ export async function handleJobsRoutes(
       return await handleDeleteJobRun(env, runId, headers, requestId, timer);
     }
 
+    // POST /api/v1/jobs/runs/batch-delete - Delete multiple job runs (protected)
+    if (path === '/api/v1/jobs/runs/batch-delete' && request.method === 'POST') {
+      return await handleBatchDeleteJobRuns(request, env, headers, requestId, timer);
+    }
+
     // GET /api/v1/jobs/runs/:runId/stages - Get stage log for a run (public)
     const runStagesMatch = path.match(/^\/api\/v1\/jobs\/runs\/([^/]+)\/stages$/);
     if (runStagesMatch && request.method === 'GET') {
@@ -398,6 +403,147 @@ async function handleDeleteJobRun(
   } catch (error) {
     logger.error('Failed to delete job run', { error: (error as Error).message, runId });
     throw error;
+  }
+}
+
+/**
+ * POST /api/v1/jobs/runs/batch-delete
+ * Delete multiple job runs at once
+ * Body: { "runIds": ["run_id_1", "run_id_2", ...] }
+ */
+async function handleBatchDeleteJobRuns(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('D1 database not available', 'DB_UNAVAILABLE', { requestId })),
+      { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+    );
+  }
+
+  // Parse request body
+  let body: { runIds?: string[] } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Invalid JSON body', 'BAD_REQUEST', { requestId })),
+      { status: HttpStatus.BAD_REQUEST, headers }
+    );
+  }
+
+  const { runIds } = body;
+  if (!runIds || !Array.isArray(runIds) || runIds.length === 0) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('runIds array required', 'BAD_REQUEST', { requestId })),
+      { status: HttpStatus.BAD_REQUEST, headers }
+    );
+  }
+
+  // Limit batch size to prevent abuse
+  const maxBatchSize = 50;
+  if (runIds.length > maxBatchSize) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error(`Maximum batch size is ${maxBatchSize}`, 'BAD_REQUEST', { requestId, provided: runIds.length, max: maxBatchSize })),
+      { status: HttpStatus.BAD_REQUEST, headers }
+    );
+  }
+
+  const results: { runId: string; deleted: boolean; error?: string }[] = [];
+  const affectedDates: Map<string, Set<string>> = new Map(); // scheduledDate -> Set<reportType>
+
+  try {
+    for (const runId of runIds) {
+      try {
+        // Get run info first
+        const runResult = await db.prepare('SELECT scheduled_date, report_type FROM job_run_results WHERE run_id = ?').bind(runId).first();
+        if (!runResult) {
+          results.push({ runId, deleted: false, error: 'Run not found' });
+          continue;
+        }
+
+        // Track affected dates for later cleanup
+        const dateKey = runResult.scheduled_date as string;
+        const reportType = runResult.report_type as string;
+        if (!affectedDates.has(dateKey)) {
+          affectedDates.set(dateKey, new Set());
+        }
+        affectedDates.get(dateKey)!.add(reportType);
+
+        // Delete in order: stage_log → scheduled_job_results → job_run_results
+        await db.prepare('DELETE FROM job_stage_log WHERE run_id = ?').bind(runId).run();
+        await db.prepare('DELETE FROM scheduled_job_results WHERE run_id = ?').bind(runId).run();
+        await db.prepare('DELETE FROM job_run_results WHERE run_id = ?').bind(runId).run();
+
+        results.push({ runId, deleted: true });
+        logger.info('Batch deleted job run', { runId, scheduledDate: dateKey, reportType });
+      } catch (error) {
+        results.push({ runId, deleted: false, error: (error as Error).message });
+        logger.error('Failed to delete job run in batch', { error: (error as Error).message, runId });
+      }
+    }
+
+    // Update job_date_results for all affected date/type combinations
+    for (const [scheduledDate, reportTypes] of affectedDates) {
+      for (const reportType of reportTypes) {
+        const nextRun = await db.prepare(
+          'SELECT run_id FROM job_run_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(scheduledDate, reportType).first<{ run_id: string }>();
+
+        if (nextRun) {
+          // Update to point to the next latest run
+          const latestRunDetails = await db.prepare(
+            'SELECT status, current_stage, started_at, executed_at, trigger_source FROM job_run_results WHERE run_id = ?'
+          ).bind(nextRun.run_id).first();
+
+          if (latestRunDetails) {
+            await db.prepare(`
+              UPDATE job_date_results
+              SET latest_run_id = ?, status = ?, current_stage = ?, started_at = ?, executed_at = ?, trigger_source = ?, updated_at = datetime('now')
+              WHERE scheduled_date = ? AND report_type = ?
+            `).bind(
+              nextRun.run_id,
+              latestRunDetails.status,
+              latestRunDetails.current_stage,
+              latestRunDetails.started_at,
+              latestRunDetails.executed_at,
+              latestRunDetails.trigger_source,
+              scheduledDate,
+              reportType
+            ).run();
+          }
+        } else {
+          // No more runs - delete the date summary
+          await db.prepare('DELETE FROM job_date_results WHERE scheduled_date = ? AND report_type = ?')
+            .bind(scheduledDate, reportType).run();
+        }
+      }
+    }
+
+    const deletedCount = results.filter(r => r.deleted).length;
+    const failedCount = results.filter(r => !r.deleted).length;
+
+    logger.info('Batch delete completed', { deletedCount, failedCount, requestId });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({
+        deletedCount,
+        failedCount,
+        results
+      }, { requestId, processingTime: timer.getElapsedMs() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error) {
+    logger.error('Batch delete failed', { error: (error as Error).message, requestId });
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Batch delete failed', 'INTERNAL_ERROR', { requestId, error: (error as Error).message })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
   }
 }
 
