@@ -399,15 +399,17 @@ export async function handleScheduledEvent(
             pre_market_run_id: intradayResult.pre_market_run_id || null
           };
         } else {
-          // Check if all symbols have incomplete/failed data
+          // Check if all comparisons are incomplete (either no intraday data OR no pre-market data)
           const allIncomplete = intradayResult.comparisons?.every((comp: any) => 
             comp.comparison?.status === 'incomplete' || 
             comp.intraday?.status === 'failed' ||
-            comp.intraday?.articles_count === 0
+            comp.intraday?.articles_count === 0 ||
+            comp.premarket?.status === 'failed' ||
+            comp.premarket?.error
           );
           
           if (allIncomplete) {
-            console.warn(`⚠️ [CRON-INTRADAY] ${cronExecutionId} All symbols incomplete - news fetch failed for all symbols`);
+            console.warn(`⚠️ [CRON-INTRADAY] ${cronExecutionId} All comparisons incomplete - missing pre-market or intraday data`);
             intradayHasEmptySymbols = true;  // Flag for partial status
           }
 
