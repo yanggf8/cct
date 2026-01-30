@@ -1189,11 +1189,20 @@ async function handleIntradayJob(
       finalStatus = 'partial';
       warnings.push('Intraday analysis incomplete - news fetch failed for all symbols or no pre-market data available');
     }
-    // Check if any symbols diverged significantly
-    else if (analysisData.diverged_count > 0 && analysisData.on_track_count > 0) {
-      finalStatus = 'partial';
-      warnings.push(`${analysisData.diverged_count} of ${analysisData.total_symbols} symbols diverged from predictions`);
+    // Check if SOME (not all) symbols failed to analyze
+    else {
+      const failedCount = analysisData.comparisons?.filter((comp: any) => 
+        comp.comparison?.status === 'incomplete' || 
+        comp.intraday?.status === 'failed' ||
+        comp.premarket?.status === 'failed'
+      ).length || 0;
+      
+      if (failedCount > 0) {
+        finalStatus = 'partial';
+        warnings.push(`${failedCount} of ${analysisData.comparisons?.length || 0} symbols failed to analyze`);
+      }
     }
+    // Note: Prediction accuracy (reversed/consistent) is NOT a job status issue
 
     // Mark job as complete with appropriate status
     if (runTrackingEnabled) {

@@ -6,9 +6,9 @@
  * and reports whether they agree or disagree with clear decision rules.
  * 
  * MODEL NAMING CONVENTION:
- * - "gpt" field = Gemma Sea Lion 27B (@cf/aisingapore/gemma-sea-lion-v4-27b-it)
- *   Legacy naming from when GPT-OSS-120B was used; kept for backward compatibility.
- * - "distilbert" field = DistilBERT-SST-2 (@cf/huggingface/distilbert-sst-2-int8)
+ * - "gpt" field = GPT-OSS 120B (@cf/openai/gpt-oss-120b)
+ *   Legacy naming kept for backward compatibility with D1/frontend.
+ * - "distilbert" field = DeepSeek-R1 (@cf/deepseek-ai/deepseek-r1-distill-qwen-32b)
  * 
  * The "gpt" naming is retained to avoid breaking changes in:
  * - D1 queries expecting models.gpt
@@ -190,7 +190,7 @@ function getAICircuitBreakers() {
       halfOpenMaxCalls: 3,
       resetTimeout: 300000 // 5 minutes
     }),
-    distilbert: CircuitBreakerFactory.getInstance('ai-model-distilbert', {
+    deepseek: CircuitBreakerFactory.getInstance('ai-model-deepseek-r1', {
       failureThreshold: 3,
       successThreshold: 2,
       openTimeout: 60000, // 1 minute
@@ -318,30 +318,37 @@ async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: 
       .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
       .join('\n\n');
 
-    const prompt = `As a financial analyst specializing in ${symbol}, analyze these news articles and respond in this exact JSON format:
+    const prompt = `You are a financial analyst specializing in ${symbol}.
+Analyze each headline step by step:
+- What does this mean for the stock price?
+- Is it positive, negative, or truly neutral for investors?
+- Consider earnings, guidance, market positioning, and risk factors.
+Do NOT default to neutral - take a position based on evidence.
 
-{
-  "sentiment": "bullish" | "bearish" | "neutral",
-  "confidence": 0.XX,  // decimal between 0.0 and 1.0, REQUIRED
-  "reasoning": "brief explanation"
-}
+Analyze these financial news articles for ${symbol}:
 
 ${newsContext}
 
-Respond ONLY with valid JSON, no other text.`;
+Based on your reasoning, respond with ONLY this JSON format:
+{
+  "sentiment": "bullish" | "bearish" | "neutral",
+  "confidence": 0.XX,
+  "reasoning": "brief explanation of key factors"
+}`;
 
     // Add circuit breaker, timeout protection and retry logic
     const circuitBreaker = getAICircuitBreakers().gpt;
     const response = await retryAIcall(async () => {
       return await circuitBreaker.execute(async () => {
         return await Promise.race([
-          env.AI.run('@cf/aisingapore/gemma-sea-lion-v4-27b-it', {
+          env.AI.run('@cf/openai/gpt-oss-120b', {
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.1,
-            max_tokens: 600
-          }),
+            max_tokens: 800,
+            reasoning: { effort: 'high', summary: 'concise' }
+          } as any),
           new Promise((_: any, reject: any) =>
-            setTimeout(() => reject(new Error('AI model timeout')), 30000) // 30s timeout
+            setTimeout(() => reject(new Error('AI model timeout')), 45000) // 45s timeout for reasoning model
           )
         ]);
       });
@@ -353,7 +360,7 @@ Respond ONLY with valid JSON, no other text.`;
     const responseTimeMs = Date.now() - callStart;
 
     return {
-      model: 'gemma-sea-lion-27b',
+      model: 'gpt-oss-120b',
       direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
       confidence: analysisData.confidence,
       reasoning: analysisData.reasoning || 'No detailed reasoning provided',
@@ -399,14 +406,15 @@ Respond ONLY with valid JSON, no other text.`;
 }
 
 /**
- * DistilBERT Analysis with timeout protection and retry logic
+ * DeepSeek-R1 Analysis with timeout protection and retry logic
+ * Uses reasoning-focused prompt for financial sentiment analysis
  */
 async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
-      model: 'distilbert-sst-2-int8',
+      model: 'deepseek-r1-32b',
       direction: 'neutral',
-      confidence: null,  // null = no data/failed
+      confidence: null,
       reasoning: 'No news data available',
       error: 'No data'
     };
@@ -414,89 +422,68 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
 
   try {
     const callStart = Date.now();
-    const results = await Promise.all(
-      newsData.slice(0, 5).map(async (article: any, index: any) => {
-        try {
-          const text = `${article.title}. ${article.summary || ''}`.substring(0, 500);
+    const topArticles = newsData.slice(0, 5);
+    const newsContext = topArticles
+      .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
+      .join('\n\n');
 
-          // Add circuit breaker, timeout protection and retry logic for each article
-          const circuitBreaker = getAICircuitBreakers().distilbert;
-          const response = await retryAIcall(async () => {
-            return await circuitBreaker.execute(async () => {
-              return await Promise.race([
-                env.AI.run(
-                  '@cf/huggingface/distilbert-sst-2-int8',
-                  { text: text }
-                ),
-                new Promise((_: any, reject: any) =>
-                  setTimeout(() => reject(new Error('DistilBERT model timeout')), 20000) // 20s timeout
-                )
-              ]);
-            });
-          });
+    const prompt = `<think>
+You are analyzing financial news for ${symbol} to determine market sentiment.
+Consider: earnings impact, analyst sentiment, market positioning, risk factors.
+Think step by step about what each headline means for investors.
+</think>
 
-          const result = (Array.isArray(response) ? response[0] : response) as { label?: string; score?: number };
-          // DistilBERT returns [{label: "NEGATIVE", score}, {label: "POSITIVE", score}]
-          // Find the label with highest score
-          let bestResult = result;
-          if (Array.isArray(response) && response.length > 1) {
-            bestResult = response.reduce((best: any, curr: any) => 
-              (curr.score || 0) > (best.score || 0) ? curr : best
-            );
-          }
-          return {
-            index,
-            sentiment: bestResult.label?.toLowerCase() || 'neutral',
-            confidence: bestResult.score || 0.5,
-            title: (article as any).title.substring(0, 100)
-          };
-        } catch (error: any) {
-          // Handle timeout specifically
-          if ((error instanceof Error ? error.message : String(error)) === 'DistilBERT model timeout') {
-            return { index, sentiment: 'neutral', confidence: 0, error: 'TIMEOUT' };
-          }
-          return { index, sentiment: 'neutral', confidence: 0, error: error.message };
-        }
-      })
-    );
+Analyze these financial news articles for ${symbol}:
 
-    // Simple aggregation
-    const validResults = results.filter(r => !r.error);
-    const bullishCount = validResults.filter(r => r.sentiment === 'positive').length;
-    const bearishCount = validResults.filter(r => r.sentiment === 'negative').length;
+${newsContext}
 
-    let direction: Direction = 'neutral';
-    if (bullishCount > bearishCount * 1.5) direction = 'bullish';
-    else if (bearishCount > bullishCount * 1.5) direction = 'bearish';
+Based on your analysis, respond with ONLY this JSON format:
+{
+  "sentiment": "bullish" | "bearish" | "neutral",
+  "confidence": 0.XX,
+  "reasoning": "brief explanation of key factors"
+}`;
 
-    const avgConfidence = validResults.reduce((sum: any, r: any) => sum + r.confidence, 0) / validResults.length;
+    const circuitBreaker = getAICircuitBreakers().deepseek;
+    const response = await retryAIcall(async () => {
+      return await circuitBreaker.execute(async () => {
+        return await Promise.race([
+          env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.1,
+            max_tokens: 800
+          }),
+          new Promise((_: any, reject: any) =>
+            setTimeout(() => reject(new Error('DeepSeek-R1 model timeout')), 45000)
+          )
+        ]);
+      });
+    });
+
+    const responseText = extractAIResponseText(response);
+    const analysisData = parseNaturalLanguageResponse(responseText);
     const responseTimeMs = Date.now() - callStart;
 
     return {
-      model: 'distilbert-sst-2-int8',
-      direction: mapSentimentToDirection(direction) as Direction,
-      confidence: avgConfidence,
-      reasoning: `Sentiment classification based on ${validResults.length} articles`,
-      articles_analyzed: validResults.length,
-      sentiment_breakdown: {
-        bullish: bullishCount,
-        bearish: bearishCount,
-        neutral: validResults.length - bullishCount - bearishCount
-      },
-      individual_results: validResults,
-      analysis_type: 'sentiment_classification',
+      model: 'deepseek-r1-32b',
+      direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
+      confidence: analysisData.confidence,
+      reasoning: analysisData.reasoning || 'No detailed reasoning provided',
+      raw_response: responseText,
+      articles_analyzed: topArticles.length,
+      articles_titles: topArticles.map((a: any) => a.title).filter(Boolean),
+      analysis_type: 'reasoning_analysis',
       response_time_ms: responseTimeMs
     };
 
   } catch (error: any) {
-    logError(`DistilBERT analysis failed for ${symbol}:`, error);
+    logError(`DeepSeek-R1 analysis failed for ${symbol}:`, error);
 
-    // Handle timeout and circuit breaker specifically
     if (error.message.includes('timeout')) {
       return {
-        model: 'distilbert-sst-2-int8',
+        model: 'deepseek-r1-32b',
         direction: 'neutral',
-        confidence: null,  // null = failed
+        confidence: null,
         reasoning: 'Model timed out - temporary issue',
         error: 'TIMEOUT'
       };
@@ -504,18 +491,18 @@ async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[]
 
     if (error.message.includes('Circuit breaker is OPEN')) {
       return {
-        model: 'distilbert-sst-2-int8',
+        model: 'deepseek-r1-32b',
         direction: 'neutral',
-        confidence: null,  // null = failed
+        confidence: null,
         reasoning: 'AI model temporarily unavailable - circuit breaker active',
         error: 'CIRCUIT_BREAKER_OPEN'
       };
     }
 
     return {
-      model: 'distilbert-sst-2-int8',
+      model: 'deepseek-r1-32b',
       direction: 'neutral',
-      confidence: null,  // null = failed
+      confidence: null,
       reasoning: `Analysis failed: ${error.message}`,
       error: error.message
     };
@@ -632,8 +619,8 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
 
   // Track which models actually contributed
   const sourceModels: string[] = [];
-  if (gptOk) sourceModels.push('gemma-sea-lion-v4-27b-it');
-  if (dbOk) sourceModels.push('distilbert-sst-2-int8');
+  if (gptOk) sourceModels.push('gpt-oss-120b');
+  if (dbOk) sourceModels.push('deepseek-r1-32b');
 
   // Handle error/no-data case first - this is a FAILURE, not a weak signal
   if (agreement.type === 'error' || (!gptOk && !dbOk)) {

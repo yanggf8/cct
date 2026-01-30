@@ -345,11 +345,26 @@ export class IntradayDataBridge {
       agreement = 'ERROR';
     }
 
+    // Use the selected model's confidence (winner takes all), not average
+    let finalConfidence: number | null = null;
+    if (result.signal?.strength !== 'FAILED') {
+      // Determine which model was selected based on confidence
+      const gptConf = gpt?.confidence ?? 0;
+      const dbConf = db?.confidence ?? 0;
+      
+      if (gemmaOk && distilbertOk) {
+        // Both models succeeded - use higher confidence (winner)
+        finalConfidence = Math.max(gptConf, dbConf);
+      } else if (gemmaOk) {
+        finalConfidence = gptConf;
+      } else if (distilbertOk) {
+        finalConfidence = dbConf;
+      }
+    }
+
     return {
       direction: result.signal?.direction || 'neutral',
-      confidence: result.signal?.strength === 'FAILED' ? null : (
-        ((gpt?.confidence ?? 0) + (db?.confidence ?? 0)) / (gemmaOk && distilbertOk ? 2 : 1) || null
-      ),
+      confidence: finalConfidence,
       reasoning: result.signal?.reasoning || gpt?.reasoning || 'Fresh intraday analysis',
       gemma: {
         status: gemmaStatus,
@@ -392,7 +407,12 @@ export class IntradayDataBridge {
     const pmDir = this.normalizeSentiment(premarket.direction);
     const idDir = this.normalizeSentiment(intraday.direction);
 
-    const directionMatch = pmDir === idDir;
+    // Treat NEUTRAL as "no opinion" - not a mismatch
+    const pmIsNeutral = pmDir === 'neutral';
+    const idIsNeutral = idDir === 'neutral';
+    
+    // If either is neutral, treat as consistent (no conflicting opinion)
+    const directionMatch = pmDir === idDir || pmIsNeutral || idIsNeutral;
 
     // Calculate confidence change (null if either is missing)
     let confidenceChange: number | null = null;
@@ -402,11 +422,14 @@ export class IntradayDataBridge {
 
     // Determine status
     let status: 'consistent' | 'shifted' | 'reversed' | 'incomplete';
-    if (directionMatch) {
+    if (pmDir === idDir) {
+      // Exact match (including both neutral)
       status = 'consistent';
-    } else if (pmDir === 'neutral' || idDir === 'neutral') {
-      status = 'shifted';  // One is neutral, direction changed but not reversed
+    } else if (pmIsNeutral || idIsNeutral) {
+      // One is neutral - treat as consistent (no conflicting opinion)
+      status = 'consistent';
     } else {
+      // Both have opinions and they differ
       status = 'reversed';  // Bullish <-> Bearish
     }
 
