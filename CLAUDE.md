@@ -36,7 +36,7 @@
 
 | Group | Key Endpoints |
 |-------|---------------|
-| **Jobs** (PUBLIC) | `POST /jobs/pre-market`, `GET /jobs/runs`, `DELETE /jobs/runs/:runId` |
+| **Jobs** (PUBLIC) | `POST /jobs/pre-market`, `GET /jobs/runs`, `GET /jobs/schedule-check`, `DELETE /jobs/runs/:runId` |
 | **Reports** | `GET /reports/pre-market`, `/intraday`, `/end-of-day`, `/status` |
 | **Sentiment** | `GET /sentiment/analysis`, `/market` |
 | **Data** | `GET /data/health`, `/symbols`, `/system-status` |
@@ -60,9 +60,19 @@
 
 - `src/modules/cache-durable-object.ts` - DO cache
 - `src/modules/config.ts` - Centralized config
-- `src/routes/jobs-routes.ts` - Job triggers/history
+- `src/modules/d1-job-storage.ts` - D1 queries, `checkScheduledRuns()`
+- `src/routes/jobs-routes.ts` - Job triggers/history/schedule-check
 - `src/routes/api-v1.ts` - API gateway
 - `public/js/cct-api.js` - Frontend API client
+
+---
+
+## GitHub Actions Scheduling
+
+- Cron triggers: pre-market (12:30 UTC), intraday (16:00 UTC), end-of-day (20:05 UTC), weekly (14:00 UTC Sun)
+- Detection uses `github.event.schedule` cron matching (not time-window)
+- Schedule compliance: `GET /api/v1/jobs/schedule-check?date=YYYY-MM-DD`
+- Workflow file: `.github/workflows/trading-system.yml`
 
 ---
 
@@ -100,4 +110,4 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ---
 
-**Last Updated**: 2026-01-31
+**Last Updated**: 2026-02-01
