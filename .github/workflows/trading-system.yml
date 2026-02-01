@@ -49,42 +49,47 @@ jobs:
 
           case "$SCHEDULE" in
             '30 12 * * 1-5')
-              echo "analysis_type=pre-market" >> $GITHUB_OUTPUT
-              echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
-              echo "trigger_mode=morning_prediction_alerts" >> $GITHUB_OUTPUT
-              echo "description=Pre-Market Briefing - High-confidence signals (≥70%)" >> $GITHUB_OUTPUT
+              ANALYSIS_TYPE="pre-market"
+              ENDPOINT="/api/v1/jobs/trigger"
+              TRIGGER_MODE="morning_prediction_alerts"
+              DESCRIPTION="Pre-Market Briefing - High-confidence signals (≥70%)"
               ;;
             '0 16 * * 1-5')
-              echo "analysis_type=intraday" >> $GITHUB_OUTPUT
-              echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
-              echo "trigger_mode=midday_validation_prediction" >> $GITHUB_OUTPUT
-              echo "description=Intraday Performance Check - Real-time tracking" >> $GITHUB_OUTPUT
+              ANALYSIS_TYPE="intraday"
+              ENDPOINT="/api/v1/jobs/trigger"
+              TRIGGER_MODE="midday_validation_prediction"
+              DESCRIPTION="Intraday Performance Check - Real-time tracking"
               ;;
             '5 20 * * 1-5')
-              echo "analysis_type=end-of-day" >> $GITHUB_OUTPUT
-              echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
-              echo "trigger_mode=next_day_market_prediction" >> $GITHUB_OUTPUT
-              echo "description=End-of-Day Summary - Market close analysis" >> $GITHUB_OUTPUT
+              ANALYSIS_TYPE="end-of-day"
+              ENDPOINT="/api/v1/jobs/trigger"
+              TRIGGER_MODE="next_day_market_prediction"
+              DESCRIPTION="End-of-Day Summary - Market close analysis"
               ;;
             '0 14 * * SUN')
-              echo "analysis_type=weekly-review" >> $GITHUB_OUTPUT
-              echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
-              echo "trigger_mode=weekly_review_analysis" >> $GITHUB_OUTPUT
-              echo "description=Weekly Review - Comprehensive high-confidence signal analysis" >> $GITHUB_OUTPUT
+              ANALYSIS_TYPE="weekly-review"
+              ENDPOINT="/api/v1/jobs/trigger"
+              TRIGGER_MODE="weekly_review_analysis"
+              DESCRIPTION="Weekly Review - Comprehensive high-confidence signal analysis"
               ;;
             *)
               # workflow_dispatch or unknown schedule
-              echo "analysis_type=manual" >> $GITHUB_OUTPUT
-              echo "endpoint=/api/v1/jobs/trigger" >> $GITHUB_OUTPUT
-              echo "trigger_mode=morning_prediction_alerts" >> $GITHUB_OUTPUT
-              echo "description=Manual Analysis - On-demand trading analysis" >> $GITHUB_OUTPUT
+              ANALYSIS_TYPE="manual"
+              ENDPOINT="/api/v1/jobs/trigger"
+              TRIGGER_MODE="morning_prediction_alerts"
+              DESCRIPTION="Manual Analysis - On-demand trading analysis"
               ;;
           esac
 
-          echo "Analysis Type: ${{ steps.analysis-type.outputs.analysis_type }}"
-          echo "Endpoint: ${{ steps.analysis-type.outputs.endpoint }}"
-          echo "Trigger Mode: ${{ steps.analysis-type.outputs.trigger_mode || 'N/A' }}"
-          echo "Description: ${{ steps.analysis-type.outputs.description }}"
+          echo "analysis_type=$ANALYSIS_TYPE" >> $GITHUB_OUTPUT
+          echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+          echo "trigger_mode=$TRIGGER_MODE" >> $GITHUB_OUTPUT
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+          echo "Analysis Type: $ANALYSIS_TYPE"
+          echo "Endpoint: $ENDPOINT"
+          echo "Trigger Mode: ${TRIGGER_MODE:-N/A}"
+          echo "Description: $DESCRIPTION"
 
       - name: Execute Trading Analysis
         run: |
