@@ -36,7 +36,7 @@
 
 | Group | Key Endpoints |
 |-------|---------------|
-| **Jobs** (PUBLIC) | `POST /jobs/pre-market`, `GET /jobs/runs`, `GET /jobs/schedule-check`, `DELETE /jobs/runs/:runId` |
+| **Jobs** | `POST /jobs/pre-market`, `GET /jobs/runs` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
 | **Reports** | `GET /reports/pre-market`, `/intraday`, `/end-of-day`, `/status` |
 | **Sentiment** | `GET /sentiment/analysis`, `/market` |
 | **Data** | `GET /data/health`, `/symbols`, `/system-status` |
@@ -71,7 +71,7 @@
 
 - Cron triggers: pre-market (12:30 UTC), intraday (16:00 UTC), end-of-day (20:05 UTC), weekly (14:00 UTC Sun)
 - Detection uses `github.event.schedule` cron matching (not time-window)
-- Schedule compliance: `GET /api/v1/jobs/schedule-check?date=YYYY-MM-DD`
+- Schedule compliance: `GET /api/v1/jobs/schedule-check?date=YYYY-MM-DD` (requires API key)
 - Workflow file: `.github/workflows/trading-system.yml`
 
 ---

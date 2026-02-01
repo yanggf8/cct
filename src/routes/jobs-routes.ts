@@ -143,9 +143,9 @@ export async function handleJobsRoutes(
       return await handleJobRunStages(env, runId, headers, requestId, timer);
     }
 
-    // GET /api/v1/jobs/schedule-check - Check if expected scheduled runs occurred (public)
+    // GET /api/v1/jobs/schedule-check - Check if expected scheduled runs occurred (protected)
     if (path === '/api/v1/jobs/schedule-check' && request.method === 'GET') {
-      return await handleScheduleCheck(env, url, headers, requestId, timer);
+      return await handleScheduleCheck(request, env, url, headers, requestId, timer);
     }
 
     return new Response(
@@ -1306,12 +1306,21 @@ async function handleIntradayJob(
  * Query params: ?date=YYYY-MM-DD (defaults to today UTC)
  */
 async function handleScheduleCheck(
+  request: Request,
   env: CloudflareEnvironment,
   url: URL,
   headers: Record<string, string>,
   requestId: string,
   timer: ProcessingTimer
 ): Promise<Response> {
+  const auth = validateApiKey(request, env);
+  if (!auth.valid) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+      { status: HttpStatus.UNAUTHORIZED, headers }
+    );
+  }
+
   const dateStr = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
 
   // Weekday check: skip weekends (no scheduled runs expected)
@@ -1321,6 +1330,22 @@ async function handleScheduleCheck(
   const expectedTypes: ReportType[] = isWeekday
     ? ['pre-market', 'intraday', 'end-of-day']
     : [];
+
+  if (!isWeekday) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success(
+        {
+          date: dateStr,
+          checks: [],
+          allPresent: true,
+          missingReports: [],
+          isWeekday,
+        },
+        { requestId, processingTime: timer.getElapsedMs() }
+      )),
+      { status: HttpStatus.OK, headers }
+    );
+  }
 
   const result = await checkScheduledRuns(env, dateStr, expectedTypes);
 
