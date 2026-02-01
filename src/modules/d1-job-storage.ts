@@ -1267,6 +1267,103 @@ export async function getJobStageLog(
  * Mark stale running jobs as failed (for cleanup)
  * Jobs running for more than 30 minutes are considered stale
  */
+export interface ScheduleCheckResult {
+  date: string;
+  checks: Array<{
+    reportType: ReportType;
+    hasSuccessfulRun: boolean;
+    hasGitHubActionsRun: boolean;
+    latestStatus: string | null;
+    latestRunId: string | null;
+    latestTriggerSource: string | null;
+    executedAt: string | null;
+  }>;
+  allPresent: boolean;
+  missingReports: ReportType[];
+}
+
+export async function checkScheduledRuns(
+  env: CloudflareEnvironment,
+  scheduledDate: string,
+  expectedReportTypes: ReportType[] = ['pre-market', 'intraday', 'end-of-day']
+): Promise<ScheduleCheckResult> {
+  const db = env.PREDICT_JOBS_DB;
+  const empty: ScheduleCheckResult = {
+    date: scheduledDate,
+    checks: [],
+    allPresent: false,
+    missingReports: expectedReportTypes
+  };
+  if (!db) return empty;
+
+  try {
+    // Single query: get latest run per report_type for this date, plus whether any github_actions run succeeded
+    const rows = await db.prepare(`
+      SELECT
+        report_type,
+        run_id,
+        status,
+        trigger_source,
+        executed_at,
+        -- Flag: did any github_actions-triggered run succeed for this type+date?
+        (SELECT COUNT(*) FROM job_run_results g
+         WHERE g.scheduled_date = r.scheduled_date
+           AND g.report_type = r.report_type
+           AND g.trigger_source = 'github_actions'
+           AND g.status IN ('success', 'partial')
+        ) AS ga_success_count
+      FROM job_run_results r
+      WHERE scheduled_date = ?
+        AND report_type IN (${expectedReportTypes.map(() => '?').join(', ')})
+        AND created_at = (
+          SELECT MAX(created_at) FROM job_run_results r2
+          WHERE r2.scheduled_date = r.scheduled_date AND r2.report_type = r.report_type
+        )
+    `).bind(scheduledDate, ...expectedReportTypes).all();
+
+    const resultMap = new Map<string, any>();
+    for (const row of rows.results) {
+      resultMap.set(row.report_type as string, row);
+    }
+
+    const checks: ScheduleCheckResult['checks'] = [];
+    const missingReports: ReportType[] = [];
+
+    for (const reportType of expectedReportTypes) {
+      const row = resultMap.get(reportType);
+      if (row) {
+        const hasSuccess = row.status === 'success' || row.status === 'partial';
+        checks.push({
+          reportType,
+          hasSuccessfulRun: hasSuccess,
+          hasGitHubActionsRun: (row.ga_success_count as number) > 0,
+          latestStatus: row.status as string,
+          latestRunId: row.run_id as string,
+          latestTriggerSource: row.trigger_source as string,
+          executedAt: row.executed_at as string | null,
+        });
+        if (!hasSuccess) missingReports.push(reportType);
+      } else {
+        checks.push({
+          reportType,
+          hasSuccessfulRun: false,
+          hasGitHubActionsRun: false,
+          latestStatus: null,
+          latestRunId: null,
+          latestTriggerSource: null,
+          executedAt: null,
+        });
+        missingReports.push(reportType);
+      }
+    }
+
+    return { date: scheduledDate, checks, allPresent: missingReports.length === 0, missingReports };
+  } catch (error) {
+    logger.error('checkScheduledRuns failed', { error: (error as Error).message });
+    return empty;
+  }
+}
+
 export async function markStaleJobsAsFailed(
   env: CloudflareEnvironment
 ): Promise<number> {

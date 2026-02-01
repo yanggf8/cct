@@ -159,6 +159,7 @@ export async function handleScheduledEvent(
 
   try {
     let analysisResult: AnalysisResult | null = null;
+    let analysisFailureReason: string | null = null;
     const dateStr = estTime.toISOString().split('T')[0];
 
     // Real-time Data Manager integration for live data freshness and cache warming
@@ -714,6 +715,7 @@ export async function handleScheduledEvent(
           stack: preMarketError.stack
         });
         analysisResult = null;
+        analysisFailureReason = `Pre-market analysis threw exception: ${preMarketError.message}`;
 
         // End dangling ai_analysis stage (try-path's endJobStage didn't execute)
         if (runTrackingEnabled) {
@@ -760,6 +762,7 @@ export async function handleScheduledEvent(
           usable_signals: usableSignals
         });
         analysisResult = null;
+        analysisFailureReason = `Analysis returned no usable signals (symbols: ${symbolsCount}, total_signals: ${totalSignals}, usable: ${usableSignals})`;
       }
     }
 
@@ -922,7 +925,7 @@ export async function handleScheduledEvent(
       }
     } else if (triggerMode === 'morning_prediction_alerts') {
       // Bug fix: Handle null analysisResult - mark job as failed
-      const failureError = 'Analysis returned null or undefined - no valid result generated';
+      const failureError = analysisFailureReason || 'Analysis returned null or undefined - no valid result generated';
       console.warn(`⚠️ [CRON-PRE-MARKET] ${cronExecutionId} ${failureError}`);
 
       // Update multi-run tables if tracking enabled

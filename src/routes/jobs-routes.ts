@@ -21,6 +21,7 @@ import {
   startJobStage,
   endJobStage,
   markStaleJobsAsFailed,
+  checkScheduledRuns,
   type ReportType,
   type JobTriggerSource
 } from '../modules/d1-job-storage.js';
@@ -140,6 +141,11 @@ export async function handleJobsRoutes(
     if (runStagesMatch && request.method === 'GET') {
       const [, runId] = runStagesMatch;
       return await handleJobRunStages(env, runId, headers, requestId, timer);
+    }
+
+    // GET /api/v1/jobs/schedule-check - Check if expected scheduled runs occurred (public)
+    if (path === '/api/v1/jobs/schedule-check' && request.method === 'GET') {
+      return await handleScheduleCheck(env, url, headers, requestId, timer);
     }
 
     return new Response(
@@ -1292,4 +1298,37 @@ async function handleIntradayJob(
       { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
     );
   }
+}
+
+/**
+ * GET /api/v1/jobs/schedule-check
+ * Check if expected scheduled runs occurred for a given date.
+ * Query params: ?date=YYYY-MM-DD (defaults to today UTC)
+ */
+async function handleScheduleCheck(
+  env: CloudflareEnvironment,
+  url: URL,
+  headers: Record<string, string>,
+  requestId: string,
+  timer: ProcessingTimer
+): Promise<Response> {
+  const dateStr = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+
+  // Weekday check: skip weekends (no scheduled runs expected)
+  const dayOfWeek = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+
+  const expectedTypes: ReportType[] = isWeekday
+    ? ['pre-market', 'intraday', 'end-of-day']
+    : [];
+
+  const result = await checkScheduledRuns(env, dateStr, expectedTypes);
+
+  return new Response(
+    JSON.stringify(ApiResponseFactory.success(
+      { ...result, isWeekday },
+      { requestId, processingTime: timer.getElapsedMs() }
+    )),
+    { status: HttpStatus.OK, headers }
+  );
 }

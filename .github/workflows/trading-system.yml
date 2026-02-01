@@ -388,6 +388,38 @@ jobs:
             echo "⚠️ Some systems require attention"
           fi
 
+      - name: Check Schedule Compliance
+        run: |
+          WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
+          API_KEY="${{ secrets.X_API_KEY }}"
+          TODAY=$(date -u +%Y-%m-%d)
+          ANALYSIS_TYPE="${{ needs.trading-analysis.outputs.analysis_type }}"
+
+          echo "🕐 Checking scheduled run compliance for $TODAY"
+
+          response=$(curl -s \
+            -H "X-API-KEY: $API_KEY" \
+            --connect-timeout 10 \
+            --max-time 15 \
+            "$WORKER_URL/api/v1/jobs/schedule-check?date=$TODAY")
+
+          echo "Schedule check response:"
+          echo "$response" | jq '.' 2>/dev/null || echo "$response"
+
+          is_weekday=$(echo "$response" | jq -r '.data.isWeekday // false')
+          all_present=$(echo "$response" | jq -r '.data.allPresent // false')
+          missing=$(echo "$response" | jq -r '.data.missingReports // [] | join(", ")')
+
+          if [[ "$is_weekday" != "true" ]]; then
+            echo "📅 Weekend - no scheduled runs expected"
+          elif [[ "$all_present" == "true" ]]; then
+            echo "✅ All expected scheduled runs completed for $TODAY"
+          else
+            echo "⚠️ Missing scheduled runs for $TODAY: $missing"
+            # Log per-check details
+            echo "$response" | jq -r '.data.checks[]? | "  \(.reportType): status=\(.latestStatus // "MISSING") trigger=\(.latestTriggerSource // "none") ga_run=\(.hasGitHubActionsRun)"'
+          fi
+
 # Enhanced Workflow Configuration
 # ==============================
 # CAPABILITIES:
