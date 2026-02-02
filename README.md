@@ -10,6 +10,20 @@
 
 ## 🚀 Latest Updates
 
+### **🎯 Sentiment Direction & Confidence Fix (2026-02-02)**
+- ✅ **Dual AI Structure**: All reports now extract sentiment from `signal.direction` (not `sentiment_layers[0]`)
+- ✅ **Clear Confidence**: Reports show concrete confidence levels (0.0-1.0) from dual AI analysis
+- ✅ **Dual Model Display**: Both GPT and DistilBERT confidence levels visible in reports
+- ✅ **Backward Compatible**: Fallback chain supports legacy `sentiment_layers` format
+- ✅ **Verified**: Pre-market report shows 5/5 symbols with clear sentiment + confidence
+
+**Fixed Components**:
+- Pre-market report handler: Correct extraction paths with fallback
+- Pre-market job: Stores dual AI structure (`signal` + `models` fields)
+- Intraday bridge: Prioritizes dual AI structure when reading data
+
+See `SENTIMENT_FIX_SUMMARY.md` and `DEPLOYMENT_VERIFICATION.md` for details.
+
 ### **🔄 Pre-Market Multi-Run Fix (2026-01-28)**
 - ✅ **Multi-Run Support**: Pre-market jobs now support multiple runs per date (was missing)
 - ✅ **Consistent Architecture**: All job types (pre-market, intraday, end-of-day, weekly) use same tracking
