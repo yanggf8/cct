@@ -537,7 +537,7 @@ function convertPipelineToLegacyFormat(pipelineResult: any, options: AnalysisOpt
         symbol: result.symbol,
         predicted_price: null,
         current_price: null,
-        direction: result.trading_signals?.primary_direction || 'UNCLEAR',
+        direction: result.trading_signals?.primary_direction || 'neutral',
         confidence: result.confidence_metrics?.overall_confidence ?? null,  // Allow null - no fake 0.5
         model: 'dual_ai_comparison',
 
@@ -548,7 +548,7 @@ function convertPipelineToLegacyFormat(pipelineResult: any, options: AnalysisOpt
         analysis_metadata: result.analysis_metadata,
 
         enhanced_prediction: {
-          direction: result.trading_signals?.primary_direction || 'UNCLEAR',
+          direction: result.trading_signals?.primary_direction || 'neutral',
           confidence: result.confidence_metrics?.overall_confidence ?? null,  // Allow null
           method: 'dual_ai_comparison',
           sentiment_analysis: {

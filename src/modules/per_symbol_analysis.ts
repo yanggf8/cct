@@ -513,7 +513,7 @@ export async function analyzeSymbolWithFallback(
 
         trading_signals: {
           symbol: symbol,
-          primary_direction: 'UNCLEAR',
+          primary_direction: 'neutral',
           overall_confidence: null,  // null = failed
           recommendation: 'SKIP',
           error: 'Analysis failed'
@@ -603,7 +603,7 @@ export async function batchAnalyzeSymbolsForCron(
         error: error.message,
         sentiment_layers: [{ layer_type: 'error', sentiment: 'neutral', confidence: 0, model: 'error' }],
         confidence_metrics: { overall_confidence: null, base_confidence: null, consistency_bonus: 0, agreement_bonus: 0 },
-        trading_signals: { symbol, primary_direction: 'UNCLEAR', overall_confidence: null },
+        trading_signals: { symbol, primary_direction: 'neutral', overall_confidence: null },
         analysis_metadata: { method: 'critical_failure', models_used: [], total_processing_time: 0, fully_failed: true }
       });
     }
@@ -792,7 +792,7 @@ export async function analyzeSingleSymbol(
       error: error.message,
       sentiment_layers: [],
       confidence_metrics: { overall_confidence: null, base_confidence: null, consistency_bonus: 0, agreement_bonus: 0 },
-      trading_signals: { symbol, primary_direction: 'UNCLEAR', overall_confidence: null },
+      trading_signals: { symbol, primary_direction: 'neutral', overall_confidence: null },
       analysis_metadata: { method: 'error', models_used: [], total_processing_time: Date.now() - startTime },
       execution_metadata: {
         total_execution_time: Date.now() - startTime,

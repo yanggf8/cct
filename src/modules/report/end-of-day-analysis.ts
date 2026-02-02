@@ -219,7 +219,7 @@ export async function generateEndOfDayAnalysis(
 
   } catch (error: any) {
     logger.error('Error generating end-of-day analysis', { error: (error instanceof Error ? error.message : String(error)) });
-    return getDefaultEndOfDayData();
+    throw error;
   }
 }
 
@@ -247,12 +247,35 @@ function analyzeHighConfidenceSignals(
   let distilbertCorrect = 0, distilbertTotal = 0;
   let agreementCount = 0;
 
-  // Process each symbol
+  function normalizeDirection(direction: unknown): 'up' | 'down' | 'neutral' {
+    const dir = (typeof direction === 'string' ? direction : '').toLowerCase();
+    if (dir === 'bullish' || dir === 'up' || dir === 'positive') return 'up';
+    if (dir === 'bearish' || dir === 'down' || dir === 'negative') return 'down';
+    return 'neutral';
+  }
+
+  function pickConfidence0to1(signal: AnalysisSignal, tradingSignals: any, sentimentLayer: any): number {
+    const winner = signal.comparison?.match_details?.winner_confidence;
+    if (typeof winner === 'number' && winner >= 0 && winner <= 1) return winner;
+
+    const gpt = signal.models?.gpt?.confidence;
+    const distilbert = signal.models?.distilbert?.confidence;
+    const candidateMax = Math.max(
+      typeof gpt === 'number' ? gpt : 0,
+      typeof distilbert === 'number' ? distilbert : 0,
+    );
+    if (candidateMax > 0 && candidateMax <= 1) return candidateMax;
+
+    const legacy = sentimentLayer?.confidence ?? tradingSignals?.overall_confidence ?? 0;
+    return (typeof legacy === 'number' && legacy >= 0 && legacy <= 1) ? legacy : 0;
+  }
+
+  // Process ALL symbols in breakdown, gate accuracy metrics by confidence threshold
   Object.keys(signals).forEach(symbol => {
     const signal = signals[symbol];
     const tradingSignals = signal.trading_signals || signal;
     const sentimentLayer = signal.sentiment_layers?.[0];
-    
+
     // Check for dual-model format (gpt = Gemma Sea Lion, distilbert = DistilBERT-SST-2)
     const isDualModel = signal.models?.gpt || signal.models?.distilbert || signal.comparison;
     const gemma = signal.models?.gpt;
@@ -260,61 +283,65 @@ function analyzeHighConfidenceSignals(
     const comparison = signal.comparison;
 
     // Extract direction and confidence - prefer dual-model if available
-    let predictedDirection: string;
-    let confidence: number;
-    
-    if (isDualModel && signal.signal) {
-      // Use combined signal from dual-model analysis
-      predictedDirection = signal.signal.direction === 'bullish' || signal.signal.direction === 'up' ? 'up' : 'down';
-      confidence = (signal.signal.confidence || comparison?.match_details?.confidence_spread || 0.7) * 100;
-    } else {
-      // Legacy format
-      predictedDirection = (tradingSignals as any)?.primary_direction === 'BULLISH' ? 'up' : 'down';
-      confidence = ((sentimentLayer as any)?.confidence || (tradingSignals as any)?.overall_confidence || 0) * 100;
-    }
+    const combinedDirection = isDualModel && signal.signal
+      ? signal.signal.direction
+      : (tradingSignals as any)?.primary_direction;
 
-    // Only analyze high-confidence signals
-    if (confidence < (CONFIDENCE_THRESHOLD * 100)) return;
+    const predictedDirection = normalizeDirection(combinedDirection);
+    const confidence0to1 = pickConfidence0to1(signal, tradingSignals, sentimentLayer);
+    const confidence = confidence0to1 * 100;
 
+    // Track ALL symbols regardless of confidence
     totalSignals++;
-    
+
     // Track dual-model agreement
     if (isDualModel && comparison) {
       if (comparison.agree) agreementCount++;
     }
 
+    // Determine if this is a high-confidence signal (for accuracy metrics)
+    const isHighConfidence = confidence0to1 >= CONFIDENCE_THRESHOLD;
+
     // Get market close performance
     const closePerformance = marketCloseData[symbol];
     if (closePerformance && closePerformance.dayChange !== null) {
       const actualDirection = closePerformance.dayChange > 0 ? 'up' : 'down';
-      const isCorrect = predictedDirection === actualDirection;
+      const isCorrect = predictedDirection !== 'neutral' && predictedDirection === actualDirection;
 
-      if (isCorrect) correctCalls++;
-      else wrongCalls++;
-      
-      // Track per-model accuracy if dual-model
-      if (gemma?.direction) {
-        gemmaTotal++;
-        const gemmaDir = gemma.direction === 'bullish' || gemma.direction === 'up' ? 'up' : 'down';
-        if (gemmaDir === actualDirection) gemmaCorrect++;
-      }
-      if (distilbert?.direction) {
-        distilbertTotal++;
-        const distilbertDir = distilbert.direction === 'bullish' || distilbert.direction === 'up' ? 'up' : 'down';
-        if (distilbertDir === actualDirection) distilbertCorrect++;
+      // Only count accuracy for high-confidence signals
+      if (isHighConfidence && predictedDirection !== 'neutral') {
+        if (isCorrect) correctCalls++;
+        else wrongCalls++;
       }
 
-      // Add to signal breakdown
+      // Track per-model accuracy if dual-model (only high-confidence)
+      if (isHighConfidence) {
+        if (gemma?.direction) {
+          const gemmaDir = normalizeDirection(gemma.direction);
+          if (gemmaDir !== 'neutral') {
+            gemmaTotal++;
+            if (gemmaDir === actualDirection) gemmaCorrect++;
+          }
+        }
+        if (distilbert?.direction) {
+          const distilbertDir = normalizeDirection(distilbert.direction);
+          if (distilbertDir !== 'neutral') {
+            distilbertTotal++;
+            if (distilbertDir === actualDirection) distilbertCorrect++;
+          }
+        }
+      }
+
+      // Add ALL symbols to signal breakdown
       signalBreakdown.push({
         ticker: symbol,
-        predicted: `${predictedDirection === 'up' ? '↑' : '↓'} Expected`,
+        predicted: `${predictedDirection === 'up' ? '↑' : predictedDirection === 'down' ? '↓' : '→'} Expected`,
         predictedDirection,
         actual: `${actualDirection === 'up' ? '↑' : '↓'} ${Math.abs(closePerformance.dayChange).toFixed(1)}%`,
         actualDirection,
         confidence: Math.round(confidence),
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
         correct: isCorrect,
-        // Add dual-model info if available
         ...(isDualModel && {
           gemma_direction: gemma?.direction,
           distilbert_direction: distilbert?.direction,
@@ -338,13 +365,13 @@ function analyzeHighConfidenceSignals(
       // No market data - add as pending
       signalBreakdown.push({
         ticker: symbol,
-        predicted: `${predictedDirection === 'up' ? '↑' : '↓'} Expected`,
+        predicted: `${predictedDirection === 'up' ? '↑' : predictedDirection === 'down' ? '↓' : '→'} Expected`,
         predictedDirection,
         actual: 'Pending',
         actualDirection: 'pending',
         confidence: Math.round(confidence),
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
-        correct: false, // Will be updated when market data available
+        correct: false,
         ...(isDualModel && {
           gemma_direction: gemma?.direction,
           distilbert_direction: distilbert?.direction,
@@ -359,8 +386,10 @@ function analyzeHighConfidenceSignals(
   topLosers.sort((a: any, b: any) => parseFloat(a.performance) - parseFloat(b.performance));
 
   // Calculate overall accuracy
-  const overallAccuracy = totalSignals > 0 ?
-    Math.round((correctCalls / totalSignals) * 100) : 0;
+  const evaluatedSignals = correctCalls + wrongCalls;
+  const overallAccuracy = evaluatedSignals > 0
+    ? Math.round((correctCalls / evaluatedSignals) * 100)
+    : 0;
 
   // Determine model grade
   const modelGrade = getModelGrade(overallAccuracy);
@@ -393,16 +422,28 @@ function generateTomorrowOutlook(
   const signals = analysisData?.trading_signals || {};
   const symbolCount = Object.keys(signals).length;
 
+  function normalizeSentiment(value: unknown): 'bullish' | 'bearish' | 'neutral' {
+    const s = (typeof value === 'string' ? value : '').toLowerCase();
+    if (s === 'bullish' || s === 'up' || s === 'positive') return 'bullish';
+    if (s === 'bearish' || s === 'down' || s === 'negative') return 'bearish';
+    return 'neutral';
+  }
+
   // Analyze sentiment distribution for tomorrow
   let bullishSignals = 0;
   let bearishSignals = 0;
 
   Object.values(signals).forEach(signal => {
     const sentimentLayer = signal.sentiment_layers?.[0];
-    const sentiment = sentimentLayer?.sentiment || 'neutral';
+    const sentiment =
+      sentimentLayer?.sentiment ??
+      signal.signal?.direction ??
+      signal.trading_signals?.primary_direction ??
+      'neutral';
+    const normalized = normalizeSentiment(sentiment);
 
-    if (sentiment === 'bullish') bullishSignals++;
-    if (sentiment === 'bearish') bearishSignals++;
+    if (normalized === 'bullish') bullishSignals++;
+    if (normalized === 'bearish') bearishSignals++;
   });
 
   // Determine market bias for tomorrow
@@ -410,11 +451,14 @@ function generateTomorrowOutlook(
                     bearishSignals > bullishSignals ? 'Bearish' : 'Neutral';
 
   // Determine volatility expectation
-  const volatilityLevel = signalPerformance.overallAccuracy < 60 ? 'High' :
+  const evaluatedSignals = signalPerformance.correctCalls + signalPerformance.wrongCalls;
+  const volatilityLevel = evaluatedSignals === 0 ? 'Unknown' :
+                         signalPerformance.overallAccuracy < 60 ? 'High' :
                          signalPerformance.overallAccuracy > 75 ? 'Low' : 'Moderate';
 
   // Determine model confidence for tomorrow
-  const confidenceLevel = signalPerformance.overallAccuracy > 70 ? 'High' :
+  const confidenceLevel = evaluatedSignals === 0 ? 'Low' :
+                         signalPerformance.overallAccuracy > 70 ? 'High' :
                          signalPerformance.overallAccuracy > 50 ? 'Medium' : 'Low';
 
   // Identify key focus area
@@ -429,17 +473,65 @@ function generateTomorrowOutlook(
 }
 
 /**
- * Generate market insights based on performance
+ * Generate market insights based on actual performance data
  */
 function generateMarketInsights(
   signalPerformance: SignalPerformance,
   marketCloseData: MarketCloseData
 ): MarketInsights {
+  const { overallAccuracy, totalSignals, correctCalls, wrongCalls, modelStats } = signalPerformance;
+
+  // Calculate actual volatility from market data
+  const dayChanges = Object.values(marketCloseData)
+    .filter(d => d.dayChange !== null)
+    .map(d => Math.abs(d.dayChange!));
+  const avgVolatility = dayChanges.length > 0
+    ? dayChanges.reduce((a, b) => a + b, 0) / dayChanges.length
+    : 0;
+
+  // Determine performance description based on actual accuracy
+  let performanceDesc: string;
+  if (overallAccuracy >= 75) {
+    performanceDesc = `Strong ${overallAccuracy}% accuracy on high-confidence signals.`;
+  } else if (overallAccuracy >= 60) {
+    performanceDesc = `Moderate ${overallAccuracy}% accuracy - ${correctCalls} correct, ${wrongCalls} incorrect.`;
+  } else if (overallAccuracy > 0) {
+    performanceDesc = `Below target ${overallAccuracy}% accuracy - reviewing signal quality.`;
+  } else {
+    performanceDesc = `No high-confidence signals to evaluate (${totalSignals} total signals tracked).`;
+  }
+
+  // Generate sector analysis from actual winners/losers
+  const winners = signalPerformance.topWinners.map(w => w.ticker).join(', ') || 'none';
+  const losers = signalPerformance.topLosers.map(l => l.ticker).join(', ') || 'none';
+  const sectorDesc = `Top performers: ${winners}. Laggards: ${losers}.`;
+
+  // Volatility insight from real data
+  let volatilityDesc: string;
+  if (avgVolatility > 2) {
+    volatilityDesc = `High volatility day (avg ${avgVolatility.toFixed(1)}% moves).`;
+  } else if (avgVolatility > 1) {
+    volatilityDesc = `Moderate volatility (avg ${avgVolatility.toFixed(1)}% moves).`;
+  } else if (avgVolatility > 0) {
+    volatilityDesc = `Low volatility day (avg ${avgVolatility.toFixed(1)}% moves).`;
+  } else {
+    volatilityDesc = 'Market data pending for volatility analysis.';
+  }
+
+  // Signal quality from model agreement
+  let signalQualityDesc: string;
+  if (modelStats?.agreementRate !== null && modelStats?.agreementRate !== undefined) {
+    const agreePct = (modelStats.agreementRate * 100).toFixed(0);
+    signalQualityDesc = `Model agreement rate: ${agreePct}%. ${correctCalls + wrongCalls} high-confidence signals evaluated.`;
+  } else {
+    signalQualityDesc = `${totalSignals} signals tracked across all confidence levels.`;
+  }
+
   return {
-    modelPerformance: `Strong ${signalPerformance.overallAccuracy}% accuracy on high-confidence signals with effective risk management.`,
-    sectorAnalysis: 'Technology sector showed mixed results with established players outperforming growth names.',
-    volatilityPatterns: 'Higher-than-expected volatility in select names, suggesting sector-specific headwinds.',
-    signalQuality: `High-confidence threshold (≥70%) proved effective in filtering quality signals with ${signalPerformance.overallAccuracy}% hit rate.`
+    modelPerformance: performanceDesc,
+    sectorAnalysis: sectorDesc,
+    volatilityPatterns: volatilityDesc,
+    signalQuality: signalQualityDesc
   };
 }
 
@@ -540,58 +632,41 @@ function getModelGrade(accuracy: number): string {
 }
 
 /**
- * Identify key focus area for tomorrow
+ * Identify key focus area for tomorrow based on actual signal data
  */
 function identifyTomorrowFocus(signals: Record<string, AnalysisSignal>, performance: SignalPerformance): string {
-  const focuses = ['Tech Earnings', 'Fed Policy', 'Sector Rotation', 'Volatility', 'Economic Data'];
-  return focuses[Math.floor(Math.random() * focuses.length)];
-}
+  const symbolList = Object.keys(signals);
 
-/**
- * Default end-of-day data when no real data is available
- */
-function getDefaultEndOfDayData(): EndOfDayResult {
-  return {
-    overallAccuracy: 73,
-    totalSignals: 6,
-    correctCalls: 4,
-    wrongCalls: 2,
-    modelGrade: 'B+',
-    topWinners: [
-      { ticker: 'AAPL', performance: '+2.8%' },
-      { ticker: 'MSFT', performance: '+2.1%' },
-      { ticker: 'GOOGL', performance: '+1.9%' }
-    ],
-    topLosers: [
-      { ticker: 'TSLA', performance: '-3.2%' },
-      { ticker: 'NVDA', performance: '-1.8%' }
-    ],
-    signalBreakdown: [
-      {
-        ticker: 'AAPL',
-        predicted: '↑ Expected',
-        predictedDirection: 'up',
-        actual: '↑ +2.8%',
-        actualDirection: 'up',
-        confidence: 78,
-        confidenceLevel: 'high',
-        correct: true
-      }
-    ],
-    insights: {
-      modelPerformance: 'Strong 73% accuracy on high-confidence signals with effective risk management.',
-      sectorAnalysis: 'Technology sector showed mixed results with established players outperforming growth names.',
-      volatilityPatterns: 'Higher-than-expected volatility in select names, suggesting sector-specific headwinds.',
-      signalQuality: 'High-confidence threshold (≥70%) proved effective in filtering quality signals.'
-    },
-    tomorrowOutlook: {
-      marketBias: 'Neutral-Bullish',
-      volatilityLevel: 'Moderate',
-      confidenceLevel: 'High',
-      keyFocus: 'Tech Earnings'
-    },
-    marketCloseTime: new Date().toISOString()
-  };
+  // Find highest confidence signal
+  let highestConfSymbol = '';
+  let highestConf = 0;
+
+  symbolList.forEach(symbol => {
+    const signal = signals[symbol];
+    const conf = signal.models?.gpt?.confidence ||
+                 signal.models?.distilbert?.confidence ||
+                 signal.sentiment_layers?.[0]?.confidence || 0;
+    if (conf > highestConf) {
+      highestConf = conf;
+      highestConfSymbol = symbol;
+    }
+  });
+
+  if (highestConfSymbol && highestConf > 0.7) {
+    return `${highestConfSymbol} (${(highestConf * 100).toFixed(0)}% confidence)`;
+  }
+
+  // Fallback: report on model agreement or disagreement
+  const agreementRate = performance.modelStats?.agreementRate;
+  if (agreementRate !== null && agreementRate !== undefined) {
+    if (agreementRate > 0.7) {
+      return 'Strong model consensus signals';
+    } else if (agreementRate < 0.3) {
+      return 'Mixed signals - caution advised';
+    }
+  }
+
+  return `${symbolList.length} symbols tracked`;
 }
 
 // Export types for external use

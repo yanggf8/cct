@@ -82,8 +82,7 @@ new_sqlite_classes = ["PortfolioDO"]
 # All prediction scheduling now handled by .github/workflows/trading-system.yml
 # Migration Benefits: Unlimited schedules, 100% free, better observability
 # Cloudflare cron had 3-schedule limit and $0.20/month DO cost
-# [[triggers.crons]]
-# cron = "0 9 * * 1-5"  # 9 AM weekdays - NOW HANDLED BY GITHUB ACTIONS
+# No [triggers] section = no Cloudflare cron (intentional)
 
 # Variables
 [vars]

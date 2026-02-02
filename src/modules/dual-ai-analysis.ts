@@ -27,7 +27,7 @@ import { handleAIError, handleError } from '../utils/error-handling-migration.js
 import type { CloudflareEnvironment, CloudflareAI } from '../types.js';
 
 // Type Definitions
-export type Direction = 'up' | 'down' | 'neutral' | 'bullish' | 'bearish' | 'UNCLEAR';
+export type Direction = 'up' | 'down' | 'neutral' | 'bullish' | 'bearish';
 export type AgreementType = 'full_agreement' | 'partial_agreement' | 'disagreement' | 'error';
 export type SignalType = 'AGREEMENT' | 'PARTIAL_AGREEMENT' | 'DISAGREEMENT' | 'ERROR';
 export type SignalStrength = 'STRONG' | 'MODERATE' | 'WEAK' | 'FAILED';
@@ -266,7 +266,7 @@ export async function performDualAIComparison(
       error: error.message,
       models: { gpt: null, distilbert: null },
       comparison: { agree: false, agreement_type: 'error', match_details: { error: error.message } },
-      signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
+      signal: { type: 'ERROR', direction: 'neutral', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
     };
   }
 }
@@ -626,7 +626,7 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
   if (agreement.type === 'error' || (!gptOk && !dbOk)) {
     return {
       type: 'ERROR',
-      direction: 'UNCLEAR',
+      direction: 'neutral',
       strength: 'FAILED',
       reasoning: agreement.details.error || 'No news data available - analysis failed',
       action: 'SKIP',
@@ -669,7 +669,7 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
     // Equal confidence, different directions -> true tie
     return {
       type: 'DISAGREEMENT',
-      direction: 'UNCLEAR',
+      direction: 'neutral',
       strength: 'WEAK',
       reasoning: `Models disagree with equal confidence (${(details.gpt_confidence ?? 0).toFixed(2)}): GPT ${details.gpt_direction}, DistilBERT ${details.distilbert_direction}. No clear signal.`,
       action: 'HOLD',
@@ -679,7 +679,7 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
 
   return {
     type: 'DISAGREEMENT',
-    direction: 'UNCLEAR',
+    direction: 'neutral',
     strength: 'WEAK',
     reasoning: `Models disagree: GPT says ${gptResult.direction}, DistilBERT says ${distilBERTResult.direction}`,
     action: 'AVOID',
@@ -773,7 +773,7 @@ export async function batchDualAIAnalysis(
         error: error.message,
         models: { gpt: null, distilbert: null },
         comparison: { agree: false, agreement_type: 'error', match_details: { error: error.message } },
-        signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
+        signal: { type: 'ERROR', direction: 'neutral', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
       });
     }
 
@@ -949,7 +949,7 @@ export async function enhancedBatchDualAIAnalysis(
         error: item.error || 'Unknown error',
         models: { gpt: null, distilbert: null },
         comparison: { agree: false, agreement_type: 'error', match_details: { error: item.error } },
-        signal: { type: 'ERROR', direction: 'UNCLEAR', strength: 'FAILED', action: 'SKIP', reasoning: `Enhanced batch analysis failed: ${item.error || 'Unknown error'}`, source_models: [] }
+        signal: { type: 'ERROR', direction: 'neutral', strength: 'FAILED', action: 'SKIP', reasoning: `Enhanced batch analysis failed: ${item.error || 'Unknown error'}`, source_models: [] }
       });
       statistics.errors++;
     }

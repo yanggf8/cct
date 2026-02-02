@@ -1,3 +1,4 @@
+## ARCHIVED 2026-02-02: not used by current deploy scripts; revisit/cleanup after 5 days.
 name = "tft-trading-system-enhanced"
 main = "src/index-enhanced.js"
 compatibility_date = "2025-01-10"

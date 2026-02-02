@@ -17,6 +17,11 @@
 - **Server**: Validates via `X_API_KEY` secret; IP rate limiting active
 - **Running job protection**: Server blocks deleting `status: 'running'` jobs
 
+## Testing API
+
+- **Header**: `X_API_KEY` (underscore, not hyphen)
+- **Example**: `curl -H "X_API_KEY: $KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/...`
+
 ---
 
 ## AI Models

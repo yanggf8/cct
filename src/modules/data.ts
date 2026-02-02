@@ -462,7 +462,7 @@ export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: st
       // Use null if confidence is null/undefined - NO FAKE 0.5
       confidence,
       // Use failure-indicating defaults only when confidence is null, preserve legacy defaults otherwise
-      direction: analysisData.trading_signals?.primary_direction || (isFailed ? 'UNCLEAR' : 'NEUTRAL'),
+      direction: analysisData.trading_signals?.primary_direction || (isFailed ? 'neutral' : 'neutral'),
       model: analysisData.sentiment_layers?.[0]?.model || (isFailed ? 'none' : 'GPT-OSS-120B'),
       analysis_type: analysisData.analysis_type || (isFailed ? 'failed' : 'fine_grained_sentiment'),
       trading_signals: analysisData.trading_signals,
@@ -517,7 +517,7 @@ export async function batchStoreAnalysisResults(env: CloudflareEnvironment, anal
         sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
         // Use null if confidence is null/undefined - NO FAKE 0.5
         confidence: result.confidence_metrics?.overall_confidence ?? null,
-        direction: result.trading_signals?.primary_direction || 'UNCLEAR',
+        direction: result.trading_signals?.primary_direction || 'neutral',
         model: result.sentiment_layers?.[0]?.model || 'none',
         analysis_type: result.analysis_type || 'unknown',
         trading_signals: result.trading_signals,

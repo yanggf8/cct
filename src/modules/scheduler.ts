@@ -44,6 +44,66 @@ export interface CronResponse {
   execution_id?: string;
   timestamp?: string;
   error?: string;
+  diagnostics?: {
+    dateStrUsed?: string;
+    scheduledTimeUTC?: string;
+    etTimeFormatted?: string;  // Properly formatted ET time (America/New_York)
+    failureReason?: string;
+  };
+}
+
+/**
+ * Extract EST/EDT date string (YYYY-MM-DD) from a UTC timestamp
+ * This correctly handles the timezone conversion to get the business date in America/New_York
+ */
+function getESTDateString(utcDate: Date): string {
+  // Format in America/New_York timezone to get correct business date
+  const estFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return estFormatter.format(utcDate); // Returns YYYY-MM-DD format
+}
+
+/**
+ * Format a UTC date as an ISO-like string in America/New_York timezone
+ * Returns format: YYYY-MM-DDTHH:MM:SS (no Z suffix, represents ET local time)
+ */
+function formatAsET(utcDate: Date): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  // Format returns "YYYY-MM-DD, HH:MM:SS" - convert to ISO-like format
+  const parts = formatter.format(utcDate).replace(', ', 'T');
+  return parts;
+}
+
+/**
+ * Get hour/minute in America/New_York timezone for logging
+ */
+function getETTimeParts(utcDate: Date): { hour: number; minute: number; dayOfWeek: number } {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    weekday: 'short',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(utcDate);
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  const weekdayMap: Record<string, number> = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+  const dayOfWeek = weekdayMap[parts.find(p => p.type === 'weekday')?.value || 'Sun'] || 0;
+  return { hour, minute, dayOfWeek };
 }
 
 export interface SlackAlert {
@@ -112,18 +172,15 @@ export async function handleScheduledEvent(
     predictionHorizons = TRIGGER_MODE_HORIZONS[triggerMode] || [];
     console.log(`🔧 [MANUAL-CRON] ${cronExecutionId} Running manual trigger: ${triggerMode}`);
   } else {
-    // Get the scheduled time in UTC for cron matching
+    // Get the scheduled time in UTC for cron matching (fixed UTC times, ET varies with DST)
     const utcHour = scheduledTime.getUTCHours();
     const utcMinute = scheduledTime.getUTCMinutes();
     const utcDay = scheduledTime.getUTCDay();
 
-    // Get EST/EDT time for logging
-    const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
-    const estHour = estTime.getHours();
-    const estMinute = estTime.getMinutes();
-    const estDay = estTime.getDay();
+    // Get ET time for logging using proper timezone-aware formatting
+    const etParts = getETTimeParts(scheduledTime);
 
-    console.log(`🕐 [PRODUCTION-CRON] UTC: ${utcHour}:${utcMinute.toString().padStart(2, '0')} (Day ${utcDay}) | EST/EDT: ${estHour}:${estMinute.toString().padStart(2, '0')} (Day ${estDay}) | Scheduled: ${scheduledTime.toISOString()}`);
+    console.log(`🕐 [PRODUCTION-CRON] UTC: ${utcHour}:${utcMinute.toString().padStart(2, '0')} (Day ${utcDay}) | ET: ${etParts.hour}:${etParts.minute.toString().padStart(2, '0')} (Day ${etParts.dayOfWeek}) | Scheduled: ${scheduledTime.toISOString()}`);
 
     // Determine trigger mode based on UTC schedule
     if (utcHour === 12 && utcMinute === 30 && utcDay >= 1 && utcDay <= 5) {
@@ -142,17 +199,17 @@ export async function handleScheduledEvent(
       triggerMode = 'sector_rotation_refresh';
       predictionHorizons = [];
     } else {
-      console.log(`⚠️ [CRON] Unrecognized schedule: UTC ${utcHour}:${utcMinute} (Day ${utcDay}) | EST/EDT ${estHour}:${estMinute} (Day ${estDay})`);
+      console.log(`⚠️ [CRON] Unrecognized schedule: UTC ${utcHour}:${utcMinute} (Day ${utcDay}) | ET: ${etParts.hour}:${etParts.minute} (Day ${etParts.dayOfWeek})`);
       return new Response('Unrecognized cron schedule', { status: 400 });
     }
   }
 
-  // Get EST time for business logic
-  const estTime = new Date(scheduledTime.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  // ET-formatted timestamp for logging (use scheduledTime.toISOString() for consistent UTC storage)
+  const estTimeFormatted = formatAsET(scheduledTime);
 
   console.log(`✅ [CRON-START] ${cronExecutionId}`, {
     trigger_mode: triggerMode,
-    est_time: estTime.toISOString(),
+    est_time: estTimeFormatted,
     utc_time: scheduledTime.toISOString(),
     prediction_horizons: predictionHorizons
   });
@@ -160,7 +217,7 @@ export async function handleScheduledEvent(
   try {
     let analysisResult: AnalysisResult | null = null;
     let analysisFailureReason: string | null = null;
-    const dateStr = estTime.toISOString().split('T')[0];
+    const dateStr = getESTDateString(scheduledTime);
 
     // Real-time Data Manager integration for live data freshness and cache warming
     try {
@@ -207,7 +264,7 @@ export async function handleScheduledEvent(
       // Use current Sunday as week anchor - getLastTradingDays() will look back
       // to find the Mon-Fri that just completed. This aligns with the UI's
       // getWeekSunday() which also returns the current Sunday.
-      const weekSunday = new Date(estTime);
+      const weekSunday = new Date(scheduledTime);
       // Note: Do NOT subtract 7 days here. The analysis functions already look
       // back from the anchor date to find the previous trading week (Mon-Fri).
 
@@ -259,7 +316,7 @@ export async function handleScheduledEvent(
           ...analysisResult,
           cron_execution_id: cronExecutionId,
           trigger_mode: triggerMode,
-          generated_at: estTime.toISOString(),
+          generated_at: scheduledTime.toISOString(),
           job_status: jobStatus,
           _generation: genMeta
         }, {
@@ -318,7 +375,7 @@ export async function handleScheduledEvent(
         // Perform sector rotation analysis
         const sectorResult = await performSectorRotationAnalysis(env, {
           triggerMode,
-          currentTime: estTime,
+          currentTime: scheduledTime,
           cronExecutionId
         });
 
@@ -469,7 +526,7 @@ export async function handleScheduledEvent(
           trigger_mode: triggerMode,
           error: 'Intraday analysis failed - no valid result generated',
           execution_id: cronExecutionId,
-          timestamp: estTime.toISOString()
+          timestamp: scheduledTime.toISOString()
         };
         return new Response(JSON.stringify(errorResponse), {
           status: 500,
@@ -493,6 +550,12 @@ export async function handleScheduledEvent(
         console.warn(`⚠️ [CRON-EOD] ${cronExecutionId} Run tracking unavailable, using fallback`);
       }
 
+      // Declare variables outside try block for access in catch block diagnostics
+      let analysisData: any = null;
+      let intradayData: any = null;
+      let preMarketRunId: string | null = null;
+      let intradayRunIdSource: string | null = null;
+
       if (runTrackingEnabled) {
         await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'init' });
         await endJobStage(env, { runId, stage: 'init' });
@@ -501,58 +564,22 @@ export async function handleScheduledEvent(
 
       try {
         const { generateEndOfDayAnalysis } = await import('./report/end-of-day-analysis.js');
-        const dal = createSimplifiedEnhancedDAL(env);
 
-        // Track source run IDs for lineage
-        let preMarketRunId: string | null = null;
-        let intradayRunIdSource: string | null = null;
-
-        // Fetch morning predictions and analysis data from cache, fallback to D1
-        // Validate cache hit is actually pre-market shaped (has trading_signals)
-        let analysisData: any = null;
-        const morningAnalysis = await dal.read(`analysis_${dateStr}`);
-        const isValidPreMarketCache = morningAnalysis.success &&
-          morningAnalysis.data?.trigger_mode === 'morning_prediction_alerts' &&
-          morningAnalysis.data?.trading_signals;
-
-        if (isValidPreMarketCache) {
-          analysisData = morningAnalysis.data;
-          // Extract run_id from cached data for lineage tracking
-          preMarketRunId = analysisData?.run_id || analysisData?._run_id || null;
-          console.log(`✅ [CRON-EOD] ${cronExecutionId} Pre-market data from cache (run_id: ${preMarketRunId || 'unknown'})`);
-        } else if (morningAnalysis.success) {
-          // Cache hit but not valid pre-market data - force D1 fallback
-          console.warn(`⚠️ [CRON-EOD] ${cronExecutionId} Cache hit but not pre-market shaped (trigger_mode: ${morningAnalysis.data?.trigger_mode}), forcing D1 fallback...`);
+        // Fetch morning predictions from D1 only (no KV cache)
+        console.log(`⚠️ [CRON-EOD] ${cronExecutionId} Fetching pre-market data from D1...`);
+        const d1Fallback = await getD1FallbackData(env, dateStr, 'pre-market');
+        if (d1Fallback?.data) {
+          analysisData = d1Fallback.data;
+          preMarketRunId = d1Fallback.runId || null;
+          console.log(`✅ [CRON-EOD] ${cronExecutionId} Pre-market data from D1 (source: ${d1Fallback.source}, run_id: ${preMarketRunId || 'unknown'})`);
         }
 
-        if (!isValidPreMarketCache) {
-          // Fallback to D1 snapshot
-          console.log(`⚠️ [CRON-EOD] ${cronExecutionId} Cache miss for analysis_${dateStr}, trying D1 fallback...`);
-          const d1Fallback = await getD1FallbackData(env, dateStr, 'pre-market');
-          if (d1Fallback?.data) {
-            analysisData = d1Fallback.data;
-            // Use runId from D1 result directly (plumbed from SELECT query)
-            preMarketRunId = d1Fallback.runId || null;
-            console.log(`✅ [CRON-EOD] ${cronExecutionId} Pre-market data from D1 (source: ${d1Fallback.source}, run_id: ${preMarketRunId || 'unknown'})`);
-          }
-        }
-
-        // Fetch intraday data if available (cache then D1 fallback)
-        let intradayData: any = null;
-        const intradayResult = await dal.read(`intraday_${dateStr}`);
-        if (intradayResult.success) {
-          intradayData = intradayResult.data;
-          intradayRunIdSource = intradayData?.run_id || intradayData?.pre_market_run_id || null;
-          console.log(`✅ [CRON-EOD] ${cronExecutionId} Intraday data from cache`);
-        } else {
-          // Fallback to D1 snapshot
-          const intradayD1Fallback = await getD1FallbackData(env, dateStr, 'intraday');
-          if (intradayD1Fallback?.data) {
-            intradayData = intradayD1Fallback.data;
-            // Use runId from D1 result directly (plumbed from SELECT query)
-            intradayRunIdSource = intradayD1Fallback.runId || null;
-            console.log(`✅ [CRON-EOD] ${cronExecutionId} Intraday data from D1 (source: ${intradayD1Fallback.source}, run_id: ${intradayRunIdSource || 'unknown'})`);
-          }
+        // Fetch intraday data from D1 only (no KV cache)
+        const intradayD1Fallback = await getD1FallbackData(env, dateStr, 'intraday');
+        if (intradayD1Fallback?.data) {
+          intradayData = intradayD1Fallback.data;
+          intradayRunIdSource = intradayD1Fallback.runId || null;
+          console.log(`✅ [CRON-EOD] ${cronExecutionId} Intraday data from D1 (source: ${intradayD1Fallback.source}, run_id: ${intradayRunIdSource || 'unknown'})`);
         }
 
         // Validate required inputs so failures are explicit (not silent zero-signal runs)
@@ -590,7 +617,7 @@ export async function handleScheduledEvent(
           ...eodResult,
           symbols_analyzed: signalsCount,
           symbols_list: eodResult.signalBreakdown?.map((s: any) => s.ticker) || [],
-          timestamp: estTime.toISOString(),
+          timestamp: scheduledTime.toISOString(),
           trigger_mode: triggerMode
         };
 
@@ -635,32 +662,62 @@ export async function handleScheduledEvent(
         }
 
       } catch (eodError: any) {
-        console.error(`❌ [CRON-EOD] ${cronExecutionId} End-of-day analysis failed:`, {
+        // Diagnostic info for debugging - log full details, expose minimal to HTTP response
+        const fullDiagnostics = {
           error: eodError.message,
-          stack: eodError.stack
-        });
+          stack: eodError.stack,  // Keep in logs only
+          dateCalculation: {
+            scheduledTimeUTC: scheduledTime.toISOString(),
+            etTimeFormatted: estTimeFormatted,
+            dateStrUsed: dateStr
+          },
+          dataStatus: {
+            hasAnalysisData: !!analysisData,
+            hasTradingSignals: !!analysisData?.trading_signals,
+            hasIntradayData: !!intradayData,
+            preMarketRunId: preMarketRunId || null,
+            intradayRunId: intradayRunIdSource || null
+          }
+        };
+
+        console.error(`❌ [CRON-EOD] ${cronExecutionId} End-of-day analysis failed:`, fullDiagnostics);
         analysisResult = null;
 
-        // Complete job with failure
+        // Store compact failure reason for D1 (no stack trace)
+        analysisFailureReason = `dateStr=${dateStr}, hasPreMarket=${!!analysisData}, hasTradingSignals=${!!analysisData?.trading_signals}`;
+
+        // Complete job with failure and compact diagnostics (no stack in D1)
         if (runTrackingEnabled) {
           await completeJobRun(env, {
             runId,
             scheduledDate: dateStr,
             reportType: 'end-of-day',
             status: 'failed',
-            errors: [eodError.message]
+            errors: [eodError.message, analysisFailureReason]
           });
         }
       }
 
       // If end-of-day failed, write failure status and stop before generic writer runs
       if (!analysisResult) {
+        // Minimal error response - no stack traces, detailed diagnostics only if DEBUG_DIAGNOSTICS enabled
+        const showDetailedDiagnostics = env.DEBUG_DIAGNOSTICS === 'true';
+
         const errorResponse: CronResponse = {
           success: false,
           trigger_mode: triggerMode,
           error: 'End-of-day analysis failed - no valid result generated',
           execution_id: cronExecutionId,
-          timestamp: estTime.toISOString()
+          timestamp: scheduledTime.toISOString(),
+          // Only include diagnostics if explicitly enabled via env var
+          ...(showDetailedDiagnostics && {
+            diagnostics: {
+              dateStrUsed: dateStr,
+              scheduledTimeUTC: scheduledTime.toISOString(),
+              etTimeFormatted: estTimeFormatted,
+              failureReason: analysisFailureReason || 'Unknown'
+            }
+          })
         };
 
         return new Response(JSON.stringify(errorResponse), {
@@ -695,7 +752,7 @@ export async function handleScheduledEvent(
         analysisResult = await runEnhancedPreMarketAnalysis(env, {
           triggerMode,
           predictionHorizons,
-          currentTime: estTime,
+          currentTime: scheduledTime,
           cronExecutionId,
           jobContext: {
             job_type: 'pre-market',
@@ -739,8 +796,9 @@ export async function handleScheduledEvent(
 
       const totalSignals = signalList.length;
       const usableSignals = signalList.filter((signal: any) => {
-        const direction = (signal?.enhanced_prediction?.direction ?? signal?.direction ?? '').toString().toUpperCase();
-        if (!direction || direction === 'UNCLEAR') return false;
+        const direction = (signal?.enhanced_prediction?.direction ?? signal?.direction ?? '').toString().toLowerCase();
+        // Filter out empty directions (safety check for missing data)
+        if (!direction) return false;
 
         const rawConfidence =
           signal?.confidence_metrics?.overall_confidence ??
@@ -764,59 +822,6 @@ export async function handleScheduledEvent(
         analysisResult = null;
         analysisFailureReason = `Analysis returned no usable signals (symbols: ${symbolsCount}, total_signals: ${totalSignals}, usable: ${usableSignals})`;
       }
-    }
-
-    // Store results in KV using DAL (ONLY for pre-market to prevent overwriting)
-    // EOD and intraday should NOT overwrite analysis_${dateStr} - EOD reads it for lineage
-    // dateStr is needed for both KV and D1 writes
-    if (analysisResult && triggerMode === 'morning_prediction_alerts') {
-      const dal = createSimplifiedEnhancedDAL(env);
-      const timeStr = estTime.toISOString().substr(11, 8).replace(/:/g, '');
-
-      const timestampedKey = `analysis_${dateStr}_${timeStr}`;
-      const dailyKey = `analysis_${dateStr}`;
-
-      console.log(`💾 [CRON-DAL] ${cronExecutionId} storing results with keys: ${timestampedKey} and ${dailyKey}`);
-
-      try {
-        // Store the timestamped analysis using enhanced DAL
-        const timestampedResult = await dal.write(
-          timestampedKey,
-          {
-            ...analysisResult,
-            cron_execution_id: cronExecutionId,
-            trigger_mode: triggerMode,
-            timestamp: estTime.toISOString()
-          }
-        );
-
-        console.log(`✅ [CRON-DAL] ${cronExecutionId} Timestamped key stored: ${timestampedKey}`);
-
-        // Update the daily summary using enhanced DAL
-        // Include run_id so EOD can track lineage when reading from cache
-        const dailyResult = await dal.write(
-          dailyKey,
-          {
-            ...analysisResult,
-            cron_execution_id: cronExecutionId,
-            trigger_mode: triggerMode,
-            last_updated: estTime.toISOString(),
-            run_id: runId || null  // Track run_id for EOD lineage
-          }
-        );
-
-        console.log(`✅ [CRON-DAL] ${cronExecutionId} Daily key stored: ${dailyKey} (run_id: ${runId || 'none'})`);
-      } catch (dalError: any) {
-        console.error(`❌ [CRON-DAL-ERROR] ${cronExecutionId} DAL operation failed:`, {
-          error: dalError.message,
-          stack: dalError.stack,
-          timestampedKey,
-          dailyKey
-        });
-        // Continue execution even if DAL fails
-      }
-    } else if (analysisResult && triggerMode === 'midday_validation_prediction') {
-      console.log(`⏭️ [CRON-DAL-SKIP] ${cronExecutionId} Skipping KV writes for intraday job (D1 only)`);
     }
 
     // Write to D1 with correct report type based on trigger mode
@@ -858,7 +863,7 @@ export async function handleScheduledEvent(
             ...analysisResult,
             cron_execution_id: cronExecutionId,
             trigger_mode: triggerMode,
-            generated_at: estTime.toISOString()
+            generated_at: scheduledTime.toISOString()
           }, d1Metadata, 'cron', activeRunTrackingEnabled ? activeRunId! : undefined);
           console.log(`✅ [CRON-D1] ${cronExecutionId} D1 snapshot written: ${d1ReportType} for ${dateStr}, success: ${d1Written}`);
 
@@ -945,7 +950,7 @@ export async function handleScheduledEvent(
         trigger_mode: triggerMode,
         error: failureError,
         execution_id: cronExecutionId,
-        timestamp: estTime.toISOString()
+        timestamp: scheduledTime.toISOString()
       };
       return new Response(JSON.stringify(errorResponse), {
         status: 500,
@@ -970,7 +975,7 @@ export async function handleScheduledEvent(
       trigger_mode: triggerMode,
       symbols_analyzed: symbolsCount,
       execution_id: cronExecutionId,
-      timestamp: estTime.toISOString()
+      timestamp: scheduledTime.toISOString()
     };
 
     return new Response(JSON.stringify(response), {
@@ -991,7 +996,7 @@ export async function handleScheduledEvent(
             fields: [
               { title: 'Error', value: error.message, short: false },
               { title: 'Trigger Mode', value: triggerMode, short: true },
-              { title: 'Time', value: estTime.toISOString(), short: true }
+              { title: 'Time', value: scheduledTime.toISOString(), short: true }
             ]
           }]
         };
@@ -1017,7 +1022,7 @@ export async function handleScheduledEvent(
         'sector_rotation_refresh': 'sector-rotation'
       };
       const jobType = jobTypeMap[triggerMode] || triggerMode;
-      const dateStr = estTime.toISOString().split('T')[0];
+      const dateStr = getESTDateString(scheduledTime);
 
       try {
         await completeJobRun(env, {
@@ -1040,7 +1045,7 @@ export async function handleScheduledEvent(
       error: error.message,
       trigger_mode: triggerMode,
       execution_id: cronExecutionId,
-      timestamp: estTime.toISOString()
+      timestamp: scheduledTime.toISOString()
     };
 
     return new Response(JSON.stringify(errorResponse), {

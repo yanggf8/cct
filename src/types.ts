@@ -195,6 +195,7 @@ export interface CloudflareEnvironment extends CfEnvironment {
   ENVIRONMENT?: string;
   LOG_LEVEL?: string;
   STRUCTURED_LOGGING?: string;
+  DEBUG_DIAGNOSTICS?: string;
 
   // AI Configuration
   GPT_MAX_TOKENS?: string;

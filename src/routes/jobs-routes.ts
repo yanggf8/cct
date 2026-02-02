@@ -84,9 +84,21 @@ export async function handleJobsRoutes(
   const url = new URL(request.url);
 
   // Job endpoints require API key validation; cctApi attaches X-API-Key
-  // Security decision 2026-01-29: No API key input required in UI
+  // Security decision 2026-01-29: No API key input required in UI (frontend uses stored key)
 
   try {
+    // Protected job execution endpoints - require API key
+    const protectedPaths = ['/api/v1/jobs/pre-market', '/api/v1/jobs/intraday', '/api/v1/jobs/trigger'];
+    if (protectedPaths.includes(path) && request.method === 'POST') {
+      const auth = validateApiKey(request, env);
+      if (!auth.valid) {
+        return new Response(
+          JSON.stringify(ApiResponseFactory.error('Unauthorized', 'UNAUTHORIZED', { requestId })),
+          { status: HttpStatus.UNAUTHORIZED, headers }
+        );
+      }
+    }
+
     // POST /api/v1/jobs/pre-market - Execute pre-market analysis job (protected)
     if (path === '/api/v1/jobs/pre-market' && request.method === 'POST') {
       return await handlePreMarketJob(request, env, headers, requestId, timer);
@@ -728,12 +740,14 @@ async function handleJobTrigger(
     }
   }
 
+  // Cron times must match scheduler.ts detection logic exactly (fixed UTC, ET varies with DST)
+  // EDT (Mar-Nov): UTC-4 | EST (Nov-Mar): UTC-5
   const cronTimes: Record<string, { hour: number; minute: number }> = {
-    morning_prediction_alerts: { hour: 12, minute: 30 },          // 08:30 ET
-    midday_validation_prediction: { hour: 16, minute: 0 },        // 12:00 ET
-    next_day_market_prediction: { hour: 1, minute: 0 },           // example: 01:00 UTC (adjust if needed)
-    weekly_review_analysis: { hour: 14, minute: 0 },              // example: 09:00 ET (adjust if needed)
-    sector_rotation_refresh: { hour: 11, minute: 0 }              // example: 06:00 ET (adjust if needed)
+    morning_prediction_alerts: { hour: 12, minute: 30 },          // 12:30 UTC = 08:30 EDT / 07:30 EST
+    midday_validation_prediction: { hour: 16, minute: 0 },        // 16:00 UTC = 12:00 EDT / 11:00 EST
+    next_day_market_prediction: { hour: 20, minute: 5 },          // 20:05 UTC = 16:05 EDT / 15:05 EST
+    weekly_review_analysis: { hour: 14, minute: 0 },              // 14:00 UTC = 10:00 EDT / 09:00 EST (Sunday)
+    sector_rotation_refresh: { hour: 13, minute: 30 }             // 13:30 UTC = 09:30 EDT / 08:30 EST
   };
 
   const cronTime = cronTimes[mode] || null;

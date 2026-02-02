@@ -29,6 +29,7 @@ import {
   readD1ReportSnapshot,
   readD1ReportSnapshotByRunId,
   getD1LatestReportSnapshot,
+  getD1FallbackData,
   getJobDateResults,
   type ReportType,
   type JobDateResult
@@ -659,49 +660,65 @@ export async function handlePreMarketReport(
 
       // Calculate overall market sentiment from signals
       const allSignals = Object.values(tradingSignals).map((signal: any) => {
-        const confidence = signal.confidence_metrics?.overall_confidence ??
-          signal.enhanced_prediction?.confidence ??
+        // Extract from dual AI structure with fallback to legacy paths
+        const confidence = signal.signal?.confidence ??
+          signal.models?.gpt?.confidence ??
+          signal.models?.distilbert?.confidence ??
+          signal.confidence_metrics?.overall_confidence ??
           signal.sentiment_layers?.[0]?.confidence ??
           signal.confidence ??
           null;
 
         // Extract dual model confidence values
-        const gemmaConfidence = signal.gemma_confidence ?? null;
-        const distilbertConfidence = signal.distilbert_confidence ?? null;
+        const gemmaConfidence = signal.models?.gpt?.confidence ?? signal.gemma_confidence ?? null;
+        const distilbertConfidence = signal.models?.distilbert?.confidence ?? signal.distilbert_confidence ?? null;
+
+        // Extract sentiment from dual AI structure with fallback
+        const sentiment = signal.signal?.direction ?? 
+          signal.sentiment_layers?.[0]?.sentiment ?? 
+          signal.sentiment ?? 
+          'neutral';
 
         // Determine status based on explicit error fields first, then confidence
-        // Per dual-ai-analysis contract: failures have error field AND confidence=0
         const hasError = !!(
           signal.error ||
           signal.error_message ||
           signal.status === 'failed' ||
           signal.status === 'skipped' ||
-          signal.gemma_error ||
-          signal.distilbert_error
+          signal.signal?.type === 'ERROR' ||
+          signal.models?.gpt?.error ||
+          signal.models?.distilbert?.error
         );
 
         // Status: failed if explicit error OR missing confidence
         const status = hasError || confidence === null ? 'failed' : 'success';
 
-        // Failure reason: prioritize explicit error fields over reasoning
+        // Failure reason: prioritize explicit error fields
         const failureReason = status === 'failed'
           ? (signal.error ||
             signal.error_message ||
-            signal.gemma_error ||
-            signal.distilbert_error ||
+            signal.signal?.reasoning ||
+            signal.models?.gpt?.error ||
+            signal.models?.distilbert?.error ||
             signal.status ||
             'Analysis failed')
           : undefined;
 
+        // Extract reasoning from dual AI structure with fallback
+        const reasoning = signal.signal?.reasoning ?? 
+          signal.sentiment_layers?.[0]?.reasoning ?? 
+          signal.reasoning ?? 
+          '';
+
         return {
           symbol: signal.symbol,
-          sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+          sentiment,
           confidence,
           gemma_confidence: gemmaConfidence,
           distilbert_confidence: distilbertConfidence,
           status,
           failure_reason: failureReason,
-          reason: status === 'success' ? (signal.sentiment_layers?.[0]?.reasoning || '') : failureReason
+          reason: status === 'success' ? reasoning : failureReason
         };
       });
 
@@ -718,8 +735,10 @@ export async function handlePreMarketReport(
         ],
         high_confidence_signals: Object.values(tradingSignals)
           .filter((signal: any) => {
-            const conf = signal.confidence_metrics?.overall_confidence ??
-              signal.enhanced_prediction?.confidence ??
+            const conf = signal.signal?.confidence ??
+              signal.models?.gpt?.confidence ??
+              signal.models?.distilbert?.confidence ??
+              signal.confidence_metrics?.overall_confidence ??
               signal.sentiment_layers?.[0]?.confidence ??
               signal.confidence ??
               null;
@@ -728,22 +747,31 @@ export async function handlePreMarketReport(
               signal.error_message ||
               signal.status === 'failed' ||
               signal.status === 'skipped' ||
-              signal.gemma_error ||
-              signal.distilbert_error
+              signal.signal?.type === 'ERROR' ||
+              signal.models?.gpt?.error ||
+              signal.models?.distilbert?.error
             );
             return !hasError && conf !== null && conf > 0.7;
           })
           .slice(0, 5)
           .map((signal: any) => {
-            const confidence = signal.confidence_metrics?.overall_confidence ??
-              signal.enhanced_prediction?.confidence ??
+            const confidence = signal.signal?.confidence ??
+              signal.models?.gpt?.confidence ??
+              signal.models?.distilbert?.confidence ??
+              signal.confidence_metrics?.overall_confidence ??
               signal.sentiment_layers?.[0]?.confidence ??
               signal.confidence ??
               null;
 
-            // Extract dual model confidence (same as allSignals)
-            const gemmaConfidence = signal.gemma_confidence ?? null;
-            const distilbertConfidence = signal.distilbert_confidence ?? null;
+            // Extract dual model confidence
+            const gemmaConfidence = signal.models?.gpt?.confidence ?? signal.gemma_confidence ?? null;
+            const distilbertConfidence = signal.models?.distilbert?.confidence ?? signal.distilbert_confidence ?? null;
+
+            // Extract sentiment from dual AI structure with fallback
+            const sentiment = signal.signal?.direction ?? 
+              signal.sentiment_layers?.[0]?.sentiment ?? 
+              signal.sentiment ?? 
+              'neutral';
 
             // Derive status using same logic as allSignals for consistency
             const hasError = !!(
@@ -751,8 +779,9 @@ export async function handlePreMarketReport(
               signal.error_message ||
               signal.status === 'failed' ||
               signal.status === 'skipped' ||
-              signal.gemma_error ||
-              signal.distilbert_error
+              signal.signal?.type === 'ERROR' ||
+              signal.models?.gpt?.error ||
+              signal.models?.distilbert?.error
             );
             const status = hasError || confidence === null ? 'failed' : 'success';
 
@@ -760,23 +789,28 @@ export async function handlePreMarketReport(
             const failureReason = status === 'failed'
               ? (signal.error ||
                 signal.error_message ||
-                signal.gemma_error ||
-                signal.distilbert_error ||
+                signal.signal?.reasoning ||
+                signal.models?.gpt?.error ||
+                signal.models?.distilbert?.error ||
                 signal.status ||
                 'Analysis failed')
               : undefined;
 
+            // Extract reasoning from dual AI structure with fallback
+            const reasoning = signal.signal?.reasoning ?? 
+              signal.sentiment_layers?.[0]?.reasoning ?? 
+              signal.reasoning ?? 
+              'High confidence signal';
+
             return {
               symbol: signal.symbol,
-              sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
+              sentiment,
               confidence,
               gemma_confidence: gemmaConfidence,
               distilbert_confidence: distilbertConfidence,
               status,
               failure_reason: failureReason,
-              reason: status === 'success'
-                ? (signal.sentiment_layers?.[0]?.reasoning || 'High confidence signal')
-                : failureReason,
+              reason: status === 'success' ? reasoning : failureReason,
             };
           }),
         all_signals: allSignals,  // Already contains reason and status
@@ -985,12 +1019,11 @@ export async function handleEndOfDayReport(
   requestId: string
 ): Promise<Response> {
   const timer = new ProcessingTimer();
-  const dal = createSimplifiedEnhancedDAL(env);
   const url = new URL(request.url);
   const runId = url.searchParams.get('run_id');
 
   try {
-    // If run_id specified, load that specific run
+    // If run_id specified, load that specific run from D1
     if (runId) {
       const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
       if (runSnapshot) {
@@ -1010,36 +1043,48 @@ export async function handleEndOfDayReport(
       }
     }
 
+    // Fetch from D1 snapshot (no KV cache)
     const today = new Date().toISOString().split('T')[0];
-    const analysisKey = `analysis_${today}`;
-    const analysisData = await (dal as any).get(analysisKey, 'ANALYSIS');
+    const d1Result = await getD1FallbackData(env, today, 'end-of-day');
 
+    if (d1Result?.data) {
+      // Return the actual EOD analysis from D1
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.success(d1Result.data, {
+            source: 'd1_snapshot',
+            scheduled_date: today,
+            is_stale: d1Result.isStale,
+            requestId,
+            processingTime: timer.finish()
+          })
+        ),
+        { status: HttpStatus.OK, headers }
+      );
+    }
+
+    // No data - return placeholder
     const response = {
       type: 'end_of_day_summary',
       date: today,
       timestamp: new Date().toISOString(),
       market_status: 'closed',
       daily_summary: {
-        symbols_analyzed: analysisData?.symbols_analyzed?.length || 0,
+        symbols_analyzed: 0,
         overall_sentiment: 'neutral',
         key_events: [
           'Market closed',
-          'Daily analysis complete',
-          'Tomorrow\'s outlook prepared',
+          'EOD analysis not yet available',
         ],
       },
       tomorrow_outlook: {
         sentiment: 'neutral',
         confidence: 0.5,
-        key_factors: ['Weekend analysis', 'Global market conditions', 'Economic indicators'],
+        key_factors: ['Awaiting market close data'],
       },
     };
 
-    logger.info('EndOfDayReport: Report generated', {
-      symbolsCount: response.daily_summary.symbols_analyzed,
-      processingTime: timer.getElapsedMs(),
-      requestId
-    });
+    logger.info('EndOfDayReport: No data available', { requestId });
 
     return new Response(
       JSON.stringify(

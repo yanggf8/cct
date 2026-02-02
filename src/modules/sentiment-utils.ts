@@ -187,29 +187,39 @@ export function calculateModelCost(
  */
 export function mapSentimentToDirection(sentiment: string): string {
   const mapping: Record<string, string> = {
-    'BULLISH': 'UP',
-    'BEARISH': 'DOWN',
-    'NEUTRAL': 'NEUTRAL',
-    'POSITIVE': 'UP',
-    'NEGATIVE': 'DOWN'
+    'BULLISH': 'bullish',
+    'BEARISH': 'bearish',
+    'NEUTRAL': 'neutral',
+    // Legacy direction values (still appear in some subsystems)
+    'UP': 'bullish',
+    'DOWN': 'bearish',
+    'FLAT': 'neutral',
+    'POSITIVE': 'bullish',
+    'NEGATIVE': 'bearish',
+    // Common alternates
+    'LONG': 'bullish',
+    'SHORT': 'bearish'
   };
-  return mapping[sentiment?.toUpperCase()] || 'NEUTRAL';
+  return mapping[sentiment?.toUpperCase()] || 'neutral';
 }
 
 /**
  * Check if two sentiment directions agree
  */
 export function checkDirectionAgreement(direction1: string, direction2: string): boolean {
-  const normalize1 = direction1?.toUpperCase();
-  const normalize2 = direction2?.toUpperCase();
+  const normalize1 = direction1?.toLowerCase();
+  const normalize2 = direction2?.toLowerCase();
 
   // Direct agreement
   if (normalize1 === normalize2) return true;
 
-  // Cross-format agreement
-  if ((normalize1 === 'UP' && normalize2 === 'BULLISH') ||
-      (normalize1 === 'DOWN' && normalize2 === 'BEARISH') ||
-      (normalize1 === 'NEUTRAL' && (normalize2 === 'FLAT' || normalize2 === 'NEUTRAL'))) {
+  // Cross-format agreement (handle legacy uppercase values)
+  if ((normalize1 === 'up' && normalize2 === 'bullish') ||
+      (normalize1 === 'bullish' && normalize2 === 'up') ||
+      (normalize1 === 'down' && normalize2 === 'bearish') ||
+      (normalize1 === 'bearish' && normalize2 === 'down') ||
+      (normalize1 === 'neutral' && normalize2 === 'flat') ||
+      (normalize1 === 'flat' && normalize2 === 'neutral')) {
     return true;
   }
 
@@ -242,9 +252,9 @@ export function generateSentimentSignal(
   let signal: 'BUY' | 'SELL' | 'HOLD';
   let strength: 'strong' | 'moderate' | 'weak';
 
-  if (direction === 'UP') {
+  if (direction === 'bullish') {
     signal = confidence >= 0.7 ? 'BUY' : 'HOLD';
-  } else if (direction === 'DOWN') {
+  } else if (direction === 'bearish') {
     signal = confidence >= 0.7 ? 'SELL' : 'HOLD';
   } else {
     signal = 'HOLD';

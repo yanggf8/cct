@@ -18,6 +18,25 @@ const logger = createLogger('pre-market-data-bridge');
  */
 interface TradingSignal {
   symbol: string;
+  signal?: {
+    direction: string;
+    confidence: number;
+    reasoning: string;
+    action: string;
+    type: string;
+  };
+  models?: {
+    gpt?: {
+      direction: string;
+      confidence: number | null;
+      reasoning: string;
+    };
+    distilbert?: {
+      direction: string;
+      confidence: number | null;
+      reasoning: string;
+    };
+  };
   sentiment_layers: Array<{
     sentiment: string;
     confidence: number;
@@ -461,12 +480,32 @@ export class PreMarketDataBridge {
           if (sentimentData && sentimentData.confidence > 0.3) {
             trading_signals[symbol] = {
               symbol,
+              // Store dual AI structure directly
+              signal: {
+                direction: this.normalizeSentiment(sentimentData.sentiment),
+                confidence: sentimentData.confidence,
+                reasoning: sentimentData.reasoning || `${sentimentData.sentiment} sentiment analysis with ${sentimentData.confidence}% confidence`,
+                action: sentimentData.signal || 'HOLD',
+                type: 'AGREEMENT'
+              },
+              models: {
+                gpt: sentimentData.dual_model?.gemma?.status === 'success' ? {
+                  direction: sentimentData.dual_model.gemma.direction || 'neutral',
+                  confidence: sentimentData.dual_model.gemma.confidence || null,
+                  reasoning: sentimentData.reasoning
+                } : undefined,
+                distilbert: sentimentData.dual_model?.distilbert?.status === 'success' ? {
+                  direction: sentimentData.dual_model.distilbert.direction || 'neutral',
+                  confidence: sentimentData.dual_model.distilbert.confidence || null,
+                  reasoning: sentimentData.reasoning
+                } : undefined
+              },
+              // Legacy format for backward compatibility
               sentiment_layers: [{
                 sentiment: this.normalizeSentiment(sentimentData.sentiment),
                 confidence: sentimentData.confidence,
                 reasoning: sentimentData.reasoning || `${sentimentData.sentiment} sentiment analysis with ${sentimentData.confidence}% confidence`
               }],
-              // Include dual model data for display
               dual_model: sentimentData.dual_model,
               articles_count: sentimentData.articles_analyzed,
               articles_content: sentimentData.articles_titles
@@ -505,6 +544,14 @@ export class PreMarketDataBridge {
             // Include skipped symbols in trading_signals so they appear in the report
             trading_signals[symbol] = {
               symbol,
+              signal: {
+                direction: 'neutral',
+                confidence: null,
+                reasoning: failureReason,
+                action: 'SKIP',
+                type: 'ERROR'
+              },
+              // Legacy format for backward compatibility
               sentiment_layers: [{
                 sentiment: 'skipped',
                 confidence: sentimentData?.confidence || 0,
@@ -533,6 +580,14 @@ export class PreMarketDataBridge {
           // Include failed symbols in trading_signals so they appear in the report
           trading_signals[symbol] = {
             symbol,
+            signal: {
+              direction: 'neutral',
+              confidence: null,
+              reasoning: errMsg,
+              action: 'SKIP',
+              type: 'ERROR'
+            },
+            // Legacy format for backward compatibility
             sentiment_layers: [{
               sentiment: 'failed',
               confidence: 0,

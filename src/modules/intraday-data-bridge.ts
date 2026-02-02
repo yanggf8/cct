@@ -549,31 +549,36 @@ export class IntradayDataBridge {
       // Match pre-market briefing's extraction logic for consistency
       return { predictions: signalsArray.map((signal: any) => ({
         symbol: signal.symbol || signal.ticker,
-        sentiment: signal.sentiment || signal.sentiment_layers?.[0]?.sentiment,
-        // Match briefing-handlers.ts confidence extraction
-        confidence: signal.confidence_metrics?.overall_confidence ??
-          signal.enhanced_prediction?.confidence ??
-          signal.confidence ??
+        // Extract sentiment from dual AI structure with fallback
+        sentiment: signal.signal?.direction ?? 
+          signal.sentiment_layers?.[0]?.sentiment ?? 
+          signal.sentiment ?? 
+          'neutral',
+        // Extract confidence from dual AI structure with fallback
+        confidence: signal.signal?.confidence ??
+          signal.models?.gpt?.confidence ??
+          signal.models?.distilbert?.confidence ??
+          signal.confidence_metrics?.overall_confidence ??
           signal.sentiment_layers?.[0]?.confidence ??
-          signal.dual_model?.gemma?.confidence ??
+          signal.confidence ??
           0,
         articles_count: signal.articles_count || 0,
-        // Match briefing-handlers.ts direction extraction
-        direction: signal.trading_signals?.primary_direction?.toLowerCase() ||
-          signal.direction ||
-          signal.sentiment_layers?.[0]?.sentiment ||
-          signal.dual_model?.gemma?.direction ||
-          signal.dual_model?.distilbert?.direction ||
+        // Extract direction from dual AI structure with fallback
+        direction: signal.signal?.direction ??
+          signal.sentiment_layers?.[0]?.sentiment ??
+          signal.direction ??
+          signal.models?.gpt?.direction ??
+          signal.models?.distilbert?.direction ??
           'neutral',
         trading_signals: signal,
-        // Dual model fields (may be undefined for current pre-market format)
-        gemma_status: signal.gemma_status || signal.dual_model?.gemma?.status,
-        gemma_error: signal.gemma_error || signal.dual_model?.gemma?.error,
-        gemma_confidence: signal.gemma_confidence || signal.dual_model?.gemma?.confidence,
+        // Dual model fields from new structure with fallback to legacy
+        gemma_status: signal.models?.gpt?.error ? 'failed' : (signal.models?.gpt ? 'success' : (signal.gemma_status || signal.dual_model?.gemma?.status)),
+        gemma_error: signal.models?.gpt?.error || signal.gemma_error || signal.dual_model?.gemma?.error,
+        gemma_confidence: signal.models?.gpt?.confidence ?? signal.gemma_confidence ?? signal.dual_model?.gemma?.confidence,
         gemma_response_time_ms: signal.gemma_response_time_ms || signal.dual_model?.gemma?.response_time_ms,
-        distilbert_status: signal.distilbert_status || signal.dual_model?.distilbert?.status,
-        distilbert_error: signal.distilbert_error || signal.dual_model?.distilbert?.error,
-        distilbert_confidence: signal.distilbert_confidence || signal.dual_model?.distilbert?.confidence,
+        distilbert_status: signal.models?.distilbert?.error ? 'failed' : (signal.models?.distilbert ? 'success' : (signal.distilbert_status || signal.dual_model?.distilbert?.status)),
+        distilbert_error: signal.models?.distilbert?.error || signal.distilbert_error || signal.dual_model?.distilbert?.error,
+        distilbert_confidence: signal.models?.distilbert?.confidence ?? signal.distilbert_confidence ?? signal.dual_model?.distilbert?.confidence,
         distilbert_response_time_ms: signal.distilbert_response_time_ms || signal.dual_model?.distilbert?.response_time_ms,
         model_selection_reason: signal.model_selection_reason || signal.dual_model?.selection_reason
       })), preMarketRunId: runId };
