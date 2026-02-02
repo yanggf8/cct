@@ -1,521 +1,82 @@
-# 🏆 CCT - Enterprise-Grade AI Trading Intelligence System
+# CCT - AI Trading Intelligence (Cloudflare Workers)
 
-## 🎯 Project Overview
+## Overview
+CCT is a Cloudflare Workers codebase for AI-assisted market intelligence: sentiment analysis, report generation, dashboards, and operational tooling. The core worker lives in `src/`, Durable Objects are in `src/modules/`, and the public UI is in `public/`.
 
-**Production-Ready AI Trading Intelligence System**: Enterprise-grade platform featuring dual AI sentiment analysis (Gemma Sea Lion 27B + DistilBERT-SST-2), Durable Objects-only caching architecture, predictive analytics dashboard, and real-time sector rotation analysis.
+Key characteristics:
+- Dual-model sentiment pipeline (primary GPT-OSS 120B, secondary DeepSeek-R1 32B)
+- Durable Objects cache as the primary fast path
+- D1-backed job storage for reports and runs (with KV fallback)
+- Multi-run tracking across scheduled job types
+- Polling-based dashboards (SSE disabled)
 
-**Current Status**: ✅ **PRODUCTION READY** - **TypeScript Error-Free** (2026-01-13)
+## Project Layout
+- `src/` - Worker handlers and route modules
+- `src/routes/` - API v1 route handlers by domain
+- `src/modules/` - Durable Objects and shared services
+- `public/` - Dashboard assets and static UI
+- `docs/` - Guides, architecture notes, and references
+- `tests/` - Playwright specs and test scripts
+- `scripts/` - Operational and utility scripts
 
-**Live System**: https://tft-trading-system.yanggf.workers.dev
+## API Quick Start
+Base path for APIs is `/api/v1`. Route groups are organized by domain:
+- Sentiment: `/api/v1/sentiment/*`
+- Reports: `/api/v1/reports/*`
+- Data: `/api/v1/data/*`
+- Jobs: `/api/v1/jobs/*`
+- Sector rotation: `/api/v1/sector-rotation/*` and `/api/v1/sectors/*`
+- Market intelligence: `/api/v1/market-intelligence/*`
+- Market drivers: `/api/v1/market-drivers/*`
+- Predictive analytics: `/api/v1/predictive/*`
+- Technical analysis: `/api/v1/technical/*`
+- Advanced analytics: `/api/v1/analytics/*`
+- Realtime: `/api/v1/realtime/*`
+- Backtesting: `/api/v1/backtesting/*`
+- Portfolio: `/api/v1/portfolio/*`
+- Risk management: `/api/v1/risk/*`
+- Cache: `/api/v1/cache/*`
+- Production guards: `/api/v1/guards/*`
 
-## 🚀 Latest Updates
+For a complete list, see `src/routes/` and the API root response at `/api/v1`.
 
-### **🎯 Sentiment Direction & Confidence Fix (2026-02-02)**
-- ✅ **Dual AI Structure**: All reports now extract sentiment from `signal.direction` (not `sentiment_layers[0]`)
-- ✅ **Clear Confidence**: Reports show concrete confidence levels (0.0-1.0) from dual AI analysis
-- ✅ **Dual Model Display**: Both GPT and DistilBERT confidence levels visible in reports
-- ✅ **Backward Compatible**: Fallback chain supports legacy `sentiment_layers` format
-- ✅ **Verified**: Pre-market report shows 5/5 symbols with clear sentiment + confidence
+## Authentication
+- If `X_API_KEY` is configured in the environment, non-public `/api/v1/*` endpoints require `X-API-Key`.
+- Dashboards use `public/js/cct-api.js`, which looks for the key in `sessionStorage.cct_api_key`, then `localStorage.cct_api_key`, then `window.CCT_API_KEY`.
+- Public endpoints include `/health`, `/model-health`, `/api/v1/data/health`, `/api/v1/reports/status`, `/api/v1/jobs/history`, and `/api/v1/jobs/runs`.
 
-**Fixed Components**:
-- Pre-market report handler: Correct extraction paths with fallback
-- Pre-market job: Stores dual AI structure (`signal` + `models` fields)
-- Intraday bridge: Prioritizes dual AI structure when reading data
-
-See `SENTIMENT_FIX_SUMMARY.md` and `DEPLOYMENT_VERIFICATION.md` for details.
-
-### **🔄 Pre-Market Multi-Run Fix (2026-01-28)**
-- ✅ **Multi-Run Support**: Pre-market jobs now support multiple runs per date (was missing)
-- ✅ **Consistent Architecture**: All job types (pre-market, intraday, end-of-day, weekly) use same tracking
-- ✅ **Run History**: Pre-market runs now preserved in `job_run_results` table
-- ✅ **Stage Tracking**: Full timeline (init → ai_analysis → storage → finalize)
-- ✅ **Dashboard Integration**: Pre-market runs visible in dashboard with delete capability
-
-**Root Cause**: Pre-market job handler was not using `startJobRun()` / `completeJobRun()` while other jobs were.
-
-**Fix**: Added multi-run tracking to `morning_prediction_alerts` trigger mode in `scheduler.ts`.
-
-See `PRE_MARKET_MULTI_RUN_FIX.md` for detailed analysis.
-
-### **🔄 Navigation Multi-Run Complete (2026-01-28)**
-- ✅ **Multi-Run Architecture**: All job types support multiple runs per date/type
-- ✅ **Run History**: Preserved in `job_run_results` table with unique run_ids
-- ✅ **Run Access**: All reports support `?run_id=` parameter to view specific runs
-- ✅ **Partial Status**: Jobs show ⚠️ icon when some symbols fail/diverge
-- ✅ **Stage Tracking**: Full timeline (init → data_fetch → ai_analysis → storage → finalize)
-- ✅ **Dashboard Integration**: Shows run_id with delete capability
-
-**Implementation**:
-- Weekly & end-of-day cron jobs use `startJobRun()` / `completeJobRun()`
-- Pre-market & intraday jobs already had multi-run support
-- HTML handlers render proper HTML for `?run_id=` views (no JSON)
-- Navigation displays latest run status with partial indicators
-
-### **🔐 Auth Policy (No API Key Input Required, 2026-01-29)**
-- ✅ **Public by Default**: `/api/v1/*` endpoints are public unless `X_API_KEY` is configured
-- ✅ **Optional Keys**: API keys can be provided via `sessionStorage` or `window.CCT_API_KEY`
-- ✅ **No UI Prompt**: Settings no longer require API key input
-- ✅ **Centralized Client**: All pages use `cctApi` for API calls; auth headers are added there when configured
-
-**Public Endpoints** (no API key input required):
-- `/health` - System health
-- `/model-health` - AI model health
-- `/api/v1/data/health` - API health
-
-**Protected Endpoints** (require `X-API-KEY` only when configured):
-- Non-public `/api/v1/*` endpoints when `X_API_KEY` is set
-
-### **🕐 Local Time Display (2026-01-13)**
-- ✅ **Browser-Based Conversion**: Report schedules show both ET and user's local timezone
-- ✅ **DST-Safe**: Uses `setUTCHours()` + `toLocaleTimeString({timeZone: 'America/New_York'})` for ET
-- ✅ **Consistent**: All 4 report handlers use identical `.sched-time` script
-- ✅ **Root Redirect**: Safe JS redirect from `/` to `/dashboard.html`
-
-### **🔄 KV→DO Migration Complete (2025-12-24)**
-- ✅ **DO-Only Cache**: All cache operations migrated to Durable Objects
-- ✅ **Renamed**: `DualCacheDO` → `CacheDO`, file renamed to `cache-do.ts`
-- ✅ **Auth Fix**: API auth bypass vulnerability fixed (exact match only)
-- ✅ **UI Unified**: Top headers removed, left sidebar is sole navigation
-
-### **🔧 Dashboard Fixes (2025-12-24)**
-- ✅ **SSE Cleanup**: Removed dead SSE code, dashboard now shows "Polling" status
-- ✅ **Initial Data Load**: `connectRealtime()` triggers immediate data refresh on init
-- ✅ **API Path Fix**: Fixed baseUrl to use `/api/v1` instead of full origin
-- ✅ **date-fns CDN**: Switched to browser-compatible UMD build
-
-### **📁 Test & Script Organization (2025-12-19)**
-- ✅ **54 Scripts Reorganized**: All test and operational scripts organized into logical structure
-- ✅ **38 Test Scripts**: Organized into 8 categories (integration, security, performance, validation, e2e, regression, feature, chaos)
-- ✅ **16 Operational Scripts**: Categorized by purpose (deployment, test-runners, utilities, setup, monitoring)
-- ✅ **Comprehensive Documentation**: Created tests/README.md, scripts/README.md, TEST_AND_SCRIPT_INDEX.md
-- ✅ **Zero Breaking Changes**: All GitHub Actions workflows and npm scripts updated with new paths
-- ✅ **Improved Maintainability**: Clear categorization, easy discovery, scalable structure
-
-### **🐛 Critical Bug Fixes (2025-12-19)**
-- ✅ **Runtime TypeError Fix**: Fixed `searchParamsget` → `searchParams.get` (16 occurrences)
-- ✅ **DAL Method Calls Fix**: Fixed missing dots in `dal.read`, `dal.getPerformanceStats`, etc.
-- ✅ **API Auth Protection**: Added API-key validation for `/api/v1/data/*` protected endpoints
-- ✅ **Multi-Key Auth Support**: Uses `validateApiKey` for comma-separated key support
-
-### **📊 Phase 3 BI Dashboard Scaffolding Complete (2025-11-28)**
-- ✅ **Business Intelligence Dashboard**: Real-time operational health monitoring with cost-to-serve intelligence
-- ✅ **Cost-to-Serve Analytics**: Storage, compute, bandwidth cost analysis with efficiency scoring
-- ✅ **Guard Violation Monitoring**: Real-time violation tracking with filtering, pagination, and MTTR metrics
-- ✅ **Dashboard API Infrastructure**: 5 new endpoints for comprehensive system monitoring
-- ✅ **Testing Framework**: Cache economics validation, D1 rollups testing, performance benchmarking
-- ✅ **Frontend Integration**: Modern dashboard interface with auto-refresh and theme support
-
-### **📰 News Provider Diagnostics (2026-02-03)**
-- ✅ **Per-Provider Tracking**: `news_fetch_log` table records every fetch attempt
-- ✅ **Detailed Failure Info**: Status, article count, error messages, response times
-- ✅ **Weekend Cache**: `weekend_news_cache` persists Friday's articles for Monday fallback
-- ✅ **Easy Debugging**: Query `WHERE total_articles = 0` to diagnose failures
-
-### **💰 Money Flow Integration (2025-12-10)**
-- ✅ **Yahoo Finance**: Local CMF/OBV calculation for money flow indicators
-- ✅ **FMP News Integration**: Configured FMP_API_KEY for richer sector news coverage
-
-### **🛡️ Critical Issues Resolution & Production Hardening (2025-11-27)**
-- ✅ **Real DXY Integration**: Yahoo Finance DX-Y.NYB futures replacing hardcoded `usDollarIndex: 104.2`
-- ✅ **Enhanced Type Safety**: TypeScript generics for mock detection (`detectMockData<T>()`)
-- ✅ **Graceful Degradation**: Environment-based fallbacks (`FRED_ALLOW_DEGRADATION=true`)
-- ✅ **Circuit Breaker Pattern**: API resilience with failure thresholds and auto-recovery
-- ✅ **Mock Detection Refinement**: Context-aware validation eliminating false positives
-- ✅ **Production Safety**: All hardcoded values eliminated, conservative fallbacks implemented
-
-### **🛡️ Mock Data Elimination Complete (2025-11-27)**
-- ✅ **Real Data Integration**: FRED API + Yahoo Finance with circuit breakers and caching
-- ✅ **Production Guards**: `@requireRealData` decorators prevent mock data in production
-- ✅ **Source Provenance**: `DataSourceResult` interface with metadata and quality tracking
-- ✅ **CI/CD Enforcement**: Automated workflow blocks PRs with mock data regressions
-- ✅ **Request Deduplication**: Prevents API rate limiting with intelligent caching
-- ✅ **Legacy Fallback**: `USE_LEGACY_MARKET_DRIVERS=true` for staging safety
-
-### **🏆 Code Review & Security Implementation (2025-11-09)**
-- ✅ **Enterprise Security Active**: Multi-tier rate limiting protecting all API v1 endpoints
-- ✅ **TypeScript Foundation**: Comprehensive type system with 6 type definition files created
-- ✅ **Architecture Cleanup**: Eliminated 440+ lines of embedded JavaScript for maintainability
-- ✅ **Documentation Accuracy**: Updated to reflect actual security integration status
-
-### **⚡ Revolutionary Durable Objects Cache (2025-10-31)**
-- ✅ **100% KV Elimination**: Complete removal of KV operations (56/day → 0/day)
-- ✅ **50x Performance Boost**: Cold start latency reduced from 50ms to <1ms
-- ✅ **Persistent Memory**: Cache survives worker restarts via DO's in-memory storage
-- ✅ **Zero Breaking Changes**: Drop-in replacements with full backward compatibility
-- ✅ **Feature Flag Control**: Gradual rollout with instant fallback capability
-
-### **🎯 Pre-Market Briefing Resolution (2025-10-31)**
-- ✅ **Root Cause Fixed**: Eliminated "Data completion: 0%" issue
-- ✅ **Instant Response**: 2-3 minute wait → <500ms response time
-- ✅ **Data Bridge**: Seamless integration between sentiment analysis and reporting
-- ✅ **Manual Generation**: `POST /api/v1/jobs/pre-market` for on-demand data
-
-## 🏗️ System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              ENTERPRISE SECURITY LAYER                      │
-│  • Multi-Tier Rate Limiting (API/IP/Auth)                 │
-│  • Brute Force Protection                                  │
-│  • Suspicious Activity Monitoring                          │
-│  • Active on ALL /api/v1/* endpoints                      │
-├─────────────────────────────────────────────────────────────┤
-│                 CLOUDflare WORKERS                          │
-│  • TypeScript Codebase (Type Safety Foundation)            │
-│  • Durable Objects Persistent Cache (<1ms latency)         │
-│  • Multi-Level Caching (DO L1 + Intelligent Promotion)     │
-│  • Clean Architecture (No Embedded JavaScript)             │
-├─────────────────────────────────────────────────────────────┤
-│                   API GATEWAY LAYER                        │
-│  • RESTful API v1 (65+ endpoints, Security Protected)      │
-│  • Standardized Responses & Error Handling                 │
-│  • Self-Documenting API (/api/v1)                          │
-│  • Legacy Migration in Progress                            │
-├─────────────────────────────────────────────────────────────┤
-│                BUSINESS INTELLIGENCE LAYER                  │
-│  • Dual AI Analysis (GPT-OSS 120B + DeepSeek-R1 32B)        │
-│  • 4-Moment Workflow (Pre/Intraday/End-of-Day/Weekly)      │
-│  • BI Dashboard (Real-time Operational Health) ⭐ **NEW**  │
-│  • Cost-to-Serve Intelligence (Storage/Compute/Bandwidth) │
-│  • Guard Violation Monitoring (Real-time Alerting)        │
-│  • Sector Rotation (11 SPDR ETFs + S&P 500)               │
-│  • Predictive Analytics & Forecasting                      │
-├─────────────────────────────────────────────────────────────┤
-│                   DATA & STORAGE                           │
-│  • Yahoo Finance Real-time Data                            │
-│  • Cloudflare KV (Legacy - Being Phased Out)              │
-│  • R2 Storage (Trained Models)                             │
-│  • DO Persistent Cache (Primary Storage)                   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## 📊 Current System Status
-
-| Component | Status | Details |
-|-----------|--------|---------|
-| **TypeScript** | ✅ 100% | **0 errors** - Complete type safety |
-| **DO Cache** | ✅ Complete | 100% KV elimination, <1ms latency |
-| **Pre-Market Fix** | ✅ Resolved | Data completion: 100% |
-| **API v1** | ✅ Operational | 60+ endpoints, full coverage |
-| **AI Models** | ✅ Stable | 95% error reduction achieved |
-| **Test Coverage** | ✅ 93% | A-grade (152+ tests) |
-| **Dashboard** | ✅ 9.0/10 | Professional grade |
-| **Performance** | ✅ Excellent | <1s load, <15ms cached API |
-
-## 🎯 API Endpoints
-
-### **Core APIs (65+ endpoints)**
-
-#### **Sentiment Analysis**
+## Development
 ```bash
-GET /api/v1/sentiment/analysis          # Multi-symbol analysis
-GET /api/v1/sentiment/symbols/:symbol   # Single symbol
-GET /api/v1/sentiment/market            # Market-wide sentiment
-GET /api/v1/sentiment/sectors           # Sector sentiment
-```
-
-#### **Reports**
-```bash
-GET /api/v1/reports/daily/:date         # Daily reports
-GET /api/v1/reports/weekly/:week        # Weekly reports
-GET /api/v1/reports/pre-market          # Pre-market briefing ⭐ FIXED
-GET /api/v1/reports/intraday            # Intraday check (latest snapshot)
-GET /api/v1/reports/intraday?date=YYYY-MM-DD   # Intraday check for a date
-GET /api/v1/reports/intraday?run_id=...         # Intraday check for a specific run
-GET /api/v1/reports/end-of-day          # End-of-day summary
-```
-
-#### **Data Access**
-```bash
-GET /api/v1/data/symbols                # Available symbols
-GET /api/v1/data/history/:symbol        # Historical data
-GET /api/v1/data/health                 # System health
-```
-
-#### **Security & Monitoring** 🔒
-```bash
-GET /api/v1/security/status           # Security system status (PROTECTED)
-POST /api/v1/security/test-auth       # Test authentication (PROTECTED)
-```
-
-#### **Business Intelligence Dashboard** ⭐ **PHASE 3**
-```bash
-GET /api/v1/dashboard/metrics           # Operational health & KPIs
-GET /api/v1/dashboard/economics         # Cost-to-serve intelligence
-GET /api/v1/dashboard/guards            # Guard violation monitoring
-GET /api/v1/dashboard/health            # Dashboard system health
-POST /api/v1/dashboard/refresh          # Force data refresh
-```
-
-#### **Enhanced Cache (DO-based)**
-```bash
-GET /api/v1/cache/health                # Cache health monitoring
-GET /api/v1/cache/metrics               # Performance metrics
-GET /api/v1/cache/config                # Configuration
-```
-
-### **Dashboard Access** ⭐ **PHASE 3**
-```bash
-# BI Dashboard Interface
-https://tft-trading-system.yanggf.workers.dev/bi-dashboard.html
-
-# API Documentation
-https://tft-trading-system.yanggf.workers.dev/api/v1
-```
-
-### **Authentication**
-```bash
-curl -H "X-API-KEY: your_api_key" https://tft-trading-system.yanggf.workers.dev/api/v1/sentiment/analysis
-```
-
-**API Key Storage Policy:**
-- **Storage**: `sessionStorage` only (tab-bound, cleared on browser close)
-- **Priority**: `sessionStorage.cct_api_key` → `window.CCT_API_KEY` (staging/personal fallback)
-- **Set/Update**: Settings page (`/settings.html`) or `cctApi.setApiKey(key)`
-- **Clear**: Settings page "Clear API Key" button or `cctApi.setApiKey('')`
-- **Security**: Do not use `window.CCT_API_KEY` in production. Personal build currently bakes `window.CCT_API_KEY = 'yanggf'` in `public/js/nav.js`; remove/replace before sharing or deploying.
-- **Timezone Default**: Asia/Taipei (fallback when no `tz` param or saved setting)
-
-**Report “Today” Resolution (Pre‑Market & Other Reports)**
-- Determine “today” using the resolved timezone (param → DO setting → default Asia/Taipei) but fetch the report dated in ET (D1 stores ET, which is intended).
-- If D1 has a record: render it using the record’s `sourceDate` for the title/header (no “fake” date); stale banner only when D1 marks it stale and the gap is >1 day.
-- If no record exists yet:
-  - Before the scheduled time: show “pending”; stale fallback data is intentionally suppressed so yesterday never appears as “today.”
-  - After the scheduled time: treat as stale/missing and show the stale warning with refresh guidance.
-
-## 🔧 Development
-
-### **Quick Start**
-```bash
-# Install dependencies
 npm install
-
-# Run tests
-npm test
-
-# Deploy to production
-npm run deploy
-
-# Performance testing
-npm run test:performance
+npm run dev
 ```
 
-### **Test Suite (10 Suites, 152+ Tests)**
-- **Functional Tests**: 42+ tests (70+ API endpoints)
-- **AI Stability**: 10 tests (timeout, retry, circuit breaker)
-- **Security**: 17+ tests (authentication, injection, DoS)
-- **Data Validation**: 35+ tests (boundary conditions, type safety)
-- **Integration**: 8 tests (87.5% pass rate)
-- **Frontend**: 15 tests (API client, dashboard)
-- **Cache Metrics**: 10 tests (multi-layer caching)
-- **Performance**: Playwright tests (64.7% pass rate)
-- **Phase 3 Dashboard**: Cache economics, D1 rollups validation ⭐ **NEW**
+Deployment and testing:
+- `npm run deploy`
+- `npm run deploy:frontend` or `npm run deploy:frontend:only`
+- `npm run test:playwright`
+- `npm run test:performance` or `npm run test:workflows`
 
-### **Environment Configuration**
-
-**Production (Cloudflare Workers):**
+Wrangler auth uses OAuth for this repo:
 ```bash
-# Set API key
-wrangler secret put X_API_KEY
-
-# Verify
-wrangler secret list
+unset CLOUDFLARE_API_TOKEN && npx wrangler <command>
 ```
 
-**Local Testing:**
-```bash
-export X_API_KEY="your_api_key"
-```
+## Documentation
+Start with `docs/INDEX.md`, then follow the relevant guide:
+- `docs/guides/USER_GUIDE.md`
+- `docs/guides/DEPLOYMENT_GUIDE.md`
+- `docs/guides/MAINTENANCE_GUIDE.md`
+- `API_DOCUMENTATION.md`
 
-## 📈 Performance Metrics
+## Data and Scheduling Notes
+- `scheduled_job_results.scheduled_date` is a write-time tag; the frontend `?date=YYYY-MM-DD` is passed through verbatim.
+- Multi-run tracking is used across job types with `startJobRun()` and `completeJobRun()`.
+- Prediction job storage is in D1 (`job_executions`, `symbol_predictions`, `daily_analysis`) with KV fallback.
 
-| Metric | Target | Current | Status |
-|--------|--------|---------|--------|
-| **TypeScript Errors** | 0 | **0** | ✅ **PERFECT** |
-| **Cold Start** | <10ms | **<1ms** | ✅ **EXCELLENT** |
-| **API Response (Cached)** | <50ms | **5-15ms** | ✅ **EXCELLENT** |
-| **Cache Hit Rate** | ≥93% | **70-85% (targeting ≥93%)** | ⚠️ Tighten to meet gate |
-| **Test Coverage** | >90% | **93%** | ✅ **A-GRADE** |
-| **System Uptime** | >99.9% | **100%** | ✅ **PERFECT** |
+## Model Policy
+- Primary model: `@cf/openai/gpt-oss-120b`
+- Secondary model: `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b`
+- Deprecated: `@cf/openchat/openchat-3.5-0106`, `@cf/aisingapore/gemma-sea-lion-v4-27b-it`
 
-## 🧪 Testing & Validation
-
-### **Test & Script Organization (2025-12-19)**
-
-**54 scripts reorganized** into logical structure for improved maintainability:
-
-```
-tests/ (38 scripts)              scripts/ (16 scripts)
-├── integration/ (8)             ├── deployment/ (4)
-├── security/ (6)                ├── test-runners/ (3)
-├── performance/ (2)             ├── utilities/ (3)
-├── validation/ (6)              ├── setup/ (2)
-├── e2e/ (2)                     └── monitoring/ (4)
-├── regression/ (4)
-├── feature/ (9)
-└── chaos/ (1)
-```
-
-**Key Benefits:**
-- ✅ **Clean Repository Root** - All scripts organized into logical directories
-- ✅ **Easy Discovery** - Find scripts by type instantly
-- ✅ **Comprehensive Documentation** - README files for tests/ and scripts/
-- ✅ **Zero Breaking Changes** - All references updated (GitHub Actions, npm scripts, docs)
-
-**Quick Access:**
-- `tests/README.md` - Complete test suite guide
-- `scripts/README.md` - Operational scripts documentation
-- `TEST_AND_SCRIPT_INDEX.md` - Master index with migration details
-
-### **DO Cache Validation (2025-10-31)**
-- ✅ **9 test scenarios** - 100% pass rate
-- ✅ **14+ assertions** - All validated
-- ✅ **80% endpoint coverage** - 4/5 cache endpoints tested
-- ✅ **Performance testing** - <100ms response targets met
-- ✅ **Error handling** - Comprehensive failure validation
-
-### **TypeScript Error Resolution (2025-11-07)**
-```
-Starting Point: 1,398 TypeScript errors
-Final Status:  0 TypeScript errors
-Reduction:     100%
-```
-
-**Fixed Error Categories:**
-- NodeJS namespace/process errors
-- Property accessor errors
-- Missing variables and undefined references
-- Type mismatches and assignment issues
-- Import/module resolution
-- Function signatures and callbacks
-- API response structures
-- Handler function compatibility
-
-## 📚 Documentation
-
-### **Core Documentation**
-- **[CLAUDE.md](CLAUDE.md)** - Development guidelines and system overview
-- **[API Documentation](API_DOCUMENTATION.md)** - Complete API reference
-- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment
-- **[User Guide](docs/USER_GUIDE.md)** - End-user documentation
-
-### **Test & Script Documentation** ⭐ **NEW (2025-12-19)**
-- **[Test Suite Guide](tests/README.md)** - Comprehensive test documentation (38 scripts)
-- **[Script Guide](scripts/README.md)** - Operational scripts documentation (16 scripts)
-- **[Test Organization Index](TEST_AND_SCRIPT_INDEX.md)** - Master index with migration details
-- **[Organization Plan](TEST_ORGANIZATION_PLAN.md)** - Migration strategy and rationale
-
-### **Phase 3 Documentation** ⭐ **NEW**
-- **[Dashboard API Documentation](docs/DASHBOARD_API_DOCUMENTATION.md)** - BI Dashboard API reference
-- **[Dashboard Integration Guide](docs/DASHBOARD_INTEGRATION_GUIDE.md)** - Integration instructions
-- **[Dashboard Setup Guide](docs/DASHBOARD_SETUP_GUIDE.md)** - Setup and configuration
-
-### **Technical Documentation**
-- **[Project Status](docs/PROJECT_STATUS_OVERVIEW.md)** - Current implementation status
-- **[Data Access Plan](docs/DATA_ACCESS_IMPROVEMENT_PLAN.md)** - Modernization roadmap
-- **[Test Coverage](docs/TEST_COVERAGE_ANALYSIS_2025.md)** - Test suite analysis
-- **[System Features](docs/SYSTEM_FEATURES.md)** - Feature overview
-
-## 💰 Cost Efficiency
-
-- **Infrastructure**: **$0.00/month** (100% free)
-  - Cloudflare Workers (free tier)
-  - GitHub Actions (unlimited schedules)
-  - KV/R2 storage (free tier)
-- **Total System Cost**: **$0/month** ✅
-
-## 🔄 Automated Scheduling System
-
-### **📅 GitHub Actions Scheduling (Primary System)**
-All prediction and analysis jobs run via GitHub Actions for unlimited scheduling and 100% free operation:
-
-#### **Core Analysis Schedules**
-- **🌅 Pre-Market Briefing**: Mon-Fri 8:30 AM ET (12:30 UTC) - High-confidence predictions with 1h/24h forecasts
-- **🔄 Intraday Check**: Mon-Fri 12:00 PM ET (16:00 UTC) - Performance validation with 8h/next-day forecasts  
-- **🌆 End-of-Day Summary**: Mon-Fri 4:05 PM ET (20:05 UTC) - Market close analysis + tomorrow outlook
-- **📊 Weekly Review**: Sunday 10:00 AM ET (14:00 UTC) - Comprehensive pattern analysis & recommendations
-
-#### **Workflow Features**
-- ✅ **Unlimited Schedules** - No 3-cron restriction (Cloudflare free tier limitation eliminated)
-- ✅ **100% Free** - Uses 175/2000 monthly GitHub Actions minutes (~8% usage)
-- ✅ **Enhanced Monitoring** - Full execution logging, Teams notifications, health checks
-- ✅ **Predictive Intelligence** - Integration with signals, patterns, and forecasting APIs
-- ✅ **Manual Triggers** - On-demand analysis via workflow_dispatch
-
-**Workflow File**: `.github/workflows/trading-system.yml`
-
-#### **Migration Benefits**
-- ✅ **Cost Elimination** - Removed $0.20/month Durable Object requirement
-- ✅ **Performance** - No 30-second timeout limitations
-- ✅ **Observability** - Complete GitHub Actions console logging
-- ✅ **Reliability** - Better error handling and retry logic
-
-### **☁️ Cloudflare Cron (Legacy - Disabled)**
-- **Status**: Disabled in `wrangler.toml` (lines 68-69 commented out)
-- **Legacy Code**: `scheduler.ts` and cron triggers maintained for reference
-- **Future**: All scheduling managed through GitHub Actions exclusively
-
-## 🔐 Security
-
-- **Authentication**: X-API-KEY header validation
-- **No Hardcoded Keys**: All secrets managed via environment
-- **Test Coverage**: 17+ security tests (injection, DoS, XSS)
-- **API Protection**: Rate limiting and request validation
-
-## 🎯 Key Achievements Summary
-
-### **Phase 3 BI Dashboard Scaffolding (2025-11-28)**
-- **BI Dashboard Interface**: Real-time operational health monitoring with cost-to-serve intelligence
-- **Cost-to-Serve Analytics**: Storage, compute, bandwidth cost analysis with efficiency scoring
-- **Guard Violation Monitoring**: Real-time violation tracking with filtering, pagination, and MTTR metrics
-- **Dashboard API Infrastructure**: 5 new endpoints for comprehensive system monitoring
-- **Testing Framework**: Cache economics validation, D1 rollups testing, performance benchmarking
-- **Frontend Integration**: Modern dashboard interface with auto-refresh and theme support
-
-### **TypeScript Excellence (2025-11-07)**
-- **From 1,398 to 0 errors** - Complete type safety achieved
-- **Zero breaking changes** - Maintained backward compatibility
-- **Production safe** - All critical runtime errors eliminated
-
-### **Revolutionary Cache Architecture (2025-10-31)**
-- **100% KV elimination** - Zero KV operations in critical paths
-- **50x performance boost** - <1ms cold start latency
-- **Persistent memory** - Cache survives worker restarts
-- **Feature flag control** - Gradual rollout capability
-
-### **Mock Data Elimination Implementation (2025-11-27)**
-- **Real data sources** - FRED API + Yahoo Finance integration complete
-- **Production guards** - `@requireRealData` decorators prevent mock data usage
-- **Source provenance** - `DataSourceResult` with metadata and quality tracking
-- **CI/CD enforcement** - Automated workflow blocks mock data regressions
-- **Request deduplication** - Prevents API rate limiting with intelligent caching
-- **Legacy fallback** - `USE_LEGACY_MARKET_DRIVERS=true` for staging safety
-
-### **Pre-Market Data Bridge (2025-10-31)**
-- **Root cause resolved** - No more "Data completion: 0%"
-- **360x faster** - <500ms vs 2-3 minute response
-- **On-demand generation** - Manual trigger capability
-
-### **AI Model Stability (2025-10)**
-- **95% error reduction** - Enterprise-grade reliability
-- **Timeout protection** - 30s GPT, 20s DistilBERT
-- **Circuit breaker** - Failure threshold protection
-- **Graceful degradation** - Seamless fallback handling
-
-### **Production Quality (2025-10)**
-- **93% test coverage** - A-grade quality
-- **9.0/10 dashboard** - Professional grade UI
-- **100% uptime** - Reliable operation
-- **Zero console errors** - Clean JavaScript execution
-
-## 📞 Support
-
-- **System Health**: https://tft-trading-system.yanggf.workers.dev/health
-- **API Documentation**: https://tft-trading-system.yanggf.workers.dev/api/v1
-- **Documentation**: `/docs` directory for detailed guides
-
----
-
-**Last Updated**: 2026-02-03
-**Version**: Production Ready - TypeScript Error-Free
-**Status**: ✅ **FULLY OPERATIONAL** - Enterprise-grade AI trading intelligence system with complete type safety
+**Last Updated**: 2026-02-02

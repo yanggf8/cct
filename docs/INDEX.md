@@ -1,120 +1,81 @@
-# 📚 Documentation Index
+# Documentation Index
 
-## 📋 Overview
+## Overview
+This index points to active documentation in `docs/` and highlights archived material. For system-level policies and assistant guidance, see `AGENTS.md` and `CLAUDE.md` at repo root.
 
-**System Status**: ✅ **PRODUCTION READY** - Enterprise Security Active  
-**Live System**: https://tft-trading-system.yanggf.workers.dev  
-**Version**: v3.10.22  
-**Last Updated**: 2026-02-03
+**Last Updated**: 2026-02-02
 
----
-
-## 🚀 Quick Start
-
+## Quick Start
 | Document | Purpose |
 |----------|---------|
-| [README.md](../README.md) | Project overview, architecture, API reference |
-| [CLAUDE.md](../CLAUDE.md) | AI assistant development context |
-| [AGENTS.md](../AGENTS.md) | Agent guidelines and policies |
-| [API_DOCUMENTATION.md](../API_DOCUMENTATION.md) | Complete API reference (65+ endpoints) |
+| `../README.md` | Project overview and development entry points |
+| `../API_DOCUMENTATION.md` | API map and access patterns |
+| `../AGENTS.md` | Agent and repo policies |
+| `../CLAUDE.md` | Assistant context and conventions |
 
----
-
-## 📂 Documentation Structure
-
-### 📘 Guides (`docs/guides/`)
-How-to documentation for users and operators.
-
+## Guides (`docs/guides/`)
 | Document | Description |
 |----------|-------------|
-| [USER_GUIDE.md](guides/USER_GUIDE.md) | End-user guide for dashboard and features |
-| [DEPLOYMENT_GUIDE.md](guides/DEPLOYMENT_GUIDE.md) | Production deployment procedures |
-| [MAINTENANCE_GUIDE.md](guides/MAINTENANCE_GUIDE.md) | Operations, monitoring, troubleshooting |
+| `guides/USER_GUIDE.md` | End-user dashboard usage |
+| `guides/DEPLOYMENT_GUIDE.md` | Deployment procedures |
+| `guides/MAINTENANCE_GUIDE.md` | Operations, monitoring, troubleshooting |
 
-### 🏗️ Architecture (`docs/architecture/`)
-System design, specifications, and technical details.
-
+## Architecture (`docs/architecture/`)
 | Document | Description |
 |----------|-------------|
-| [SYSTEM_FEATURES.md](architecture/SYSTEM_FEATURES.md) | Feature catalog and capabilities |
-| [AI_SENTIMENT_ACCURACY_PLATFORM_SPEC.md](architecture/AI_SENTIMENT_ACCURACY_PLATFORM_SPEC.md) | AI sentiment analysis specification |
-| [SECTOR_ROTATION_DATA_PIPELINE.md](architecture/SECTOR_ROTATION_DATA_PIPELINE.md) | Sector rotation architecture |
-| [NEWS_PROVIDER_ERROR_HANDLING_SPEC.md](architecture/NEWS_PROVIDER_ERROR_HANDLING_SPEC.md) | News provider error handling |
-| [PROVIDER_ERROR_CONTRACT.md](architecture/PROVIDER_ERROR_CONTRACT.md) | Provider error contracts |
-| [DATA_ACCESS_IMPROVEMENT_PLAN.md](architecture/DATA_ACCESS_IMPROVEMENT_PLAN.md) | Data access modernization |
-| [SENTIMENT_ANALYSIS_DETAILS.md](architecture/SENTIMENT_ANALYSIS_DETAILS.md) | Sentiment analysis deep dive |
+| `architecture/SYSTEM_FEATURES.md` | Feature catalog and capabilities |
+| `architecture/AI_SENTIMENT_ACCURACY_PLATFORM_SPEC.md` | Sentiment analysis spec |
+| `architecture/SECTOR_ROTATION_DATA_PIPELINE.md` | Sector rotation architecture |
+| `architecture/NEWS_PROVIDER_ERROR_HANDLING_SPEC.md` | News provider error handling |
+| `architecture/PROVIDER_ERROR_CONTRACT.md` | Provider error contracts |
+| `architecture/DATA_ACCESS_IMPROVEMENT_PLAN.md` | Data access modernization |
+| `architecture/SENTIMENT_ANALYSIS_DETAILS.md` | Sentiment analysis details |
 
-### 🔐 Operations (`docs/operations/`)
-Security, deployment, and operational procedures.
-
+## Operations (`docs/operations/`)
 | Document | Description |
 |----------|-------------|
-| [ops-playbooks.md](operations/ops-playbooks.md) | Operational runbooks |
-| [SECURITY_DEPLOYMENT_GUIDE.md](operations/SECURITY_DEPLOYMENT_GUIDE.md) | Security deployment procedures |
-| [SECURITY_VALIDATION_CHECKLIST.md](operations/SECURITY_VALIDATION_CHECKLIST.md) | Security validation checklist |
-| [STRICT_MODE_DEPLOYMENT_GUIDE.md](operations/STRICT_MODE_DEPLOYMENT_GUIDE.md) | Strict mode deployment |
-| [SECURITY_TEST_COVERAGE_ANALYSIS.md](operations/SECURITY_TEST_COVERAGE_ANALYSIS.md) | Security test coverage |
-| [FINAL_SECURITY_IMPLEMENTATION_REPORT.md](operations/FINAL_SECURITY_IMPLEMENTATION_REPORT.md) | Security implementation report |
-| [FRONTEND_SECURITY_ANALYSIS.md](operations/FRONTEND_SECURITY_ANALYSIS.md) | Frontend security analysis |
+| `operations/ops-playbooks.md` | Operational runbooks |
+| `operations/SECURITY_DEPLOYMENT_GUIDE.md` | Security deployment procedures |
+| `operations/SECURITY_VALIDATION_CHECKLIST.md` | Security validation checklist |
+| `operations/STRICT_MODE_DEPLOYMENT_GUIDE.md` | Strict mode deployment |
+| `operations/SECURITY_TEST_COVERAGE_ANALYSIS.md` | Security test coverage |
+| `operations/FINAL_SECURITY_IMPLEMENTATION_REPORT.md` | Security implementation report |
+| `operations/FRONTEND_SECURITY_ANALYSIS.md` | Frontend security analysis |
 
-### 🔗 Integrations (`docs/integrations/`)
-External service integration guides.
-
+## Integrations (`docs/integrations/`)
 | Document | Description |
 |----------|-------------|
-| [D1_MIGRATION_PLAN.md](integrations/D1_MIGRATION_PLAN.md) | D1 database migration plan |
-| [MONEY_FLOW_INTEGRATION_GUIDE.md](integrations/MONEY_FLOW_INTEGRATION_GUIDE.md) | Money flow integration |
-| [MONEY_FLOW_IMPLEMENTATION_SUMMARY.md](integrations/MONEY_FLOW_IMPLEMENTATION_SUMMARY.md) | Money flow implementation |
-| [MONEY_FLOW_DEPLOYMENT_CHECKLIST.md](integrations/MONEY_FLOW_DEPLOYMENT_CHECKLIST.md) | Money flow deployment |
-| [CORROBORATION_MONEY_FLOW_FIXES.md](integrations/CORROBORATION_MONEY_FLOW_FIXES.md) | Money flow fixes |
-| [CORROBORATION_LIVE_DATA_REPLACEMENT.md](integrations/CORROBORATION_LIVE_DATA_REPLACEMENT.md) | Live data replacement |
-| [FMP_API_KEY_CONFIGURED.md](integrations/FMP_API_KEY_CONFIGURED.md) | FMP API configuration |
+| `integrations/D1_MIGRATION_PLAN.md` | D1 database migration plan |
+| `integrations/CORROBORATION_LIVE_DATA_REPLACEMENT.md` | Live data replacement |
+| `integrations/FMP_API_KEY_CONFIGURED.md` | FMP API configuration |
 
-### 📋 Reference (`docs/reference/`)
-Active reference documentation.
-
+## Reference (`docs/reference/`)
 | Document | Description |
 |----------|-------------|
-| [CHANGELOG.md](reference/CHANGELOG.md) | Project changelog |
-| [PROJECT_STATUS_OVERVIEW.md](reference/PROJECT_STATUS_OVERVIEW.md) | Current project status |
-| [DUAL_MODEL_PIPELINE_PLAN.md](reference/DUAL_MODEL_PIPELINE_PLAN.md) | Dual-model pipeline objectives and rollout steps |
-| [DUAL_MODEL_PIPELINE_IMPLEMENTATION.md](reference/DUAL_MODEL_PIPELINE_IMPLEMENTATION.md) | Implemented dual-model storage, reporting, and diagnostics |
-| [KV_BINDING_FIX.md](reference/KV_BINDING_FIX.md) | KV binding fix reference |
-| [NAVIGATION_REDESIGN.md](reference/NAVIGATION_REDESIGN.md) | Navigation redesign notes |
-| [PRODUCTION_GUARDS_HANDBOOK.md](reference/PRODUCTION_GUARDS_HANDBOOK.md) | Production guards reference |
-| [TEST_AND_SCRIPT_INDEX.md](reference/TEST_AND_SCRIPT_INDEX.md) | Test and script index |
-| [TEST_ORGANIZATION_PLAN.md](reference/TEST_ORGANIZATION_PLAN.md) | Test organization plan |
+| `reference/CHANGELOG.md` | Project changelog |
+| `reference/PROJECT_STATUS_OVERVIEW.md` | Current project status |
+| `reference/DUAL_MODEL_PIPELINE_PLAN.md` | Dual-model pipeline objectives |
+| `reference/DUAL_MODEL_PIPELINE_IMPLEMENTATION.md` | Dual-model storage and reporting |
+| `reference/KV_BINDING_FIX.md` | KV binding fix reference |
+| `reference/NAVIGATION_REDESIGN.md` | Navigation redesign notes |
+| `reference/NAVIGATION_UPDATE.md` | Navigation update notes |
+| `reference/PRODUCTION_GUARDS_HANDBOOK.md` | Production guards reference |
+| `reference/TEST_AND_SCRIPT_INDEX.md` | Test and script index |
+| `reference/TEST_ORGANIZATION_PLAN.md` | Test organization plan |
+| `reference/GENERATED_DATE_DISPLAY_FIX.md` | Date display fix |
 
----
+## Archive (`docs/archive/`)
+Archived documents are retained for historical context:
+- `archive/changelogs/`
+- `archive/analysis/`
+- `archive/legacy/`
 
-## 🗃️ Archive (`docs/archive/`)
-
-Historical documentation preserved for reference.
-
-### Changelogs (`archive/changelogs/`)
-Phase summaries, deployment reports, and fix resolutions.
-
-### Analysis (`archive/analysis/`)
-One-time analysis, corroboration docs, and migration proposals.
-
-### Legacy (`archive/legacy/`)
-Superseded technical documentation.
-
-- `legacy/dac/` - DAC integration docs (REMOVED from system 2026-02-03, kept for reference)
-
----
-
-## 🔍 Find Documentation By Use Case
-
+## Find Docs By Use Case
 | I want to... | Start here |
 |--------------|------------|
-| **Use the system** | [USER_GUIDE.md](guides/USER_GUIDE.md) |
-| **Deploy to production** | [DEPLOYMENT_GUIDE.md](guides/DEPLOYMENT_GUIDE.md) |
-| **Debug issues** | [MAINTENANCE_GUIDE.md](guides/MAINTENANCE_GUIDE.md) |
-| **Understand the API** | [API_DOCUMENTATION.md](../API_DOCUMENTATION.md) |
-| **Learn architecture** | [SYSTEM_FEATURES.md](architecture/SYSTEM_FEATURES.md) |
-| **Security procedures** | [SECURITY_DEPLOYMENT_GUIDE.md](operations/SECURITY_DEPLOYMENT_GUIDE.md) |
-
----
-
-**Last Updated**: 2026-01-19
+| Use the system | `guides/USER_GUIDE.md` |
+| Deploy to production | `guides/DEPLOYMENT_GUIDE.md` |
+| Debug or troubleshoot | `guides/MAINTENANCE_GUIDE.md` |
+| Understand the API | `../API_DOCUMENTATION.md` |
+| Learn the architecture | `architecture/SYSTEM_FEATURES.md` |
+| Review security procedures | `operations/SECURITY_DEPLOYMENT_GUIDE.md` |

@@ -22,12 +22,13 @@ When asked to perform a review, examine the relevant code changes thoroughly (no
 **Always ask for user approval before deploying to production.** Present a summary of changes and wait for explicit confirmation before running `npm run deploy` or any wrangler deploy command.
 
 ## AI Model Policy
-- **Primary Model**: `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (Gemma Sea Lion 27B)
-- **Secondary Model**: `@cf/huggingface/distilbert-sst-2-int8` (DistilBERT SST-2)
-- **DEPRECATED - DO NOT USE**: `@cf/openchat/openchat-3.5-0106` (removed as of 2025-10-01)
+- **Primary Model**: `@cf/openai/gpt-oss-120b` (GPT-OSS 120B with reasoning)
+- **Secondary Model**: `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` (DeepSeek-R1 32B reasoning)
+- **DEPRECATED - DO NOT USE**: `@cf/openchat/openchat-3.5-0106`, `@cf/aisingapore/gemma-sea-lion-v4-27b-it` (legacy)
 - **Rate Limiting**: Process symbols sequentially with 2-3s delays to avoid rate limits
 - **Failure Handling**: Return `status: 'failed', confidence: null` instead of fake fallback data
 - **D1 Storage**: Record `source_models` array in signal data to track which AI models contributed
+- **Legacy field names**: `gpt` (GPT-OSS) and `distilbert` (DeepSeek-R1) kept for backward compat
 
 ## Frontend & Auth Defaults
 - All dashboards now load `public/js/cct-api.js` (not `api-client.js`) and expect `X-API-Key` when `X_API_KEY` is configured. `cct-api.js` looks for the key in `sessionStorage.cct_api_key`, then `localStorage.cct_api_key`, then `window.CCT_API_KEY`.

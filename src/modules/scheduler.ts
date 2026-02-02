@@ -891,8 +891,9 @@ export async function handleScheduledEvent(
                 symbol: signal.symbol,
                 sentiment: signal.enhanced_prediction?.direction || signal.direction || 'neutral',
                 confidence: signal.confidence_metrics?.overall_confidence ?? signal.enhanced_prediction?.confidence ?? signal.confidence ?? null,
-                gemma_confidence: signal.confidence_metrics?.gpt_confidence ?? null,
-                distilbert_confidence: signal.confidence_metrics?.distilbert_confidence ?? null,
+                // Extract dual model confidences from confidence_breakdown (GPT-OSS 120B + DeepSeek-R1)
+                gpt_confidence: signal.confidence_metrics?.confidence_breakdown?.gpt_confidence ?? null,
+                distilbert_confidence: signal.confidence_metrics?.confidence_breakdown?.distilbert_confidence ?? null,
                 status: (signal.confidence_metrics?.overall_confidence ?? signal.enhanced_prediction?.confidence ?? signal.confidence) ? 'success' : 'failed',
                 reason: signal.enhanced_prediction?.sentiment_analysis?.reasoning || signal.sentiment_layers?.[0]?.reasoning || ''
               }));

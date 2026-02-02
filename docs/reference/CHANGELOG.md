@@ -1,11 +1,13 @@
 # Changelog
 
-## 2026-02-03 - News Provider Diagnostics & DAC Removal ✅
+## 2026-02-03 - Pre-Market Report Fix & Documentation Update ✅
 
+- **Pre-Market Report Fix**: Reports now show ALL analyzed symbols (not just high-confidence ones) with new `high_confidence_count` field. Added DO cache warming after D1 write so report endpoint returns fresh data immediately after job completion.
+- **AI Model Documentation**: Updated CLAUDE.md, AGENTS.md with correct AI models (GPT-OSS 120B + DeepSeek-R1 32B). Legacy field names `gpt` and `distilbert` kept for backward compatibility.
 - **News Fetch Logging**: Added `news_fetch_log` D1 table to track every provider attempt (Finnhub, FMP, NewsAPI, Yahoo) with status, article count, error messages, and response times.
 - **Weekend News Cache**: Added `weekend_news_cache` D1 table to persist Friday's articles for Monday morning fallback when live providers are empty.
-- **DAC Removal**: Removed DAC_BACKEND service binding and all DAC article pool code. DAC backend now fetches articles real-time, no longer uses article pool.
-- **Documentation Cleanup**: Archived 16 historical fix reports from root to `archive/historical-fixes-2026/`. Updated README, CLAUDE.md, API docs with current AI models (GPT-OSS 120B + DeepSeek-R1 32B).
+- **DAC Removal**: Removed DAC_BACKEND service binding and all DAC article pool code.
+- **Documentation Cleanup**: Archived historical fix reports to `archive/historical-fixes-2026/`.
 
 ## 2026-02-02 - Intraday Failure Visibility & Stage Outcomes ✅
 

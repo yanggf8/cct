@@ -2,11 +2,12 @@
 
 ## System Overview
 
-**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.22 | **Status**: Production Ready
+**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.23 | **Status**: Production Ready
 
 - Dual AI: GPT-OSS 120B (reasoning) + DeepSeek-R1 32B (reasoning)
 - 4-Moment workflow: Pre-Market → Intraday → End-of-Day → Weekly
 - Durable Objects cache (<1ms), multi-run job history with `?run_id=`
+- Pre-market reports show all analyzed symbols with `high_confidence_count` field
 
 ---
 
@@ -28,11 +29,11 @@
 
 | Model | ID | Note |
 |-------|-----|------|
-| Primary | `@cf/openai/gpt-oss-120b` | Native `reasoning: { effort: 'high' }`, paid ($0.35/$0.75 per M tokens) |
-| Secondary | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | `<think>` reasoning prompt, free tier |
+| Primary | `@cf/openai/gpt-oss-120b` | GPT-OSS 120B with `reasoning: { effort: 'high' }` |
+| Secondary | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | DeepSeek-R1 32B reasoning model |
 
-- **Config**: `AI_MODEL_DISPLAY` in `src/modules/config.ts` (backend), `CCT_MODELS` in `public/js/config.js` (frontend)
-- **Legacy field names**: `gpt` (primary) and `distilbert` (secondary) kept in D1/API for backward compat
+- **Config**: `AI_MODEL_DISPLAY` in `src/modules/config.ts` (backend)
+- **Legacy field names**: `gpt` (GPT-OSS) and `distilbert` (DeepSeek-R1) kept in D1/API for backward compat
 - On failure: `status: 'failed', confidence: null` - no fake data
 
 ---
