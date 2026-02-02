@@ -148,11 +148,28 @@ const FREE_SENTIMENT_CONFIG: FreeSentimentConfig = {
 };
 
 /**
- * Get free stock news with sentiment analysis (v3.10.1)
+ * News fetch attempt result for diagnostics
+ */
+interface NewsFetchAttempt {
+  provider: string;
+  status: 'success' | 'failed' | 'skipped' | 'no_data';
+  articles_count: number;
+  error_message?: string;
+  response_time_ms?: number;
+  timestamp: string;
+}
+
+/**
+ * Get free stock news with sentiment analysis (v3.10.2)
  * Flow: Finnhub (primary, 60/min) → FMP → NewsAPI → Yahoo (fallbacks)
  * Finnhub provides higher-quality finance-focused news
+ * 
+ * Now includes detailed per-provider tracking for diagnostics
  */
 export async function getFreeStockNews(symbol: string, env: any): Promise<NewsArticle[]> {
+  const fetchAttempts: NewsFetchAttempt[] = [];
+  const fetchStartTime = Date.now();
+  
   // Check cache first (15-minute TTL)
   const cacheKey = `news_all_${symbol}_${Math.floor(Date.now() / 900000)}`; // 15-min bucket
   const { createSimplifiedEnhancedDAL } = await import('./simplified-enhanced-dal.js');
@@ -198,10 +215,21 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
   // 1. Try Finnhub first (primary - 60 calls/min, finance-focused)
   const finnhubKey = env.FINNHUB_API_KEY;
   if (finnhubKey) {
+    const providerStart = Date.now();
     try {
       const finnhubNews = await fetchFinnhubCompanyNews(symbol, finnhubKey);
+      const responseTime = Date.now() - providerStart;
+      
       if (finnhubNews?.length > 0) {
-        console.log(`[Stock News] Finnhub SUCCESS: ${finnhubNews.length} articles for ${symbol}`);
+        console.log(`[Stock News] Finnhub SUCCESS: ${finnhubNews.length} articles for ${symbol} (${responseTime}ms)`);
+        fetchAttempts.push({
+          provider: 'finnhub',
+          status: 'success',
+          articles_count: finnhubNews.length,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+        
         // Transform Finnhub articles to local NewsArticle format
         const articles = finnhubNews.map(a => ({
           title: a.title,
@@ -217,70 +245,264 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
         await dal.write(cacheKey, articles, { expirationTtl: 900 }); // 15 minutes
         // Also persist to weekend cache for Monday fallback
         await saveToWeekendCache(symbol, articles, env);
+        // Log successful fetch details to D1
+        await logNewsFetchAttempts(symbol, fetchAttempts, articles.length, env);
         return articles;
       }
+      
       console.log(`[Stock News] Finnhub returned 0 articles for ${symbol}, trying fallbacks`);
+      fetchAttempts.push({
+        provider: 'finnhub',
+        status: 'no_data',
+        articles_count: 0,
+        response_time_ms: responseTime,
+        timestamp: new Date().toISOString()
+      });
     } catch (error: any) {
-      console.log(`[Stock News] Finnhub failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[Stock News] Finnhub failed for ${symbol}:`, errorMsg);
+      fetchAttempts.push({
+        provider: 'finnhub',
+        status: 'failed',
+        articles_count: 0,
+        error_message: errorMsg,
+        response_time_ms: Date.now() - providerStart,
+        timestamp: new Date().toISOString()
+      });
     }
   } else {
     console.log(`[Stock News] FINNHUB_API_KEY not configured, using fallbacks`);
+    fetchAttempts.push({
+      provider: 'finnhub',
+      status: 'skipped',
+      articles_count: 0,
+      error_message: 'FINNHUB_API_KEY not configured',
+      timestamp: new Date().toISOString()
+    });
   }
 
   // Fallback: combine FMP + NewsAPI + Yahoo for broader coverage
   const newsData: NewsArticle[] = [];
 
   // 2. Financial Modeling Prep (has built-in sentiment!)
-  try {
-    const fmpNews = await getFMPNews(symbol, env);
-    if (fmpNews?.length > 0) {
-      console.log(`[Stock News] FMP: ${fmpNews.length} articles for ${symbol}`);
-      newsData.push(...fmpNews);
+  {
+    const providerStart = Date.now();
+    try {
+      const fmpNews = await getFMPNews(symbol, env);
+      const responseTime = Date.now() - providerStart;
+      
+      if (fmpNews?.length > 0) {
+        console.log(`[Stock News] FMP: ${fmpNews.length} articles for ${symbol} (${responseTime}ms)`);
+        fetchAttempts.push({
+          provider: 'fmp',
+          status: 'success',
+          articles_count: fmpNews.length,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+        newsData.push(...fmpNews);
+      } else {
+        fetchAttempts.push({
+          provider: 'fmp',
+          status: 'no_data',
+          articles_count: 0,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[Stock News] FMP failed for ${symbol}:`, errorMsg);
+      fetchAttempts.push({
+        provider: 'fmp',
+        status: 'failed',
+        articles_count: 0,
+        error_message: errorMsg,
+        response_time_ms: Date.now() - providerStart,
+        timestamp: new Date().toISOString()
+      });
     }
-  } catch (error: any) {
-    console.log(`[Stock News] FMP failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   // 3. NewsAPI.org (broader coverage)
-  try {
-    const newsApiData = await getNewsAPIData(symbol, env);
-    if (newsApiData?.length > 0) {
-      console.log(`[Stock News] NewsAPI: ${newsApiData.length} articles for ${symbol}`);
-      newsData.push(...newsApiData);
+  {
+    const providerStart = Date.now();
+    try {
+      const newsApiData = await getNewsAPIData(symbol, env);
+      const responseTime = Date.now() - providerStart;
+      
+      if (newsApiData?.length > 0) {
+        console.log(`[Stock News] NewsAPI: ${newsApiData.length} articles for ${symbol} (${responseTime}ms)`);
+        fetchAttempts.push({
+          provider: 'newsapi',
+          status: 'success',
+          articles_count: newsApiData.length,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+        newsData.push(...newsApiData);
+      } else {
+        fetchAttempts.push({
+          provider: 'newsapi',
+          status: 'no_data',
+          articles_count: 0,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[Stock News] NewsAPI failed for ${symbol}:`, errorMsg);
+      fetchAttempts.push({
+        provider: 'newsapi',
+        status: 'failed',
+        articles_count: 0,
+        error_message: errorMsg,
+        response_time_ms: Date.now() - providerStart,
+        timestamp: new Date().toISOString()
+      });
     }
-  } catch (error: any) {
-    console.log(`[Stock News] NewsAPI failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   // 4. Yahoo Finance news (backup - no API key needed)
-  try {
-    const yahooNews = await getYahooNews(symbol, env);
-    if (yahooNews?.length > 0) {
-      console.log(`[Stock News] Yahoo: ${yahooNews.length} articles for ${symbol}`);
-      newsData.push(...yahooNews);
+  {
+    const providerStart = Date.now();
+    try {
+      const yahooNews = await getYahooNews(symbol, env);
+      const responseTime = Date.now() - providerStart;
+      
+      if (yahooNews?.length > 0) {
+        console.log(`[Stock News] Yahoo: ${yahooNews.length} articles for ${symbol} (${responseTime}ms)`);
+        fetchAttempts.push({
+          provider: 'yahoo',
+          status: 'success',
+          articles_count: yahooNews.length,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+        newsData.push(...yahooNews);
+      } else {
+        fetchAttempts.push({
+          provider: 'yahoo',
+          status: 'no_data',
+          articles_count: 0,
+          response_time_ms: responseTime,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error: any) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[Stock News] Yahoo failed for ${symbol}:`, errorMsg);
+      fetchAttempts.push({
+        provider: 'yahoo',
+        status: 'failed',
+        articles_count: 0,
+        error_message: errorMsg,
+        response_time_ms: Date.now() - providerStart,
+        timestamp: new Date().toISOString()
+      });
     }
-  } catch (error: any) {
-    console.log(`[Stock News] Yahoo failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
   }
 
   if (newsData.length === 0) {
     console.log(`[Stock News] ALL SOURCES FAILED for ${symbol}, checking weekend cache...`);
+    
     // Try weekend cache fallback (D1-based, survives Friday→Monday)
     const weekendArticles = await getWeekendCachedNews(symbol, env);
     if (weekendArticles.length > 0) {
       console.log(`[Stock News] WEEKEND CACHE HIT for ${symbol}: ${weekendArticles.length} articles`);
+      fetchAttempts.push({
+        provider: 'weekend_cache',
+        status: 'success',
+        articles_count: weekendArticles.length,
+        timestamp: new Date().toISOString()
+      });
+      // Log all attempts including weekend cache fallback
+      await logNewsFetchAttempts(symbol, fetchAttempts, weekendArticles.length, env);
       return weekendArticles;
     }
+    
     console.log(`[Stock News] No weekend cache available for ${symbol}`);
+    fetchAttempts.push({
+      provider: 'weekend_cache',
+      status: 'no_data',
+      articles_count: 0,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Log ALL provider failures for diagnostics - this is critical for debugging
+    await logNewsFetchAttempts(symbol, fetchAttempts, 0, env);
   } else {
     console.log(`[Stock News] Fallback total: ${newsData.length} articles for ${symbol}`);
     // Cache the combined result
     await dal.write(cacheKey, newsData, { expirationTtl: 900 }); // 15 minutes
     // Also persist to weekend cache if it's a weekday (for Monday fallback)
     await saveToWeekendCache(symbol, newsData, env);
+    // Log successful fetch attempts
+    await logNewsFetchAttempts(symbol, fetchAttempts, newsData.length, env);
   }
 
   return newsData;
+}
+
+/**
+ * Log news fetch attempts to D1 for diagnostics
+ * Records each provider's status, article count, errors, and timing
+ */
+async function logNewsFetchAttempts(
+  symbol: string, 
+  attempts: NewsFetchAttempt[], 
+  totalArticles: number,
+  env: any
+): Promise<void> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return;
+
+  try {
+    // Create summary for logging
+    const summary = attempts.map(a => 
+      `${a.provider}:${a.status}(${a.articles_count})${a.error_message ? `[${a.error_message.substring(0, 50)}]` : ''}`
+    ).join(', ');
+    
+    console.log(`[News Fetch Log] ${symbol}: ${summary} → total=${totalArticles}`);
+
+    // Store detailed fetch log in D1
+    await db.prepare(`
+      INSERT INTO news_fetch_log (
+        symbol, 
+        fetch_date, 
+        total_articles,
+        attempts_json,
+        finnhub_status, finnhub_count, finnhub_error,
+        fmp_status, fmp_count, fmp_error,
+        newsapi_status, newsapi_count, newsapi_error,
+        yahoo_status, yahoo_count, yahoo_error,
+        weekend_cache_status, weekend_cache_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      symbol,
+      new Date().toISOString(),
+      totalArticles,
+      JSON.stringify(attempts),
+      attempts.find(a => a.provider === 'finnhub')?.status || 'not_attempted',
+      attempts.find(a => a.provider === 'finnhub')?.articles_count || 0,
+      attempts.find(a => a.provider === 'finnhub')?.error_message || null,
+      attempts.find(a => a.provider === 'fmp')?.status || 'not_attempted',
+      attempts.find(a => a.provider === 'fmp')?.articles_count || 0,
+      attempts.find(a => a.provider === 'fmp')?.error_message || null,
+      attempts.find(a => a.provider === 'newsapi')?.status || 'not_attempted',
+      attempts.find(a => a.provider === 'newsapi')?.articles_count || 0,
+      attempts.find(a => a.provider === 'newsapi')?.error_message || null,
+      attempts.find(a => a.provider === 'yahoo')?.status || 'not_attempted',
+      attempts.find(a => a.provider === 'yahoo')?.articles_count || 0,
+      attempts.find(a => a.provider === 'yahoo')?.error_message || null,
+      attempts.find(a => a.provider === 'weekend_cache')?.status || 'not_attempted',
+      attempts.find(a => a.provider === 'weekend_cache')?.articles_count || 0
+    ).run();
+  } catch (error) {
+    // Don't fail the main operation if logging fails
+    console.log(`[News Fetch Log] Failed to log for ${symbol}:`, error instanceof Error ? error.message : String(error));
+  }
 }
 
 /**

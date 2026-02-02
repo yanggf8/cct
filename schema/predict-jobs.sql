@@ -176,3 +176,36 @@ CREATE TABLE IF NOT EXISTS weekend_news_cache (
 CREATE INDEX IF NOT EXISTS idx_weekend_news_cache_symbol ON weekend_news_cache(symbol);
 CREATE INDEX IF NOT EXISTS idx_weekend_news_cache_valid ON weekend_news_cache(valid_until);
 CREATE INDEX IF NOT EXISTS idx_weekend_news_cache_fetch ON weekend_news_cache(fetch_date DESC);
+
+-- News Fetch Log (added 2026-02-02)
+-- Detailed per-symbol tracking of each news provider attempt
+-- Critical for diagnosing "0 articles" failures
+CREATE TABLE IF NOT EXISTS news_fetch_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL,
+  fetch_date TEXT NOT NULL,     -- ISO timestamp of fetch attempt
+  total_articles INTEGER NOT NULL DEFAULT 0,
+  attempts_json TEXT,           -- Full JSON array of all attempts
+  -- Per-provider status columns for easy querying
+  finnhub_status TEXT,          -- 'success', 'failed', 'skipped', 'no_data', 'not_attempted'
+  finnhub_count INTEGER DEFAULT 0,
+  finnhub_error TEXT,
+  fmp_status TEXT,
+  fmp_count INTEGER DEFAULT 0,
+  fmp_error TEXT,
+  newsapi_status TEXT,
+  newsapi_count INTEGER DEFAULT 0,
+  newsapi_error TEXT,
+  yahoo_status TEXT,
+  yahoo_count INTEGER DEFAULT 0,
+  yahoo_error TEXT,
+  weekend_cache_status TEXT,
+  weekend_cache_count INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_news_fetch_log_symbol ON news_fetch_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_news_fetch_log_date ON news_fetch_log(fetch_date DESC);
+CREATE INDEX IF NOT EXISTS idx_news_fetch_log_total ON news_fetch_log(total_articles);
+-- Index for finding failures (total_articles = 0)
+CREATE INDEX IF NOT EXISTS idx_news_fetch_log_failures ON news_fetch_log(total_articles) WHERE total_articles = 0;
