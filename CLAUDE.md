@@ -41,19 +41,20 @@
 
 | Group | Key Endpoints |
 |-------|---------------|
-| **Jobs** | `POST /jobs/pre-market`, `GET /jobs/runs` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
-| **Reports** | `GET /reports/pre-market`, `/intraday`, `/end-of-day`, `/status` |
+| **Jobs** | `POST /jobs/pre-market`, `GET /jobs/runs` (public), `GET /jobs/runs/:runId/stages` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
+| **Reports** | `GET /reports/pre-market`, `GET /reports/intraday?date=YYYY-MM-DD`, `GET /reports/intraday?run_id=...`, `GET /reports/end-of-day`, `GET /reports/status` |
 | **Sentiment** | `GET /sentiment/analysis`, `/market` |
 | **Data** | `GET /data/health`, `/symbols`, `/system-status` |
 
 ---
 
-## D1 Schema (v2.4)
+## D1 Schema (v2.5)
 
 | Table | Purpose |
 |-------|---------|
 | `job_date_results` | Nav summary, `latest_run_id` |
 | `job_run_results` | Run history, `run_id`, `status`, `trigger_source` |
+| `job_stage_log` | Per-stage timeline, `status`/`errors_json`/`warnings_json`/`details_json` |
 | `scheduled_job_results` | Report content (append-only) |
 | `symbol_predictions` | Per-symbol dual model data |
 
@@ -115,4 +116,4 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ---
 
-**Last Updated**: 2026-02-01
+**Last Updated**: 2026-02-02

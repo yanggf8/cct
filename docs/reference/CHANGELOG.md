@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-02-02 - Intraday Failure Visibility & Stage Outcomes ✅
+
+- `GET /api/v1/reports/intraday` now accepts `?date=YYYY-MM-DD` and includes D1 job status details when no snapshot exists (surfaces `status/current_stage/errors/warnings` instead of a generic “No data” message).
+- `job_stage_log` now supports per-stage outcomes (`status`, `errors_json`, `warnings_json`, `details_json`) so stage timelines show real results instead of only timestamps.
+- `GET /api/v1/jobs/runs/:runId/stages` now returns per-stage `status/errors/warnings/details` when available (falls back to timestamps-only for older schemas).
+
 ## 2026-01-27 - Weekly Review D1 Snapshot Fix ✅
 
 - Weekly cron now persists the Weekly Review payload to D1 `scheduled_job_results` (`report_type='weekly'`) so the frontend can reliably load weekly report data.

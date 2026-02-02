@@ -159,6 +159,10 @@ CREATE TABLE IF NOT EXISTS job_stage_log (
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly')),
   stage TEXT NOT NULL CHECK(stage IN ('init','data_fetch','ai_analysis','storage','finalize')),
+  status TEXT CHECK(status IN ('running','success','failed')),
+  errors_json TEXT,
+  warnings_json TEXT,
+  details_json TEXT,             -- JSON: small per-stage summary (counts, ids, flags)
   started_at TEXT NOT NULL,
   ended_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
@@ -434,8 +438,8 @@ export async function startJobStage(
   const now = new Date().toISOString();
   try {
     await db.prepare(`
-      INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, started_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, status, started_at)
+      VALUES (?, ?, ?, ?, 'running', ?)
     `).bind(params.runId, params.scheduledDate, params.reportType, params.stage, now).run();
     return true;
   } catch (error) {
@@ -460,7 +464,7 @@ export async function endJobStage(
   try {
     await db.prepare(`
       UPDATE job_stage_log
-      SET ended_at = ?
+      SET ended_at = ?, status = 'success'
       WHERE run_id = ? AND stage = ? AND ended_at IS NULL
     `).bind(now, params.runId, params.stage).run();
     return true;

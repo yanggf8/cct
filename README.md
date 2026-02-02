@@ -222,7 +222,9 @@ GET /api/v1/sentiment/sectors           # Sector sentiment
 GET /api/v1/reports/daily/:date         # Daily reports
 GET /api/v1/reports/weekly/:week        # Weekly reports
 GET /api/v1/reports/pre-market          # Pre-market briefing ⭐ FIXED
-GET /api/v1/reports/intraday            # Intraday check
+GET /api/v1/reports/intraday            # Intraday check (latest snapshot)
+GET /api/v1/reports/intraday?date=YYYY-MM-DD   # Intraday check for a date
+GET /api/v1/reports/intraday?run_id=...         # Intraday check for a specific run
 GET /api/v1/reports/end-of-day          # End-of-day summary
 ```
 

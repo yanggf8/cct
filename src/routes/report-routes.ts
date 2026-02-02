@@ -904,8 +904,19 @@ export async function handleIntradayReport(
   const runId = url.searchParams.get('run_id');
 
   try {
+    const dateParam = url.searchParams.get('date');
     const today = new Date().toISOString().split('T')[0];
-    
+    const scheduledDate = dateParam ?? today;
+
+    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error('Invalid date format. Use YYYY-MM-DD', 'VALIDATION_ERROR', { requestId })
+        ),
+        { status: HttpStatus.BAD_REQUEST, headers }
+      );
+    }
+
     // If run_id specified, load that specific run
     if (runId) {
       const runSnapshot = await readD1ReportSnapshotByRunId(env, runId);
@@ -940,10 +951,22 @@ export async function handleIntradayReport(
 
     const snapshot = await env.PREDICT_JOBS_DB
       .prepare('SELECT report_content, created_at FROM scheduled_job_results WHERE scheduled_date = ? AND report_type = ? ORDER BY created_at DESC LIMIT 1')
-      .bind(today, 'intraday')
+      .bind(scheduledDate, 'intraday')
       .first();
 
+    const parseJsonStringArray = (json: unknown): string[] | null => {
+      if (!json || typeof json !== 'string') return null;
+      try {
+        const parsed = JSON.parse(json);
+        if (!Array.isArray(parsed)) return null;
+        return parsed.filter((v) => typeof v === 'string');
+      } catch {
+        return null;
+      }
+    };
+
     let response;
+    let source: string = snapshot ? 'd1' : 'empty';
     
     if (snapshot && snapshot.report_content) {
       // Parse and return stored intraday data
@@ -959,12 +982,57 @@ export async function handleIntradayReport(
         requestId
       });
     } else {
-      // No data available - return message to run job
+      // No snapshot available - surface the latest job status (if any) to help debugging
+      let jobStatusRow: any | null = null;
+      try {
+        jobStatusRow = await env.PREDICT_JOBS_DB
+          .prepare(
+            `SELECT status, current_stage, errors_json, warnings_json, started_at, executed_at, trigger_source, latest_run_id, updated_at
+             FROM job_date_results
+             WHERE scheduled_date = ? AND report_type = ?
+             LIMIT 1`
+          )
+          .bind(scheduledDate, 'intraday')
+          .first();
+      } catch (e) {
+        logger.warn('IntradayReport: Failed to load job_date_results status', {
+          error: e instanceof Error ? e.message : 'Unknown error',
+          scheduledDate,
+          requestId
+        });
+      }
+
+      const jobStatus = jobStatusRow ? {
+        status: jobStatusRow.status ?? null,
+        current_stage: jobStatusRow.current_stage ?? null,
+        errors: parseJsonStringArray(jobStatusRow.errors_json) ?? [],
+        warnings: parseJsonStringArray(jobStatusRow.warnings_json) ?? [],
+        started_at: jobStatusRow.started_at ?? null,
+        executed_at: jobStatusRow.executed_at ?? null,
+        trigger_source: jobStatusRow.trigger_source ?? null,
+        run_id: jobStatusRow.latest_run_id ?? null,
+        updated_at: jobStatusRow.updated_at ?? null
+      } : null;
+
+      if (jobStatus) source = 'd1_job_status';
+
+      let message = 'No intraday data available. Run POST /api/v1/jobs/intraday to generate.';
+      if (jobStatus?.status === 'running') {
+        message = `Intraday job is running (stage: ${jobStatus.current_stage ?? 'unknown'}). Retry in a moment.`;
+      } else if (jobStatus?.status === 'failed') {
+        message = `Intraday job failed (stage: ${jobStatus.current_stage ?? 'unknown'}).`;
+      } else if (jobStatus?.status === 'partial') {
+        message = 'Intraday job completed with warnings, but no report snapshot was found.';
+      }
+
+      // No data available - return message (and job status if available)
       response = {
         type: 'intraday_check',
         timestamp: new Date().toISOString(),
         market_status: isMarketOpen() ? 'open' : 'closed',
-        message: 'No intraday data available. Run POST /api/v1/jobs/intraday to generate.',
+        scheduled_date: scheduledDate,
+        message,
+        job_status: jobStatus,
         symbols: [],
         overall_accuracy: 0,
         on_track_count: 0,
@@ -972,14 +1040,20 @@ export async function handleIntradayReport(
         total_symbols: 0
       };
       
-      logger.info('IntradayReport: No D1 data available', { date: today, requestId });
+      logger.info('IntradayReport: No D1 snapshot available', {
+        scheduledDate,
+        hasJobStatus: !!jobStatus,
+        jobStatus: jobStatus?.status ?? null,
+        requestId
+      });
     }
 
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
-          source: snapshot ? 'd1' : 'fresh',
+          source,
           ttl: 300, // 5 minutes
+          scheduled_date: scheduledDate,
           requestId,
           processingTime: timer.finish(),
         })

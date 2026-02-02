@@ -312,18 +312,53 @@ async function handleJobRunStages(
   }
 
   try {
-    const result = await db.prepare(`
-      SELECT stage, started_at, ended_at
-      FROM job_stage_log
-      WHERE run_id = ?
-      ORDER BY started_at ASC
-    `).bind(runId).all();
+    const parseJson = (value: unknown): unknown => {
+      if (!value || typeof value !== 'string') return null;
+      try {
+        return JSON.parse(value);
+      } catch {
+        return null;
+      }
+    };
+
+    // Prefer richer schema (status/errors/warnings/details) when available.
+    let result;
+    try {
+      result = await db.prepare(`
+        SELECT stage, status, errors_json, warnings_json, details_json, started_at, ended_at
+        FROM job_stage_log
+        WHERE run_id = ?
+        ORDER BY started_at ASC
+      `).bind(runId).all();
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : 'Unknown error';
+      if (errMsg.includes('no such column') || errMsg.includes('has no column')) {
+        result = await db.prepare(`
+          SELECT stage, started_at, ended_at
+          FROM job_stage_log
+          WHERE run_id = ?
+          ORDER BY started_at ASC
+        `).bind(runId).all();
+      } else {
+        throw e;
+      }
+    }
+
+    const stages = (result.results || []).map((row: any) => ({
+      stage: row.stage,
+      status: row.status ?? null,
+      errors: parseJson(row.errors_json),
+      warnings: parseJson(row.warnings_json),
+      details: parseJson(row.details_json),
+      started_at: row.started_at,
+      ended_at: row.ended_at ?? null,
+    }));
 
     return new Response(
       JSON.stringify(ApiResponseFactory.success({
         runId,
-        stages: result.results || [],
-        count: result.results?.length || 0
+        stages,
+        count: stages.length
       }, { requestId, processingTime: timer.getElapsedMs() })),
       { status: HttpStatus.OK, headers }
     );
@@ -1102,15 +1137,16 @@ async function handleIntradayJob(
   headers: Record<string, string>,
   requestId: string,
   timer: ProcessingTimer
-): Promise<Response> {
-  const today = new Date().toISOString().split('T')[0];
-  const triggerSource = detectTriggerSource(request);
-  const navTriggerSource = mapTriggerSource(triggerSource);
-  let runId: string | null = null;
-  let runTrackingEnabled = false;
+	): Promise<Response> {
+	  const today = new Date().toISOString().split('T')[0];
+	  const triggerSource = detectTriggerSource(request);
+	  const navTriggerSource = mapTriggerSource(triggerSource);
+	  let runId: string | null = null;
+	  let runTrackingEnabled = false;
+	  let currentStage: 'init' | 'ai_analysis' | 'storage' | 'finalize' = 'init';
 
-  // Clean up stale jobs (authenticated endpoint - safe to write)
-  await markStaleJobsAsFailed(env);
+	  // Clean up stale jobs (authenticated endpoint - safe to write)
+	  await markStaleJobsAsFailed(env);
 
   try {
     const { IntradayDataBridge } = await import('../modules/intraday-data-bridge.js');
@@ -1136,23 +1172,35 @@ async function handleIntradayJob(
       runId = generateRunId(today, 'intraday');
     }
 
-    if (runTrackingEnabled) {
-      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'init' });
-      await endJobStage(env, { runId, stage: 'init' });
-    }
+	    if (runTrackingEnabled) {
+	      currentStage = 'init';
+	      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'init' });
+	      await endJobStage(env, { runId, stage: 'init', status: 'success' });
+	    }
 
-    // Start AI analysis stage
-    if (runTrackingEnabled) {
-      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
-    }
+	    // Start AI analysis stage
+	    if (runTrackingEnabled) {
+	      currentStage = 'ai_analysis';
+	      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'ai_analysis' });
+	    }
 
     // Execute intraday analysis
     const analysisData = await bridge.generateIntradayAnalysis();
 
-    // End AI analysis stage
-    if (runTrackingEnabled) {
-      await endJobStage(env, { runId, stage: 'ai_analysis' });
-    }
+	    // End AI analysis stage
+	    if (runTrackingEnabled) {
+	      await endJobStage(env, {
+	        runId,
+	        stage: 'ai_analysis',
+	        status: 'success',
+	        details: {
+	          symbols_analyzed: analysisData.total_symbols ?? 0,
+	          comparisons: analysisData.comparisons?.length ?? 0,
+	          pre_market_run_id: analysisData.pre_market_run_id ?? null,
+	          market_status: analysisData.market_status ?? null,
+	        }
+	      });
+	    }
 
     // Build job result for D1 storage (includes comparisons for new layout)
     const jobResult = {
@@ -1169,10 +1217,11 @@ async function handleIntradayJob(
       timestamp: analysisData.timestamp
     };
 
-    // Start storage stage
-    if (runTrackingEnabled) {
-      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'storage' });
-    }
+	    // Start storage stage
+	    if (runTrackingEnabled) {
+	      currentStage = 'storage';
+	      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'storage' });
+	    }
 
     // Write to D1
     await writeD1JobResult(env, today, 'intraday', jobResult, {
@@ -1181,16 +1230,25 @@ async function handleIntradayJob(
       accuracyRate: analysisData.overall_accuracy
     }, triggerSource, runId);
 
-    // End storage stage
-    if (runTrackingEnabled) {
-      await endJobStage(env, { runId, stage: 'storage' });
-    }
+	    // End storage stage
+	    if (runTrackingEnabled) {
+	      await endJobStage(env, {
+	        runId,
+	        stage: 'storage',
+	        status: 'success',
+	        details: {
+	          wrote_snapshot: true,
+	          report_type: 'intraday',
+	          scheduled_date: today,
+	        }
+	      });
+	    }
 
-    // Finalize
-    if (runTrackingEnabled) {
-      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
-      await endJobStage(env, { runId, stage: 'finalize' });
-    }
+	    // Finalize
+	    if (runTrackingEnabled) {
+	      currentStage = 'finalize';
+	      await startJobStage(env, { runId, scheduledDate: today, reportType: 'intraday', stage: 'finalize' });
+	    }
 
     // Compute final status (check for partial success)
     let finalStatus: 'success' | 'partial' | 'failed' = 'success';
@@ -1224,19 +1282,26 @@ async function handleIntradayJob(
     }
     // Note: Prediction accuracy (reversed/consistent) is NOT a job status issue
 
-    // Mark job as complete with appropriate status
-    if (runTrackingEnabled) {
-      await completeJobRun(env, {
-        runId,
-        scheduledDate: today,
-        reportType: 'intraday',
-        status: finalStatus,
-        warnings: warnings.length > 0 ? warnings : undefined
-      });
-    } else {
-      await writeJobDateResult(env, {
-        scheduledDate: today,
-        reportType: 'intraday',
+	    // Mark job as complete with appropriate status
+	    if (runTrackingEnabled) {
+	      await completeJobRun(env, {
+	        runId,
+	        scheduledDate: today,
+	        reportType: 'intraday',
+	        status: finalStatus,
+	        warnings: warnings.length > 0 ? warnings : undefined
+	      });
+	      await endJobStage(env, {
+	        runId,
+	        stage: 'finalize',
+	        status: 'success',
+	        warnings: warnings.length > 0 ? warnings : undefined,
+	        details: { final_status: finalStatus }
+	      });
+	    } else {
+	      await writeJobDateResult(env, {
+	        scheduledDate: today,
+	        reportType: 'intraday',
         status: finalStatus,
         currentStage: 'finalize',
         warnings: warnings.length > 0 ? warnings : undefined,
@@ -1274,13 +1339,27 @@ async function handleIntradayJob(
       { status: HttpStatus.OK, headers }
     );
 
-  } catch (error: any) {
-    logger.error('IntradayJob Error', { error: error.message, requestId });
+	  } catch (error: any) {
+	    logger.error('IntradayJob Error', { error: error.message, requestId });
 
-    // Mark job as failed
-    try {
-      if (runTrackingEnabled && runId) {
-        await completeJobRun(env, {
+	    // Best effort: mark current stage as failed (stage log is separate from run status)
+	    try {
+	      if (runTrackingEnabled && runId) {
+	        await endJobStage(env, {
+	          runId,
+	          stage: currentStage,
+	          status: 'failed',
+	          errors: [error instanceof Error ? error.message : 'Unknown error']
+	        });
+	      }
+	    } catch {
+	      // Ignore - best effort
+	    }
+
+	    // Mark job as failed
+	    try {
+	      if (runTrackingEnabled && runId) {
+	        await completeJobRun(env, {
           runId,
           scheduledDate: today,
           reportType: 'intraday',

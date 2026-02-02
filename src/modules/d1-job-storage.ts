@@ -848,6 +848,10 @@ export interface JobStageLogEntry {
   scheduled_date: string;
   report_type: ReportType;
   stage: JobStage;
+  status: 'running' | 'success' | 'failed' | null;
+  errors_json: string | null;
+  warnings_json: string | null;
+  details_json: string | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -1124,11 +1128,23 @@ export async function startJobStage(
   const now = new Date().toISOString();
 
   try {
-    // Insert stage start
-    await db.prepare(`
-      INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, started_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(params.runId, params.scheduledDate, params.reportType, params.stage, now).run();
+    // Insert stage start (prefer richer schema when available)
+    try {
+      await db.prepare(`
+        INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, status, started_at)
+        VALUES (?, ?, ?, ?, 'running', ?)
+      `).bind(params.runId, params.scheduledDate, params.reportType, params.stage, now).run();
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : 'Unknown error';
+      if (errMsg.includes('no such column') || errMsg.includes('has no column')) {
+        await db.prepare(`
+          INSERT INTO job_stage_log (run_id, scheduled_date, report_type, stage, started_at)
+          VALUES (?, ?, ?, ?, ?)
+        `).bind(params.runId, params.scheduledDate, params.reportType, params.stage, now).run();
+      } else {
+        throw e;
+      }
+    }
 
     await updateRunStage(env, {
       runId: params.runId,
@@ -1151,13 +1167,17 @@ export async function startJobStage(
 }
 
 /**
- * End a job stage - update ended_at in job_stage_log
+ * End a job stage - update ended_at (+ optional outcome fields) in job_stage_log
  */
 export async function endJobStage(
   env: CloudflareEnvironment,
   params: {
     runId: string;
     stage: JobStage;
+    status?: 'success' | 'failed';
+    errors?: string[];
+    warnings?: string[];
+    details?: Record<string, unknown>;
   }
 ): Promise<boolean> {
   const db = env.PREDICT_JOBS_DB;
@@ -1167,13 +1187,31 @@ export async function endJobStage(
   }
 
   const now = new Date().toISOString();
+  const status = params.status ?? 'success';
+  const errorsJson = params.errors ? JSON.stringify(params.errors) : null;
+  const warningsJson = params.warnings ? JSON.stringify(params.warnings) : null;
+  const detailsJson = params.details ? JSON.stringify(params.details) : null;
 
   try {
-    await db.prepare(`
-      UPDATE job_stage_log
-      SET ended_at = ?
-      WHERE run_id = ? AND stage = ? AND ended_at IS NULL
-    `).bind(now, params.runId, params.stage).run();
+    // Prefer richer schema when available, but fall back to timestamps-only schema.
+    try {
+      await db.prepare(`
+        UPDATE job_stage_log
+        SET ended_at = ?, status = ?, errors_json = ?, warnings_json = ?, details_json = ?
+        WHERE run_id = ? AND stage = ? AND ended_at IS NULL
+      `).bind(now, status, errorsJson, warningsJson, detailsJson, params.runId, params.stage).run();
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : 'Unknown error';
+      if (errMsg.includes('no such column') || errMsg.includes('has no column')) {
+        await db.prepare(`
+          UPDATE job_stage_log
+          SET ended_at = ?
+          WHERE run_id = ? AND stage = ? AND ended_at IS NULL
+        `).bind(now, params.runId, params.stage).run();
+      } else {
+        throw e;
+      }
+    }
 
     logger.debug('Job stage ended', params);
     return true;

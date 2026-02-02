@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS job_date_results (
   executed_at TEXT,
   started_at TEXT,
   trigger_source TEXT,
+  latest_run_id TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (scheduled_date, report_type)
@@ -63,19 +64,64 @@ CREATE TABLE IF NOT EXISTS job_date_results (
 CREATE INDEX IF NOT EXISTS idx_job_date_results_date ON job_date_results(scheduled_date DESC);
 CREATE INDEX IF NOT EXISTS idx_job_date_results_status ON job_date_results(status) WHERE status = 'running';
 
--- Job Stage Log (append-only stage transitions)
+-- ============================================================================
+-- Navigation Status Tables v2.3 (Multi-Run Support)
+-- NOTE (added 2026-02-02): job_stage_log includes per-stage outcome fields
+-- ============================================================================
+
+-- Run history (multiple rows per scheduled_date/report_type)
+CREATE TABLE IF NOT EXISTS job_run_results (
+  run_id TEXT PRIMARY KEY,
+  scheduled_date TEXT NOT NULL,
+  report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
+  status TEXT NOT NULL CHECK(status IN ('success','partial','failed','running')),
+  current_stage TEXT,
+  errors_json TEXT,
+  warnings_json TEXT,
+  started_at TEXT NOT NULL,
+  executed_at TEXT,
+  trigger_source TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_run_results_lookup ON job_run_results(scheduled_date, report_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_job_run_results_status ON job_run_results(status) WHERE status = 'running';
+
+-- Stage timeline per run (append-only inserts, update ended_at + outcome)
 CREATE TABLE IF NOT EXISTS job_stage_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
   scheduled_date TEXT NOT NULL,
   report_type TEXT NOT NULL CHECK(report_type IN ('pre-market','intraday','end-of-day','weekly','sector-rotation')),
   stage TEXT NOT NULL CHECK(stage IN ('init','data_fetch','ai_analysis','storage','finalize')),
+  status TEXT CHECK(status IN ('running','success','failed')),
+  errors_json TEXT,
+  warnings_json TEXT,
+  details_json TEXT,
   started_at TEXT NOT NULL,
   ended_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (scheduled_date, report_type) REFERENCES job_date_results(scheduled_date, report_type)
+  FOREIGN KEY (run_id) REFERENCES job_run_results(run_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_job_stage_log_run ON job_stage_log(run_id, stage);
 CREATE INDEX IF NOT EXISTS idx_job_stage_log_lookup ON job_stage_log(scheduled_date, report_type, stage);
+
+-- Report content snapshots (multi-run, report_type intentionally unconstrained)
+CREATE TABLE IF NOT EXISTS scheduled_job_results (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scheduled_date TEXT NOT NULL,
+  report_type TEXT NOT NULL,
+  report_content TEXT NOT NULL,
+  metadata TEXT,
+  trigger_source TEXT,
+  run_id TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_job_results_lookup ON scheduled_job_results(scheduled_date DESC, report_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scheduled_job_results_run ON scheduled_job_results(run_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_job_results_run_unique ON scheduled_job_results(run_id);
 
 -- News Provider Failure Tracking (added 2026-01-29)
 CREATE TABLE IF NOT EXISTS news_provider_failures (
