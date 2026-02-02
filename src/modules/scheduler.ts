@@ -879,6 +879,53 @@ export async function handleScheduledEvent(
             } catch (cacheErr) { /* ignore - cache key may not exist */ }
           }
 
+          // Warm DO report cache for pre-market to ensure report endpoint returns fresh data
+          if (d1ReportType === 'pre-market' && analysisResult) {
+            try {
+              const dal = createSimplifiedEnhancedDAL(env);
+              const reportCacheKey = `pre_market_report_${dateStr}`;
+              
+              // Transform analysis result to report format expected by the report endpoint
+              const tradingSignals = analysisResult.trading_signals || {};
+              const allSignals = Object.values(tradingSignals).map((signal: any) => ({
+                symbol: signal.symbol,
+                sentiment: signal.enhanced_prediction?.direction || signal.direction || 'neutral',
+                confidence: signal.confidence_metrics?.overall_confidence ?? signal.enhanced_prediction?.confidence ?? signal.confidence ?? null,
+                gemma_confidence: signal.confidence_metrics?.gpt_confidence ?? null,
+                distilbert_confidence: signal.confidence_metrics?.distilbert_confidence ?? null,
+                status: (signal.confidence_metrics?.overall_confidence ?? signal.enhanced_prediction?.confidence ?? signal.confidence) ? 'success' : 'failed',
+                reason: signal.enhanced_prediction?.sentiment_analysis?.reasoning || signal.sentiment_layers?.[0]?.reasoning || ''
+              }));
+
+              const reportData = {
+                type: 'pre_market_briefing',
+                timestamp: new Date().toISOString(),
+                market_status: 'pre_market',
+                date: dateStr,
+                is_stale: false,
+                key_insights: ['Pre-market analysis complete', `Data from ${dateStr}`, 'Fresh data available'],
+                high_confidence_signals: allSignals.filter(s => s.confidence !== null && s.confidence > 0.7),
+                all_signals: allSignals,
+                high_confidence_count: allSignals.filter(s => s.confidence !== null && s.confidence > 0.7).length,
+                data_source: 'd1_snapshot',
+                generated_at: new Date().toISOString(),
+                symbols_analyzed: allSignals.length
+              };
+
+              // Invalidate old cache first
+              const htmlCacheKey = `premarket_html_${dateStr}`;
+              try {
+                await dal.deleteKey(htmlCacheKey);
+              } catch (e) { /* ignore */ }
+
+              // Write formatted report to DO cache
+              await dal.write(reportCacheKey, reportData, { expirationTtl: 3600 });
+              console.log(`✅ [CRON-CACHE] ${cronExecutionId} Pre-market report cache warmed: ${reportCacheKey} (${allSignals.length} symbols)`);
+            } catch (cacheErr) {
+              console.warn(`⚠️ [CRON-CACHE] ${cronExecutionId} Pre-market cache warming failed:`, cacheErr);
+            }
+          }
+
           // End storage stage for jobs with run tracking
           if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
             await endJobStage(env, { runId: activeRunId, stage: 'storage' });

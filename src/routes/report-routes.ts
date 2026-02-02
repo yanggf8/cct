@@ -814,6 +814,26 @@ export async function handlePreMarketReport(
             };
           }),
         all_signals: allSignals,  // Already contains reason and status
+        high_confidence_count: Object.values(tradingSignals)
+          .filter((signal: any) => {
+            const conf = signal.signal?.confidence ??
+              signal.models?.gpt?.confidence ??
+              signal.models?.distilbert?.confidence ??
+              signal.confidence_metrics?.overall_confidence ??
+              signal.sentiment_layers?.[0]?.confidence ??
+              signal.confidence ??
+              null;
+            const hasError = !!(
+              signal.error ||
+              signal.error_message ||
+              signal.status === 'failed' ||
+              signal.status === 'skipped' ||
+              signal.signal?.type === 'ERROR' ||
+              signal.models?.gpt?.error ||
+              signal.models?.distilbert?.error
+            );
+            return !hasError && conf !== null && conf > 0.7;
+          }).length,
         data_source: 'd1_snapshot',
         generated_at: d1Data.generated_at || d1Data.timestamp || sourceDate,
         symbols_analyzed: Object.keys(tradingSignals).length,
