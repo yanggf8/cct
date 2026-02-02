@@ -47,11 +47,6 @@ bucket_name = "tft-trading-models"
 [ai]
 binding = "AI"
 
-# DAC Service Binding (direct Worker-to-Worker communication)
-[[services]]
-binding = "DAC_BACKEND"
-service = "dac-backend"
-
 # Durable Objects for cache
 [[durable_objects.bindings]]
 name = "CACHE_DO"
@@ -106,8 +101,6 @@ YAHOO_FINANCE_RATE_LIMIT = "20" # 20 requests per minute
 RATE_LIMIT_WINDOW = "60000" # 1 minute in milliseconds
 # Durable Objects cache configuration
 FEATURE_FLAG_DO_CACHE = "true" # DO cache enabled - eliminates KV writes, 50x faster performance
-# DAC Articles Pool Integration
-DAC_ARTICLES_POOL_URL = "https://dac-backend.yanggf.workers.dev"
 # FRED API graceful degradation (uses Yahoo Finance fallback when FRED_API_KEY not set)
 FRED_ALLOW_DEGRADATION = "true"
 
@@ -122,9 +115,6 @@ FRED_ALLOW_DEGRADATION = "true"
 # - FMP_API_KEY: Financial Modeling Prep free API key (financialmodelingprep.com)
 # - NEWSAPI_KEY: NewsAPI.org free development key (newsapi.org)
 #
-# DAC Integration:
-# - DAC_ARTICLES_POOL_API_KEY: API key for DAC articles pool (optional, may use public endpoints)
-#
 # Optional secrets:
 # - SLACK_WEBHOOK_URL: Slack webhook for alerts
 # - ALERT_EMAIL: Email address for trading alerts
@@ -135,4 +125,3 @@ FRED_ALLOW_DEGRADATION = "true"
 # wrangler secret put WORKER_API_KEY
 # wrangler secret put FMP_API_KEY
 # wrangler secret put NEWSAPI_KEY
-# wrangler secret put DAC_ARTICLES_POOL_API_KEY

@@ -161,7 +161,7 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
 
   if (cached.success && cached.data && cached.data.length > 0) {
     console.log(`[Stock News Cache] HIT for ${symbol} (${cached.data.length} articles)`);
-    
+
     // Log cache hit for statistics
     if (env.PREDICT_JOBS_DB) {
       try {
@@ -171,7 +171,15 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
           .run();
       } catch (e) { /* ignore */ }
     }
-    
+
+    // Also update weekend cache with this data (best-effort)
+    // This ensures we always have recent data for Monday fallback
+    try {
+      await saveToWeekendCache(symbol, cached.data, env);
+    } catch (e) {
+      console.log(`[Weekend Cache] Error saving from cache hit:`, e instanceof Error ? e.message : String(e));
+    }
+
     return cached.data;
   }
 
@@ -205,8 +213,10 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
           confidence: 0.5,  // Default - AI will update
           source_type: 'finnhub'
         }));
-        // Cache the result
+        // Cache the result (short TTL for intraday freshness)
         await dal.write(cacheKey, articles, { expirationTtl: 900 }); // 15 minutes
+        // Also persist to weekend cache for Monday fallback
+        await saveToWeekendCache(symbol, articles, env);
         return articles;
       }
       console.log(`[Stock News] Finnhub returned 0 articles for ${symbol}, trying fallbacks`);
@@ -254,11 +264,20 @@ export async function getFreeStockNews(symbol: string, env: any): Promise<NewsAr
   }
 
   if (newsData.length === 0) {
-    console.log(`[Stock News] ALL SOURCES FAILED for ${symbol}`);
+    console.log(`[Stock News] ALL SOURCES FAILED for ${symbol}, checking weekend cache...`);
+    // Try weekend cache fallback (D1-based, survives Friday→Monday)
+    const weekendArticles = await getWeekendCachedNews(symbol, env);
+    if (weekendArticles.length > 0) {
+      console.log(`[Stock News] WEEKEND CACHE HIT for ${symbol}: ${weekendArticles.length} articles`);
+      return weekendArticles;
+    }
+    console.log(`[Stock News] No weekend cache available for ${symbol}`);
   } else {
     console.log(`[Stock News] Fallback total: ${newsData.length} articles for ${symbol}`);
     // Cache the combined result
     await dal.write(cacheKey, newsData, { expirationTtl: 900 }); // 15 minutes
+    // Also persist to weekend cache if it's a weekday (for Monday fallback)
+    await saveToWeekendCache(symbol, newsData, env);
   }
 
   return newsData;
@@ -763,6 +782,120 @@ function mapDirectionToScore(direction: string): number {
     'NEUTRAL': 0.0
   };
   return mapping[direction?.toUpperCase()] || 0.0;
+}
+
+// ============================================================================
+// Weekend News Cache Functions
+// Persists news articles to D1 so Monday pre-market can use Friday's articles
+// when live news providers have no fresh content early Monday morning
+// ============================================================================
+
+/**
+ * Get cached news from weekend_news_cache table
+ * Returns articles if cache is still valid (before valid_until)
+ */
+async function getWeekendCachedNews(symbol: string, env: any): Promise<NewsArticle[]> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return [];
+
+  try {
+    const now = new Date().toISOString();
+    const result = await db.prepare(`
+      SELECT articles_json, articles_count, fetch_date
+      FROM weekend_news_cache
+      WHERE symbol = ? AND valid_until > ?
+      ORDER BY fetch_date DESC
+      LIMIT 1
+    `).bind(symbol, now).first();
+
+    if (result?.articles_json) {
+      const articles = JSON.parse(result.articles_json as string) as NewsArticle[];
+      console.log(`[Weekend Cache] Found ${articles.length} articles for ${symbol} from ${result.fetch_date}`);
+      return articles;
+    }
+  } catch (error) {
+    console.log(`[Weekend Cache] Read failed for ${symbol}:`, error instanceof Error ? error.message : String(error));
+  }
+
+  return [];
+}
+
+/**
+ * Save news articles to weekend cache
+ * Only saves on weekdays, with validity extending to Monday 18:00 UTC
+ */
+async function saveToWeekendCache(symbol: string, articles: NewsArticle[], env: any): Promise<void> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db || articles.length === 0) return;
+
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+
+  // Only cache on weekdays (Mon-Fri)
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return;
+  }
+
+  const fetchDate = now.toISOString().split('T')[0];
+
+  // Calculate valid_until: next Monday 18:00 UTC (after market opens and fresh news available)
+  // If today is Friday, cache is valid for ~65 hours
+  // If today is Monday-Thursday, cache is valid until next Monday (longer, but will be overwritten by fresher data)
+  const daysUntilMonday = dayOfWeek === 1 ? 7 : (8 - dayOfWeek); // Days until next Monday
+  const validUntil = new Date(now);
+  validUntil.setUTCDate(validUntil.getUTCDate() + daysUntilMonday);
+  validUntil.setUTCHours(18, 0, 0, 0); // Monday 18:00 UTC
+
+  const sourceProviders = [...new Set(articles.map(a => a.source_type || a.source || 'unknown'))].join(',');
+
+  try {
+    await db.prepare(`
+      INSERT INTO weekend_news_cache (symbol, articles_json, articles_count, fetch_date, valid_until, source_providers)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(symbol, fetch_date) DO UPDATE SET
+        articles_json = excluded.articles_json,
+        articles_count = excluded.articles_count,
+        valid_until = excluded.valid_until,
+        source_providers = excluded.source_providers,
+        created_at = datetime('now')
+    `).bind(
+      symbol,
+      JSON.stringify(articles),
+      articles.length,
+      fetchDate,
+      validUntil.toISOString(),
+      sourceProviders
+    ).run();
+
+    console.log(`[Weekend Cache] Saved ${articles.length} articles for ${symbol}, valid until ${validUntil.toISOString()}`);
+  } catch (error) {
+    // Silently fail - weekend cache is best-effort
+    console.log(`[Weekend Cache] Save failed for ${symbol}:`, error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Cleanup expired weekend cache entries (call periodically)
+ */
+export async function cleanupWeekendCache(env: any): Promise<number> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return 0;
+
+  try {
+    const now = new Date().toISOString();
+    const result = await db.prepare(`
+      DELETE FROM weekend_news_cache WHERE valid_until < ?
+    `).bind(now).run();
+
+    const deleted = result.meta?.changes || 0;
+    if (deleted > 0) {
+      console.log(`[Weekend Cache] Cleaned up ${deleted} expired entries`);
+    }
+    return deleted;
+  } catch (error) {
+    console.log(`[Weekend Cache] Cleanup failed:`, error instanceof Error ? error.message : String(error));
+    return 0;
+  }
 }
 
 // Export types for external use

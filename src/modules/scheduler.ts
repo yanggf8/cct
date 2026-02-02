@@ -776,7 +776,7 @@ export async function handleScheduledEvent(
 
         // End dangling ai_analysis stage (try-path's endJobStage didn't execute)
         if (runTrackingEnabled) {
-          await endJobStage(env, { runId, stage: 'ai_analysis' });
+          await endJobStage(env, { runId, stage: 'ai_analysis', status: 'failed', errors: [preMarketError.message] });
         }
         // Fall through: null analysisResult handled by else-if at line ~889
       }
@@ -911,7 +911,7 @@ export async function handleScheduledEvent(
 
           // End dangling storage stage for pre-market and intraday
           if (activeRunTrackingEnabled && activeRunId && (d1ReportType === 'pre-market' || d1ReportType === 'intraday')) {
-            await endJobStage(env, { runId: activeRunId, stage: 'storage' });
+            await endJobStage(env, { runId: activeRunId, stage: 'storage', status: 'failed', errors: [d1Error.message] });
           }
 
           // Complete job run with failure for pre-market and intraday

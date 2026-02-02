@@ -1353,9 +1353,11 @@ export async function checkScheduledRuns(
       FROM job_run_results r
       WHERE scheduled_date = ?
         AND report_type IN (${expectedReportTypes.map(() => '?').join(', ')})
-        AND created_at = (
-          SELECT MAX(created_at) FROM job_run_results r2
+        AND run_id = (
+          SELECT run_id FROM job_run_results r2
           WHERE r2.scheduled_date = r.scheduled_date AND r2.report_type = r.report_type
+          ORDER BY created_at DESC, run_id DESC
+          LIMIT 1
         )
     `).bind(scheduledDate, ...expectedReportTypes).all();
 

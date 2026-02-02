@@ -402,9 +402,6 @@ export interface CloudflareEnvironment {
   // AI Binding
   AI: Ai;
 
-  // Service Bindings
-  DAC_BACKEND?: Fetcher; // DAC backend service binding for direct Worker-to-Worker communication
-
   // Queue Producers
   ANALYSIS_QUEUE?: MessageBatch;
   NOTIFICATION_QUEUE?: MessageBatch;

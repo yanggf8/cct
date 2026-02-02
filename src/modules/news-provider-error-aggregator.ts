@@ -1,7 +1,7 @@
 /**
  * News Provider Error Aggregation Module
  *
- * Tracks and aggregates errors from all news providers (DAC, FMP, NewsAPI, Yahoo).
+ * Tracks and aggregates errors from all news providers (Finnhub, FMP, NewsAPI, Yahoo).
  * Provides structured error context for troubleshooting and D1 storage.
  *
  * @author News Provider Error Handling - Phase 2
@@ -20,7 +20,7 @@ export type ErrorSeverity = 'transient' | 'retryable' | 'permanent' | 'unknown';
 /**
  * Provider identifiers
  */
-export type NewsProvider = 'DAC' | 'FMP' | 'NewsAPI' | 'Yahoo' | 'Unknown';
+export type NewsProvider = 'Finnhub' | 'FMP' | 'NewsAPI' | 'Yahoo' | 'Unknown';
 
 /**
  * Standardized provider error interface
@@ -54,14 +54,12 @@ export interface ErrorSummary {
  * Error codes by provider
  */
 export const ErrorCodes = {
-  DAC: {
-    RATE_LIMIT: 'DAC_RATE_LIMIT',
-    QUOTA_EXCEEDED: 'DAC_QUOTA_EXCEEDED',
-    NOT_FOUND: 'DAC_NOT_FOUND',
-    STALE: 'DAC_STALE_DATA',
-    UNAVAILABLE: 'DAC_UNAVAILABLE',
-    TIMEOUT: 'DAC_TIMEOUT',
-    UNKNOWN: 'DAC_UNKNOWN_ERROR',
+  Finnhub: {
+    RATE_LIMIT: 'FINNHUB_RATE_LIMIT',
+    QUOTA_EXCEEDED: 'FINNHUB_QUOTA_EXCEEDED',
+    NOT_FOUND: 'FINNHUB_NOT_FOUND',
+    TIMEOUT: 'FINNHUB_TIMEOUT',
+    UNKNOWN: 'FINNHUB_UNKNOWN_ERROR',
   },
   FMP: {
     RATE_LIMIT: 'FMP_RATE_LIMIT',
@@ -163,7 +161,7 @@ export function aggregateProviderErrors(errors: ProviderError[]): ErrorSummary {
   const summary: ErrorSummary = {
     totalErrors: errors.length,
     errorsByProvider: {
-      DAC: 0,
+      Finnhub: 0,
       FMP: 0,
       NewsAPI: 0,
       Yahoo: 0,
@@ -224,7 +222,7 @@ export function deserializeErrorSummary(json: string): ErrorSummary | null {
 export function formatErrorSummary(summary: ErrorSummary): string {
   const parts = [
     `Total Errors: ${summary.totalErrors}`,
-    `By Provider: DAC=${summary.errorsByProvider.DAC}, FMP=${summary.errorsByProvider.FMP}, NewsAPI=${summary.errorsByProvider.NewsAPI}, Yahoo=${summary.errorsByProvider.Yahoo}`,
+    `By Provider: Finnhub=${summary.errorsByProvider.Finnhub}, FMP=${summary.errorsByProvider.FMP}, NewsAPI=${summary.errorsByProvider.NewsAPI}, Yahoo=${summary.errorsByProvider.Yahoo}`,
     `By Severity: transient=${summary.errorsBySeverity.transient}, retryable=${summary.errorsBySeverity.retryable}, permanent=${summary.errorsBySeverity.permanent}`,
     `Retryable: ${summary.retryableErrors}, Permanent: ${summary.permanentErrors}`,
   ];
@@ -321,7 +319,7 @@ export function extractProviderError(
  */
 export function allProvidersFailed(summary: ErrorSummary): boolean {
   return (
-    summary.errorsByProvider.DAC > 0 &&
+    summary.errorsByProvider.Finnhub > 0 &&
     summary.errorsByProvider.FMP > 0 &&
     summary.errorsByProvider.NewsAPI > 0 &&
     summary.errorsByProvider.Yahoo > 0
@@ -332,7 +330,7 @@ export function allProvidersFailed(summary: ErrorSummary): boolean {
  * Check if any provider succeeded (no errors from that provider)
  */
 export function anyProviderSucceeded(summary: ErrorSummary): boolean {
-  const totalProviders = 4; // DAC, FMP, NewsAPI, Yahoo
+  const totalProviders = 4; // Finnhub, FMP, NewsAPI, Yahoo
   const failedProviders = Object.entries(summary.errorsByProvider).filter(([_, count]) => count > 0).length;
 
   return failedProviders < totalProviders;

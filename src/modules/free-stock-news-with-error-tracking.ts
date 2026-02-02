@@ -11,7 +11,6 @@
 import type { CloudflareEnvironment } from '../types.js';
 import { getFreeStockNews } from './free_sentiment_pipeline.js';
 import {
-  createProviderError,
   aggregateProviderErrors,
   serializeErrorSummary,
   logErrorSummary,
@@ -28,15 +27,15 @@ export interface NewsFetchResult {
   articles: any[];
   errorSummary: ErrorSummary | null;
   providerErrors: ProviderError[];
-  providerFailures?: Array<{ provider: string; error_type: string; error_message: string }>; // NEW: For report inclusion
+  providerFailures?: Array<{ provider: string; error_type: string; error_message: string }>;
   success: boolean;
 }
 
 /**
  * Fetch stock news with comprehensive error tracking
  *
- * Tracks errors from all 4 providers (DAC, FMP, NewsAPI, Yahoo)
- * and aggregates them for D1 storage and troubleshooting.
+ * Uses free providers: Finnhub → FMP → NewsAPI → Yahoo
+ * Tracks errors for D1 storage and troubleshooting.
  *
  * @param symbol Stock symbol
  * @param env Cloudflare environment
@@ -51,68 +50,7 @@ export async function getFreeStockNewsWithErrorTracking(
   const providerFailures: Array<{ provider: string; error_type: string; error_message: string }> = [];
   let articles: any[] = [];
 
-  // Import failure tracker
-  const { logProviderFailure } = await import('./news-provider-failure-tracker.js');
-
-  // Track DAC errors (only actual failures, not "not configured" or "miss")
-  if (env.DAC_BACKEND) {
-    try {
-      const { DACArticlesAdapterV2 } = await import('./dac-articles-pool-v2.js');
-      const dacAdapter = new DACArticlesAdapterV2({
-        DAC_BACKEND: env.DAC_BACKEND as any,
-        X_API_KEY: env.X_API_KEY
-      });
-      const dacResult = await dacAdapter.getArticlesForSentiment(symbol);
-
-      if (dacResult.source === 'dac_pool') {
-        if (dacResult.articles.length > 0) {
-          articles = dacResult.articles;
-          console.log(`[Error Tracking] DAC Pool SUCCESS for ${symbol} (${dacResult.articles.length} articles)`);
-        } else {
-          // DAC returned 0 articles - log as no_data
-          providerFailures.push({ provider: 'DAC', error_type: 'no_data', error_message: 'DAC pool returned 0 articles' });
-          await logProviderFailure(env, {
-            symbol,
-            provider: 'DAC',
-            error_type: 'no_data',
-            error_message: 'DAC pool returned 0 articles',
-            job_type: jobContext?.job_type,
-            run_id: jobContext?.run_id
-          });
-        }
-      }
-    } catch (error: unknown) {
-      // Only track actual DAC failures (exceptions)
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      providerErrors.push(extractProviderError('DAC', error, `getArticlesForSentiment(${symbol})`));
-      providerFailures.push({ provider: 'DAC', error_type: 'api_error', error_message: errorMsg });
-      await logProviderFailure(env, {
-        symbol,
-        provider: 'DAC',
-        error_type: 'api_error',
-        error_message: errorMsg,
-        job_type: jobContext?.job_type,
-        run_id: jobContext?.run_id
-      });
-    }
-  }
-
-  // If DAC succeeded, return early (highest priority)
-  if (articles.length > 0) {
-    const summary = aggregateProviderErrors(providerErrors);
-    logErrorSummary(summary, `DAC SUCCESS for ${symbol}`);
-
-    return {
-      articles,
-      errorSummary: summary.totalErrors > 0 ? summary : null,
-      providerErrors,
-      providerFailures, // NEW: Include in result
-      success: true,
-    };
-  }
-
-  // Track fallback provider errors (FMP, NewsAPI, Yahoo)
-  // These are called inside getFreeStockNews, so we wrap it with try-catch
+  // Fetch news from free providers (Finnhub → FMP → NewsAPI → Yahoo)
   try {
     articles = await getFreeStockNews(symbol, env);
 
@@ -121,12 +59,9 @@ export async function getFreeStockNewsWithErrorTracking(
       const source = articles[0]?.source_type || 'unknown';
       const provider = mapSourceToProvider(source);
       console.log(`[Error Tracking] ${provider} SUCCESS for ${symbol} (${articles.length} articles)`);
-      // Don't track "NOT_USED" for other providers - that's expected behavior
     }
-    // No articles = all providers failed, but getFreeStockNews logs errors already
-    // Don't double-track errors here to avoid false positives
   } catch (error: unknown) {
-    // Catastrophic error in getFreeStockNews itself - this IS an error
+    // Catastrophic error in getFreeStockNews itself
     providerErrors.push(extractProviderError('Unknown', error, `getFreeStockNews(${symbol})`));
   }
 
@@ -138,7 +73,7 @@ export async function getFreeStockNewsWithErrorTracking(
     articles,
     errorSummary: summary.totalErrors > 0 ? summary : null,
     providerErrors,
-    providerFailures, // NEW: Include in result
+    providerFailures,
     success: articles.length > 0,
   };
 }
@@ -149,6 +84,9 @@ export async function getFreeStockNewsWithErrorTracking(
 function mapSourceToProvider(source: string): NewsProvider {
   const sourceLower = source.toLowerCase();
 
+  if (sourceLower.includes('finnhub')) {
+    return 'Finnhub';
+  }
   if (sourceLower.includes('fmp') || sourceLower.includes('financial modeling')) {
     return 'FMP';
   }
@@ -157,9 +95,6 @@ function mapSourceToProvider(source: string): NewsProvider {
   }
   if (sourceLower.includes('yahoo') || sourceLower.includes('finance')) {
     return 'Yahoo';
-  }
-  if (sourceLower.includes('dac')) {
-    return 'DAC';
   }
 
   return 'Unknown';
@@ -184,7 +119,6 @@ export function shouldProceedWithAnalysis(result: NewsFetchResult): boolean {
   }
 
   // Allow analysis if any provider succeeded
-  // Even with errors, partial data is better than nothing
   return result.articles.length > 0;
 }
 
@@ -200,7 +134,7 @@ export function calculateErrorPenalty(result: NewsFetchResult): number {
   let penalty = 0;
 
   // Penalty for provider failures
-  if (summary.errorsByProvider.DAC > 0) penalty -= 5;
+  if (summary.errorsByProvider.Finnhub > 0) penalty -= 3;
   if (summary.errorsByProvider.FMP > 0) penalty -= 3;
   if (summary.errorsByProvider.NewsAPI > 0) penalty -= 3;
   if (summary.errorsByProvider.Yahoo > 0) penalty -= 2;
