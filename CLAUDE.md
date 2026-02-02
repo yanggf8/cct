@@ -2,7 +2,7 @@
 
 ## System Overview
 
-**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.20 | **Status**: Production Ready
+**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.22 | **Status**: Production Ready
 
 - Dual AI: GPT-OSS 120B (reasoning) + DeepSeek-R1 32B (reasoning)
 - 4-Moment workflow: Pre-Market → Intraday → End-of-Day → Weekly
@@ -19,8 +19,8 @@
 
 ## Testing API
 
-- **Header**: `X_API_KEY` (underscore, not hyphen)
-- **Example**: `curl -H "X_API_KEY: $KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/...`
+- **Header**: `X-API-Key` (hyphen) - both `X-API-Key` and `X_API_KEY` work
+- **Example**: `curl -H "X-API-Key: $KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/...`
 
 ---
 
@@ -37,6 +37,24 @@
 
 ---
 
+## News Sources (priority order)
+
+1. **Finnhub** (60/min) - Primary, finance-focused
+2. **FMP** (300/day) - Has built-in sentiment
+3. **NewsAPI** (1000/day) - Broader coverage
+4. **Yahoo** - Backup, no API key needed
+5. **Weekend Cache** - D1-backed fallback for Monday morning
+
+### News Fetch Diagnostics
+
+When all providers fail, query the `news_fetch_log` table:
+```sql
+SELECT symbol, fetch_date, finnhub_status, finnhub_error, fmp_status, yahoo_status 
+FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
+```
+
+---
+
 ## API v1 (Self-documenting at `/api/v1`)
 
 | Group | Key Endpoints |
@@ -48,15 +66,17 @@
 
 ---
 
-## D1 Schema (v2.5)
+## D1 Schema (v2.6)
 
 | Table | Purpose |
 |-------|---------|
 | `job_date_results` | Nav summary, `latest_run_id` |
 | `job_run_results` | Run history, `run_id`, `status`, `trigger_source` |
-| `job_stage_log` | Per-stage timeline, `status`/`errors_json`/`warnings_json`/`details_json` |
+| `job_stage_outcomes` | Per-stage timeline with outcomes |
 | `scheduled_job_results` | Report content (append-only) |
 | `symbol_predictions` | Per-symbol dual model data |
+| `news_fetch_log` | Per-provider fetch diagnostics (NEW) |
+| `weekend_news_cache` | Friday→Monday article cache (NEW) |
 
 **Key**: `scheduled_date` is lookup key only. `run_id`: `${date}_${type}_${uuid}`
 
@@ -67,6 +87,7 @@
 - `src/modules/cache-durable-object.ts` - DO cache
 - `src/modules/config.ts` - Centralized config
 - `src/modules/d1-job-storage.ts` - D1 queries, `checkScheduledRuns()`
+- `src/modules/free_sentiment_pipeline.ts` - News fetching with diagnostics
 - `src/routes/jobs-routes.ts` - Job triggers/history/schedule-check
 - `src/routes/api-v1.ts` - API gateway
 - `public/js/cct-api.js` - Frontend API client
@@ -102,12 +123,6 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ---
 
-## News Sources (priority)
-
-1. Finnhub (60/min) → 2. FMP (300/day) → 3. NewsAPI (1000/day) → 4. Yahoo
-
----
-
 ## Performance Targets
 
 - API: <15ms cached, <500ms uncached
@@ -116,4 +131,4 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ---
 
-**Last Updated**: 2026-02-02
+**Last Updated**: 2026-02-03

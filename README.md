@@ -105,18 +105,15 @@ See `PRE_MARKET_MULTI_RUN_FIX.md` for detailed analysis.
 - ✅ **Testing Framework**: Cache economics validation, D1 rollups testing, performance benchmarking
 - ✅ **Frontend Integration**: Modern dashboard interface with auto-refresh and theme support
 
-### **💰 DAC Money Flow Integration (2025-12-10)**
-- ✅ **Pre-computed CMF/OBV**: Extracts money flow indicators from DAC stock sentiment
-- ✅ **Service Binding**: Direct Worker-to-Worker communication (no HTTP overhead)
-- ✅ **Yahoo Finance Fallback**: Local calculation when DAC unavailable
-- ✅ **FMP News Integration**: Configured FMP_API_KEY for richer sector news coverage
+### **📰 News Provider Diagnostics (2026-02-03)**
+- ✅ **Per-Provider Tracking**: `news_fetch_log` table records every fetch attempt
+- ✅ **Detailed Failure Info**: Status, article count, error messages, response times
+- ✅ **Weekend Cache**: `weekend_news_cache` persists Friday's articles for Monday fallback
+- ✅ **Easy Debugging**: Query `WHERE total_articles = 0` to diagnose failures
 
-### **🔗 DAC Article Pool V2 Integration (2025-12-03)**
-- ✅ **Updated to DAC v3.7.0+**: Using correct admin probe endpoints via service binding
-- ✅ **Enhanced Metadata**: Access to freshness, staleness, TTL, and source tracking
-- ✅ **Typed Error Handling**: NOT_FOUND, STALE, FRESHNESS_EXPIRED responses
-- ✅ **Confidence Penalties**: Automatic quality-based adjustments for stale/low-count data
-- ✅ **Future-Ready**: Support for sectors & categories (v3.7.0+ features)
+### **💰 Money Flow Integration (2025-12-10)**
+- ✅ **Yahoo Finance**: Local CMF/OBV calculation for money flow indicators
+- ✅ **FMP News Integration**: Configured FMP_API_KEY for richer sector news coverage
 
 ### **🛡️ Critical Issues Resolution & Production Hardening (2025-11-27)**
 - ✅ **Real DXY Integration**: Yahoo Finance DX-Y.NYB futures replacing hardcoded `usDollarIndex: 104.2`
@@ -176,7 +173,7 @@ See `PRE_MARKET_MULTI_RUN_FIX.md` for detailed analysis.
 │  • Legacy Migration in Progress                            │
 ├─────────────────────────────────────────────────────────────┤
 │                BUSINESS INTELLIGENCE LAYER                  │
-│  • Dual AI Analysis (Gemma Sea Lion 27B + DistilBERT-SST-2)     │
+│  • Dual AI Analysis (GPT-OSS 120B + DeepSeek-R1 32B)        │
 │  • 4-Moment Workflow (Pre/Intraday/End-of-Day/Weekly)      │
 │  • BI Dashboard (Real-time Operational Health) ⭐ **NEW**  │
 │  • Cost-to-Serve Intelligence (Storage/Compute/Bandwidth) │
@@ -519,6 +516,6 @@ All prediction and analysis jobs run via GitHub Actions for unlimited scheduling
 
 ---
 
-**Last Updated**: 2025-12-24
+**Last Updated**: 2026-02-03
 **Version**: Production Ready - TypeScript Error-Free
 **Status**: ✅ **FULLY OPERATIONAL** - Enterprise-grade AI trading intelligence system with complete type safety

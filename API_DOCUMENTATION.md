@@ -277,7 +277,7 @@ GET /analyze-symbol?symbol=AAPL
   "sentiment_layers": [
     {
       "layer_type": "gemma_sea_lion",
-      "model": "gemma-sea-lion-v4-27b-it",
+      "model": "gpt-oss-120b",
       "sentiment": "up",
       "confidence": 0.6,
       "detailed_analysis": {
@@ -287,7 +287,7 @@ GET /analyze-symbol?symbol=AAPL
     },
     {
       "layer_type": "distilbert_sst_2",
-      "model": "distilbert-sst-2-int8",
+      "model": "deepseek-r1-distill-qwen-32b",
       "sentiment": "down",
       "confidence": 0.7038637238001684,
       "sentiment_breakdown": {"bullish": 0, "bearish": 10, "neutral": 0},
@@ -580,13 +580,13 @@ GET /api/v1/data/health?model=true
     "models": {
       "gemma_sea_lion": {
         "status": "healthy",
-        "model": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
+        "model": "@cf/openai/gpt-oss-120b",
         "response_time_ms": 1521,
         "error": null
       },
       "distilbert": {
         "status": "healthy",
-        "model": "@cf/huggingface/distilbert-sst-2-int8",
+        "model": "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
         "response_time_ms": 299,
         "error": null
       }

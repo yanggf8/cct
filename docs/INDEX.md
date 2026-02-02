@@ -4,7 +4,8 @@
 
 **System Status**: ✅ **PRODUCTION READY** - Enterprise Security Active  
 **Live System**: https://tft-trading-system.yanggf.workers.dev  
-**Last Updated**: 2026-01-21
+**Version**: v3.10.22  
+**Last Updated**: 2026-02-03
 
 ---
 
@@ -99,7 +100,7 @@ One-time analysis, corroboration docs, and migration proposals.
 ### Legacy (`archive/legacy/`)
 Superseded technical documentation.
 
-- `legacy/dac/` - DAC integration docs (8 files, pending consolidation)
+- `legacy/dac/` - DAC integration docs (REMOVED from system 2026-02-03, kept for reference)
 
 ---
 
