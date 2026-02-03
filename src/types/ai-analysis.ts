@@ -147,10 +147,10 @@ export interface BatchAnalysisRequest {
 // ============================================================================
 
 /**
- * GPT analysis result with detailed reasoning
+ * Primary model analysis result with detailed reasoning
  */
 export interface GPTAnalysisResult {
-  model: 'gpt';
+  model: 'primary';
   sentiment: 'bullish' | 'bearish' | 'neutral';
   confidence: number;
   reasoning: string;
@@ -170,10 +170,10 @@ export interface GPTAnalysisResult {
 }
 
 /**
- * DistilBERT analysis result with classification scores
+ * Mate model analysis result with classification scores
  */
 export interface DistilBERTAnalysisResult {
-  model: 'distilbert';
+  model: 'mate';
   sentiment: 'bullish' | 'bearish' | 'neutral';
   confidence: number;
   scores: {
@@ -238,8 +238,8 @@ export interface DualAIAnalysisResult {
   symbol: string;
   timestamp: string;
   analysis: {
-    gpt?: GPTAnalysisResult;
-    distilbert?: DistilBERTAnalysisResult;
+    primary?: GPTAnalysisResult;
+    mate?: DistilBERTAnalysisResult;
   };
   comparison: ModelComparison;
   recommendation: FinalRecommendation;
@@ -377,7 +377,7 @@ export interface AnalysisPerformance {
  * AI model configuration
  */
 export interface AIModelConfig {
-  gpt: {
+  primary: {
     model: string;
     maxTokens: number;
     temperature: number;
@@ -386,7 +386,7 @@ export interface AIModelConfig {
     retryAttempts: number;
     retryDelayMs: number;
   };
-  distilbert: {
+  mate: {
     model: string;
     batchSize: number;
     timeoutMs: number;
@@ -422,20 +422,20 @@ export interface AIAnalysisContext {
 // ============================================================================
 
 /**
- * Type guard for GPTAnalysisResult
+ * Type guard for GPTAnalysisResult (Primary model)
  */
 export function isGPTAnalysisResult(result: any): result is GPTAnalysisResult {
-  return result?.model === 'gpt' &&
+  return result?.model === 'primary' &&
          typeof result?.sentiment === 'string' &&
          typeof result?.confidence === 'number' &&
          typeof result?.reasoning === 'string';
 }
 
 /**
- * Type guard for DistilBERTAnalysisResult
+ * Type guard for DistilBERTAnalysisResult (Mate model)
  */
 export function isDistilBERTAnalysisResult(result: any): result is DistilBERTAnalysisResult {
-  return result?.model === 'distilbert' &&
+  return result?.model === 'mate' &&
          typeof result?.sentiment === 'string' &&
          typeof result?.confidence === 'number' &&
          typeof result?.scores === 'object';

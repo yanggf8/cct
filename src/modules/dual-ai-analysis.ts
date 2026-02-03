@@ -6,14 +6,8 @@
  * and reports whether they agree or disagree with clear decision rules.
  * 
  * MODEL NAMING CONVENTION:
- * - "gpt" field = GPT-OSS 120B (@cf/openai/gpt-oss-120b)
- *   Legacy naming kept for backward compatibility with D1/frontend.
- * - "distilbert" field = DeepSeek-R1 (@cf/deepseek-ai/deepseek-r1-distill-qwen-32b)
- * 
- * The "gpt" naming is retained to avoid breaking changes in:
- * - D1 queries expecting models.gpt
- * - Frontend handlers extracting signal.models?.gpt
- * - Existing stored data in scheduled_job_results
+ * - "primary" field = GPT-OSS 120B (@cf/openai/gpt-oss-120b)
+ * - "mate" field = DeepSeek-R1 (@cf/deepseek-ai/deepseek-r1-distill-qwen-32b)
  */
 
 import { getFreeStockNews, type NewsArticle } from './free_sentiment_pipeline.js';
@@ -61,14 +55,14 @@ export interface ModelResult {
 export interface AgreementDetails {
   match_direction?: Direction;
   confidence_spread?: number;
-  gpt_direction?: Direction;
-  distilbert_direction?: Direction;
+  primary_direction?: Direction;
+  mate_direction?: Direction;
   dominant_direction?: Direction;
-  winner_model?: 'gpt' | 'distilbert';
+  winner_model?: 'primary' | 'mate';
   winner_confidence?: number | null;
   loser_confidence?: number | null;
-  gpt_confidence?: number | null;
-  distilbert_confidence?: number | null;
+  primary_confidence?: number | null;
+  mate_confidence?: number | null;
   is_tie?: boolean;
   is_perfect_tie?: boolean;
   error?: string;
@@ -101,8 +95,8 @@ export interface DualAIComparisonResult {
   execution_time_ms?: number;
   error?: string;
   models: {
-    gpt: ModelResult | null;
-    distilbert: ModelResult | null;
+    primary: ModelResult | null;
+    mate: ModelResult | null;
   };
   comparison: {
     agree: boolean;
@@ -182,7 +176,7 @@ function ensureLoggingInitialized(env: CloudflareEnvironment): void {
 // Get AI model circuit breakers
 function getAICircuitBreakers() {
   return {
-    gpt: CircuitBreakerFactory.getInstance('ai-model-gpt', {
+    primary: CircuitBreakerFactory.getInstance('ai-model-primary', {
       failureThreshold: 3,
       successThreshold: 2,
       openTimeout: 60000, // 1 minute
@@ -190,7 +184,7 @@ function getAICircuitBreakers() {
       halfOpenMaxCalls: 3,
       resetTimeout: 300000 // 5 minutes
     }),
-    deepseek: CircuitBreakerFactory.getInstance('ai-model-deepseek-r1', {
+    mate: CircuitBreakerFactory.getInstance('ai-model-mate', {
       failureThreshold: 3,
       successThreshold: 2,
       openTimeout: 60000, // 1 minute
@@ -216,16 +210,16 @@ export async function performDualAIComparison(
 
   try {
     // Run both AI models independently and in parallel
-    const [gptResult, distilBERTResult] = await Promise.all([
-      performGPTAnalysis(symbol, newsData, env),
-      performDistilBERTAnalysis(symbol, newsData, env)
+    const [primaryResult, mateResult] = await Promise.all([
+      performPrimaryAnalysis(symbol, newsData, env),
+      performMateAnalysis(symbol, newsData, env)
     ]);
 
     // Simple agreement check
-    const agreement = checkAgreement(gptResult as any, distilBERTResult);
+    const agreement = checkAgreement(primaryResult as any, mateResult);
 
     // Generate trading signal based on simple rules
-    const signal = generateSignal(agreement as any, gptResult, distilBERTResult);
+    const signal = generateSignal(agreement as any, primaryResult, mateResult);
 
     const executionTime = Date.now() - startTime;
 
@@ -236,8 +230,8 @@ export async function performDualAIComparison(
 
       // Individual model results
       models: {
-        gpt: gptResult,
-        distilbert: distilBERTResult
+        primary: primaryResult,
+        mate: mateResult
       },
 
       // Simple comparison
@@ -254,7 +248,7 @@ export async function performDualAIComparison(
       performance_metrics: {
         total_time: executionTime,
         models_executed: 2,
-        successful_models: [gptResult, distilBERTResult].filter(r => !r.error).length
+        successful_models: [primaryResult, mateResult].filter(r => !r.error).length
       }
     };
 
@@ -264,7 +258,7 @@ export async function performDualAIComparison(
       symbol,
       timestamp: new Date().toISOString(),
       error: error.message,
-      models: { gpt: null, distilbert: null },
+      models: { primary: null, mate: null },
       comparison: { agree: false, agreement_type: 'error', match_details: { error: error.message } },
       signal: { type: 'ERROR', direction: 'neutral', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
     };
@@ -298,9 +292,9 @@ async function retryAIcall<T>(
 }
 
 /**
- * GPT Analysis with timeout protection and retry logic
+ * Primary Model Analysis (GPT-OSS 120B) with timeout protection and retry logic
  */
-async function performGPTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
+async function performPrimaryAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
       model: 'gpt-oss-120b',
@@ -337,7 +331,7 @@ Based on your reasoning, respond with ONLY this JSON format:
 }`;
 
     // Add circuit breaker, timeout protection and retry logic
-    const circuitBreaker = getAICircuitBreakers().gpt;
+    const circuitBreaker = getAICircuitBreakers().primary;
     const response = await retryAIcall(async () => {
       return await circuitBreaker.execute(async () => {
         return await Promise.race([
@@ -372,7 +366,7 @@ Based on your reasoning, respond with ONLY this JSON format:
     };
 
   } catch (error: any) {
-    logError(`GPT analysis failed for ${symbol}:`, error);
+    logError(`Primary model analysis failed for ${symbol}:`, error);
 
     // Handle timeout and circuit breaker specifically
     if (error.message === 'AI model timeout') {
@@ -406,10 +400,10 @@ Based on your reasoning, respond with ONLY this JSON format:
 }
 
 /**
- * DeepSeek-R1 Analysis with timeout protection and retry logic
+ * Mate Model Analysis (DeepSeek-R1) with timeout protection and retry logic
  * Uses reasoning-focused prompt for financial sentiment analysis
  */
-async function performDistilBERTAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
+async function performMateAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
       model: 'deepseek-r1-32b',
@@ -444,7 +438,7 @@ Based on your analysis, respond with ONLY this JSON format:
   "reasoning": "brief explanation of key factors"
 }`;
 
-    const circuitBreaker = getAICircuitBreakers().deepseek;
+    const circuitBreaker = getAICircuitBreakers().mate;
     const response = await retryAIcall(async () => {
       return await circuitBreaker.execute(async () => {
         return await Promise.race([
@@ -477,7 +471,7 @@ Based on your analysis, respond with ONLY this JSON format:
     };
 
   } catch (error: any) {
-    logError(`DeepSeek-R1 analysis failed for ${symbol}:`, error);
+    logError(`Mate model analysis failed for ${symbol}:`, error);
 
     if (error.message.includes('timeout')) {
       return {
@@ -513,15 +507,15 @@ Based on your analysis, respond with ONLY this JSON format:
  * Simple Agreement Check
  * IMPORTANT: If both models have null confidence (no data case), this is NOT agreement - it's failure
  */
-function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): Agreement {
-  const gptDir = gptResult.direction;
-  const dbDir = distilBERTResult.direction;
-  const gptConf = gptResult.confidence;
-  const dbConf = distilBERTResult.confidence;
+function checkAgreement(primaryResult: ModelResult, mateResult: ModelResult): Agreement {
+  const primaryDir = primaryResult.direction;
+  const mateDir = mateResult.direction;
+  const primaryConf = primaryResult.confidence;
+  const mateConf = mateResult.confidence;
 
   // Check for no-data failure: both models have null confidence or both have errors
-  const bothNoData = (gptConf === null && dbConf === null) ||
-                     (gptResult.error === 'No data' && distilBERTResult.error === 'No data');
+  const bothNoData = (primaryConf === null && mateConf === null) ||
+                     (primaryResult.error === 'No data' && mateResult.error === 'No data');
 
   if (bothNoData) {
     return {
@@ -529,27 +523,27 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
       type: 'error',
       details: {
         error: 'No news data available - both models failed to analyze',
-        gpt_direction: gptDir,
-        distilbert_direction: dbDir
+        primary_direction: primaryDir,
+        mate_direction: mateDir
       }
     };
   }
 
   // Full agreement: same direction AND at least one model has meaningful confidence (not null)
-  if (gptDir === dbDir && (gptConf !== null || dbConf !== null)) {
-    const gptScore = gptConf ?? -1;
-    const dbScore = dbConf ?? -1;
-    const winnerIsGpt = gptScore > dbScore; // Changed >= to > for true winner
-    const winnerModel = winnerIsGpt ? 'gpt' : (gptScore === dbScore ? 'gpt' : 'distilbert'); // Explicit tie-breaker
-    const winnerConfidence = winnerIsGpt ? gptConf : dbConf;
-    const loserConfidence = winnerIsGpt ? dbConf : gptConf;
-    const isPerfectTie = gptScore === dbScore && gptScore !== -1;
+  if (primaryDir === mateDir && (primaryConf !== null || mateConf !== null)) {
+    const primaryScore = primaryConf ?? -1;
+    const mateScore = mateConf ?? -1;
+    const winnerIsPrimary = primaryScore >= mateScore;
+    const winnerModel: 'primary' | 'mate' = winnerIsPrimary ? 'primary' : 'mate';
+    const winnerConfidence = winnerIsPrimary ? primaryConf : mateConf;
+    const loserConfidence = winnerIsPrimary ? mateConf : primaryConf;
+    const isPerfectTie = primaryScore === mateScore && primaryScore !== -1;
     return {
       agree: true,
       type: 'full_agreement',
       details: {
-        match_direction: gptDir,
-        confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0)),
+        match_direction: primaryDir,
+        confidence_spread: Math.abs((primaryConf ?? 0) - (mateConf ?? 0)),
         winner_model: winnerModel,
         winner_confidence: winnerConfidence ?? null,
         loser_confidence: loserConfidence ?? null,
@@ -559,52 +553,52 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
   }
 
   // Partial agreement: neutral vs directional
-  if (gptDir === 'neutral' || dbDir === 'neutral') {
+  if (primaryDir === 'neutral' || mateDir === 'neutral') {
     return {
       agree: false,
       type: 'partial_agreement',
       details: {
-        gpt_direction: gptDir,
-        distilbert_direction: dbDir,
-        dominant_direction: gptDir === 'neutral' ? dbDir : gptDir
+        primary_direction: primaryDir,
+        mate_direction: mateDir,
+        dominant_direction: primaryDir === 'neutral' ? mateDir : primaryDir
       }
     };
   }
 
   // Full disagreement: opposite directions -> pick higher confidence winner
-  const gptScore = gptConf ?? -1;
-  const dbScore = dbConf ?? -1;
+  const primaryScore = primaryConf ?? -1;
+  const mateScore = mateConf ?? -1;
   
   // Check for equal-confidence disagreement (true tie)
-  if (gptScore === dbScore && gptScore !== -1) {
+  if (primaryScore === mateScore && primaryScore !== -1) {
     return {
       agree: false,
       type: 'disagreement',
       details: {
-        gpt_direction: gptDir,
-        distilbert_direction: dbDir,
-        gpt_confidence: gptConf,
-        distilbert_confidence: dbConf,
+        primary_direction: primaryDir,
+        mate_direction: mateDir,
+        primary_confidence: primaryConf,
+        mate_confidence: mateConf,
         is_tie: true
       }
     };
   }
   
-  const winnerIsGpt = gptScore > dbScore; // Changed >= to >
-  const winnerModel = winnerIsGpt ? 'gpt' : 'distilbert';
-  const matchDirection = winnerIsGpt ? gptDir : dbDir;
+  const winnerIsPrimary = primaryScore > mateScore;
+  const winnerModel: 'primary' | 'mate' = winnerIsPrimary ? 'primary' : 'mate';
+  const matchDirection = winnerIsPrimary ? primaryDir : mateDir;
 
   return {
     agree: true,
     type: 'full_agreement',
     details: {
       match_direction: matchDirection,
-      confidence_spread: Math.abs((gptConf ?? 0) - (dbConf ?? 0)),
-      gpt_direction: gptDir,
-      distilbert_direction: dbDir,
+      confidence_spread: Math.abs((primaryConf ?? 0) - (mateConf ?? 0)),
+      primary_direction: primaryDir,
+      mate_direction: mateDir,
       winner_model: winnerModel,
-      winner_confidence: winnerIsGpt ? gptConf ?? null : dbConf ?? null,
-      loser_confidence: winnerIsGpt ? dbConf ?? null : gptConf ?? null
+      winner_confidence: winnerIsPrimary ? primaryConf ?? null : mateConf ?? null,
+      loser_confidence: winnerIsPrimary ? mateConf ?? null : primaryConf ?? null
     }
   };
 }
@@ -613,17 +607,17 @@ function checkAgreement(gptResult: ModelResult, distilBERTResult: ModelResult): 
  * Simple Signal Generation Rules
  * IMPORTANT: Returns FAILED status when no data available
  */
-function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERTResult: ModelResult): Signal {
-  const gptOk = !gptResult.error && gptResult.confidence !== null && gptResult.confidence > 0;
-  const dbOk = !distilBERTResult.error && distilBERTResult.confidence !== null && distilBERTResult.confidence > 0;
+function generateSignal(agreement: Agreement, primaryResult: ModelResult, mateResult: ModelResult): Signal {
+  const primaryOk = !primaryResult.error && primaryResult.confidence !== null && primaryResult.confidence > 0;
+  const mateOk = !mateResult.error && mateResult.confidence !== null && mateResult.confidence > 0;
 
   // Track which models actually contributed
   const sourceModels: string[] = [];
-  if (gptOk) sourceModels.push('gpt-oss-120b');
-  if (dbOk) sourceModels.push('deepseek-r1-32b');
+  if (primaryOk) sourceModels.push('gpt-oss-120b');
+  if (mateOk) sourceModels.push('deepseek-r1-32b');
 
   // Handle error/no-data case first - this is a FAILURE, not a weak signal
-  if (agreement.type === 'error' || (!gptOk && !dbOk)) {
+  if (agreement.type === 'error' || (!primaryOk && !mateOk)) {
     return {
       type: 'ERROR',
       direction: 'neutral',
@@ -636,10 +630,10 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
 
   if (agreement.agree) {
     const details = agreement.details as AgreementDetails;
-    const winnerModel = details.winner_model || 'gpt';
-    const direction = details.match_direction || gptResult.direction;
-    const winnerConfidence = winnerModel === 'gpt' ? gptResult.confidence : distilBERTResult.confidence;
-    const loserConfidence = winnerModel === 'gpt' ? distilBERTResult.confidence : gptResult.confidence;
+    const winnerModel = details.winner_model || 'primary';
+    const direction = details.match_direction || primaryResult.direction;
+    const winnerConfidence = winnerModel === 'primary' ? primaryResult.confidence : mateResult.confidence;
+    const loserConfidence = winnerModel === 'primary' ? mateResult.confidence : primaryResult.confidence;
     const confidenceSpread = Math.abs((winnerConfidence ?? 0) - (loserConfidence ?? 0));
     return {
       type: 'AGREEMENT',
@@ -652,12 +646,12 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
   }
 
   if (agreement.type === 'partial_agreement') {
-    const directionalModel = gptResult.direction === 'neutral' ? distilBERTResult : gptResult;
+    const directionalModel = primaryResult.direction === 'neutral' ? mateResult : primaryResult;
     return {
       type: 'PARTIAL_AGREEMENT',
       direction: directionalModel.direction,
       strength: 'MODERATE',
-      reasoning: `Mixed signals: ${(agreement.details as any).gpt_direction} vs ${(agreement.details as any).distilbert_direction}`,
+      reasoning: `Mixed signals: ${(agreement.details as any).primary_direction} vs ${(agreement.details as any).mate_direction}`,
       action: directionalModel.confidence > 0.7 ? 'CONSIDER' : 'HOLD',
       source_models: sourceModels
     };
@@ -671,7 +665,7 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
       type: 'DISAGREEMENT',
       direction: 'neutral',
       strength: 'WEAK',
-      reasoning: `Models disagree with equal confidence (${(details.gpt_confidence ?? 0).toFixed(2)}): GPT ${details.gpt_direction}, DistilBERT ${details.distilbert_direction}. No clear signal.`,
+      reasoning: `Models disagree with equal confidence (${(details.primary_confidence ?? 0).toFixed(2)}): Primary ${details.primary_direction}, Mate ${details.mate_direction}. No clear signal.`,
       action: 'HOLD',
       source_models: sourceModels
     };
@@ -681,7 +675,7 @@ function generateSignal(agreement: Agreement, gptResult: ModelResult, distilBERT
     type: 'DISAGREEMENT',
     direction: 'neutral',
     strength: 'WEAK',
-    reasoning: `Models disagree: GPT says ${gptResult.direction}, DistilBERT says ${distilBERTResult.direction}`,
+    reasoning: `Models disagree: Primary says ${primaryResult.direction}, Mate says ${mateResult.direction}`,
     action: 'AVOID',
     source_models: sourceModels
   };
@@ -771,7 +765,7 @@ export async function batchDualAIAnalysis(
         symbol,
         timestamp: new Date().toISOString(),
         error: error.message,
-        models: { gpt: null, distilbert: null },
+        models: { primary: null, mate: null },
         comparison: { agree: false, agreement_type: 'error', match_details: { error: error.message } },
         signal: { type: 'ERROR', direction: 'neutral', strength: 'FAILED', action: 'SKIP', reasoning: `Analysis failed: ${error.message}`, source_models: [] }
       });
@@ -815,10 +809,10 @@ async function performDualAIComparisonWithRetry(
       const result = await performDualAIComparison(symbol, newsData, env);
       
       // Check if we got rate limited (both models failed)
-      const gptFailed = result.models?.gpt?.error;
-      const dbFailed = result.models?.distilbert?.error;
+      const primaryFailed = result.models?.primary?.error;
+      const mateFailed = result.models?.mate?.error;
       
-      if (gptFailed && dbFailed && attempt < maxRetries - 1) {
+      if (primaryFailed && mateFailed && attempt < maxRetries - 1) {
         // Both failed - likely rate limited, wait and retry
         const waitTime = (attempt + 1) * 5000 + Math.random() * 2000; // 5s, 10s, 15s + jitter
         logInfo(`Rate limit detected for ${symbol}, waiting ${Math.round(waitTime/1000)}s before retry ${attempt + 2}/${maxRetries}`);
@@ -947,7 +941,7 @@ export async function enhancedBatchDualAIAnalysis(
         symbol: item.key,
         timestamp: new Date().toISOString(),
         error: item.error || 'Unknown error',
-        models: { gpt: null, distilbert: null },
+        models: { primary: null, mate: null },
         comparison: { agree: false, agreement_type: 'error', match_details: { error: item.error } },
         signal: { type: 'ERROR', direction: 'neutral', strength: 'FAILED', action: 'SKIP', reasoning: `Enhanced batch analysis failed: ${item.error || 'Unknown error'}`, source_models: [] }
       });

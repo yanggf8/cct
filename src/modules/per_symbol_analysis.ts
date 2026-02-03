@@ -44,8 +44,8 @@ export interface ConfidenceMetrics {
     layer_confidence?: number[];
     consistency_factor?: string;
     agreement_factor?: number;
-    gpt_confidence?: number | null;
-    distilbert_confidence?: number | null;
+    primary_confidence?: number | null;
+    mate_confidence?: number | null;
     agreement_score?: number;
   };
   reliability_score?: number;
@@ -198,8 +198,8 @@ function convertDualAIToLegacyFormat(
   newsData: NewsArticle[],
   options: AnalysisOptions = {}
 ): SymbolAnalysis {
-  const gptModel = dualAIResult.models.gpt;
-  const distilbertModel = dualAIResult.models.distilbert;
+  const primaryModel = dualAIResult.models.primary;
+  const mateModel = dualAIResult.models.mate;
 
   return {
     symbol: dualAIResult.symbol,
@@ -220,22 +220,22 @@ function convertDualAIToLegacyFormat(
     // Note: SentimentLayer.confidence is number (not nullable), use ?? 0
     sentiment_layers: [
       {
-        layer_type: 'gemma_sea_lion',
-        model: 'gemma-sea-lion-v4-27b-it',
-        sentiment: gptModel ? gptModel.direction.toLowerCase() : 'neutral',
-        confidence: gptModel?.confidence ?? 0,  // Use ?? to handle null
+        layer_type: 'primary_model',
+        model: 'gpt-oss-120b',
+        sentiment: primaryModel ? primaryModel.direction.toLowerCase() : 'neutral',
+        confidence: primaryModel?.confidence ?? 0,  // Use ?? to handle null
         detailed_analysis: {
-          reasoning: gptModel ? gptModel.reasoning : 'No analysis available',
-          articles_analyzed: gptModel ? gptModel.articles_analyzed : 0
+          reasoning: primaryModel ? primaryModel.reasoning : 'No analysis available',
+          articles_analyzed: primaryModel ? primaryModel.articles_analyzed : 0
         }
       },
       {
-        layer_type: 'distilbert_sst_2',
-        model: 'distilbert-sst-2-int8',
-        sentiment: distilbertModel ? distilbertModel.direction.toLowerCase() : 'neutral',
-        confidence: distilbertModel?.confidence ?? 0,  // Use ?? to handle null
-        sentiment_breakdown: distilbertModel ? distilbertModel.sentiment_breakdown : undefined,
-        articles_analyzed: distilbertModel ? distilbertModel.articles_analyzed : 0
+        layer_type: 'mate_model',
+        model: 'deepseek-r1-32b',
+        sentiment: mateModel ? mateModel.direction.toLowerCase() : 'neutral',
+        confidence: mateModel?.confidence ?? 0,  // Use ?? to handle null
+        sentiment_breakdown: mateModel ? mateModel.sentiment_breakdown : undefined,
+        articles_analyzed: mateModel ? mateModel.articles_analyzed : 0
       }
     ],
 
@@ -252,15 +252,15 @@ function convertDualAIToLegacyFormat(
     // IMPORTANT: Use null when both models have null confidence (no data case)
     confidence_metrics: {
       overall_confidence: calculateDualAIConfidence(dualAIResult),
-      base_confidence: (gptModel?.confidence === null && distilbertModel?.confidence === null)
+      base_confidence: (primaryModel?.confidence === null && mateModel?.confidence === null)
         ? null
-        : ((gptModel?.confidence ?? 0) + (distilbertModel?.confidence ?? 0)) / 2,
+        : ((primaryModel?.confidence ?? 0) + (mateModel?.confidence ?? 0)) / 2,
       // Only add consistency_bonus if there's real data (at least one model has confidence !== null)
-      consistency_bonus: (dualAIResult.comparison.agree && (gptModel?.confidence !== null || distilbertModel?.confidence !== null)) ? 0.15 : 0,
-      agreement_bonus: (dualAIResult.comparison.agree && (gptModel?.confidence !== null || distilbertModel?.confidence !== null)) ? 0.1 : 0,
+      consistency_bonus: (dualAIResult.comparison.agree && (primaryModel?.confidence !== null || mateModel?.confidence !== null)) ? 0.15 : 0,
+      agreement_bonus: (dualAIResult.comparison.agree && (primaryModel?.confidence !== null || mateModel?.confidence !== null)) ? 0.1 : 0,
       confidence_breakdown: {
-        gpt_confidence: gptModel?.confidence ?? null,
-        distilbert_confidence: distilbertModel?.confidence ?? null,
+        primary_confidence: primaryModel?.confidence ?? null,
+        mate_confidence: mateModel?.confidence ?? null,
         agreement_score: (dualAIResult.comparison.agree && dualAIResult.comparison.agreement_type !== 'error') ? 1.0 : 0.0
       }
     },
@@ -300,11 +300,11 @@ function convertDualAIToLegacyFormat(
  * IMPORTANT: Returns null when there's no real data - NO FAKE CONFIDENCE
  */
 function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number | null {
-  const gptConf = dualAIResult.models.gpt?.confidence;
-  const dbConf = dualAIResult.models.distilbert?.confidence;
+  const primaryConf = dualAIResult.models.primary?.confidence;
+  const mateConf = dualAIResult.models.mate?.confidence;
 
   // If both models have null confidence (no data), return null - FAILED
-  if (gptConf === null && dbConf === null) {
+  if (primaryConf === null && mateConf === null) {
     return null;
   }
 
@@ -313,7 +313,7 @@ function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number
     return null;
   }
 
-  const baseConf = ((gptConf ?? 0) + (dbConf ?? 0)) / 2;
+  const baseConf = ((primaryConf ?? 0) + (mateConf ?? 0)) / 2;
 
   // Boost confidence if models agree (only when there's real data)
   if (dualAIResult.comparison.agree && baseConf > 0) {

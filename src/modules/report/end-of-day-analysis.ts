@@ -32,8 +32,8 @@ interface AnalysisSignal {
   }>;
   dual_model?: any;
   models?: {
-    gpt?: { direction?: string; confidence?: number; error?: string };
-    distilbert?: { direction?: string; confidence?: number; error?: string };
+    primary?: { direction?: string; confidence?: number; error?: string };
+    mate?: { direction?: string; confidence?: number; error?: string };
   };
   comparison?: { agree?: boolean; agreement_type?: string; match_details?: any };
   signal?: { direction?: string; confidence?: number };
@@ -86,8 +86,8 @@ interface SignalPerformance {
   topLosers: TopPerformer[];
   signalBreakdown: SignalBreakdown[];
   modelStats?: {
-    gemma: { accuracy: number; correct: number; total: number } | null;
-    distilbert: { accuracy: number; correct: number; total: number } | null;
+    primary: { accuracy: number; correct: number; total: number } | null;
+    mate: { accuracy: number; correct: number; total: number } | null;
     agreementRate: number | null;
   };
 }
@@ -144,25 +144,25 @@ async function writeEndOfDayToD1(
       if (Object.keys(dualModelData).length > 0) {
         await env.PREDICT_JOBS_DB.prepare(`
           UPDATE symbol_predictions SET
-            gemma_status = COALESCE(?, gemma_status),
-            gemma_error = COALESCE(?, gemma_error),
-            gemma_confidence = COALESCE(?, gemma_confidence),
-            gemma_response_time_ms = COALESCE(?, gemma_response_time_ms),
-            distilbert_status = COALESCE(?, distilbert_status),
-            distilbert_error = COALESCE(?, distilbert_error),
-            distilbert_confidence = COALESCE(?, distilbert_confidence),
-            distilbert_response_time_ms = COALESCE(?, distilbert_response_time_ms),
+            primary_status = COALESCE(?, primary_status),
+            primary_error = COALESCE(?, primary_error),
+            primary_confidence = COALESCE(?, primary_confidence),
+            primary_response_time_ms = COALESCE(?, primary_response_time_ms),
+            mate_status = COALESCE(?, mate_status),
+            mate_error = COALESCE(?, mate_error),
+            mate_confidence = COALESCE(?, mate_confidence),
+            mate_response_time_ms = COALESCE(?, mate_response_time_ms),
             model_selection_reason = COALESCE(?, model_selection_reason)
           WHERE symbol = ? AND prediction_date = ?
         `).bind(
-          dualModelData.gemma_status || null,
-          dualModelData.gemma_error || null,
-          dualModelData.gemma_confidence ?? null,
-          dualModelData.gemma_response_time_ms ?? null,
-          dualModelData.distilbert_status || null,
-          dualModelData.distilbert_error || null,
-          dualModelData.distilbert_confidence ?? null,
-          dualModelData.distilbert_response_time_ms ?? null,
+          dualModelData.primary_status || null,
+          dualModelData.primary_error || null,
+          dualModelData.primary_confidence ?? null,
+          dualModelData.primary_response_time_ms ?? null,
+          dualModelData.mate_status || null,
+          dualModelData.mate_error || null,
+          dualModelData.mate_confidence ?? null,
+          dualModelData.mate_response_time_ms ?? null,
           dualModelData.model_selection_reason || null,
           symbol,
           date
@@ -225,7 +225,7 @@ export async function generateEndOfDayAnalysis(
 
 /**
  * Analyze performance of high-confidence signals at market close
- * Supports both legacy sentiment_layers format and dual-model format (models.gpt/distilbert)
+ * Supports both legacy sentiment_layers format and dual-model format (models.primary/mate)
  */
 function analyzeHighConfidenceSignals(
   analysisData: AnalysisData | null,
@@ -243,8 +243,8 @@ function analyzeHighConfidenceSignals(
   const topLosers: TopPerformer[] = [];
   
   // Dual-model tracking
-  let gemmaCorrect = 0, gemmaTotal = 0;
-  let distilbertCorrect = 0, distilbertTotal = 0;
+  let primaryCorrect = 0, primaryTotal = 0;
+  let mateCorrect = 0, mateTotal = 0;
   let agreementCount = 0;
 
   function normalizeDirection(direction: unknown): 'up' | 'down' | 'neutral' {
@@ -258,11 +258,11 @@ function analyzeHighConfidenceSignals(
     const winner = signal.comparison?.match_details?.winner_confidence;
     if (typeof winner === 'number' && winner >= 0 && winner <= 1) return winner;
 
-    const gpt = signal.models?.gpt?.confidence;
-    const distilbert = signal.models?.distilbert?.confidence;
+    const primaryConf = signal.models?.primary?.confidence;
+    const mateConf = signal.models?.mate?.confidence;
     const candidateMax = Math.max(
-      typeof gpt === 'number' ? gpt : 0,
-      typeof distilbert === 'number' ? distilbert : 0,
+      typeof primaryConf === 'number' ? primaryConf : 0,
+      typeof mateConf === 'number' ? mateConf : 0,
     );
     if (candidateMax > 0 && candidateMax <= 1) return candidateMax;
 
@@ -276,10 +276,10 @@ function analyzeHighConfidenceSignals(
     const tradingSignals = signal.trading_signals || signal;
     const sentimentLayer = signal.sentiment_layers?.[0];
 
-    // Check for dual-model format (gpt = Gemma Sea Lion, distilbert = DistilBERT-SST-2)
-    const isDualModel = signal.models?.gpt || signal.models?.distilbert || signal.comparison;
-    const gemma = signal.models?.gpt;
-    const distilbert = signal.models?.distilbert;
+    // Check for dual-model format (primary = GPT-OSS, mate = DeepSeek-R1)
+    const isDualModel = signal.models?.primary || signal.models?.mate || signal.comparison;
+    const primary = signal.models?.primary;
+    const mate = signal.models?.mate;
     const comparison = signal.comparison;
 
     // Extract direction and confidence - prefer dual-model if available
@@ -316,18 +316,18 @@ function analyzeHighConfidenceSignals(
 
       // Track per-model accuracy if dual-model (only high-confidence)
       if (isHighConfidence) {
-        if (gemma?.direction) {
-          const gemmaDir = normalizeDirection(gemma.direction);
-          if (gemmaDir !== 'neutral') {
-            gemmaTotal++;
-            if (gemmaDir === actualDirection) gemmaCorrect++;
+        if (primary?.direction) {
+          const primaryDir = normalizeDirection(primary.direction);
+          if (primaryDir !== 'neutral') {
+            primaryTotal++;
+            if (primaryDir === actualDirection) primaryCorrect++;
           }
         }
-        if (distilbert?.direction) {
-          const distilbertDir = normalizeDirection(distilbert.direction);
-          if (distilbertDir !== 'neutral') {
-            distilbertTotal++;
-            if (distilbertDir === actualDirection) distilbertCorrect++;
+        if (mate?.direction) {
+          const mateDir = normalizeDirection(mate.direction);
+          if (mateDir !== 'neutral') {
+            mateTotal++;
+            if (mateDir === actualDirection) mateCorrect++;
           }
         }
       }
@@ -343,8 +343,8 @@ function analyzeHighConfidenceSignals(
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
         correct: isCorrect,
         ...(isDualModel && {
-          gemma_direction: gemma?.direction,
-          distilbert_direction: distilbert?.direction,
+          primary_direction: primary?.direction,
+          mate_direction: mate?.direction,
           models_agree: comparison?.agree
         })
       });
@@ -373,8 +373,8 @@ function analyzeHighConfidenceSignals(
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
         correct: false,
         ...(isDualModel && {
-          gemma_direction: gemma?.direction,
-          distilbert_direction: distilbert?.direction,
+          primary_direction: primary?.direction,
+          mate_direction: mate?.direction,
           models_agree: comparison?.agree
         })
       });
@@ -405,8 +405,8 @@ function analyzeHighConfidenceSignals(
     signalBreakdown,
     // Dual-model performance stats
     modelStats: {
-      gemma: gemmaTotal > 0 ? { accuracy: gemmaCorrect / gemmaTotal, correct: gemmaCorrect, total: gemmaTotal } : null,
-      distilbert: distilbertTotal > 0 ? { accuracy: distilbertCorrect / distilbertTotal, correct: distilbertCorrect, total: distilbertTotal } : null,
+      primary: primaryTotal > 0 ? { accuracy: primaryCorrect / primaryTotal, correct: primaryCorrect, total: primaryTotal } : null,
+      mate: mateTotal > 0 ? { accuracy: mateCorrect / mateTotal, correct: mateCorrect, total: mateTotal } : null,
       agreementRate: totalSignals > 0 ? agreementCount / totalSignals : null
     }
   };
@@ -643,8 +643,8 @@ function identifyTomorrowFocus(signals: Record<string, AnalysisSignal>, performa
 
   symbolList.forEach(symbol => {
     const signal = signals[symbol];
-    const conf = signal.models?.gpt?.confidence ||
-                 signal.models?.distilbert?.confidence ||
+    const conf = signal.models?.primary?.confidence ||
+                 signal.models?.mate?.confidence ||
                  signal.sentiment_layers?.[0]?.confidence || 0;
     if (conf > highestConf) {
       highestConf = conf;

@@ -954,7 +954,7 @@ async function handleEnsemblePrediction(
 
     const body = await request.json() as any;
     const {
-      models = ['gpt_oss_120b', 'distilbert'],
+      models = ['primary', 'mate'],
       predictionType = 'sector_rotation',
       timeframe = '1w',
       consensus = true
@@ -1199,7 +1199,7 @@ async function handleAccuracyAnalysis(
     const {
       timeframe = '1w',
       lookbackPeriod = 90,
-      models = ['gpt_oss_120b', 'distilbert']
+      models = ['primary', 'mate']
     } = body;
 
     // Generate accuracy analysis

@@ -662,16 +662,17 @@ export async function handlePreMarketReport(
       const allSignals = Object.values(tradingSignals).map((signal: any) => {
         // Extract from dual AI structure with fallback to legacy paths
         const confidence = signal.signal?.confidence ??
-          signal.models?.gpt?.confidence ??
-          signal.models?.distilbert?.confidence ??
+          signal.models?.primary?.confidence ??
+          signal.models?.mate?.confidence ??
           signal.confidence_metrics?.overall_confidence ??
           signal.sentiment_layers?.[0]?.confidence ??
           signal.confidence ??
           null;
 
-        // Extract dual model confidence values
-        const gemmaConfidence = signal.models?.gpt?.confidence ?? signal.gemma_confidence ?? null;
-        const distilbertConfidence = signal.models?.distilbert?.confidence ?? signal.distilbert_confidence ?? null;
+        // Extract dual model confidence values (model-agnostic)
+        const roundConf = (v: number | null | undefined) => v != null ? Math.round(v * 1000) / 1000 : null;
+        const primaryConfidence = roundConf(signal.primary_confidence ?? signal.models?.primary?.confidence);
+        const mateConfidence = roundConf(signal.mate_confidence ?? signal.models?.mate?.confidence);
 
         // Extract sentiment from dual AI structure with fallback
         const sentiment = signal.signal?.direction ?? 
@@ -686,8 +687,8 @@ export async function handlePreMarketReport(
           signal.status === 'failed' ||
           signal.status === 'skipped' ||
           signal.signal?.type === 'ERROR' ||
-          signal.models?.gpt?.error ||
-          signal.models?.distilbert?.error
+          signal.models?.primary?.error ||
+          signal.models?.mate?.error
         );
 
         // Status: failed if explicit error OR missing confidence
@@ -698,8 +699,8 @@ export async function handlePreMarketReport(
           ? (signal.error ||
             signal.error_message ||
             signal.signal?.reasoning ||
-            signal.models?.gpt?.error ||
-            signal.models?.distilbert?.error ||
+            signal.models?.primary?.error ||
+            signal.models?.mate?.error ||
             signal.status ||
             'Analysis failed')
           : undefined;
@@ -713,9 +714,11 @@ export async function handlePreMarketReport(
         return {
           symbol: signal.symbol,
           sentiment,
-          confidence,
-          gemma_confidence: gemmaConfidence,
-          distilbert_confidence: distilbertConfidence,
+          confidence: roundConf(confidence),
+          primary_model: signal.primary_model ?? 'GPT-OSS 120B',
+          primary_confidence: primaryConfidence,
+          mate_model: signal.mate_model ?? 'DeepSeek-R1 32B',
+          mate_confidence: mateConfidence,
           status,
           failure_reason: failureReason,
           reason: status === 'success' ? reasoning : failureReason
@@ -736,8 +739,8 @@ export async function handlePreMarketReport(
         high_confidence_signals: Object.values(tradingSignals)
           .filter((signal: any) => {
             const conf = signal.signal?.confidence ??
-              signal.models?.gpt?.confidence ??
-              signal.models?.distilbert?.confidence ??
+              signal.models?.primary?.confidence ??
+              signal.models?.mate?.confidence ??
               signal.confidence_metrics?.overall_confidence ??
               signal.sentiment_layers?.[0]?.confidence ??
               signal.confidence ??
@@ -748,24 +751,25 @@ export async function handlePreMarketReport(
               signal.status === 'failed' ||
               signal.status === 'skipped' ||
               signal.signal?.type === 'ERROR' ||
-              signal.models?.gpt?.error ||
-              signal.models?.distilbert?.error
+              signal.models?.primary?.error ||
+              signal.models?.mate?.error
             );
             return !hasError && conf !== null && conf > 0.7;
           })
           .slice(0, 5)
           .map((signal: any) => {
             const confidence = signal.signal?.confidence ??
-              signal.models?.gpt?.confidence ??
-              signal.models?.distilbert?.confidence ??
+              signal.models?.primary?.confidence ??
+              signal.models?.mate?.confidence ??
               signal.confidence_metrics?.overall_confidence ??
               signal.sentiment_layers?.[0]?.confidence ??
               signal.confidence ??
               null;
 
-            // Extract dual model confidence
-            const gemmaConfidence = signal.models?.gpt?.confidence ?? signal.gemma_confidence ?? null;
-            const distilbertConfidence = signal.models?.distilbert?.confidence ?? signal.distilbert_confidence ?? null;
+            // Extract dual model confidence (model-agnostic)
+            const roundConf = (v: number | null | undefined) => v != null ? Math.round(v * 1000) / 1000 : null;
+            const primaryConfidence = roundConf(signal.primary_confidence ?? signal.models?.primary?.confidence);
+            const mateConfidence = roundConf(signal.mate_confidence ?? signal.models?.mate?.confidence);
 
             // Extract sentiment from dual AI structure with fallback
             const sentiment = signal.signal?.direction ?? 
@@ -780,8 +784,8 @@ export async function handlePreMarketReport(
               signal.status === 'failed' ||
               signal.status === 'skipped' ||
               signal.signal?.type === 'ERROR' ||
-              signal.models?.gpt?.error ||
-              signal.models?.distilbert?.error
+              signal.models?.primary?.error ||
+              signal.models?.mate?.error
             );
             const status = hasError || confidence === null ? 'failed' : 'success';
 
@@ -790,8 +794,8 @@ export async function handlePreMarketReport(
               ? (signal.error ||
                 signal.error_message ||
                 signal.signal?.reasoning ||
-                signal.models?.gpt?.error ||
-                signal.models?.distilbert?.error ||
+                signal.models?.primary?.error ||
+                signal.models?.mate?.error ||
                 signal.status ||
                 'Analysis failed')
               : undefined;
@@ -805,9 +809,11 @@ export async function handlePreMarketReport(
             return {
               symbol: signal.symbol,
               sentiment,
-              confidence,
-              gemma_confidence: gemmaConfidence,
-              distilbert_confidence: distilbertConfidence,
+              confidence: roundConf(confidence),
+              primary_model: signal.primary_model ?? 'GPT-OSS 120B',
+              primary_confidence: primaryConfidence,
+              mate_model: signal.mate_model ?? 'DeepSeek-R1 32B',
+              mate_confidence: mateConfidence,
               status,
               failure_reason: failureReason,
               reason: status === 'success' ? reasoning : failureReason,
@@ -817,8 +823,8 @@ export async function handlePreMarketReport(
         high_confidence_count: Object.values(tradingSignals)
           .filter((signal: any) => {
             const conf = signal.signal?.confidence ??
-              signal.models?.gpt?.confidence ??
-              signal.models?.distilbert?.confidence ??
+              signal.models?.primary?.confidence ??
+              signal.models?.mate?.confidence ??
               signal.confidence_metrics?.overall_confidence ??
               signal.sentiment_layers?.[0]?.confidence ??
               signal.confidence ??
@@ -829,8 +835,8 @@ export async function handlePreMarketReport(
               signal.status === 'failed' ||
               signal.status === 'skipped' ||
               signal.signal?.type === 'ERROR' ||
-              signal.models?.gpt?.error ||
-              signal.models?.distilbert?.error
+              signal.models?.primary?.error ||
+              signal.models?.mate?.error
             );
             return !hasError && conf !== null && conf > 0.7;
           }).length,

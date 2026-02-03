@@ -549,41 +549,41 @@ async function handleSystemStatus(
     } catch (e) { /* ignore - cache DO may not be available */ }
 
     // AI model status - real inference tests
-    const models: { gemmaSeaLion: { status: string; responseTime?: number }; distilbert: { status: string; responseTime?: number } } = {
-      gemmaSeaLion: { status: 'checking' },
-      distilbert: { status: 'checking' }
+    const models: { primary: { status: string; responseTime?: number }; mate: { status: string; responseTime?: number } } = {
+      primary: { status: 'checking' },
+      mate: { status: 'checking' }
     };
     try {
       if (env.AI) {
         // Test primary model
         try {
-          const gptStart = Date.now();
+          const primaryStart = Date.now();
           await (env.AI as any).run(AI_MODEL_DISPLAY.primary.id, {
             messages: [{ role: 'user', content: 'Hi' }],
             max_tokens: 5
           });
-          models.gemmaSeaLion = { status: 'healthy', responseTime: Date.now() - gptStart };
+          models.primary = { status: 'healthy', responseTime: Date.now() - primaryStart };
         } catch (e: any) {
-          models.gemmaSeaLion = { status: 'unhealthy' };
+          models.primary = { status: 'unhealthy' };
         }
         // Test secondary model
         try {
-          const bertStart = Date.now();
+          const mateStart = Date.now();
           await (env.AI as any).run(AI_MODEL_DISPLAY.secondary.id, {
             messages: [{ role: 'user', content: 'Hi' }],
             max_tokens: 5
           });
-          models.distilbert = { status: 'healthy', responseTime: Date.now() - bertStart };
+          models.mate = { status: 'healthy', responseTime: Date.now() - mateStart };
         } catch (e) {
-          models.distilbert = { status: 'unhealthy' };
+          models.mate = { status: 'unhealthy' };
         }
       } else {
-        models.gemmaSeaLion = { status: 'unavailable' };
-        models.distilbert = { status: 'unavailable' };
+        models.primary = { status: 'unavailable' };
+        models.mate = { status: 'unavailable' };
       }
     } catch (e) {
-      models.gemmaSeaLion = { status: 'error' };
-      models.distilbert = { status: 'error' };
+      models.primary = { status: 'error' };
+      models.mate = { status: 'error' };
     }
 
     // D1 status and job counts
@@ -814,30 +814,30 @@ async function handleModelHealth(
 
   try {
     // Test AI models using the same logic as the working health handlers
-    const gptHealthy = await checkGPTModelHealth(env);
-    const distilbertHealthy = await checkDistilBERTModelHealth(env);
+    const primaryHealthy = await checkPrimaryModelHealth(env);
+    const mateHealthy = await checkMateModelHealth(env);
 
     const response = {
       timestamp: new Date().toISOString(),
       models: {
-        gemma_sea_lion: {
-          status: gptHealthy.status,
+        primary: {
+          status: primaryHealthy.status,
           model: AI_MODEL_DISPLAY.primary.id,
-          response_time_ms: gptHealthy.responseTime
+          response_time_ms: primaryHealthy.responseTime
         },
-        distilbert: {
-          status: distilbertHealthy.status,
+        mate: {
+          status: mateHealthy.status,
           model: AI_MODEL_DISPLAY.secondary.id,
-          response_time_ms: distilbertHealthy.responseTime
+          response_time_ms: mateHealthy.responseTime
         }
       },
-      overall_status: (gptHealthy.status === 'healthy' && distilbertHealthy.status === 'healthy') ? 'healthy' : 'degraded'
+      overall_status: (primaryHealthy.status === 'healthy' && mateHealthy.status === 'healthy') ? 'healthy' : 'degraded'
     };
 
     logger.info('ModelHealth: Health check completed', {
       overallStatus: response.overall_status,
-      gptStatus: gptHealthy.status,
-      distilbertStatus: distilbertHealthy.status,
+      primaryStatus: primaryHealthy.status,
+      mateStatus: mateHealthy.status,
       processingTime: timer.getElapsedMs(),
       requestId
     });
@@ -1008,8 +1008,8 @@ async function handleSystemHealth(
 
   try {
     // Check AI models health
-    const gptHealthy = await checkGPTModelHealth(env);
-    const distilbertHealthy = await checkDistilBERTModelHealth(env);
+    const primaryHealthy = await checkPrimaryModelHealth(env);
+    const mateHealthy = await checkMateModelHealth(env);
 
     // Check data sources
     const yahooFinanceHealthy = await checkYahooFinanceHealth(env);
@@ -1021,8 +1021,8 @@ async function handleSystemHealth(
 
     // Calculate overall status
     const servicesHealthy = [
-      gptHealthy.status === 'healthy',
-      distilbertHealthy.status === 'healthy',
+      primaryHealthy.status === 'healthy',
+      mateHealthy.status === 'healthy',
       yahooFinanceHealthy.status === 'healthy',
       newsApiHealthy.status === 'healthy',
       kvHealthy.status === 'healthy',
@@ -1040,12 +1040,12 @@ async function handleSystemHealth(
         ai_models: {
           status: 'up' as const,
           last_check: new Date().toISOString(),
-          gpt_oss_120b: {
-            status: gptHealthy.status,
+          primary: {
+            status: primaryHealthy.status,
             last_check: new Date().toISOString()
           } as any,
-          distilbert: {
-            status: distilbertHealthy.status,
+          mate: {
+            status: mateHealthy.status,
             last_check: new Date().toISOString()
           } as any,
         } as any,
@@ -1101,8 +1101,8 @@ async function handleSystemHealth(
         hitRate: cacheHealthy.hitRate || 0
       },
       alerts: generateAlerts({
-        gptHealthy,
-        distilbertHealthy,
+        primaryHealthy,
+        mateHealthy,
         yahooFinanceHealthy,
         newsApiHealthy,
         kvHealthy,
@@ -1150,7 +1150,7 @@ async function handleSystemHealth(
 }
 
 // Helper functions for health checks
-async function checkGPTModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
+async function checkPrimaryModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
   try {
     const start = Date.now();
     const result = await (env.AI as any).run(AI_MODEL_DISPLAY.primary.id, {
@@ -1165,7 +1165,7 @@ async function checkGPTModelHealth(env: CloudflareEnvironment): Promise<{ status
   }
 }
 
-async function checkDistilBERTModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
+async function checkMateModelHealth(env: CloudflareEnvironment): Promise<{ status: string; responseTime?: number }> {
   try {
     const start = Date.now();
     const result = await (env.AI as any).run(AI_MODEL_DISPLAY.secondary.id, {
@@ -1910,13 +1910,13 @@ Respond with JSON only:
         temperature: 0.1,
         max_tokens: 300
       });
-      results.models.gemmaSeaLion = {
+      results.models.primary = {
         responseTime: Date.now() - start,
         rawResponse: response?.response || response,
         parsed: tryParseJSON(response?.response || JSON.stringify(response))
       };
     } catch (e: any) {
-      results.models.gemmaSeaLion = { error: e.message };
+      results.models.primary = { error: e.message };
     }
 
     // Test secondary model
@@ -1927,13 +1927,13 @@ Respond with JSON only:
         temperature: 0.1,
         max_tokens: 300
       });
-      results.models.distilbert = {
+      results.models.mate = {
         responseTime: Date.now() - start,
         rawResponse: response?.response || response,
         parsed: tryParseJSON(response?.response || JSON.stringify(response))
       };
     } catch (e: any) {
-      results.models.distilbert = { error: e.message };
+      results.models.mate = { error: e.message };
     }
 
     return new Response(

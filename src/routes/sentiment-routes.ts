@@ -365,19 +365,19 @@ async function handleSymbolSentiment(
     const response: SymbolSentimentResponse = {
       symbol,
       analysis: {
-        gpt_analysis: {
-          sentiment: transformedSignal.gpt_sentiment || 'neutral',
-          confidence: transformedSignal.gpt_confidence,  // Allow null to propagate
-          reasoning: transformedSignal.gpt_reasoning || '',
-          model: 'GPT-OSS-120B',
+        primary_analysis: {
+          sentiment: transformedSignal.primary_sentiment || 'neutral',
+          confidence: transformedSignal.primary_confidence,  // Allow null to propagate
+          reasoning: transformedSignal.primary_reasoning || '',
+          model: 'GPT-OSS 120B',
         },
-        distilbert_analysis: {
-          sentiment: transformedSignal.distilbert_sentiment || 'neutral',
-          confidence: transformedSignal.distilbert_confidence,  // Allow null to propagate
+        mate_analysis: {
+          sentiment: transformedSignal.mate_sentiment || 'neutral',
+          confidence: transformedSignal.mate_confidence,  // Allow null to propagate
           sentiment_breakdown: {
-            positive: transformedSignal.distilbert_positive || 0,
-            negative: transformedSignal.distilbert_negative || 0,
-            neutral: transformedSignal.distilbert_neutral || 0,
+            positive: transformedSignal.mate_positive || 0,
+            negative: transformedSignal.mate_negative || 0,
+            neutral: transformedSignal.mate_neutral || 0,
           },
           model: AI_MODEL_DISPLAY.secondary.name,
         },
@@ -724,11 +724,11 @@ async function handleSectorSentiment(
             sentiment_label: sentimentLabel,
             // Allow null confidence to propagate - null means analysis failed
             confidence: transformedSignal.overall_confidence != null ? Math.abs(transformedSignal.overall_confidence) : null,
-            ai_context: transformedSignal.gpt_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
+            ai_context: transformedSignal.primary_reasoning || `AI analysis for ${sector} sector based on recent market data and news sentiment.`,
             news_count: transformedSignal.news_count || 0,
             price_change: (priceData as any)?.changePercent || 0,
             real_data: true,
-            models_used: ['GPT-OSS-120B', 'DistilBERT-SST-2'],
+            models_used: ['Primary (GPT-OSS-120B)', 'Mate (DeepSeek-R1)'],
             agreement_type: transformedSignal.agreement_type || 'DISAGREE'
           });
         } else {
@@ -859,19 +859,19 @@ function calculateOverallConfidence(results: any[]): number | null {
     if (!r.models) return false;
     if (r.signal?.strength === 'FAILED') return false;
     // Both models must have failed (null/undefined confidence) to be invalid
-    const gptConf = r.models.gpt?.confidence;
-    const dbConf = r.models.distilbert?.confidence;
-    if (gptConf == null && dbConf == null) return false;
+    const primaryConf = r.models.primary?.confidence;
+    const mateConf = r.models.mate?.confidence;
+    if (primaryConf == null && mateConf == null) return false;
     return true;
   });
 
   if (validResults.length === 0) return null;
 
   const confidences = validResults.map(r => {
-    const gptConf = r.models.gpt?.confidence;
-    const dbConf = r.models.distilbert?.confidence;
+    const primaryConf = r.models.primary?.confidence;
+    const mateConf = r.models.mate?.confidence;
     // Only average non-null confidences to avoid undervaluing partial results
-    const validConfs = [gptConf, dbConf].filter((c): c is number => c !== null && c !== undefined);
+    const validConfs = [primaryConf, mateConf].filter((c): c is number => c !== null && c !== undefined);
     return validConfs.length > 0 ? validConfs.reduce((a, b) => a + b, 0) / validConfs.length : 0;
   });
 
@@ -888,15 +888,15 @@ function transformBatchResultsToSignals(results: any[]): any[] {
     overall_confidence: calculateOverallConfidence([result]),
     recommendation: getRecommendationFromSignal(result.signal),
     agreement_type: result.comparison?.agreement_type || 'DISAGREE',
-    gpt_sentiment: result.models.gpt?.direction || 'neutral',
-    gpt_confidence: result.models.gpt?.confidence ?? null,  // null = failed/no data
-    gpt_reasoning: result.models.gpt?.reasoning || '',
-    distilbert_sentiment: result.models.distilbert?.direction || 'neutral',
-    distilbert_confidence: result.models.distilbert?.confidence ?? null,  // null = failed/no data
-    distilbert_positive: result.models.distilbert?.sentiment_breakdown?.bullish || 0,
-    distilbert_negative: result.models.distilbert?.sentiment_breakdown?.bearish || 0,
-    distilbert_neutral: result.models.distilbert?.sentiment_breakdown?.neutral || 0,
-    news_count: result.models.gpt?.articles_analyzed || result.models.distilbert?.articles_analyzed || 0,
+    primary_sentiment: result.models.primary?.direction || 'neutral',
+    primary_confidence: result.models.primary?.confidence ?? null,  // null = failed/no data
+    primary_reasoning: result.models.primary?.reasoning || '',
+    mate_sentiment: result.models.mate?.direction || 'neutral',
+    mate_confidence: result.models.mate?.confidence ?? null,  // null = failed/no data
+    mate_positive: result.models.mate?.sentiment_breakdown?.bullish || 0,
+    mate_negative: result.models.mate?.sentiment_breakdown?.bearish || 0,
+    mate_neutral: result.models.mate?.sentiment_breakdown?.neutral || 0,
+    news_count: result.models.primary?.articles_analyzed || result.models.mate?.articles_analyzed || 0,
     top_articles: [] // Could be populated if needed
   }));
 }

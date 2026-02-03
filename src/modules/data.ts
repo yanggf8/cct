@@ -22,10 +22,10 @@ export interface FactTableRecord {
   model: string;
   primary_model: string;
   secondary_model: string;
-  gpt_confidence: number;
-  distilbert_confidence: number;
-  gpt_direction?: string;
-  distilbert_direction?: string;
+  primary_confidence: number;
+  mate_confidence: number;
+  primary_direction?: string;
+  mate_direction?: string;
   models_agree: boolean;
   agreement_type: string;
   signal_type: string;
@@ -233,12 +233,12 @@ function processDualAISignal(
     model: 'dual_ai_comparison',
 
     // Dual AI Analysis specific fields
-    primary_model: 'GPT-OSS-120B',
-    secondary_model: 'DistilBERT-SST-2-INT8',
-    gpt_confidence: gptModel.confidence || 0,
-    distilbert_confidence: distilBERTModel.confidence || 0,
-    gpt_direction: gptModel.direction,
-    distilbert_direction: distilBERTModel.direction,
+    primary_model: 'GPT-OSS 120B',
+    secondary_model: 'DeepSeek-R1 32B',
+    primary_confidence: gptModel.confidence || 0,
+    mate_confidence: distilBERTModel.confidence || 0,
+    primary_direction: gptModel.direction,
+    mate_direction: distilBERTModel.direction,
 
     // Agreement and signal data
     models_agree: dualAIComparison.agree || false,
@@ -361,48 +361,50 @@ export async function storeFactTableData(env: CloudflareEnvironment, factTableDa
 
 /**
  * Extract dual model data from various analysis result formats
+ * Returns model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1
  */
 export function extractDualModelData(analysisData: any): {
-  gemma_status?: string;
-  gemma_error?: string;
-  gemma_confidence?: number;
-  gemma_response_time_ms?: number;
-  distilbert_status?: string;
-  distilbert_error?: string;
-  distilbert_confidence?: number;
-  distilbert_response_time_ms?: number;
+  primary_status?: string;
+  primary_error?: string;
+  primary_confidence?: number;
+  primary_response_time_ms?: number;
+  mate_status?: string;
+  mate_error?: string;
+  mate_confidence?: number;
+  mate_response_time_ms?: number;
   model_selection_reason?: string;
 } {
-  // Format 1: DualAIComparisonResult (models.gpt, models.distilbert)
+  // Format 1: DualAIComparisonResult (models.primary, models.mate)
   if (analysisData?.models?.gpt || analysisData?.models?.distilbert) {
     const gpt = analysisData.models?.gpt;
     const distilbert = analysisData.models?.distilbert;
     return {
-      gemma_status: gpt?.error ? 'failed' : gpt?.direction ? 'success' : undefined,
-      gemma_error: gpt?.error || undefined,
-      gemma_confidence: gpt?.confidence,
-      gemma_response_time_ms: gpt?.response_time_ms,
-      distilbert_status: distilbert?.error ? 'failed' : distilbert?.direction ? 'success' : undefined,
-      distilbert_error: distilbert?.error || undefined,
-      distilbert_confidence: distilbert?.confidence,
-      distilbert_response_time_ms: distilbert?.response_time_ms,
+      primary_status: gpt?.error ? 'failed' : gpt?.direction ? 'success' : undefined,
+      primary_error: gpt?.error || undefined,
+      primary_confidence: gpt?.confidence,
+      primary_response_time_ms: gpt?.response_time_ms,
+      mate_status: distilbert?.error ? 'failed' : distilbert?.direction ? 'success' : undefined,
+      mate_error: distilbert?.error || undefined,
+      mate_confidence: distilbert?.confidence,
+      mate_response_time_ms: distilbert?.response_time_ms,
       model_selection_reason: analysisData.agreement?.status || analysisData.final_signal?.source
     };
   }
 
   // Format 2: Pre-market-data-bridge format (dual_model.gemma, dual_model.distilbert)
+  // Note: dual_model object still uses gemma/distilbert internally for backward compat
   if (analysisData?.dual_model?.gemma || analysisData?.dual_model?.distilbert) {
     const gemma = analysisData.dual_model?.gemma;
     const distilbert = analysisData.dual_model?.distilbert;
     return {
-      gemma_status: gemma?.status,
-      gemma_error: gemma?.error,
-      gemma_confidence: gemma?.confidence,
-      gemma_response_time_ms: gemma?.response_time_ms,
-      distilbert_status: distilbert?.status,
-      distilbert_error: distilbert?.error,
-      distilbert_confidence: distilbert?.confidence,
-      distilbert_response_time_ms: distilbert?.response_time_ms,
+      primary_status: gemma?.status,
+      primary_error: gemma?.error,
+      primary_confidence: gemma?.confidence,
+      primary_response_time_ms: gemma?.response_time_ms,
+      mate_status: distilbert?.status,
+      mate_error: distilbert?.error,
+      mate_confidence: distilbert?.confidence,
+      mate_response_time_ms: distilbert?.response_time_ms,
       model_selection_reason: analysisData.dual_model?.selection_reason
     };
   }
@@ -414,15 +416,15 @@ export function extractDualModelData(analysisData: any): {
 
   // Format 4: sentiment_layers with model info
   const layers = analysisData?.sentiment_layers || [];
-  const gemmaLayer = layers.find((l: any) => l.model?.toLowerCase().includes('gemma') || l.model?.toLowerCase().includes('gpt'));
-  const distilbertLayer = layers.find((l: any) => l.model?.toLowerCase().includes('distilbert'));
-  
-  if (gemmaLayer || distilbertLayer) {
+  const primaryLayer = layers.find((l: any) => l.model?.toLowerCase().includes('gemma') || l.model?.toLowerCase().includes('gpt'));
+  const mateLayer = layers.find((l: any) => l.model?.toLowerCase().includes('distilbert'));
+
+  if (primaryLayer || mateLayer) {
     return {
-      gemma_status: gemmaLayer ? 'success' : undefined,
-      gemma_confidence: gemmaLayer?.confidence,
-      distilbert_status: distilbertLayer ? 'success' : undefined,
-      distilbert_confidence: distilbertLayer?.confidence
+      primary_status: primaryLayer ? 'success' : undefined,
+      primary_confidence: primaryLayer?.confidence,
+      mate_status: mateLayer ? 'success' : undefined,
+      mate_confidence: mateLayer?.confidence
     };
   }
 

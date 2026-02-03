@@ -646,18 +646,18 @@ function generateSignalCards(signals: any[]): string {
     const accuracy = signal.performance === 'on_track' || signal.performance === 'strengthened' ? 'ok' : 
                      signal.performance === 'diverged' ? 'fail' : 'pending';
     
-    // Extract dual model data
-    const gemma = signal.gemma_status ? {
-      status: signal.gemma_status,
-      error: signal.gemma_error,
-      confidence: signal.gemma_confidence,
+    // Extract dual model data (model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1)
+    const gemma = signal.primary_status ? {
+      status: signal.primary_status,
+      error: signal.primary_error,
+      confidence: signal.primary_confidence,
       direction: signal.morning_prediction // Simplification for display
     } : (signal.dual_model?.gemma || {});
 
-    const distilbert = signal.distilbert_status ? {
-      status: signal.distilbert_status,
-      error: signal.distilbert_error,
-      confidence: signal.distilbert_confidence,
+    const distilbert = signal.mate_status ? {
+      status: signal.mate_status,
+      error: signal.mate_error,
+      confidence: signal.mate_confidence,
       direction: signal.morning_prediction // Simplification for display
     } : (signal.dual_model?.distilbert || {});
 

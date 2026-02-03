@@ -31,15 +31,16 @@ export interface SymbolPrediction {
   analysis_type: string;
   trading_signals?: any;
   created_at?: string;
-  // Dual model tracking
-  gemma_status?: string;
-  gemma_error?: string;
-  gemma_confidence?: number | null;
-  gemma_response_time_ms?: number;
-  distilbert_status?: string;
-  distilbert_error?: string;
-  distilbert_confidence?: number | null;
-  distilbert_response_time_ms?: number;
+  // Dual model tracking (model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1)
+  // Note: D1 columns use legacy names (gemma_*/distilbert_*) for backward compatibility
+  primary_status?: string;
+  primary_error?: string;
+  primary_confidence?: number | null;
+  primary_response_time_ms?: number;
+  mate_status?: string;
+  mate_error?: string;
+  mate_confidence?: number | null;
+  mate_response_time_ms?: number;
   model_selection_reason?: string;
 }
 
@@ -92,10 +93,10 @@ export class PredictJobsDB {
   // Symbol Predictions
   async savePrediction(pred: Omit<SymbolPrediction, 'id' | 'created_at'>): Promise<void> {
     await this.db.prepare(`
-      INSERT OR REPLACE INTO symbol_predictions 
+      INSERT OR REPLACE INTO symbol_predictions
       (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals,
-       gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
-       distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+       primary_status, primary_error, primary_confidence, primary_response_time_ms,
+       mate_status, mate_error, mate_confidence, mate_response_time_ms,
        model_selection_reason)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -107,32 +108,32 @@ export class PredictJobsDB {
       pred.model,
       pred.analysis_type,
       JSON.stringify(pred.trading_signals || {}),
-      pred.gemma_status || null,
-      pred.gemma_error || null,
-      pred.gemma_confidence ?? null,
-      pred.gemma_response_time_ms ?? null,
-      pred.distilbert_status || null,
-      pred.distilbert_error || null,
-      pred.distilbert_confidence ?? null,
-      pred.distilbert_response_time_ms ?? null,
+      pred.primary_status || null,
+      pred.primary_error || null,
+      pred.primary_confidence ?? null,
+      pred.primary_response_time_ms ?? null,
+      pred.mate_status || null,
+      pred.mate_error || null,
+      pred.mate_confidence ?? null,
+      pred.mate_response_time_ms ?? null,
       pred.model_selection_reason || null
     ).run();
   }
 
   async savePredictionsBatch(predictions: Omit<SymbolPrediction, 'id' | 'created_at'>[]): Promise<void> {
     const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO symbol_predictions 
+      INSERT OR REPLACE INTO symbol_predictions
       (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals,
-       gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
-       distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+       primary_status, primary_error, primary_confidence, primary_response_time_ms,
+       mate_status, mate_error, mate_confidence, mate_response_time_ms,
        model_selection_reason)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     await this.db.batch(predictions.map(p => stmt.bind(
-      p.symbol, p.prediction_date, p.sentiment, p.confidence, p.direction, p.model, p.analysis_type, 
+      p.symbol, p.prediction_date, p.sentiment, p.confidence, p.direction, p.model, p.analysis_type,
       JSON.stringify(p.trading_signals || {}),
-      p.gemma_status || null, p.gemma_error || null, p.gemma_confidence ?? null, p.gemma_response_time_ms ?? null,
-      p.distilbert_status || null, p.distilbert_error || null, p.distilbert_confidence ?? null, p.distilbert_response_time_ms ?? null,
+      p.primary_status || null, p.primary_error || null, p.primary_confidence ?? null, p.primary_response_time_ms ?? null,
+      p.mate_status || null, p.mate_error || null, p.mate_confidence ?? null, p.mate_response_time_ms ?? null,
       p.model_selection_reason || null
     )));
   }

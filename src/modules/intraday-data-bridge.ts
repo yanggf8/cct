@@ -21,15 +21,15 @@ interface MorningPrediction {
   sentiment: string;
   confidence: number | null;  // D1 can return null
   articles_count: number;
-  // Dual model data from D1
-  gemma_status: string | null;
-  gemma_error: string | null;
-  gemma_confidence: number | null;
-  gemma_response_time_ms: number | null;
-  distilbert_status: string | null;
-  distilbert_error: string | null;
-  distilbert_confidence: number | null;
-  distilbert_response_time_ms: number | null;
+  // Dual model data from D1 (model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1)
+  primary_status: string | null;
+  primary_error: string | null;
+  primary_confidence: number | null;
+  primary_response_time_ms: number | null;
+  mate_status: string | null;
+  mate_error: string | null;
+  mate_confidence: number | null;
+  mate_response_time_ms: number | null;
   model_selection_reason: string | null;
   // Additional data
   direction: string | null;
@@ -217,16 +217,16 @@ export class IntradayDataBridge {
    * Build PeriodSentimentData from morning D1 prediction
    */
   private buildPeriodSentimentFromMorning(morning: MorningPrediction): PeriodSentimentData {
-    // Determine model statuses
-    const gemmaStatus = this.parseModelStatus(morning.gemma_status);
-    const distilbertStatus = this.parseModelStatus(morning.distilbert_status);
+    // Determine model statuses (model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1)
+    const primaryStatus = this.parseModelStatus(morning.primary_status);
+    const mateStatus = this.parseModelStatus(morning.mate_status);
 
     // Check if we have any valid data
     // Fallback: If model status is missing but we have direction+confidence, treat as success
     const hasValidData = morning.direction && morning.confidence !== null && morning.confidence > 0;
-    const gemmaOk = gemmaStatus === 'success' && morning.gemma_confidence !== null;
-    const distilbertOk = distilbertStatus === 'success' && morning.distilbert_confidence !== null;
-    const bothFailed = !gemmaOk && !distilbertOk && !hasValidData;
+    const primaryOk = primaryStatus === 'success' && morning.primary_confidence !== null;
+    const mateOk = mateStatus === 'success' && morning.mate_confidence !== null;
+    const bothFailed = !primaryOk && !mateOk && !hasValidData;
 
     // Determine overall status
     let status: 'success' | 'partial' | 'failed';
@@ -234,8 +234,8 @@ export class IntradayDataBridge {
 
     if (bothFailed) {
       status = 'failed';
-      overallError = [morning.gemma_error, morning.distilbert_error].filter(Boolean).join('; ') || 'No data from pre-market job';
-    } else if (gemmaOk && distilbertOk) {
+      overallError = [morning.primary_error, morning.mate_error].filter(Boolean).join('; ') || 'No data from pre-market job';
+    } else if (primaryOk && mateOk) {
       status = 'success';
     } else if (hasValidData) {
       // Legacy data without dual_model but has valid prediction
@@ -271,18 +271,18 @@ export class IntradayDataBridge {
       confidence: morning.confidence,
       reasoning,
       gemma: {
-        status: gemmaStatus,
-        error: morning.gemma_error,
-        confidence: morning.gemma_confidence,
+        status: primaryStatus,
+        error: morning.primary_error,
+        confidence: morning.primary_confidence,
         direction: morning.sentiment || null,
-        response_time_ms: morning.gemma_response_time_ms
+        response_time_ms: morning.primary_response_time_ms
       },
       distilbert: {
-        status: distilbertStatus,
-        error: morning.distilbert_error,
-        confidence: morning.distilbert_confidence,
+        status: mateStatus,
+        error: morning.mate_error,
+        confidence: morning.mate_confidence,
         direction: morning.sentiment || null,
-        response_time_ms: morning.distilbert_response_time_ms
+        response_time_ms: morning.mate_response_time_ms
       },
       agreement,
       articles_count: morning.articles_count || 0,
@@ -310,17 +310,17 @@ export class IntradayDataBridge {
       };
     }
 
-    // Extract Gemma (gpt) result
-    const gpt = result.models?.gpt;
-    const gemmaStatus = this.parseModelStatus(gpt?.error ? 'failed' : (gpt ? 'success' : 'no_data'));
-    const gemmaOk = !gpt?.error && gpt?.confidence !== null && gpt?.confidence !== undefined;
+    // Extract Primary model result
+    const primary = result.models?.primary;
+    const primaryStatus = this.parseModelStatus(primary?.error ? 'failed' : (primary ? 'success' : 'no_data'));
+    const primaryOk = !primary?.error && primary?.confidence !== null && primary?.confidence !== undefined;
 
-    // Extract DistilBERT result
-    const db = result.models?.distilbert;
-    const distilbertStatus = this.parseModelStatus(db?.error ? 'failed' : (db ? 'success' : 'no_data'));
-    const distilbertOk = !db?.error && db?.confidence !== null && db?.confidence !== undefined;
+    // Extract Mate model result
+    const mate = result.models?.mate;
+    const mateStatus = this.parseModelStatus(mate?.error ? 'failed' : (mate ? 'success' : 'no_data'));
+    const mateOk = !mate?.error && mate?.confidence !== null && mate?.confidence !== undefined;
 
-    const bothFailed = !gemmaOk && !distilbertOk;
+    const bothFailed = !primaryOk && !mateOk;
 
     // Determine overall status
     let status: 'success' | 'partial' | 'failed';
@@ -328,8 +328,8 @@ export class IntradayDataBridge {
 
     if (bothFailed) {
       status = 'failed';
-      overallError = [gpt?.error, db?.error, result.error].filter(Boolean).join('; ') || 'Both models failed';
-    } else if (gemmaOk && distilbertOk) {
+      overallError = [primary?.error, mate?.error, result.error].filter(Boolean).join('; ') || 'Both models failed';
+    } else if (primaryOk && mateOk) {
       status = 'success';
     } else {
       status = 'partial';
@@ -349,39 +349,39 @@ export class IntradayDataBridge {
     let finalConfidence: number | null = null;
     if (result.signal?.strength !== 'FAILED') {
       // Determine which model was selected based on confidence
-      const gptConf = gpt?.confidence ?? 0;
-      const dbConf = db?.confidence ?? 0;
+      const primaryConf = primary?.confidence ?? 0;
+      const mateConf = mate?.confidence ?? 0;
       
-      if (gemmaOk && distilbertOk) {
+      if (primaryOk && mateOk) {
         // Both models succeeded - use higher confidence (winner)
-        finalConfidence = Math.max(gptConf, dbConf);
-      } else if (gemmaOk) {
-        finalConfidence = gptConf;
-      } else if (distilbertOk) {
-        finalConfidence = dbConf;
+        finalConfidence = Math.max(primaryConf, mateConf);
+      } else if (primaryOk) {
+        finalConfidence = primaryConf;
+      } else if (mateOk) {
+        finalConfidence = mateConf;
       }
     }
 
     return {
       direction: result.signal?.direction || 'neutral',
       confidence: finalConfidence,
-      reasoning: result.signal?.reasoning || gpt?.reasoning || 'Fresh intraday analysis',
+      reasoning: result.signal?.reasoning || primary?.reasoning || 'Fresh intraday analysis',
       gemma: {
-        status: gemmaStatus,
-        error: gpt?.error || null,
-        confidence: gpt?.confidence ?? null,
-        direction: gpt?.direction || null,
-        response_time_ms: gpt?.response_time_ms ?? null
+        status: primaryStatus,
+        error: primary?.error || null,
+        confidence: primary?.confidence ?? null,
+        direction: primary?.direction || null,
+        response_time_ms: primary?.response_time_ms ?? null
       },
       distilbert: {
-        status: distilbertStatus,
-        error: db?.error || null,
-        confidence: db?.confidence ?? null,
-        direction: db?.direction || null,
-        response_time_ms: db?.response_time_ms ?? null
+        status: mateStatus,
+        error: mate?.error || null,
+        confidence: mate?.confidence ?? null,
+        direction: mate?.direction || null,
+        response_time_ms: mate?.response_time_ms ?? null
       },
       agreement,
-      articles_count: gpt?.articles_analyzed || db?.articles_analyzed || 0,
+      articles_count: primary?.articles_analyzed || mate?.articles_analyzed || 0,
       status,
       error: overallError
     };
@@ -556,8 +556,8 @@ export class IntradayDataBridge {
           'neutral',
         // Extract confidence from dual AI structure with fallback
         confidence: signal.signal?.confidence ??
-          signal.models?.gpt?.confidence ??
-          signal.models?.distilbert?.confidence ??
+          signal.models?.primary?.confidence ??
+          signal.models?.mate?.confidence ??
           signal.confidence_metrics?.overall_confidence ??
           signal.sentiment_layers?.[0]?.confidence ??
           signal.confidence ??
@@ -567,20 +567,20 @@ export class IntradayDataBridge {
         direction: signal.signal?.direction ??
           signal.sentiment_layers?.[0]?.sentiment ??
           signal.direction ??
-          signal.models?.gpt?.direction ??
-          signal.models?.distilbert?.direction ??
+          signal.models?.primary?.direction ??
+          signal.models?.mate?.direction ??
           'neutral',
         trading_signals: signal,
-        // Dual model fields from new structure with fallback to legacy
-        gemma_status: signal.models?.gpt?.error ? 'failed' : (signal.models?.gpt ? 'success' : (signal.gemma_status || signal.dual_model?.gemma?.status)),
-        gemma_error: signal.models?.gpt?.error || signal.gemma_error || signal.dual_model?.gemma?.error,
-        gemma_confidence: signal.models?.gpt?.confidence ?? signal.gemma_confidence ?? signal.dual_model?.gemma?.confidence,
-        gemma_response_time_ms: signal.gemma_response_time_ms || signal.dual_model?.gemma?.response_time_ms,
-        distilbert_status: signal.models?.distilbert?.error ? 'failed' : (signal.models?.distilbert ? 'success' : (signal.distilbert_status || signal.dual_model?.distilbert?.status)),
-        distilbert_error: signal.models?.distilbert?.error || signal.distilbert_error || signal.dual_model?.distilbert?.error,
-        distilbert_confidence: signal.models?.distilbert?.confidence ?? signal.distilbert_confidence ?? signal.dual_model?.distilbert?.confidence,
-        distilbert_response_time_ms: signal.distilbert_response_time_ms || signal.dual_model?.distilbert?.response_time_ms,
-        model_selection_reason: signal.model_selection_reason || signal.dual_model?.selection_reason
+        // Dual model fields (model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1)
+        primary_status: signal.models?.primary?.error ? 'failed' : (signal.models?.primary ? 'success' : signal.primary_status),
+        primary_error: signal.models?.primary?.error || signal.primary_error,
+        primary_confidence: signal.models?.primary?.confidence ?? signal.primary_confidence,
+        primary_response_time_ms: signal.primary_response_time_ms,
+        mate_status: signal.models?.mate?.error ? 'failed' : (signal.models?.mate ? 'success' : signal.mate_status),
+        mate_error: signal.models?.mate?.error || signal.mate_error,
+        mate_confidence: signal.models?.mate?.confidence ?? signal.mate_confidence,
+        mate_response_time_ms: signal.mate_response_time_ms,
+        model_selection_reason: signal.model_selection_reason
       })), preMarketRunId: runId };
     } catch (error: unknown) {
       logger.error('IntradayDataBridge: Failed to fetch morning predictions', { error, date });
@@ -598,9 +598,9 @@ export class IntradayDataBridge {
     const currentDirection = current.signal?.direction || 'neutral';
 
     // Derive current confidence from model confidences (signal.confidence doesn't exist)
-    const gptConf = current.models?.gpt?.confidence ?? 0;
-    const dbConf = current.models?.distilbert?.confidence ?? 0;
-    const currentConfidence = gptConf > 0 && dbConf > 0 ? (gptConf + dbConf) / 2 : Math.max(gptConf, dbConf);
+    const primaryConf = current.models?.primary?.confidence ?? 0;
+    const mateConf = current.models?.mate?.confidence ?? 0;
+    const currentConfidence = primaryConf > 0 && mateConf > 0 ? (primaryConf + mateConf) / 2 : Math.max(primaryConf, mateConf);
 
     // Normalize sentiments for comparison
     const morningNorm = this.normalizeSentiment(morning.sentiment);
@@ -711,25 +711,25 @@ export class IntradayDataBridge {
         // Update existing prediction with intraday data
         await this.env.PREDICT_JOBS_DB.prepare(`
           UPDATE symbol_predictions SET
-            gemma_status = COALESCE(?, gemma_status),
-            gemma_error = COALESCE(?, gemma_error),
-            gemma_confidence = COALESCE(?, gemma_confidence),
-            gemma_response_time_ms = COALESCE(?, gemma_response_time_ms),
-            distilbert_status = COALESCE(?, distilbert_status),
-            distilbert_error = COALESCE(?, distilbert_error),
-            distilbert_confidence = COALESCE(?, distilbert_confidence),
-            distilbert_response_time_ms = COALESCE(?, distilbert_response_time_ms),
+            primary_status = COALESCE(?, primary_status),
+            primary_error = COALESCE(?, primary_error),
+            primary_confidence = COALESCE(?, primary_confidence),
+            primary_response_time_ms = COALESCE(?, primary_response_time_ms),
+            mate_status = COALESCE(?, mate_status),
+            mate_error = COALESCE(?, mate_error),
+            mate_confidence = COALESCE(?, mate_confidence),
+            mate_response_time_ms = COALESCE(?, mate_response_time_ms),
             model_selection_reason = COALESCE(?, model_selection_reason)
           WHERE symbol = ? AND prediction_date = ?
         `).bind(
-          dualModelData.gemma_status || null,
-          dualModelData.gemma_error || null,
-          dualModelData.gemma_confidence ?? null,
-          dualModelData.gemma_response_time_ms ?? null,
-          dualModelData.distilbert_status || null,
-          dualModelData.distilbert_error || null,
-          dualModelData.distilbert_confidence ?? null,
-          dualModelData.distilbert_response_time_ms ?? null,
+          dualModelData.primary_status || null,
+          dualModelData.primary_error || null,
+          dualModelData.primary_confidence ?? null,
+          dualModelData.primary_response_time_ms ?? null,
+          dualModelData.mate_status || null,
+          dualModelData.mate_error || null,
+          dualModelData.mate_confidence ?? null,
+          dualModelData.mate_response_time_ms ?? null,
           dualModelData.model_selection_reason || null,
           perf.symbol,
           date

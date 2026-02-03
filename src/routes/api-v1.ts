@@ -295,11 +295,11 @@ export async function handleApiV1Request(
       return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: HttpStatus.METHOD_NOT_ALLOWED, headers });
     } else if (path === '/api/v1/diagnostics/ai-models') {
       // AI Models Diagnostic endpoint - returns circuit breaker status and model health
-      const gptBreaker = CircuitBreakerFactory.getInstance('ai-model-gpt');
-      const distilbertBreaker = CircuitBreakerFactory.getInstance('ai-model-distilbert');
+      const primaryBreaker = CircuitBreakerFactory.getInstance('ai-model-primary');
+      const mateBreaker = CircuitBreakerFactory.getInstance('ai-model-mate');
 
-      const gptMetrics = gptBreaker.getMetrics();
-      const distilbertMetrics = distilbertBreaker.getMetrics();
+      const primaryMetrics = primaryBreaker.getMetrics();
+      const mateMetrics = mateBreaker.getMetrics();
 
       // Query recent D1 data for model statistics
       let recentStats = null;
@@ -326,51 +326,51 @@ export async function handleApiV1Request(
       const diagnosticData = {
         timestamp: new Date().toISOString(),
         circuit_breakers: {
-          gemma_sea_lion: {
-            name: 'ai-model-gpt',
-            state: gptMetrics.state,
-            healthy: gptBreaker.isHealthy(),
-            success_rate: gptBreaker.getSuccessRate(),
-            failure_rate: gptBreaker.getFailureRate(),
+          primary: {
+            name: 'ai-model-primary',
+            state: primaryMetrics.state,
+            healthy: primaryBreaker.isHealthy(),
+            success_rate: primaryBreaker.getSuccessRate(),
+            failure_rate: primaryBreaker.getFailureRate(),
             metrics: {
-              total_calls: gptMetrics.totalCalls,
-              success_count: gptMetrics.successCount,
-              failure_count: gptMetrics.failureCount,
-              consecutive_failures: gptMetrics.consecutiveFailures,
-              consecutive_successes: gptMetrics.consecutiveSuccesses,
-              last_failure: gptMetrics.lastFailureTime ? new Date(gptMetrics.lastFailureTime).toISOString() : null,
-              last_success: gptMetrics.lastSuccessTime ? new Date(gptMetrics.lastSuccessTime).toISOString() : null,
-              state_changed: new Date(gptMetrics.stateChangedTime).toISOString(),
-              avg_call_duration_ms: Math.round(gptMetrics.averageCallDuration)
+              total_calls: primaryMetrics.totalCalls,
+              success_count: primaryMetrics.successCount,
+              failure_count: primaryMetrics.failureCount,
+              consecutive_failures: primaryMetrics.consecutiveFailures,
+              consecutive_successes: primaryMetrics.consecutiveSuccesses,
+              last_failure: primaryMetrics.lastFailureTime ? new Date(primaryMetrics.lastFailureTime).toISOString() : null,
+              last_success: primaryMetrics.lastSuccessTime ? new Date(primaryMetrics.lastSuccessTime).toISOString() : null,
+              state_changed: new Date(primaryMetrics.stateChangedTime).toISOString(),
+              avg_call_duration_ms: Math.round(primaryMetrics.averageCallDuration)
             }
           },
-          distilbert: {
-            name: 'ai-model-distilbert',
-            state: distilbertMetrics.state,
-            healthy: distilbertBreaker.isHealthy(),
-            success_rate: distilbertBreaker.getSuccessRate(),
-            failure_rate: distilbertBreaker.getFailureRate(),
+          mate: {
+            name: 'ai-model-mate',
+            state: mateMetrics.state,
+            healthy: mateBreaker.isHealthy(),
+            success_rate: mateBreaker.getSuccessRate(),
+            failure_rate: mateBreaker.getFailureRate(),
             metrics: {
-              total_calls: distilbertMetrics.totalCalls,
-              success_count: distilbertMetrics.successCount,
-              failure_count: distilbertMetrics.failureCount,
-              consecutive_failures: distilbertMetrics.consecutiveFailures,
-              consecutive_successes: distilbertMetrics.consecutiveSuccesses,
-              last_failure: distilbertMetrics.lastFailureTime ? new Date(distilbertMetrics.lastFailureTime).toISOString() : null,
-              last_success: distilbertMetrics.lastSuccessTime ? new Date(distilbertMetrics.lastSuccessTime).toISOString() : null,
-              state_changed: new Date(distilbertMetrics.stateChangedTime).toISOString(),
-              avg_call_duration_ms: Math.round(distilbertMetrics.averageCallDuration)
+              total_calls: mateMetrics.totalCalls,
+              success_count: mateMetrics.successCount,
+              failure_count: mateMetrics.failureCount,
+              consecutive_failures: mateMetrics.consecutiveFailures,
+              consecutive_successes: mateMetrics.consecutiveSuccesses,
+              last_failure: mateMetrics.lastFailureTime ? new Date(mateMetrics.lastFailureTime).toISOString() : null,
+              last_success: mateMetrics.lastSuccessTime ? new Date(mateMetrics.lastSuccessTime).toISOString() : null,
+              state_changed: new Date(mateMetrics.stateChangedTime).toISOString(),
+              avg_call_duration_ms: Math.round(mateMetrics.averageCallDuration)
             }
           }
         },
         d1_statistics: recentStats,
         summary: {
-          gemma_operational: gptBreaker.isHealthy() && gptMetrics.state === 'CLOSED',
-          distilbert_operational: distilbertBreaker.isHealthy() && distilbertMetrics.state === 'CLOSED',
-          recommendation: !gptBreaker.isHealthy()
-            ? 'Gemma circuit breaker is not healthy - check logs for failures'
-            : !distilbertBreaker.isHealthy()
-            ? 'DistilBERT circuit breaker is not healthy - check logs for failures'
+          primary_operational: primaryBreaker.isHealthy() && primaryMetrics.state === 'CLOSED',
+          mate_operational: mateBreaker.isHealthy() && mateMetrics.state === 'CLOSED',
+          recommendation: !primaryBreaker.isHealthy()
+            ? 'Primary model circuit breaker is not healthy - check logs for failures'
+            : !mateBreaker.isHealthy()
+            ? 'Mate model circuit breaker is not healthy - check logs for failures'
             : 'All AI models operational'
         }
       };

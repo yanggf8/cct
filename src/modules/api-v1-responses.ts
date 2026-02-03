@@ -259,13 +259,13 @@ export interface SentimentAnalysisResponseInterface {
 export interface SymbolSentimentResponseInterface {
   symbol: string;
   analysis: {
-    gpt_analysis: {
+    primary_analysis: {
       sentiment: string;
       confidence: number;
       reasoning: string;
       model: string;
     };
-    distilbert_analysis: {
+    mate_analysis: {
       sentiment: string;
       confidence: number;
       sentiment_breakdown: {

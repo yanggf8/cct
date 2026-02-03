@@ -194,8 +194,8 @@ export interface WeeklyReviewData {
   isStale?: boolean;
   sourceDate?: string;
   modelStats?: {
-    gemma: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
-    distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    primary: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    mate: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
     agreementRate: number | null;
   };
 }
@@ -287,7 +287,7 @@ export class ReportDataRetrieval {
             const isStale = snapshotDate !== dateStr;
 
             const predictions: Prediction[] = Object.entries(preMarketSnapshot.data.trading_signals).map(([symbol, data]: [string, any]) => {
-              const direction = data.dual_model?.gemma?.direction || data.sentiment || 'neutral';
+              const direction = data.dual_model?.primary?.direction || data.sentiment || 'neutral';
               const predictionTyped: 'up' | 'down' | 'neutral' =
                 direction.toLowerCase() === 'bullish' || direction.toLowerCase() === 'up' ? 'up' :
                 direction.toLowerCase() === 'bearish' || direction.toLowerCase() === 'down' ? 'down' : 'neutral';
@@ -295,7 +295,7 @@ export class ReportDataRetrieval {
               return {
                 symbol,
                 prediction: predictionTyped,
-                confidence: data.dual_model?.gemma?.confidence || data.confidence || 0,
+                confidence: data.dual_model?.primary?.confidence || data.confidence || 0,
                 sentiment: data.sentiment || 'neutral',
                 status: 'tracking' as const,
                 timestamp: preMarketSnapshot.data.generated_at || preMarketSnapshot.data.timestamp
@@ -817,7 +817,7 @@ export class ReportDataRetrieval {
       if (preMarketSnapshot?.data?.trading_signals) {
         // Transform trading_signals to predictions format
         const predictions: Prediction[] = Object.entries(preMarketSnapshot.data.trading_signals).map(([symbol, data]: [string, any]) => {
-          const direction = data.dual_model?.gemma?.direction || data.sentiment || 'neutral';
+          const direction = data.dual_model?.primary?.direction || data.sentiment || 'neutral';
           // Map direction string to typed prediction
           const predictionTyped: 'up' | 'down' | 'neutral' =
             direction.toLowerCase() === 'bullish' || direction.toLowerCase() === 'up' ? 'up' :
@@ -826,7 +826,7 @@ export class ReportDataRetrieval {
           return {
             symbol,
             prediction: predictionTyped,
-            confidence: data.dual_model?.gemma?.confidence || data.confidence || 0,
+            confidence: data.dual_model?.primary?.confidence || data.confidence || 0,
             sentiment: data.sentiment || 'neutral',
             status: 'tracking' as const,
             timestamp: preMarketSnapshot.data.generated_at || preMarketSnapshot.data.timestamp

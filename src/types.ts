@@ -262,8 +262,8 @@ export interface DualAIComparison {
 export interface DualAISignal {
   symbol: string;
   models: {
-    gpt?: ModelAnalysis;
-    distilbert?: ModelAnalysis;
+    primary?: ModelAnalysis;
+    mate?: ModelAnalysis;
   };
   comparison: DualAIComparison;
   final_signal: Signal;
@@ -287,8 +287,8 @@ export interface SymbolAnalysis {
   symbol: string;
   sentiment_layers?: SentimentLayer[];
   models?: {
-    gpt?: ModelAnalysis;
-    distilbert?: ModelAnalysis;
+    primary?: ModelAnalysis;
+    mate?: ModelAnalysis;
   };
   comparison?: DualAIComparison;
   final_signal?: Signal;
@@ -394,8 +394,8 @@ export interface TrackedSignal {
   confidence: number;
   sentiment?: Sentiment;
   models?: {
-    gpt?: ModelAnalysis;
-    distilbert?: ModelAnalysis;
+    primary?: ModelAnalysis;
+    mate?: ModelAnalysis;
   };
   comparison?: DualAIComparison;
   // Additional properties for signal tracking

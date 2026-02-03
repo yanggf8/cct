@@ -184,7 +184,7 @@ export interface CacheRequest extends BaseRequest {
  * Sentiment analysis request
  */
 export interface SentimentAnalysisRequest extends SymbolsRequest {
-  models?: ('gpt' | 'distilbert' | 'both')[];
+  models?: ('primary' | 'mate' | 'both')[];
   newsOnly?: boolean;
   timeframe?: '1d' | '1w' | '1m' | '3m';
 }
@@ -198,12 +198,12 @@ export interface SymbolSentimentResponse {
   confidence: number;
   reasoning: string;
   models: {
-    gpt?: {
+    primary?: {
       sentiment: string;
       confidence: number;
       reasoning: string;
     };
-    distilbert?: {
+    mate?: {
       sentiment: string;
       confidence: number;
       score: number;

@@ -590,7 +590,7 @@ export class BacktestingEngine {
    * Map analysis result to prediction
    */
   private mapToPrediction(result: any): 'bullish' | 'bearish' | 'neutral' {
-    const direction = result.signal?.direction || result.models?.gpt?.direction;
+    const direction = result.signal?.direction || result.models?.primary?.direction;
 
     if (direction === 'bullish' || direction === 'up') return 'bullish';
     if (direction === 'bearish' || direction === 'down') return 'bearish';
@@ -601,8 +601,8 @@ export class BacktestingEngine {
    * Calculate prediction confidence
    */
   private calculatePredictionConfidence(result: any): number {
-    const gptConf = result.models?.gpt?.confidence || 0.5;
-    const dbConf = result.models?.distilbert?.confidence || 0.5;
+    const gptConf = result.models?.primary?.confidence || 0.5;
+    const dbConf = result.models?.mate?.confidence || 0.5;
 
     return (gptConf + dbConf) / 2;
   }
@@ -611,8 +611,8 @@ export class BacktestingEngine {
    * Calculate probability distribution
    */
   private calculateProbabilityDistribution(result: any) {
-    const gptConf = result.models?.gpt?.confidence || 0.5;
-    const dbConf = result.models?.distilbert?.confidence || 0.5;
+    const gptConf = result.models?.primary?.confidence || 0.5;
+    const dbConf = result.models?.mate?.confidence || 0.5;
     const avgConf = (gptConf + dbConf) / 2;
 
     const prediction = this.mapToPrediction(result);

@@ -507,9 +507,9 @@ export async function runEnhancedPreMarketAnalysis(env: CloudflareEnvironment, o
  * Calculate confidence based on dual AI result
  */
 function calculateDualAIConfidence(dualAIResult: DualAIComparisonResult): number {
-  const gptConf = dualAIResult.models?.gpt?.confidence || 0;
-  const dbConf = dualAIResult.models?.distilbert?.confidence || 0;
-  const baseConf = (gptConf + dbConf) / 2;
+  const primaryConf = dualAIResult.models?.primary?.confidence || 0;
+  const mateConf = dualAIResult.models?.mate?.confidence || 0;
+  const baseConf = (primaryConf + mateConf) / 2;
 
   if (dualAIResult.comparison?.agree) {
     return Math.min(0.95, baseConf + 0.15);

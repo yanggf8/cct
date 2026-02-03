@@ -95,7 +95,7 @@ export async function handleModelHealth(
           max_tokens: 5
         });
 
-        healthResults.models.gpt_oss_120b = {
+        healthResults.models.primary = {
           status: 'healthy',
           model: AI_MODEL_DISPLAY.primary.id,
           test_response: (gptTest as any)?.response || 'Success',
@@ -104,7 +104,7 @@ export async function handleModelHealth(
 
         logger.debug(`${AI_MODEL_DISPLAY.primary.name} model test successful`, { requestId });
       } catch (gptError: any) {
-        healthResults.models.gpt_oss_120b = {
+        healthResults.models.primary = {
           status: 'unhealthy',
           error: gptError.message
         };
@@ -123,7 +123,7 @@ export async function handleModelHealth(
           max_tokens: 5
         });
 
-        healthResults.models.distilbert = {
+        healthResults.models.mate = {
           status: 'healthy',
           model: AI_MODEL_DISPLAY.secondary.id,
           test_response: secondaryTest,
@@ -132,7 +132,7 @@ export async function handleModelHealth(
 
         logger.debug(`${AI_MODEL_DISPLAY.secondary.name} model test successful`, { requestId });
       } catch (secondaryError: any) {
-        healthResults.models.distilbert = {
+        healthResults.models.mate = {
           status: 'unhealthy',
           error: secondaryError.message
         };

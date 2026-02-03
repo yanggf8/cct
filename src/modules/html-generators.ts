@@ -65,8 +65,8 @@ interface DualAISignal {
   symbol: string;
   comparison?: Comparison;
   models?: {
-    gpt?: ModelResult;
-    distilbert?: ModelResult;
+    primary?: ModelResult;
+    mate?: ModelResult;
   };
   signal?: TradingSignal;
 }
@@ -540,15 +540,15 @@ export function generateDualAISignalItem(signal: DualAISignal): string {
   const comparison = signal.comparison || {};
   const models = signal.models || {};
   const tradingSignal = signal.signal || {};
-  const gptResult = models.gpt || {};
-  const distilbertResult = models.distilbert || {};
+  const primaryResult = models.primary || {};
+  const mateResult = models.mate || {};
 
   const directionClass = tradingSignal.direction?.toLowerCase() || 'neutral';
   const agreementEmoji = comparison.agree ? '✅' :
                         comparison.agreement_type === 'partial_agreement' ? '⚠️' : '❌';
 
-  const avgConfidence = ((gptResult.confidence || 0) + (distilbertResult.confidence || 0)) / 2;
-  const confidenceSpread = Math.abs((gptResult.confidence || 0) - (distilbertResult.confidence || 0));
+  const avgConfidence = ((primaryResult.confidence || 0) + (mateResult.confidence || 0)) / 2;
+  const confidenceSpread = Math.abs((primaryResult.confidence || 0) - (mateResult.confidence || 0));
 
   return `
         <div class="signal-item ${directionClass}">
@@ -569,34 +569,34 @@ export function generateDualAISignalItem(signal: DualAISignal): string {
                 <div class="model-result">
                     <h4><span class="model-icon">🤖</span> GPT-OSS-120B</h4>
                     <div class="model-confidence-indicator">
-                        <span class="model-direction ${gptResult.direction?.toLowerCase() || 'neutral'}">
-                            ${gptResult.direction?.toUpperCase() || 'N/A'}
+                        <span class="model-direction ${primaryResult.direction?.toLowerCase() || 'neutral'}">
+                            ${primaryResult.direction?.toUpperCase() || 'N/A'}
                         </span>
-                        <span class="confidence-value">${Math.round((gptResult.confidence || 0) * 100)}%</span>
+                        <span class="confidence-value">${Math.round((primaryResult.confidence || 0) * 100)}%</span>
                     </div>
                     <div class="confidence-bar">
-                        <div class="confidence-fill" style="width: ${(gptResult.confidence || 0) * 100}%"></div>
+                        <div class="confidence-fill" style="width: ${(primaryResult.confidence || 0) * 100}%"></div>
                     </div>
-                    ${gptResult.reasoning ? `<p style="font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;">${gptResult.reasoning.substring(0, 100)}...</p>` : ''}
+                    ${primaryResult.reasoning ? `<p style="font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;">${primaryResult.reasoning.substring(0, 100)}...</p>` : ''}
                 </div>
 
                 <div class="model-result">
                     <h4><span class="model-icon">🧠</span> ${AI_MODEL_DISPLAY.secondary.name}</h4>
                     <div class="model-confidence-indicator">
-                        <span class="model-direction ${distilbertResult.direction?.toLowerCase() || 'neutral'}">
-                            ${distilbertResult.direction?.toUpperCase() || 'N/A'}
+                        <span class="model-direction ${mateResult.direction?.toLowerCase() || 'neutral'}">
+                            ${mateResult.direction?.toUpperCase() || 'N/A'}
                         </span>
-                        <span class="confidence-value">${Math.round((distilbertResult.confidence || 0) * 100)}%</span>
+                        <span class="confidence-value">${Math.round((mateResult.confidence || 0) * 100)}%</span>
                     </div>
                     <div class="confidence-bar">
-                        <div class="confidence-fill" style="width: ${(distilbertResult.confidence || 0) * 100}%"></div>
+                        <div class="confidence-fill" style="width: ${(mateResult.confidence || 0) * 100}%"></div>
                     </div>
-                    ${distilbertResult.sentiment_breakdown ? `
+                    ${mateResult.sentiment_breakdown ? `
                         <div style="font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;">
                             <strong>Sentiment:</strong>
-                            📈 ${distilbertResult.sentiment_breakdown.bullish || 0} |
-                            📉 ${distilbertResult.sentiment_breakdown.bearish || 0} |
-                            ➖ ${distilbertResult.sentiment_breakdown.neutral || 0}
+                            📈 ${mateResult.sentiment_breakdown.bullish || 0} |
+                            📉 ${mateResult.sentiment_breakdown.bearish || 0} |
+                            ➖ ${mateResult.sentiment_breakdown.neutral || 0}
                         </div>
                     ` : ''}
                 </div>
@@ -606,7 +606,7 @@ export function generateDualAISignalItem(signal: DualAISignal): string {
                 <div class="confidence-correlation">
                     <span style="font-size: 0.85rem; color: #6c757d;">High Confidence Correlation</span>
                     <div class="confidence-correlation-bar">
-                        <div class="confidence-correlation-fill" style="width: ${Math.max((gptResult.confidence || 0), (distilbertResult.confidence || 0)) * 100}%"></div>
+                        <div class="confidence-correlation-fill" style="width: ${Math.max((primaryResult.confidence || 0), (mateResult.confidence || 0)) * 100}%"></div>
                     </div>
                     <span style="font-size: 0.85rem; font-weight: bold; color: #2c3e50;">Spread: ${Math.round(confidenceSpread * 100)}%</span>
                 </div>
@@ -900,9 +900,9 @@ function calculateAgreementStats(analysis: Record<string, DualAISignal>): Agreem
 
   const agreements = signals.filter(s => s.comparison?.agree).length;
   const confidences = signals.map(s => {
-    const gptConf = s.models?.gpt?.confidence || 0;
-    const dbConf = s.models?.distilbert?.confidence || 0;
-    return (gptConf + dbConf) / 2;
+    const primaryConf = s.models?.primary?.confidence || 0;
+    const mateConf = s.models?.mate?.confidence || 0;
+    return (primaryConf + mateConf) / 2;
   });
 
   const avgConfidence = confidences.reduce((sum: any, conf: any) => sum + conf, 0) / confidences.length;

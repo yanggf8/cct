@@ -35,8 +35,8 @@ interface TradingSignalData {
 interface AnalysisSignal {
   analysis_type?: string;
   models?: {
-    gpt?: AIModel;
-    distilbert?: AIModel;
+    primary?: AIModel;
+    mate?: AIModel;
   };
   comparison?: DualAIComparison;
   signal?: TradingSignalData;
@@ -62,8 +62,8 @@ interface ProcessedSignal {
   aiInsights?: {
     agree: boolean;
     agreement_type: string;
-    gpt_direction?: string;
-    distilbert_direction?: string;
+    primary_direction?: string;
+    mate_direction?: string;
     signal_action?: string;
   };
 }
@@ -113,7 +113,7 @@ export function generatePreMarketSignals(analysisData: AnalysisData | null): Pre
 
     // Check if this is dual AI analysis
     const isDualAI = signal.analysis_type === 'dual_ai_comparison' ||
-                     signal.models?.gpt ||
+                     signal.models?.primary ||
                      signal.comparison?.agree !== undefined;
 
     let sentiment: string, confidence: number, direction: string, aiInsights: ProcessedSignal['aiInsights'] = null;
@@ -131,12 +131,12 @@ export function generatePreMarketSignals(analysisData: AnalysisData | null): Pre
                       (tradingSignal as any).strength === 'MODERATE' ? 0.75 : 0.65) * 100;
       } else {
         // For partial agreement or disagreement, use weighted average
-        const gptConfidence = models.gpt?.confidence || 0;
-        const dbConfidence = models.distilbert?.confidence || 0;
-        confidence = ((gptConfidence + dbConfidence) / 2) * 100;
+        const primaryConfidence = models.primary?.confidence || 0;
+        const mateConfidence = models.mate?.confidence || 0;
+        confidence = ((primaryConfidence + mateConfidence) / 2) * 100;
 
         // Use dominant model direction
-        sentiment = models.gpt?.direction || models.distilbert?.direction || 'neutral';
+        sentiment = models.primary?.direction || models.mate?.direction || 'neutral';
       }
 
       direction = sentiment === 'bullish' ? 'up' : sentiment === 'bearish' ? 'down' : 'neutral';
@@ -145,8 +145,8 @@ export function generatePreMarketSignals(analysisData: AnalysisData | null): Pre
       aiInsights = {
         agree: (comparison as any).agree,
         agreement_type: (comparison as any).agreement_type,
-        gpt_direction: (models as any).gpt?.direction,
-        distilbert_direction: (models as any).distilbert?.direction,
+        primary_direction: (models as any).primary?.direction,
+        mate_direction: (models as any).mate?.direction,
         signal_action: (tradingSignal as any).action
       };
 

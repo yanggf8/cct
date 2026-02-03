@@ -26,12 +26,12 @@ interface TradingSignal {
     type: string;
   };
   models?: {
-    gpt?: {
+    primary?: {
       direction: string;
       confidence: number | null;
       reasoning: string;
     };
-    distilbert?: {
+    mate?: {
       direction: string;
       confidence: number | null;
       reasoning: string;
@@ -96,14 +96,14 @@ interface ModernSentimentData {
  * Dual-model data structure for comprehensive logging
  */
 interface DualModelData {
-  gemma?: {
+  primary?: {
     status: 'success' | 'failed' | 'timeout' | 'skipped';
     confidence?: number;
     direction?: string;
     error?: string;
     response_time_ms?: number;
   };
-  distilbert?: {
+  mate?: {
     status: 'success' | 'failed' | 'timeout' | 'skipped';
     confidence?: number;
     direction?: string;
@@ -150,10 +150,10 @@ async function writeSymbolPredictionToD1(
       await env.PREDICT_JOBS_DB.prepare(`
         INSERT OR REPLACE INTO symbol_predictions
         (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, articles_content, raw_response,
-         gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
-         distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
-         model_selection_reason, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         primary_status, primary_error, primary_confidence, primary_response_time_ms,
+         mate_status, mate_error, mate_confidence, mate_response_time_ms,
+         primary_model, mate_model, model_selection_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(
         symbol,
         date,
@@ -167,14 +167,16 @@ async function writeSymbolPredictionToD1(
         data.articles_count || 0,
         articlesJson,
         data.raw_response ? JSON.stringify(data.raw_response) : null,
-        dualModelData.gemma_status || null,
-        dualModelData.gemma_error || null,
-        dualModelData.gemma_confidence ?? null,
-        dualModelData.gemma_response_time_ms ?? null,
-        dualModelData.distilbert_status || null,
-        dualModelData.distilbert_error || null,
-        dualModelData.distilbert_confidence ?? null,
-        dualModelData.distilbert_response_time_ms ?? null,
+        dualModelData.primary_status || null,
+        dualModelData.primary_error || null,
+        dualModelData.primary_confidence ?? null,
+        dualModelData.primary_response_time_ms ?? null,
+        dualModelData.mate_status || null,
+        dualModelData.mate_error || null,
+        dualModelData.mate_confidence ?? null,
+        dualModelData.mate_response_time_ms ?? null,
+        'GPT-OSS 120B',
+        'DeepSeek-R1 32B',
         dualModelData.model_selection_reason || null
       ).run();
     } else if (hasNewColumns) {
@@ -182,10 +184,10 @@ async function writeSymbolPredictionToD1(
       await env.PREDICT_JOBS_DB.prepare(`
         INSERT OR REPLACE INTO symbol_predictions
         (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response,
-         gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
-         distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
-         model_selection_reason, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         primary_status, primary_error, primary_confidence, primary_response_time_ms,
+         mate_status, mate_error, mate_confidence, mate_response_time_ms,
+         primary_model, mate_model, model_selection_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(
         symbol,
         date,
@@ -198,14 +200,16 @@ async function writeSymbolPredictionToD1(
         data.news_source || null,
         data.articles_count || 0,
         data.raw_response ? JSON.stringify(data.raw_response) : null,
-        dualModelData.gemma_status || null,
-        dualModelData.gemma_error || null,
-        dualModelData.gemma_confidence ?? null,
-        dualModelData.gemma_response_time_ms ?? null,
-        dualModelData.distilbert_status || null,
-        dualModelData.distilbert_error || null,
-        dualModelData.distilbert_confidence ?? null,
-        dualModelData.distilbert_response_time_ms ?? null,
+        dualModelData.primary_status || null,
+        dualModelData.primary_error || null,
+        dualModelData.primary_confidence ?? null,
+        dualModelData.primary_response_time_ms ?? null,
+        dualModelData.mate_status || null,
+        dualModelData.mate_error || null,
+        dualModelData.mate_confidence ?? null,
+        dualModelData.mate_response_time_ms ?? null,
+        'GPT-OSS 120B',
+        'DeepSeek-R1 32B',
         dualModelData.model_selection_reason || null
       ).run();
     } else {
@@ -245,7 +249,7 @@ async function checkDualModelColumnsExist(env: CloudflareEnvironment): Promise<b
       "SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_predictions'"
     ).first<{ sql: string }>();
 
-    dualModelColumnsExist = result?.sql?.includes('gemma_status') || false;
+    dualModelColumnsExist = result?.sql?.includes('primary_status') || false;
     return dualModelColumnsExist;
   } catch {
     dualModelColumnsExist = false;
@@ -361,12 +365,12 @@ export class PreMarketDataBridge {
       // Run dual AI analysis on SPY with the fetched news
       const result = await performDualAIComparison('SPY', spyNews, this.env);
 
-      if (result.error || (!result.models?.gpt && !result.models?.distilbert)) {
+      if (result.error || (!result.models?.primary && !result.models?.mate)) {
         const error = `AI analysis failed: ${result.error || 'both models returned no results'}`;
         logger.warn('PreMarketDataBridge: SPY analysis failed', {
           error: result.error,
-          hasGPT: !!result.models?.gpt,
-          hasDistilBERT: !!result.models?.distilbert
+          hasPrimary: !!result.models?.primary,
+          hasMate: !!result.models?.mate
         });
         return {
           symbol: 'SPY',
@@ -376,25 +380,25 @@ export class PreMarketDataBridge {
           source: actualSource,
           error,
           dual_model: {
-            gemma: result.models?.gpt ? {
-              status: result.models.gpt.error ? 'failed' : 'success',
-              confidence: result.models.gpt.confidence,
-              direction: result.models.gpt.direction,
-              error: result.models.gpt.error
+            primary: result.models?.primary ? {
+              status: result.models.primary.error ? 'failed' : 'success',
+              confidence: result.models.primary.confidence,
+              direction: result.models.primary.direction,
+              error: result.models.primary.error
             } : { status: 'skipped' },
-            distilbert: result.models?.distilbert ? {
-              status: result.models.distilbert.error ? 'failed' : 'success',
-              confidence: result.models.distilbert.confidence,
-              direction: result.models.distilbert.direction,
-              error: result.models.distilbert.error
+            mate: result.models?.mate ? {
+              status: result.models.mate.error ? 'failed' : 'success',
+              confidence: result.models.mate.confidence,
+              direction: result.models.mate.direction,
+              error: result.models.mate.error
             } : { status: 'skipped' }
           },
           generated_at: now
         };
       }
 
-      // Use GPT (Gemma) if available, fall back to DistilBERT
-      const selectedModel = result.models.gpt || result.models.distilbert;
+      // Use Primary (GPT-OSS) if available, fall back to Mate (DeepSeek)
+      const selectedModel = result.models.primary || result.models.mate;
 
       const marketPulse: MarketPulseData = {
         symbol: 'SPY',
@@ -406,17 +410,17 @@ export class PreMarketDataBridge {
         source: actualSource,
         reasoning: selectedModel!.reasoning,
         dual_model: {
-          gemma: result.models.gpt ? {
-            status: result.models.gpt.error ? 'failed' : 'success',
-            confidence: result.models.gpt.confidence,
-            direction: result.models.gpt.direction,
-            error: result.models.gpt.error
+          primary: result.models.primary ? {
+            status: result.models.primary.error ? 'failed' : 'success',
+            confidence: result.models.primary.confidence,
+            direction: result.models.primary.direction,
+            error: result.models.primary.error
           } : { status: 'skipped' },
-          distilbert: result.models.distilbert ? {
-            status: result.models.distilbert.error ? 'failed' : 'success',
-            confidence: result.models.distilbert.confidence,
-            direction: result.models.distilbert.direction,
-            error: result.models.distilbert.error
+          mate: result.models.mate ? {
+            status: result.models.mate.error ? 'failed' : 'success',
+            confidence: result.models.mate.confidence,
+            direction: result.models.mate.direction,
+            error: result.models.mate.error
           } : { status: 'skipped' }
         },
         generated_at: now
@@ -489,14 +493,14 @@ export class PreMarketDataBridge {
                 type: 'AGREEMENT'
               },
               models: {
-                gpt: sentimentData.dual_model?.gemma?.status === 'success' ? {
-                  direction: sentimentData.dual_model.gemma.direction || 'neutral',
-                  confidence: sentimentData.dual_model.gemma.confidence || null,
+                primary: sentimentData.dual_model?.primary?.status === 'success' ? {
+                  direction: sentimentData.dual_model.primary.direction || 'neutral',
+                  confidence: sentimentData.dual_model.primary.confidence || null,
                   reasoning: sentimentData.reasoning
                 } : undefined,
-                distilbert: sentimentData.dual_model?.distilbert?.status === 'success' ? {
-                  direction: sentimentData.dual_model.distilbert.direction || 'neutral',
-                  confidence: sentimentData.dual_model.distilbert.confidence || null,
+                mate: sentimentData.dual_model?.mate?.status === 'success' ? {
+                  direction: sentimentData.dual_model.mate.direction || 'neutral',
+                  confidence: sentimentData.dual_model.mate.confidence || null,
                   reasoning: sentimentData.reasoning
                 } : undefined
               },
@@ -629,8 +633,8 @@ export class PreMarketDataBridge {
         symbol: signal.symbol,
         sentiment: signal.sentiment_layers?.[0]?.sentiment || 'neutral',
         confidence: signal.sentiment_layers?.[0]?.confidence ?? signal.confidence ?? null,
-        gemma_confidence: signal.dual_model?.gemma?.confidence ?? null,
-        distilbert_confidence: signal.dual_model?.distilbert?.confidence ?? null,
+        primary_confidence: signal.dual_model?.primary?.confidence ?? null,
+        mate_confidence: signal.dual_model?.mate?.confidence ?? null,
         status: signal.status || 'success',
         reason: signal.sentiment_layers?.[0]?.reasoning || ''
       }));
@@ -718,41 +722,41 @@ export class PreMarketDataBridge {
           logger.info(`Batch analysis result for ${symbol}`, {
             symbol,
             hasError: !!firstResult.error,
-            hasGPT: !!firstResult.models?.gpt,
-            hasDistilBERT: !!firstResult.models?.distilbert,
-            gptDirection: firstResult.models?.gpt?.direction,
-            distilbertDirection: firstResult.models?.distilbert?.direction,
+            hasPrimary: !!firstResult.models?.primary,
+            hasMate: !!firstResult.models?.mate,
+            primaryDirection: firstResult.models?.primary?.direction,
+            mateDirection: firstResult.models?.mate?.direction,
             signalAction: firstResult.signal?.action
           });
 
-          if (firstResult && !firstResult.error && (firstResult.models?.gpt || firstResult.models?.distilbert)) {
-            // Use GPT if available, otherwise fall back to DistilBERT
-            const gptModel = firstResult.models.gpt;
-            const distilbertModel = firstResult.models.distilbert;
-            const selectedModel = gptModel || distilbertModel;
+          if (firstResult && !firstResult.error && (firstResult.models?.primary || firstResult.models?.mate)) {
+            // Use Primary if available, otherwise fall back to Mate
+            const primaryModel = firstResult.models.primary;
+            const mateModel = firstResult.models.mate;
+            const selectedModel = primaryModel || mateModel;
 
             // Determine selection reason
-            let selectionReason = 'gemma_success';
-            if (!gptModel && distilbertModel) {
-              selectionReason = gptModel?.error?.includes('timeout') ? 'timeout_fallback' : 'gemma_failed_fallback';
+            let selectionReason = 'primary_success';
+            if (!primaryModel && mateModel) {
+              selectionReason = primaryModel?.error?.includes('timeout') ? 'timeout_fallback' : 'primary_failed_fallback';
             }
 
             // Build dual-model diagnostic data
             const dualModelData: DualModelData = {
-              gemma: gptModel ? {
-                status: gptModel.error ? 'failed' : 'success',
-                confidence: gptModel.confidence,
-                direction: gptModel.direction,
-                error: gptModel.error
+              primary: primaryModel ? {
+                status: primaryModel.error ? 'failed' : 'success',
+                confidence: primaryModel.confidence,
+                direction: primaryModel.direction,
+                error: primaryModel.error
               } : {
                 status: 'skipped',
-                error: 'No GPT model data'
+                error: 'No primary model data'
               },
-              distilbert: distilbertModel ? {
-                status: distilbertModel.error ? 'failed' : 'success',
-                confidence: distilbertModel.confidence,
-                direction: distilbertModel.direction,
-                error: distilbertModel.error
+              mate: mateModel ? {
+                status: mateModel.error ? 'failed' : 'success',
+                confidence: mateModel.confidence,
+                direction: mateModel.direction,
+                error: mateModel.error
               } : {
                 status: 'skipped',
                 error: 'No DistilBERT model data'
@@ -780,8 +784,8 @@ export class PreMarketDataBridge {
               articles_analyzed: sentimentData.articles_analyzed,
               model_used: selectedModel!.model,
               signal_action: sentimentData.signal,
-              gemma_status: dualModelData.gemma?.status,
-              distilbert_status: dualModelData.distilbert?.status,
+              primary_status: dualModelData.primary?.status,
+              mate_status: dualModelData.mate?.status,
               selection_reason: selectionReason
             });
 
@@ -791,8 +795,8 @@ export class PreMarketDataBridge {
               symbol,
               hasError: !!firstResult?.error,
               error: firstResult?.error,
-              hasGPT: !!firstResult?.models?.gpt,
-              hasDistilBERT: !!firstResult?.models?.distilbert
+              hasPrimary: !!firstResult?.models?.primary,
+              hasMate: !!firstResult?.models?.mate
             });
           }
         }

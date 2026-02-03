@@ -222,8 +222,8 @@ export interface WeeklyReviewAnalysis {
   sectorRotation: SectorRotation;
   nextWeekOutlook: NextWeekOutlook;
   modelStats?: {
-    gemma: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
-    distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    primary: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+    mate: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
     agreementRate: number | null;
   };
   /** Generation metadata for failure visibility - check this to detect default/failed data */
@@ -361,8 +361,8 @@ export async function generateWeeklyReviewAnalysis(
  * Aggregates Gemma and DistilBERT performance over the past week
  */
 export type WeeklyModelStats = {
-  gemma: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
-  distilbert: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+  primary: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
+  mate: { total: number; success: number; failed: number; accuracy: number | null; avgConfidence: number | null } | null;
   agreementRate: number | null;
 };
 
@@ -376,40 +376,40 @@ export async function getWeeklyDualModelStats(
     const current = typeof currentTime === 'string' || typeof currentTime === 'number' ? new Date(currentTime) : currentTime;
     const endDate = current.toISOString().split('T')[0];
     const result = await env.PREDICT_JOBS_DB.prepare(`
-      SELECT 
+      SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN gemma_status = 'success' THEN 1 ELSE 0 END) as gemma_success,
-        SUM(CASE WHEN gemma_status = 'failed' OR gemma_status = 'timeout' THEN 1 ELSE 0 END) as gemma_failed,
-        AVG(CASE WHEN gemma_confidence IS NOT NULL THEN gemma_confidence END) as gemma_avg_confidence,
-        SUM(CASE WHEN distilbert_status = 'success' THEN 1 ELSE 0 END) as distilbert_success,
-        SUM(CASE WHEN distilbert_status = 'failed' OR distilbert_status = 'timeout' THEN 1 ELSE 0 END) as distilbert_failed,
-        AVG(CASE WHEN distilbert_confidence IS NOT NULL THEN distilbert_confidence END) as distilbert_avg_confidence,
-        SUM(CASE WHEN model_selection_reason LIKE '%agree%' OR (gemma_status = 'success' AND distilbert_status = 'success') THEN 1 ELSE 0 END) as agreements
+        SUM(CASE WHEN primary_status = 'success' THEN 1 ELSE 0 END) as primary_success,
+        SUM(CASE WHEN primary_status = 'failed' OR primary_status = 'timeout' THEN 1 ELSE 0 END) as primary_failed,
+        AVG(CASE WHEN primary_confidence IS NOT NULL THEN primary_confidence END) as primary_avg_confidence,
+        SUM(CASE WHEN mate_status = 'success' THEN 1 ELSE 0 END) as mate_success,
+        SUM(CASE WHEN mate_status = 'failed' OR mate_status = 'timeout' THEN 1 ELSE 0 END) as mate_failed,
+        AVG(CASE WHEN mate_confidence IS NOT NULL THEN mate_confidence END) as mate_avg_confidence,
+        SUM(CASE WHEN model_selection_reason LIKE '%agree%' OR (primary_status = 'success' AND mate_status = 'success') THEN 1 ELSE 0 END) as agreements
       FROM symbol_predictions
       WHERE prediction_date >= date(?, '-7 days') AND prediction_date <= date(?)
-        AND (gemma_status IS NOT NULL OR distilbert_status IS NOT NULL)
+        AND (primary_status IS NOT NULL OR mate_status IS NOT NULL)
     `).bind(endDate, endDate).first();
 
     if (!result || (result as any).total === 0) return undefined;
 
     const r = result as any;
-    const gemmaTotal = (r.gemma_success || 0) + (r.gemma_failed || 0);
-    const distilbertTotal = (r.distilbert_success || 0) + (r.distilbert_failed || 0);
+    const primaryTotal = (r.primary_success || 0) + (r.primary_failed || 0);
+    const mateTotal = (r.mate_success || 0) + (r.mate_failed || 0);
 
     return {
-      gemma: gemmaTotal > 0 ? {
-        total: gemmaTotal,
-        success: r.gemma_success || 0,
-        failed: r.gemma_failed || 0,
-        accuracy: gemmaTotal > 0 ? (r.gemma_success || 0) / gemmaTotal : null,
-        avgConfidence: r.gemma_avg_confidence
+      primary: primaryTotal > 0 ? {
+        total: primaryTotal,
+        success: r.primary_success || 0,
+        failed: r.primary_failed || 0,
+        accuracy: primaryTotal > 0 ? (r.primary_success || 0) / primaryTotal : null,
+        avgConfidence: r.primary_avg_confidence
       } : null,
-      distilbert: distilbertTotal > 0 ? {
-        total: distilbertTotal,
-        success: r.distilbert_success || 0,
-        failed: r.distilbert_failed || 0,
-        accuracy: distilbertTotal > 0 ? (r.distilbert_success || 0) / distilbertTotal : null,
-        avgConfidence: r.distilbert_avg_confidence
+      mate: mateTotal > 0 ? {
+        total: mateTotal,
+        success: r.mate_success || 0,
+        failed: r.mate_failed || 0,
+        accuracy: mateTotal > 0 ? (r.mate_success || 0) / mateTotal : null,
+        avgConfidence: r.mate_avg_confidence
       } : null,
       agreementRate: r.total > 0 ? (r.agreements || 0) / r.total : null
     };

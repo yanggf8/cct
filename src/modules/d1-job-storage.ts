@@ -30,14 +30,14 @@ export interface D1SymbolPrediction {
   articles_content?: string;
   news_source?: string;
   // Dual model tracking columns
-  gemma_status?: string;
-  gemma_error?: string;
-  gemma_confidence?: number;
-  gemma_response_time_ms?: number;
-  distilbert_status?: string;
-  distilbert_error?: string;
-  distilbert_confidence?: number;
-  distilbert_response_time_ms?: number;
+  primary_status?: string;
+  primary_error?: string;
+  primary_confidence?: number;
+  primary_response_time_ms?: number;
+  mate_status?: string;
+  mate_error?: string;
+  mate_confidence?: number;
+  mate_response_time_ms?: number;
   model_selection_reason?: string;
 }
 
@@ -373,6 +373,7 @@ export async function getD1LatestReportSnapshot(
 
 /**
  * Get symbol predictions from D1 for a specific date
+ * Aliases gemma_xxx/distilbert_xxx columns to primary_xxx/mate_xxx for model-agnostic TypeScript interface
  */
 export async function getD1Predictions(
   env: CloudflareEnvironment,
@@ -385,9 +386,27 @@ export async function getD1Predictions(
   }
 
   try {
-    const result = await db.prepare(
-      'SELECT * FROM symbol_predictions WHERE prediction_date = ? ORDER BY created_at DESC'
-    ).bind(date).all<D1SymbolPrediction>();
+    // Alias D1 column names (gemma_*/distilbert_*) to TypeScript interface names (primary_*/mate_*)
+    const result = await db.prepare(`
+      SELECT
+        id, symbol, prediction_date, sentiment, confidence, direction, model, analysis_type,
+        trading_signals, created_at, status, error_message, raw_response, error_summary,
+        articles_count, articles_content, news_source,
+        primary_status,
+        primary_error,
+        primary_confidence,
+        primary_response_time_ms,
+        mate_status,
+        mate_error,
+        mate_confidence,
+        mate_response_time_ms,
+        primary_model,
+        mate_model,
+        model_selection_reason
+      FROM symbol_predictions
+      WHERE prediction_date = ?
+      ORDER BY created_at DESC
+    `).bind(date).all<D1SymbolPrediction>();
 
     if (result.results && result.results.length > 0) {
       logger.info('D1 fallback: Found predictions', { date, count: result.results.length });
@@ -436,21 +455,21 @@ export function transformD1ToAnalysis(predictions: D1SymbolPrediction[]): any {
 
     // Build dual_model structure from D1 columns
     const dualModel: any = {};
-    if (p.gemma_status || p.gemma_confidence !== undefined) {
-      dualModel.gemma = {
-        status: p.gemma_status || 'unknown',
-        confidence: p.gemma_confidence,
-        error: p.gemma_error,
-        response_time_ms: p.gemma_response_time_ms,
-        direction: p.sentiment // Gemma is primary, so use main sentiment
+    if (p.primary_status || p.primary_confidence !== undefined) {
+      dualModel.primary = {
+        status: p.primary_status || 'unknown',
+        confidence: p.primary_confidence,
+        error: p.primary_error,
+        response_time_ms: p.primary_response_time_ms,
+        direction: p.sentiment
       };
     }
-    if (p.distilbert_status || p.distilbert_confidence !== undefined) {
-      dualModel.distilbert = {
-        status: p.distilbert_status || 'unknown',
-        confidence: p.distilbert_confidence,
-        error: p.distilbert_error,
-        response_time_ms: p.distilbert_response_time_ms,
+    if (p.mate_status || p.mate_confidence !== undefined) {
+      dualModel.mate = {
+        status: p.mate_status || 'unknown',
+        confidence: p.mate_confidence,
+        error: p.mate_error,
+        response_time_ms: p.mate_response_time_ms,
         direction: p.direction
       };
     }
@@ -465,11 +484,11 @@ export function transformD1ToAnalysis(predictions: D1SymbolPrediction[]): any {
       overall_confidence: p.confidence,
       recommendation: tradingSignals.recommendation || 'HOLD',
       agreement_type: tradingSignals.signal_type === 'AGREEMENT' ? 'full_agreement' : 'partial_agreement',
-      gpt_sentiment: p.sentiment,
-      gpt_confidence: p.gemma_confidence ?? p.confidence,
-      gpt_reasoning: tradingSignals.entry_signals?.reasoning || '',
-      distilbert_sentiment: p.direction,
-      distilbert_confidence: p.distilbert_confidence ?? p.confidence,
+      primary_sentiment: p.sentiment,
+      primary_confidence: p.primary_confidence ?? p.confidence,
+      primary_reasoning: tradingSignals.entry_signals?.reasoning || '',
+      mate_sentiment: p.direction,
+      mate_confidence: p.mate_confidence ?? p.confidence,
       news_count: p.articles_count || 0,
       articles_count: p.articles_count || 0,
       articles_content: p.articles_content,
@@ -477,8 +496,8 @@ export function transformD1ToAnalysis(predictions: D1SymbolPrediction[]): any {
       top_articles: [],
       dual_model: Object.keys(dualModel).length > 0 ? dualModel : undefined,
       models: Object.keys(dualModel).length > 0 ? {
-        gpt: dualModel.gemma,
-        distilbert: dualModel.distilbert
+        primary: dualModel.primary,
+        mate: dualModel.mate
       } : undefined
     };
   });

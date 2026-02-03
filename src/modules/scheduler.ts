@@ -887,15 +887,18 @@ export async function handleScheduledEvent(
               
               // Transform analysis result to report format expected by the report endpoint
               const tradingSignals = analysisResult.trading_signals || {};
+              const roundConfidence = (v: number | null | undefined) => v != null ? Math.round(v * 1000) / 1000 : null;
               const allSignals = Object.values(tradingSignals).map((signal: any) => ({
                 symbol: signal.symbol,
-                sentiment: signal.enhanced_prediction?.direction || signal.direction || 'neutral',
-                confidence: signal.confidence_metrics?.overall_confidence ?? signal.enhanced_prediction?.confidence ?? signal.confidence ?? null,
-                // Extract dual model confidences from confidence_breakdown (GPT-OSS 120B + DeepSeek-R1)
-                gpt_confidence: signal.confidence_metrics?.confidence_breakdown?.gpt_confidence ?? null,
-                distilbert_confidence: signal.confidence_metrics?.confidence_breakdown?.distilbert_confidence ?? null,
-                status: (signal.confidence_metrics?.overall_confidence ?? signal.enhanced_prediction?.confidence ?? signal.confidence) ? 'success' : 'failed',
-                reason: signal.enhanced_prediction?.sentiment_analysis?.reasoning || signal.sentiment_layers?.[0]?.reasoning || ''
+                sentiment: signal.enhanced_prediction?.direction || signal.trading_signals?.primary_direction || signal.direction || 'neutral',
+                confidence: roundConfidence(signal.confidence_metrics?.overall_confidence ?? signal.trading_signals?.overall_confidence ?? signal.confidence),
+                // Dual model confidences - model-agnostic naming
+                primary_model: 'GPT-OSS 120B',
+                primary_confidence: roundConfidence(signal.confidence_metrics?.confidence_breakdown?.primary_confidence),
+                mate_model: 'DeepSeek-R1 32B',
+                mate_confidence: roundConfidence(signal.confidence_metrics?.confidence_breakdown?.mate_confidence),
+                status: (signal.confidence_metrics?.overall_confidence ?? signal.trading_signals?.overall_confidence ?? signal.confidence) ? 'success' : 'failed',
+                reason: signal.trading_signals?.entry_signals?.reasoning || signal.sentiment_layers?.[0]?.reasoning || signal.signal?.reasoning || ''
               }));
 
               const reportData = {

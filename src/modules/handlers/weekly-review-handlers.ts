@@ -184,8 +184,8 @@ function generateWeeklyReviewHTML(
     // avgConfidence should be a 0..1 fraction (UI multiplies by 100). Prefer modelStats if present.
     avgConfidence: (() => {
       const confidences = [
-        weeklyData.modelStats?.gemma?.avgConfidence,
-        weeklyData.modelStats?.distilbert?.avgConfidence,
+        weeklyData.modelStats?.primary?.avgConfidence,
+        weeklyData.modelStats?.mate?.avgConfidence,
       ].filter((v: any) => typeof v === 'number' && Number.isFinite(v));
       if (confidences.length === 0) return null;
       return confidences.reduce((a: number, b: number) => a + b, 0) / confidences.length;
@@ -320,20 +320,20 @@ function generateWeeklyReviewHTML(
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 800px; margin: 0 auto;">
                 <div class="summary-card">
                     <h3>${AI_MODEL_DISPLAY.primary.name}</h3>
-                    <div class="value">${normalizedData.modelStats?.gemma?.accuracy ? Math.round(normalizedData.modelStats.gemma.accuracy * 100) + '%' : 'N/A'}</div>
-                    <div class="label">${normalizedData.modelStats?.gemma?.total || 0} predictions</div>
+                    <div class="value">${normalizedData.modelStats?.primary?.accuracy ? Math.round(normalizedData.modelStats.primary.accuracy * 100) + '%' : 'N/A'}</div>
+                    <div class="label">${normalizedData.modelStats?.primary?.total || 0} predictions</div>
                     <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
-                        ✓ ${normalizedData.modelStats?.gemma?.success || 0} success |
-                        ✗ ${normalizedData.modelStats?.gemma?.failed || 0} failed
+                        ✓ ${normalizedData.modelStats?.primary?.success || 0} success |
+                        ✗ ${normalizedData.modelStats?.primary?.failed || 0} failed
                     </div>
                 </div>
                 <div class="summary-card">
                     <h3>${AI_MODEL_DISPLAY.secondary.name}</h3>
-                    <div class="value">${normalizedData.modelStats?.distilbert?.accuracy ? Math.round(normalizedData.modelStats.distilbert.accuracy * 100) + '%' : 'N/A'}</div>
-                    <div class="label">${normalizedData.modelStats?.distilbert?.total || 0} predictions</div>
+                    <div class="value">${normalizedData.modelStats?.mate?.accuracy ? Math.round(normalizedData.modelStats.mate.accuracy * 100) + '%' : 'N/A'}</div>
+                    <div class="label">${normalizedData.modelStats?.mate?.total || 0} predictions</div>
                     <div style="font-size: 0.8rem; margin-top: 8px; opacity: 0.7;">
-                        ✓ ${normalizedData.modelStats?.distilbert?.success || 0} success | 
-                        ✗ ${normalizedData.modelStats?.distilbert?.failed || 0} failed
+                        ✓ ${normalizedData.modelStats?.mate?.success || 0} success |
+                        ✗ ${normalizedData.modelStats?.mate?.failed || 0} failed
                     </div>
                 </div>
             </div>
