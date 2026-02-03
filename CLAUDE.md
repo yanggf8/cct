@@ -20,8 +20,9 @@
 
 ## Testing API
 
+- **Shell env var**: `$X_API_KEY` is pre-set — always use it directly, never scrape from frontend config
 - **Header**: `X-API-Key` (hyphen) - both `X-API-Key` and `X_API_KEY` work
-- **Example**: `curl -H "X-API-Key: $KEY" https://tft-trading-system.yanggf.workers.dev/api/v1/...`
+- **Example**: `curl -H "X-API-Key: $(printf '%s' "$X_API_KEY" | tr -d '\r\n')" https://tft-trading-system.yanggf.workers.dev/api/v1/...`
 
 ---
 
