@@ -106,90 +106,6 @@ function getETTimeParts(utcDate: Date): { hour: number; minute: number; dayOfWee
   return { hour, minute, dayOfWeek };
 }
 
-/**
- * Extract per-symbol AI analysis details for job stage logging
- * Parses trading_signals to identify successes, failures, and errors
- */
-function extractAIAnalysisDetails(analysisResult: AnalysisResult | null): {
-  hasFailures: boolean;
-  errors: string[];
-  warnings: string[];
-  perSymbolStatus: Record<string, unknown>;
-} {
-  const result = {
-    hasFailures: false,
-    errors: [] as string[],
-    warnings: [] as string[],
-    perSymbolStatus: {} as Record<string, unknown>
-  };
-
-  if (!analysisResult || !analysisResult.trading_signals) {
-    result.hasFailures = true;
-    result.errors.push('No analysis result or trading signals');
-    return result;
-  }
-
-  const signals = analysisResult.trading_signals;
-  let successCount = 0;
-  let failureCount = 0;
-
-  for (const [symbol, signal] of Object.entries(signals)) {
-    const s = signal as any;
-    const signalType = s?.trading_signals?.signal_type || s?.sentiment_patterns?.signal_type || 'UNKNOWN';
-    const confidence = s?.confidence_metrics?.overall_confidence ?? s?.confidence ?? null;
-    const primaryReasoning = s?.sentiment_layers?.[0]?.detailed_analysis?.reasoning || s?.sentiment_layers?.[0]?.reasoning || '';
-    const mateReasoning = s?.sentiment_layers?.[1]?.reasoning || '';
-
-    // Check for error indicators
-    const isError = signalType === 'ERROR' ||
-                    confidence === null ||
-                    confidence === 0 ||
-                    primaryReasoning.includes('circuit breaker') ||
-                    primaryReasoning.includes('temporarily unavailable') ||
-                    primaryReasoning.includes('Too many subrequests') ||
-                    primaryReasoning.includes('failed');
-
-    if (isError) {
-      failureCount++;
-      const errorReason = primaryReasoning || mateReasoning || 'Unknown error';
-      result.errors.push(`${symbol}: ${errorReason}`);
-      result.perSymbolStatus[symbol] = {
-        status: 'failed',
-        error: errorReason,
-        signal_type: signalType
-      };
-    } else {
-      successCount++;
-      result.perSymbolStatus[symbol] = {
-        status: 'success',
-        confidence,
-        direction: s?.direction || s?.enhanced_prediction?.direction || 'unknown',
-        signal_type: signalType
-      };
-    }
-  }
-
-  // Add summary
-  result.perSymbolStatus['_summary'] = {
-    total: successCount + failureCount,
-    success: successCount,
-    failed: failureCount,
-    success_rate: successCount + failureCount > 0
-      ? (successCount / (successCount + failureCount)).toFixed(2)
-      : '0.00'
-  };
-
-  // Mark as having failures if any symbol failed
-  result.hasFailures = failureCount > 0;
-
-  // Add warnings if partial success
-  if (failureCount > 0 && successCount > 0) {
-    result.warnings.push(`Partial success: ${successCount}/${successCount + failureCount} symbols analyzed`);
-  }
-
-  return result;
-}
-
 export interface SlackAlert {
   text: string;
   attachments?: Array<{
@@ -846,17 +762,9 @@ export async function handleScheduledEvent(
           }
         });
 
-        // Extract per-symbol AI analysis details for logging
+        // End ai_analysis stage
         if (runTrackingEnabled) {
-          const aiAnalysisDetails = extractAIAnalysisDetails(analysisResult);
-          await endJobStage(env, {
-            runId,
-            stage: 'ai_analysis',
-            status: aiAnalysisDetails.hasFailures ? 'failed' : 'success',
-            errors: aiAnalysisDetails.errors,
-            warnings: aiAnalysisDetails.warnings,
-            details: aiAnalysisDetails.perSymbolStatus
-          });
+          await endJobStage(env, { runId, stage: 'ai_analysis' });
         }
 
         // Facebook messaging has been migrated to Chrome web notifications
