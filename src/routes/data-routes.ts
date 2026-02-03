@@ -122,6 +122,11 @@ export async function handleDataRoutes(
       return await handleShowBindings(request, env, headers, requestId);
     }
 
+    // POST /api/v1/data/cache-clear - Clear DO cache (requires API key)
+    if (path === '/api/v1/data/cache-clear' && method === 'POST') {
+      return await handleCacheClear(request, env, headers, requestId);
+    }
+
     // Method not allowed for existing paths
     return new Response(
       JSON.stringify(
@@ -1957,5 +1962,59 @@ function tryParseJSON(text: string): any {
     return { raw: text };
   } catch {
     return { raw: text };
+  }
+}
+
+/**
+ * Clear DO cache
+ * POST /api/v1/data/cache-clear
+ */
+async function handleCacheClear(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  try {
+    logger.info('Cache Clear Request', { requestId });
+
+    if (!env.CACHE_DO) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('CACHE_DO binding not available', 'BINDING_ERROR', { requestId })),
+        { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+      );
+    }
+
+    // Call DO clear action
+    const cacheId = (env.CACHE_DO as any).idFromName('global-cache');
+    const cacheStub = (env.CACHE_DO as any).get(cacheId);
+    const clearRes = await cacheStub.fetch(new Request('https://cache/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear' })
+    }));
+
+    if (!clearRes.ok) {
+      const errorText = await clearRes.text();
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Cache clear failed', 'CACHE_ERROR', { requestId, error: errorText })),
+        { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+      );
+    }
+
+    const result = await clearRes.json();
+
+    logger.info('Cache Cleared', { requestId, result });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({ cleared: true, ...result }, { message: 'DO cache cleared successfully' })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error) {
+    logger.error('Cache Clear Error', { requestId, error: String(error) });
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Cache clear failed', 'CACHE_ERROR', { requestId, error: String(error) })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
   }
 }
