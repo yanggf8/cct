@@ -38,6 +38,8 @@
 - **D1 columns**: `primary_*` and `mate_*` with aliasing layer for backward compat
 - **Legacy field names**: `gpt`/`gemma` (primary) and `distilbert` (mate) supported via fallbacks
 - On failure: `status: 'failed', confidence: null` - no fake data
+- **Circuit breaker**: Per-model (`ai-model-primary`, `ai-model-mate`), threshold=3, wraps retry logic so retries count as one attempt
+- **Retry**: Max 2 attempts per AI call; skips retry on circuit breaker and subrequest limit errors
 - **End-of-day lineage**: `pre_market_run_id` and `intraday_run_id` in report body + `_d1_metadata`
 - **End-of-day signal breakdown**: Per-symbol `primary_confidence`, `mate_confidence`, `primary_reasoning`, `mate_reasoning`, `action`, `signal_reasoning`, `articles_count`
 
@@ -111,7 +113,9 @@ DELETE FROM news_fetch_log;
 
 - `src/modules/cache-durable-object.ts` - DO cache
 - `src/modules/config.ts` - Centralized config
+- `src/modules/circuit-breaker.ts` - Circuit breaker pattern for external API protection
 - `src/modules/d1-job-storage.ts` - D1 queries, `checkScheduledRuns()`
+- `src/modules/dual-ai-analysis.ts` - Dual AI sentiment analysis with circuit breaker + retry
 - `src/modules/free_sentiment_pipeline.ts` - News fetching with diagnostics
 - `src/modules/report/end-of-day-analysis.ts` - End-of-day analysis with enriched signal breakdown
 - `src/routes/jobs-routes.ts` - Job triggers/history/schedule-check
@@ -123,6 +127,7 @@ DELETE FROM news_fetch_log;
 
 ## GitHub Actions Scheduling
 
+- **Exclusive scheduler**: GitHub Actions only (Cloudflare cron disabled via `crons = []` in wrangler.toml)
 - Cron triggers: pre-market (12:30 UTC), intraday (16:00 UTC), end-of-day (20:05 UTC), weekly (14:00 UTC Sun)
 - Detection uses `github.event.schedule` cron matching (not time-window)
 - Schedule compliance: `GET /api/v1/jobs/schedule-check?date=YYYY-MM-DD` (requires API key)
@@ -158,4 +163,4 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ---
 
-**Last Updated**: 2026-02-03
+**Last Updated**: 2026-02-04
