@@ -270,17 +270,22 @@ export async function performDualAIComparison(
  */
 async function retryAIcall<T>(
   operation: () => Promise<T>,
-  maxRetries: number = 3,
+  maxRetries: number = 2,  // Reduced from 3 to avoid subrequest limits
   baseDelay: number = 1000
 ): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       if (attempt === maxRetries - 1) throw error;
 
-      // Don't retry on certain errors
-      if ((error instanceof Error ? error.message : String(error)).includes('invalid') || (error instanceof Error ? error.message : String(error)).includes('authentication')) {
+      // Don't retry on certain errors (non-transient)
+      if (errorMessage.includes('invalid') ||
+          errorMessage.includes('authentication') ||
+          errorMessage.includes('Circuit breaker') ||
+          errorMessage.includes('Too many subrequests')) {
         throw error;
       }
 
@@ -330,10 +335,10 @@ Based on your reasoning, respond with ONLY this JSON format:
   "reasoning": "brief explanation of key factors"
 }`;
 
-    // Add circuit breaker, timeout protection and retry logic
+    // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
     const circuitBreaker = getAICircuitBreakers().primary;
-    const response = await retryAIcall(async () => {
-      return await circuitBreaker.execute(async () => {
+    const response = await circuitBreaker.execute(async () => {
+      return await retryAIcall(async () => {
         return await Promise.race([
           env.AI.run('@cf/openai/gpt-oss-120b', {
             messages: [{ role: 'user', content: prompt }],
@@ -438,9 +443,10 @@ Based on your analysis, respond with ONLY this JSON format:
   "reasoning": "brief explanation of key factors"
 }`;
 
+    // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
     const circuitBreaker = getAICircuitBreakers().mate;
-    const response = await retryAIcall(async () => {
-      return await circuitBreaker.execute(async () => {
+    const response = await circuitBreaker.execute(async () => {
+      return await retryAIcall(async () => {
         return await Promise.race([
           env.AI.run('@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', {
             messages: [{ role: 'user', content: prompt }],
