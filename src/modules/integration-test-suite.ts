@@ -381,8 +381,9 @@ export class IntegrationTestSuite {
 
       const validations = {
         hasSignal: !!result.signal,
-        hasGPTAnalysis: !!(result as any).models?.gpt,
-        hasDistilBERTAnalysis: !!(result as any).models?.distilbert,
+        // Model-agnostic naming with backward compat fallbacks
+        hasPrimaryAnalysis: !!(result.models?.primary || (result as any).models?.gpt),
+        hasMateAnalysis: !!(result.models?.mate || (result as any).models?.distilbert),
         hasConfidence: (result as any).overall_confidence !== undefined || result.performance_metrics !== undefined,
         hasRecommendation: !!(result as any).comparison?.recommendation
       };

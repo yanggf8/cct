@@ -210,9 +210,9 @@ function processDualAISignal(
   directionCorrect: boolean,
   analysisData: any
 ): FactTableRecord {
-  // Extract dual AI model data
-  const gptModel = signal.models?.gpt || {};
-  const distilBERTModel = signal.models?.distilbert || {};
+  // Extract dual AI model data (model-agnostic naming with backward compat)
+  const primaryModel = signal.models?.primary || signal.models?.gpt || {};
+  const mateModel = signal.models?.mate || signal.models?.distilbert || {};
   const dualAIComparison = signal.comparison || {};
   const dualAISignal = signal.signal || {};
 
@@ -235,10 +235,10 @@ function processDualAISignal(
     // Dual AI Analysis specific fields
     primary_model: 'GPT-OSS 120B',
     secondary_model: 'DeepSeek-R1 32B',
-    primary_confidence: gptModel.confidence || 0,
-    mate_confidence: distilBERTModel.confidence || 0,
-    primary_direction: gptModel.direction,
-    mate_direction: distilBERTModel.direction,
+    primary_confidence: primaryModel.confidence || 0,
+    mate_confidence: mateModel.confidence || 0,
+    primary_direction: primaryModel.direction,
+    mate_direction: mateModel.direction,
 
     // Agreement and signal data
     models_agree: dualAIComparison.agree || false,
@@ -250,7 +250,7 @@ function processDualAISignal(
     // Dual AI specific metrics
     dual_ai_agreement: dualAIComparison.agree,
     dual_ai_agreement_score: calculateAgreementScore(dualAIComparison),
-    articles_analyzed: gptModel.articles_analyzed || distilBERTModel.articles_analyzed || 0,
+    articles_analyzed: primaryModel.articles_analyzed || mateModel.articles_analyzed || 0,
 
     // Analysis metadata
     analysis_type: 'dual_ai_comparison',
