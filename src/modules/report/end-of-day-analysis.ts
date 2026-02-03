@@ -192,7 +192,11 @@ export async function generateEndOfDayAnalysis(
     const today = new Date().toISOString().split('T')[0];
 
     // Get final market close data
-    const marketCloseData = await getMarketClosePerformance(analysisData?.symbols_analyzed || [], env);
+    // symbols_analyzed is stored as a count (number), not an array — derive symbols from trading_signals keys
+    const symbols = Array.isArray(analysisData?.symbols_analyzed)
+      ? analysisData.symbols_analyzed
+      : Object.keys(analysisData?.trading_signals || {});
+    const marketCloseData = await getMarketClosePerformance(symbols, env);
 
     // Analyze high-confidence signal performance
     const signalPerformance = analyzeHighConfidenceSignals(
