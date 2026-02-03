@@ -2,7 +2,7 @@
 
 ## System Overview
 
-**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.24 | **Status**: Production Ready
+**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.25 | **Status**: Production Ready
 
 - Dual AI: GPT-OSS 120B (reasoning) + DeepSeek-R1 32B (reasoning)
 - 4-Moment workflow: Pre-Market → Intraday → End-of-Day → Weekly
@@ -37,6 +37,8 @@
 - **D1 columns**: `primary_*` and `mate_*` with aliasing layer for backward compat
 - **Legacy field names**: `gpt`/`gemma` (primary) and `distilbert` (mate) supported via fallbacks
 - On failure: `status: 'failed', confidence: null` - no fake data
+- **End-of-day lineage**: `pre_market_run_id` and `intraday_run_id` in report body + `_d1_metadata`
+- **End-of-day signal breakdown**: Per-symbol `primary_confidence`, `mate_confidence`, `primary_reasoning`, `mate_reasoning`, `action`, `signal_reasoning`, `articles_count`
 
 ---
 
@@ -65,7 +67,7 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 | **Jobs** | `POST /jobs/pre-market`, `GET /jobs/runs` (public), `GET /jobs/runs/:runId/stages` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
 | **Reports** | `GET /reports/pre-market`, `GET /reports/intraday?date=YYYY-MM-DD`, `GET /reports/intraday?run_id=...`, `GET /reports/end-of-day`, `GET /reports/status` |
 | **Sentiment** | `GET /sentiment/analysis`, `/market` |
-| **Data** | `GET /data/health`, `/symbols`, `/system-status` |
+| **Data** | `GET /data/health`, `/symbols`, `/system-status`, `POST /data/cache-clear` |
 
 ---
 
@@ -110,8 +112,10 @@ DELETE FROM news_fetch_log;
 - `src/modules/config.ts` - Centralized config
 - `src/modules/d1-job-storage.ts` - D1 queries, `checkScheduledRuns()`
 - `src/modules/free_sentiment_pipeline.ts` - News fetching with diagnostics
+- `src/modules/report/end-of-day-analysis.ts` - End-of-day analysis with enriched signal breakdown
 - `src/routes/jobs-routes.ts` - Job triggers/history/schedule-check
 - `src/routes/api-v1.ts` - API gateway
+- `src/routes/data-routes.ts` - Data endpoints incl. cache-clear
 - `public/js/cct-api.js` - Frontend API client
 
 ---
