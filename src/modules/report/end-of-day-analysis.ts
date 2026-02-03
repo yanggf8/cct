@@ -32,11 +32,12 @@ interface AnalysisSignal {
   }>;
   dual_model?: any;
   models?: {
-    primary?: { direction?: string; confidence?: number; error?: string };
-    mate?: { direction?: string; confidence?: number; error?: string };
+    primary?: { direction?: string; confidence?: number; error?: string; reasoning?: string };
+    mate?: { direction?: string; confidence?: number; error?: string; reasoning?: string };
   };
   comparison?: { agree?: boolean; agreement_type?: string; match_details?: any };
-  signal?: { direction?: string; confidence?: number };
+  signal?: { direction?: string; confidence?: number; action?: string; reasoning?: string };
+  articles_count?: number;
 }
 
 interface AnalysisData {
@@ -69,6 +70,17 @@ interface SignalBreakdown {
   confidence: number;
   confidenceLevel: 'high' | 'medium' | 'low';
   correct: boolean;
+  // Pre-market prediction detail
+  primary_direction?: string;
+  primary_confidence?: number | null;
+  primary_reasoning?: string;
+  mate_direction?: string;
+  mate_confidence?: number | null;
+  mate_reasoning?: string;
+  models_agree?: boolean;
+  action?: string;
+  signal_reasoning?: string;
+  articles_count?: number;
 }
 
 interface TopPerformer {
@@ -336,7 +348,7 @@ function analyzeHighConfidenceSignals(
         }
       }
 
-      // Add ALL symbols to signal breakdown
+      // Add ALL symbols to signal breakdown with full pre-market prediction info
       signalBreakdown.push({
         ticker: symbol,
         predicted: `${predictedDirection === 'up' ? '↑' : predictedDirection === 'down' ? '↓' : '→'} Expected`,
@@ -346,11 +358,16 @@ function analyzeHighConfidenceSignals(
         confidence: Math.round(confidence),
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
         correct: isCorrect,
-        ...(isDualModel && {
-          primary_direction: primary?.direction,
-          mate_direction: mate?.direction,
-          models_agree: comparison?.agree
-        })
+        primary_direction: primary?.direction,
+        primary_confidence: primary?.confidence ?? null,
+        primary_reasoning: primary?.reasoning,
+        mate_direction: mate?.direction,
+        mate_confidence: mate?.confidence ?? null,
+        mate_reasoning: mate?.reasoning,
+        models_agree: comparison?.agree,
+        action: signal.signal?.action,
+        signal_reasoning: signal.signal?.reasoning,
+        articles_count: signal.articles_count,
       });
 
       // Track top performers
@@ -366,7 +383,7 @@ function analyzeHighConfidenceSignals(
         });
       }
     } else {
-      // No market data - add as pending
+      // No market data - add as pending with full pre-market prediction info
       signalBreakdown.push({
         ticker: symbol,
         predicted: `${predictedDirection === 'up' ? '↑' : predictedDirection === 'down' ? '↓' : '→'} Expected`,
@@ -376,11 +393,16 @@ function analyzeHighConfidenceSignals(
         confidence: Math.round(confidence),
         confidenceLevel: confidence > 80 ? 'high' : confidence > 60 ? 'medium' : 'low',
         correct: false,
-        ...(isDualModel && {
-          primary_direction: primary?.direction,
-          mate_direction: mate?.direction,
-          models_agree: comparison?.agree
-        })
+        primary_direction: primary?.direction,
+        primary_confidence: primary?.confidence ?? null,
+        primary_reasoning: primary?.reasoning,
+        mate_direction: mate?.direction,
+        mate_confidence: mate?.confidence ?? null,
+        mate_reasoning: mate?.reasoning,
+        models_agree: comparison?.agree,
+        action: signal.signal?.action,
+        signal_reasoning: signal.signal?.reasoning,
+        articles_count: signal.articles_count,
       });
     }
   });

@@ -618,7 +618,9 @@ export async function handleScheduledEvent(
           symbols_analyzed: signalsCount,
           symbols_list: eodResult.signalBreakdown?.map((s: any) => s.ticker) || [],
           timestamp: scheduledTime.toISOString(),
-          trigger_mode: triggerMode
+          trigger_mode: triggerMode,
+          pre_market_run_id: preMarketRunId || null,
+          intraday_run_id: intradayRunIdSource || null
         };
 
         console.log(`✅ [CRON-EOD] ${cronExecutionId} End-of-day analysis completed`, {
