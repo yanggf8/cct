@@ -547,8 +547,8 @@ function generateSymbolComparisonCard(comparison: IntradaySymbolComparison): str
             <span class="confidence">${conf}</span>
           </div>
           <div class="models-section">
-            ${renderModel(period.gemma, AI_MODEL_DISPLAY.primary.short)}
-            ${renderModel(period.distilbert, AI_MODEL_DISPLAY.secondary.short)}
+            ${renderModel(period.primary, AI_MODEL_DISPLAY.primary.short)}
+            ${renderModel(period.mate, AI_MODEL_DISPLAY.secondary.short)}
           </div>
           <div class="agreement-badge ${agreementClass}">${escapeHtml(period.agreement)}</div>
           <div class="reasoning">"${truncatedReasoning}"</div>
@@ -647,43 +647,44 @@ function generateSignalCards(signals: any[]): string {
                      signal.performance === 'diverged' ? 'fail' : 'pending';
     
     // Extract dual model data (model-agnostic naming: primary = GPT-OSS, mate = DeepSeek-R1)
-    const gemma = signal.primary_status ? {
+    // Backward compat: fall back to legacy dual_model.gemma/distilbert or dual_model.primary/mate
+    const primary = signal.primary_status ? {
       status: signal.primary_status,
       error: signal.primary_error,
       confidence: signal.primary_confidence,
       direction: signal.morning_prediction // Simplification for display
-    } : (signal.dual_model?.gemma || {});
+    } : (signal.dual_model?.primary || signal.dual_model?.gemma || {});
 
-    const distilbert = signal.mate_status ? {
+    const mate = signal.mate_status ? {
       status: signal.mate_status,
       error: signal.mate_error,
       confidence: signal.mate_confidence,
       direction: signal.morning_prediction // Simplification for display
-    } : (signal.dual_model?.distilbert || {});
+    } : (signal.dual_model?.mate || signal.dual_model?.distilbert || {});
 
     const agreement = signal.agreement || signal.model_selection_reason || 'PARTIAL';
-    
-    const hasDualModel = gemma.status || distilbert.status;
-    
+
+    const hasDualModel = primary.status || mate.status;
+
     // Agreement badge
     const agreementBadge = hasDualModel ? `
       <div class="agreement-badge ${agreement.toLowerCase().includes('agree') ? 'agree' : agreement.toLowerCase().includes('diverge') || agreement.toLowerCase().includes('disagree') ? 'disagree' : 'partial'}">
         ${agreement.toUpperCase().includes('AGREE') ? '✓ MODELS AGREE' : agreement.toUpperCase().includes('DIVERGE') || agreement.toUpperCase().includes('DISAGREE') ? '✗ MODELS DISAGREE' : '◐ PARTIAL AGREEMENT'}
       </div>
     ` : '';
-    
+
     // Dual model cards
     const dualModelCards = hasDualModel ? `
       <div class="dual-model-grid">
-        <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
+        <div class="model-card ${primary.status === 'failed' || primary.error ? 'failed' : ''}">
           <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
-          <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : '✓ SUCCESS'}</div>
-          <div class="model-result">${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : 'N/A'}</div>
+          <div class="model-status">${primary.status === 'failed' || primary.error ? '✗ ' + (primary.error || 'FAILED') : '✓ SUCCESS'}</div>
+          <div class="model-result">${primary.confidence ? Math.round(primary.confidence * 100) + '%' : 'N/A'}</div>
         </div>
-        <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
+        <div class="model-card ${mate.status === 'failed' || mate.error ? 'failed' : ''}">
           <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
-          <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : '✓ SUCCESS'}</div>
-          <div class="model-result">${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : 'N/A'}</div>
+          <div class="model-status">${mate.status === 'failed' || mate.error ? '✗ ' + (mate.error || 'FAILED') : '✓ SUCCESS'}</div>
+          <div class="model-result">${mate.confidence ? Math.round(mate.confidence * 100) + '%' : 'N/A'}</div>
         </div>
       </div>
     ` : '';

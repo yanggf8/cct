@@ -915,30 +915,30 @@ function generateSignalCards(signals: any[]): string {
         
         const accuracyClass = isCorrect ? 'accuracy-correct' : 'accuracy-incorrect';
         
-        // Extract dual model data if available
-        const gemmaDir = signal.gemma_direction;
-        const distilbertDir = signal.distilbert_direction;
+        // Extract dual model data if available (model-agnostic naming with backward compat)
+        const primaryDir = signal.primary_direction || signal.gemma_direction;
+        const mateDir = signal.mate_direction || signal.distilbert_direction;
         const modelsAgree = signal.models_agree;
-        
-        const hasDualModel = gemmaDir || distilbertDir;
-        
+
+        const hasDualModel = primaryDir || mateDir;
+
         // Agreement badge
         const agreementBadge = hasDualModel ? `
           <div class="agreement-badge ${modelsAgree ? 'agree' : 'disagree'}">
             ${modelsAgree ? '✓ MODELS AGREE' : '✗ MODELS DISAGREE'}
           </div>
         ` : '';
-        
+
         // Dual model cards
         const dualModelCards = hasDualModel ? `
           <div class="dual-model-grid">
             <div class="model-card">
               <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
-              <div class="model-result">${gemmaDir?.toUpperCase() || 'N/A'}</div>
+              <div class="model-result">${primaryDir?.toUpperCase() || 'N/A'}</div>
             </div>
             <div class="model-card">
               <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
-              <div class="model-result">${distilbertDir?.toUpperCase() || 'N/A'}</div>
+              <div class="model-result">${mateDir?.toUpperCase() || 'N/A'}</div>
             </div>
           </div>
         ` : '';

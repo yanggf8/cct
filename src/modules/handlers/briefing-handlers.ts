@@ -201,8 +201,8 @@ function generatePreMarketHTML(
         // Include dual model data
         dual_model: s.dual_model,
         models: s.dual_model ? {
-          gpt: s.dual_model.gemma,
-          distilbert: s.dual_model.distilbert
+          primary: s.dual_model.primary,
+          mate: s.dual_model.mate
         } : undefined,
         // Include articles data
         articles_count: s.articles_count,
@@ -561,13 +561,13 @@ function generateSignalCards(signals: any[]): string {
         ` : ''}
         ${signal.dual_model ? `
         <div class="dual-model-grid" style="margin-top: 10px;">
-          <div class="model-card ${signal.dual_model.gemma?.status === 'failed' ? 'failed' : ''}">
+          <div class="model-card ${(signal.dual_model.primary || signal.dual_model.gemma)?.status === 'failed' ? 'failed' : ''}">
             <div class="model-name">${AI_MODEL_DISPLAY.primary.short}</div>
-            <div class="model-status" style="font-size: 0.75rem;">${signal.dual_model.gemma?.status || 'N/A'}</div>
+            <div class="model-status" style="font-size: 0.75rem;">${(signal.dual_model.primary || signal.dual_model.gemma)?.status || 'N/A'}</div>
           </div>
-          <div class="model-card ${signal.dual_model.distilbert?.status === 'failed' ? 'failed' : ''}">
+          <div class="model-card ${(signal.dual_model.mate || signal.dual_model.distilbert)?.status === 'failed' ? 'failed' : ''}">
             <div class="model-name">${AI_MODEL_DISPLAY.secondary.short}</div>
-            <div class="model-status" style="font-size: 0.75rem;">${signal.dual_model.distilbert?.status || 'N/A'}</div>
+            <div class="model-status" style="font-size: 0.75rem;">${(signal.dual_model.mate || signal.dual_model.distilbert)?.status || 'N/A'}</div>
           </div>
         </div>
         ` : ''}
@@ -575,34 +575,34 @@ function generateSignalCards(signals: any[]): string {
       `;
     }
 
-    // Extract dual model data for successful signals
-    const gemma = signal.dual_model?.gemma || signal.models?.gpt || {};
-    const distilbert = signal.dual_model?.distilbert || signal.models?.distilbert || {};
-    const agreement = signal.agreement?.status || signal.dual_model?.agreement || 
-      (gemma.direction && distilbert.direction && gemma.direction === distilbert.direction ? 'AGREE' : 
-       gemma.direction && distilbert.direction ? 'DISAGREE' : 'PARTIAL');
-    
-    const hasDualModel = gemma.status || distilbert.status || gemma.direction || distilbert.direction;
-    
+    // Extract dual model data for successful signals (model-agnostic naming with backward compat)
+    const primary = signal.dual_model?.primary || signal.dual_model?.gemma || signal.models?.primary || signal.models?.gpt || {};
+    const mate = signal.dual_model?.mate || signal.dual_model?.distilbert || signal.models?.mate || signal.models?.distilbert || {};
+    const agreement = signal.agreement?.status || signal.dual_model?.agreement ||
+      (primary.direction && mate.direction && primary.direction === mate.direction ? 'AGREE' :
+       primary.direction && mate.direction ? 'DISAGREE' : 'PARTIAL');
+
+    const hasDualModel = primary.status || mate.status || primary.direction || mate.direction;
+
     // Agreement badge
     const agreementBadge = hasDualModel ? `
       <div class="agreement-badge ${agreement.toLowerCase()}">
         ${agreement === 'AGREE' ? '✓ MODELS AGREE' : agreement === 'DISAGREE' ? '✗ MODELS DISAGREE' : '◐ PARTIAL AGREEMENT'}
       </div>
     ` : '';
-    
+
     // Dual model cards
     const dualModelCards = hasDualModel ? `
       <div class="dual-model-grid">
-        <div class="model-card ${gemma.status === 'failed' || gemma.error ? 'failed' : ''}">
+        <div class="model-card ${primary.status === 'failed' || primary.error ? 'failed' : ''}">
           <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
-          <div class="model-status">${gemma.status === 'failed' || gemma.error ? '✗ ' + (gemma.error || 'FAILED') : gemma.direction ? '✓ SUCCESS' : '—'}</div>
-          <div class="model-result">${gemma.direction?.toUpperCase() || 'N/A'} ${gemma.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
+          <div class="model-status">${primary.status === 'failed' || primary.error ? '✗ ' + (primary.error || 'FAILED') : primary.direction ? '✓ SUCCESS' : '—'}</div>
+          <div class="model-result">${primary.direction?.toUpperCase() || 'N/A'} ${primary.confidence ? Math.round(primary.confidence * 100) + '%' : ''}</div>
         </div>
-        <div class="model-card ${distilbert.status === 'failed' || distilbert.error ? 'failed' : ''}">
+        <div class="model-card ${mate.status === 'failed' || mate.error ? 'failed' : ''}">
           <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
-          <div class="model-status">${distilbert.status === 'failed' || distilbert.error ? '✗ ' + (distilbert.error || 'FAILED') : distilbert.direction ? '✓ SUCCESS' : '—'}</div>
-          <div class="model-result">${distilbert.direction?.toUpperCase() || 'N/A'} ${distilbert.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
+          <div class="model-status">${mate.status === 'failed' || mate.error ? '✗ ' + (mate.error || 'FAILED') : mate.direction ? '✓ SUCCESS' : '—'}</div>
+          <div class="model-result">${mate.direction?.toUpperCase() || 'N/A'} ${mate.confidence ? Math.round(mate.confidence * 100) + '%' : ''}</div>
         </div>
       </div>
     ` : '';
@@ -701,10 +701,10 @@ function generateMarketPulseSection(marketPulse: any): string {
     const statusColor = marketPulse.status === 'unavailable' ? '#f59e0b' : '#ef4444';
     const statusLabel = marketPulse.status === 'unavailable' ? 'Configuration Issue' : 'Analysis Failed';
 
-    // Dual model display for partial failures
-    const gemma = marketPulse.dual_model?.gemma;
-    const distilbert = marketPulse.dual_model?.distilbert;
-    const hasDualModel = gemma || distilbert;
+    // Dual model display for partial failures (model-agnostic naming with backward compat)
+    const primary = marketPulse.dual_model?.primary || marketPulse.dual_model?.gemma;
+    const mate = marketPulse.dual_model?.mate || marketPulse.dual_model?.distilbert;
+    const hasDualModel = primary || mate;
 
     return `
       <div class="market-pulse-section" style="margin-bottom: 24px; padding: 20px; background: rgba(239,68,68,0.05); border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">
@@ -733,15 +733,15 @@ function generateMarketPulseSection(marketPulse: any): string {
           ${hasDualModel ? `
             <div style="font-size: 0.8rem; color: rgba(250,248,245,0.6); margin-bottom: 8px;">AI Model Status:</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-              <div style="padding: 8px; background: rgba(${gemma?.status === 'success' ? '34,197,94' : gemma?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${gemma?.status === 'success' ? '34,197,94' : gemma?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
+              <div style="padding: 8px; background: rgba(${primary?.status === 'success' ? '34,197,94' : primary?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${primary?.status === 'success' ? '34,197,94' : primary?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
                 <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.primary.name}</div>
-                <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${gemma?.status?.toUpperCase() || 'N/A'}</div>
-                ${gemma?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${gemma.error}</div>` : ''}
+                <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${primary?.status?.toUpperCase() || 'N/A'}</div>
+                ${primary?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${primary.error}</div>` : ''}
               </div>
-              <div style="padding: 8px; background: rgba(${distilbert?.status === 'success' ? '34,197,94' : distilbert?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${distilbert?.status === 'success' ? '34,197,94' : distilbert?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
+              <div style="padding: 8px; background: rgba(${mate?.status === 'success' ? '34,197,94' : mate?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${mate?.status === 'success' ? '34,197,94' : mate?.status === 'skipped' ? '100,116,139' : '239,68,68'},0.2);">
                 <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.secondary.name}</div>
-                <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${distilbert?.status?.toUpperCase() || 'N/A'}</div>
-                ${distilbert?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${distilbert.error}</div>` : ''}
+                <div style="font-size: 0.85rem; font-weight: 500; color: rgba(250,248,245,0.9);">${mate?.status?.toUpperCase() || 'N/A'}</div>
+                ${mate?.error ? `<div style="font-size: 0.7rem; color: #ef4444; margin-top: 2px;">${mate.error}</div>` : ''}
               </div>
             </div>
           ` : ''}
@@ -762,10 +762,10 @@ function generateMarketPulseSection(marketPulse: any): string {
   const directionIcon = marketPulse.direction === 'bullish' ? '📈' :
                         marketPulse.direction === 'bearish' ? '📉' : '➡️';
 
-  // Dual model display
-  const gemma = marketPulse.dual_model?.gemma;
-  const distilbert = marketPulse.dual_model?.distilbert;
-  const hasDualModel = gemma || distilbert;
+  // Dual model display (model-agnostic naming with backward compat)
+  const primarySuccess = marketPulse.dual_model?.primary || marketPulse.dual_model?.gemma;
+  const mateSuccess = marketPulse.dual_model?.mate || marketPulse.dual_model?.distilbert;
+  const hasDualModelSuccess = primarySuccess || mateSuccess;
 
   return `
     <div class="market-pulse-section" style="margin-bottom: 24px; padding: 20px; background: rgba(240,185,11,0.08); border-radius: 12px; border: 1px solid rgba(240,185,11,0.2);">
@@ -797,17 +797,17 @@ function generateMarketPulseSection(marketPulse: any): string {
         <!-- AI Models Card -->
         <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 10px;">
           <div style="font-size: 0.85rem; color: rgba(250,248,245,0.7); margin-bottom: 10px;">AI Analysis</div>
-          ${hasDualModel ? `
+          ${hasDualModelSuccess ? `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-              <div style="padding: 8px; background: rgba(${gemma?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${gemma?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
+              <div style="padding: 8px; background: rgba(${primarySuccess?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${primarySuccess?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
                 <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.primary.name}</div>
-                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${gemma?.direction?.toUpperCase() || 'N/A'}</div>
-                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${gemma?.confidence ? Math.round(gemma.confidence * 100) + '%' : ''}</div>
+                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${primarySuccess?.direction?.toUpperCase() || 'N/A'}</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${primarySuccess?.confidence ? Math.round(primarySuccess.confidence * 100) + '%' : ''}</div>
               </div>
-              <div style="padding: 8px; background: rgba(${distilbert?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${distilbert?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
+              <div style="padding: 8px; background: rgba(${mateSuccess?.status === 'success' ? '34,197,94' : '239,68,68'},0.1); border-radius: 6px; border: 1px solid rgba(${mateSuccess?.status === 'success' ? '34,197,94' : '239,68,68'},0.2);">
                 <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${AI_MODEL_DISPLAY.secondary.name}</div>
-                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${distilbert?.direction?.toUpperCase() || 'N/A'}</div>
-                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${distilbert?.confidence ? Math.round(distilbert.confidence * 100) + '%' : ''}</div>
+                <div style="font-size: 0.9rem; font-weight: 500; color: rgba(250,248,245,0.9);">${mateSuccess?.direction?.toUpperCase() || 'N/A'}</div>
+                <div style="font-size: 0.75rem; color: rgba(250,248,245,0.6);">${mateSuccess?.confidence ? Math.round(mateSuccess.confidence * 100) + '%' : ''}</div>
               </div>
             </div>
           ` : `

@@ -30,10 +30,12 @@
 | Model | ID | Note |
 |-------|-----|------|
 | Primary | `@cf/openai/gpt-oss-120b` | GPT-OSS 120B with `reasoning: { effort: 'high' }` |
-| Secondary | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | DeepSeek-R1 32B reasoning model |
+| Secondary (Mate) | `@cf/deepseek-ai/deepseek-r1-distill-qwen-32b` | DeepSeek-R1 32B reasoning model |
 
-- **Config**: `AI_MODEL_DISPLAY` in `src/modules/config.ts` (backend)
-- **Legacy field names**: `gpt` (GPT-OSS) and `distilbert` (DeepSeek-R1) kept in D1/API for backward compat
+- **Config**: `AI_MODEL_DISPLAY` in `src/modules/config.ts` (backend), `CCT_MODELS` in `public/js/config.js` (frontend)
+- **Model-agnostic naming**: Code uses `primary`/`mate` (not model-specific names)
+- **D1 columns**: `primary_*` and `mate_*` with aliasing layer for backward compat
+- **Legacy field names**: `gpt`/`gemma` (primary) and `distilbert` (mate) supported via fallbacks
 - On failure: `status: 'failed', confidence: null` - no fake data
 
 ---

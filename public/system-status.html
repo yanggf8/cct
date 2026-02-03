@@ -118,8 +118,8 @@
                 </div>
                 <div class="status-card">
                     <h3>🤖 AI Models</h3>
-                    <div class="status-item"><span>${window.CCT_MODELS?.primary?.name || 'Primary Model'}</span>${badge(d.models?.gemmaSeaLion?.status)}</div>
-                    <div class="status-item"><span>${window.CCT_MODELS?.secondary?.name || 'Secondary Model'}</span>${badge(d.models?.distilbert?.status)}</div>
+                    <div class="status-item"><span>${window.CCT_MODELS?.primary?.name || 'Primary Model'}</span>${badge(d.models?.primary?.status || d.models?.gemmaSeaLion?.status)}</div>
+                    <div class="status-item"><span>${window.CCT_MODELS?.secondary?.name || 'Secondary Model'}</span>${badge(d.models?.mate?.status || d.models?.distilbert?.status)}</div>
                 </div>
                 <div class="status-card">
                     <h3>⏰ Today's Jobs</h3>

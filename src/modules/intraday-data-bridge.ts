@@ -54,8 +54,8 @@ export interface PeriodSentimentData {
   direction: string;              // 'bullish' | 'bearish' | 'neutral' | 'failed'
   confidence: number | null;
   reasoning: string;
-  gemma: ModelDisplayResult;
-  distilbert: ModelDisplayResult;
+  primary: ModelDisplayResult;    // Primary model (GPT-OSS 120B)
+  mate: ModelDisplayResult;       // Mate model (DeepSeek-R1)
   agreement: string;              // 'AGREE' | 'DISAGREE' | 'PARTIAL' | 'ERROR'
   articles_count: number;
   status: 'success' | 'partial' | 'failed';
@@ -270,14 +270,14 @@ export class IntradayDataBridge {
       direction: morning.sentiment || morning.direction || 'neutral',
       confidence: morning.confidence,
       reasoning,
-      gemma: {
+      primary: {
         status: primaryStatus,
         error: morning.primary_error,
         confidence: morning.primary_confidence,
         direction: morning.sentiment || null,
         response_time_ms: morning.primary_response_time_ms
       },
-      distilbert: {
+      mate: {
         status: mateStatus,
         error: morning.mate_error,
         confidence: morning.mate_confidence,
@@ -301,8 +301,8 @@ export class IntradayDataBridge {
         direction: 'failed',
         confidence: null,
         reasoning: 'Intraday analysis not executed',
-        gemma: { status: 'no_data', error: 'Analysis not run', confidence: null, direction: null, response_time_ms: null },
-        distilbert: { status: 'no_data', error: 'Analysis not run', confidence: null, direction: null, response_time_ms: null },
+        primary: { status: 'no_data', error: 'Analysis not run', confidence: null, direction: null, response_time_ms: null },
+        mate: { status: 'no_data', error: 'Analysis not run', confidence: null, direction: null, response_time_ms: null },
         agreement: 'ERROR',
         articles_count: 0,
         status: 'failed',
@@ -366,14 +366,14 @@ export class IntradayDataBridge {
       direction: result.signal?.direction || 'neutral',
       confidence: finalConfidence,
       reasoning: result.signal?.reasoning || primary?.reasoning || 'Fresh intraday analysis',
-      gemma: {
+      primary: {
         status: primaryStatus,
         error: primary?.error || null,
         confidence: primary?.confidence ?? null,
         direction: primary?.direction || null,
         response_time_ms: primary?.response_time_ms ?? null
       },
-      distilbert: {
+      mate: {
         status: mateStatus,
         error: mate?.error || null,
         confidence: mate?.confidence ?? null,
