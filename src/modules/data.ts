@@ -374,7 +374,24 @@ export function extractDualModelData(analysisData: any): {
   mate_response_time_ms?: number;
   model_selection_reason?: string;
 } {
-  // Format 1: DualAIComparisonResult (models.primary, models.mate)
+  // Format 1: New naming (models.primary, models.mate)
+  if (analysisData?.models?.primary || analysisData?.models?.mate) {
+    const primary = analysisData.models?.primary;
+    const mate = analysisData.models?.mate;
+    return {
+      primary_status: primary?.error ? 'failed' : primary?.direction ? 'success' : undefined,
+      primary_error: primary?.error || undefined,
+      primary_confidence: primary?.confidence,
+      primary_response_time_ms: primary?.response_time_ms,
+      mate_status: mate?.error ? 'failed' : mate?.direction ? 'success' : undefined,
+      mate_error: mate?.error || undefined,
+      mate_confidence: mate?.confidence,
+      mate_response_time_ms: mate?.response_time_ms,
+      model_selection_reason: analysisData.agreement?.status || analysisData.final_signal?.source
+    };
+  }
+
+  // Format 2: Legacy naming (models.gpt, models.distilbert) - backward compat with existing D1 data
   if (analysisData?.models?.gpt || analysisData?.models?.distilbert) {
     const gpt = analysisData.models?.gpt;
     const distilbert = analysisData.models?.distilbert;
@@ -391,8 +408,24 @@ export function extractDualModelData(analysisData: any): {
     };
   }
 
-  // Format 2: Pre-market-data-bridge format (dual_model.gemma, dual_model.distilbert)
-  // Note: dual_model object still uses gemma/distilbert internally for backward compat
+  // Format 3: New dual_model format (dual_model.primary, dual_model.mate)
+  if (analysisData?.dual_model?.primary || analysisData?.dual_model?.mate) {
+    const primary = analysisData.dual_model?.primary;
+    const mate = analysisData.dual_model?.mate;
+    return {
+      primary_status: primary?.status,
+      primary_error: primary?.error,
+      primary_confidence: primary?.confidence,
+      primary_response_time_ms: primary?.response_time_ms,
+      mate_status: mate?.status,
+      mate_error: mate?.error,
+      mate_confidence: mate?.confidence,
+      mate_response_time_ms: mate?.response_time_ms,
+      model_selection_reason: analysisData.dual_model?.selection_reason
+    };
+  }
+
+  // Format 4: Legacy dual_model format (dual_model.gemma, dual_model.distilbert) - backward compat
   if (analysisData?.dual_model?.gemma || analysisData?.dual_model?.distilbert) {
     const gemma = analysisData.dual_model?.gemma;
     const distilbert = analysisData.dual_model?.distilbert;
@@ -409,15 +442,23 @@ export function extractDualModelData(analysisData: any): {
     };
   }
 
-  // Format 3: trading_signals contains dual model info
+  // Format 5: trading_signals contains dual model info
   if (analysisData?.trading_signals?.dual_model) {
     return extractDualModelData({ dual_model: analysisData.trading_signals.dual_model });
   }
 
-  // Format 4: sentiment_layers with model info
+  // Format 6: sentiment_layers with model info (check for all model name variants)
   const layers = analysisData?.sentiment_layers || [];
-  const primaryLayer = layers.find((l: any) => l.model?.toLowerCase().includes('gemma') || l.model?.toLowerCase().includes('gpt'));
-  const mateLayer = layers.find((l: any) => l.model?.toLowerCase().includes('distilbert'));
+  const primaryLayer = layers.find((l: any) => 
+    l.layer_type === 'primary_model' ||
+    l.model?.toLowerCase().includes('gemma') || 
+    l.model?.toLowerCase().includes('gpt')
+  );
+  const mateLayer = layers.find((l: any) => 
+    l.layer_type === 'mate_model' ||
+    l.model?.toLowerCase().includes('distilbert') ||
+    l.model?.toLowerCase().includes('deepseek')
+  );
 
   if (primaryLayer || mateLayer) {
     return {
