@@ -2,7 +2,7 @@
 
 ## System Overview
 
-**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.23 | **Status**: Production Ready
+**URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.24 | **Status**: Production Ready
 
 - Dual AI: GPT-OSS 120B (reasoning) + DeepSeek-R1 32B (reasoning)
 - 4-Moment workflow: Pre-Market → Intraday → End-of-Day → Weekly
@@ -69,19 +69,38 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 
 ---
 
-## D1 Schema (v2.6)
+## D1 Schema (v2.7)
 
 | Table | Purpose |
 |-------|---------|
+| `job_executions` | Cron execution history |
 | `job_date_results` | Nav summary, `latest_run_id` |
 | `job_run_results` | Run history, `run_id`, `status`, `trigger_source` |
-| `job_stage_outcomes` | Per-stage timeline with outcomes |
+| `job_stage_log` | Per-stage timeline with outcomes |
 | `scheduled_job_results` | Report content (append-only) |
-| `symbol_predictions` | Per-symbol dual model data |
-| `news_fetch_log` | Per-provider fetch diagnostics (NEW) |
-| `weekend_news_cache` | Friday→Monday article cache (NEW) |
+| `symbol_predictions` | Per-symbol dual model data (`primary_*`/`mate_*` columns) |
+| `daily_analysis` | Daily analysis summaries |
+| `news_fetch_log` | Per-provider fetch diagnostics |
+| `weekend_news_cache` | Friday→Monday article cache |
+| `news_provider_failures` | Provider error tracking |
+| `news_cache_stats` | Cache hit/miss statistics |
 
 **Key**: `scheduled_date` is lookup key only. `run_id`: `${date}_${type}_${uuid}`
+
+### D1 Cleanup (Fresh Start)
+```sql
+DELETE FROM job_executions;
+DELETE FROM symbol_predictions;
+DELETE FROM daily_analysis;
+DELETE FROM job_date_results;
+DELETE FROM job_run_results;
+DELETE FROM job_stage_log;
+DELETE FROM scheduled_job_results;
+DELETE FROM news_provider_failures;
+DELETE FROM news_cache_stats;
+DELETE FROM weekend_news_cache;
+DELETE FROM news_fetch_log;
+```
 
 ---
 
