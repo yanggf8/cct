@@ -42,6 +42,8 @@
 - **Retry**: Max 2 attempts per AI call; skips retry on circuit breaker and subrequest limit errors
 - **End-of-day lineage**: `pre_market_run_id` and `intraday_run_id` in report body + `_d1_metadata`
 - **End-of-day signal breakdown**: Per-symbol `primary_confidence`, `mate_confidence`, `primary_reasoning`, `mate_reasoning`, `action`, `signal_reasoning`, `articles_count`
+- **End-of-day market data**: Yahoo Finance close prices cached in `market_close_data` table; reruns use cached data
+- **EOD date handling**: `generateEndOfDayAnalysis()` accepts `targetDate` param (ET timezone) to avoid UTC/ET mismatch
 
 ---
 
@@ -74,7 +76,7 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 
 ---
 
-## D1 Schema (v2.7)
+## D1 Schema (v2.8)
 
 | Table | Purpose |
 |-------|---------|
@@ -85,12 +87,27 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 | `scheduled_job_results` | Report content (append-only) |
 | `symbol_predictions` | Per-symbol dual model data (`primary_*`/`mate_*` columns) |
 | `daily_analysis` | Daily analysis summaries |
+| `market_close_data` | Yahoo Finance close prices cached by date (EOD rerun support) |
 | `news_fetch_log` | Per-provider fetch diagnostics |
 | `weekend_news_cache` | Friday→Monday article cache |
 | `news_provider_failures` | Provider error tracking |
 | `news_cache_stats` | Cache hit/miss statistics |
 
 **Key**: `scheduled_date` is lookup key only. `run_id`: `${date}_${type}_${uuid}`
+
+### Market Close Data Cache
+
+EOD jobs cache Yahoo Finance data in `market_close_data` on first fetch. Reruns use cached data to ensure consistent accuracy calculations.
+
+```sql
+-- Check cached market data for a date
+SELECT symbol, close_price, day_change, fetch_status FROM market_close_data WHERE close_date = '2026-02-03';
+
+-- Clear cache to force refetch (use sparingly)
+DELETE FROM market_close_data WHERE close_date = '2026-02-03';
+```
+
+**Migration**: `wrangler d1 migrations apply cct-predict-jobs --remote`
 
 ### D1 Cleanup (Fresh Start)
 ```sql
@@ -101,10 +118,25 @@ DELETE FROM job_date_results;
 DELETE FROM job_run_results;
 DELETE FROM job_stage_log;
 DELETE FROM scheduled_job_results;
+DELETE FROM market_close_data;
 DELETE FROM news_provider_failures;
 DELETE FROM news_cache_stats;
 DELETE FROM weekend_news_cache;
 DELETE FROM news_fetch_log;
+```
+
+### D1 Cleanup (Keep Pre-Market for EOD Testing)
+```sql
+-- Keep specific pre-market run for EOD testing
+-- Replace DATE and RUN_ID with actual values
+DELETE FROM scheduled_job_results WHERE NOT (scheduled_date = 'DATE' AND report_type = 'pre-market');
+DELETE FROM job_run_results WHERE run_id NOT LIKE 'DATE_pre-market_%';
+DELETE FROM job_stage_log WHERE run_id NOT LIKE 'DATE_pre-market_%';
+DELETE FROM job_date_results WHERE scheduled_date != 'DATE';
+DELETE FROM symbol_predictions WHERE prediction_date != 'DATE';
+DELETE FROM daily_analysis WHERE analysis_date != 'DATE';
+DELETE FROM job_executions;
+DELETE FROM market_close_data;
 ```
 
 ---
@@ -152,6 +184,30 @@ npm run deploy:frontend:only
 # Rollback DO cache
 wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 ```
+
+---
+
+## Known Issues & TODOs
+
+### EOD Calibration Pipeline
+
+| Issue | Severity | Status |
+|-------|----------|--------|
+| ET/UTC date mismatch | Critical | Fixed - `targetDate` param added to `generateEndOfDayAnalysis()` |
+| Holiday fallback miscalibration | Medium | Fixed - 10-day lookback + validation for no previous trading day |
+| Pre-market link 404 | Medium | Fixed - `/pre-market-briefing?run_id=...` |
+| Market pulse CSS injection | Medium | Fixed - mapped to fixed class names |
+| Failed fetch caching permanent | Low | By design - prevents repeated API failures |
+| Confidence threshold semantics | Low | OK - 0.70 (0-1 space) = 70 (0-100 space), normalized internally |
+| Neutral handling | Low | By design - neutrals excluded from accuracy metrics |
+| Binary up/down (no deadband) | Low | By design - exact 0.0% treated as "down" |
+
+### Pending Migrations
+
+- `schema/migrations/add-market-close-cache.sql` - Creates `market_close_data` table to cache Yahoo Finance close prices per symbol per date. Required for EOD rerun accuracy (Yahoo free API does not reliably serve historical data).
+  ```bash
+  npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/add-market-close-cache.sql
+  ```
 
 ---
 

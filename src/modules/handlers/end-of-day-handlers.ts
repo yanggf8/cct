@@ -12,7 +12,7 @@
 
 import { createLogger } from '../logging.js';
 import { createHandler } from '../handler-factory.js';
-import { getD1FallbackData, readD1ReportSnapshotByRunId } from '../d1-job-storage.js';
+import { getD1FallbackData, readD1ReportSnapshotByRunId, getMatchedPreMarketRunId } from '../d1-job-storage.js';
 import { AI_MODEL_DISPLAY } from '../config.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
@@ -140,6 +140,12 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
         logger.info('END-OF-DAY: Data retrieved', { source: fallback.source, sourceDate: fallback.sourceDate, isStale: fallback.isStale });
     }
 
+    // Fetch matched pre-market run_id for this date
+    const matchedPreMarket = await getMatchedPreMarketRunId(env, queryDateStr);
+    if (matchedPreMarket) {
+        logger.info('END-OF-DAY: Matched pre-market run found', { runId: matchedPreMarket.runId, createdAt: matchedPreMarket.createdAt });
+    }
+
     // Determine schedule status
     // Fix: use >= comparison for pending logic (handles users ahead of ET)
     const queryDate = new Date(queryDateStr + 'T00:00:00Z');
@@ -158,7 +164,7 @@ export const handleEndOfDaySummary = createHandler('end-of-day-summary', async (
     const isPending = (!d1Result || isStale || dataDateDiffers) && isQueryingTodayOrFuture && beforeScheduleET;
 
     // Generate HTML based on D1 data availability
-    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers, runId || undefined, jobRunDetails);
+    const htmlContent = generateEndOfDayHTML(d1Result, queryDateStr, isQueryingToday, beforeScheduleET, isPending, sourceDate, dataDateDiffers, runId || undefined, jobRunDetails, matchedPreMarket);
 
     // Cache HTML for fast subsequent loads
     try {
@@ -192,7 +198,8 @@ function generateEndOfDayHTML(
     sourceDate: string,
     dataDateDiffers: boolean,
     runId?: string,
-    jobRunDetails?: { status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null } | null
+    jobRunDetails?: { status: string; current_stage: string | null; errors_json: string | null; warnings_json: string | null } | null,
+    matchedPreMarket?: { runId: string; createdAt: string } | null
 ): string {
     const rawData = d1Result?.data;
     // Transform stored schema to frontend expected schema
@@ -421,6 +428,229 @@ function generateEndOfDayHTML(
             max-width: 600px;
             margin: 0 auto;
         }
+
+        /* Enhanced Dual Model Display Styles */
+        .dual-model-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dual-model-header {
+            font-size: 0.9rem;
+            color: #f0b90b;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .dual-model-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .model-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .model-card.bullish {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .model-card.bearish {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .model-card.neutral {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .model-name {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .model-result {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+
+        .model-confidence {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 6px;
+        }
+
+        .model-confidence strong {
+            color: #fcd535;
+        }
+
+        .model-reasoning {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.4;
+            font-style: italic;
+            cursor: help;
+        }
+
+        .combined-action {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.9);
+            padding: 8px 12px;
+            background: rgba(240, 185, 11, 0.1);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .signal-reasoning {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .articles-count {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: right;
+        }
+
+        .agreement-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+
+        .agreement-badge.agree {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .agreement-badge.disagree {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* Market Pulse EOD Section */
+        .market-pulse-eod {
+            background: linear-gradient(135deg, rgba(79, 172, 254, 0.1) 0%, rgba(240, 185, 11, 0.1) 100%);
+            border: 1px solid rgba(240, 185, 11, 0.3);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        .market-pulse-eod h2 {
+            color: #f0b90b;
+            margin: 0 0 8px 0;
+        }
+        .market-pulse-note {
+            color: rgba(250, 248, 245, 0.6);
+            font-size: 0.85rem;
+            margin: 0 0 20px 0;
+            font-style: italic;
+        }
+        .market-pulse-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .market-pulse-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .pulse-card {
+            background: rgba(26, 26, 26, 0.8);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .pulse-card h4 {
+            color: rgba(250, 248, 245, 0.8);
+            margin: 0 0 12px 0;
+            font-size: 0.9rem;
+        }
+        .pulse-direction {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .pulse-direction.bullish, .pulse-direction.up { color: #10b981; }
+        .pulse-direction.bearish, .pulse-direction.down { color: #ef4444; }
+        .pulse-direction.neutral { color: #f0b90b; }
+        .pulse-confidence {
+            font-size: 0.9rem;
+            color: rgba(250, 248, 245, 0.7);
+        }
+        .pulse-dual-model {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .pulse-dual-model .model-tag {
+            background: rgba(79, 172, 254, 0.2);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: rgba(250, 248, 245, 0.8);
+        }
+        .pulse-articles {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: rgba(250, 248, 245, 0.5);
+        }
+        .pulse-change {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        .pulse-change.positive { color: #10b981; }
+        .pulse-change.negative { color: #ef4444; }
+        .pulse-price {
+            font-size: 0.9rem;
+            color: rgba(250, 248, 245, 0.6);
+            margin-top: 4px;
+        }
+        .pulse-pending {
+            color: rgba(250, 248, 245, 0.5);
+            font-style: italic;
+        }
+        .pulse-result {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .pulse-result.correct { color: #10b981; }
+        .pulse-result.incorrect { color: #ef4444; }
+        .pulse-result.neutral { color: #f0b90b; }
+        .pulse-result-note {
+            font-size: 0.8rem;
+            color: rgba(250, 248, 245, 0.6);
+        }
+
+        .matched-premarket-display {
+            margin-top: 8px;
+        }
+
+        .matched-premarket-display a:hover {
+            color: #fcd535;
+        }
     </style>
 </head>
 </head>
@@ -447,6 +677,10 @@ function generateEndOfDayHTML(
               ${runId ? `<div class="run-id-display">
                 <span class="date-label">Run ID:</span>
                 <span class="date-value" style="font-family: monospace; font-size: 0.85em;">${runId.slice(-12)}</span>
+              </div>` : ''}
+              ${matchedPreMarket ? `<div class="matched-premarket-display">
+                <span class="date-label">Pre-Market Run:</span>
+                <a href="/pre-market-briefing?run_id=${matchedPreMarket.runId}" class="date-value" style="font-family: monospace; font-size: 0.85em; color: #4facfe; text-decoration: underline;">${matchedPreMarket.runId.slice(-12)}</a>
               </div>` : ''}
               </div>
             </div>
@@ -513,10 +747,62 @@ function generateEndOfDayHTML(
             </div>
             <div class="summary-card">
                 <h3>Avg Confidence</h3>
-                <div class="value">${endOfDayData.avgConfidence ? Math.round(endOfDayData.avgConfidence * 100) + '%' : 'N/A'}</div>
+                <div class="value">${endOfDayData.avgConfidence ? Math.round(endOfDayData.avgConfidence) + '%' : 'N/A'}</div>
                 <div class="label">Prediction confidence</div>
             </div>
         </div>
+
+        <!-- Market Pulse Section (SPY benchmark - separate from portfolio accuracy) -->
+        ${endOfDayData.marketPulse ? `
+        <div class="market-pulse-eod">
+            <h2>📊 Market Pulse (SPY)</h2>
+            <p class="market-pulse-note">S&P 500 benchmark - tracked separately from portfolio signals</p>
+            <div class="market-pulse-grid">
+                <div class="pulse-card predicted">
+                    <h4>🔮 Pre-Market Prediction</h4>
+                    <div class="pulse-direction ${endOfDayData.marketPulse.predicted?.direction?.toLowerCase() === 'bullish' ? 'bullish' : endOfDayData.marketPulse.predicted?.direction?.toLowerCase() === 'bearish' ? 'bearish' : 'neutral'}">
+                        ${getDirectionEmoji(endOfDayData.marketPulse.predicted?.direction)} ${escapeHtml(endOfDayData.marketPulse.predicted?.direction?.toUpperCase() || 'N/A')}
+                    </div>
+                    <div class="pulse-confidence">Confidence: ${endOfDayData.marketPulse.predicted?.confidence ? Math.round(endOfDayData.marketPulse.predicted.confidence * 100) + '%' : 'N/A'}</div>
+                    ${endOfDayData.marketPulse.predicted?.dual_model ? `
+                    <div class="pulse-dual-model">
+                        <span class="model-tag">GPT-OSS: ${endOfDayData.marketPulse.predicted.dual_model.primary?.direction || 'N/A'}</span>
+                        <span class="model-tag">DeepSeek: ${endOfDayData.marketPulse.predicted.dual_model.mate?.direction || 'N/A'}</span>
+                    </div>
+                    ` : ''}
+                    ${endOfDayData.marketPulse.predicted?.articles_count ? `<div class="pulse-articles">${endOfDayData.marketPulse.predicted.articles_count} articles analyzed</div>` : ''}
+                </div>
+                <div class="pulse-card actual">
+                    <h4>📈 Actual Close</h4>
+                    ${endOfDayData.marketPulse.actual ? `
+                    <div class="pulse-direction ${endOfDayData.marketPulse.actual.direction}">
+                        ${endOfDayData.marketPulse.actual.direction === 'up' ? '📈' : '📉'} ${endOfDayData.marketPulse.actual.direction.toUpperCase()}
+                    </div>
+                    <div class="pulse-change ${endOfDayData.marketPulse.actual.dayChange >= 0 ? 'positive' : 'negative'}">
+                        ${endOfDayData.marketPulse.actual.dayChange >= 0 ? '+' : ''}${endOfDayData.marketPulse.actual.dayChange.toFixed(2)}%
+                    </div>
+                    <div class="pulse-price">Close: $${endOfDayData.marketPulse.actual.closePrice.toFixed(2)}</div>
+                    ` : `
+                    <div class="pulse-pending">Awaiting market close data</div>
+                    `}
+                </div>
+                <div class="pulse-card result">
+                    <h4>🎯 Result</h4>
+                    ${endOfDayData.marketPulse.correct !== null ? `
+                    <div class="pulse-result ${endOfDayData.marketPulse.correct ? 'correct' : 'incorrect'}">
+                        ${endOfDayData.marketPulse.correct ? '✓ CORRECT' : '✗ INCORRECT'}
+                    </div>
+                    <div class="pulse-result-note">
+                        Predicted ${endOfDayData.marketPulse.predicted?.direction || 'N/A'}, market went ${endOfDayData.marketPulse.actual?.direction || 'N/A'}
+                    </div>
+                    ` : `
+                    <div class="pulse-result neutral">— NEUTRAL</div>
+                    <div class="pulse-result-note">Neutral prediction - no right/wrong</div>
+                    `}
+                </div>
+            </div>
+        </div>
+        ` : ''}
 
         <!-- Charts Section -->
         <div class="charts-section">
@@ -622,7 +908,7 @@ function generateEndOfDayHTML(
                     labels: ${JSON.stringify(endOfDayData.confidenceData?.map((c: any) => c.symbol) || [])},
                     datasets: [{
                         label: 'Confidence (%)',
-                        data: ${JSON.stringify(endOfDayData.confidenceData?.map((c: any) => (c.confidence || 0) * 100) || [])},
+                        data: ${JSON.stringify(endOfDayData.confidenceData?.map((c: any) => (c.confidence || 0)) || [])},
                         backgroundColor: 'rgba(79, 172, 254, 0.8)',
                         borderColor: '#f0b90b',
                         borderWidth: 1
@@ -766,20 +1052,35 @@ function generateEndOfDayHTML(
  * Transform stored EOD schema to frontend expected schema
  * Stored: signalBreakdown, overallAccuracy (0-100), tomorrowOutlook.marketBias
  * Frontend: signals, accuracyRate (0-1), tomorrowOutlook.direction
+ * 
+ * Preserves dual AI details: primary/mate directions, confidence levels, reasoning
  */
 function transformEodDataForFrontend(raw: any): any {
     if (!raw) return null;
 
     // Map signalBreakdown to signals array expected by frontend
+    // Preserve all dual AI details for display
     const signals = (raw.signalBreakdown || []).map((s: any) => ({
         symbol: s.ticker,
+        ticker: s.ticker, // Keep both for compatibility
         predicted: s.predicted,
         predictedDirection: s.predictedDirection,
         actual: s.actual,
         actualDirection: s.actualDirection,
-        confidence: (s.confidence || 0) / 100, // Convert 0-100 to 0-1
+        confidence: (s.confidence || 0), // Keep as 0-100 for display
         confidenceLevel: s.confidenceLevel,
-        correct: s.correct
+        correct: s.correct,
+        // Dual AI details
+        primary_direction: s.primary_direction,
+        primary_confidence: s.primary_confidence,
+        primary_reasoning: s.primary_reasoning,
+        mate_direction: s.mate_direction,
+        mate_confidence: s.mate_confidence,
+        mate_reasoning: s.mate_reasoning,
+        models_agree: s.models_agree,
+        action: s.action,
+        signal_reasoning: s.signal_reasoning,
+        articles_count: s.articles_count
     }));
 
     // Calculate performance distribution from signals
@@ -899,6 +1200,7 @@ function formatErrorsJson(errorsJson: string): string {
 
 /**
  * Generate signal cards HTML with dual model display
+ * Shows full dual AI sentiment details: directions and confidence levels for all symbols
  */
 function generateSignalCards(signals: any[]): string {
     if (!signals || signals.length === 0) {
@@ -918,9 +1220,24 @@ function generateSignalCards(signals: any[]): string {
         // Extract dual model data if available (model-agnostic naming with backward compat)
         const primaryDir = signal.primary_direction || signal.gemma_direction;
         const mateDir = signal.mate_direction || signal.distilbert_direction;
+        const primaryConf = signal.primary_confidence;
+        const mateConf = signal.mate_confidence;
+        const primaryReasoning = signal.primary_reasoning;
+        const mateReasoning = signal.mate_reasoning;
         const modelsAgree = signal.models_agree;
+        const action = signal.action;
+        const signalReasoning = signal.signal_reasoning;
+        const articlesCount = signal.articles_count;
 
         const hasDualModel = primaryDir || mateDir;
+
+        // Format confidence for display (handle 0-1 vs 0-100 scale)
+        const formatConf = (conf: number | null | undefined): string => {
+            if (conf === null || conf === undefined) return 'N/A';
+            // If value is <= 1, treat as 0-1 scale and convert to percentage
+            const pct = conf <= 1 ? Math.round(conf * 100) : Math.round(conf);
+            return `${pct}%`;
+        };
 
         // Agreement badge
         const agreementBadge = hasDualModel ? `
@@ -929,17 +1246,27 @@ function generateSignalCards(signals: any[]): string {
           </div>
         ` : '';
 
-        // Dual model cards
+        // Enhanced dual model cards with confidence levels and optional reasoning
         const dualModelCards = hasDualModel ? `
-          <div class="dual-model-grid">
-            <div class="model-card">
-              <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
-              <div class="model-result">${primaryDir?.toUpperCase() || 'N/A'}</div>
+          <div class="dual-model-section">
+            <h5 class="dual-model-header">🤖 Dual AI Analysis</h5>
+            <div class="dual-model-grid">
+              <div class="model-card ${primaryDir?.toLowerCase() === 'bullish' ? 'bullish' : primaryDir?.toLowerCase() === 'bearish' ? 'bearish' : 'neutral'}">
+                <div class="model-name">${AI_MODEL_DISPLAY.primary.name}</div>
+                <div class="model-result">${getDirectionEmoji(primaryDir)} ${primaryDir?.toUpperCase() || 'N/A'}</div>
+                <div class="model-confidence">Confidence: <strong>${formatConf(primaryConf)}</strong></div>
+                ${primaryReasoning ? `<div class="model-reasoning" title="${escapeHtml(primaryReasoning)}">${escapeHtml(primaryReasoning.slice(0, 80))}${primaryReasoning.length > 80 ? '...' : ''}</div>` : ''}
+              </div>
+              <div class="model-card ${mateDir?.toLowerCase() === 'bullish' ? 'bullish' : mateDir?.toLowerCase() === 'bearish' ? 'bearish' : 'neutral'}">
+                <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
+                <div class="model-result">${getDirectionEmoji(mateDir)} ${mateDir?.toUpperCase() || 'N/A'}</div>
+                <div class="model-confidence">Confidence: <strong>${formatConf(mateConf)}</strong></div>
+                ${mateReasoning ? `<div class="model-reasoning" title="${escapeHtml(mateReasoning)}">${escapeHtml(mateReasoning.slice(0, 80))}${mateReasoning.length > 80 ? '...' : ''}</div>` : ''}
+              </div>
             </div>
-            <div class="model-card">
-              <div class="model-name">${AI_MODEL_DISPLAY.secondary.name}</div>
-              <div class="model-result">${mateDir?.toUpperCase() || 'N/A'}</div>
-            </div>
+            ${action ? `<div class="combined-action">Combined Signal: <strong>${escapeHtml(action)}</strong></div>` : ''}
+            ${signalReasoning ? `<div class="signal-reasoning">${escapeHtml(signalReasoning)}</div>` : ''}
+            ${articlesCount !== undefined ? `<div class="articles-count">📰 ${articlesCount} article${articlesCount !== 1 ? 's' : ''} analyzed</div>` : ''}
           </div>
         ` : '';
 
@@ -955,7 +1282,7 @@ function generateSignalCards(signals: any[]): string {
           <span class="value">${escapeHtml(signal.actual || actualDirection?.toUpperCase() || 'N/A')}</span>
         </div>
         <div class="signal-detail">
-          <span class="label">Confidence:</span>
+          <span class="label">Combined Confidence:</span>
           <span class="value">${confidence}%</span>
         </div>
         <div class="signal-detail">

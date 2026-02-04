@@ -601,7 +601,7 @@ export async function handleScheduledEvent(
         // Morning predictions from pre-market
         const morningPredictions = analysisData?.trading_signals || null;
 
-        const eodResult = await generateEndOfDayAnalysis(analysisData, morningPredictions, intradayData, env);
+        const eodResult = await generateEndOfDayAnalysis(analysisData, morningPredictions, intradayData, env, dateStr);
 
         if (!eodResult) {
           throw new Error('End-of-day analysis returned null');

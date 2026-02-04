@@ -108,7 +108,7 @@ FRED_ALLOW_DEGRADATION = "true"
 
 # Secrets to be set via: wrangler secret put SECRET_NAME
 # Core secrets:
-# - WORKER_API_KEY: API key for protecting sensitive endpoints (REQUIRED)
+# - X_API_KEY: API key for protecting sensitive endpoints (REQUIRED)
 # - FACEBOOK_PAGE_TOKEN: Facebook Messenger bot token
 # - FACEBOOK_RECIPIENT_ID: Your Facebook user ID
 #
@@ -124,6 +124,6 @@ FRED_ALLOW_DEGRADATION = "true"
 # - LINE_USER_ID: Your LINE user ID
 #
 # Example deployment commands:
-# wrangler secret put WORKER_API_KEY
+# wrangler secret put X_API_KEY
 # wrangler secret put FMP_API_KEY
 # wrangler secret put NEWSAPI_KEY

@@ -260,6 +260,35 @@ export async function readD1ReportSnapshot(
 }
 
 /**
+ * Get matched pre-market run_id for a given scheduled_date
+ * Used by EOD report to link back to the original pre-market analysis
+ */
+export async function getMatchedPreMarketRunId(
+  env: CloudflareEnvironment,
+  scheduledDate: string
+): Promise<{ runId: string; createdAt: string } | null> {
+  const db = env.PREDICT_JOBS_DB;
+  if (!db) return null;
+
+  try {
+    const result = await db.prepare(`
+      SELECT run_id, created_at
+      FROM scheduled_job_results
+      WHERE scheduled_date = ? AND report_type = 'pre-market' AND run_id IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).bind(scheduledDate).first<{ run_id: string; created_at: string }>();
+
+    if (!result?.run_id) return null;
+
+    return { runId: result.run_id, createdAt: result.created_at };
+  } catch (error) {
+    logger.error('getMatchedPreMarketRunId failed', { error: (error as Error).message, scheduledDate });
+    return null;
+  }
+}
+
+/**
  * Read report snapshot by run_id (for accessing specific historical runs)
  */
 export async function readD1ReportSnapshotByRunId(
