@@ -171,7 +171,7 @@ DELETE FROM market_close_data;
 
 **⚠️ ALWAYS ask for user approval before deploying.**
 
-**⚠️ Wrangler uses OAuth (browser login), NOT API tokens. Claude cannot run wrangler commands directly - user must run them manually.**
+**⚠️ Wrangler uses OAuth (browser login), NOT API tokens. Unset CLOUDFLARE_API_TOKEN before running wrangler commands.**
 
 ```bash
 # Standard (interactive)
