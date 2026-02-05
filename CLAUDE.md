@@ -263,9 +263,10 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ### Schema Refresh
 ```bash
-# Dump current D1 schema to file (update after migrations)
+# Dump current D1 schema (tables + indexes) to file after applying migrations
 unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote \
-  --command "SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
+  --command "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type DESC, name" \
+  | jq -r '.[] .results[] .sql' > schema/current-schema.sql
 ```
 
 ---

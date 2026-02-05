@@ -18,13 +18,18 @@ api() {
   curl -sf -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" "$@"
 }
 
-header "1. Check pre-market data for $DATE"
-PRE_MARKET=$(api "$API_BASE/reports/pre-market?date=$DATE" | jq -r '.data.symbols_analyzed // .symbols_analyzed // "null"')
-if [ "$PRE_MARKET" = "null" ] || [ -z "$PRE_MARKET" ]; then
-  echo "ERROR: No pre-market data for $DATE"
+d1() {
+  unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --command "$1" 2>/dev/null
+}
+
+header "1. Check pre-market data for $DATE (D1 direct)"
+PRE_MARKET=$(d1 "SELECT COUNT(*) as count FROM scheduled_job_results WHERE scheduled_date = '$DATE' AND report_type = 'pre-market'" \
+  | grep -o '"count":[0-9]*' | grep -o '[0-9]*')
+if [ "$PRE_MARKET" = "0" ] || [ -z "$PRE_MARKET" ]; then
+  echo "ERROR: No pre-market data in D1 for $DATE"
   exit 1
 fi
-echo "Pre-market: $PRE_MARKET symbols"
+echo "Pre-market reports in D1: $PRE_MARKET"
 
 header "2. Run EOD job #1 (first run - fetches from Yahoo)"
 RUN1=$(api -X POST "$API_BASE/jobs/trigger" \
@@ -40,10 +45,11 @@ if [ "$RUN1_SUCCESS" != "true" ]; then
 fi
 
 header "3. Check market_close_data cache"
-CACHE_COUNT=$(unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote \
-  --command "SELECT COUNT(*) as count FROM market_close_data WHERE close_date = '$DATE'" 2>/dev/null \
+CACHE_COUNT=$(d1 "SELECT COUNT(*) as count FROM market_close_data WHERE close_date = '$DATE'" \
   | grep -o '"count":[0-9]*' | grep -o '[0-9]*')
-echo "Cached entries: $CACHE_COUNT"
+CACHE_MAX_CREATED=$(d1 "SELECT MAX(created_at) as max_created FROM market_close_data WHERE close_date = '$DATE'" \
+  | grep -o '"max_created":"[^"]*"' | cut -d'"' -f4)
+echo "Cached entries: $CACHE_COUNT (latest: $CACHE_MAX_CREATED)"
 
 if [ "$CACHE_COUNT" = "0" ]; then
   echo "ERROR: No data cached in market_close_data"
@@ -57,16 +63,25 @@ RUN2_SUCCESS=$(echo "$RUN2" | jq -r '.success')
 RUN2_SYMBOLS=$(echo "$RUN2" | jq -r '.data.result' | jq -r '.symbols_analyzed // "?"')
 echo "Run 2: success=$RUN2_SUCCESS, symbols=$RUN2_SYMBOLS"
 
-header "5. Verify cache not duplicated"
-CACHE_COUNT2=$(unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote \
-  --command "SELECT COUNT(*) as count FROM market_close_data WHERE close_date = '$DATE'" 2>/dev/null \
+header "5. Verify cache unchanged (pure cache hit)"
+CACHE_COUNT2=$(d1 "SELECT COUNT(*) as count FROM market_close_data WHERE close_date = '$DATE'" \
   | grep -o '"count":[0-9]*' | grep -o '[0-9]*')
-echo "Cached entries after rerun: $CACHE_COUNT2"
+CACHE_MAX_CREATED2=$(d1 "SELECT MAX(created_at) as max_created FROM market_close_data WHERE close_date = '$DATE'" \
+  | grep -o '"max_created":"[^"]*"' | cut -d'"' -f4)
+echo "Cached entries after rerun: $CACHE_COUNT2 (latest: $CACHE_MAX_CREATED2)"
 
-if [ "$CACHE_COUNT" = "$CACHE_COUNT2" ]; then
-  echo "PASS: Cache stable ($CACHE_COUNT entries, no duplicates)"
-else
+CACHE_PASS=true
+if [ "$CACHE_COUNT" != "$CACHE_COUNT2" ]; then
   echo "FAIL: Cache count changed ($CACHE_COUNT -> $CACHE_COUNT2)"
+  CACHE_PASS=false
+fi
+if [ "$CACHE_MAX_CREATED" != "$CACHE_MAX_CREATED2" ]; then
+  echo "FAIL: Cache timestamps changed ($CACHE_MAX_CREATED -> $CACHE_MAX_CREATED2) - data was refetched"
+  CACHE_PASS=false
+fi
+if [ "$CACHE_PASS" = "true" ]; then
+  echo "PASS: Cache stable ($CACHE_COUNT entries, timestamps unchanged)"
+else
   exit 1
 fi
 
