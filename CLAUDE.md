@@ -171,6 +171,8 @@ DELETE FROM market_close_data;
 
 **⚠️ ALWAYS ask for user approval before deploying.**
 
+**⚠️ Wrangler uses OAuth (browser login), NOT API tokens. Claude cannot run wrangler commands directly - user must run them manually.**
+
 ```bash
 # Standard (interactive)
 npm run deploy
@@ -180,6 +182,9 @@ npm run deploy -- --yes
 
 # Frontend only
 npm run deploy:frontend:only
+
+# D1 migrations (user must run manually)
+npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/<migration>.sql
 
 # Rollback DO cache
 wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
