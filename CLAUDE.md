@@ -209,10 +209,7 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ### Pending Migrations
 
-- `schema/migrations/add-market-close-cache.sql` - Creates `market_close_data` table to cache Yahoo Finance close prices per symbol per date. Required for EOD rerun accuracy (Yahoo free API does not reliably serve historical data).
-  ```bash
-  npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/add-market-close-cache.sql
-  ```
+None.
 
 ---
 
