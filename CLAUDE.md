@@ -69,14 +69,46 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 
 | Group | Key Endpoints |
 |-------|---------------|
-| **Jobs** | `POST /jobs/pre-market`, `GET /jobs/runs` (public), `GET /jobs/runs/:runId/stages` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
+| **Jobs** | `POST /jobs/trigger`, `GET /jobs/runs` (public), `GET /jobs/runs/:runId/stages` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
 | **Reports** | `GET /reports/pre-market`, `GET /reports/intraday?date=YYYY-MM-DD`, `GET /reports/intraday?run_id=...`, `GET /reports/end-of-day`, `GET /reports/status` |
 | **Sentiment** | `GET /sentiment/analysis`, `/market` |
 | **Data** | `GET /data/health`, `/symbols`, `/system-status`, `POST /data/cache-clear` |
 
+### Job Trigger API
+
+```bash
+POST /api/v1/jobs/trigger
+Header: X-API-Key
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `triggerMode` | string | **Required**. One of: `morning_prediction_alerts`, `midday_validation_prediction`, `next_day_market_prediction`, `weekly_review_analysis`, `sector_rotation_refresh` |
+| `scheduledDate` | string | Optional. `YYYY-MM-DD` to override target date (for reruns) |
+
+**Trigger mode → job type mapping:**
+
+| triggerMode | Job Type | UTC Time |
+|-------------|----------|----------|
+| `morning_prediction_alerts` | pre-market | 12:30 |
+| `midday_validation_prediction` | intraday | 16:00 |
+| `next_day_market_prediction` | end-of-day | 20:05 |
+| `weekly_review_analysis` | weekly | 14:00 Sun |
+| `sector_rotation_refresh` | sector-rotation | 13:30 |
+
+**Example:**
+```bash
+curl -X POST "https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/trigger" \
+  -H "X-API-Key: $(printf '%s' "$X_API_KEY" | tr -d '\r\n')" \
+  -H "Content-Type: application/json" \
+  -d '{"triggerMode": "next_day_market_prediction", "scheduledDate": "2026-02-03"}'
+```
+
 ---
 
 ## D1 Schema (v2.8)
+
+**Full schema**: `schema/current-schema.sql` (dumped from D1, 14 tables, 34 indexes)
 
 | Table | Purpose |
 |-------|---------|
@@ -85,15 +117,19 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 | `job_run_results` | Run history, `run_id`, `status`, `trigger_source` |
 | `job_stage_log` | Per-stage timeline with outcomes |
 | `scheduled_job_results` | Report content (append-only) |
-| `symbol_predictions` | Per-symbol dual model data (`primary_*`/`mate_*` columns) |
+| `symbol_predictions` | Per-symbol dual model data (**actual columns**: `gemma_*` = primary, `distilbert_*` = mate) |
 | `daily_analysis` | Daily analysis summaries |
 | `market_close_data` | Yahoo Finance close prices cached by date (EOD rerun support) |
 | `news_fetch_log` | Per-provider fetch diagnostics |
 | `weekend_news_cache` | Friday→Monday article cache |
 | `news_provider_failures` | Provider error tracking |
 | `news_cache_stats` | Cache hit/miss statistics |
+| `report_snapshots` | Report content snapshots |
+| `settings` | Key-value settings |
 
 **Key**: `scheduled_date` is lookup key only. `run_id`: `${date}_${type}_${uuid}`
+
+**Column name aliasing**: D1 has legacy column names (`gemma_*`, `distilbert_*`) for dual model data. Code aliases these to `primary_*`/`mate_*` via `extractDualModelData()` in `src/modules/data.ts`.
 
 ### Market Close Data Cache
 
@@ -107,7 +143,23 @@ SELECT symbol, close_price, day_change, fetch_status FROM market_close_data WHER
 DELETE FROM market_close_data WHERE close_date = '2026-02-03';
 ```
 
-**Migration**: `wrangler d1 migrations apply cct-predict-jobs --remote`
+### Applied Migrations
+
+All migrations applied via: `unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=<path>`
+
+| Migration | Purpose | Applied |
+|-----------|---------|---------|
+| `add-symbol-prediction-status.sql` | Status/error tracking columns | Yes |
+| `add-trigger-source.sql` | Trigger source tracking | Yes |
+| `add-report-snapshots.sql` | Report snapshots table | Yes |
+| `add-dual-model-logging.sql` | gemma_*/distilbert_* columns | Yes |
+| `add-articles-content.sql` | Articles content storage | Yes |
+| `cleanup-scheduled-jobs.sql` | Cleanup stale data | Yes |
+| `add-news-provider-failures.sql` | Provider failure tracking | Yes |
+| `add-nav-status-tables.sql` | Nav status tables | Yes |
+| `add-sector-rotation-report-type.sql` | Sector rotation support | Yes |
+| `add-weekend-news-cache.sql` | Weekend news cache | Yes |
+| `add-market-close-cache.sql` | Market close data caching | 2026-02-05 |
 
 ### D1 Cleanup (Fresh Start)
 ```sql
@@ -154,6 +206,8 @@ DELETE FROM market_close_data;
 - `src/routes/api-v1.ts` - API gateway
 - `src/routes/data-routes.ts` - Data endpoints incl. cache-clear
 - `public/js/cct-api.js` - Frontend API client
+- `schema/current-schema.sql` - D1 schema dump (tables + indexes)
+- `schema/migrations/` - Applied D1 migrations
 
 ---
 
@@ -207,9 +261,12 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 | Neutral handling | Low | By design - neutrals excluded from accuracy metrics |
 | Binary up/down (no deadband) | Low | By design - exact 0.0% treated as "down" |
 
-### Pending Migrations
-
-None.
+### Schema Refresh
+```bash
+# Dump current D1 schema to file (update after migrations)
+unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote \
+  --command "SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"
+```
 
 ---
 
@@ -221,4 +278,4 @@ None.
 
 ---
 
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-05
