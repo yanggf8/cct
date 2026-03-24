@@ -554,7 +554,7 @@ async function handleSystemStatus(
     } catch (e) { /* ignore - cache DO may not be available */ }
 
     // AI model status - real inference tests
-    const models: { primary: { status: string; responseTime?: number }; mate: { status: string; responseTime?: number } } = {
+    const models: { primary: { status: string; responseTime?: number; test_type?: string }; mate: { status: string; responseTime?: number; test_type?: string } } = {
       primary: { status: 'checking' },
       mate: { status: 'checking' }
     };
@@ -567,7 +567,7 @@ async function handleSystemStatus(
             messages: [{ role: 'user', content: 'Hi' }],
             max_tokens: 5
           });
-          models.primary = { status: 'healthy', responseTime: Date.now() - primaryStart };
+          models.primary = { status: 'healthy', responseTime: Date.now() - primaryStart, test_type: 'ping' };
         } catch (e: any) {
           models.primary = { status: 'unhealthy' };
         }
@@ -578,7 +578,7 @@ async function handleSystemStatus(
             messages: [{ role: 'user', content: 'Hi' }],
             max_tokens: 5
           });
-          models.mate = { status: 'healthy', responseTime: Date.now() - mateStart };
+          models.mate = { status: 'healthy', responseTime: Date.now() - mateStart, test_type: 'ping' };
         } catch (e) {
           models.mate = { status: 'unhealthy' };
         }

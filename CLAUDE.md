@@ -248,6 +248,14 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 
 ## Known Issues & TODOs
 
+### Workers Subrequest Limit (50/invocation)
+
+Cloudflare Workers free/bundled plan allows **50 subrequests per invocation**. Each `fetch()` to an external URL and each `env.AI.run()` call counts as one subrequest. D1 queries and KV reads do **not** count.
+
+**Root cause (fixed 2026-03-24)**: RTDM warmup (`warmCachesForMarketOpen` + `refreshAll`) was consuming ~30 subrequests before analysis started, leaving only ~20 for AI model calls. With 5 symbols × 2 models = 10 subrequests minimum, plus news fetches, the limit was hit mid-analysis, causing GOOGL/TSLA to fail with `"Too many subrequests"` → all signals returned `null` confidence → `usableSignals = 0` → job failed.
+
+**Fix**: RTDM warmup disabled for all job types in `src/modules/scheduler.ts`. Analysis modules fetch their own data independently and do not use the RTDM-populated DO cache.
+
 ### EOD Calibration Pipeline
 
 | Issue | Severity | Status |
@@ -256,10 +264,17 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 | Holiday fallback miscalibration | Medium | Fixed - 10-day lookback + validation for no previous trading day |
 | Pre-market link 404 | Medium | Fixed - `/pre-market-briefing?run_id=...` |
 | Market pulse CSS injection | Medium | Fixed - mapped to fixed class names |
+| EOD `data_fetch` stage left open on failure | Medium | Fixed - `eodOpenStage` tracker closes open stage in catch block |
 | Failed fetch caching permanent | Low | By design - prevents repeated API failures |
 | Confidence threshold semantics | Low | OK - 0.70 (0-1 space) = 70 (0-100 space), normalized internally |
 | Neutral handling | Low | By design - neutrals excluded from accuracy metrics |
 | Binary up/down (no deadband) | Low | By design - exact 0.0% treated as "down" |
+
+### Job Stage Tracking
+
+- `current_stage` in `job_run_results` reflects where the job actually failed (fixed 2026-03-24)
+- Pre-market/intraday failures now record `current_stage: 'ai_analysis'` instead of the misleading default `'finalize'`
+- `/api/v1/data/system-status` model health shows `test_type: 'ping'` — this is a basic connectivity test only, not a full reasoning pipeline test
 
 ### Schema Refresh
 ```bash
@@ -279,4 +294,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-02-05
+**Last Updated**: 2026-03-24

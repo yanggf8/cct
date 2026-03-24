@@ -219,24 +219,10 @@ export async function handleScheduledEvent(
     let analysisFailureReason: string | null = null;
     const dateStr = getESTDateString(scheduledTime);
 
-    // Real-time Data Manager integration for live data freshness and cache warming
-    try {
-      const rtdm = initializeRealTimeDataManager(env);
-      if (triggerMode === 'morning_prediction_alerts') {
-        await rtdm.warmCachesForMarketOpen(undefined, ctx);
-        await rtdm.refreshAll({ priority: 'high', reason: 'pre_market' }, ctx);
-      } else if (triggerMode === 'midday_validation_prediction') {
-        await rtdm.refreshIncremental(ctx);
-      } else if (triggerMode === 'next_day_market_prediction') {
-        await rtdm.refreshAll({ priority: 'normal', reason: 'end_of_day', incremental: true }, ctx);
-      } else if (triggerMode === 'weekly_review_analysis') {
-        await rtdm.refreshAll({ priority: 'low', reason: 'weekly' }, ctx);
-      } else if (triggerMode === 'sector_rotation_refresh') {
-        await rtdm.refreshAll({ priority: 'normal', reason: 'intraday', incremental: true }, ctx);
-      }
-    } catch (rtdmError: any) {
-      console.warn('Real-time Data Manager update failed (continuing with scheduled task):', rtdmError?.message || rtdmError);
-    }
+    // NOTE: RTDM warmup disabled for all job types.
+    // It consumes 20-30 subrequests (Yahoo prices + FRED + sentiment) before analysis starts,
+    // pushing total usage past the Workers 50-subrequest limit. Analysis modules fetch their
+    // own data independently and do not use the RTDM-populated cache.
 
     if (triggerMode === 'weekly_review_analysis') {
       // Sunday 14:00 UTC (9:00 AM ET / 10:00 AM EDT) - Weekly Review Analysis
@@ -508,6 +494,7 @@ export async function handleScheduledEvent(
             scheduledDate: dateStr,
             reportType: 'intraday',
             status: 'failed',
+            currentStage: 'ai_analysis',
             errors: [intradayError.message]
           });
           console.log(`✅ [CRON-INTRADAY] ${cronExecutionId} Job run recorded: ${intradayRunId} (failed)`);
@@ -555,11 +542,13 @@ export async function handleScheduledEvent(
       let intradayData: any = null;
       let preMarketRunId: string | null = null;
       let intradayRunIdSource: string | null = null;
+      let eodOpenStage: string | null = null;
 
       if (runTrackingEnabled) {
         await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'init' });
         await endJobStage(env, { runId, stage: 'init' });
         await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'data_fetch' });
+        eodOpenStage = 'data_fetch';
       }
 
       try {
@@ -595,7 +584,9 @@ export async function handleScheduledEvent(
 
         if (runTrackingEnabled) {
           await endJobStage(env, { runId, stage: 'data_fetch' });
+          eodOpenStage = null;
           await startJobStage(env, { runId, scheduledDate: dateStr, reportType: 'end-of-day', stage: 'ai_analysis' });
+          eodOpenStage = 'ai_analysis';
         }
         
         // Morning predictions from pre-market
@@ -609,6 +600,7 @@ export async function handleScheduledEvent(
 
         if (runTrackingEnabled) {
           await endJobStage(env, { runId, stage: 'ai_analysis' });
+          eodOpenStage = null;
         }
 
         // Normalize to scheduler expected shape
@@ -688,6 +680,11 @@ export async function handleScheduledEvent(
         // Store compact failure reason for D1 (no stack trace)
         analysisFailureReason = `dateStr=${dateStr}, hasPreMarket=${!!analysisData}, hasTradingSignals=${!!analysisData?.trading_signals}`;
 
+        // Close any open stage so it doesn't appear as "hanging"
+        if (runTrackingEnabled && eodOpenStage) {
+          await endJobStage(env, { runId, stage: eodOpenStage as any, status: 'failed', errors: [eodError.message] });
+        }
+
         // Complete job with failure and compact diagnostics (no stack in D1)
         if (runTrackingEnabled) {
           await completeJobRun(env, {
@@ -695,6 +692,7 @@ export async function handleScheduledEvent(
             scheduledDate: dateStr,
             reportType: 'end-of-day',
             status: 'failed',
+            currentStage: (eodOpenStage || 'ai_analysis') as any,
             errors: [eodError.message, analysisFailureReason]
           });
         }
@@ -994,6 +992,7 @@ export async function handleScheduledEvent(
           scheduledDate: dateStr,
           reportType: 'pre-market',
           status: 'failed',
+          currentStage: 'ai_analysis',
           errors: [failureError]
         });
       }
