@@ -1,5 +1,84 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Development Commands
+
+```bash
+# Local dev server
+npm run dev
+
+# Type checking
+npm run typecheck
+
+# Lint
+npm run lint
+npm run lint:fix
+
+# Build (frontend + backend)
+npm run build
+
+# Build frontend only (faster, skips typecheck)
+npm run build:frontend:only
+
+# Tests (Playwright)
+npm run test:playwright
+npx playwright test tests/performance.spec.js --reporter=list  # single suite
+
+# Verify (pre-deploy gates: html, guards, env bindings, monitoring, mock prevention)
+npm run verify
+```
+
+> **Wrangler auth**: Always `unset CLOUDFLARE_API_TOKEN` before wrangler commands — auth uses OAuth (browser), not API tokens.
+
+---
+
+## Architecture
+
+**Runtime**: Cloudflare Workers (TypeScript) with D1 (SQLite), KV, Durable Objects, R2, and Workers AI bindings.
+
+**Request flow**:
+```
+src/index.ts
+  └─ EnhancedRequestHandler (src/modules/enhanced-request-handler.ts)
+       ├─ Page routes: /pre-market-briefing, /intraday-check, /end-of-day, /weekly-review
+       │    └─ src/modules/handlers/ (briefing, intraday, end-of-day, weekly-review handlers)
+       └─ /api/v1/* → handleApiV1Request (src/routes/api-v1.ts)
+            ├─ /jobs/*     → jobs-routes.ts
+            ├─ /reports/*  → report-routes.ts
+            ├─ /data/*     → data-routes.ts
+            └─ /sentiment/* → sentiment-routes.ts
+```
+
+**Scheduled jobs** (triggered via GitHub Actions → `POST /api/v1/jobs/trigger`):
+```
+scheduler.ts → handleScheduledEvent()
+  ├─ pre-market     → src/modules/report/pre-market-analysis.ts
+  ├─ intraday       → src/modules/report/intraday-analysis.ts
+  ├─ end-of-day     → src/modules/report/end-of-day-analysis.ts
+  ├─ weekly         → src/modules/report/weekly-review-analysis.ts
+  └─ sector-rotation → src/modules/sector-rotation-workflow.ts
+```
+
+**Data layer** (all jobs write to D1 via `d1-job-storage.ts`):
+- Job lifecycle: `startJobRun()` → `startJobStage()` / `endJobStage()` → `completeJobRun()`
+- Run ID format: `${date}_${type}_${uuid}` (e.g. `2026-03-30_pre-market_abc123`)
+- Reports stored in `scheduled_job_results` (append-only); latest pointer in `job_date_results`
+
+**AI analysis** (`dual-ai-analysis.ts`):
+- Primary model call → circuit breaker check → retry (max 2) → store `gemma_*` columns in D1
+- Mate model call → same pattern → store `distilbert_*` columns
+- `extractDualModelData()` in `data.ts` aliases legacy column names to `primary_*`/`mate_*`
+
+**Caching layers** (fastest → slowest):
+1. Durable Object (`CACHE_DO`) — <1ms, SQLite-backed
+2. KV (`MARKET_ANALYSIS_CACHE`) — ~5ms
+3. D1 — query-based
+
+> The `src/modules/` directory contains ~100 files; most are legacy/experimental. The active execution path is: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
+
+---
+
 ## System Overview
 
 **URL**: https://tft-trading-system.yanggf.workers.dev | **Version**: v3.10.25 | **Status**: Production Ready
@@ -71,7 +150,7 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 |-------|---------------|
 | **Jobs** | `POST /jobs/trigger`, `GET /jobs/runs` (public), `GET /jobs/runs/:runId/stages` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
 | **Reports** | `GET /reports/pre-market`, `GET /reports/intraday?date=YYYY-MM-DD`, `GET /reports/intraday?run_id=...`, `GET /reports/end-of-day`, `GET /reports/status` |
-| **Sentiment** | `GET /sentiment/analysis`, `/market` |
+| **Sentiment** | `GET /sentiment/analysis`, `/market`, `/enhanced[/:symbol]`, `/fine-grained/:symbol`, `POST /fine-grained/batch` |
 | **Data** | `GET /data/health`, `/symbols`, `/system-status`, `POST /data/cache-clear` |
 
 ### Job Trigger API
@@ -201,9 +280,11 @@ DELETE FROM market_close_data;
 - `src/modules/d1-job-storage.ts` - D1 queries, `checkScheduledRuns()`
 - `src/modules/dual-ai-analysis.ts` - Dual AI sentiment analysis with circuit breaker + retry
 - `src/modules/free_sentiment_pipeline.ts` - News fetching with diagnostics
+- `src/modules/enhanced-sentiment-pipeline.ts` - DAC articles pool priority pipeline with quality metrics
 - `src/modules/report/end-of-day-analysis.ts` - End-of-day analysis with enriched signal breakdown
 - `src/routes/jobs-routes.ts` - Job triggers/history/schedule-check
 - `src/routes/api-v1.ts` - API gateway
+- `src/routes/sentiment-routes.ts` - Sentiment endpoints incl. fine-grained and enhanced
 - `src/routes/data-routes.ts` - Data endpoints incl. cache-clear
 - `public/js/cct-api.js` - Frontend API client
 - `schema/current-schema.sql` - D1 schema dump (tables + indexes)
@@ -294,4 +375,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-03-24
+**Last Updated**: 2026-03-30

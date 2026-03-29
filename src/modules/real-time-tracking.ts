@@ -4,7 +4,6 @@
  */
 
 import { createLogger } from './logging.js';
-// import { kvStorageManager } from './kv-storage-manager.js'; // Module not found
 import { rateLimitedFetch } from './rate-limiter.js';
 import { withCache } from './market-data-cache.js';
 import type { CloudflareEnvironment } from '../types';

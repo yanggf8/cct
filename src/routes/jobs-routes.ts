@@ -12,7 +12,6 @@ import {
   getD1LatestReportSnapshot,
   readD1ReportSnapshot,
   writeD1JobResult,
-  deleteD1ReportSnapshot,
   TriggerSource,
   startJobRun,
   completeJobRun,
@@ -953,13 +952,6 @@ async function handlePreMarketJob(
         actualToday,
         requestId
       });
-    }
-
-    // One-shot cleanup: Delete old schema records for migration (controlled by env var)
-    // TODO: Remove this after migration is complete and all old records are cleaned
-    if (env.ENABLE_D1_CLEANUP === 'true') {
-      logger.info('D1 cleanup enabled - deleting old records for scheduled date', { scheduledDate });
-      await deleteD1ReportSnapshot(env, scheduledDate, 'pre-market');
     }
 
     const writeSuccess = await writeD1JobResult(

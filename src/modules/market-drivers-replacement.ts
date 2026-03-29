@@ -373,16 +373,20 @@ export class ProductionMarketDrivers {
     try {
       // Batch fetch all FRED series
       const seriesIds = [
-        'FEDFUNDS',    // Federal Funds Rate
-        'DGS10',       // 10-Year Treasury
-        'DGS2',        // 2-Year Treasury
-        'CPIAUCSL',    // CPI
-        'PPIACO',      // PPI
-        'UNRATE',      // Unemployment Rate
-        'PAYEMS',      // Non-Farm Payrolls
-        'CIVPART',     // Labor Force Participation
-        'GDPC1',       // Real GDP
-        'UMCSENT'      // Consumer Confidence
+        'FEDFUNDS',          // Federal Funds Rate
+        'DGS10',             // 10-Year Treasury
+        'DGS2',              // 2-Year Treasury
+        'CPIAUCSL',          // CPI (level)
+        'PPIACO',            // PPI
+        'UNRATE',            // Unemployment Rate
+        'PAYEMS',            // Non-Farm Payrolls
+        'CIVPART',           // Labor Force Participation
+        'GDPC1',             // Real GDP (level)
+        'UMCSENT',           // Consumer Confidence
+        'CPALTT01USQ657N',   // CPI YoY % change (inflation rate)
+        'A191RL1Q225SBEA',   // Real GDP % change from preceding period (GDP growth rate)
+        'PERMIT',            // New Private Housing Units Authorized (building permits)
+        'HOUST'              // New Private Housing Units Started (housing starts)
       ];
 
       const results = await Promise.all(
@@ -413,19 +417,8 @@ export class ProductionMarketDrivers {
         confidence: Math.min(treasury10Y.confidence, treasury2Y.confidence)
       };
 
-      const inflationRate: DataSourceResult = {
-        ...cpi,
-        value: 3.2, // TODO: Calculate from CPI historical data
-        confidence: 85,
-        quality: 'medium'
-      };
-
-      const gdpGrowthRate: DataSourceResult = {
-        ...realGDP,
-        value: 2.1, // TODO: Calculate from GDP historical data
-        confidence: 85,
-        quality: 'medium'
-      };
+      const inflationRate = getValueBySeriesId('CPALTT01USQ657N');
+      const gdpGrowthRate = getValueBySeriesId('A191RL1Q225SBEA');
 
       const macroDrivers: MacroDrivers = {
         // Interest Rates
@@ -449,21 +442,9 @@ export class ProductionMarketDrivers {
         gdpGrowthRate,
         consumerConfidence,
 
-        // Housing (TODO: Add real housing data)
-        buildingPermits: {
-          ...fedFundsRate,
-          value: 1420,
-          seriesId: 'BUILDINGPERMIT',
-          confidence: 75,
-          quality: 'medium'
-        },
-        housingStarts: {
-          ...fedFundsRate,
-          value: 1360,
-          seriesId: 'HOUSTINGSTARTS',
-          confidence: 75,
-          quality: 'medium'
-        },
+        // Housing
+        buildingPermits: getValueBySeriesId('PERMIT'),
+        housingStarts: getValueBySeriesId('HOUST'),
 
         // Metadata
         lastUpdated: new Date().toISOString(),

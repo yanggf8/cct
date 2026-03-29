@@ -180,25 +180,24 @@ async function handleAvailableSymbols(
   const url = new URL(request.url);
 
   try {
-    // Temporarily bypass cache for debugging
-    // const cacheKey = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, { timestamp: 'available_symbols' });
-    // const cached = await dal.read<SymbolsResponse>(cacheKey);
+    const cacheKey = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, { timestamp: 'available_symbols' });
+    const cached = await dal.read<SymbolsResponse>(cacheKey);
 
-    // if (cached) {
-    //   logger.info('AvailableSymbols: Cache hit', { requestId });
+    if (cached) {
+      logger.info('AvailableSymbols: Cache hit', { requestId });
 
-    //   return new Response(
-    //     JSON.stringify(
-    //       ApiResponseFactory.cached(cached, 'hit', {
-    //         source: 'cache',
-    //         ttl: 3600, // 1 hour
-    //         requestId,
-    //         processingTime: timer.getElapsedMs(),
-    //       })
-    //     ),
-    //     { status: HttpStatus.OK, headers }
-    //   );
-    // }
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.cached(cached, 'hit', {
+            source: 'cache',
+            ttl: 3600, // 1 hour
+            requestId,
+            processingTime: timer.getElapsedMs(),
+          })
+        ),
+        { status: HttpStatus.OK, headers }
+      );
+    }
 
     // Get default symbols from configuration
     const defaultSymbols = [
@@ -245,8 +244,7 @@ async function handleAvailableSymbols(
       },
     };
 
-    // Cache for 1 hour (temporarily disabled)
-    // await dal.write(cacheKey, response);
+    await dal.write(cacheKey, response);
 
     logger.info('AvailableSymbols: Data retrieved', {
       symbolsCount: symbolsData.length,

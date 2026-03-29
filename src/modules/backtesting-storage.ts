@@ -435,6 +435,40 @@ export class BacktestingStorageManager {
   }
 
   /**
+   * Find related backtests by symbol overlap and strategy match.
+   * Scores candidates using Jaccard similarity on symbols plus a bonus for
+   * matching strategy name. Returns up to `limit` run IDs, best match first.
+   */
+  async findRelatedBacktests(backtestId: string, limit: number = 5): Promise<string[]> {
+    const currentRun = await this.getBacktestRun(backtestId);
+    if (!currentRun?.config?.symbols) return [];
+
+    const currentSymbols: string[] = currentRun.config.symbols;
+    const currentStrategy: string = currentRun.config.strategy?.name || '';
+
+    const historyKey = `${BACKTESTING_NAMESPACES.HISTORY}:index`;
+    const history: any[] = await getKVStore(this.env, historyKey) || [];
+
+    return history
+      .filter(entry => entry.runId !== backtestId && entry.eventType === 'run_created')
+      .map(entry => {
+        const symbols: string[] = entry.data?.symbols || [];
+        const strategy: string = entry.data?.strategy?.name || '';
+
+        const intersection = symbols.filter((s: string) => currentSymbols.includes(s)).length;
+        const union = new Set([...currentSymbols, ...symbols]).size;
+        const symbolScore = union > 0 ? intersection / union : 0;
+        const strategyBonus = strategy && strategy === currentStrategy ? 0.2 : 0;
+
+        return { runId: entry.runId as string, score: symbolScore + strategyBonus };
+      })
+      .filter(entry => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(entry => entry.runId);
+  }
+
+  /**
    * Estimate backtest duration
    * @private
    */

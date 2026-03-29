@@ -4,11 +4,10 @@
 
 **Objective**: Finalize D1 as the source of truth for scheduled job results and make dashboards resilient to DO cache evictions by falling back to D1 and re-hydrating cache automatically.
 
-**Current State**: D1 holds `job_executions`, `symbol_predictions`, `daily_analysis`; DO cache is still primary for dashboards. A new `scheduled_job_results` table + snapshot writes/fallbacks are coded but **not deployed**; migration must be applied. KV is not used for job storage (guards remain).
-**Target State**: Dashboards read from DO cache with D1 fallback and cache rehydration; report snapshots persisted in D1 (`scheduled_job_results`). KV remains unused for jobs.
+**Current State**: Migration complete. All 14 D1 tables are live including `scheduled_job_results`, `job_run_results`, `job_stage_log`, and `market_close_data`. Full job lifecycle (start → stage → complete) tracked in D1. DO cache is primary with D1 fallback and cache rehydration on miss. KV unused for jobs.
 
-**Timeline**: Pending deployment (apply migration + deploy code)
-**Risk Level**: Low (additive changes; ensure migration runs before code deploy)
+**Timeline**: ✅ Complete as of 2026-03-30
+**Risk Level**: N/A — fully deployed and stable
 
 ---
 
@@ -343,43 +342,31 @@ curl -X POST -H "X-API-KEY: $X_API_KEY" \
 
 ## 📅 Rollout Timeline
 
-### Week 1: Foundation & Backup
-- ✅ **CRITICAL**: Backup existing D1 data
-- ✅ Design and review non-destructive schema changes
-- ❌ Create migration script (ALTER-only + `scheduled_job_results`) - **NOT DONE**: `schema/scheduled-jobs-migration.sql` does not exist
-- ❌ Test migration on local D1 - **NOT DONE**
-- ❌ Apply to staging environment - **NOT DONE**
-- ⚠️ Create D1 storage adapter module - **PARTIAL**: `src/modules/d1-job-storage.ts` created for reads only
+### ✅ All phases complete (2026-03-30)
 
-### Week 2: Cache Resilience & API
-- ❌ Update `handleManualAnalysis` to write to D1 then warm DO cache - **NOT DONE**: still writes to DAL/DO cache only
-- ⚠️ Update report handlers to read D1 on DO miss and rehydrate cache - **PARTIAL**: pre-market only, code not deployed
-- ❌ Create D1 query API endpoints - **NOT DONE**
-- ❌ Deploy to staging and run UAT - **NOT DONE**
-
-### Week 3: Production Deployment
-- ❌ **CRITICAL**: Backup production D1 before deployment - **NOT DONE**
-- ❌ Apply migration to production D1 - **NOT DONE**: no `scheduled_job_results` table
-- ❌ Deploy code with D1-first + DO cache warm paths - **NOT DONE**
-- ❌ Monitor D1 performance and cache eviction alerts - **NOT DONE**
-- ❌ Spot-check 14-day history in D1 - **NOT DONE**
-
-### Week 4: Cleanup
-- ❌ Remove any remaining KV references for scheduled jobs - **NOT DONE**
-- ❌ Keep DO cache warming in place; tune TTL/capacity as needed - **NOT DONE**
-- ❌ Document operational runbook for cache eviction recovery - **NOT DONE**
+| Task | Status | Notes |
+|------|--------|-------|
+| Schema: `scheduled_job_results` | ✅ | Applied; 14 tables, 34 indexes live |
+| Schema: `job_run_results`, `job_stage_log` | ✅ | Full run lifecycle tracking |
+| Schema: `market_close_data` | ✅ | Applied 2026-02-05 |
+| D1 storage adapter | ✅ | `src/modules/d1-job-storage.ts` — full read/write/stage lifecycle |
+| D1 writes from job handlers | ✅ | `startJobRun` → `startJobStage`/`endJobStage` → `completeJobRun` |
+| D1 fallback reads on cache miss | ✅ | All report handlers use `getD1FallbackData` |
+| DO cache warm-after-write | ✅ | Active via `simplified-enhanced-dal.ts` |
+| KV for scheduled jobs | ✅ | Unused; guards remain as safeguard |
+| D1 cleanup env-gate removed | ✅ | Removed 2026-03-30 (migration fully complete) |
 
 ---
 
-## 📊 Current State (2026-01-09)
+## 📊 Current State (2026-03-30)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| D1 tables | ⚠️ Partial | `job_executions`, `symbol_predictions`, `daily_analysis` exist; NO `scheduled_job_results` |
-| D1 writes | ⚠️ Partial | Cron health + predictions only; NO report snapshots |
-| D1 reads | ⚠️ Partial | Pre-market fallback code ready (not deployed); other reports NO |
-| Cache warm-after-write | ❌ Missing | Not implemented |
-| KV cleanup | ❌ Pending | Guards still in code |
+| D1 tables | ✅ Complete | 14 tables, 34 indexes — see `schema/current-schema.sql` |
+| D1 writes | ✅ Complete | Full lifecycle: run start/stage/complete + report snapshots |
+| D1 reads | ✅ Complete | All report handlers fall back to D1 on cache miss + rehydrate |
+| Cache warm-after-write | ✅ Complete | DO cache populated after every D1 write |
+| KV for scheduled jobs | ✅ Unused | Guards in place; no active KV writes for job storage |
 
 ---
 
@@ -500,18 +487,14 @@ SELECT COUNT(*) FROM daily_analysis;
 
 ---
 
-## 📝 Next Steps
+## 📝 Operational Notes
 
-1. **Review this plan** with team
-2. **Approve schema design**
-3. **Create GitHub issue** for tracking
-4. **Assign tasks** to implementation phases
-5. **Set up staging environment** for testing
-6. **Begin Week 1 implementation**
+- **Schema changes**: Dump updated schema after any new migration via `schema/current-schema.sql` (see CLAUDE.md for dump command)
+- **Cache eviction recovery**: Call `POST /api/v1/data/cache-clear` then re-trigger the relevant job; D1 fallback will rehydrate DO cache automatically
+- **Monitoring**: `/api/v1/data/system-status` shows model health; `/api/v1/jobs/runs` shows run history
 
 ---
 
-**Document Version**: 1.1
-**Last Updated**: 2026-01-08 (cache eviction resilience update)
-**Author**: AI Assistant
-**Status**: Draft - Pending Review
+**Document Version**: 1.2
+**Last Updated**: 2026-03-30
+**Status**: Complete

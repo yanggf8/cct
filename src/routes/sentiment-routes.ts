@@ -30,6 +30,7 @@ import { createSimplifiedEnhancedDAL } from '../modules/simplified-enhanced-dal.
 import { createLogger } from '../modules/logging.js';
 import { AI_MODEL_DISPLAY } from '../modules/config.js';
 import { createCacheInstance } from '../modules/cache-do.js';
+import { handleEnhancedSentimentRoutes } from './enhanced-sentiment-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('sentiment-routes');
@@ -79,6 +80,11 @@ export async function handleSentimentRoutes(
   const requestId = headers['X-Request-ID'] || generateRequestId();
 
   try {
+    // GET /api/v1/sentiment/enhanced[/:symbol] - Enhanced pipeline with DAC articles pool
+    if (path.startsWith('/api/v1/sentiment/enhanced')) {
+      return await handleEnhancedSentimentRoutes(request, env, path, headers);
+    }
+
     // GET /api/v1/sentiment/analysis - Multi-symbol analysis
     if (path === '/api/v1/sentiment/analysis' && method === 'GET') {
       return await handleSentimentAnalysis(request, env, headers, requestId);
@@ -101,18 +107,17 @@ export async function handleSentimentRoutes(
       return await handleSectorSentiment(request, env, headers, requestId);
     }
 
-    // Note: Fine-grained endpoints temporarily removed - not yet implemented
-    // // GET /api/v1/sentiment/fine-grained/:symbol - Fine-grained per-symbol analysis
-    // const fgMatch = path.match(/^\/api\/v1\/sentiment\/fine-grained\/([A-Z0-9]{1,10})$/);
-    // if (fgMatch && method === 'GET') {
-    //   const symbol = fgMatch[1];
-    //   return await handleFineGrainedSymbol(symbol, request, env, headers, requestId);
-    // }
+    // GET /api/v1/sentiment/fine-grained/:symbol - Fine-grained per-symbol analysis
+    const fgMatch = path.match(/^\/api\/v1\/sentiment\/fine-grained\/([A-Z0-9]{1,10})$/);
+    if (fgMatch && method === 'GET') {
+      const symbol = fgMatch[1];
+      return await handleFineGrainedSymbol(symbol, request, env, headers, requestId);
+    }
 
-    // // POST /api/v1/sentiment/fine-grained/batch - Batch fine-grained analysis
-    // if (path === '/api/v1/sentiment/fine-grained/batch' && method === 'POST') {
-    //   return await handleFineGrainedBatch(request, env, headers, requestId);
-    // }
+    // POST /api/v1/sentiment/fine-grained/batch - Batch fine-grained analysis
+    if (path === '/api/v1/sentiment/fine-grained/batch' && method === 'POST') {
+      return await handleFineGrainedBatch(request, env, headers, requestId);
+    }
 
     // Method not allowed for existing paths
     return new Response(
@@ -822,6 +827,247 @@ async function handleSectorSentiment(
         status: HttpStatus.INTERNAL_SERVER_ERROR,
         headers,
       }
+    );
+  }
+}
+
+/**
+ * Handle fine-grained single symbol analysis
+ * GET /api/v1/sentiment/fine-grained/:symbol
+ * Returns deeper breakdown: signal details, per-model reasoning, confidence components
+ */
+async function handleFineGrainedSymbol(
+  symbol: string,
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+  const cacheInstance = createCacheInstance(env, true);
+
+  try {
+    const validatedSymbol = validateSymbol(symbol);
+
+    const cacheKey = `fine_grained_${validatedSymbol}_${new Date().toISOString().split('T')[0]}`;
+    const cached = await getFromCache(cacheKey, cacheInstance);
+
+    if (cached && cached.success && cached.data) {
+      logger.info('FineGrainedSymbol: Cache hit', { symbol: validatedSymbol, requestId });
+      return new Response(
+        JSON.stringify(ApiResponseFactory.cached(cached.data, 'hit', { source: 'cache', ttl: 3600, requestId, processingTime: timer.getElapsedMs() })),
+        { status: HttpStatus.OK, headers }
+      );
+    }
+
+    logger.info('FineGrainedSymbol: Starting analysis', { symbol: validatedSymbol, requestId });
+
+    const analysisResult = await batchDualAIAnalysis([validatedSymbol], env);
+
+    if (!analysisResult.results || analysisResult.results.length === 0 || analysisResult.results[0].error) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('No analysis data available for symbol', 'NO_DATA', { requestId, symbol: validatedSymbol })),
+        { status: HttpStatus.NOT_FOUND, headers }
+      );
+    }
+
+    const r = analysisResult.results[0];
+    const signal: any = r.signal || {};
+    const primary: any = r.models?.primary || {};
+    const mate: any = r.models?.mate || {};
+    const comparison: any = r.comparison || {};
+
+    const response = {
+      symbol: validatedSymbol,
+      signal: {
+        direction: signal.direction || 'neutral',
+        strength: signal.strength || 'WEAK',
+        action: signal.action || 'HOLD',
+        score: signal.score ?? null,
+      },
+      primary_model: {
+        name: AI_MODEL_DISPLAY.primary.name,
+        id: AI_MODEL_DISPLAY.primary.id,
+        direction: primary.direction || 'neutral',
+        confidence: primary.confidence ?? null,
+        reasoning: primary.reasoning || '',
+        articles_analyzed: primary.articles_analyzed || 0,
+      },
+      mate_model: {
+        name: AI_MODEL_DISPLAY.secondary.name,
+        id: AI_MODEL_DISPLAY.secondary.id,
+        direction: mate.direction || 'neutral',
+        confidence: mate.confidence ?? null,
+        sentiment_breakdown: {
+          bullish: mate.sentiment_breakdown?.bullish || 0,
+          bearish: mate.sentiment_breakdown?.bearish || 0,
+          neutral: mate.sentiment_breakdown?.neutral || 0,
+        },
+        articles_analyzed: mate.articles_analyzed || 0,
+      },
+      agreement: {
+        type: comparison.agreement_type || 'DISAGREE',
+        score: comparison.agreement_score ?? null,
+        recommendation: getRecommendationFromSignal(signal),
+      },
+      confidence_summary: {
+        primary: primary.confidence ?? null,
+        mate: mate.confidence ?? null,
+        combined: calculateOverallConfidence([r]),
+      },
+    };
+
+    await setCache(cacheKey, response, cacheInstance);
+
+    logger.info('FineGrainedSymbol: Analysis complete', { symbol: validatedSymbol, processingTime: timer.getElapsedMs(), requestId });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success(response, { source: 'fresh', ttl: 3600, requestId, processingTime: timer.finish() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error(`Invalid input: ${error.message}`, 'VALIDATION_ERROR', { requestId, symbol, field: error.field, value: error.value })),
+        { status: HttpStatus.BAD_REQUEST, headers }
+      );
+    }
+    logger.error('FineGrainedSymbol Error', { error: error instanceof Error ? error.message : 'Unknown error', requestId, symbol });
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Failed to perform fine-grained analysis', 'ANALYSIS_ERROR', { requestId, symbol, error: error instanceof Error ? error.message : 'Unknown error' })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
+  }
+}
+
+/**
+ * Handle batch fine-grained analysis
+ * POST /api/v1/sentiment/fine-grained/batch
+ * Body: { symbols: string[] }  (max 10 symbols to stay within subrequest budget)
+ */
+async function handleFineGrainedBatch(
+  request: Request,
+  env: CloudflareEnvironment,
+  headers: Record<string, string>,
+  requestId: string
+): Promise<Response> {
+  const timer = new ProcessingTimer();
+  const cacheInstance = createCacheInstance(env, true);
+
+  try {
+    const body = await validateRequestBody(request);
+    const rawSymbols: unknown = body?.symbols;
+
+    if (!Array.isArray(rawSymbols) || rawSymbols.length === 0) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Request body must include a non-empty "symbols" array', 'INVALID_BODY', { requestId })),
+        { status: HttpStatus.BAD_REQUEST, headers }
+      );
+    }
+
+    if (rawSymbols.length > 10) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('Maximum 10 symbols per batch request', 'TOO_MANY_SYMBOLS', { requestId, limit: 10, provided: rawSymbols.length })),
+        { status: HttpStatus.BAD_REQUEST, headers }
+      );
+    }
+
+    const symbols = validateSymbols(rawSymbols as string[]);
+
+    const cacheKey = `fine_grained_batch_${symbols.join(',')}_${new Date().toISOString().split('T')[0]}`;
+    const cached = await getFromCache(cacheKey, cacheInstance);
+
+    if (cached && cached.success && cached.data) {
+      logger.info('FineGrainedBatch: Cache hit', { symbols: symbols.join(','), requestId });
+      return new Response(
+        JSON.stringify(ApiResponseFactory.cached(cached.data, 'hit', { source: 'cache', ttl: 3600, requestId, processingTime: timer.getElapsedMs() })),
+        { status: HttpStatus.OK, headers }
+      );
+    }
+
+    logger.info('FineGrainedBatch: Starting analysis', { symbols: symbols.join(','), requestId });
+
+    const analysisResult = await batchDualAIAnalysis(symbols, env, { enableCache: true, useOptimizedBatch: false });
+
+    const results = (analysisResult.results || []).map(r => {
+      if (r.error) {
+        return { symbol: r.symbol, error: r.error, status: 'failed' };
+      }
+
+      const signal: any = r.signal || {};
+      const primary: any = r.models?.primary || {};
+      const mate: any = r.models?.mate || {};
+      const comparison: any = r.comparison || {};
+
+      return {
+        symbol: r.symbol,
+        status: 'ok',
+        signal: {
+          direction: signal.direction || 'neutral',
+          strength: signal.strength || 'WEAK',
+          action: signal.action || 'HOLD',
+          score: signal.score ?? null,
+        },
+        primary_model: {
+          direction: primary.direction || 'neutral',
+          confidence: primary.confidence ?? null,
+          reasoning: primary.reasoning || '',
+          articles_analyzed: primary.articles_analyzed || 0,
+        },
+        mate_model: {
+          direction: mate.direction || 'neutral',
+          confidence: mate.confidence ?? null,
+          sentiment_breakdown: {
+            bullish: mate.sentiment_breakdown?.bullish || 0,
+            bearish: mate.sentiment_breakdown?.bearish || 0,
+            neutral: mate.sentiment_breakdown?.neutral || 0,
+          },
+          articles_analyzed: mate.articles_analyzed || 0,
+        },
+        agreement: {
+          type: comparison.agreement_type || 'DISAGREE',
+          score: comparison.agreement_score ?? null,
+          recommendation: getRecommendationFromSignal(signal),
+        },
+        confidence_summary: {
+          primary: primary.confidence ?? null,
+          mate: mate.confidence ?? null,
+          combined: calculateOverallConfidence([r]),
+        },
+      };
+    });
+
+    const response = {
+      symbols,
+      results,
+      summary: {
+        total: symbols.length,
+        successful: results.filter(r => r.status === 'ok').length,
+        failed: results.filter(r => r.status === 'failed').length,
+        analysis_time_ms: timer.getElapsedMs(),
+        ai_models_used: [AI_MODEL_DISPLAY.primary.name, AI_MODEL_DISPLAY.secondary.name],
+      },
+    };
+
+    await setCache(cacheKey, response, cacheInstance);
+
+    logger.info('FineGrainedBatch: Analysis complete', { symbols: symbols.join(','), processingTime: timer.getElapsedMs(), requestId });
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success(response, { source: 'fresh', ttl: 3600, requestId, processingTime: timer.finish() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error(`Invalid input: ${error.message}`, 'VALIDATION_ERROR', { requestId, field: error.field, value: error.value })),
+        { status: HttpStatus.BAD_REQUEST, headers }
+      );
+    }
+    logger.error('FineGrainedBatch Error', { error: error instanceof Error ? error.message : 'Unknown error', requestId });
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Failed to perform batch fine-grained analysis', 'ANALYSIS_ERROR', { requestId, error: error instanceof Error ? error.message : 'Unknown error' })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
     );
   }
 }
