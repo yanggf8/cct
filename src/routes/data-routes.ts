@@ -183,12 +183,12 @@ async function handleAvailableSymbols(
     const cacheKey = KVKeyFactory.generateKey(KeyTypes.MANUAL_ANALYSIS, { timestamp: 'available_symbols' });
     const cached = await dal.read<SymbolsResponse>(cacheKey);
 
-    if (cached) {
+    if (cached.success && cached.data) {
       logger.info('AvailableSymbols: Cache hit', { requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 3600, // 1 hour
             requestId,

@@ -418,12 +418,21 @@ export class BacktestingStorageManager {
       data
     };
 
-    // Add or update entry
+    // Add or update entry — preserve the initial config (symbols/strategy) from
+    // run_created so later events (results_stored, run_completed) don't overwrite it.
     const existingIndex = history.findIndex((item: any) => item.runId === runId);
     if (existingIndex >= 0) {
-      history[existingIndex] = { ...history[existingIndex], ...historyEntry };
+      const existing = history[existingIndex];
+      const preservedConfig = existing.config
+        || (existing.data?.symbols ? { symbols: existing.data.symbols, strategy: existing.data.strategy } : null);
+      history[existingIndex] = {
+        ...existing,
+        ...historyEntry,
+        ...(preservedConfig && { config: preservedConfig })
+      };
     } else {
-      history.push(historyEntry);
+      const config = data?.symbols ? { symbols: data.symbols, strategy: data.strategy } : null;
+      history.push({ ...historyEntry, ...(config && { config }) });
     }
 
     // Keep only last 1000 entries
@@ -450,10 +459,11 @@ export class BacktestingStorageManager {
     const history: any[] = await getKVStore(this.env, historyKey) || [];
 
     return history
-      .filter(entry => entry.runId !== backtestId && entry.eventType === 'run_created')
+      .filter(entry => entry.runId !== backtestId)
       .map(entry => {
-        const symbols: string[] = entry.data?.symbols || [];
-        const strategy: string = entry.data?.strategy?.name || '';
+        // config is preserved from run_created; fall back to data for legacy entries
+        const symbols: string[] = entry.config?.symbols || entry.data?.symbols || [];
+        const strategy: string = entry.config?.strategy?.name || entry.data?.strategy?.name || '';
 
         const intersection = symbols.filter((s: string) => currentSymbols.includes(s)).length;
         const union = new Set([...currentSymbols, ...symbols]).size;

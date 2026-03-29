@@ -108,15 +108,17 @@ async function handleEnhancedMulti(
 
   const pipeline = createEnhancedSentimentPipeline(env);
 
-  const results = await Promise.allSettled(
-    symbols.map(symbol => pipeline.analyzeSentiment(symbol))
-  );
-
-  const data = results.map((r, i) =>
-    r.status === 'fulfilled'
-      ? r.value
-      : { symbol: symbols[i], sentiment: 'neutral', confidence: 0, score: 0, reasoning: 'Analysis failed', sources_used: [], article_count: 0, quality_metrics: { avg_freshness_hours: 0, total_confidence_penalty: 0, source_diversity: 0 }, timestamp: new Date().toISOString(), error: r.reason instanceof Error ? r.reason.message : 'Unknown error' }
-  );
+  // Sequential with 3s delay between symbols — matches dual-ai-analysis.ts batch pattern
+  // to avoid rate-limit/model throttling on the shared Workers AI quota.
+  const data: any[] = [];
+  for (let i = 0; i < symbols.length; i++) {
+    if (i > 0) await new Promise(resolve => setTimeout(resolve, 3000));
+    try {
+      data.push(await pipeline.analyzeSentiment(symbols[i]));
+    } catch (err: unknown) {
+      data.push({ symbol: symbols[i], sentiment: 'neutral', confidence: 0, score: 0, reasoning: 'Analysis failed', sources_used: [], article_count: 0, quality_metrics: { avg_freshness_hours: 0, total_confidence_penalty: 0, source_diversity: 0 }, timestamp: new Date().toISOString(), error: err instanceof Error ? err.message : 'Unknown error' });
+    }
+  }
 
   const successful = data.filter(r => !('error' in r)).length;
 
