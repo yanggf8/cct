@@ -476,122 +476,18 @@ export function extractDualModelData(analysisData: any): {
  * Store granular analysis for a single symbol - uses D1 only
  */
 export async function storeSymbolAnalysis(env: CloudflareEnvironment, symbol: string, analysisData: any): Promise<boolean> {
-  try {
-    ensureLoggingInitialized(env);
-    const dateStr = new Date().toISOString().split('T')[0];
-
-    if (!env.PREDICT_JOBS_DB) {
-      logError('PREDICT_JOBS_DB not configured');
-      return false;
-    }
-
-    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
-    const db = getPredictJobsDB(env);
-    if (!db) {
-      logError('Failed to get PredictJobsDB instance');
-      return false;
-    }
-
-    const dualModelData = extractDualModelData(analysisData);
-
-    // Determine if this is a failed analysis (confidence is null)
-    const confidence = analysisData.confidence_metrics?.overall_confidence ?? null;
-    const isFailed = confidence === null;
-
-    await db.savePrediction({
-      symbol,
-      prediction_date: dateStr,
-      sentiment: analysisData.sentiment_layers?.[0]?.sentiment || 'neutral',
-      // Use null if confidence is null/undefined - NO FAKE 0.5
-      confidence,
-      // Use failure-indicating defaults only when confidence is null, preserve legacy defaults otherwise
-      direction: analysisData.trading_signals?.primary_direction || (isFailed ? 'neutral' : 'neutral'),
-      model: analysisData.sentiment_layers?.[0]?.model || (isFailed ? 'none' : 'GPT-OSS-120B'),
-      analysis_type: analysisData.analysis_type || (isFailed ? 'failed' : 'fine_grained_sentiment'),
-      trading_signals: analysisData.trading_signals,
-      ...dualModelData
-    });
-
-    // Ensure a daily summary exists so /results does not return 404 for single-symbol writes
-    const existingDaily = await db.getDailyAnalysis(dateStr);
-    if (!existingDaily) {
-      const predictions = await db.getPredictionsByDate(dateStr);
-      await db.saveDailyAnalysis({
-        analysis_date: dateStr,
-        total_symbols: predictions.length,
-        execution_time: 0,
-        summary: { symbols: predictions.map(p => p.symbol) }
-      });
-    }
-    logInfo(`Symbol prediction stored in D1: ${symbol}`);
-    return true;
-  } catch (error: any) {
-    logError('Failed to store symbol analysis:', error);
-    return false;
-  }
+  // Legacy predict-jobs-db module removed - use d1-job-storage instead
+  logError('storeSymbolAnalysis: predict-jobs-db module removed, use d1-job-storage instead');
+  return false;
 }
 
 /**
  * Batch store multiple analysis results - uses D1 only
  */
 export async function batchStoreAnalysisResults(env: CloudflareEnvironment, analysisResults: any[]): Promise<BatchStoreResult> {
-  try {
-    ensureLoggingInitialized(env);
-    const startTime = Date.now();
-    const date = new Date().toISOString().split('T')[0];
-
-    if (!env.PREDICT_JOBS_DB) {
-      logError('PREDICT_JOBS_DB not configured');
-      return { success: false, error: 'D1 not configured', total_operations: 0, successful_operations: 0, failed_operations: 0 };
-    }
-
-    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
-    const db = getPredictJobsDB(env);
-    if (!db) {
-      logError('Failed to get PredictJobsDB instance');
-      return { success: false, error: 'D1 init failed', total_operations: 0, successful_operations: 0, failed_operations: 0 };
-    }
-
-    const predictions = analysisResults.filter(r => r?.symbol).map(result => {
-      const dualModelData = extractDualModelData(result);
-      return {
-        symbol: result.symbol,
-        prediction_date: date,
-        sentiment: result.sentiment_layers?.[0]?.sentiment || 'neutral',
-        // Use null if confidence is null/undefined - NO FAKE 0.5
-        confidence: result.confidence_metrics?.overall_confidence ?? null,
-        direction: result.trading_signals?.primary_direction || 'neutral',
-        model: result.sentiment_layers?.[0]?.model || 'none',
-        analysis_type: result.analysis_type || 'unknown',
-        trading_signals: result.trading_signals,
-        ...dualModelData
-      };
-    });
-
-    await db.savePredictionsBatch(predictions);
-    await db.saveDailyAnalysis({
-      analysis_date: date,
-      total_symbols: predictions.length,
-      execution_time: Date.now() - startTime,
-      summary: { symbols: predictions.map(p => p.symbol) }
-    });
-
-    const totalTime = Date.now() - startTime;
-    logInfo(`Batch D1 storage completed: ${predictions.length} predictions in ${totalTime}ms`);
-
-    return {
-      success: true,
-      total_operations: predictions.length + 1,
-      successful_operations: predictions.length + 1,
-      failed_operations: 0,
-      execution_time_ms: totalTime,
-      daily_analysis_stored: true,
-      symbol_analyses_stored: predictions.length
-    };
-  } catch (error: any) {
-    logError('Batch storage failed:', error);
-    return { success: false, error: error.message, total_operations: 0, successful_operations: 0, failed_operations: 0 };
-  }
+  // Legacy predict-jobs-db module removed - use d1-job-storage instead
+  logError('batchStoreAnalysisResults: predict-jobs-db module removed, use d1-job-storage instead');
+  return { success: false, error: 'predict-jobs-db module removed', total_operations: 0, successful_operations: 0, failed_operations: 0 };
 }
 
 /**
@@ -644,146 +540,35 @@ function createCompactAnalysisData(analysisData: any): CompactAnalysisData {
  * Track cron execution health - uses D1 only
  */
 export async function trackCronHealth(env: CloudflareEnvironment, status: 'success' | 'partial' | 'failed', executionData: any = {}): Promise<boolean> {
-  try {
-    ensureLoggingInitialized(env);
-
-    if (!env.PREDICT_JOBS_DB) {
-      logError('PREDICT_JOBS_DB not configured');
-      return false;
-    }
-
-    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
-    const db = getPredictJobsDB(env);
-    if (!db) {
-      logError('Failed to get PredictJobsDB instance');
-      return false;
-    }
-
-    await db.saveExecution({
-      job_type: executionData.jobType || 'analysis',
-      status,
-      executed_at: new Date().toISOString(),
-      execution_time_ms: executionData.totalTime || 0,
-      symbols_processed: executionData.symbolsProcessed || 0,
-      symbols_successful: executionData.symbolsSuccessful || 0,
-      symbols_fallback: executionData.symbolsFallback || 0,
-      symbols_failed: executionData.symbolsFailed || 0,
-      success_rate: executionData.successRate || 0,
-      errors: executionData.errors || []
-    });
-    logInfo(`Job execution tracked in D1: ${status} - ${executionData.symbolsProcessed || 0} symbols processed`);
-    return true;
-  } catch (error: any) {
-    logError('Failed to track cron health:', error);
-    return false;
-  }
+  // Legacy predict-jobs-db module removed - use d1-job-storage instead
+  logError('trackCronHealth: predict-jobs-db module removed, use d1-job-storage instead');
+  return false;
 }
 
 /**
  * Get latest cron health status - reads from D1
  */
 export async function getCronHealthStatus(env: CloudflareEnvironment): Promise<CronHealthStatus> {
-  try {
-    ensureLoggingInitialized(env);
-
-    if (!env.PREDICT_JOBS_DB) {
-      return { healthy: false, message: 'D1 not configured', last_execution: null };
-    }
-
-    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
-    const db = getPredictJobsDB(env);
-    if (!db) {
-      return { healthy: false, message: 'D1 init failed', last_execution: null };
-    }
-
-    const executions = await db.getRecentExecutions(1);
-    if (executions.length === 0) {
-      return { healthy: false, message: 'No job executions found', last_execution: null };
-    }
-
-    const latest = executions[0];
-    const hoursSinceLastRun = (Date.now() - new Date(latest.executed_at).getTime()) / (1000 * 60 * 60);
-
-    return {
-      healthy: hoursSinceLastRun < 6 && latest.status !== 'failed',
-      last_execution: latest.executed_at,
-      hours_since_last_run: hoursSinceLastRun,
-      last_status: latest.status,
-      symbols_processed: latest.symbols_processed,
-      success_rate: latest.success_rate,
-      execution_time_ms: latest.execution_time_ms,
-      full_health_data: latest as any
-    };
-  } catch (error: any) {
-    logError('Failed to get cron health status:', error);
-    return { healthy: false, message: 'Error reading D1', error: error.message };
-  }
+  // Legacy predict-jobs-db module removed - use d1-job-storage instead
+  return { healthy: false, message: 'predict-jobs-db module removed', last_execution: null };
 }
 
 /**
  * Get analysis results for all symbols on a specific date - reads from D1
  */
 export async function getSymbolAnalysisByDate(env: CloudflareEnvironment, dateString: string, symbols: string[] | null = null): Promise<any[]> {
-  try {
-    if (!env.PREDICT_JOBS_DB) {
-      logError('PREDICT_JOBS_DB not configured');
-      return [];
-    }
-
-    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
-    const db = getPredictJobsDB(env);
-    if (!db) return [];
-
-    const predictions = await db.getPredictionsByDate(dateString);
-    
-    // Filter by symbols if provided
-    if (symbols && symbols.length > 0) {
-      return predictions.filter(p => symbols.includes(p.symbol));
-    }
-    
-    return predictions;
-  } catch (error: any) {
-    logError(`Error retrieving analysis for ${dateString}:`, error);
-    return [];
-  }
+  // Legacy predict-jobs-db module removed - use d1-job-storage instead
+  logError('getSymbolAnalysisByDate: predict-jobs-db module removed');
+  return [];
 }
 
 /**
  * Get analysis results by date - reads from D1
  */
 export async function getAnalysisResultsByDate(env: CloudflareEnvironment, dateString: string): Promise<any | null> {
-  try {
-    if (!env.PREDICT_JOBS_DB) {
-      logError('PREDICT_JOBS_DB not configured');
-      return null;
-    }
-
-    const { getPredictJobsDB } = await import('./predict-jobs-db.js');
-    const db = getPredictJobsDB(env);
-    if (!db) return null;
-
-    const daily = await db.getDailyAnalysis(dateString);
-    const predictions = await db.getPredictionsByDate(dateString);
-
-    if (!daily && predictions.length === 0) {
-      return null;
-    }
-
-    // Fallback summary when daily row is absent (e.g., single-symbol writes)
-    const summaryDate = daily?.analysis_date || dateString;
-    const totalSymbols = daily?.total_symbols ?? predictions.length;
-    const executionTime = daily?.execution_time ?? 0;
-
-    return {
-      date: summaryDate,
-      total_symbols: totalSymbols,
-      execution_time: executionTime,
-      symbols: predictions
-    };
-  } catch (error: any) {
-    logError(`Error retrieving analysis for ${dateString}:`, error);
-    return null;
-  }
+  // Legacy predict-jobs-db module removed - use d1-job-storage instead
+  logError('getAnalysisResultsByDate: predict-jobs-db module removed');
+  return null;
 }
 
 /**

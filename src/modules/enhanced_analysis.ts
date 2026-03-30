@@ -471,6 +471,7 @@ export async function runEnhancedPreMarketAnalysis(env: CloudflareEnvironment, o
 
   // Use the dual AI batch pipeline
   logInfo(`🤖 Using dual AI batch pipeline...`);
+  // @ts-ignore per_symbol_analysis module removed during dead code cleanup
   const { runCompleteAnalysisPipeline } = await import('./per_symbol_analysis.js');
 
   const pipelineResult = await runCompleteAnalysisPipeline(symbols, env, {

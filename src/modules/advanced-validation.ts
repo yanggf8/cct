@@ -3,20 +3,19 @@
  * Walk-forward optimization, Monte Carlo simulation, and bootstrap analysis
  */
 
-import {
-  WalkForwardWindow,
-  WalkForwardResult,
-  MonteCarloSimulation,
-  MonteCarloResult,
-  BootstrapSample,
-  BootstrapResult,
-  PerformanceMetrics,
-  BacktestConfig,
-  EquityPoint,
-  Trade,
-  Position,
-  StatisticalTest
-} from '../types/backtesting.js';
+// types/backtesting module removed - inline type stubs
+type WalkForwardWindow = any;
+type WalkForwardResult = any;
+type MonteCarloSimulation = any;
+type MonteCarloResult = any;
+type BootstrapSample = any;
+type BootstrapResult = any;
+type PerformanceMetrics = any;
+type BacktestConfig = any;
+type EquityPoint = any;
+type Trade = any;
+type Position = any;
+type StatisticalTest = any;
 import { createLogger } from './logging.js';
 import { createPerformanceCalculator } from './performance-calculator.js';
 import type { CloudflareEnvironment } from '../types.js';

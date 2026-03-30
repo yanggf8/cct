@@ -1,55 +1,6 @@
 
-// Node.js compatibility shim for process.env references
-import './types/node-shim.js';
-
-// Enhanced Cloudflare type imports
-import type {
-  KVNamespace,
-  DurableObjectNamespace,
-  DurableObjectState,
-  DurableObjectStorage,
-  DurableObjectId,
-  R2Bucket,
-  D1Database,
-  MessageBatch,
-  ScheduledEvent,
-  Email,
-  Ai,
-  CloudflareEnvironment as CfEnvironment
-} from './types/cloudflare';
-
-import type {
-  AppError,
-  EnhancedError,
-  ValidationError,
-  NetworkError,
-  DatabaseError,
-  ExternalAPIError
-} from './types/errors';
-
-import type {
-  CloudflareAI,
-  GPTInput,
-  GPTOutput,
-  DistilBERTInput,
-  DistilBERTOutput,
-  DualAIAnalysisResult,
-  BatchAnalysisResult,
-  SingleModelAnalysis
-} from './types/ai-analysis';
-
-import type {
-  ApiResponse as ApiResponseType,
-  ErrorResponse as ErrorResponseType,
-  RequestContext,
-  SymbolsRequest,
-  SymbolRequest,
-  AnalysisApiRequest
-} from './types/api';
-
-// Re-export for backward compatibility
+// Re-export error types
 export {
-  // Error types
   AppError,
   EnhancedError,
   ValidationError,
@@ -60,66 +11,57 @@ export {
   isAppError
 } from './types/errors';
 
-// AI Analysis types
-export {
-  CloudflareAI,
-  GPTInput,
-  GPTOutput,
-  DistilBERTInput,
-  DistilBERTOutput,
-  DualAIAnalysisResult,
-  BatchAnalysisResult,
-  SingleModelAnalysis,
-  isGPTAnalysisResult,
-  isDistilBERTAnalysisResult,
-  isDualAIAnalysisResult,
-  NewsArticle
-} from './types/ai-analysis';
+// Inline type stubs for removed type modules (types/cloudflare, types/ai-analysis, types/api)
+// These provide backward-compatible type names for any remaining consumers.
 
-// Cloudflare types
-export {
-  KVNamespace,
-  DurableObjectNamespace,
-  DurableObjectState,
-  DurableObjectStorage,
-  DurableObjectId,
-  R2Bucket,
-  D1Database,
-  MessageBatch,
-  ScheduledEvent,
-  Email,
-  Ai,
-  CloudflareEnvironment as CfEnvironment
-} from './types/cloudflare';
-
-// API types
-export {
-  ApiResponse as ApiResponseType,
-  ErrorResponse as ErrorResponseType,
-  RequestContext,
-  SymbolsRequest,
-  SymbolRequest,
-  AnalysisApiRequest,
-  createSuccessResponse,
-  createErrorResponse,
-  isErrorResponse,
-  isSuccessResponse
-} from './types/api';
-
-// Legacy global declarations for backward compatibility
-declare global {
-  interface KVNamespace {}
-  interface DurableObjectNamespace {}
-  interface DurableObjectState {}
-  interface DurableObjectStorage {}
-  interface DurableObjectId {}
-  interface R2Bucket {}
-  interface D1Database {}
-  interface MessageBatch {}
-  interface ScheduledEvent {}
-  interface Email {}
-  interface Ai {}
+/** Stub: Cloudflare AI binding */
+export interface CloudflareAI {
+  run(model: string, inputs: any, options?: any): Promise<any>;
 }
+
+/** Stub: News article used by AI analysis */
+export interface NewsArticle {
+  title: string;
+  description?: string;
+  summary?: string;
+  content?: string;
+  source?: string;
+  publishedAt?: string;
+  url?: string;
+  sentiment?: string;
+}
+
+// Minimal Cloudflare type stubs (previously in types/cloudflare.ts)
+// Only types actively referenced in the codebase are retained.
+
+export interface D1PreparedStatement {
+  bind(...bindings: any[]): D1PreparedStatement;
+  first<T = any>(): Promise<T | undefined>;
+  first<T = any>(colName: string): Promise<T | undefined>;
+  run(): Promise<D1Result>;
+  all<T = any>(): Promise<D1Result<T>>;
+  raw<T = any>(): Promise<T[]>;
+}
+
+export interface D1Result<T = any> {
+  results: T[];
+  success: boolean;
+  meta: any;
+}
+
+export interface D1ExecResult {
+  count: number;
+  duration: number;
+}
+
+export interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+  batch(statements: D1PreparedStatement[]): Promise<D1Result[]>;
+  exec(query: string): Promise<D1ExecResult>;
+  dump(): Promise<ArrayBuffer>;
+}
+
+export type CfEnvironment = Record<string, any>;
 
 
 /**
@@ -137,14 +79,14 @@ declare global {
  * Enhanced Cloudflare Worker Environment Interface
  * Replaces all `env: any` usage with properly typed environment bindings
  */
-export interface CloudflareEnvironment extends CfEnvironment {
+export interface CloudflareEnvironment {
   // KV Namespaces (rate limit and feature flags only - all cache uses DO)
-  MARKET_ANALYSIS_CACHE?: KVNamespace;  // Legacy - kept for health checks only
-  RATE_LIMIT?: KVNamespace;
-  FEATURE_FLAGS?: KVNamespace;
+  MARKET_ANALYSIS_CACHE?: any;  // Legacy - kept for health checks only
+  RATE_LIMIT?: any;
+  FEATURE_FLAGS?: any;
 
   // R2 Buckets
-  TRADING_MODELS?: R2Bucket;
+  TRADING_MODELS?: any;
 
   // D1 Databases
   DATABASE?: D1Database;
@@ -153,25 +95,29 @@ export interface CloudflareEnvironment extends CfEnvironment {
   PREDICT_JOBS_DB?: D1Database;
 
   // Durable Objects
-  CACHE_DO?: DurableObjectNamespace;
-  USER_SESSIONS_DO?: DurableObjectNamespace;
-  RATE_LIMIT_DO?: DurableObjectNamespace;
-  RATE_LIMITER_DO?: DurableObjectNamespace;
-  ANALYTICS_DO?: DurableObjectNamespace;
-  PORTFOLIO_DO?: DurableObjectNamespace;
+  CACHE_DO?: any;
+  USER_SESSIONS_DO?: any;
+  RATE_LIMIT_DO?: any;
+  RATE_LIMITER_DO?: any;
+  ANALYTICS_DO?: any;
+  PORTFOLIO_DO?: any;
 
-  // AI Binding (enhanced type)
+  // AI Binding
   AI: CloudflareAI;
 
   // Queue Producers
-  ANALYSIS_QUEUE?: MessageBatch;
-  NOTIFICATION_QUEUE?: MessageBatch;
-  REPORT_QUEUE?: MessageBatch;
+  ANALYSIS_QUEUE?: any;
+  NOTIFICATION_QUEUE?: any;
+  REPORT_QUEUE?: any;
 
   // Email
-  EMAIL?: Email;
+  EMAIL?: any;
+
+  // Service Bindings
+  DAC_BACKEND?: any;
 
   // API Keys and Secrets
+  X_API_KEY?: string;
   FMP_API_KEY?: string;
   NEWSAPI_KEY?: string;
   WORKER_API_KEY?: string;

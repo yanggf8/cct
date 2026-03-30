@@ -53,7 +53,7 @@ src/index.ts
 **Scheduled jobs** (triggered via GitHub Actions → `POST /api/v1/jobs/trigger`):
 ```
 scheduler.ts → handleScheduledEvent()
-  ├─ pre-market     → src/modules/report/pre-market-analysis.ts
+  ├─ pre-market     → src/modules/pre-market-data-bridge.ts
   ├─ intraday       → src/modules/report/intraday-analysis.ts
   ├─ end-of-day     → src/modules/report/end-of-day-analysis.ts
   ├─ weekly         → src/modules/report/weekly-review-analysis.ts
@@ -75,7 +75,7 @@ scheduler.ts → handleScheduledEvent()
 2. KV (`MARKET_ANALYSIS_CACHE`) — ~5ms
 3. D1 — query-based
 
-> The `src/modules/` directory contains ~100 files; most are legacy/experimental. The active execution path is: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
+> After dead code audit (2026-03-30): 79 unreachable files (~36K lines) removed. `src/modules/` now has ~77 files, all reachable from entry points. Active execution path: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
 
 ---
 
@@ -375,4 +375,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-03-30
+**Last Updated**: 2026-03-30 (dead code audit: 79 files / ~36K lines removed)

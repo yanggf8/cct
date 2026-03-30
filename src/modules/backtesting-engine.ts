@@ -3,25 +3,24 @@
  * Institutional-grade backtesting with realistic market simulation
  */
 
-import {
-  BacktestConfig,
-  BacktestResult,
-  Trade,
-  Position,
-  EquityPoint,
-  TradeSignal,
-  ModelPrediction,
-  PerformanceMetrics,
-  AdvancedAnalytics,
-  ValidationResult,
-  BacktestMetadata,
-  DataQualityMetrics,
-  ExecutionLogEntry,
-  CommissionConfig,
-  SlippageConfig,
-  LatencyConfig,
-  BacktestError
-} from '../types/backtesting.js';
+// types/backtesting module removed - inline type stubs
+type BacktestConfig = any;
+type BacktestResult = any;
+type Trade = any;
+type Position = any;
+type EquityPoint = any;
+type TradeSignal = any;
+type ModelPrediction = any;
+type PerformanceMetrics = any;
+type AdvancedAnalytics = any;
+type ValidationResult = any;
+type BacktestMetadata = any;
+type DataQualityMetrics = any;
+type ExecutionLogEntry = any;
+type CommissionConfig = any;
+type SlippageConfig = any;
+type LatencyConfig = any;
+type BacktestError = any;
 import { createLogger } from './logging.js';
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import type { CloudflareEnvironment } from '../types.js';

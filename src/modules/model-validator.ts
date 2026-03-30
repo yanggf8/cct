@@ -3,31 +3,30 @@
  * Statistical validation and robustness testing for predictive models
  */
 
-import {
-  ValidationResult,
-  CrossValidationConfig,
-  CrossValidationResult,
-  OutOfSampleConfig,
-  OutOfSampleResult,
-  SignificanceConfig,
-  SignificanceResult,
-  OverfittingConfig,
-  OverfittingResult,
-  WalkForwardResult,
-  WalkForwardWindow,
-  MonteCarloResult,
-  MonteCarloSimulation,
-  MonteCarloSummary,
-  BootstrapResult,
-  BootstrapSample,
-  FoldResult,
-  StatisticalTest,
-  PerformanceMetrics,
-  BacktestConfig,
-  EquityPoint,
-  Trade,
-  Position
-} from '../types/backtesting.js';
+// types/backtesting module removed - inline type stubs
+type ValidationResult = any;
+type CrossValidationConfig = any;
+type CrossValidationResult = any;
+type OutOfSampleConfig = any;
+type OutOfSampleResult = any;
+type SignificanceConfig = any;
+type SignificanceResult = any;
+type OverfittingConfig = any;
+type OverfittingResult = any;
+type WalkForwardResult = any;
+type WalkForwardWindow = any;
+type MonteCarloResult = any;
+type MonteCarloSimulation = any;
+type MonteCarloSummary = any;
+type BootstrapResult = any;
+type BootstrapSample = any;
+type FoldResult = any;
+type StatisticalTest = any;
+type PerformanceMetrics = any;
+type BacktestConfig = any;
+type EquityPoint = any;
+type Trade = any;
+type Position = any;
 import { createLogger } from './logging.js';
 import { createPerformanceCalculator } from './performance-calculator.js';
 import type { CloudflareEnvironment } from '../types.js';

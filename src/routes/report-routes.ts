@@ -34,13 +34,56 @@ import {
   type ReportType,
   type JobDateResult
 } from '../modules/d1-job-storage.js';
-import {
-  getLastNTradingDays,
-  formatDateForNav,
-  getStatusForMissingRow,
-  isMarketHours,
-  NAV_CUTOVER_DATE
-} from '../modules/trading-calendar.js';
+// trading-calendar module removed - inline minimal implementations
+const NAV_CUTOVER_DATE = '2026-01-28';
+
+const NYSE_HOLIDAYS = new Set([
+  '2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25',
+  '2026-07-03','2026-09-07','2026-11-26','2026-12-25',
+  '2025-01-01','2025-01-20','2025-02-17','2025-04-18','2025-05-26',
+  '2025-07-04','2025-09-01','2025-11-27','2025-12-25',
+]);
+
+function getCurrentTimeET(): Date {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parts.find(p => p.type === t)?.value || '0';
+  return new Date(+get('year'), +get('month') - 1, +get('day'), +get('hour'), +get('minute'), +get('second'));
+}
+
+function getLastNTradingDays(n: number, fromDate?: string): string[] {
+  const result: string[] = [];
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  let current = fromDate ? new Date(fromDate + 'T12:00:00-05:00') : getCurrentTimeET();
+  while (result.length < n) {
+    current = new Date(current.getTime() - 86400000);
+    const ds = fmt(current);
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6 && !NYSE_HOLIDAYS.has(ds)) result.push(ds);
+  }
+  return result;
+}
+
+function formatDateForNav(date: string): string {
+  const d = new Date(date + 'T12:00:00-05:00');
+  const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'America/New_York' });
+  const day = d.getDate();
+  const weekday = d.toLocaleString('en-US', { weekday: 'short', timeZone: 'America/New_York' });
+  return `${month} ${day} (${weekday})`;
+}
+
+function getStatusForMissingRow(date: string): 'n/a' | 'missed' {
+  return date < NAV_CUTOVER_DATE ? 'n/a' : 'missed';
+}
+
+function isMarketHours(): boolean {
+  const et = getCurrentTimeET();
+  const totalMinutes = et.getHours() * 60 + et.getMinutes();
+  return totalMinutes >= 570 && totalMinutes < 960; // 9:30-16:00
+}
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment, ReportSignal } from '../types.js';
 import { getPrimarySentiment } from '../types.js';

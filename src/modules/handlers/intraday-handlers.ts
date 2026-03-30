@@ -11,11 +11,7 @@ import { getIntradayCheckData } from '../report-data-retrieval.js';
 import { readD1ReportSnapshotByRunId, writeD1JobResult } from '../d1-job-storage.js';
 import { createSimplifiedEnhancedDAL } from '../simplified-enhanced-dal.js';
 import { generatePendingPageHTML } from './pending-page.js';
-import {
-  getWithRetry,
-  validateDependencies,
-  getJobStatus
-} from '../kv-utils.js';
+// kv-utils module removed - functions were unused here
 import { SHARED_NAV_CSS, getSharedNavHTML, getNavScripts } from '../../utils/html-templates.js';
 import type { CloudflareEnvironment } from '../../types';
 import { validateRequest, validateEnvironment } from '../validation.js';

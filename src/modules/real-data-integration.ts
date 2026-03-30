@@ -85,8 +85,8 @@ export class FREDDataIntegration {
     }
 
     // Check if we're in degradation mode
-    const allowGracefulDegradation = process.env.FRED_ALLOW_DEGRADATION === 'true';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const allowGracefulDegradation = false; // No degradation in Workers
+    const isDevelopment = false;
 
     if (!this.config.apiKey) {
       if (allowGracefulDegradation || isDevelopment) {

@@ -668,7 +668,7 @@ export function isEnhancedFeaturesEnabled(): boolean {
  */
 export function getStorageAdapterConfig(env: CloudflareEnvironment): StorageAdapterConfig {
   // Default disabled for safety - can be enabled via environment variables
-  const enabled = env.STORAGE_ADAPTER_ENABLED === 'true' || process.env.STORAGE_ADAPTER_ENABLED === 'true';
+  const enabled = env.STORAGE_ADAPTER_ENABLED === 'true';
 
   return {
     enabled,

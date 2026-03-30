@@ -147,7 +147,7 @@ export class MarketDriversManager {
     this.productionDrivers = new ProductionMarketDrivers(env);
 
     // Legacy mode for staging/development if needed
-    this.legacyMode = process.env.USE_LEGACY_MARKET_DRIVERS === 'true' || process.env.NODE_ENV !== 'production';
+    this.legacyMode = false; // Always production mode in Workers
 
     if (this.legacyMode) {
       logger.warn('⚠️ LEGACY MODE ENABLED - Using mock data fallbacks');
@@ -171,9 +171,9 @@ export class MarketDriversManager {
 
       // Validate API key configuration
       mockGuard.validateConfig({
-        FRED_API_KEY: process.env.FRED_API_KEY,
-        NODE_ENV: process.env.NODE_ENV,
-        DEPLOYMENT_ENV: process.env.DEPLOYMENT_ENV
+        FRED_API_KEY: this.env.FRED_API_KEY,
+        NODE_ENV: 'production',
+        DEPLOYMENT_ENV: 'production'
       }, 'MarketDriversManager');
     }
   }

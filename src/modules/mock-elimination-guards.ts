@@ -325,9 +325,8 @@ export class ProductionMockGuard {
 
   private constructor() {
     // Enable in production environment
-    this.enabled = process.env.NODE_ENV === 'production' ||
-                   process.env.DEPLOYMENT_ENV === 'production';
-    this.strictMode = this.enabled || process.env.MOCK_GUARDS_STRICT === 'true';
+    this.enabled = true; // Always enabled in Workers (production)
+    this.strictMode = true;
   }
 
   static getInstance(): ProductionMockGuard {
