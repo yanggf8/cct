@@ -75,7 +75,7 @@ scheduler.ts → handleScheduledEvent()
 2. KV (`MARKET_ANALYSIS_CACHE`) — ~5ms
 3. D1 — query-based
 
-> After dead code audit (2026-03-30): 79 unreachable files (~36K lines) removed. `src/modules/` now has ~77 files, all reachable from entry points. Active execution path: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
+> After dead code audit (2026-03-30): 65 unreachable files (~26K lines) removed. `src/modules/` now has ~90 files, all reachable from entry points. Active execution path: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
 
 ---
 
@@ -375,4 +375,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-03-30 (dead code audit: 79 files / ~36K lines removed)
+**Last Updated**: 2026-03-30 (dead code audit: 65 files / ~26K lines removed)
