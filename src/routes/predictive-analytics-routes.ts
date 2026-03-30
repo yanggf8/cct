@@ -14,13 +14,14 @@ import {
   generateRequestId,
   parseQueryParams
 } from './api-v1.js';
-// predictive-analytics module removed during dead code cleanup - stub types
-type PredictiveSignals = any;
-type PatternAnalysis = any;
-type PredictiveInsights = any;
-const generatePredictiveSignals: any = () => { throw new Error('predictive-analytics module removed'); };
-const analyzeMarketPatterns: any = () => { throw new Error('predictive-analytics module removed'); };
-const generatePredictiveInsights: any = () => { throw new Error('predictive-analytics module removed'); };
+import {
+  generatePredictiveSignals,
+  analyzeMarketPatterns,
+  generatePredictiveInsights,
+  type PredictiveSignals,
+  type PatternAnalysis,
+  type PredictiveInsights
+} from '../modules/predictive-analytics.js';
 import { createLogger } from '../modules/logging.js';
 import type { CloudflareEnvironment } from '../types.js';
 

@@ -3,15 +3,16 @@
  * Comprehensive financial metrics calculation for backtesting
  */
 
-// types/backtesting module removed - inline type stubs
-type PerformanceMetrics = any;
-type EquityPoint = any;
-type Trade = any;
-type Position = any;
-type RiskMetrics = any;
-type PerformanceAttribution = any;
-type DegradationMetrics = any;
-type StatisticalTest = any;
+import {
+  PerformanceMetrics,
+  EquityPoint,
+  Trade,
+  Position,
+  RiskMetrics,
+  PerformanceAttribution,
+  DegradationMetrics,
+  StatisticalTest
+} from '../types/backtesting.js';
 import { createLogger } from './logging.js';
 
 const logger = createLogger('performance-calculator');

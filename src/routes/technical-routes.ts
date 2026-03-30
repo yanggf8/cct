@@ -110,7 +110,6 @@ async function handleTechnicalSingle(
       return new Response(JSON.stringify(ApiResponseFactory.cached(cached.data,'hit',{ source:'cache', ttl: 1800, requestId, processingTime: timer.getElapsedMs() })), { status: HttpStatus.OK, headers });
     }
 
-    // @ts-ignore independent_technical_analysis module removed during dead code cleanup
     const { runIndependentTechnicalAnalysis } = await import('../modules/independent_technical_analysis.js');
     const result = await runIndependentTechnicalAnalysis([symbol], env);
     const signal = result.technical_signals?.[symbol];
@@ -171,7 +170,6 @@ async function handleTechnicalBatch(
     // Validate and sanitize symbols array
     const symbols = validateSymbols(validatedBody.symbols);
 
-    // @ts-ignore independent_technical_analysis module removed during dead code cleanup
     const { runIndependentTechnicalAnalysis } = await import('../modules/independent_technical_analysis.js');
     const result: TechnicalBatchResponse = await runIndependentTechnicalAnalysis(symbols, env);
 

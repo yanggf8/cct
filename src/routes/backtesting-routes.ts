@@ -25,16 +25,17 @@ import { createBacktestingStorage } from '../modules/backtesting-storage.js';
 
 import { createLogger } from '../modules/logging.js';
 import { getBacktestFixture, hasBacktestFixture } from '../modules/backtesting-test-fixtures.js';
-// types/backtesting module removed - inline type stubs
-type BacktestConfig = any;
-type RunBacktestRequest = any;
-type RunBacktestResponse = any;
-type BacktestStatusResponse = any;
-type BacktestResultsResponse = any;
-type CompareBacktestsRequest = any;
-type CompareBacktestsResponse = any;
-type BacktestHistoryResponse = any;
-type BacktestSummary = any;
+import type {
+  BacktestConfig,
+  RunBacktestRequest,
+  RunBacktestResponse,
+  BacktestStatusResponse,
+  BacktestResultsResponse,
+  CompareBacktestsRequest,
+  CompareBacktestsResponse,
+  BacktestHistoryResponse,
+  BacktestSummary
+} from '../types/backtesting.js';
 import type { CloudflareEnvironment } from '../types.js';
 
 const logger = createLogger('backtesting-routes');

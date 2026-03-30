@@ -1,0 +1,314 @@
+/**
+ * KV Utility Functions for Hybrid Data Pipeline
+ * Handles eventual consistency, atomic status updates, and dependency validation
+ * 
+ * MIGRATED: Now uses DO Cache via CacheAbstraction instead of direct KV
+ */
+
+import { createLogger } from './logging.js';
+import { verifyWriteConsistency, verifyStatusConsistency } from './kv-consistency.js';
+import { toAppError, isNetworkError, isDatabaseError } from '../types/errors.js';
+import { createCache, CacheAbstraction } from './cache-abstraction.js';
+import type { CloudflareEnvironment, DatabaseError, NetworkError } from '../types.js';
+
+const logger = createLogger('kv-utils');
+
+// Type definitions
+interface KVOperationOptions {
+  expirationTtl?: number;
+  [key: string]: any;
+}
+
+interface JobStatusData {
+  status: string;
+  timestamp: string;
+  [key: string]: any;
+}
+
+interface DependencyValidationResult {
+  isValid: boolean;
+  completed: string[];
+  missing: string[];
+  completionRate: number;
+  date: string;
+  requiredJobs: string[];
+}
+
+/**
+ * Get KV value with retry logic for eventual consistency
+ * MIGRATED: Uses DO Cache via CacheAbstraction
+ */
+export async function getWithRetry(
+  key: string,
+  env: CloudflareEnvironment,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<string> {
+  logger.debug('Cache GET operation started', { key, maxRetries, delay });
+  const cache = createCache(env);
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await cache.get(key);
+      if (result) {
+        const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+        logger.info('Cache GET successful', { key, bytes: resultStr.length, source: cache.getSource() });
+        return resultStr;
+      }
+      logger.debug('Cache GET returned null', { key, attempt: i + 1 });
+    } catch (error: unknown) {
+      const appError = toAppError(error, { key, attempt: i + 1, operation: 'get' });
+      logger.warn('Cache operation failed, retrying', {
+        key, attempt: i + 1, error: appError.message, category: appError.category
+      });
+    }
+
+    if (i < maxRetries - 1) {
+      const retryDelay = delay * Math.pow(2, i);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
+  }
+
+  logger.error('Cache GET failed after all retries', { key, maxRetries });
+  throw new Error(`Cache key ${key} not found after ${maxRetries} retries`);
+}
+
+/**
+ * Put KV value with success verification
+ * MIGRATED: Uses DO Cache via CacheAbstraction
+ */
+export async function putWithVerification(
+  key: string,
+  value: string,
+  env: CloudflareEnvironment,
+  options: KVOperationOptions = {}
+): Promise<boolean> {
+  logger.info('Cache PUT operation started', { key, bytes: value.length, hasExpirationTtl: !!options.expirationTtl });
+  const cache = createCache(env);
+
+  try {
+    await cache.put(key, value, { expirationTtl: options.expirationTtl });
+    
+    // Verify the put was successful
+    const verifyResult = await cache.get(key);
+    const verifyStr = typeof verifyResult === 'string' ? verifyResult : JSON.stringify(verifyResult);
+
+    if (verifyStr === value) {
+      logger.info('Cache PUT successful and verified', { key, bytes: value.length, source: cache.getSource() });
+      return true;
+    }
+    logger.error('Cache PUT verification failed - value mismatch', { key });
+    return false;
+  } catch (error: unknown) {
+    logger.error('Cache PUT operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
+    throw error;
+  }
+}
+
+/**
+ * Delete KV value with success verification
+ * MIGRATED: Uses DO Cache via CacheAbstraction
+ */
+export async function deleteWithVerification(
+  key: string,
+  env: CloudflareEnvironment
+): Promise<boolean> {
+  logger.info('Cache DELETE operation started', { key });
+  const cache = createCache(env);
+
+  try {
+    const exists = await cache.get(key);
+    if (!exists) {
+      logger.warn('Cache DELETE - key does not exist', { key });
+      return true;
+    }
+
+    await cache.delete(key);
+    const verify = await cache.get(key);
+
+    if (verify === null) {
+      logger.info('Cache DELETE successful and verified', { key, source: cache.getSource() });
+      return true;
+    }
+    logger.error('Cache DELETE verification failed - key still exists', { key });
+    return false;
+  } catch (error: unknown) {
+    logger.error('Cache DELETE operation failed', { key, error: (error instanceof Error ? error.message : String(error)) });
+    throw error;
+  }
+}
+
+/**
+ * Log comprehensive KV operation summary
+ */
+export function logKVOperation(
+  operation: string,
+  key: string,
+  success: boolean,
+  details: Record<string, any> = {}
+): void {
+  if (success) {
+    logger.info('✅ KV OPERATION SUCCESS', {
+      operation,
+      key,
+      ...details,
+      timestamp: new Date().toISOString()
+    });
+  } else {
+    logger.error('❌ KV OPERATION FAILED', {
+      operation,
+      key,
+      ...details,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
+/**
+ * Get multiple KV values with batch retry logic
+ */
+export async function getMultipleWithRetry(
+  keys: string[],
+  env: CloudflareEnvironment
+): Promise<Record<string, string | null>> {
+  const results: Record<string, string | null> = {};
+
+  for (const key of keys) {
+    try {
+      results[key] = await getWithRetry(key, env);
+    } catch (error: unknown) {
+      logger.warn('Failed to get KV key in batch', { key, error: (error instanceof Error ? error.message : String(error)) });
+      results[key] = null;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Update job status with atomic individual key approach
+ */
+export async function updateJobStatus(
+  jobType: string,
+  date: string,
+  status: string,
+  env: CloudflareEnvironment,
+  metadata: Record<string, any> = {}
+): Promise<void> {
+  const statusKey = `status:${jobType}:${date}`;
+  const statusData: JobStatusData = {
+    status,
+    timestamp: new Date().toISOString(),
+    ...metadata
+  };
+
+  logger.info('Updating job status', {
+    jobType,
+    date,
+    status,
+    key: statusKey,
+    metadataKeys: Object.keys(metadata)
+  });
+
+  try {
+    const success = await putWithVerification(statusKey, JSON.stringify(statusData), env, {
+      expirationTtl: 7 * 24 * 60 * 60 // 7 days TTL
+    });
+
+    if (success) {
+      logKVOperation('UPDATE_STATUS', statusKey, true, {
+        jobType,
+        date,
+        status,
+        metadataSize: Object.keys(metadata).length
+      });
+    } else {
+      logKVOperation('UPDATE_STATUS', statusKey, false, {
+        jobType,
+        date,
+        status,
+        error: 'Verification failed'
+      });
+    }
+  } catch (error: unknown) {
+    logKVOperation('UPDATE_STATUS', statusKey, false, {
+      jobType,
+      date,
+      status,
+      error: (error instanceof Error ? error.message : String(error))
+    });
+    throw error;
+  }
+}
+
+/**
+ * Get job status for a specific job and date
+ */
+export async function getJobStatus(
+  jobType: string,
+  date: string,
+  env: CloudflareEnvironment
+): Promise<JobStatusData | null> {
+  const statusKey = `status:${jobType}:${date}`;
+
+  try {
+    const result = await getWithRetry(statusKey, env);
+    return JSON.parse(result);
+  } catch (error: unknown) {
+    logger.debug('Job status not found', { jobType, date });
+    return null;
+  }
+}
+
+/**
+ * Validate that all required dependencies are completed
+ */
+export async function validateDependencies(
+  date: string,
+  requiredJobs: string[],
+  env: CloudflareEnvironment
+): Promise<DependencyValidationResult> {
+  const statusPromises = requiredJobs.map(jobType =>
+    getJobStatus(jobType, date, env)
+  );
+
+  const statuses = await Promise.all(statusPromises);
+  const missing: string[] = [];
+  const completed: string[] = [];
+
+  requiredJobs.forEach((jobType: any, index: any) => {
+    const status = statuses[index];
+    if (status && status.status === 'done') {
+      completed.push(jobType);
+    } else {
+      missing.push(jobType);
+    }
+  });
+
+  const isValid = missing.length === 0;
+
+  logger.info('Dependency validation completed', {
+    date,
+    isValid,
+    requiredJobs,
+    completed,
+    missing,
+    completionRate: `${completed.length}/${requiredJobs.length}`
+  });
+
+  return {
+    isValid,
+    completed,
+    missing,
+    completionRate: completed.length / requiredJobs.length,
+    date,
+    requiredJobs
+  };
+}
+
+// Export types for external use
+export type {
+  KVOperationOptions,
+  JobStatusData,
+  DependencyValidationResult
+};

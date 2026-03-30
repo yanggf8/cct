@@ -704,8 +704,36 @@ async function handleSystemStatus(
         console.log('[SYSTEM-STATUS] WORKER_API_KEY not configured');
       } else {
         console.log('[SYSTEM-STATUS] DAC_BACKEND and WORKER_API_KEY available, checking article pool...');
-        // dac-articles-pool-v2 module removed - article pool check unavailable
-        console.log('[SYSTEM-STATUS] DAC articles pool module removed, skipping article pool check');
+        const { createDACArticlesPoolClientV2 } = await import('../modules/dac-articles-pool-v2.js');
+        const dacClient = createDACArticlesPoolClientV2({ DAC_BACKEND: env.DAC_BACKEND as any, X_API_KEY: env.WORKER_API_KEY });
+
+        if (dacClient) {
+          console.log('[SYSTEM-STATUS] DAC client created successfully');
+          const results = await Promise.all(
+            portfolioSymbols.map(async (sym) => {
+              try {
+                console.log(`[SYSTEM-STATUS] Checking articles for ${sym}...`);
+                const res = await dacClient.getStockArticles(sym);
+                console.log(`[SYSTEM-STATUS] ${sym}: ${res.articles?.length || 0} articles, success: ${res.success}`);
+                return { symbol: sym, count: res.articles?.length || 0, stale: res.metadata?.stale || false, success: res.success };
+              } catch (error) {
+                console.error(`[SYSTEM-STATUS] Error checking ${sym}:`, error);
+                return { symbol: sym, count: 0, stale: true, success: false };
+              }
+            })
+          );
+          const available = results.filter(r => r.count > 0);
+          const missing = results.filter(r => r.count === 0).map(r => r.symbol);
+          articlePool = {
+            status: missing.length === 0 ? 'healthy' : missing.length < portfolioSymbols.length ? 'partial' : 'empty',
+            available: available.length,
+            missing,
+            symbols: Object.fromEntries(results.map(r => [r.symbol, { count: r.count, stale: r.stale }]))
+          };
+          console.log('[SYSTEM-STATUS] Article pool status:', articlePool.status, `- ${available.length}/${portfolioSymbols.length} symbols have articles`);
+        } else {
+          console.log('[SYSTEM-STATUS] Failed to create DAC client');
+        }
       }
     } catch (error) {
       console.error('[SYSTEM-STATUS] Error checking article pool:', error);
@@ -723,7 +751,27 @@ async function handleSystemStatus(
       indices: {}
     };
 
-    // dac-articles-pool-v2 module removed - market indices check unavailable
+    try {
+      if (env.DAC_BACKEND && env.WORKER_API_KEY) {
+        const { createDACArticlesPoolClientV2 } = await import('../modules/dac-articles-pool-v2.js');
+        const dacClient = createDACArticlesPoolClientV2({ DAC_BACKEND: env.DAC_BACKEND as any, X_API_KEY: env.WORKER_API_KEY });
+
+        if (dacClient) {
+          // Check SPY market pool
+          const spyResult = await dacClient.getMarketArticles('SPY');
+          marketIndices.indices['SPY'] = {
+            count: spyResult.articles?.length || 0,
+            stale: spyResult.metadata?.stale || false,
+            source: spyResult.metadata?.source
+          };
+          marketIndices.status = spyResult.success && spyResult.articles.length > 0 ? 'healthy' : 'empty';
+          console.log('[SYSTEM-STATUS] Market indices pool status:', marketIndices.status, `SPY: ${spyResult.articles?.length || 0} articles`);
+        }
+      }
+    } catch (error) {
+      console.error('[SYSTEM-STATUS] Error checking market indices pool:', error);
+      marketIndices.status = 'error';
+    }
 
     const response = {
       status: 'operational',
@@ -907,11 +955,45 @@ async function handleDailyPredictJobs(
   headers: Record<string, string>,
   requestId: string
 ): Promise<Response> {
-  // predict-jobs-db module removed - this endpoint is no longer available
-  return new Response(
-    JSON.stringify(ApiResponseFactory.error('predict-jobs-db module removed, use /jobs/runs instead', 'SERVICE_UNAVAILABLE', { requestId })),
-    { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
-  );
+  const timer = new ProcessingTimer();
+
+  try {
+    if (!env.PREDICT_JOBS_DB) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('D1 not configured', 'SERVICE_UNAVAILABLE', { requestId })),
+        { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+      );
+    }
+
+    const { getPredictJobsDB } = await import('../modules/predict-jobs-db.js');
+    const db = getPredictJobsDB(env);
+    if (!db) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('D1 init failed', 'SERVICE_UNAVAILABLE', { requestId })),
+        { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
+      );
+    }
+
+    const executions = await db.getExecutionsByDate(dateStr);
+    const predictions = await db.getPredictionsByDate(dateStr);
+
+    if (executions.length === 0 && predictions.length === 0) {
+      return new Response(
+        JSON.stringify(ApiResponseFactory.error('No prediction job data for this date', 'NOT_FOUND', { date: dateStr, requestId })),
+        { status: HttpStatus.NOT_FOUND, headers }
+      );
+    }
+
+    return new Response(
+      JSON.stringify(ApiResponseFactory.success({ executions, predictions }, { requestId, processingTime: timer.finish() })),
+      { status: HttpStatus.OK, headers }
+    );
+  } catch (error: unknown) {
+    return new Response(
+      JSON.stringify(ApiResponseFactory.error('Failed to fetch prediction jobs', 'INTERNAL_ERROR', { requestId, error: (error as Error).message })),
+      { status: HttpStatus.INTERNAL_SERVER_ERROR, headers }
+    );
+  }
 }
 
 /**
@@ -1606,17 +1688,75 @@ async function handleMoneyFlowPoolHealth(
   headers: Record<string, string>,
   requestId: string
 ): Promise<Response> {
-  // dac-money-flow-adapter module removed
-  return new Response(
-    JSON.stringify(
-      ApiResponseFactory.error(
-        'Money Flow Pool module removed',
-        'SERVICE_UNAVAILABLE',
-        { requestId }
-      )
-    ),
-    { status: HttpStatus.SERVICE_UNAVAILABLE, headers }
-  );
+  try {
+    const { createMoneyFlowAdapter } = await import('../modules/dac-money-flow-adapter.js');
+    
+    const adapter = createMoneyFlowAdapter(env);
+    
+    if (!adapter) {
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.error(
+            'DAC Money Flow Pool not configured',
+            'SERVICE_UNAVAILABLE',
+            { requestId }
+          )
+        ),
+        {
+          status: HttpStatus.SERVICE_UNAVAILABLE,
+          headers,
+        }
+      );
+    }
+
+    const isHealthy = await adapter.checkHealth();
+    const testResult = await adapter.getMoneyFlow('AAPL');
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.success(
+          {
+            status: isHealthy ? 'healthy' : 'degraded',
+            pool: {
+              available: !!testResult,
+              testSymbol: 'AAPL',
+              testResult: testResult ? {
+                cmf: testResult.cmf,
+                trend: testResult.trend,
+                cachedAt: testResult.cachedAt
+              } : null
+            },
+            timestamp: new Date().toISOString()
+          },
+          { message: 'Money Flow Pool health check completed' }
+        )
+      ),
+      {
+        status: HttpStatus.OK,
+        headers,
+      }
+    );
+
+  } catch (error) {
+    logger.error('Money Flow Pool Health Error', { requestId, error: String(error) });
+
+    return new Response(
+      JSON.stringify(
+        ApiResponseFactory.error(
+          'Money Flow Pool health check failed',
+          'HEALTH_CHECK_ERROR',
+          {
+            requestId,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        )
+      ),
+      {
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        headers,
+      }
+    );
+  }
 }
 
 

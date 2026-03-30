@@ -1057,7 +1057,6 @@ export function createEnhancedCacheRoutes(env: any) {
           if (env.STORAGE_ADAPTER_ENABLED === 'true') {
             try {
               // Initialize router adapter and inject metrics collector
-              // @ts-ignore router-storage-adapter removed during dead code cleanup
               const { RouterAdapter } = await import('../modules/router-storage-adapter.js');
 
               // Create instances and inject metrics collector
@@ -1173,7 +1172,6 @@ export function createEnhancedCacheRoutes(env: any) {
           if (env.STORAGE_ADAPTER_ENABLED === 'true') {
             try {
               // Initialize router adapter and inject metrics collector
-              // @ts-ignore router-storage-adapter removed during dead code cleanup
               const { RouterAdapter } = await import('../modules/router-storage-adapter.js');
 
               // Create instances and inject metrics collector
@@ -1607,7 +1605,6 @@ export function createEnhancedCacheRoutes(env: any) {
           const storageClass = url.searchParams.get('storageClass') as 'hot_cache' | 'warm_cache' | 'cold_storage' | 'ephemeral' | null;
 
           // Import D1 cold storage module
-          // @ts-ignore d1-storage removed during dead code cleanup
           const { D1ColdStorage } = await import('../modules/d1-storage.js');
 
           if (!env.ANALYTICS_DB) {
@@ -1696,7 +1693,6 @@ export function createEnhancedCacheRoutes(env: any) {
           };
 
           // Import D1 cold storage module
-          // @ts-ignore d1-storage removed during dead code cleanup
           const { D1ColdStorage } = await import('../modules/d1-storage.js');
 
           if (!env.ANALYTICS_DB) {
@@ -1782,9 +1778,7 @@ export function createEnhancedCacheRoutes(env: any) {
           }
 
           // Import router and D1 modules
-          // @ts-ignore router-storage-adapter removed during dead code cleanup
           const { RouterStorageAdapter, createDefaultRouterConfig } = await import('../modules/router-storage-adapter.js');
-          // @ts-ignore d1-storage removed during dead code cleanup
           const { D1ColdStorage } = await import('../modules/d1-storage.js');
           const { createStorageGuards } = await import('../modules/storage-guards.js');
 
@@ -1882,9 +1876,7 @@ export function createEnhancedCacheRoutes(env: any) {
           }
 
           // Import router and D1 modules
-          // @ts-ignore router-storage-adapter removed during dead code cleanup
           const { RouterStorageAdapter, createDefaultRouterConfig } = await import('../modules/router-storage-adapter.js');
-          // @ts-ignore d1-storage removed during dead code cleanup
           const { D1ColdStorage } = await import('../modules/d1-storage.js');
           const { createStorageGuards } = await import('../modules/storage-guards.js');
 
