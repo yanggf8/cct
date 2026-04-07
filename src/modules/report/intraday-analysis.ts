@@ -307,43 +307,18 @@ function updateModelHealth(results: IntradayResult): void {
  */
 function getDefaultIntradayData(): IntradayResult {
   return {
-    modelHealth: { status: 'on-track', display: '✅ On Track' },
-    liveAccuracy: 68,
-    totalSignals: 6,
-    correctCalls: 4,
-    wrongCalls: 1,
-    pendingCalls: 1,
-    avgDivergence: 1.8,
-    divergences: [
-      {
-        ticker: 'TSLA',
-        predicted: '↑ +2.1%',
-        predictedDirection: 'up',
-        actual: '↓ -3.5%',
-        actualDirection: 'down',
-        level: 'high',
-        reason: 'Unexpected competitor news'
-      }
-    ],
-    onTrackSignals: [
-      {
-        ticker: 'AAPL',
-        predicted: '↑ +1.5%',
-        predictedDirection: 'up',
-        actual: '↑ +1.3%',
-        actualDirection: 'up'
-      },
-      {
-        ticker: 'MSFT',
-        predicted: '↑ +1.2%',
-        predictedDirection: 'up',
-        actual: '↑ +1.4%',
-        actualDirection: 'up'
-      }
-    ],
+    modelHealth: { status: 'on-track', display: '⏳ Awaiting data' },
+    liveAccuracy: 0,
+    totalSignals: 0,
+    correctCalls: 0,
+    wrongCalls: 0,
+    pendingCalls: 0,
+    avgDivergence: 0,
+    divergences: [],
+    onTrackSignals: [],
     recalibrationAlert: {
       status: 'no',
-      message: 'No recalibration needed - accuracy above 60% threshold'
+      message: 'Awaiting intraday data'
     }
   };
 }
