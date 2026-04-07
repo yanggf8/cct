@@ -427,42 +427,71 @@ async function handleWeeklyReport(
       );
     }
 
-    // Calculate weekly metrics
-    const weeklyReturns = dailyReports.map(report => Math.random() * 4 - 2); // Mock returns
-    const avgReturn = weeklyReturns.reduce((sum: any, ret: any) => sum + ret, 0) / weeklyReturns.length;
-    const volatility = Math.sqrt(weeklyReturns.reduce((sum: any, ret: any) => sum + Math.pow(ret - avgReturn, 2), 0) / weeklyReturns.length);
+    // Calculate weekly metrics from actual daily report data
+    const weeklyReturns: number[] = [];
+    let totalSignalCount = 0;
+    const dailyBreakdown: Array<{ date: string; sentiment: string; signal_count: number }> = [];
+
+    for (const report of dailyReports) {
+      const signals = (report as any).data?.signals || [];
+      const daySignalCount = signals.length;
+      totalSignalCount += daySignalCount;
+
+      // Derive daily return from actual symbol returns in the report
+      const dayReturns = signals
+        .filter((s: any) => s.daily_return !== undefined)
+        .map((s: any) => s.daily_return as number);
+      const dayAvgReturn = dayReturns.length > 0
+        ? dayReturns.reduce((a: number, b: number) => a + b, 0) / dayReturns.length
+        : 0;
+      weeklyReturns.push(dayAvgReturn);
+
+      // Derive sentiment from daily data
+      const daySentiment = (report as any).data?.sentiment
+        || (report as any).sentiment
+        || 'neutral';
+      dailyBreakdown.push({ date: report.date, sentiment: daySentiment, signal_count: daySignalCount });
+    }
+
+    const avgReturn = weeklyReturns.length > 0
+      ? weeklyReturns.reduce((sum, ret) => sum + ret, 0) / weeklyReturns.length
+      : 0;
+    const volatility = weeklyReturns.length > 1
+      ? Math.sqrt(weeklyReturns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / weeklyReturns.length)
+      : 0;
+
+    // Count bullish/bearish/neutral days from actual sentiment
+    const bullishDays = dailyBreakdown.filter(d => d.sentiment === 'bullish').length;
+    const bearishDays = dailyBreakdown.filter(d => d.sentiment === 'bearish').length;
+    const sentimentTrend = bullishDays > bearishDays ? 'bullish' : bearishDays > bullishDays ? 'bearish' : 'neutral';
+    const avgConfidence = totalSignalCount > 0 ? totalSignalCount / dailyReports.length : 0;
 
     const response: WeeklyReportResponse = {
       week_start: week,
       week_end: endDate.toISOString().split('T')[0],
       report: {
         weekly_overview: {
-          sentiment_trend: avgReturn > 0 ? 'bullish' : 'bearish',
-          average_confidence: 0.75,
+          sentiment_trend: sentimentTrend,
+          average_confidence: avgConfidence,
           key_highlights: [
             `Trading days: ${dailyReports.length}`,
-            `Average daily return: ${(avgReturn * 100).toFixed(2)}%`,
+            `Total signals: ${totalSignalCount}`,
           ],
         },
-        daily_breakdown: dailyReports.map((report, index) => ({
-          date: new Date(startDate.getTime() + index * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          sentiment: report.sentiment || 'neutral',
-          signal_count: Math.floor(Math.random() * 5) + 1,
-        })),
+        daily_breakdown: dailyBreakdown,
         performance_summary: {
-          total_signals: defaultSymbols.length,
-          accuracy_rate: 0.75,
-          best_performing_sectors: ['Technology', 'Energy'],
-          worst_performing_sectors: ['Health Care'],
+          total_signals: totalSignalCount,
+          accuracy_rate: 0, // Requires outcome tracking
+          best_performing_sectors: [],
+          worst_performing_sectors: [],
         },
         weekly_summary: {
-          overall_sentiment: avgReturn > 0 ? 'bullish' : avgReturn < 0 ? 'bearish' : 'neutral',
+          overall_sentiment: sentimentTrend,
           weekly_return: avgReturn,
           volatility,
           key_events: [
             `Trading days: ${dailyReports.length}`,
-            `Average daily return: ${(avgReturn * 100).toFixed(2)}%`,
-            `Weekly volatility: ${(volatility * 100).toFixed(2)}%`,
+            `Total signals: ${totalSignalCount}`,
           ],
         },
         symbol_performance: (() => {
@@ -495,17 +524,17 @@ async function handleWeeklyReport(
           }));
         })(),
         patterns: {
-          bullish_patterns: ['Strong opening momentum', 'Mid-week rally'],
-          bearish_patterns: volatility > 2 ? ['High volatility periods'] : [],
-          neutral_periods: avgReturn < 1 && avgReturn > -1 ? ['Sideways trading'] : [],
+          bullish_patterns: bullishDays > 0 ? [`${bullishDays} bullish day(s)`] : [],
+          bearish_patterns: bearishDays > 0 ? [`${bearishDays} bearish day(s)`] : [],
+          neutral_periods: dailyBreakdown.filter(d => d.sentiment === 'neutral').length > 0
+            ? [`${dailyBreakdown.filter(d => d.sentiment === 'neutral').length} neutral day(s)`] : [],
         },
         outlook: {
-          next_week_sentiment: avgReturn > 0 ? 'bullish' : 'bearish',
-          confidence: Math.min(Math.abs(avgReturn) / 5, 1),
+          next_week_sentiment: sentimentTrend,
+          confidence: totalSignalCount > 0 ? Math.min(totalSignalCount / (dailyReports.length * 5), 1) : 0,
           key_factors: [
-            `Current trend: ${avgReturn > 0 ? 'positive' : 'negative'}`,
-            `Volatility level: ${volatility > 2 ? 'high' : 'normal'}`,
-            'Market conditions analyzed',
+            `Sentiment trend: ${sentimentTrend}`,
+            `Signal density: ${(totalSignalCount / dailyReports.length).toFixed(1)} signals/day`,
           ],
         },
       },
