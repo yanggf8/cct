@@ -90,10 +90,10 @@ scheduler.ts → handleScheduledEvent()
 - Mate model call → same pattern → store `distilbert_*` columns
 - `extractDualModelData()` in `data.ts` aliases legacy column names to `primary_*`/`mate_*`
 
-**Caching layers** (fastest → slowest):
-1. Durable Object (`CACHE_DO`) — <1ms, SQLite-backed
-2. KV (`MARKET_ANALYSIS_CACHE`) — ~5ms
-3. D1 — query-based
+**Storage layers**:
+- **D1** (`PREDICT_JOBS_DB`) — Source of truth for all job results, reports, predictions, settings
+- **KV** (`MARKET_ANALYSIS_CACHE`) — Articles content storage only (legacy binding kept for health checks)
+- **Durable Object** (`CACHE_DO`) — Read-through cache only (<1ms, ephemeral). Not for persistent data
 
 > After dead code audit (2026-03-30): 65 unreachable files (~26K lines) removed. `src/modules/` now has ~90 files, all reachable from entry points. Active execution path: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
 
@@ -105,7 +105,7 @@ scheduler.ts → handleScheduledEvent()
 
 - Dual AI: GPT-OSS 120B (reasoning) + DeepSeek-R1 32B (reasoning)
 - 4-Moment workflow: Pre-Market → Intraday → End-of-Day → Weekly
-- Durable Objects cache (<1ms), multi-run job history with `?run_id=`
+- DO cache (<1ms read-through, ephemeral), D1 as source of truth, multi-run job history with `?run_id=`
 - Pre-market reports show all analyzed symbols with `high_confidence_count` field
 
 ---
@@ -404,4 +404,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-04-07 (added full route map, staging env, pre-commit/tsconfig notes)
+**Last Updated**: 2026-04-07 (corrected storage layer docs: D1=truth, KV=articles only, DO=cache only)
