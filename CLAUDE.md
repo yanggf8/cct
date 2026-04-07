@@ -27,9 +27,16 @@ npx playwright test tests/performance.spec.js --reporter=list  # single suite
 
 # Verify (pre-deploy gates: html, guards, env bindings, monitoring, mock prevention)
 npm run verify
+
+# Staging deploy
+npm run deploy:staging
 ```
 
 > **Wrangler auth**: Always `unset CLOUDFLARE_API_TOKEN` before wrangler commands — auth uses OAuth (browser), not API tokens.
+
+> **Pre-commit hook** (husky): Runs `npm run typecheck` — commits are blocked if TypeScript errors exist.
+
+> **TypeScript config**: `strict: false` in tsconfig.json (no strictNullChecks, no noImplicitAny). This is deliberate — do not enable strict flags without explicit approval.
 
 ---
 
@@ -44,10 +51,23 @@ src/index.ts
        ├─ Page routes: /pre-market-briefing, /intraday-check, /end-of-day, /weekly-review
        │    └─ src/modules/handlers/ (briefing, intraday, end-of-day, weekly-review handlers)
        └─ /api/v1/* → handleApiV1Request (src/routes/api-v1.ts)
-            ├─ /jobs/*     → jobs-routes.ts
-            ├─ /reports/*  → report-routes.ts
-            ├─ /data/*     → data-routes.ts
-            └─ /sentiment/* → sentiment-routes.ts
+            ├─ /jobs/*              → jobs-routes.ts
+            ├─ /reports/*           → report-routes.ts
+            ├─ /data/*              → data-routes.ts
+            ├─ /sentiment/*         → sentiment-routes.ts
+            ├─ /sector-rotation/*   → sector-rotation-routes.ts
+            ├─ /sectors/*           → sector-routes.ts
+            ├─ /market-intelligence/* → market-intelligence-routes.ts
+            ├─ /market-drivers/*    → market-drivers-routes.ts
+            ├─ /predictive/*        → predictive-analytics-routes.ts
+            ├─ /technical/*         → technical-routes.ts
+            ├─ /analytics/*         → advanced-analytics-routes.ts
+            ├─ /backtesting/*       → backtesting-routes.ts
+            ├─ /portfolio/*         → portfolio-routes.ts
+            ├─ /risk/*              → risk-management-routes.ts
+            ├─ /realtime/*          → realtime-routes.ts
+            ├─ /cache/*             → enhanced-cache-routes.ts
+            └─ /guards/*            → production-guards-routes.ts
 ```
 
 **Scheduled jobs** (triggered via GitHub Actions → `POST /api/v1/jobs/trigger`):
@@ -152,6 +172,12 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 | **Reports** | `GET /reports/pre-market`, `GET /reports/intraday?date=YYYY-MM-DD`, `GET /reports/intraday?run_id=...`, `GET /reports/end-of-day`, `GET /reports/status` |
 | **Sentiment** | `GET /sentiment/analysis`, `/market`, `/enhanced[/:symbol]`, `/fine-grained/:symbol`, `POST /fine-grained/batch` |
 | **Data** | `GET /data/health`, `/symbols`, `/system-status`, `POST /data/cache-clear` |
+| **Sector Rotation** | `GET /sector-rotation/*`, `GET /sectors/*` |
+| **Market Intel** | `GET /market-intelligence/*`, `GET /market-drivers/*` |
+| **Analytics** | `GET /predictive/*`, `GET /technical/*`, `GET /analytics/*` |
+| **Backtesting** | `GET /backtesting/*` |
+| **Portfolio/Risk** | `GET /portfolio/*`, `GET /risk/*` |
+| **Ops** | `GET /realtime/*`, `GET /cache/*`, `GET /guards/*` |
 
 ### Job Trigger API
 
@@ -321,6 +347,9 @@ npm run deploy:frontend:only
 # D1 migrations (user must run manually)
 npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/<migration>.sql
 
+# Staging (uses separate D1 database: cct-predict-jobs-staging)
+npm run deploy:staging
+
 # Rollback DO cache
 wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 ```
@@ -375,4 +404,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-03-30 (dead code audit: 65 files / ~26K lines removed)
+**Last Updated**: 2026-04-07 (added full route map, staging env, pre-commit/tsconfig notes)
