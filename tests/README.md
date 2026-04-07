@@ -84,9 +84,7 @@ tests/
 - `test-ai-predictive-api.sh` - Predictive API testing
 
 **Portfolio (`feature/portfolio/`)**
-- `test-portfolio-api.sh` - Portfolio API tests
 - `test-backtesting-api.sh` - Backtesting functionality
-- `test-risk-management-api.sh` - Risk management API tests
 
 **Sector Analysis (`feature/sector/`)**
 - `test-sector-simple.sh` - Simple sector analysis tests

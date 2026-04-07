@@ -170,7 +170,7 @@ export async function handleApiV1Request(
       if (path.startsWith('/api/v1/portfolio/symbols')) {
         return await handlePortfolioManagementRoutes(request, env, path, headers);
       }
-      return new Response(JSON.stringify({ success: false, error: 'Not Found', message: 'Portfolio optimization endpoints have been removed' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: false, error: 'Not Found', message: 'Portfolio optimization endpoints have been removed' }), { status: 404, headers });
     } else if (path.startsWith('/api/v1/guards/')) {
       // Route to production guards API - requires authentication
       if (!apiKey) {
@@ -462,7 +462,7 @@ export async function handleApiV1Request(
             },
             portfolio_symbols: {
               get: 'GET /api/v1/portfolio/symbols',
-              update: 'POST /api/v1/portfolio/symbols',
+              update: 'PUT /api/v1/portfolio/symbols',
               add: 'POST /api/v1/portfolio/symbols/add',
               remove: 'POST /api/v1/portfolio/symbols/remove',
               reset: 'POST /api/v1/portfolio/symbols/reset',

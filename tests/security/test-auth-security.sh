@@ -179,14 +179,14 @@ sql_injection_payload='{
     "weights": {"AAPL": 0.5, "MSFT": 0.5}
   }
 }'
-test_security "POST" "/api/v1/risk/assessment" "$sql_injection_payload" "SQL Injection Attempt in Portfolio ID"
+test_security "POST" "/api/v1/backtesting/validation" "$sql_injection_payload" "SQL Injection Attempt in Portfolio ID"
 
 # Test 8: XSS Attempt in symbol name
 xss_payload='{
   "symbols": ["<script>alert(1)</script>", "MSFT"],
   "lookbackPeriod": 252
 }'
-test_security "POST" "/api/v1/portfolio/correlation" "$xss_payload" "XSS Attempt in Symbol Name"
+test_security "POST" "/api/v1/backtesting/run" "$xss_payload" "XSS Attempt in Symbol Name"
 
 # Test 9: Command Injection Attempt
 command_injection_payload='{
@@ -211,7 +211,7 @@ response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
     -H "X-API-KEY: $X_API_KEY" \
     -H "Content-Type: application/json" \
     -d "$large_payload" \
-    "$API_BASE/api/v1/portfolio/correlation" 2>/dev/null)
+    "$API_BASE/api/v1/backtesting/run" 2>/dev/null)
 http_code=$(echo "$response" | tail -1 | cut -d: -f2)
 echo "HTTP Status: $http_code"
 if [[ "$http_code" == "400" ]] || [[ "$http_code" == "413" ]] || [[ "$http_code" == "429" ]]; then
@@ -249,7 +249,7 @@ echo ""
 test_auth "DELETE" "/api/v1/predictive/signals" "$X_API_KEY" "405" "DELETE on GET-only Endpoint"
 
 # Test 14: PUT on POST endpoint (should fail)
-test_auth "PUT" "/api/v1/risk/assessment" "$X_API_KEY" "405" "PUT on POST-only Endpoint"
+test_auth "PUT" "/api/v1/backtesting/run" "$X_API_KEY" "405" "PUT on POST-only Endpoint"
 
 echo -e "${CYAN}=== Category 4: Rate Limiting & Abuse Prevention ===${NC}"
 echo ""
@@ -260,7 +260,7 @@ success_count=0
 for i in {1..10}; do
     response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
         -H "X-API-KEY: $X_API_KEY" \
-        "$API_BASE/api/v1/risk/health" 2>/dev/null)
+        "$API_BASE/api/v1/data/health" 2>/dev/null)
     http_code=$(echo "$response" | tail -1 | cut -d: -f2)
     if [[ "$http_code" == "200" ]]; then
         success_count=$((success_count + 1))
@@ -291,7 +291,7 @@ response=$(timeout $TIMEOUT curl -s \
     -H "X-API-KEY: $X_API_KEY" \
     -H "Content-Type: application/json" \
     -d '{"invalid": "data"}' \
-    "$API_BASE/api/v1/risk/assessment" 2>/dev/null)
+    "$API_BASE/api/v1/backtesting/validation" 2>/dev/null)
 
 if echo "$response" | grep -qi "stack\|trace\|internal\|debug\|file:\/\/"; then
     echo -e "${RED}✗ FAIL - Error message exposes internal information${NC}"

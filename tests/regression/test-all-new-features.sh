@@ -51,8 +51,6 @@ OVERALL_PASSED=0
 declare -A TEST_SUITES
 TEST_SUITES[ai_stability]="test-ai-model-stability.sh"
 TEST_SUITES[backtesting]="test-backtesting-api.sh"
-TEST_SUITES[portfolio]="test-portfolio-api.sh"
-TEST_SUITES[risk]="test-risk-management-api.sh"
 TEST_SUITES[ai]="test-ai-predictive-api.sh"
 TEST_SUITES[sector]="test-sector-simple.sh"
 

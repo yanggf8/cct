@@ -100,7 +100,7 @@ run_security_test "Invalid API Key Rejection" \
 
 # Test 4: Input validation (SQL injection)
 run_security_test "SQL Injection Protection" \
-    "[ \$(curl -s -X POST -H 'X-API-KEY: $X_API_KEY' -H 'Content-Type: application/json' -d '{\"symbols\":[\"'\'' OR 1=1\"]}' '$API_BASE/api/v1/portfolio/correlation' | jq -r '.success // false') = false ]" \
+    "[ \$(curl -s -X POST -H 'X-API-KEY: $X_API_KEY' -H 'Content-Type: application/json' -d '{\"symbols\":[\"'\'' OR 1=1\"]}' '$API_BASE/api/v1/backtesting/run' | jq -r '.success // false') = false ]" \
     "Backend protected against SQL injection"
 
 # Test 5: Rate limiting validation
@@ -186,7 +186,7 @@ run_security_test "End-to-End Authenticated Request" \
 
 # Test 18: Error handling doesn't expose sensitive information
 run_security_test "Error Message Security" \
-    "! curl -s -X POST -H 'X-API-KEY: $X_API_KEY' -H 'Content-Type: application/json' -d '{invalid}' '$API_BASE/api/v1/portfolio/correlation' | grep -qi 'stack\\|trace\\|internal'" \
+    "! curl -s -X POST -H 'X-API-KEY: $X_API_KEY' -H 'Content-Type: application/json' -d '{invalid}' '$API_BASE/api/v1/backtesting/run' | grep -qi 'stack\\|trace\\|internal'" \
     "Error messages don't expose internal information"
 
 echo ""
