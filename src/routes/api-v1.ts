@@ -23,9 +23,7 @@ import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.js';
 import { handleRealtimeRoutes } from './realtime-routes.js';
 import { handleBacktestingRoutes } from './backtesting-routes.js';
 import { createEnhancedCacheRoutes } from './enhanced-cache-routes.js';
-import { handlePortfolioRequest } from './portfolio-routes.js';
 import { getSectorIndicatorsSymbol } from './sector-routes.js';
-import { handleRiskManagementRequest } from './risk-management-routes.js';
 import { handleProductionGuardsStatus, handleProductionGuardsValidate, handleProductionGuardsHealthCheck } from './production-guards-routes.js';
 import type { CloudflareEnvironment } from '../types.js';
 
@@ -54,9 +52,7 @@ interface ApiDocumentation {
     technical_analysis: APIEndpoint;
     realtime: APIEndpoint;
     backtesting: APIEndpoint;
-    portfolio_optimization: APIEndpoint;
-    portfolio_rebalancing: APIEndpoint;
-    risk_management: APIEndpoint;
+    portfolio_symbols: APIEndpoint;
     production_guards: APIEndpoint;
   };
   documentation: string;
@@ -170,15 +166,11 @@ export async function handleApiV1Request(
     } else if (path.startsWith('/api/v1/backtesting/')) {
       return await handleBacktestingRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/portfolio/')) {
-      // Check if this is portfolio symbol management (more specific paths)
+      // Portfolio symbol management only (optimization/rebalancing routes removed — were mock)
       if (path.startsWith('/api/v1/portfolio/symbols')) {
         return await handlePortfolioManagementRoutes(request, env, path, headers);
       }
-      // Otherwise, route to portfolio optimization API
-      return await handlePortfolioRequest(request, env, {} as ExecutionContext);
-    } else if (path.startsWith('/api/v1/risk/')) {
-      // Route to risk management API
-      return await handleRiskManagementRequest(request, env, {} as ExecutionContext);
+      return new Response(JSON.stringify({ success: false, error: 'Not Found', message: 'Portfolio optimization endpoints have been removed' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     } else if (path.startsWith('/api/v1/guards/')) {
       // Route to production guards API - requires authentication
       if (!apiKey) {
@@ -468,35 +460,12 @@ export async function handleApiV1Request(
               walk_forward: 'POST /api/v1/backtesting/walk-forward',
               monte_carlo: 'POST /api/v1/backtesting/monte-carlo',
             },
-            portfolio_optimization: {
-              correlation: 'POST /api/v1/portfolio/correlation',
-              optimize: 'POST /api/v1/portfolio/optimize',
-              efficient_frontier: 'POST /api/v1/portfolio/efficient-frontier',
-              risk_metrics: 'POST /api/v1/portfolio/risk-metrics',
-              stress_test: 'POST /api/v1/portfolio/stress-test',
-              attribution: 'POST /api/v1/portfolio/attribution',
-              analytics: 'POST /api/v1/portfolio/analytics',
-            },
-            portfolio_rebalancing: {
-              create_strategy: 'POST /api/v1/portfolio/rebalancing/strategy',
-              analyze: 'POST /api/v1/portfolio/rebalancing/analyze',
-              execute: 'POST /api/v1/portfolio/rebalancing/execute',
-              monitor: 'POST /api/v1/portfolio/rebalancing/monitor',
-              tax_harvest: 'POST /api/v1/portfolio/rebalancing/tax-harvest',
-              dynamic_allocation: 'POST /api/v1/portfolio/rebalancing/dynamic-allocation',
-              stress_test: 'POST /api/v1/portfolio/rebalancing/stress-test',
-            },
-            risk_management: {
-              assessment: 'POST /api/v1/risk/assessment',
-              market: 'POST /api/v1/risk/market',
-              concentration: 'POST /api/v1/risk/concentration',
-              liquidity: 'POST /api/v1/risk/liquidity',
-              stress_test: 'POST /api/v1/risk/stress-test',
-              compliance: 'POST /api/v1/risk/compliance',
-              regulatory_report: 'POST /api/v1/risk/regulatory-report',
-              limits: 'POST /api/v1/risk/limits',
-              analytics: 'POST /api/v1/risk/analytics',
-              health: 'GET /api/v1/risk/health',
+            portfolio_symbols: {
+              get: 'GET /api/v1/portfolio/symbols',
+              update: 'POST /api/v1/portfolio/symbols',
+              add: 'POST /api/v1/portfolio/symbols/add',
+              remove: 'POST /api/v1/portfolio/symbols/remove',
+              reset: 'POST /api/v1/portfolio/symbols/reset',
             },
             production_guards: {
               status: 'GET /api/v1/guards/status',

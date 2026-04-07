@@ -63,8 +63,7 @@ src/index.ts
             ├─ /technical/*         → technical-routes.ts
             ├─ /analytics/*         → advanced-analytics-routes.ts
             ├─ /backtesting/*       → backtesting-routes.ts
-            ├─ /portfolio/*         → portfolio-routes.ts
-            ├─ /risk/*              → risk-management-routes.ts
+            ├─ /portfolio/symbols/* → portfolio-management-routes.ts (via PortfolioDO)
             ├─ /realtime/*          → realtime-routes.ts
             ├─ /cache/*             → enhanced-cache-routes.ts
             └─ /guards/*            → production-guards-routes.ts
@@ -176,7 +175,7 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 | **Market Intel** | `GET /market-intelligence/*`, `GET /market-drivers/*` |
 | **Analytics** | `GET /predictive/*`, `GET /technical/*`, `GET /analytics/*` |
 | **Backtesting** | `GET /backtesting/*` |
-| **Portfolio/Risk** | `GET /portfolio/*`, `GET /risk/*` |
+| **Portfolio** | `GET/POST /portfolio/symbols`, `/symbols/add`, `/symbols/remove`, `/symbols/reset` |
 | **Ops** | `GET /realtime/*`, `GET /cache/*`, `GET /guards/*` |
 
 ### Job Trigger API
