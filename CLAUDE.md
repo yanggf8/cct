@@ -92,10 +92,17 @@ scheduler.ts → handleScheduledEvent()
 - Run ID format: `${date}_${type}_${uuid}` (e.g. `2026-03-30_pre-market_abc123`)
 - Reports stored in `scheduled_job_results` (append-only); latest pointer in `job_date_results`
 
-**AI analysis** (`dual-ai-analysis.ts`):
-- Primary model call → circuit breaker check → retry (max 2) → store `gemma_*` columns in D1
-- Mate model call → same pattern → store `distilbert_*` columns
-- `extractDualModelData()` in `data.ts` aliases legacy column names to `primary_*`/`mate_*`
+**Analysis pipeline** (per-symbol, runs inside each job type):
+```
+News fetch (free_sentiment_pipeline.ts)       ← Finnhub → FMP → NewsAPI → Yahoo (waterfall)
+  └─ performDualAIComparison()                ← dual-ai-analysis.ts, runs both models in parallel
+       ├─ Primary: circuit breaker → retryAIcall(max 2) → env.AI.run(gpt-oss-120b)
+       ├─ Mate:    circuit breaker → retryAIcall(max 2) → env.AI.run(deepseek-r1-32b)
+       ├─ checkAgreement() → generateSignal()  ← agree/partial/disagree → action (BUY/SELL/HOLD/SKIP)
+       └─ writeSymbolPredictionToD1()          ← pre-market-data-bridge.ts stores to symbol_predictions
+```
+
+**Failure propagation**: News providers fail silently (waterfall to next). AI model failure → `confidence: null` → signal filtered out by `usableSignals` check in `scheduler.ts`. If all symbols produce null confidence → `usableSignals === 0` → `analysisResult = null` → job marked failed at `ai_analysis` stage. Circuit breaker opens after 3 failures → subsequent symbols skip that model entirely (60s timeout).
 
 **Storage layers**:
 - **D1** (`PREDICT_JOBS_DB`) — Source of truth for all job results, reports, predictions, settings
@@ -173,18 +180,7 @@ FROM news_fetch_log WHERE total_articles = 0 ORDER BY fetch_date DESC;
 
 ## API v1 (Self-documenting at `/api/v1`)
 
-| Group | Key Endpoints |
-|-------|---------------|
-| **Jobs** | `POST /jobs/trigger`, `GET /jobs/runs` (public), `GET /jobs/runs/:runId/stages` (public), `GET /jobs/schedule-check` (protected), `DELETE /jobs/runs/:runId` |
-| **Reports** | `GET /reports/pre-market`, `GET /reports/intraday?date=YYYY-MM-DD`, `GET /reports/intraday?run_id=...`, `GET /reports/end-of-day`, `GET /reports/status` |
-| **Sentiment** | `GET /sentiment/analysis`, `/market`, `/enhanced[/:symbol]`, `/fine-grained/:symbol`, `POST /fine-grained/batch` |
-| **Data** | `GET /data/health`, `/symbols`, `/system-status`, `POST /data/cache-clear` |
-| **Sector Rotation** | `GET /sector-rotation/*`, `GET /sectors/*` |
-| **Market Intel** | `GET /market-intelligence/*`, `GET /market-drivers/*` |
-| **Analytics** | `GET /predictive/*`, `GET /technical/*`, `GET /analytics/*` |
-| **Backtesting** | `GET /backtesting/*` |
-| **Portfolio** | `GET/POST /portfolio/symbols`, `/symbols/add`, `/symbols/remove`, `/symbols/reset` |
-| **Ops** | `GET /realtime/*`, `GET /cache/*`, `GET /guards/*` |
+Full endpoint list: `GET /api/v1` (live) or see route files in `src/routes/`. Key groups: jobs, reports, sentiment, data, sector-rotation, market-intelligence, analytics, portfolio, ops.
 
 ### Job Trigger API
 
@@ -263,35 +259,31 @@ DELETE FROM market_close_data WHERE close_date = '2026-02-03';
 unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/<file>.sql
 ```
 
-### D1 Cleanup (Fresh Start)
-```sql
-DELETE FROM job_executions;
-DELETE FROM symbol_predictions;
-DELETE FROM daily_analysis;
-DELETE FROM job_date_results;
-DELETE FROM job_run_results;
-DELETE FROM job_stage_log;
-DELETE FROM scheduled_job_results;
-DELETE FROM market_close_data;
-DELETE FROM news_provider_failures;
-DELETE FROM news_cache_stats;
-DELETE FROM weekend_news_cache;
-DELETE FROM news_fetch_log;
-```
+### D1 Cleanup Recipes
 
-### D1 Cleanup (Keep Pre-Market for EOD Testing)
+<details><summary>Fresh Start (delete all data)</summary>
+
 ```sql
--- Keep specific pre-market run for EOD testing
--- Replace DATE and RUN_ID with actual values
+DELETE FROM job_executions; DELETE FROM symbol_predictions; DELETE FROM daily_analysis;
+DELETE FROM job_date_results; DELETE FROM job_run_results; DELETE FROM job_stage_log;
+DELETE FROM scheduled_job_results; DELETE FROM market_close_data;
+DELETE FROM news_provider_failures; DELETE FROM news_cache_stats;
+DELETE FROM weekend_news_cache; DELETE FROM news_fetch_log;
+```
+</details>
+
+<details><summary>Keep Pre-Market for EOD Testing (replace DATE with YYYY-MM-DD)</summary>
+
+```sql
 DELETE FROM scheduled_job_results WHERE NOT (scheduled_date = 'DATE' AND report_type = 'pre-market');
 DELETE FROM job_run_results WHERE run_id NOT LIKE 'DATE_pre-market_%';
 DELETE FROM job_stage_log WHERE run_id NOT LIKE 'DATE_pre-market_%';
 DELETE FROM job_date_results WHERE scheduled_date != 'DATE';
 DELETE FROM symbol_predictions WHERE prediction_date != 'DATE';
 DELETE FROM daily_analysis WHERE analysis_date != 'DATE';
-DELETE FROM job_executions;
-DELETE FROM market_close_data;
+DELETE FROM job_executions; DELETE FROM market_close_data;
 ```
+</details>
 
 ---
 
@@ -393,4 +385,4 @@ unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote 
 
 ---
 
-**Last Updated**: 2026-04-07 (corrected storage layer docs: D1=truth, KV=articles only, DO=cache only)
+**Last Updated**: 2026-04-08 (added analysis pipeline flow, failure propagation docs; trimmed self-documenting API table; collapsed cleanup recipes)
