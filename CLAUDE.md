@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Start (Critical Gotchas)
+
+- **Wrangler auth**: Always `unset CLOUDFLARE_API_TOKEN` before any wrangler command — uses OAuth, not API tokens.
+- **API testing**: `$X_API_KEY` is pre-set in the shell — use it directly, never scrape from frontend config.
+- **No mock data**: Never fabricate financial numbers or add default/fallback values. Return honest empty state on failure.
+- **Ask before deploying**: Always request user approval before `npm run deploy` or any remote D1 migration.
+- **Frontend builds**: Must run `npm run build` before deploying frontend changes.
+
 ## Development Commands
 
 ```bash
@@ -247,23 +255,13 @@ SELECT symbol, close_price, day_change, fetch_status FROM market_close_data WHER
 DELETE FROM market_close_data WHERE close_date = '2026-02-03';
 ```
 
-### Applied Migrations
+### Applying Migrations
 
-All migrations applied via: `unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=<path>`
+`schema/current-schema.sql` is the source of truth for table/index state. Apply new migrations via:
 
-| Migration | Purpose | Applied |
-|-----------|---------|---------|
-| `add-symbol-prediction-status.sql` | Status/error tracking columns | Yes |
-| `add-trigger-source.sql` | Trigger source tracking | Yes |
-| `add-report-snapshots.sql` | Report snapshots table | Yes |
-| `add-dual-model-logging.sql` | gemma_*/distilbert_* columns | Yes |
-| `add-articles-content.sql` | Articles content storage | Yes |
-| `cleanup-scheduled-jobs.sql` | Cleanup stale data | Yes |
-| `add-news-provider-failures.sql` | Provider failure tracking | Yes |
-| `add-nav-status-tables.sql` | Nav status tables | Yes |
-| `add-sector-rotation-report-type.sql` | Sector rotation support | Yes |
-| `add-weekend-news-cache.sql` | Weekend news cache | Yes |
-| `add-market-close-cache.sql` | Market close data caching | 2026-02-05 |
+```bash
+unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/<file>.sql
+```
 
 ### D1 Cleanup (Fresh Start)
 ```sql
@@ -365,25 +363,17 @@ Cloudflare Workers free/bundled plan allows **50 subrequests per invocation**. E
 
 **Fix**: RTDM warmup disabled for all job types in `src/modules/scheduler.ts`. Analysis modules fetch their own data independently and do not use the RTDM-populated DO cache.
 
-### EOD Calibration Pipeline
+### EOD Pipeline — By-Design Behaviors
 
-| Issue | Severity | Status |
-|-------|----------|--------|
-| ET/UTC date mismatch | Critical | Fixed - `targetDate` param added to `generateEndOfDayAnalysis()` |
-| Holiday fallback miscalibration | Medium | Fixed - 10-day lookback + validation for no previous trading day |
-| Pre-market link 404 | Medium | Fixed - `/pre-market-briefing?run_id=...` |
-| Market pulse CSS injection | Medium | Fixed - mapped to fixed class names |
-| EOD `data_fetch` stage left open on failure | Medium | Fixed - `eodOpenStage` tracker closes open stage in catch block |
-| Failed fetch caching permanent | Low | By design - prevents repeated API failures |
-| Confidence threshold semantics | Low | OK - 0.70 (0-1 space) = 70 (0-100 space), normalized internally |
-| Neutral handling | Low | By design - neutrals excluded from accuracy metrics |
-| Binary up/down (no deadband) | Low | By design - exact 0.0% treated as "down" |
+- **Failed fetch caching is permanent** — prevents repeated API failures on reruns.
+- **Confidence threshold**: 0.70 (0-1 space) = 70 (0-100 space), normalized internally.
+- **Neutrals excluded** from accuracy metrics.
+- **Binary up/down**: exact 0.0% treated as "down" (no deadband).
 
 ### Job Stage Tracking
 
-- `current_stage` in `job_run_results` reflects where the job actually failed (fixed 2026-03-24)
-- Pre-market/intraday failures now record `current_stage: 'ai_analysis'` instead of the misleading default `'finalize'`
-- `/api/v1/data/system-status` model health shows `test_type: 'ping'` — this is a basic connectivity test only, not a full reasoning pipeline test
+- `current_stage` in `job_run_results` reflects where the job actually failed.
+- `/api/v1/data/system-status` model health uses `test_type: 'ping'` — connectivity only, not a full reasoning pipeline test.
 
 ### Schema Refresh
 ```bash
