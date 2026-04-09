@@ -166,6 +166,67 @@ function extractAIResponseText(response: any): string {
   return JSON.stringify(response);
 }
 
+/**
+ * Compute SHA-256 hash of prompt for forensic reconstruction.
+ * Uses Web Crypto API (available in Cloudflare Workers).
+ */
+async function computePromptHash(prompt: string): Promise<string> {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(prompt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return 'hash-unavailable';
+  }
+}
+
+/**
+ * Extract reasoning chain from DeepSeek <think> blocks.
+ * Returns null if no think block found.
+ */
+function extractReasoningChain(responseText: string): string | null {
+  const thinkMatch = responseText.match(/<think>([\s\S]*?)<\/think>/);
+  return thinkMatch ? thinkMatch[1].trim() : null;
+}
+
+/**
+ * Build sensorium reflection instructions for AI prompts.
+ * Instructs models to actually USE the system_state data in their reasoning.
+ */
+function buildSensoriumReflection(systemState?: SystemState): string {
+  if (!systemState) return '';
+
+  const instructions: string[] = [];
+
+  if (systemState.model_hit_rate_30d !== undefined) {
+    if (systemState.model_hit_rate_30d < 0.6) {
+      instructions.push('- Model accuracy is below 60% recently. Require stronger evidence before making directional calls.');
+    } else if (systemState.model_hit_rate_30d >= 0.75) {
+      instructions.push('- Model accuracy is strong (75%+). Trust your analysis but remain objective.');
+    }
+  }
+
+  if (systemState.symbol_hit_rate_30d !== undefined && systemState.symbol_sample_size !== undefined) {
+    if (systemState.symbol_hit_rate_30d < 0.5 && systemState.symbol_sample_size >= 5) {
+      instructions.push(`- This symbol has been difficult to predict (${(systemState.symbol_hit_rate_30d * 100).toFixed(0)}% accuracy). Be cautious.`);
+    }
+  }
+
+  if (systemState.news_cache_mode === 'weekend' || systemState.news_cache_mode === 'skip') {
+    instructions.push('- News data may be stale (weekend/cache mode). Weight freshness accordingly.');
+  }
+
+  if (systemState.recent_failure_summary) {
+    instructions.push(`- Recent issues: ${systemState.recent_failure_summary}. Maintain analysis quality despite system stress.`);
+  }
+
+  if (instructions.length === 0) return '';
+
+  return `\n[CALIBRATION GUIDANCE - Review before analyzing]\n${instructions.join('\n')}\n`;
+}
+
 // Initialize logging for this module
 let loggingInitialized = false;
 
@@ -325,7 +386,9 @@ async function performPrimaryAnalysis(symbol: string, newsData: NewsArticle[], e
       .join('\n\n');
 
     const stateBlock = renderSystemStateBlock(systemState);
-    const prompt = `${stateBlock ? stateBlock + '\n\n' : ''}You are a financial analyst specializing in ${symbol}.
+    const calibrationGuidance = buildSensoriumReflection(systemState);
+    const prompt = `${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}
+You are a financial analyst specializing in ${symbol}.
 Analyze each headline step by step:
 - What does this mean for the stock price?
 - Is it positive, negative, or truly neutral for investors?
@@ -342,6 +405,9 @@ Based on your reasoning, respond with ONLY this JSON format:
   "confidence": 0.XX,
   "reasoning": "brief explanation of key factors"
 }`;
+
+    // Compute prompt hash for forensic reconstruction (non-blocking)
+    const promptHashPromise = computePromptHash(prompt);
 
     // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
     const circuitBreaker = getAICircuitBreakers(env).primary;
@@ -368,6 +434,9 @@ Based on your reasoning, respond with ONLY this JSON format:
     const analysisData = parseNaturalLanguageResponse(responseText);
     const responseTimeMs = Date.now() - callStart;
 
+    // Await prompt hash (computed in parallel with AI call)
+    const promptHash = await promptHashPromise;
+
     logAICall(env, {
       run_id: systemState?.run_id,
       scheduled_date: systemState?.scheduled_date,
@@ -377,6 +446,7 @@ Based on your reasoning, respond with ONLY this JSON format:
       model_name: '@cf/openai/gpt-oss-120b',
       latency_ms: responseTimeMs,
       status: 'success',
+      prompt_hash: promptHash,
     });
 
     return {
@@ -398,6 +468,19 @@ Based on your reasoning, respond with ONLY this JSON format:
       : error.message.includes('Circuit breaker is OPEN') ? 'CIRCUIT_BREAKER_OPEN'
       : 'ERROR';
 
+    // Best-effort prompt hash for forensic debugging (may fail if error occurred before prompt was built)
+    let errorPromptHash: string | undefined;
+    try {
+      const topArticles = newsData.slice(0, 5);
+      const newsContext = topArticles
+        .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
+        .join('\n\n');
+      const stateBlock = renderSystemStateBlock(systemState);
+      const calibrationGuidance = buildSensoriumReflection(systemState);
+      const reconstructedPrompt = `${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}\nYou are a financial analyst specializing in ${symbol}...\n${newsContext}`;
+      errorPromptHash = await computePromptHash(reconstructedPrompt);
+    } catch { /* best-effort */ }
+
     logAICall(env, {
       run_id: systemState?.run_id,
       scheduled_date: systemState?.scheduled_date,
@@ -409,6 +492,7 @@ Based on your reasoning, respond with ONLY this JSON format:
       status: 'failed',
       error_class: errorClass,
       error_message: error.message,
+      prompt_hash: errorPromptHash,
     });
 
     if (errorClass === 'TIMEOUT') {
@@ -471,10 +555,13 @@ async function performMateAnalysis(symbol: string, newsData: NewsArticle[], env:
       .join('\n\n');
 
     const stateBlock = renderSystemStateBlock(systemState);
+    const calibrationGuidance = buildSensoriumReflection(systemState);
     const prompt = `<think>
-${stateBlock ? stateBlock + '\n' : ''}You are analyzing financial news for ${symbol} to determine market sentiment.
+${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}
+You are analyzing financial news for ${symbol} to determine market sentiment.
 Consider: earnings impact, analyst sentiment, market positioning, risk factors.
 Think step by step about what each headline means for investors.
+${systemState?.model_hit_rate_30d !== undefined ? `Note: Recent model accuracy is ${(systemState.model_hit_rate_30d * 100).toFixed(0)}%. Calibrate your confidence accordingly.` : ''}
 </think>
 
 Analyze these financial news articles for ${symbol}:
@@ -487,6 +574,9 @@ Based on your analysis, respond with ONLY this JSON format:
   "confidence": 0.XX,
   "reasoning": "brief explanation of key factors"
 }`;
+
+    // Compute prompt hash for forensic reconstruction (non-blocking)
+    const promptHashPromise = computePromptHash(prompt);
 
     // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
     const circuitBreaker = getAICircuitBreakers(env).mate;
@@ -509,6 +599,12 @@ Based on your analysis, respond with ONLY this JSON format:
     const analysisData = parseNaturalLanguageResponse(responseText);
     const responseTimeMs = Date.now() - callStart;
 
+    // Extract reasoning chain from <think> blocks (DeepSeek-specific)
+    const reasoningChain = extractReasoningChain(responseText);
+
+    // Await prompt hash (computed in parallel with AI call)
+    const promptHash = await promptHashPromise;
+
     logAICall(env, {
       run_id: systemState?.run_id,
       scheduled_date: systemState?.scheduled_date,
@@ -518,6 +614,8 @@ Based on your analysis, respond with ONLY this JSON format:
       model_name: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
       latency_ms: responseTimeMs,
       status: 'success',
+      prompt_hash: promptHash,
+      reasoning_chain: reasoningChain ?? undefined,
     });
 
     return {
@@ -539,6 +637,19 @@ Based on your analysis, respond with ONLY this JSON format:
       : error.message.includes('Circuit breaker is OPEN') ? 'CIRCUIT_BREAKER_OPEN'
       : 'ERROR';
 
+    // Best-effort prompt hash for forensic debugging
+    let errorPromptHash: string | undefined;
+    try {
+      const topArticles = newsData.slice(0, 5);
+      const newsContext = topArticles
+        .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
+        .join('\n\n');
+      const stateBlock = renderSystemStateBlock(systemState);
+      const calibrationGuidance = buildSensoriumReflection(systemState);
+      const reconstructedPrompt = `<think>\n${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}\nYou are analyzing financial news for ${symbol}...\n${newsContext}`;
+      errorPromptHash = await computePromptHash(reconstructedPrompt);
+    } catch { /* best-effort */ }
+
     logAICall(env, {
       run_id: systemState?.run_id,
       scheduled_date: systemState?.scheduled_date,
@@ -550,6 +661,7 @@ Based on your analysis, respond with ONLY this JSON format:
       status: 'failed',
       error_class: errorClass,
       error_message: error.message,
+      prompt_hash: errorPromptHash,
     });
 
     if (errorClass === 'TIMEOUT') {

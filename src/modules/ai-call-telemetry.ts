@@ -17,6 +17,8 @@ export interface AICallRecord {
   status: 'success' | 'failed';
   error_class?: string;
   error_message?: string;
+  prompt_hash?: string;        // SHA-256 hash for forensic prompt reconstruction
+  reasoning_chain?: string;    // Extracted <think> blocks from reasoning models
 }
 
 /**
@@ -28,8 +30,8 @@ export function logAICall(env: CloudflareEnvironment, record: AICallRecord): voi
   env.PREDICT_JOBS_DB.prepare(`
     INSERT INTO ai_call_telemetry
       (run_id, scheduled_date, report_type, symbol, model_role, model_name,
-       latency_ms, status, error_class, error_message, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       latency_ms, status, error_class, error_message, prompt_hash, reasoning_chain, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(
     record.run_id ?? null,
     record.scheduled_date ?? null,
@@ -41,5 +43,7 @@ export function logAICall(env: CloudflareEnvironment, record: AICallRecord): voi
     record.status,
     record.error_class ?? null,
     record.error_message ?? null,
+    record.prompt_hash ?? null,
+    record.reasoning_chain ?? null,
   ).run().catch(() => { /* swallow — telemetry is best-effort */ });
 }

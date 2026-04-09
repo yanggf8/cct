@@ -213,6 +213,7 @@ CREATE INDEX IF NOT EXISTS idx_news_fetch_log_failures ON news_fetch_log(total_a
 -- ============================================================================
 -- Phase 2: AI Call Telemetry (added 2026-04-09)
 -- Append-only log of every model call for forensic auditability
+-- Phase 5 enhancement: reasoning_chain for <think> block capture (2026-04-09)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS ai_call_telemetry (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -223,19 +224,21 @@ CREATE TABLE IF NOT EXISTS ai_call_telemetry (
   model_role TEXT NOT NULL CHECK(model_role IN ('primary', 'mate')),
   model_name TEXT NOT NULL,
   prompt_version TEXT,
-  prompt_hash TEXT,
+  prompt_hash TEXT,                -- SHA-256 hash for forensic prompt reconstruction
   latency_ms INTEGER,
   input_tokens INTEGER,
   output_tokens INTEGER,
   status TEXT NOT NULL CHECK(status IN ('success', 'failed')),
   error_class TEXT,
   error_message TEXT,
+  reasoning_chain TEXT,            -- Extracted <think> blocks from reasoning models
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_call_telemetry_run ON ai_call_telemetry(run_id);
 CREATE INDEX IF NOT EXISTS idx_ai_call_telemetry_symbol ON ai_call_telemetry(symbol);
 CREATE INDEX IF NOT EXISTS idx_ai_call_telemetry_created ON ai_call_telemetry(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_call_telemetry_has_reasoning ON ai_call_telemetry(model_role) WHERE reasoning_chain IS NOT NULL;
 
 -- ============================================================================
 -- Phase 3: System Events (added 2026-04-09)

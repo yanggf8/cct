@@ -158,6 +158,37 @@ News fetch (free_sentiment_pipeline.ts)       ← Finnhub → FMP → NewsAPI �
 - **End-of-day market data**: Yahoo Finance close prices cached in `market_close_data` table; reruns use cached data
 - **EOD date handling**: `generateEndOfDayAnalysis()` accepts `targetDate` param (ET timezone) to avoid UTC/ET mismatch
 
+### Springdrift Enhancements (Forensic Auditability)
+
+Inspired by persistent LLM agent runtime patterns, the system implements:
+
+1. **Append-only AI Telemetry** (`ai_call_telemetry` table)
+   - Every AI call logged with: `run_id`, `symbol`, `model_role`, `latency_ms`, `status`, `error_class`
+   - `prompt_hash`: SHA-256 hash for forensic prompt reconstruction
+   - `reasoning_chain`: Extracted `<think>` blocks from DeepSeek-R1 responses
+   - Fire-and-forget pattern (never blocks hot path)
+
+2. **Sensorium (Self-Perception)** (`system-state.ts`)
+   - Batch-level context injected into AI prompts: `[system_state]...[/system_state]`
+   - Includes: `report_type`, `run_id`, `symbols_total`, `news_cache_mode`
+   - Phase 5 calibration: `model_hit_rate_30d`, `symbol_hit_rate_30d`
+   - **Calibration guidance**: Models instructed to adjust confidence based on recent accuracy
+
+3. **Case-Based Calibration** (`prediction-calibration.ts`)
+   - Post-close calibration joins `symbol_predictions` with `market_close_data`
+   - Computes: `hit_rate`, `avg_confidence`, `calibration_error = |avg_confidence - hit_rate|`
+   - Stored in `per_symbol_accuracy` table (30-day rolling window)
+   - Fed back into prompts via sensorium
+
+4. **System Events** (`system_events` table)
+   - Pipeline health events: `circuit_breaker_open`, `model_timeout`, `fallback_taken`
+   - Linked by `run_id` for end-to-end forensic reconstruction
+
+**Migration required for new deployments:**
+```bash
+unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/add-springdrift-enhancements.sql
+```
+
 ---
 
 ## News Sources (priority order)
