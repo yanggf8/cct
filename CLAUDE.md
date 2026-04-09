@@ -184,9 +184,13 @@ Inspired by persistent LLM agent runtime patterns, the system implements:
    - Pipeline health events: `circuit_breaker_open`, `model_timeout`, `fallback_taken`
    - Linked by `run_id` for end-to-end forensic reconstruction
 
-**Migration required for new deployments:**
+**Migrations:**
 ```bash
-unset CLOUDFLARE_API_TOKEN && npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/add-springdrift-enhancements.sql
+# New deployments (creates all 3 tables)
+npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/add-springdrift-enhancements.sql
+
+# Existing deployments (if ai_call_telemetry already exists without reasoning_chain)
+npx wrangler d1 execute cct-predict-jobs --remote --file=schema/migrations/add-reasoning-chain-column.sql
 ```
 
 ---
