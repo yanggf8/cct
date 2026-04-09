@@ -379,15 +379,16 @@ async function performPrimaryAnalysis(symbol: string, newsData: NewsArticle[], e
   }
 
   const callStart = Date.now();
-  try {
-    const topArticles = newsData.slice(0, 5);
-    const newsContext = topArticles
-      .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
-      .join('\n\n');
 
-    const stateBlock = renderSystemStateBlock(systemState);
-    const calibrationGuidance = buildSensoriumReflection(systemState);
-    const prompt = `${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}
+  // Build prompt BEFORE try block so we have the exact prompt for error logging
+  const topArticles = newsData.slice(0, 5);
+  const newsContext = topArticles
+    .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
+    .join('\n\n');
+
+  const stateBlock = renderSystemStateBlock(systemState);
+  const calibrationGuidance = buildSensoriumReflection(systemState);
+  const prompt = `${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}
 You are a financial analyst specializing in ${symbol}.
 Analyze each headline step by step:
 - What does this mean for the stock price?
@@ -406,9 +407,10 @@ Based on your reasoning, respond with ONLY this JSON format:
   "reasoning": "brief explanation of key factors"
 }`;
 
-    // Compute prompt hash for forensic reconstruction (non-blocking)
-    const promptHashPromise = computePromptHash(prompt);
+  // Compute prompt hash for forensic reconstruction (available in both success and error paths)
+  const promptHashPromise = computePromptHash(prompt);
 
+  try {
     // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
     const circuitBreaker = getAICircuitBreakers(env).primary;
     let callError: string | undefined;
@@ -468,18 +470,8 @@ Based on your reasoning, respond with ONLY this JSON format:
       : error.message.includes('Circuit breaker is OPEN') ? 'CIRCUIT_BREAKER_OPEN'
       : 'ERROR';
 
-    // Best-effort prompt hash for forensic debugging (may fail if error occurred before prompt was built)
-    let errorPromptHash: string | undefined;
-    try {
-      const topArticles = newsData.slice(0, 5);
-      const newsContext = topArticles
-        .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
-        .join('\n\n');
-      const stateBlock = renderSystemStateBlock(systemState);
-      const calibrationGuidance = buildSensoriumReflection(systemState);
-      const reconstructedPrompt = `${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}\nYou are a financial analyst specializing in ${symbol}...\n${newsContext}`;
-      errorPromptHash = await computePromptHash(reconstructedPrompt);
-    } catch { /* best-effort */ }
+    // Use the same prompt hash from before try block (exact match with success path)
+    const errorPromptHash = await promptHashPromise;
 
     logAICall(env, {
       run_id: systemState?.run_id,
@@ -548,15 +540,16 @@ async function performMateAnalysis(symbol: string, newsData: NewsArticle[], env:
   }
 
   const callStart = Date.now();
-  try {
-    const topArticles = newsData.slice(0, 5);
-    const newsContext = topArticles
-      .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
-      .join('\n\n');
 
-    const stateBlock = renderSystemStateBlock(systemState);
-    const calibrationGuidance = buildSensoriumReflection(systemState);
-    const prompt = `<think>
+  // Build prompt BEFORE try block so we have the exact prompt for error logging
+  const topArticles = newsData.slice(0, 5);
+  const newsContext = topArticles
+    .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
+    .join('\n\n');
+
+  const stateBlock = renderSystemStateBlock(systemState);
+  const calibrationGuidance = buildSensoriumReflection(systemState);
+  const prompt = `<think>
 ${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}
 You are analyzing financial news for ${symbol} to determine market sentiment.
 Consider: earnings impact, analyst sentiment, market positioning, risk factors.
@@ -575,9 +568,10 @@ Based on your analysis, respond with ONLY this JSON format:
   "reasoning": "brief explanation of key factors"
 }`;
 
-    // Compute prompt hash for forensic reconstruction (non-blocking)
-    const promptHashPromise = computePromptHash(prompt);
+  // Compute prompt hash for forensic reconstruction (available in both success and error paths)
+  const promptHashPromise = computePromptHash(prompt);
 
+  try {
     // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
     const circuitBreaker = getAICircuitBreakers(env).mate;
     const response = await circuitBreaker.execute(async () => {
@@ -637,18 +631,8 @@ Based on your analysis, respond with ONLY this JSON format:
       : error.message.includes('Circuit breaker is OPEN') ? 'CIRCUIT_BREAKER_OPEN'
       : 'ERROR';
 
-    // Best-effort prompt hash for forensic debugging
-    let errorPromptHash: string | undefined;
-    try {
-      const topArticles = newsData.slice(0, 5);
-      const newsContext = topArticles
-        .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
-        .join('\n\n');
-      const stateBlock = renderSystemStateBlock(systemState);
-      const calibrationGuidance = buildSensoriumReflection(systemState);
-      const reconstructedPrompt = `<think>\n${stateBlock ? stateBlock + '\n' : ''}${calibrationGuidance}\nYou are analyzing financial news for ${symbol}...\n${newsContext}`;
-      errorPromptHash = await computePromptHash(reconstructedPrompt);
-    } catch { /* best-effort */ }
+    // Use the same prompt hash from before try block (exact match with success path)
+    const errorPromptHash = await promptHashPromise;
 
     logAICall(env, {
       run_id: systemState?.run_id,
