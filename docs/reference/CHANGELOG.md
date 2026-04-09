@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-04-09 - Prompt Sensorium, Telemetry, and Calibration ✅
+
+- Added batch-level `system_state` prompt injection for dual-model analysis so pre-market/intraday flows can pass structured runtime context (`report_type`, `scheduled_date`, `run_id`, stage, symbol count, cache mode) into both model prompts.
+- Added append-only `ai_call_telemetry` D1 logging for one row per model call, capturing run/date/report lineage, model role/name, latency, and failure classification.
+- Added `system_events` D1 logging for pipeline-health events, including circuit-breaker state transitions and model timeouts.
+- Added `per_symbol_accuracy` calibration storage plus `runCalibration()` to join `symbol_predictions` with `market_close_data` after successful end-of-day runs.
+- Fixed intraday telemetry lineage so fresh intraday model calls use the intraday `run_id` rather than the source pre-market run.
+- Fixed calibration execution lifecycle by attaching the post-EOD calibration worker to `ctx.waitUntil(...)`.
+- Fixed Phase 5 prompt enrichment so model-level and symbol-level hit rates are only injected when they are semantically valid.
+- Pre-market SPY market-pulse analysis now also receives `system_state`, so prompt context and telemetry stay aligned with the rest of the batch flow.
+- Schema note: dev-mode reset required. Recreate D1 from `schema/predict-jobs.sql` so `ai_call_telemetry`, `system_events`, and `per_symbol_accuracy` exist before runtime.
+
 ## 2026-02-03 - Pre-Market Report Fix & Documentation Update ✅
 
 - **Pre-Market Report Fix**: Reports now show ALL analyzed symbols (not just high-confidence ones) with new `high_confidence_count` field. Added DO cache warming after D1 write so report endpoint returns fresh data immediately after job completion.

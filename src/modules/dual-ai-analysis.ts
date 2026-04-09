@@ -19,6 +19,9 @@ import { CircuitBreakerFactory } from './circuit-breaker.js';
 import { executeOptimizedBatch } from './enhanced-batch-operations.js';
 import { handleAIError, handleError } from '../utils/error-handling-migration.js';
 import type { CloudflareEnvironment, CloudflareAI } from '../types.js';
+import { type SystemState, renderSystemStateBlock } from './system-state.js';
+import { logAICall } from './ai-call-telemetry.js';
+import { emitSystemEvent } from './system-events.js';
 
 // Type Definitions
 export type Direction = 'up' | 'down' | 'neutral' | 'bullish' | 'bearish';
@@ -174,25 +177,28 @@ function ensureLoggingInitialized(env: CloudflareEnvironment): void {
 }
 
 // Get AI model circuit breakers
-function getAICircuitBreakers() {
-  return {
-    primary: CircuitBreakerFactory.getInstance('ai-model-primary', {
-      failureThreshold: 3,
-      successThreshold: 2,
-      openTimeout: 60000, // 1 minute
-      halfOpenTimeout: 30000, // 30 seconds
-      halfOpenMaxCalls: 3,
-      resetTimeout: 300000 // 5 minutes
-    }),
-    mate: CircuitBreakerFactory.getInstance('ai-model-mate', {
-      failureThreshold: 3,
-      successThreshold: 2,
-      openTimeout: 60000, // 1 minute
-      halfOpenTimeout: 30000, // 30 seconds
-      halfOpenMaxCalls: 3,
-      resetTimeout: 300000 // 5 minutes
-    })
-  };
+function getAICircuitBreakers(env?: CloudflareEnvironment) {
+  const primary = CircuitBreakerFactory.getInstance('ai-model-primary', {
+    failureThreshold: 3,
+    successThreshold: 2,
+    openTimeout: 60000, // 1 minute
+    halfOpenTimeout: 30000, // 30 seconds
+    halfOpenMaxCalls: 3,
+    resetTimeout: 300000 // 5 minutes
+  });
+  const mate = CircuitBreakerFactory.getInstance('ai-model-mate', {
+    failureThreshold: 3,
+    successThreshold: 2,
+    openTimeout: 60000, // 1 minute
+    halfOpenTimeout: 30000, // 30 seconds
+    halfOpenMaxCalls: 3,
+    resetTimeout: 300000 // 5 minutes
+  });
+  if (env) {
+    primary.setEnv(env);
+    mate.setEnv(env);
+  }
+  return { primary, mate };
 }
 
 /**
@@ -202,7 +208,8 @@ function getAICircuitBreakers() {
 export async function performDualAIComparison(
   symbol: string,
   newsData: NewsArticle[],
-  env: CloudflareEnvironment
+  env: CloudflareEnvironment,
+  systemState?: SystemState
 ): Promise<DualAIComparisonResult> {
   const startTime = Date.now();
   ensureLoggingInitialized(env);
@@ -211,8 +218,8 @@ export async function performDualAIComparison(
   try {
     // Run both AI models independently and in parallel
     const [primaryResult, mateResult] = await Promise.all([
-      performPrimaryAnalysis(symbol, newsData, env),
-      performMateAnalysis(symbol, newsData, env)
+      performPrimaryAnalysis(symbol, newsData, env, systemState),
+      performMateAnalysis(symbol, newsData, env, systemState)
     ]);
 
     // Simple agreement check
@@ -299,7 +306,7 @@ async function retryAIcall<T>(
 /**
  * Primary Model Analysis (GPT-OSS 120B) with timeout protection and retry logic
  */
-async function performPrimaryAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
+async function performPrimaryAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment, systemState?: SystemState): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
       model: 'gpt-oss-120b',
@@ -310,14 +317,15 @@ async function performPrimaryAnalysis(symbol: string, newsData: NewsArticle[], e
     };
   }
 
+  const callStart = Date.now();
   try {
-    const callStart = Date.now();
     const topArticles = newsData.slice(0, 5);
     const newsContext = topArticles
       .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
       .join('\n\n');
 
-    const prompt = `You are a financial analyst specializing in ${symbol}.
+    const stateBlock = renderSystemStateBlock(systemState);
+    const prompt = `${stateBlock ? stateBlock + '\n\n' : ''}You are a financial analyst specializing in ${symbol}.
 Analyze each headline step by step:
 - What does this mean for the stock price?
 - Is it positive, negative, or truly neutral for investors?
@@ -336,7 +344,9 @@ Based on your reasoning, respond with ONLY this JSON format:
 }`;
 
     // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
-    const circuitBreaker = getAICircuitBreakers().primary;
+    const circuitBreaker = getAICircuitBreakers(env).primary;
+    let callError: string | undefined;
+    let callErrorClass: string | undefined;
     const response = await circuitBreaker.execute(async () => {
       return await retryAIcall(async () => {
         return await Promise.race([
@@ -358,6 +368,17 @@ Based on your reasoning, respond with ONLY this JSON format:
     const analysisData = parseNaturalLanguageResponse(responseText);
     const responseTimeMs = Date.now() - callStart;
 
+    logAICall(env, {
+      run_id: systemState?.run_id,
+      scheduled_date: systemState?.scheduled_date,
+      report_type: systemState?.report_type,
+      symbol,
+      model_role: 'primary',
+      model_name: '@cf/openai/gpt-oss-120b',
+      latency_ms: responseTimeMs,
+      status: 'success',
+    });
+
     return {
       model: 'gpt-oss-120b',
       direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
@@ -372,6 +393,29 @@ Based on your reasoning, respond with ONLY this JSON format:
 
   } catch (error: any) {
     logError(`Primary model analysis failed for ${symbol}:`, error);
+
+    const errorClass = error.message === 'AI model timeout' ? 'TIMEOUT'
+      : error.message.includes('Circuit breaker is OPEN') ? 'CIRCUIT_BREAKER_OPEN'
+      : 'ERROR';
+
+    logAICall(env, {
+      run_id: systemState?.run_id,
+      scheduled_date: systemState?.scheduled_date,
+      report_type: systemState?.report_type,
+      symbol,
+      model_role: 'primary',
+      model_name: '@cf/openai/gpt-oss-120b',
+      latency_ms: Date.now() - callStart,
+      status: 'failed',
+      error_class: errorClass,
+      error_message: error.message,
+    });
+
+    if (errorClass === 'TIMEOUT') {
+      emitSystemEvent(env, { event_type: 'model_timeout', component: 'primary:gpt-oss-120b', severity: 'warn',
+        run_id: systemState?.run_id, scheduled_date: systemState?.scheduled_date, report_type: systemState?.report_type,
+        details: { symbol } });
+    }
 
     // Handle timeout and circuit breaker specifically
     if (error.message === 'AI model timeout') {
@@ -408,7 +452,7 @@ Based on your reasoning, respond with ONLY this JSON format:
  * Mate Model Analysis (DeepSeek-R1) with timeout protection and retry logic
  * Uses reasoning-focused prompt for financial sentiment analysis
  */
-async function performMateAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment): Promise<ModelResult> {
+async function performMateAnalysis(symbol: string, newsData: NewsArticle[], env: CloudflareEnvironment, systemState?: SystemState): Promise<ModelResult> {
   if (!newsData || newsData.length === 0) {
     return {
       model: 'deepseek-r1-32b',
@@ -419,15 +463,16 @@ async function performMateAnalysis(symbol: string, newsData: NewsArticle[], env:
     };
   }
 
+  const callStart = Date.now();
   try {
-    const callStart = Date.now();
     const topArticles = newsData.slice(0, 5);
     const newsContext = topArticles
       .map((item: any, i: any) => `${i+1}. ${item.title}\n   ${item.summary || ''}\n   Source: ${item.source}`)
       .join('\n\n');
 
+    const stateBlock = renderSystemStateBlock(systemState);
     const prompt = `<think>
-You are analyzing financial news for ${symbol} to determine market sentiment.
+${stateBlock ? stateBlock + '\n' : ''}You are analyzing financial news for ${symbol} to determine market sentiment.
 Consider: earnings impact, analyst sentiment, market positioning, risk factors.
 Think step by step about what each headline means for investors.
 </think>
@@ -444,7 +489,7 @@ Based on your analysis, respond with ONLY this JSON format:
 }`;
 
     // Circuit breaker wraps retry logic - each symbol operation counts as ONE circuit breaker attempt
-    const circuitBreaker = getAICircuitBreakers().mate;
+    const circuitBreaker = getAICircuitBreakers(env).mate;
     const response = await circuitBreaker.execute(async () => {
       return await retryAIcall(async () => {
         return await Promise.race([
@@ -464,6 +509,17 @@ Based on your analysis, respond with ONLY this JSON format:
     const analysisData = parseNaturalLanguageResponse(responseText);
     const responseTimeMs = Date.now() - callStart;
 
+    logAICall(env, {
+      run_id: systemState?.run_id,
+      scheduled_date: systemState?.scheduled_date,
+      report_type: systemState?.report_type,
+      symbol,
+      model_role: 'mate',
+      model_name: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+      latency_ms: responseTimeMs,
+      status: 'success',
+    });
+
     return {
       model: 'deepseek-r1-32b',
       direction: mapSentimentToDirection(analysisData.sentiment) as Direction,
@@ -478,6 +534,29 @@ Based on your analysis, respond with ONLY this JSON format:
 
   } catch (error: any) {
     logError(`Mate model analysis failed for ${symbol}:`, error);
+
+    const errorClass = error.message.includes('timeout') ? 'TIMEOUT'
+      : error.message.includes('Circuit breaker is OPEN') ? 'CIRCUIT_BREAKER_OPEN'
+      : 'ERROR';
+
+    logAICall(env, {
+      run_id: systemState?.run_id,
+      scheduled_date: systemState?.scheduled_date,
+      report_type: systemState?.report_type,
+      symbol,
+      model_role: 'mate',
+      model_name: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+      latency_ms: Date.now() - callStart,
+      status: 'failed',
+      error_class: errorClass,
+      error_message: error.message,
+    });
+
+    if (errorClass === 'TIMEOUT') {
+      emitSystemEvent(env, { event_type: 'model_timeout', component: 'mate:deepseek-r1-32b', severity: 'warn',
+        run_id: systemState?.run_id, scheduled_date: systemState?.scheduled_date, report_type: systemState?.report_type,
+        details: { symbol } });
+    }
 
     if (error.message.includes('timeout')) {
       return {
@@ -726,6 +805,40 @@ export async function batchDualAIAnalysis(
   logInfo(`Starting batch dual AI analysis for ${symbols.length} symbols (sequential mode)...`);
   const jobContext = options.jobContext as { job_type?: 'pre-market' | 'intraday' | 'end-of-day'; run_id?: string } | undefined;
 
+  // Build batch-level system state once (Phase 1 + 5)
+  let systemState: SystemState | undefined;
+  if (jobContext) {
+    systemState = {
+      report_type: jobContext.job_type || 'unknown',
+      scheduled_date: options.scheduledDate || new Date().toISOString().split('T')[0],
+      run_id: jobContext.run_id || 'unknown',
+      current_stage: 'ai_analysis',
+      symbols_total: symbols.length,
+      news_cache_mode: options.skipCache ? 'skip' : 'normal',
+      recent_failure_summary: options.recentFailureSummary,
+    };
+
+    // Phase 5: enrich with cheap calibration summaries.
+    if (env.PREDICT_JOBS_DB) {
+      try {
+        const { getModelHitRate, getSymbolHitRate } = await import('./prediction-calibration.js');
+        const modelCalibration = await getModelHitRate(env);
+        if (modelCalibration && modelCalibration.sample_size >= 5) {
+          systemState.model_hit_rate_30d = modelCalibration.hit_rate;
+        }
+
+        // Only attach symbol-level calibration when the batch is actually for one symbol.
+        if (symbols.length === 1) {
+          const symbolCalibration = await getSymbolHitRate(env, symbols[0]);
+          if (symbolCalibration && symbolCalibration.sample_size >= 5) {
+            systemState.symbol_sample_size = symbolCalibration.sample_size;
+            systemState.symbol_hit_rate_30d = symbolCalibration.hit_rate;
+          }
+        }
+      } catch { /* calibration enrichment is best-effort */ }
+    }
+  }
+
   const results: DualAIComparisonResult[] = [];
   const statistics: BatchStatistics = {
     total_symbols: symbols.length,
@@ -746,7 +859,7 @@ export async function batchDualAIAnalysis(
       const newsFetchResult = await getFreeStockNewsWithErrorTracking(symbol, env, jobContext);
 
       // Run dual AI comparison with rate limit retry
-      const dualAIResult = await performDualAIComparisonWithRetry(symbol, newsFetchResult.articles, env);
+      const dualAIResult = await performDualAIComparisonWithRetry(symbol, newsFetchResult.articles, env, systemState);
 
       // Add news fetch error tracking to result
       dualAIResult.news_fetch_errors = newsFetchResult.errorSummary;
@@ -806,13 +919,14 @@ async function performDualAIComparisonWithRetry(
   symbol: string,
   newsData: NewsArticle[],
   env: CloudflareEnvironment,
+  systemState?: SystemState,
   maxRetries: number = 3
 ): Promise<DualAIComparisonResult> {
   let lastError: any;
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const result = await performDualAIComparison(symbol, newsData, env);
+      const result = await performDualAIComparison(symbol, newsData, env, systemState);
       
       // Check if we got rate limited (both models failed)
       const primaryFailed = result.models?.primary?.error;

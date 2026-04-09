@@ -908,7 +908,7 @@ async function handlePreMarketJob(
     }
 
     // Execute pre-market analysis job with scheduled date for storage
-    const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols, scheduledDate);
+    const analysisData = await dataBridge.refreshPreMarketAnalysis(symbols, scheduledDate, runId);
 
     // End AI analysis stage
     if (runTrackingEnabled) {
@@ -1177,7 +1177,7 @@ async function handleIntradayJob(
 	    }
 
     // Execute intraday analysis
-    const analysisData = await bridge.generateIntradayAnalysis();
+    const analysisData = await bridge.generateIntradayAnalysis(runId || undefined);
 
 	    // End AI analysis stage
 	    if (runTrackingEnabled) {

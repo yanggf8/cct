@@ -4,7 +4,7 @@
 
 **Objective**: Finalize D1 as the source of truth for scheduled job results and make dashboards resilient to DO cache evictions by falling back to D1 and re-hydrating cache automatically.
 
-**Current State**: Migration complete. All 14 D1 tables are live including `scheduled_job_results`, `job_run_results`, `job_stage_log`, and `market_close_data`. Full job lifecycle (start → stage → complete) tracked in D1. DO cache is primary with D1 fallback and cache rehydration on miss. KV unused for jobs.
+**Current State**: D1 is the source of truth for run history and report snapshots. The active base schema in `schema/predict-jobs.sql` now also includes `ai_call_telemetry`, `system_events`, and `per_symbol_accuracy` for prompt context, pipeline forensics, and post-close calibration. DO cache remains the hot path, with D1 fallback and cache rehydration on miss. KV is unused for jobs.
 
 **Timeline**: ✅ Complete as of 2026-03-30
 **Risk Level**: N/A — fully deployed and stable
@@ -33,9 +33,14 @@
 
 ---
 
-## 🗄️ Phase 1: Schema (minimal snapshot storage)
+## 🗄️ Phase 1: Schema (snapshots + telemetry + calibration)
 
-**What already exists**: `job_executions`, `symbol_predictions`, `daily_analysis` (unchanged).
+**What already exists**: `job_executions`, `symbol_predictions`, `daily_analysis`, `job_run_results`, `job_stage_log`, `scheduled_job_results`, `market_close_data`.
+
+**Added 2026-04-09 in base schema**:
+- `ai_call_telemetry`: append-only row per model call (`run_id`, `symbol`, model role/name, latency, status, error class)
+- `system_events`: append-only pipeline-health events (circuit breaker transitions, timeouts, fallbacks)
+- `per_symbol_accuracy`: rolling post-close calibration summaries keyed by `(symbol, model_name, horizon, window_days)`
 
 **Current migration**: `schema/scheduled-jobs-migration.sql` (idempotent)
 ```sql
@@ -56,6 +61,15 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_results_created ON scheduled_job_result
 ```
 
 **Deferred**: Adding columns/FKs on `job_executions` (not required for snapshot storage).
+
+### Dev-Mode Schema Policy
+
+This repo is still using the development-mode clean-slate policy for D1 schema changes.
+
+When these telemetry/calibration tables are added or changed:
+1. Update `schema/predict-jobs.sql`
+2. Drop and recreate tables from the base schema
+3. Do not rely on incremental migrations to preserve old development data
 
 ---
 

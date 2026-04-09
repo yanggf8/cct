@@ -82,6 +82,7 @@ interface ModernSentimentData {
   symbol: string;
   sentiment: string;
   confidence: number;
+  model?: string;
   signal?: string;
   reasoning?: string;
   articles_analyzed?: number;
@@ -295,7 +296,7 @@ export class PreMarketDataBridge {
    * Uses 1-hour cache to reduce AI calls
    * Returns failure info instead of null for better observability
    */
-  async generateMarketPulse(): Promise<MarketPulseData> {
+  async generateMarketPulse(systemState?: import('./system-state.js').SystemState): Promise<MarketPulseData> {
     const CACHE_TTL_HOURS = 1;
     const cacheKey = 'market_pulse_SPY';
     const now = new Date().toISOString();
@@ -363,7 +364,7 @@ export class PreMarketDataBridge {
           : 'unknown';
 
       // Run dual AI analysis on SPY with the fetched news
-      const result = await performDualAIComparison('SPY', spyNews, this.env);
+      const result = await performDualAIComparison('SPY', spyNews, this.env, systemState);
 
       if (result.error || (!result.models?.primary && !result.models?.mate)) {
         const error = `AI analysis failed: ${result.error || 'both models returned no results'}`;
@@ -468,8 +469,9 @@ export class PreMarketDataBridge {
    * This bridges the gap between the modern API and legacy reporting system
    * @param symbols - Symbols to analyze
    * @param targetDate - Optional target date (YYYY-MM-DD) for reruns, defaults to today
+   * @param runId - Optional run_id for system_state injection
    */
-  async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'], targetDate?: string): Promise<AnalysisData> {
+  async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'], targetDate?: string, runId?: string): Promise<AnalysisData> {
     const today = targetDate || new Date().toISOString().split('T')[0];
     logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols, targetDate: today, isRerun: !!targetDate });
 
@@ -479,7 +481,7 @@ export class PreMarketDataBridge {
       // Get sentiment data for each symbol (always uses live/current data)
       for (const symbol of symbols) {
         try {
-          const sentimentData = await this.getSymbolSentimentData(symbol);
+          const sentimentData = await this.getSymbolSentimentData(symbol, today, runId);
 
           if (sentimentData && sentimentData.confidence > 0.3) {
             trading_signals[symbol] = {
@@ -522,6 +524,7 @@ export class PreMarketDataBridge {
               sentiment: sentimentData.sentiment,
               confidence: sentimentData.confidence,
               direction: sentimentData.sentiment,
+              model: sentimentData.model,
               articles_count: sentimentData.articles_analyzed,
               articles_content: sentimentData.articles_titles,
               news_source: 'finnhub',  // Primary source (v3.10.1)
@@ -612,7 +615,15 @@ export class PreMarketDataBridge {
 
       // Generate Market Pulse (SPY sentiment) - v3.10.0
       // Now always returns a MarketPulseData with status (success/failed/unavailable)
-      const marketPulse = await this.generateMarketPulse();
+      const spySystemState: import('./system-state.js').SystemState | undefined = runId ? {
+        report_type: 'pre-market',
+        scheduled_date: today,
+        run_id: runId,
+        current_stage: 'ai_analysis',
+        symbols_total: symbols.length + 1, // +1 for SPY
+        news_cache_mode: 'normal',
+      } : undefined;
+      const marketPulse = await this.generateMarketPulse(spySystemState);
 
       // Create the analysis data structure
       const analysisData: AnalysisData = {
@@ -694,8 +705,10 @@ export class PreMarketDataBridge {
   /**
    * Get symbol sentiment data from cache or by triggering analysis
    * @param symbol - Symbol to analyze
+   * @param scheduledDate - Optional scheduled date for system_state
+   * @param runId - Optional run_id for system_state
    */
-  private async getSymbolSentimentData(symbol: string): Promise<ModernSentimentData | null> {
+  private async getSymbolSentimentData(symbol: string, scheduledDate?: string, runId?: string): Promise<ModernSentimentData | null> {
     try {
       // Try to get from cache first (always use today for live data)
       const actualToday = new Date().toISOString().split('T')[0];
@@ -714,7 +727,9 @@ export class PreMarketDataBridge {
         const batchResult = await batchDualAIAnalysis([symbol], (this.dal as any).env, {
           timeout: 15000, // 15 seconds for individual analysis
           cacheResults: true, // Cache the results for future use
-          skipCache: false // Use existing cache if available
+          skipCache: false, // Use existing cache if available
+          scheduledDate: scheduledDate || actualToday,
+          jobContext: runId ? { job_type: 'pre-market', run_id: runId } : undefined,
         });
 
         if (batchResult && batchResult.results && batchResult.results.length > 0) {
@@ -737,8 +752,8 @@ export class PreMarketDataBridge {
 
             // Determine selection reason
             let selectionReason = 'primary_success';
-            if (!primaryModel && mateModel) {
-              selectionReason = primaryModel?.error?.includes('timeout') ? 'timeout_fallback' : 'primary_failed_fallback';
+            if (primaryModel?.error && mateModel) {
+              selectionReason = primaryModel.error.includes('timeout') ? 'timeout_fallback' : 'primary_failed_fallback';
             }
 
             // Build dual-model diagnostic data
@@ -768,6 +783,7 @@ export class PreMarketDataBridge {
               symbol,
               sentiment: this.normalizeSentiment(selectedModel!.direction),
               confidence: selectedModel!.confidence,
+              model: selectedModel!.model,
               signal: firstResult.signal?.action || 'HOLD',
               reasoning: selectedModel!.reasoning || 'Sentiment analysis completed',
               articles_analyzed: selectedModel!.articles_analyzed || 0,
@@ -844,7 +860,7 @@ export class PreMarketDataBridge {
    * @param symbols - Symbols to analyze
    * @param targetDate - Optional target date (YYYY-MM-DD) for reruns, defaults to today
    */
-  async refreshPreMarketAnalysis(symbols?: string[], targetDate?: string): Promise<AnalysisData> {
+  async refreshPreMarketAnalysis(symbols?: string[], targetDate?: string, runId?: string): Promise<AnalysisData> {
     const today = targetDate || new Date().toISOString().split('T')[0];
     logger.info('Force refreshing pre-market analysis', { symbols, targetDate: today, isRerun: !!targetDate });
 
@@ -859,7 +875,7 @@ export class PreMarketDataBridge {
     }
 
     // Generate fresh data
-    return await this.generatePreMarketAnalysis(symbols, today);
+    return await this.generatePreMarketAnalysis(symbols, today, runId);
   }
 
   /**

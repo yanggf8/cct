@@ -250,6 +250,26 @@ export class CircuitBreaker {
 
     // Log state change
     console.log(`Circuit breaker ${this.config.name || 'unnamed'} changed from ${oldState} to ${newState}`);
+
+    // Emit system event for state transitions (Phase 3)
+    if ((this as any)._env) {
+      import('./system-events.js').then(({ emitSystemEvent }) => {
+        const eventMap: Record<string, import('./system-events.js').EventType> = {
+          [CircuitState.OPEN]: 'circuit_breaker_open',
+          [CircuitState.HALF_OPEN]: 'circuit_breaker_half_open',
+          [CircuitState.CLOSED]: 'circuit_breaker_closed',
+        };
+        const eventType = eventMap[newState];
+        if (eventType) {
+          emitSystemEvent((this as any)._env, {
+            event_type: eventType,
+            component: `circuit_breaker:${this.config.name || 'unnamed'}`,
+            severity: newState === CircuitState.OPEN ? 'error' : newState === CircuitState.HALF_OPEN ? 'warn' : 'info',
+            details: { from: oldState, to: newState, failureCount: this.failureCount },
+          });
+        }
+      }).catch(() => {});
+    }
   }
 
   /**
@@ -337,6 +357,13 @@ export class CircuitBreaker {
     this.callResults = [];
     this.lastFailureTime = undefined;
     this.lastSuccessTime = undefined;
+  }
+
+  /**
+   * Attach env for system event emission (Phase 3)
+   */
+  setEnv(env: any): void {
+    (this as any)._env = env;
   }
 
   /**

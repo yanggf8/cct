@@ -17,6 +17,7 @@ import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { writeD1JobResult, startJobRun, completeJobRun, startJobStage, endJobStage, generateRunId, getD1FallbackData, readD1ReportSnapshotByRunId } from './d1-job-storage.js';
 import type { JobTriggerSource } from './d1-job-storage.js';
 import type { CloudflareEnvironment } from '../types.js';
+import { runCalibration } from './prediction-calibration.js';
 
 /**
  * Type Definitions
@@ -417,7 +418,7 @@ export async function handleScheduledEvent(
       try {
         const { IntradayDataBridge } = await import('./intraday-data-bridge.js');
         const bridge = new IntradayDataBridge(env);
-        const intradayResult = await bridge.generateIntradayAnalysis();
+        const intradayResult = await bridge.generateIntradayAnalysis(intradayRunId || undefined);
 
         // Validate intradayResult before creating analysisResult
         if (!intradayResult || !intradayResult.symbols || !Array.isArray(intradayResult.symbols)) {
@@ -655,6 +656,15 @@ export async function handleScheduledEvent(
           });
         }
 
+        // Run prediction calibration after EOD (Phase 4) — attached to ctx so it completes before Worker exits
+        ctx.waitUntil(
+          runCalibration(env).then(r => {
+            console.log(`📊 [CALIBRATION] Evaluated ${r.symbols_evaluated} symbols`);
+          }).catch(e => {
+            console.warn(`⚠️ [CALIBRATION] Failed: ${e.message}`);
+          })
+        );
+
       } catch (eodError: any) {
         // Diagnostic info for debugging - log full details, expose minimal to HTTP response
         const fullDiagnostics = {
@@ -754,6 +764,7 @@ export async function handleScheduledEvent(
           predictionHorizons,
           currentTime: scheduledTime,
           cronExecutionId,
+          scheduledDate: dateStr,
           jobContext: {
             job_type: 'pre-market',
             run_id: runId || undefined

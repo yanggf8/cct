@@ -117,7 +117,7 @@ export class IntradayDataBridge {
   /**
    * Generate intraday analysis comparing morning predictions with current sentiment
    */
-  async generateIntradayAnalysis(): Promise<IntradayAnalysisData> {
+  async generateIntradayAnalysis(runId?: string): Promise<IntradayAnalysisData> {
     logger.info('IntradayDataBridge: Generating intraday analysis');
     const today = new Date().toISOString().split('T')[0];
 
@@ -143,7 +143,10 @@ export class IntradayDataBridge {
       const currentAnalysis = await batchDualAIAnalysis(symbols, this.env, {
         timeout: 30000,
         cacheResults: false, // Don't cache intraday checks
-        skipCache: true // Always get fresh data
+        skipCache: true, // Always get fresh data
+        scheduledDate: today,
+        // Use the intraday run_id (not preMarketRunId) so telemetry is attributed correctly
+        jobContext: { job_type: 'intraday', run_id: runId || undefined },
       });
 
       // 3. Build side-by-side comparisons (NEW)
