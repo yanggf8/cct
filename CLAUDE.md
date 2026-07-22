@@ -50,7 +50,7 @@ npm run deploy:staging
 
 ## Architecture
 
-**Runtime**: Cloudflare Workers (TypeScript) with D1 (SQLite), KV, Durable Objects, R2, and Workers AI bindings.
+**Runtime**: Cloudflare Workers (TypeScript) with D1 (SQLite), KV, three Durable Objects (cache, rate limiter, portfolio), and Workers AI bindings. (An R2 bucket `TFT_TRADING_MODELS` is declared in `wrangler.toml` but is not referenced anywhere in `src/` — vestigial binding.)
 
 **Request flow**:
 ```
@@ -107,7 +107,9 @@ News fetch (free_sentiment_pipeline.ts)       ← Finnhub → FMP → NewsAPI �
 **Storage layers**:
 - **D1** (`PREDICT_JOBS_DB`) — Source of truth for all job results, reports, predictions, settings
 - **KV** (`MARKET_ANALYSIS_CACHE`) — Articles content storage only (legacy binding kept for health checks)
-- **Durable Object** (`CACHE_DO`) — Read-through cache only (<1ms, ephemeral). Not for persistent data
+- **Durable Object** (`CACHE_DO` → `CacheDurableObject`) — Read-through cache only (<1ms, ephemeral). Not for persistent data
+- **Durable Object** (`RATE_LIMITER_DO` → `RateLimiterDO`) — IP rate limiting (`src/modules/rate-limiter-do.ts`), wired from `src/index.ts`
+- **Durable Object** (`PORTFOLIO_DO` → `PortfolioDO`) — Portfolio symbol management (`src/durable-objects/portfolio-do.ts`), backs `/api/v1/portfolio/symbols/*`
 
 > After dead code audit (2026-03-30): 65 unreachable files (~26K lines) removed. `src/modules/` now has ~90 files, all reachable from entry points. Active execution path: index.ts → enhanced-request-handler.ts → handlers/ + routes/ → report/ + d1-job-storage.ts + dual-ai-analysis.ts.
 
