@@ -82,7 +82,8 @@ def format_pre_market(data: dict) -> str:
                 line += f" — {reason[:80]}"
             lines.append(line)
     else:
-        lines.append("今日尚無高信心訊號")
+        msg = data.get("message", "")
+        lines.append(f"⏳ {msg}" if msg else "今日尚無高信心訊號")
 
     return "\n".join(lines)
 
@@ -120,6 +121,13 @@ def format_intraday(data: dict) -> str:
             sent = fmt_sentiment(s.get("sentiment", "neutral"))
             conf = int(float(s.get("confidence", 0)) * 100)
             lines.append(f"  • {sym} {sent} {conf}%")
+
+    # Surface API message when no substantive data is available
+    has_data = sentiment or bullish or bearish or signals
+    if not has_data:
+        msg = data.get("message", "")
+        if msg:
+            lines.append(f"\n⏳ {msg}")
 
     return "\n".join(lines)
 
@@ -179,6 +187,13 @@ def format_eod(data: dict) -> str:
         conf_str = f"（信心 {int(float(outlook_conf) * 100)}%）" if outlook_conf else ""
         lines.append(f"明日展望：{fmt_sentiment(outlook_sentiment)}{conf_str}")
 
+    # Surface API message when no substantive data is available
+    has_data = sentiment or analyzed or signals
+    if not has_data:
+        msg = data.get("message", "")
+        if msg:
+            lines.append(f"\n⏳ {msg}")
+
     return "\n".join(lines)
 
 
@@ -234,6 +249,13 @@ def format_weekly(data: dict) -> str:
     if next_sentiment:
         lines.append("")
         lines.append(f"下週展望：{fmt_sentiment(next_sentiment)}")
+
+    # Surface API message when no substantive data is available
+    has_data = sentiment_trend or breakdown or weekly_return is not None
+    if not has_data:
+        msg = data.get("message", "")
+        if msg:
+            lines.append(f"\n⏳ {msg}")
 
     return "\n".join(lines)
 
