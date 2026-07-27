@@ -74,9 +74,37 @@ nullclaw cron add-skill "5 15 * * 0" cct --deliver-to 7972814626 --skill-args "-
 明日展望：看漲（信心 68%）
 ```
 
+## Delivery Contract
+
+Standard nullclaw skill contract (`skill_contract` verification), same as the
+claw-skills siblings:
+
+- Delivery via `delivery.deliver_or_fail()` — on Telegram failure the body is
+  preserved on **stdout**, the diagnostic goes to **stderr**, and the skill
+  **exits 1**. Markers are not emitted in that case, so a delivery failure stays
+  a hard exec error rather than a semantic verification failure.
+- On success: `[skill-status:ok|degraded]` then `[trace:<job id>]` on stdout.
+  Both are no-ops unless `NULLCLAW_JOB_ID` is set, so manual runs stay clean.
+- `ok` = CCT returned report data; `degraded` = CCT unreachable / no report,
+  fallback message sent instead.
+- Diagnostics (`[WARN: CCT ...]`) go to stderr — stdout is body + markers only.
+
+### Shared lib resolution
+
+This repo does **not** vendor `delivery.py` / `trace_marker.py` / `telegram.py`;
+they are owned by `claw-skills`. `scripts/run.py` resolves them in order:
+
+1. `$CLAW_SKILLS_LIB`
+2. `../../lib` relative to the script — the deployed layout
+   (`~/.nullclaw/skills/cct` → this dir, with `~/.nullclaw/skills/lib` →
+   `~/a/claw-skills/lib`)
+3. `~/a/claw-skills/lib` — running straight out of the `a/cct` checkout, which
+   has no sibling `skills/lib`
+
 ## Notes
 
 - API: `https://tft-trading-system.yanggf.workers.dev`
-- Auth: `X-API-Key` header — read from config `cct.api_key`, fallback `yanggf`
-- On API error or empty cache: prints/sends honest status message, exits 0
+- Auth: `X-API-Key` header — read from config `cct.api_key`, fallback `yanggf`.
+  Config path: `$CLAW_CONFIG`, else `~/.nullclaw/config.json`
+- On API error or empty cache: sends honest status message, `degraded`, exits 0
 - Source of truth is D1; DO is read-through cache only

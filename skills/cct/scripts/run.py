@@ -8,12 +8,44 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
-SKILLS_LIB = os.path.join(os.path.dirname(__file__), "..", "..", "lib")
-sys.path.insert(0, os.path.abspath(SKILLS_LIB))
-import telegram
+
+def _resolve_skills_lib() -> str:
+    """Locate the shared nullclaw skills lib (delivery / trace_marker / telegram).
+
+    This repo deliberately does NOT vendor those modules — they carry the
+    delivery retry/deadline contract and are maintained in claw-skills.
+
+    Resolution order:
+      1. $CLAW_SKILLS_LIB — explicit override.
+      2. ../../lib relative to this file — the deployed layout
+         (~/.nullclaw/skills/cct/scripts/run.py → ~/.nullclaw/skills/lib,
+         itself a symlink into claw-skills). Never realpath() this: the
+         unresolved symlink path is exactly what makes it work.
+      3. ~/a/claw-skills/lib — running straight out of this repo, where
+         there is no sibling skills/lib.
+    """
+    candidates = []
+    override = os.environ.get("CLAW_SKILLS_LIB")
+    if override:
+        candidates.append(override)
+    candidates.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib"))
+    candidates.append("~/a/claw-skills/lib")
+    for candidate in candidates:
+        path = os.path.abspath(os.path.expanduser(candidate))
+        if os.path.isdir(path):
+            return path
+    # Nothing found — return the last candidate so the import fails loudly
+    # with a path in the traceback rather than a bare ModuleNotFoundError.
+    return os.path.abspath(os.path.expanduser(candidates[-1]))
+
+
+SKILLS_LIB = _resolve_skills_lib()
+sys.path.insert(0, SKILLS_LIB)
+from delivery import deliver_or_fail
+from trace_marker import emit_skill_status, emit_trace
 
 CCT_BASE = "https://tft-trading-system.yanggf.workers.dev"
-CONFIG_PATH = os.path.expanduser("~/.nullclaw/config.json")
+CONFIG_PATH = os.environ.get("CLAW_CONFIG") or os.path.expanduser("~/.nullclaw/config.json")
 
 SENTIMENT_EMOJI = {"bullish": "看漲 🟢", "bearish": "看跌 🔴", "neutral": "中性 ⚪"}
 
@@ -39,10 +71,12 @@ def get(path: str) -> dict | None:
                 return None
             return parsed.get("data")
     except urllib.error.HTTPError as e:
-        print(f"[WARN: CCT HTTP {e.code}] {e.read().decode(errors='replace')[:120]}", flush=True)
+        # Diagnostics → stderr: stdout is the delivered body + contract markers.
+        print(f"[WARN: CCT HTTP {e.code}] {e.read().decode(errors='replace')[:120]}",
+              file=sys.stderr, flush=True)
         return None
     except Exception as e:
-        print(f"[WARN: CCT unavailable - {e}]", flush=True)
+        print(f"[WARN: CCT unavailable - {e}]", file=sys.stderr, flush=True)
         return None
 
 
@@ -286,12 +320,10 @@ def main() -> None:
     else:
         msg = formatter(data)
 
-    if args.deliver_to:
-        ok = telegram.send(args.deliver_to, msg, account=args.account)
-        if not ok:
-            print(msg, flush=True)
-    else:
-        print(msg, flush=True)
+    deliver_or_fail(args.deliver_to, msg, account=args.account)
+
+    emit_skill_status("ok" if data is not None else "degraded")
+    emit_trace()
 
 
 if __name__ == "__main__":
