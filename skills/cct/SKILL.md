@@ -85,8 +85,27 @@ claw-skills siblings:
   a hard exec error rather than a semantic verification failure.
 - On success: `[skill-status:ok|degraded]` then `[trace:<job id>]` on stdout.
   Both are no-ops unless `NULLCLAW_JOB_ID` is set, so manual runs stay clean.
-- `ok` = CCT returned report data; `degraded` = CCT unreachable / no report,
-  fallback message sent instead.
+- `ok` = CCT returned a report with substantive content. `degraded` = anything
+  else that still delivered: CCT unreachable, or a payload that is empty /
+  placeholder / job-failed.
+
+  The distinction matters because the API answers HTTP 200 + `success: true`
+  even when a job never ran or failed outright (`report-routes.ts` turns
+  `jobStatus.status === 'failed'` into a success envelope carrying only a
+  `message`). Keying status off "did a payload arrive" would report `ok` while
+  the pipeline is broken, so each mode has a substantive-content predicate —
+  `has_pre_market_data()` etc. — because every empty state has a different
+  shape (pre-market/intraday zero counters + `message`; eod zeroes a nested
+  counter with no `message`; weekly drops `report` entirely).
+
+  Empty payloads are `degraded`, not `failed`: `failed` triggers repair/retry,
+  but retrying cannot produce a report that was never generated — that fix
+  belongs in the CCT job pipeline.
+
+- `get()` also rejects an explicit inner `success: false`. The weekly route
+  serves a DO-cache miss as outer `success: true` wrapping
+  `{success: false, error: ...}`; without the check that object flows through
+  as data and the skill delivers an empty report header.
 - Diagnostics (`[WARN: CCT ...]`) go to stderr — stdout is body + markers only.
 
 ### Shared lib resolution
