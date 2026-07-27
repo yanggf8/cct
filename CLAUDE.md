@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **No mock data**: Never fabricate financial numbers or add default/fallback values. Return honest empty state on failure.
 - **Ask before deploying**: Always request user approval before `npm run deploy` or any remote D1 migration.
 - **Frontend builds**: Must run `npm run build` before deploying frontend changes.
+- **Tooling in scripts**: Invoke node CLIs as `npx --no-install <tool>`, never bare. `npm run` only *prefers* `node_modules/.bin`; when the local binary is missing it falls through to PATH and silently runs a global install of any version. Bare `npx` is worse — it downloads an arbitrary latest version.
 
 ## Development Commands
 
@@ -26,12 +27,12 @@ npm run lint:fix
 # Build (frontend + backend)
 npm run build
 
-# Build frontend only (faster, skips typecheck)
+# Build frontend only (skips the backend build; no typecheck in either path)
 npm run build:frontend:only
 
 # Tests (Playwright)
 npm run test:playwright
-npx playwright test tests/performance.spec.js --reporter=list  # single suite
+npm run test:performance   # single suite
 
 # Verify (pre-deploy gates: html, guards, env bindings, monitoring, mock prevention)
 npm run verify

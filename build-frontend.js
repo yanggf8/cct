@@ -2,7 +2,8 @@
 
 /**
  * Frontend Build Script
- * Compiles TypeScript and bundles frontend assets for production
+ * Stages frontend assets into dist/ for production. This script does no
+ * TypeScript compilation — run `npm run typecheck` for that.
  * Based on DAC frontend build approach
  */
 
@@ -13,7 +14,6 @@ const { execSync } = require('child_process');
 const BUILD_DIR = 'dist';
 const PUBLIC_DIR = 'public';
 const STATIC_DIR = 'src/static';
-const SKIP_TYPECHECK = process.argv.includes('--skip-typecheck');
 
 console.log('🏗️  Building Frontend Assets...');
 
