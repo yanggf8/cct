@@ -69,7 +69,16 @@ def get(path: str) -> dict | None:
             parsed = json.loads(resp.read().decode())
             if not parsed.get("success"):
                 return None
-            return parsed.get("data")
+            data = parsed.get("data")
+            # Some routes carry a second envelope inside the payload: weekly
+            # serves a DO-cache miss as outer success:true wrapping inner
+            # success:false + error. Test for an explicit False — the other
+            # routes omit the key entirely and must not be caught here.
+            if isinstance(data, dict) and data.get("success") is False:
+                print(f"[WARN: CCT payload error] {data.get('error', 'unknown')}",
+                      file=sys.stderr, flush=True)
+                return None
+            return data
     except urllib.error.HTTPError as e:
         # Diagnostics → stderr: stdout is the delivered body + contract markers.
         print(f"[WARN: CCT HTTP {e.code}] {e.read().decode(errors='replace')[:120]}",
@@ -294,13 +303,44 @@ def format_weekly(data: dict) -> str:
     return "\n".join(lines)
 
 
-# ── mode → endpoint + formatter ───────────────────────────────────────────────
+# ── substantive-content predicates (ok vs degraded) ───────────────────────────
+# The CCT API answers 200 + success:true even when a job never ran or outright
+# failed — src/routes/report-routes.ts turns a `status === 'failed'` job into a
+# success envelope carrying only a message. Deciding ok/degraded on "did we get
+# a payload" would therefore report ok while the pipeline is broken, so each
+# mode tests for real analysis content instead. Each empty state has a
+# different shape: pre-market/intraday zero out counters, eod zeroes a nested
+# counter and carries no message at all, weekly loses `report` entirely.
+
+def has_pre_market_data(data: dict) -> bool:
+    return bool(data.get("symbols_analyzed")
+                or data.get("high_confidence_signals")
+                or data.get("all_signals"))
+
+
+def has_intraday_data(data: dict) -> bool:
+    return bool(data.get("total_symbols") or data.get("symbols"))
+
+
+def has_eod_data(data: dict) -> bool:
+    summary = data.get("daily_summary") or {}
+    return bool(summary.get("symbols_analyzed") or data.get("high_confidence_signals"))
+
+
+def has_weekly_data(data: dict) -> bool:
+    report = data.get("report", data)  # top-level or nested, as format_weekly reads it
+    if not isinstance(report, dict):
+        return False
+    return bool(report.get("weekly_overview") or report.get("daily_breakdown"))
+
+
+# ── mode → endpoint + formatter + content predicate ───────────────────────────
 
 MODES = {
-    "pre-market": ("/api/v1/reports/pre-market", format_pre_market, "盤前報告"),
-    "intraday":   ("/api/v1/reports/intraday",   format_intraday,   "盤中報告"),
-    "eod":        ("/api/v1/reports/end-of-day",  format_eod,        "收盤報告"),
-    "weekly":     ("/api/v1/reports/weekly",      format_weekly,     "週報"),
+    "pre-market": ("/api/v1/reports/pre-market", format_pre_market, "盤前報告", has_pre_market_data),
+    "intraday":   ("/api/v1/reports/intraday",   format_intraday,   "盤中報告", has_intraday_data),
+    "eod":        ("/api/v1/reports/end-of-day",  format_eod,        "收盤報告", has_eod_data),
+    "weekly":     ("/api/v1/reports/weekly",      format_weekly,     "週報",     has_weekly_data),
 }
 
 
@@ -312,17 +352,21 @@ def main() -> None:
     parser.add_argument("--account", default="main", help="Telegram account name")
     args = parser.parse_args()
 
-    endpoint, formatter, label = MODES[args.mode]
+    endpoint, formatter, label, has_data = MODES[args.mode]
     data = get(endpoint)
 
     if data is None:
         msg = f"📭 CCT {label}尚未產生或暫時無法存取"
+        status = "degraded"
     else:
         msg = formatter(data)
+        # Payload present but empty/placeholder is still a degraded run — see
+        # the predicates above for why a payload alone proves nothing.
+        status = "ok" if has_data(data) else "degraded"
 
     deliver_or_fail(args.deliver_to, msg, account=args.account)
 
-    emit_skill_status("ok" if data is not None else "degraded")
+    emit_skill_status(status)
     emit_trace()
 
 
