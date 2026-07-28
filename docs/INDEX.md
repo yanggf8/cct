@@ -3,7 +3,7 @@
 ## Overview
 This index points to active documentation in `docs/` and highlights archived material. For system-level policies and assistant guidance, see `AGENTS.md` and `CLAUDE.md` at repo root.
 
-**Last Updated**: 2026-02-02
+**Last Updated**: 2026-07-28
 
 ## Quick Start
 | Document | Purpose |
@@ -63,6 +63,13 @@ This index points to active documentation in `docs/` and highlights archived mat
 | `reference/TEST_AND_SCRIPT_INDEX.md` | Test and script index |
 | `reference/TEST_ORGANIZATION_PLAN.md` | Test organization plan |
 | `reference/GENERATED_DATE_DISPLAY_FIX.md` | Date display fix |
+
+## Specs (`docs/specs/`)
+Design records for changes that needed one, newest first:
+
+| Document | Description |
+|----------|-------------|
+| `specs/2026-07-28-pre-market-freshness-gate-design.md` | Pre-market skill reports `degraded` on stale D1-fallback snapshots |
 
 ## Archive (`docs/archive/`)
 Archived documents are retained for historical context:

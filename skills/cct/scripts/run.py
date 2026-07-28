@@ -6,7 +6,8 @@ import os
 import sys
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from typing import NamedTuple
 
 
 def _resolve_skills_lib() -> str:
@@ -95,9 +96,76 @@ def fmt_sentiment(s: str) -> str:
 
 # ── formatters ────────────────────────────────────────────────────────────────
 
-def format_pre_market(data: dict) -> str:
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    lines = [f"📊 CCT 盤前報告｜{today}", ""]
+class Freshness(NamedTuple):
+    """Whether a pre-market payload describes today's analysis.
+
+    source_date — data["date"] as received, or None if absent/unparseable.
+    age_days    — days between source_date and today, only when positive.
+    """
+
+    source_date: str | None
+    is_stale: bool
+    age_days: int | None
+
+
+def pre_market_freshness(data: dict, today: date | None = None) -> Freshness:
+    """Single source of truth for pre-market staleness.
+
+    The pre-market route falls back to the latest D1 snapshot when today's job
+    never ran (report-routes.ts:671-685), so a payload can carry a full set of
+    signals and still describe a market day weeks in the past. Stale if any of:
+
+      1. the server says so via is_stale,
+      2. the date is absent or unparseable — freshness cannot be proven,
+      3. the date is not today.
+
+    Rule 3 is not redundant with rule 1: the server sets is_stale on only two
+    code paths, so a future path that forgets the flag would otherwise reopen
+    this bug silently.
+
+    Rule 3 compares in UTC deliberately, to match the report route: it derives
+    its own `today` as `new Date().toISOString().split('T')[0]`
+    (report-routes.ts:605), and that comparison is what sets is_stale. Jobs are
+    *written* under an ET business date (scheduler.ts:60-69, getESTDateString),
+    so writer and reader already disagree upstream. Do not "fix" this to ET
+    without also changing the route — matching only one side would make the
+    skill contradict the very flag it cross-checks.
+
+    `today` is injectable so callers (and tests) get a deterministic answer.
+    """
+    if today is None:
+        today = datetime.now(timezone.utc).date()
+
+    raw = data.get("date")
+    parsed = None
+    if isinstance(raw, str):
+        try:
+            parsed = date.fromisoformat(raw)
+        except ValueError:
+            parsed = None
+
+    if parsed is None:
+        return Freshness(source_date=None, is_stale=True, age_days=None)
+
+    age = (today - parsed).days
+    return Freshness(
+        source_date=raw,
+        is_stale=bool(data.get("is_stale")) or parsed != today,
+        age_days=age if age > 0 else None,
+    )
+
+
+def format_pre_market(data: dict, today: date | None = None) -> str:
+    fresh = pre_market_freshness(data, today)
+    # The source date, never today's — a stale snapshot stamped with today's
+    # date reads as current analysis, which is worse than no report at all.
+    header = f"📊 CCT 盤前報告｜{fresh.source_date or '日期不明'}"
+    if fresh.is_stale:
+        header += (
+            f"  ⚠️ 資料已過期（{fresh.age_days} 天前）" if fresh.age_days
+            else "  ⚠️ 資料已過期"
+        )
+    lines = [header, ""]
 
     # Overall market sentiment from signal aggregation
     overall = data.get("overall_sentiment", {})
@@ -303,10 +371,19 @@ def format_weekly(data: dict) -> str:
 # different shape: pre-market/intraday zero out counters, eod zeroes a nested
 # counter and carries no message at all, weekly loses `report` entirely.
 
-def has_pre_market_data(data: dict) -> bool:
-    return bool(data.get("symbols_analyzed")
-                or data.get("high_confidence_signals")
-                or data.get("all_signals"))
+def has_pre_market_data(data: dict, today: date | None = None) -> bool:
+    """Real analysis content, for today.
+
+    Content alone proves nothing here: the D1 fallback serves a complete set of
+    signals from whatever day last succeeded, so a stale payload is
+    indistinguishable from a fresh one except by date/is_stale. Stale is
+    `degraded` rather than `failed` for the same reason an empty payload is —
+    a retry returns the same snapshot.
+    """
+    has_content = bool(data.get("symbols_analyzed")
+                       or data.get("high_confidence_signals")
+                       or data.get("all_signals"))
+    return has_content and not pre_market_freshness(data, today).is_stale
 
 
 def has_intraday_data(data: dict) -> bool:

@@ -88,6 +88,17 @@ claw-skills siblings:
 - `ok` = CCT returned a report with substantive content. `degraded` = anything
   else that still delivered: CCT unreachable, or a payload that is empty /
   placeholder / job-failed.
+- **pre-market additionally requires the content to be current**: `ok` = content
+  **and** not stale. The pre-market route falls back to the latest D1 snapshot
+  when today's job never ran, so a payload can carry a full set of signals and
+  still describe a market day weeks back. `pre_market_freshness()` treats a
+  payload as stale when `is_stale` is set, when `date` is absent or
+  unparseable, or when `date` is not today (UTC). Stale is `degraded`, not
+  `failed` — a retry returns the same snapshot.
+  The delivered header then carries the *source* date plus a warning:
+  `📊 CCT 盤前報告｜2026-06-08  ⚠️ 資料已過期（50 天前）`, or
+  `⚠️ 資料已過期` with no day count when the age is not a positive number of
+  days, or `日期不明` when the payload has no usable date.
 
   The distinction matters because the API answers HTTP 200 + `success: true`
   even when a job never ran or failed outright (`report-routes.ts` turns
