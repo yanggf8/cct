@@ -74,8 +74,24 @@ echo "🔍 actionlint: $("$ACTIONLINT" -version | head -1)"
 # still fails, as does every syntax error.
 KNOWN='property "(analysis_type|warmup-strategy|verification|number)" is not defined'
 
+# shellcheck and pyflakes integration are switched off on purpose.
+#
+# actionlint shells out to them for `run:` blocks when they are on PATH. They
+# are installed on ubuntu-latest but usually not on a dev machine, so leaving
+# them on makes the gate behave DIFFERENTLY locally and in CI — this script
+# reported "clean" locally and then failed its first CI run on a wall of
+# SC2086 "double quote to prevent globbing" notices in files nobody had
+# touched. A gate whose result depends on what happens to be installed is not
+# a gate.
+#
+# Those findings are style/info level and none of them stops GitHub loading a
+# file, which is what this check is for. Linting shell inside workflows is a
+# reasonable thing to want, but it belongs in its own check with its own
+# backlog, not smuggled in here.
+NO_EXTERNAL=(-shellcheck= -pyflakes=)
+
 # -oneline keeps each finding on a single line so CI logs stay greppable.
-if "$ACTIONLINT" -oneline -ignore "$KNOWN" "$DIR"/*.yml; then
+if "$ACTIONLINT" -oneline "${NO_EXTERNAL[@]}" -ignore "$KNOWN" "$DIR"/*.yml; then
     COUNT=$(find "$DIR" -maxdepth 1 -name '*.yml' | wc -l | tr -d ' ')
     echo "✅ actionlint: $COUNT workflow file(s) clean"
     exit 0
