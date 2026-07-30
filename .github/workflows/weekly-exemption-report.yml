@@ -270,9 +270,11 @@ jobs:
           cat weekly-exemption-report.json | jq .
 
       - name: Upload Report Artifacts
+        # Disabled under the no-test-artifacts policy (see validate-no-artifacts.yml).
+        # Keep exactly one `if:` — a duplicate mapping key makes GitHub reject the
+        # whole file at load time, which shows up as a run with zero jobs and no logs.
         if: ${{ false }}
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: weekly-exemption-report-$(date +%Y%m%d)
           path: |

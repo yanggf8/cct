@@ -256,9 +256,11 @@ jobs:
           }
 
     - name: Upload Validation Artifacts
-      if: always()
+      # Disabled under the no-test-artifacts policy (see validate-no-artifacts.yml).
+      # Keep exactly one `if:` — a duplicate mapping key makes GitHub reject the
+      # whole file at load time, which shows up as a run with zero jobs and no logs.
       if: ${{ false }}
-        uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4
       with:
         name: schema-validation-report
         path: |
@@ -330,31 +332,31 @@ jobs:
         script: |
           const commentBody = `## 🔄 Schema Changes Detected
 
-The following schema-related files have been modified:
-\`\`\`
-$(git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E "(test-summary-schema\.json|ci-schema-validation\.sh)")
-\`\`\`
+          The following schema-related files have been modified:
+          \`\`\`
+          $(git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E "(test-summary-schema\.json|ci-schema-validation\.sh)")
+          \`\`\`
 
-### 📋 Schema Validation Requirements
+          ### 📋 Schema Validation Requirements
 
-All schema changes must:
-- ✅ Maintain backward compatibility when possible
-- ✅ Update version number in schema title if breaking changes
-- ✅ Include proper JSON Schema Draft 7 specification
-- ✅ Validate all test summary files against new schema
-- ✅ Update CI validation script if needed
+          All schema changes must:
+          - ✅ Maintain backward compatibility when possible
+          - ✅ Update version number in schema title if breaking changes
+          - ✅ Include proper JSON Schema Draft 7 specification
+          - ✅ Validate all test summary files against new schema
+          - ✅ Update CI validation script if needed
 
-### ⚠️ Impact Assessment
+          ### ⚠️ Impact Assessment
 
-Review how these changes affect:
-- Existing test scripts and their generated summaries
-- CI/CD pipeline integration
-- PR annotations and check runs
-- Downstream tools consuming test summary data
+          Review how these changes affect:
+          - Existing test scripts and their generated summaries
+          - CI/CD pipeline integration
+          - PR annotations and check runs
+          - Downstream tools consuming test summary data
 
----
+          ---
 
-*Schema change detected in PR: [${{ github.number }}](${{ github.server_url }}/${{ github.repository }}/pull/${{ github.number }})*`;
+          *Schema change detected in PR: [${{ github.number }}](${{ github.server_url }}/${{ github.repository }}/pull/${{ github.number }})*`;
 
           await github.rest.issues.createComment({
             owner: context.repo.owner,
