@@ -60,7 +60,7 @@ for pattern in "${CRITICAL_PATTERNS[@]}"; do
     if [[ "$MATCHES" != "No matches" ]]; then
         echo -e "${RED}❌ FOUND CRITICAL MOCK PATTERN${NC}"
         echo "$MATCHES"
-        ((CRITICAL_ISSUES++))
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 
         # Save to audit report
         echo "Critical Pattern: $pattern" >> "$AUDIT_DIR/critical-issues.txt"
@@ -70,7 +70,7 @@ for pattern in "${CRITICAL_PATTERNS[@]}"; do
         echo -e "${GREEN}✅ No critical matches${NC}"
     fi
 
-    ((TOTAL_ISSUES++))
+    TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
 done
 
 echo ""
@@ -107,7 +107,7 @@ for pattern in "${SUSPICIOUS_PATTERNS[@]}"; do
         echo "$MATCHES" >> "$AUDIT_DIR/suspicious-values.txt"
         echo "" >> "$AUDIT_DIR/suspicious-values.txt"
 
-        ((FIXABLE_ISSUES++))
+        FIXABLE_ISSUES=$((FIXABLE_ISSUES + 1))
     fi
 done
 
@@ -134,7 +134,7 @@ for pattern in "${API_KEY_PATTERNS[@]}"; do
     if [[ "$MATCHES" != "No matches" ]]; then
         echo -e "${RED}❌ FOUND MOCK API KEYS${NC}"
         echo "$MATCHES"
-        ((CRITICAL_ISSUES++))
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 
         # Save to audit report
         echo "Mock API Keys:" >> "$AUDIT_DIR/api-key-issues.txt"
@@ -152,7 +152,7 @@ if [[ -f "src/modules/config.ts" ]]; then
     if grep -q "demo-key\|mock-key\|test-key" "src/modules/config.ts"; then
         echo -e "${RED}❌ Config has default mock keys${NC}"
         grep -n "demo-key\|mock-key\|test-key" "src/modules/config.ts"
-        ((CRITICAL_ISSUES++))
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
     else
         echo -e "${GREEN}✅ No mock keys in config${NC}"
     fi
@@ -189,7 +189,7 @@ if [[ -d "public/js" ]]; then
                 grep -n "$pattern" "$file" | head -3
             done
 
-            ((FIXABLE_ISSUES++))
+            FIXABLE_ISSUES=$((FIXABLE_ISSUES + 1))
         fi
     done
 
@@ -209,7 +209,7 @@ if [[ -d "public/js" ]]; then
         if [[ "$MATCHES" != "No matches" ]]; then
             echo -e "${RED}❌ Found fake data generation:${NC}"
             echo "$MATCHES"
-            ((CRITICAL_ISSUES++))
+            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
         fi
     done
 else
@@ -240,7 +240,7 @@ for pattern in "${TEST_LEAKAGE_PATTERNS[@]}"; do
     if [[ "$MATCHES" != "No matches" ]]; then
         echo -e "${YELLOW}⚠️  Potential test data leakage:${NC}"
         echo "$MATCHES" | head -5
-        ((FIXABLE_ISSUES++))
+        FIXABLE_ISSUES=$((FIXABLE_ISSUES + 1))
     fi
 done
 
@@ -267,7 +267,7 @@ for pattern in "${DATA_SOURCE_PATTERNS[@]}"; do
     if [[ "$MATCHES" != "No matches" ]]; then
         echo -e "${YELLOW}⚠️  Non-production data sources:${NC}"
         echo "$MATCHES"
-        ((FIXABLE_ISSUES++))
+        FIXABLE_ISSUES=$((FIXABLE_ISSUES + 1))
     fi
 done
 
@@ -287,7 +287,7 @@ if [[ -f "src/modules/config.ts" ]]; then
         fi
     else
         echo -e "${RED}❌ No FRED API key configuration${NC}"
-        ((CRITICAL_ISSUES++))
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
     fi
 fi
 

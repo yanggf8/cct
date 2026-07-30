@@ -130,13 +130,13 @@ jobs:
 
             if [[ $FILES_AFTER -eq $FILES_BEFORE ]]; then
               echo "  ✅ No artifacts created during execution"
-              ((ARTIFACT_FREE++))
+              ARTIFACT_FREE=$((ARTIFACT_FREE + 1))
             else
               echo "  ❌ Artifacts may have been created"
               find . -maxdepth 1 -name "*.json" -o -name "*.log" -o -name "*.tmp" -newer "$script" 2>/dev/null || true
             fi
 
-            ((TESTED_SCRIPTS++))
+            TESTED_SCRIPTS=$((TESTED_SCRIPTS + 1))
             echo ""
           fi
         done

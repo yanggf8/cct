@@ -157,10 +157,10 @@ jobs:
             echo "Deleting artifact: $ARTIFACT_NAME (${ARTIFACT_SIZE} bytes)"
 
             if gh api --method DELETE "repos/:owner/:repo/actions/artifacts/$ARTIFACT_ID" --silent; then
-              ((DELETED++))
+              DELETED=$((DELETED + 1))
               echo "  ✅ Deleted successfully"
             else
-              ((FAILED++))
+              FAILED=$((FAILED + 1))
               ERROR_DETAILS+=("Failed to delete $ARTIFACT_NAME (ID: $ARTIFACT_ID)")
               echo "  ❌ Delete failed"
             fi
