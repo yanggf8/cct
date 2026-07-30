@@ -125,7 +125,14 @@ jobs:
         echo "| Total Tests | ${{ env.TOTAL }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Passed | ${{ env.PASSED }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Failed | ${{ env.FAILED }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Success Rate | ${{ env.TOTAL > 0 && env.PASSED * 100 / env.TOTAL || 0 }}% |" >> $GITHUB_STEP_SUMMARY
+        # Computed in shell, not in a ${{ }} expression: the GitHub Actions
+        # expression grammar has no arithmetic operators, so `PASSED * 100 /
+        # TOTAL` is a syntax error that makes GitHub reject the WHOLE file at
+        # load time — the run then shows conclusion=failure with zero jobs and
+        # no logs. PASSED/TOTAL are already exported via $GITHUB_ENV above, so
+        # they are ordinary shell variables here.
+        if [ "${TOTAL:-0}" -gt 0 ]; then RATE=$(( PASSED * 100 / TOTAL )); else RATE=0; fi
+        echo "| Success Rate | ${RATE}% |" >> $GITHUB_STEP_SUMMARY
         echo "| Status | ${{ env.ALL_TESTS_PASSED == 'true' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -138,14 +145,18 @@ jobs:
         fi
 
     - name: Upload test logs
-      if: always()
+      # Disabled under the no-test-artifacts policy (validate-no-artifacts.yml
+      # requires exactly this marker within 2 lines above the `uses:`).
+      # REPLACES `if: always()` rather than joining it — two `if:` keys on one
+      # step is a duplicate mapping key, which GitHub rejects at load time.
+      # `retention-days: 0` was invalid anyway; the allowed range is 1-90.
+      if: ${{ false }}
       uses: actions/upload-artifact@v4
       with:
         name: enhanced-cache-test-logs
         path: |
           test-results-*.log
           response.json
-        retention-days: 0
 
     - name: Fail on test failures
       if: env.ALL_TESTS_PASSED == 'false'
@@ -198,7 +209,10 @@ jobs:
         fi
 
     - name: Upload regression reports
-      if: always()
+      # Disabled under the no-test-artifacts policy — see the note on the
+      # "Upload test logs" step above. Exactly one `if:`, and no
+      # `retention-days: 0` (the allowed range is 1-90).
+      if: ${{ false }}
       uses: actions/upload-artifact@v4
       with:
         name: regression-reports
@@ -207,7 +221,6 @@ jobs:
           tests/integration/dac/test-reports/
           tests/regression/test-reports/
           tests/regression/baselines/
-        retention-days: 0
 
   deploy-validation:
     name: Deploy Validation
