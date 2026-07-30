@@ -1,0 +1,49 @@
+name: Validate Workflows
+
+# Lints the workflow files themselves. This exists because three workflows in
+# this repo were rejected by GitHub at load time — conclusion=failure, zero
+# jobs, no logs, listed by file path instead of by name — and nothing caught it:
+#
+#   weekly-exemption-report.yml            duplicate `if:` mapping key
+#   test-summary-schema-validation.yml     duplicate `if:` plus bad indentation
+#   enhanced-cache-tests.yml               arithmetic in an expression, then an
+#                                          empty pair of expression delimiters
+#                                          inside a `run:` block
+#
+# enhanced-cache-tests.yml failed that way 30 runs in a row. A strict YAML
+# loader and the SchemaStore github-workflow schema both passed it every time,
+# because neither validates expression syntax. actionlint catches both classes
+# — expression errors and duplicate keys — so it is the gate.
+
+on:
+  push:
+    paths:
+      - '.github/workflows/**'
+      - 'tests/validation/validate-workflow-actionlint.sh'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'tests/validation/validate-workflow-actionlint.sh'
+  workflow_dispatch:
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        # `go install` with a pinned version resolves through the Go module
+        # proxy with checksum verification, rather than piping a downloaded
+        # shell script into bash. Go is preinstalled on ubuntu-latest.
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Validate workflow files
+        # The script owns the ratchet list of pre-existing findings, so CI and
+        # `npm run test:actionlint` cannot drift apart.
+        run: ./tests/validation/validate-workflow-actionlint.sh
