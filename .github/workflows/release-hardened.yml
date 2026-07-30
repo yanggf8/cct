@@ -421,15 +421,13 @@ jobs:
 
           echo "✅ Release notes generated"
 
-      - name: Upload Release Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts-${{ github.run_number }}
-          path: |
-            RELEASE_NOTES.md
-            dist/
-          retention-days: 0
-
+      # An "Upload Release Artifacts" step used to sit here, publishing
+      # RELEASE_NOTES.md and dist/ as an Actions artifact named
+      # release-artifacts-<run number>. Removed: the step below already
+      # attaches dist/* to the GitHub Release, nothing anywhere downloads
+      # release-artifacts-*, and on a dry run or a non-tag ref the only thing
+      # it produced was a copy nobody looks at — which is exactly what the
+      # no-test-artifacts policy exists to stop.
       - name: Create GitHub Release
         if: github.event.inputs.dry_run != 'true' && github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
