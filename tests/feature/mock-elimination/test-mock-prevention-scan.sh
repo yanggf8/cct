@@ -59,8 +59,18 @@ VIOLATIONS_WARNING=0
 VIOLATIONS_INFO=0
 EXEMPTIONS_FOUND=0
 
-# Files to scan
-SOURCE_FILES=$(find src public -type f \( -name "*.ts" -o -name "*.js" -o -name "*.html" -o -name "*.json" \) 2>/dev/null || true)
+# Files to scan.
+#
+# The mock-detection modules are excluded because they ARE the pattern tables
+# and the detection messages: production-guards.ts literally contains
+# `'mock data',` as a list entry, and mock-elimination-guards.ts prints
+# "PRODUCTION MOCK DATA DETECTION". Scanning them is the detector finding
+# itself — 37 of the 96 hits came from these two files alone, and none of them
+# is a finding. Anything else added here needs a real justification, since an
+# excluded file stops being checked for genuine regressions too.
+SELF_REFERENTIAL='src/modules/production-guards\.ts|src/modules/mock-elimination-guards\.ts'
+SOURCE_FILES=$(find src public -type f \( -name "*.ts" -o -name "*.js" -o -name "*.html" -o -name "*.json" \) 2>/dev/null \
+    | grep -vE "^($SELF_REFERENTIAL)$" || true)
 
 if [[ -z "$SOURCE_FILES" ]]; then
     echo "⚠️ No source files found to scan"
