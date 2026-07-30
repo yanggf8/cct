@@ -429,26 +429,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify build reproducibility
+      - name: Build with Node 18
         run: |
           echo "🔄 Verifying build reproducibility across Node versions..."
-
-          # Build with Node 18
           npm run build
-          BUILD_18_HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum || echo "no_files")
-          echo "Node 18 build hash: $BUILD_18_HASH"
-
-          # Clean
+          HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum | awk '{print $1}')
+          echo "Node 18 build hash: ${HASH:-no_files}"
+          echo "BUILD_18_HASH=${HASH:-no_files}" >> $GITHUB_ENV
           rm -rf dist node_modules/.cache
 
-          # Setup Node 20
-          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-          apt-get install -y nodejs
-          npm ci
+      - name: Switch to Node 20
+        # Replaces `curl … nodesource | bash -` followed by
+        # `apt-get install -y nodejs`, which cannot work here: the job runs as
+        # the unprivileged `runner` user, so apt fails to take
+        # /var/lib/dpkg/lock-frontend and the step dies with exit 100 — every
+        # run, right after the Node 18 build had already succeeded.
+        # setup-node is simply invoked a second time to swap the toolchain.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
 
-          # Build with Node 20
+      - name: Build with Node 20 and compare
+        run: |
+          npm ci
           npm run build
-          BUILD_20_HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum || echo "no_files")
+          HASH=$(find dist -type f -exec sha256sum {} \; | sort | sha256sum | awk '{print $1}')
+          BUILD_20_HASH=${HASH:-no_files}
+          echo "Node 18 build hash: $BUILD_18_HASH"
           echo "Node 20 build hash: $BUILD_20_HASH"
 
           if [[ "$BUILD_18_HASH" == "$BUILD_20_HASH" ]]; then
