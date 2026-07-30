@@ -23,7 +23,13 @@ NC='\033[0m' # No Color
 
 # Configuration
 TEST_MODE="${1:-full}"  # quick, full, validation
-ARTIFACT_DIR="release-test-$(date +%Y%m%d-%H%M%S)"
+
+# Everything this run reads from the checkout is addressed through REPO_ROOT,
+# and everything it writes goes under RUN_TMPDIR. The artifact directory used to
+# be created in the checkout itself, which is what put sbom-test.json and
+# friends in the repository root and made the no-persistent-files check fail.
+REPO_ROOT="$(pwd)"
+ARTIFACT_DIR="$RUN_TMPDIR/release-test-$(date +%Y%m%d-%H%M%S)"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 SKIP_SBOM="${SKIP_SBOM:-false}"
 MAX_RUNTIME_SECONDS="${MAX_RUNTIME_SECONDS:-1200}"  # 20 minutes max
@@ -171,7 +177,7 @@ echo ""
 echo -e "${BLUE}Phase 2: Source Code Validation${NC}"
 echo "=================================="
 
-cd ..
+cd "$REPO_ROOT"
 
 # Check if we're in a git repository
 if git rev-parse --git-dir >/dev/null 2>&1; then
@@ -281,22 +287,22 @@ echo ""
 
 # Back into the artifact directory for the phases that produce files.
 #
-# Phase 2 cds to the repository root for the git checks, and phases 3 and 4 need
-# to stay there for package.json and dist/. Nothing used to cd back, so every
-# artifact from here on — sbom-test.json, provenance-test.json, manifest.json,
+# Phase 2 cds to the repository root for the git checks, and phases 3 and 4 stay
+# there for package.json and dist/. Nothing used to cd back, so every artifact
+# from here on — sbom-test.json, provenance-test.json, manifest.json,
 # test-summary.json, release-test-artifacts.tar.gz — was written into the
 # repository root instead. They only ever disappeared because the old cleanup
 # deleted the repository root itself.
 #
-# This also makes `../dist/*` in Phase 8 mean what it says.
-DIST_SOURCE_DIR="$(pwd)/dist"
+# Everything the later phases read from the checkout now goes through
+# $REPO_ROOT, so this cd only decides where output lands.
 cd "$ARTIFACT_DIR_ABS"
 
 # Phase 5: SBOM Generation Test
 echo -e "${BLUE}Phase 5: SBOM Generation Test${NC}"
 echo "================================="
 
-if [[ "$SKIP_SBOM" != "true" ]] && [[ -d "$DIST_SOURCE_DIR" ]]; then
+if [[ "$SKIP_SBOM" != "true" ]] && [[ -d "$REPO_ROOT/dist" ]]; then
     echo "Testing SBOM generation..."
 
     # Create mock SBOM for testing
@@ -378,9 +384,9 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
     echo "Testing unified verification chain..."
 
     # Test mock prevention scan
-    if [[ -f "../test-mock-prevention-scan.sh" ]]; then
+    if [[ -f "$REPO_ROOT/tests/feature/mock-elimination/test-mock-prevention-scan.sh" ]]; then
         echo "Running mock prevention scan..."
-        if ../test-mock-prevention-scan.sh quick >/dev/null 2>&1; then
+        if "$REPO_ROOT/tests/feature/mock-elimination/test-mock-prevention-scan.sh" quick >/dev/null 2>&1; then
             log_test "Mock prevention scan" "PASS" "Quick scan completed"
         else
             log_test "Mock prevention scan" "FAIL" "Mock prevention scan failed"
@@ -457,8 +463,8 @@ ARTIFACT_LIST=(
     "sbom-cyclonedx.cert"
 )
 
-if [[ -d "../dist" ]]; then
-    ARTIFACT_LIST+=("../dist/*")
+if [[ -d "$REPO_ROOT/dist" ]]; then
+    ARTIFACT_LIST+=("$REPO_ROOT/dist")
 fi
 
 # Create archive
@@ -491,7 +497,7 @@ cat > manifest.json << EOF
   },
   "validation": {
     "mock_prevention": $([ "$TESTS_PASSED" -gt 0 ] && echo "true" || echo "false"),
-    "build_successful": $([ -d "../dist" ] && echo "true" || echo "false"),
+    "build_successful": $([ -d "$REPO_ROOT/dist" ] && echo "true" || echo "false"),
     "sbom_generated": $([ -f "sbom-test.json" ] && echo "true" || echo "false"),
     "artifacts_signed": $([ -f "sbom-cyclonedx.sig" ] && echo "true" || echo "false")
   }
@@ -617,19 +623,19 @@ EOF
       "slowest_test": {
         "name": "Build Process",
         "duration_ms": $((BUILD_DURATION * 1000)),
-        "status": "$([[ -d "../dist" ]] && echo "completed" || echo "failed")"
+        "status": "$([[ -d "$REPO_ROOT/dist" ]] && echo "completed" || echo "failed")"
       }
     },
     "build_metrics": {
       "build_duration_seconds": ${BUILD_DURATION:-0},
-      "build_artifact_size_bytes": $([[ -d "../dist" ]] && du -sb ../dist | cut -f1 || echo "0"),
-      "build_artifact_count": $([[ -d "../dist" ]] && find ../dist -type f | wc -l || echo "0"),
-      "bundle_hash": "$(find ../dist -type f -exec sha256sum {} \; 2>/dev/null | sort | sha256sum | cut -d' ' -f1 || echo 'no-build')"
+      "build_artifact_size_bytes": $([[ -d "$REPO_ROOT/dist" ]] && du -sb "$REPO_ROOT/dist" | cut -f1 || echo "0"),
+      "build_artifact_count": $([[ -d "$REPO_ROOT/dist" ]] && find "$REPO_ROOT/dist" -type f | wc -l || echo "0"),
+      "bundle_hash": "$(find "$REPO_ROOT/dist" -type f -exec sha256sum {} \; 2>/dev/null | sort | sha256sum | cut -d' ' -f1 || echo 'no-build')"
     },
     "security_metrics": {
       "vulnerabilities_found": 0,
       "high_severity_vulns": 0,
-      "dependencies_scanned": $(cat ../package.json 2>/dev/null | jq -r '.dependencies | keys | length' 2>/dev/null || echo "0")
+      "dependencies_scanned": $(cat "$REPO_ROOT/package.json" 2>/dev/null | jq -r '.dependencies | keys | length' 2>/dev/null || echo "0")
     },
     "compliance_metrics": {
       "exemptions_found": 0,
