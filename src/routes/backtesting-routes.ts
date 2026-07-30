@@ -43,6 +43,32 @@ const logger = createLogger('backtesting-routes');
 /**
  * Handle all backtesting routes
  */
+/**
+ * Whether canned backtest fixtures may be served.
+ *
+ * Verified against the live worker on 2026-07-30:
+ * `GET /api/v1/backtesting/status/test_1` returned a completed backtest, and
+ * the results fixture carries a full set of invented Sharpe ratios, returns,
+ * sector attribution and regime analysis. The fixture ids — `test_1`, `test_2`,
+ * `test_12345`, `result_test_12345` — are trivially guessable, and nothing
+ * gated them: the two call sites tested only `hasBacktestFixture(backtestId)`.
+ * The response did set `metadata.source: 'test_fixture'`, but that only helps a
+ * caller who thinks to check it.
+ *
+ * Mirrors `isWarmupAllowed()` in enhanced-cache-routes.ts: production has to
+ * opt in explicitly, anywhere else is allowed by default.
+ */
+function areFixturesAllowed(env: CloudflareEnvironment): boolean {
+  const allowFlag =
+    (env as { ALLOW_TEST_FIXTURES?: unknown })?.ALLOW_TEST_FIXTURES === 'true' ||
+    (env as { ALLOW_TEST_FIXTURES?: unknown })?.ALLOW_TEST_FIXTURES === true;
+
+  if (env?.ENVIRONMENT === 'production') {
+    return allowFlag;
+  }
+  return true;
+}
+
 export async function handleBacktestingRoutes(
   request: Request,
   env: CloudflareEnvironment,
@@ -316,7 +342,7 @@ async function handleBacktestStatus(
     }
 
     // Check if this is a test fixture (for testing purposes)
-    if (hasBacktestFixture(backtestId)) {
+    if (areFixturesAllowed(env) && hasBacktestFixture(backtestId)) {
       const fixtureData = getBacktestFixture(backtestId);
       const response: BacktestStatusResponse = {
         backtestId,
@@ -427,7 +453,7 @@ async function handleGetBacktestResults(
     }
 
     // Check if this is a test fixture (for testing purposes)
-    if (hasBacktestFixture(backtestId)) {
+    if (areFixturesAllowed(env) && hasBacktestFixture(backtestId)) {
       const fixtureData = getBacktestFixture(backtestId);
       const response: BacktestResultsResponse = {
         id: backtestId,
