@@ -106,7 +106,7 @@ scan_patterns() {
                 if [[ -n "$NON_EXEMPTED" ]]; then
                     echo -e "❌ ${RED}CRITICAL${NC}: $pattern_desc - Pattern: $pattern"
                     echo "$NON_EXEMPTED"
-                    ((VIOLATIONS_CRITICAL++))
+                    VIOLATIONS_CRITICAL=$((VIOLATIONS_CRITICAL + 1))
                 else
                     echo -e "✅ ${GREEN}EXEMPTED${NC}: $pattern_desc (all matches have valid exemptions)"
                 fi
@@ -115,16 +115,16 @@ scan_patterns() {
                     "critical")
                         echo -e "❌ ${RED}CRITICAL${NC}: $pattern_desc - Pattern: $pattern"
                         echo "$MATCHES"
-                        ((VIOLATIONS_CRITICAL++))
+                        VIOLATIONS_CRITICAL=$((VIOLATIONS_CRITICAL + 1))
                         ;;
                     "warning")
                         echo -e "⚠️  ${YELLOW}WARNING${NC}: $pattern_desc - Pattern: $pattern"
                         echo "$MATCHES"
-                        ((VIOLATIONS_WARNING++))
+                        VIOLATIONS_WARNING=$((VIOLATIONS_WARNING + 1))
                         ;;
                     "info")
                         echo -e "ℹ️  ${BLUE}INFO${NC}: $pattern_desc - Pattern: $pattern"
-                        ((VIOLATIONS_INFO++))
+                        VIOLATIONS_INFO=$((VIOLATIONS_INFO + 1))
                         ;;
                 esac
             fi
@@ -178,7 +178,7 @@ case $SCAN_MODE in
                 if [[ -n "$NON_REFERENCED" ]]; then
                     echo -e "❌ ${RED}CRITICAL${NC}: TODO/FIXME without ticket reference - Pattern: $pattern"
                     echo "$NON_REFERENCED"
-                    ((VIOLATIONS_CRITICAL++))
+                    VIOLATIONS_CRITICAL=$((VIOLATIONS_CRITICAL + 1))
                 else
                     echo -e "✅ ${GREEN}CLEAN${NC}: TODO/FIXME with ticket references"
                 fi

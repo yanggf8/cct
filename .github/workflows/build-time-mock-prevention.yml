@@ -44,142 +44,21 @@ jobs:
           npm install -g wrangler
 
       - name: Mock Data Detection - Strict Scan
-        run: |
-          echo "🔍 Running strict mock data detection..."
-
-          # Define banned patterns that should never appear in production
-          declare -A BANNED_PATTERNS=(
-            ["coming soon"]="Placeholder text indicating incomplete implementation"
-            ["COMING SOON"]="Uppercase placeholder text"
-            ["mock data"]="Explicit mock data references"
-            ["MOCK DATA"]="Uppercase mock data"
-            ["placeholder"]="Generic placeholder content"
-            ["PLACEHOLDER"]="Uppercase placeholder"
-            ["test data"]="Test-only data references"
-            ["TEST DATA"]="Uppercase test data"
-            ["lorem ipsum"]="Latin placeholder text"
-            ["Lorem ipsum"]="Capitalized placeholder"
-            ["fake.*timestamp"]="Generated fake timestamps"
-            ["FAKE.*timestamp"]="Uppercase fake timestamps"
-            ["example\.com"]="Example domain references"
-            ["EXAMPLE\.COM"]="Uppercase example domain"
-            ["not implemented"]="Unimplemented feature markers"
-            ["NOT IMPLEMENTED"]="Uppercase unimplemented"
-            ["TODO.*mock"]="TODO items referencing mock data"
-            ["FIXME.*mock"]="FIXME items referencing mock data"
-            ["HACK.*mock"]="HACK comments referencing mock data"
-            ["XXX.*mock"]="XXX comments referencing mock data"
-          )
-
-          # Files to scan
-          SOURCE_FILES=$(find src public -type f \( -name "*.ts" -o -name "*.js" -o -name "*.html" -o -name "*.json" \) 2>/dev/null || true)
-          BUILD_FILES=$(find dist -type f 2>/dev/null || true)
-
-          echo "Source files found:"
-          echo "$SOURCE_FILES" | wc -l
-          echo "Build files found:"
-          echo "$BUILD_FILES" | wc -l
-
-          # Counters are incremented with an assignment, not `((VAR++))`.
-          # Steps run under `bash -e`, and `((VAR++))` evaluates to the value
-          # BEFORE the increment — so the very first hit, when the counter is
-          # still 0, makes the arithmetic command return 1 and kills the step.
-          # That is why this scan has only ever reported its first violation and
-          # then died: no remaining patterns, no build-file scan, no total, and
-          # not even the MOCK-EXEMPTION hint the failure message promises.
-          VIOLATIONS_FOUND=0
-
-          # Scan source files
-          if [[ -n "$SOURCE_FILES" ]]; then
-            echo ""
-            echo "📁 Scanning source files..."
-
-            for pattern in "${!BANNED_PATTERNS[@]}"; do
-              echo "Checking for pattern: $pattern"
-
-              # Use ripgrep for fast searching with context
-              if command -v rg >/dev/null 2>&1; then
-                MATCHES=$(rg -i "$pattern" $SOURCE_FILES --type-add 'web:*.{ts,js,html,json}' -t web -n --context 1 2>/dev/null || true)
-              else
-                MATCHES=$(grep -rinE "$pattern" $SOURCE_FILES 2>/dev/null || true)
-              fi
-
-              if [[ -n "$MATCHES" ]]; then
-                echo "❌ BANNED PATTERN FOUND: $pattern"
-                echo "$MATCHES"
-                echo "Description: ${BANNED_PATTERNS[$pattern]}"
-                echo ""
-                VIOLATIONS_FOUND=$((VIOLATIONS_FOUND + 1))
-              else
-                echo "✅ Pattern '$pattern' not found"
-              fi
-            done
-          fi
-
-          # Scan build files (if they exist)
-          if [[ -n "$BUILD_FILES" ]]; then
-            echo ""
-            echo "🏗️ Scanning build files (even stricter check)..."
-
-            for pattern in "${!BANNED_PATTERNS[@]}"; do
-              # Even stricter check for build files - no exceptions
-              if command -v rg >/dev/null 2>&1; then
-                MATCHES=$(rg -i "$pattern" $BUILD_FILES -n --context 1 2>/dev/null || true)
-              else
-                MATCHES=$(grep -rinE "$pattern" $BUILD_FILES 2>/dev/null || true)
-              fi
-
-              if [[ -n "$MATCHES" ]]; then
-                echo "❌ CRITICAL: Banned pattern in build artifact: $pattern"
-                echo "$MATCHES"
-                echo ""
-                VIOLATIONS_FOUND=$((VIOLATIONS_FOUND + 1))
-              fi
-            done
-          fi
-
-          # Additional hardcoded value checks
-          echo ""
-          echo "🔢 Checking for hardcoded values that should be dynamic..."
-
-          HARDcoded_PATTERNS=(
-            "19\.84%"  # Hardcoded percentages
-            "45\.12%"  # Hardcoded percentages
-            "2023-01-01"  # Fake dates
-            "2024-12-31"  # Fake dates
-            "123\.45"  # Fake numbers
-            "\$1,234\.56"  # Fake currency
-          )
-
-          for pattern in "${HARDcoded_PATTERNS[@]}"; do
-            if command -v rg >/dev/null 2>&1; then
-              MATCHES=$(rg "$pattern" $SOURCE_FILES --type-add 'web:*.{ts,js,html,json}' -t web -n 2>/dev/null || true)
-            else
-              MATCHES=$(grep -rn "$pattern" $SOURCE_FILES 2>/dev/null || true)
-            fi
-
-            if [[ -n "$MATCHES" ]]; then
-              echo "⚠️ Potential hardcoded value detected: $pattern"
-              echo "$MATCHES"
-              echo ""
-            fi
-          done
-
-          # Fail if violations found
-          if [[ $VIOLATIONS_FOUND -gt 0 ]]; then
-            echo ""
-            echo "❌ MOCK PREVENTION CHECK FAILED"
-            echo "Found $VIOLATIONS_FOUND violations with banned patterns"
-            echo "Please remove all mock/placeholder content before production deployment"
-            echo ""
-            echo "To bypass this check for legitimate uses, add a JIRA ticket reference:"
-            echo "  // MOCK-EXEMPTION: JIRA-123 - Temporary placeholder for X feature"
-            exit 1
-          else
-            echo ""
-            echo "✅ MOCK PREVENTION CHECK PASSED"
-            echo "No banned patterns found in source or build files"
-          fi
+        # Delegates to the script `npm run test:mock-prevention` already runs,
+        # instead of keeping a second copy of the pattern table inline. The copy
+        # that lived here had drifted badly:
+        #   * it searched with `rg -i` / `grep -rinE`, so every upper/lower
+        #     pattern pair matched the same lines and was counted twice — the
+        #     "12 violations" it reported were 6 real classes;
+        #   * it had no severity tiers, so `placeholder` blocked the build as
+        #     hard as `COMING SOON`;
+        #   * it never implemented the `// MOCK-EXEMPTION: JIRA-123` escape
+        #     hatch that its own failure message tells you to use;
+        #   * it scanned `dist`, which does not exist in this job — there is no
+        #     build step before it, so that branch never ran.
+        # `full` runs every tier and fails only on critical violations; `strict`
+        # is available if warnings should block too.
+        run: ./tests/feature/mock-elimination/test-mock-prevention-scan.sh full
 
       - name: ESLint Mock Data Rules
         run: |
