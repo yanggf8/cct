@@ -312,8 +312,14 @@ echo ""
 echo -e "${BLUE}Phase 6: Results Summary${NC}"
 echo "=========================="
 
-# Generate simulation report
-cat > "slo-simulation-report-$(date +%Y%m%d-%H%M%S).json" << EOF
+# Generate simulation report.
+#
+# Written under $RUN_TMPDIR, which the EXIT trap already removes, rather than
+# into the working directory — the no-test-artifacts policy check flags the
+# latter. The path is held in a variable because the read-back below used to
+# re-derive it with a quoted glob, which never matched.
+SIMULATION_REPORT="$RUN_TMPDIR/slo-simulation-report-$(date +%Y%m%d-%H%M%S).json"
+cat > "$SIMULATION_REPORT" << EOF
 {
   "simulation": {
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -345,7 +351,10 @@ cat > "slo-simulation-report-$(date +%Y%m%d-%H%M%S).json" << EOF
 EOF
 
 # Store results before cleanup for potential reporting
-SIMULATION_REPORT_CONTENT=$(cat "slo-simulation-report-$(date +%Y%m%d)*.json" 2>/dev/null || echo "No simulation report generated")
+# Was: cat "slo-simulation-report-$(date +%Y%m%d)*.json" — the quotes stopped
+# the glob expanding, so this asked for a file whose name literally contains an
+# asterisk and always fell through to the placeholder.
+SIMULATION_REPORT_CONTENT=$(cat "$SIMULATION_REPORT" 2>/dev/null || echo "No simulation report generated")
 SIMULATION_LOG_CONTENT=$(cat "$SIMULATION_LOG" 2>/dev/null || echo "No simulation log generated")
 
 TOTAL_TESTS=$((TESTS_PASSED + TESTS_FAILED))
@@ -369,7 +378,10 @@ echo "==============================="
 
 echo "🧹 Cleaning up SLO breach simulation artifacts..."
 
-# Clean up simulation artifacts
+# Clean up simulation artifacts. The report now lives under $RUN_TMPDIR and the
+# EXIT trap takes it, but sweep the working directory too so a report left by an
+# older revision of this script does not linger.
+rm -f "$SIMULATION_REPORT" 2>/dev/null || true
 rm -f "slo-simulation-report-"*.json 2>/dev/null || true
 if [[ -f "$SIMULATION_LOG" ]]; then
     rm -f "$SIMULATION_LOG" 2>/dev/null || true

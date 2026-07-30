@@ -36,9 +36,14 @@ echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 echo "Max Runtime: ${MAX_RUNTIME_SECONDS} seconds"
 echo ""
 
-# Create artifact directory
+# Create artifact directory.
+#
+# ARTIFACT_DIR_ABS is resolved here and is the ONLY thing cleanup_test_artifacts
+# is allowed to delete. It used to remove `$(pwd)` instead, which is a different
+# directory by the time it runs — see the note on that function.
 mkdir -p "$ARTIFACT_DIR"
 cd "$ARTIFACT_DIR"
+ARTIFACT_DIR_ABS="$(pwd)"
 
 # Initialize test tracking
 EXECUTION_ID=$(uuidgen 2>/dev/null || echo "test-$(date +%s)")
@@ -274,11 +279,24 @@ fi
 
 echo ""
 
+# Back into the artifact directory for the phases that produce files.
+#
+# Phase 2 cds to the repository root for the git checks, and phases 3 and 4 need
+# to stay there for package.json and dist/. Nothing used to cd back, so every
+# artifact from here on — sbom-test.json, provenance-test.json, manifest.json,
+# test-summary.json, release-test-artifacts.tar.gz — was written into the
+# repository root instead. They only ever disappeared because the old cleanup
+# deleted the repository root itself.
+#
+# This also makes `../dist/*` in Phase 8 mean what it says.
+DIST_SOURCE_DIR="$(pwd)/dist"
+cd "$ARTIFACT_DIR_ABS"
+
 # Phase 5: SBOM Generation Test
 echo -e "${BLUE}Phase 5: SBOM Generation Test${NC}"
 echo "================================="
 
-if [[ "$SKIP_SBOM" != "true" ]] && [[ -d "dist" ]]; then
+if [[ "$SKIP_SBOM" != "true" ]] && [[ -d "$DIST_SOURCE_DIR" ]]; then
     echo "Testing SBOM generation..."
 
     # Create mock SBOM for testing
@@ -670,21 +688,45 @@ EOF
 cleanup_test_artifacts() {
     echo "🧹 Cleaning up test artifacts..."
 
-    # Get current working directory (should be inside test artifact directory)
-    local current_dir=$(pwd)
-    local parent_dir=$(dirname "$current_dir")
+    # Delete the directory this run created, recorded at creation time — NOT
+    # the current working directory.
+    #
+    # This used to be `local current_dir=$(pwd)` followed by
+    # `rm -rf "$current_dir"`, on the assumption stated in the old comment that
+    # cwd "should be inside test artifact directory". It is not: line ~41 cds
+    # into $ARTIFACT_DIR, Phase 2 cds back out with `cd ..`, and nothing ever
+    # returns. Those are the only two cd statements before this point, so by the
+    # time this runs cwd is the repository root — and the rm -rf deleted the
+    # repository. Nothing in package.json, .github/workflows or scripts/ invokes
+    # this file, and `set -euo pipefail` aborts most runs long before Phase 10,
+    # which is presumably why it never went off.
+    local target="${ARTIFACT_DIR_ABS:-}"
 
-    echo "Current test artifact directory: $current_dir"
+    if [[ -z "$target" || ! -d "$target" ]]; then
+        echo "  ⚠️  No artifact directory recorded — nothing removed"
+        return 0
+    fi
+
+    # Refuse anything that is not one of our own timestamped directories, so a
+    # future edit to ARTIFACT_DIR_ABS cannot turn this back into a repo wipe.
+    case "$(basename "$target")" in
+        release-test-*) ;;
+        *)
+            echo "  ⚠️  Refusing to remove unexpected path: $target"
+            return 0
+            ;;
+    esac
+
+    local parent_dir
+    parent_dir=$(dirname "$target")
+
+    echo "Test artifact directory: $target"
     echo "Parent directory: $parent_dir"
 
-    # Return to parent directory first
     cd "$parent_dir" 2>/dev/null || cd .. 2>/dev/null || true
 
-    # Remove the entire test artifact directory
-    if [[ -d "$current_dir" ]]; then
-        echo "  Removing test artifact directory: $(basename "$current_dir")"
-        rm -rf "$current_dir"
-    fi
+    echo "  Removing test artifact directory: $(basename "$target")"
+    rm -rf "$target"
 
     # Also clean up any temporary files in parent directory
     find "$parent_dir" -maxdepth 1 -name "test-temp-*" -type f -delete 2>/dev/null || true
