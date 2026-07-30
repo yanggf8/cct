@@ -67,12 +67,18 @@ echo "🔍 actionlint: $("$ACTIONLINT" -version | head -1)"
 #                                          and steps.analysis-type.outputs
 #                                          .analysis_type is probably meant
 #   cache-warming.yml:65                   warmup-strategy
-#   release-hardened.yml:25                needs.build_hash.outputs.verification
-#   test-summary-schema-validation.yml:332 github.number (github.event.number?)
+#   release-hardened.yml:25                needs.build_hash.outputs.verification,
+#                                          a step id that does not exist, and
+#                                          every downstream phase gates on it
 #
-# Only these four names are exempt; an undefined property under any other name
-# still fails, as does every syntax error.
-KNOWN='property "(analysis_type|warmup-strategy|verification|number)" is not defined'
+# `github.number` came off this list once the schema-validation comment step
+# stopped using it.
+#
+# Only these three names are exempt; an undefined property under any other name
+# still fails, as does every syntax error. Note the suppression is by NAME, not
+# by location — a new misuse of one of these three names elsewhere would also be
+# hidden, which is the price of the ratchet and the reason to keep it short.
+KNOWN='property "(analysis_type|warmup-strategy|verification)" is not defined'
 
 # shellcheck and pyflakes integration are switched off on purpose.
 #
