@@ -125,12 +125,19 @@ jobs:
         echo "| Total Tests | ${{ env.TOTAL }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Passed | ${{ env.PASSED }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Failed | ${{ env.FAILED }} |" >> $GITHUB_STEP_SUMMARY
-        # Computed in shell, not in a ${{ }} expression: the GitHub Actions
-        # expression grammar has no arithmetic operators, so `PASSED * 100 /
-        # TOTAL` is a syntax error that makes GitHub reject the WHOLE file at
-        # load time — the run then shows conclusion=failure with zero jobs and
-        # no logs. PASSED/TOTAL are already exported via $GITHUB_ENV above, so
-        # they are ordinary shell variables here.
+        # Computed in shell, deliberately NOT in a GitHub Actions expression:
+        # that grammar has no arithmetic operators, so `PASSED * 100 / TOTAL`
+        # is a syntax error and GitHub rejects the WHOLE file at load time —
+        # the run then shows conclusion=failure with zero jobs and no logs.
+        # PASSED/TOTAL are already exported via $GITHUB_ENV above, so they are
+        # ordinary shell variables here.
+        #
+        # Do not write the expression delimiters in this comment to explain the
+        # point. A `#` inside a `run:` block is a SHELL comment, not a YAML one,
+        # and GitHub expands expressions across the whole block before bash ever
+        # sees it — an empty pair of delimiters here is itself a syntax error
+        # that rejects the file. That is exactly how commit 4246a0f "fixed" the
+        # arithmetic and left the workflow just as broken.
         if [ "${TOTAL:-0}" -gt 0 ]; then RATE=$(( PASSED * 100 / TOTAL )); else RATE=0; fi
         echo "| Success Rate | ${RATE}% |" >> $GITHUB_STEP_SUMMARY
         echo "| Status | ${{ env.ALL_TESTS_PASSED == 'true' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
