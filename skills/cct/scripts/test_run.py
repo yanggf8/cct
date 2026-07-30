@@ -241,5 +241,102 @@ class FormatPreMarket(unittest.TestCase):
         self.assertIn("分析標的：5 支", body)
 
 
+# ── end-of-day ────────────────────────────────────────────────────────────────
+
+# The real EOD payload, captured from the live API on 2026-07-30:
+#   GET /api/v1/reports/end-of-day?run_id=2026-07-29_end-of-day_9ac6e86f-...
+#
+# It is a prediction *scorecard* — flat, camelCase, and carrying no
+# `daily_summary` at all. The shape format_eod() was originally written against
+# is the empty placeholder that report-routes.ts:1195-1214 synthesises when no
+# snapshot matches the requested date, which is the only thing anyone had ever
+# seen. So the skill reported `degraded` on a perfectly good report.
+EOD_FIXTURE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "testdata", "eod-2026-07-29.json"
+)
+
+
+def real_eod(**overrides) -> dict:
+    """The captured scorecard, with optional top-level overrides (None deletes)."""
+    with open(EOD_FIXTURE, encoding="utf-8") as f:
+        data = json.load(f)
+    for key, value in overrides.items():
+        if value is None:
+            data.pop(key, None)
+        else:
+            data[key] = value
+    return data
+
+
+# What the route returns when it finds no snapshot for the requested date.
+# Content-free by construction — this must stay `degraded`.
+EOD_PLACEHOLDER = {
+    "type": "end_of_day_summary",
+    "date": "2026-07-30",
+    "market_status": "closed",
+    "daily_summary": {
+        "symbols_analyzed": 0,
+        "overall_sentiment": "neutral",
+        "key_events": ["Market closed", "EOD analysis not yet available"],
+    },
+    "tomorrow_outlook": {
+        "sentiment": "neutral",
+        "confidence": 0.5,
+        "key_factors": ["Awaiting market close data"],
+    },
+}
+
+
+class HasEodData(unittest.TestCase):
+    def test_real_scorecard_counts_as_data(self):
+        """The regression: a complete scorecard was being reported as degraded."""
+        self.assertTrue(run.has_eod_data(real_eod()))
+
+    def test_placeholder_is_degraded(self):
+        self.assertFalse(run.has_eod_data(EOD_PLACEHOLDER))
+
+    def test_scorecard_without_symbols_analyzed_still_counts(self):
+        """Don't hang the whole verdict on one optional counter."""
+        self.assertTrue(run.has_eod_data(real_eod(symbols_analyzed=None)))
+
+    def test_legacy_daily_summary_shape_still_counts(self):
+        """Back-compat: honour the documented shape if the route ever serves it."""
+        self.assertTrue(run.has_eod_data({"daily_summary": {"symbols_analyzed": 3}}))
+
+
+class FormatEod(unittest.TestCase):
+    def test_header_uses_session_date_not_today(self):
+        """Same lesson as pre-market: never stamp today's date on older data."""
+        header = run.format_eod(real_eod()).splitlines()[0]
+        self.assertIn("2026-07-29", header)
+
+    def test_renders_grade_and_high_confidence_hit_rate(self):
+        body = run.format_eod(real_eod())
+        self.assertIn("D", body)
+        self.assertIn("0/2", body)
+        self.assertIn("5 支", body)
+
+    def test_renders_every_signal_with_its_outcome(self):
+        body = run.format_eod(real_eod())
+        for ticker in ("AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"):
+            self.assertIn(ticker, body)
+        self.assertIn("✓", body)  # MSFT and TSLA were called right
+        self.assertIn("✗", body)  # AAPL, GOOGL, NVDA were not
+
+    def test_renders_laggards(self):
+        body = run.format_eod(real_eod())
+        self.assertIn("NVDA", body)
+        self.assertIn("-3.6%", body)
+
+    def test_renders_tomorrow_outlook(self):
+        body = run.format_eod(real_eod())
+        self.assertIn("偏空", body)
+        self.assertIn("AAPL (78% confidence)", body)
+
+    def test_placeholder_still_renders_without_crashing(self):
+        body = run.format_eod(EOD_PLACEHOLDER)
+        self.assertTrue(body.startswith("📊 CCT 收盤報告"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

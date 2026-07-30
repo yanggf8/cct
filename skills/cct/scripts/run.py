@@ -243,9 +243,99 @@ def format_intraday(data: dict) -> str:
     return "\n".join(lines)
 
 
+EOD_BIAS = {"bullish": "偏多 🟢", "bearish": "偏空 🔴", "neutral": "中性 ⚪"}
+
+
+def eod_session_date(data: dict) -> str:
+    """The market session this report covers — never today's clock.
+
+    The scorecard payload carries no `date` (only the synthesised placeholder
+    does), so fall through the timestamps the snapshot does carry before
+    resorting to now(). Stamping a stale report with today's date is the exact
+    failure the pre-market gate exists to prevent; the same rule applies here.
+    """
+    for key in ("date", "_scheduled_date", "timestamp", "marketCloseTime", "generated_at"):
+        value = data.get(key)
+        if isinstance(value, str) and len(value) >= 10:
+            return value[:10]
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _direction(text: str) -> str:
+    """First glyph of '↑ Expected' / '↓ 0.6%' — the arrow, without the prose."""
+    text = (text or "").strip()
+    return text[0] if text else ""
+
+
+def _tight(text: str) -> str:
+    """'↓ 0.6%' -> '↓0.6%', so a row stays on one line on a phone."""
+    return "".join((text or "").split())
+
+
+def _eod_scorecard_lines(data: dict) -> list[str]:
+    """Render the live shape: a prediction scorecard, not a market summary."""
+    lines: list[str] = []
+
+    grade = data.get("modelGrade")
+    correct = data.get("correctCalls") or 0
+    wrong = data.get("wrongCalls") or 0
+    graded = correct + wrong
+    headline = []
+    if grade:
+        headline.append(f"模型評級：{grade}")
+    if graded:
+        headline.append(f"高信心命中 {correct}/{graded}")
+    if headline:
+        lines.append("｜".join(headline))
+
+    analyzed = data.get("symbols_analyzed") or data.get("totalSignals")
+    if analyzed:
+        lines.append(f"分析標的：{analyzed} 支")
+
+    breakdown = data.get("signalBreakdown") or []
+    if breakdown:
+        lines.extend(["", "🎯 訊號回顧"])
+        for signal in breakdown[:8]:
+            conf = signal.get("confidence")
+            lines.append(
+                f"  • {signal.get('ticker', '')}"
+                f" 預測{_direction(signal.get('predicted'))}"
+                f" 實際{_tight(signal.get('actual'))}"
+                f"  {'✓' if signal.get('correct') else '✗'}"
+                + (f" {int(conf)}%" if conf else "")
+            )
+
+    losers = data.get("topLosers") or []
+    if losers:
+        lines.extend(["", "📉 落後：" + "｜".join(
+            f"{x.get('ticker', '')} {x.get('performance', '')}".strip()
+            for x in losers[:4]
+        )])
+
+    outlook = data.get("tomorrowOutlook") or {}
+    bias = outlook.get("marketBias")
+    if bias:
+        detail = []
+        if outlook.get("volatilityLevel"):
+            detail.append(f"波動 {outlook['volatilityLevel']}")
+        if outlook.get("confidenceLevel"):
+            detail.append(f"信心 {outlook['confidenceLevel']}")
+        suffix = f"（{'｜'.join(detail)}）" if detail else ""
+        lines.extend(["", f"明日展望：{EOD_BIAS.get(bias.lower(), bias)}{suffix}"])
+        if outlook.get("keyFocus"):
+            lines.append(f"關注：{outlook['keyFocus']}")
+
+    return lines
+
+
 def format_eod(data: dict) -> str:
-    date = data.get("date", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
-    lines = [f"📊 CCT 收盤報告｜{date}", ""]
+    lines = [f"📊 CCT 收盤報告｜{eod_session_date(data)}", ""]
+
+    # Two shapes reach this function. The live one is a scorecard; the
+    # `daily_summary` shape below is what the route synthesises when it has
+    # nothing, plus whatever a future route version might serve.
+    if data.get("signalBreakdown") or data.get("totalSignals") or data.get("modelGrade"):
+        return "\n".join(lines + _eod_scorecard_lines(data))
 
     summary = data.get("daily_summary", {})
     sentiment = summary.get("overall_sentiment", "")
@@ -391,6 +481,17 @@ def has_intraday_data(data: dict) -> bool:
 
 
 def has_eod_data(data: dict) -> bool:
+    """Real end-of-day content, in either shape the route can serve.
+
+    The live payload is a prediction scorecard (flat camelCase). `daily_summary`
+    only ever appears in the placeholder the route synthesises when it finds no
+    snapshot, so testing that alone reported `degraded` on every genuine report
+    — which is exactly what happened from 2026-07-21 onward. Check both.
+    """
+    if (data.get("signalBreakdown")
+            or data.get("totalSignals")
+            or data.get("symbols_analyzed")):
+        return True
     summary = data.get("daily_summary") or {}
     return bool(summary.get("symbols_analyzed") or data.get("high_confidence_signals"))
 

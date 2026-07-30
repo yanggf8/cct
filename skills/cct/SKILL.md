@@ -109,6 +109,18 @@ claw-skills siblings:
   shape (pre-market/intraday zero counters + `message`; eod zeroes a nested
   counter with no `message`; weekly drops `report` entirely).
 
+  **eod serves two different shapes.** The real report is a prediction
+  *scorecard* — flat camelCase (`modelGrade`, `correctCalls`/`wrongCalls`,
+  `signalBreakdown`, `topLosers`, `tomorrowOutlook`, top-level
+  `symbols_analyzed`) and it carries **no `daily_summary` at all**. The
+  `daily_summary` shape is only ever the placeholder `report-routes.ts`
+  synthesises when it finds no snapshot for the requested date. Testing for
+  `daily_summary.symbols_analyzed` alone therefore reported `degraded` on every
+  genuine report; `has_eod_data()` and `format_eod()` now accept both, and
+  `eod_session_date()` takes the date from the payload's own timestamps rather
+  than the clock, because the scorecard has no `date` field.
+  Fixture: `scripts/testdata/eod-2026-07-29.json`, captured from the live API.
+
   Empty payloads are `degraded`, not `failed`: `failed` triggers repair/retry,
   but retrying cannot produce a report that was never generated — that fix
   belongs in the CCT job pipeline.
