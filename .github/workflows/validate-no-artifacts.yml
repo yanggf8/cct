@@ -25,53 +25,26 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
     - name: Check Workflows for Artifact Uploads
-      run: |
-        echo "🔍 Checking workflows for artifact uploads..."
-
-        # Find all workflow files
-        WORKFLOW_FILES=$(find .github/workflows -name "*.yml" -o -name "*.yaml")
-
-        VIOLATIONS=0
-
-        for workflow in $WORKFLOW_FILES; do
-          echo "Checking $workflow..."
-
-          # Look for upload-artifact actions that aren't disabled
-          if grep -q "uses.*upload-artifact" "$workflow"; then
-            # Check if the upload is disabled with if: ${{ false }}
-            if grep -A 5 -B 2 "uses.*upload-artifact" "$workflow" | grep -q "if: \${{ false }}"; then
-              echo "  ✅ Found disabled artifact upload in $workflow"
-            else
-              echo "  ❌ FOUND ACTIVE ARTIFACT UPLOAD in $workflow"
-              echo "     This violates the 'no test artifacts' policy"
-              VIOLATIONS=$((VIOLATIONS + 1))
-
-              # Show the violating lines
-              grep -n -A 3 -B 1 "uses.*upload-artifact" "$workflow"
-            fi
-          else
-            echo "  ✅ No artifact uploads found in $workflow"
-          fi
-        done
-
-        echo ""
-        echo "📊 Workflow Validation Results:"
-        echo "  Workflows checked: $(echo $WORKFLOW_FILES | wc -w)"
-        echo "  Violations found: $VIOLATIONS"
-
-        if [[ $VIOLATIONS -gt 0 ]]; then
-          echo ""
-          echo "❌ VALIDATION FAILED: Found workflows with active artifact uploads"
-          echo ""
-          echo "To fix violations:"
-          echo "1. Add 'if: \${{ false }}' to upload-artifact steps for test artifacts"
-          echo "2. Or remove artifact upload steps entirely"
-          echo "3. Use logging/annotations instead of artifacts for test output"
-          exit 1
-        else
-          echo "✅ All workflows comply with 'no test artifacts' policy"
-        fi
+      # Was an inline grep that could not do the job:
+      #   * one `grep -A 5 -B 2` per FILE, so a disabled upload masked an
+      #     active one in the same workflow;
+      #   * any line containing the marker satisfied it, including a comment;
+      #   * its own pattern was an escaped expression inside `run:`, so GitHub
+      #     expanded it first and the check actually searched for `if: \false`
+      #     — matching nothing, which is why every file with an upload was
+      #     reported as a violation and this workflow failed every run.
+      # The replacement parses the YAML and inspects each step's own `if:`.
+      run: node tests/validation/validate-no-artifacts.mjs
 
     - name: Check Test Scripts for Persistent Files
       run: |

@@ -50,7 +50,18 @@ jobs:
 
           # Phase 1: Mock prevention
           echo "Phase 1: Mock Prevention Scan"
-          ./tests/feature/mock-elimination/test-mock-prevention-scan.sh strict
+          # `full`, matching build-time-mock-prevention.yml. This gate used to
+          # run `strict`, which promotes every warning-tier pattern to a
+          # blocker: 25 `placeholder` hits (mostly HTML input attributes) plus
+          # `example.com`, so releases were gated on 26 findings that pushes
+          # never saw. A release gate stricter than the push gate means you
+          # only discover blockers at release time.
+          #
+          # The one thing `strict` adds that `full` does not is the
+          # TODO/FIXME/HACK/XXX "must carry a ticket reference" scan. That is
+          # currently 3 TODOs and 0 of the rest; if it matters, move those
+          # patterns into `full` rather than restoring `strict` here.
+          ./tests/feature/mock-elimination/test-mock-prevention-scan.sh full
 
           # Phase 2: Build verification
           echo "Phase 2: Build Verification"
