@@ -247,9 +247,17 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        run: npm ci
+
+      - name: Install gitleaks
+        # The previous `npm install -g gitleaks` installed a package that ships
+        # no working binary, so every run of the step below died on
+        # "gitleaks: command not found" — the gate had never once executed.
+        # `go install` at a pinned version resolves through the Go module proxy
+        # with checksum verification (same pattern as the actionlint gate).
         run: |
-          npm ci
-          npm install -g gitleaks
+          go install github.com/zricethezav/gitleaks/v8@v8.24.3
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Run npm audit (production dependencies)
         run: |
@@ -284,9 +292,22 @@ jobs:
       - name: Run Gitleaks
         run: |
           echo "🕵️ Running Gitleaks secret scanning..."
-          gitleaks detect --verbose --redact || {
+
+          # --no-git scans the checked-out tree instead of all 706 commits.
+          # That is deliberate: this gate exists to stop NEW secrets landing,
+          # and a new secret is by definition present in the tree. Scanning
+          # history instead would fail every run on credentials leaked in 2025,
+          # which no code change can remove — those are handled by rotation and
+          # tracked in .gitleaksignore, not by turning this gate permanently red.
+          #
+          # --redact keeps matched values out of the public build log.
+          gitleaks detect --no-git --config .gitleaks.toml --verbose --redact || {
+            echo ""
             echo "❌ GITLEAKS FAILED"
-            echo "Potential secrets detected in code"
+            echo "A secret was found in the working tree. Do not just delete the"
+            echo "line: assume the value is compromised and rotate it at the"
+            echo "provider first. If it is a placeholder, add it to the allowlist"
+            echo "in .gitleaks.toml with a comment saying why it is not real."
             exit 1
           }
           echo "✅ Gitleaks scan passed"

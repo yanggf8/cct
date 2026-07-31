@@ -109,7 +109,7 @@ $ git log --all --full-history --oneline -- .secrets
 
 $ git show 53912a2:.secrets
 X_API_KEY=yanggf
-FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2
+FMP_API_KEY=<REDACTED-ROTATE-ME>
 ```
 
 **Commits with .secrets**:
@@ -118,7 +118,7 @@ FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2
 
 **Exposed Secrets**:
 - `X_API_KEY=yanggf` (test key, low risk)
-- `FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2` (production key)
+- `FMP_API_KEY=<REDACTED-ROTATE-ME>` (production key)
 
 **Current Status**:
 - ✅ File deleted from working tree

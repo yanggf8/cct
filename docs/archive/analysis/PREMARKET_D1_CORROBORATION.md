@@ -170,7 +170,7 @@ Possible reasons:
 
 ```bash
 # Check DAC accessor for NVDA
-curl -H "X-API-Key: yanggf" \
+curl -H "X-API-Key: $X_API_KEY" \
   "https://dac-backend.yanggf.workers.dev/api/admin/article-pool/accessor/stock/NVDA" \
   | jq '{success, articleCount: (.articles | length)}'
 

@@ -1,0 +1,32 @@
+# This config exists so the Gitleaks gate can be green *and* meaningful.
+# Without it the scan reports 38 findings in the working tree, of which 0 are
+# live credentials -- a permanently-red gate that trains everyone to ignore it.
+#
+# The allowlist below suppresses documentation placeholders and cache-key
+# strings ONLY. Real credentials are handled by rotation, not by allowlisting.
+# See .gitleaksignore for the historical leaks and their rotation status.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders and non-credential identifiers"
+
+# Matched against the detected secret value, not the whole line.
+regexTarget = "secret"
+regexes = [
+  # Placeholder API keys in docs, examples and negative-path tests.
+  '''(?i)^your[_-].*''',
+  '''(?i)^invalid[_-]key.*''',
+  '''(?i)^(dev|staging|production)[_-](api[_-])?key$''',
+  '''(?i)^YOUR_(PAGE|CHANNEL)_TOKEN$''',
+  '''(?i)^(example|placeholder|dummy|changeme|xxx+)$''',
+
+  # KV / cache key names, not secrets. e.g. news_fmp_AAPL_2025-11-01,
+  # sentiment_AAPL_14, test_kv_1759246034488
+  '''^(news|sentiment)_[a-z]+_[A-Z]{1,5}[_-].*''',
+  '''^test_kv_[0-9]{10,}$''',
+
+  # TypeScript identifiers picked up by the generic-api-key rule.
+  '''^handle[A-Za-z0-9]+$''',
+]

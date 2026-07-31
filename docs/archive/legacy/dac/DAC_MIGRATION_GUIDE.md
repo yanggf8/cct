@@ -229,7 +229,7 @@ wrangler secret put DAC_ARTICLES_POOL_API_KEY
 **Fix**: Trigger DAC harvest:
 ```bash
 curl -X POST https://dac-backend.yanggf.workers.dev/api/admin/article-pool/harvest \
-  -H "X-API-Key: yanggf"
+  -H "X-API-Key: $X_API_KEY"
 ```
 
 ### Issue: Articles have `stale: true`

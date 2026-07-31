@@ -181,7 +181,7 @@ wrangler d1 execute PREDICT_JOBS_DB --remote \
              WHERE DATE(created_at) = DATE('now')"
 
 # 3. Test sentiment analysis
-curl -H "X-API-Key: yanggf" \
+curl -H "X-API-Key: $X_API_KEY" \
   "https://tft-trading-system.yanggf.workers.dev/api/v1/sentiment/analysis?symbols=AAPL" \
   | jq '.data.analysis.signals[0] | {symbol, confidence, news_count}'
 ```

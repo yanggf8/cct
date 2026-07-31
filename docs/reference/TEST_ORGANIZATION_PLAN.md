@@ -47,7 +47,6 @@ tests/
 │   ├── run-regression-tests.sh
 │   ├── test-final-validation.sh
 │   ├── test-simple-validation.sh
-│   └── test-all-new-features.sh
 │
 ├── feature/
 │   ├── ai-models/

@@ -75,7 +75,6 @@ tests/
 - `run-regression-tests.sh` - Comprehensive regression test suite
 - `test-final-validation.sh` - Final validation before release
 - `test-simple-validation.sh` - Simple validation tests
-- `test-all-new-features.sh` - Test all new features
 
 ### Feature Tests (`feature/`)
 

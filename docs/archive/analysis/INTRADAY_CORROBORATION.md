@@ -100,7 +100,7 @@ const currentAnalysis = await batchDualAIAnalysis(symbols, this.env, {
 ```bash
 $ git show 53912a2:.secrets
 X_API_KEY=yanggf
-FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2
+FMP_API_KEY=<REDACTED-ROTATE-ME>
 ```
 
 **Commits with .secrets**:
@@ -110,7 +110,7 @@ FMP_API_KEY=JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2
 **Impact**:
 - ✅ `.secrets` file deleted in commit 7dd424c
 - ❌ Still exists in git history (commits 53912a2)
-- ❌ FMP_API_KEY exposed: `JMbAbEvjFXbqvhRpxnbuIcgphGN32ro2`
+- ❌ FMP_API_KEY exposed: `<REDACTED-ROTATE-ME>`
 - ⚠️ X_API_KEY exposed: `yanggf` (low-value test key)
 
 **Required Actions**:

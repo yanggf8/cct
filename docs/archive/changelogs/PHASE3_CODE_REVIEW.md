@@ -462,7 +462,7 @@ $ npm run typecheck
 4. **Verify Production**:
    ```bash
    # Trigger pre-market
-   curl -X POST -H "X-API-Key: yanggf" \
+   curl -X POST -H "X-API-Key: $X_API_KEY" \
      "https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/pre-market"
    
    # Check D1

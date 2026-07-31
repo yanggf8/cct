@@ -1,0 +1,59 @@
+# Gitleaks findings in git history, triaged 2026-07-31.
+#
+# CI scans the working tree only (see build-time-mock-prevention.yml): the gate's
+# job is to stop NEW secrets from landing. History cannot be cleaned without a
+# force-push rewriting 706 commits, so the mitigation for what is already public
+# is ROTATION, not deletion. This file records the triage -- every entry below was
+# tested against its provider's API to establish whether it still works.
+#
+# Nothing here is suppressed merely to make a build green. Two credentials are
+# still live and are labelled as such; rotating them is an OUTSTANDING action.
+
+# --- Cloudflare API token (11 occurrences) ---
+# Status: LIVE -- token verify endpoint reports active as of 2026-07-31.
+# Action: ROTATE: Cloudflare dashboard -> My Profile -> API Tokens -> roll or delete.
+# Note:   Public since 2025-09-02 (CLAUDE.md, CLOUDFLARE_WORKER_DEPLOYMENT.md).
+f4e3815bb458c2d9ab3e7b0e7d3a1ddfb7b08315:SECURITY_FIXES_AND_NHITS_UPGRADE.md:generic-api-key:28
+aeef108409df395b329d64ff1ba5526f2e0a410b:production_scheduler.py:generic-api-key:252
+898036a914754f48e0c58948b4b7011e8f652f71:MIGRATION_COMPLETE.md:cloudflare-api-key:56
+898036a914754f48e0c58948b4b7011e8f652f71:cloud_vs_local_comparison.py:generic-api-key:24
+898036a914754f48e0c58948b4b7011e8f652f71:integrated_trading_system_colab.py:generic-api-key:441
+898036a914754f48e0c58948b4b7011e8f652f71:integrated_trading_system_cloud.py:generic-api-key:421
+4d35d190c2f97c66a8e33c71db2091403787098f:archive/explore_cf_models.py:generic-api-key:194
+4d35d190c2f97c66a8e33c71db2091403787098f:integrated_trading_system.py:generic-api-key:315
+4d35d190c2f97c66a8e33c71db2091403787098f:archive/improved_sentiment_api.py:generic-api-key:175
+4d35d190c2f97c66a8e33c71db2091403787098f:archive/test_financial_models.py:generic-api-key:234
+4d35d190c2f97c66a8e33c71db2091403787098f:final_sentiment_api.py:generic-api-key:246
+
+# --- Financial Modeling Prep API key (6 occurrences) ---
+# Status: LIVE -- /stable/quote returned real data on 2026-07-31.
+# Action: ROTATE: FMP dashboard, then `wrangler secret put FMP_API_KEY`.
+# Note:   Two audit docs republished it verbatim; those copies are now redacted.
+485da56b48c47ad2effd5c4b7f96f011e287456a:INTRADAY_FINAL_CORROBORATION.md:generic-api-key:112
+485da56b48c47ad2effd5c4b7f96f011e287456a:INTRADAY_FINAL_CORROBORATION.md:generic-api-key:121
+e7fd65f828b195ec0b515f40c3c5b1c5dc76b757:INTRADAY_CORROBORATION.md:generic-api-key:103
+e7fd65f828b195ec0b515f40c3c5b1c5dc76b757:INTRADAY_CORROBORATION.md:generic-api-key:113
+7f17794bfba980ad95edab8c96387508023375ee:.claude/settings.local.json:generic-api-key:69
+7f17794bfba980ad95edab8c96387508023375ee:.claude/settings.local.json:generic-api-key:70
+
+# --- Facebook page access token (2 occurrences) ---
+# Status: DEAD -- graph API rejects it: 'could not be decrypted' (code 190).
+# Action: No action needed.
+e46fc681fcd9eafec7797c71334e6506085e1675:working_facebook_module.mjs:generic-api-key:4
+e46fc681fcd9eafec7797c71334e6506085e1675:old_facebook_test.js:generic-api-key:2
+
+# --- FRED API key candidate (1 occurrences) ---
+# Status: DEAD -- FRED replies 'api_key is not registered'.
+# Action: No action needed.
+0981dc87d8bcc97e241b6ba569a50ee6c7409b96:docs/D1_MIGRATION_PLAN.md:generic-api-key:608
+
+# --- Synthetic string, not a credential (1 occurrences) ---
+# Status: NOT A CREDENTIAL -- keyboard-walk tail (a7s8d9f0g1h2j).
+# Action: No action needed.
+aeca837529d07361338e494c313d936fd8fb28d6:docs/WEB_NOTIFICATIONS.md:generic-api-key:236
+
+# --- FRED API key candidate (1 occurrences) ---
+# Status: DEAD -- FRED replies 'api_key is not registered'.
+# Action: No action needed.
+7f17794bfba980ad95edab8c96387508023375ee:.claude/settings.local.json:generic-api-key:70
+

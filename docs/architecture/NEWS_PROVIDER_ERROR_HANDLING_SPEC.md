@@ -722,7 +722,7 @@ npm test
 env -u CLOUDFLARE_API_TOKEN wrangler deploy --env staging
 
 # Validate DAC staging
-curl -H "X-API-Key: yanggf" \
+curl -H "X-API-Key: $X_API_KEY" \
   "https://dac-backend-staging.yanggf.workers.dev/api/admin/article-pool/accessor/stock/AAPL" \
   | jq '.articles | length'
 # Expected: > 0
@@ -973,7 +973,7 @@ set -e
 echo "Testing DAC accessor endpoint contract..."
 
 # Test 1: Successful response
-RESPONSE=$(curl -s -H "X-API-Key: yanggf" \
+RESPONSE=$(curl -s -H "X-API-Key: $X_API_KEY" \
   "https://dac-backend.yanggf.workers.dev/api/admin/article-pool/accessor/stock/AAPL")
 
 ARTICLE_COUNT=$(echo "$RESPONSE" | jq '.articles | length')
@@ -1221,7 +1221,7 @@ env -u CLOUDFLARE_API_TOKEN wrangler deploy
 
 **DAC Accessor Endpoint**:
 ```bash
-curl -H "X-API-Key: yanggf" \
+curl -H "X-API-Key: $X_API_KEY" \
   "https://dac-backend.yanggf.workers.dev/api/admin/article-pool/accessor/stock/AAPL" \
   | jq '{success, articleCount: (.articles | length), hasMetadata: (.metadata != null)}'
 

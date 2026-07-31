@@ -144,12 +144,12 @@
 - [ ] Check DAC pool has data:
   ```bash
   curl https://dac-backend.yanggf.workers.dev/api/admin/article-pool/summary \
-    -H "X-API-Key: yanggf"
+    -H "X-API-Key: $X_API_KEY"
   ```
 - [ ] Trigger DAC harvest if empty:
   ```bash
   curl -X POST https://dac-backend.yanggf.workers.dev/api/admin/article-pool/harvest \
-    -H "X-API-Key: yanggf"
+    -H "X-API-Key: $X_API_KEY"
   ```
 
 ### Issue: Articles have `stale: true`

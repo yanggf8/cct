@@ -148,7 +148,7 @@ if (runTrackingEnabled && d1ReportType === 'pre-market') {
 ```bash
 curl -X POST https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/trigger \
   -H "Content-Type: application/json" \
-  -H "X-API-KEY: yanggf" \
+  -H "X-API-KEY: $X_API_KEY" \
   -d '{"triggerMode": "morning_prediction_alerts"}'
 ```
 

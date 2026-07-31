@@ -49,7 +49,6 @@ tests/integration/frontend/test-routing-regressions.sh
 tests/integration/test-comprehensive-optimization.sh
 tests/performance/test-playwright-performance.sh
 tests/regression/run-regression-tests.sh
-tests/regression/test-all-new-features.sh
 tests/regression/test-final-validation.sh
 tests/regression/test-simple-validation.sh
 tests/regression/test-weekly-pipeline.sh

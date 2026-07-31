@@ -55,12 +55,12 @@ make_api_request() {
 
     if [ "$method" = "GET" ]; then
         curl -s -w "%{http_code}" "$API_BASE_URL$endpoint" \
-            -H "X-API-Key: yanggf" \
+            -H "X-API-Key: $X_API_KEY" \
             -H "Content-Type: application/json"
     else
         curl -s -w "%{http_code}" "$API_BASE_URL$endpoint" \
             -X "$method" \
-            -H "X-API-Key: yanggf" \
+            -H "X-API-Key: $X_API_KEY" \
             -H "Content-Type: application/json" \
             -d "$data"
     fi

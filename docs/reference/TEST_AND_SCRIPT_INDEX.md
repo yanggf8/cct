@@ -119,7 +119,6 @@ All 51 scripts have been organized into logical directories:
 - ✅ `run-regression-tests.sh` → `tests/regression/`
 - ✅ `test-final-validation.sh` → `tests/regression/`
 - ✅ `test-simple-validation.sh` → `tests/regression/`
-- ✅ `test-all-new-features.sh` → `tests/regression/`
 
 **Feature Tests (9)**
 - ✅ AI Models (2) → `tests/feature/ai-models/`
