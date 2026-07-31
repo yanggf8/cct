@@ -79,7 +79,6 @@ src/index.ts
             ├─ /sectors/*           → sector-routes.ts
             ├─ /market-intelligence/* → market-intelligence-routes.ts
             ├─ /market-drivers/*    → market-drivers-routes.ts
-            ├─ /predictive/*        → predictive-analytics-routes.ts
             ├─ /technical/*         → technical-routes.ts
             ├─ /analytics/*         → advanced-analytics-routes.ts
             ├─ /backtesting/*       → backtesting-routes.ts

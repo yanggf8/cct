@@ -152,7 +152,6 @@ REPORT_PAGES=(
     "/weekly-analysis"
     "/daily-summary"
     "/sector-rotation"
-    "/predictive-analytics"
 )
 
 REPORT_TESTS=0

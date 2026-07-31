@@ -17,7 +17,6 @@ import { handleSectorRotationRoutes } from './sector-rotation-routes.js';
 import { sectorRoutes } from './sector-routes.js';
 import { handleMarketDriversRoutes } from './market-drivers-routes.js';
 import { handleMarketIntelligenceRoutes } from './market-intelligence-routes.js';
-import { handlePredictiveAnalyticsRoutes } from './predictive-analytics-routes.js';
 import { handleTechnicalRoutes } from './technical-routes.js';
 import { handleAdvancedAnalyticsRoutes } from './advanced-analytics-routes.js';
 import { handleRealtimeRoutes } from './realtime-routes.js';
@@ -47,7 +46,6 @@ interface ApiDocumentation {
     sectors: APIEndpoint;
     market_drivers: APIEndpoint;
     market_intelligence: APIEndpoint;
-    predictive_analytics: APIEndpoint;
     advanced_analytics: APIEndpoint;
     technical_analysis: APIEndpoint;
     realtime: APIEndpoint;
@@ -154,9 +152,6 @@ export async function handleApiV1Request(
     } else if (path.startsWith('/api/v1/market-intelligence/')) {
       // Route to unified market intelligence API
       return await handleMarketIntelligenceRoutes(request, env, path, headers);
-    } else if (path.startsWith('/api/v1/predictive/')) {
-      // Route to predictive analytics API
-      return await handlePredictiveAnalyticsRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/technical/')) {
       return await handleTechnicalRoutes(request, env, path, headers);
     } else if (path.startsWith('/api/v1/analytics/')) {
@@ -422,13 +417,6 @@ export async function handleApiV1Request(
               top_picks: 'GET /api/v1/market-intelligence/top-picks',
               risk_report: 'GET /api/v1/market-intelligence/risk-report',
               comprehensive_analysis: 'POST /api/v1/market-intelligence/comprehensive-analysis',
-            },
-            predictive_analytics: {
-              signals: 'GET /api/v1/predictive/signals',
-              patterns: 'GET /api/v1/predictive/patterns',
-              insights: 'GET /api/v1/predictive/insights',
-              forecast: 'GET /api/v1/predictive/forecast',
-              health: 'GET /api/v1/predictive/health',
             },
             advanced_analytics: {
               model_comparison: 'POST /api/v1/analytics/model-comparison',

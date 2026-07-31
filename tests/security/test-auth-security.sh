@@ -138,25 +138,25 @@ echo -e "${CYAN}=== Category 1: Authentication Tests ===${NC}"
 echo ""
 
 # Test 1: Missing API Key
-test_auth "GET" "/api/v1/predictive/signals" "" "401" "Missing API Key"
+test_auth "GET" "/api/v1/data/symbols" "" "401" "Missing API Key"
 
 # Test 2: Invalid API Key
-test_auth "GET" "/api/v1/predictive/signals" "invalid_key_12345" "401" "Invalid API Key"
+test_auth "GET" "/api/v1/data/symbols" "invalid_key_12345" "401" "Invalid API Key"
 
 # Test 3: Empty API Key
-test_auth "GET" "/api/v1/predictive/signals" "" "401" "Empty API Key"
+test_auth "GET" "/api/v1/data/symbols" "" "401" "Empty API Key"
 
 # Test 4: Malformed API Key (SQL injection attempt)
-test_auth "GET" "/api/v1/predictive/signals" "' OR '1'='1" "401" "SQL Injection in API Key"
+test_auth "GET" "/api/v1/data/symbols" "' OR '1'='1" "401" "SQL Injection in API Key"
 
 # Test 5: Valid API Key (should work)
-test_auth "GET" "/api/v1/predictive/health" "$X_API_KEY" "200" "Valid API Key"
+test_auth "GET" "/api/v1/data/symbols" "$X_API_KEY" "200" "Valid API Key"
 
 # Test 6: API Key in wrong header
 echo -e "${YELLOW}Testing: API Key in Authorization header (should fail)${NC}"
 response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
     -H "Authorization: Bearer $X_API_KEY" \
-    "$API_BASE/api/v1/predictive/signals" 2>/dev/null)
+    "$API_BASE/api/v1/data/symbols" 2>/dev/null)
 http_code=$(echo "$response" | tail -1 | cut -d: -f2)
 echo "HTTP Status: $http_code"
 if [[ "$http_code" == "401" ]]; then
@@ -232,7 +232,7 @@ echo -e "${YELLOW}Testing: OPTIONS Request Handling${NC}"
 response=$(timeout $TIMEOUT curl -s -w "\nHTTP_CODE:%{http_code}" \
     -X OPTIONS \
     -H "X-API-KEY: $X_API_KEY" \
-    "$API_BASE/api/v1/predictive/signals" 2>/dev/null)
+    "$API_BASE/api/v1/data/symbols" 2>/dev/null)
 http_code=$(echo "$response" | tail -1 | cut -d: -f2)
 echo "HTTP Status: $http_code"
 if [[ "$http_code" == "200" ]] || [[ "$http_code" == "204" ]] || [[ "$http_code" == "405" ]]; then
@@ -246,7 +246,7 @@ TESTS_TOTAL=$((TESTS_TOTAL + 1))
 echo ""
 
 # Test 13: DELETE on GET endpoint (should fail)
-test_auth "DELETE" "/api/v1/predictive/signals" "$X_API_KEY" "405" "DELETE on GET-only Endpoint"
+test_auth "DELETE" "/api/v1/data/symbols" "$X_API_KEY" "405" "DELETE on GET-only Endpoint"
 
 # Test 14: PUT on POST endpoint (should fail)
 test_auth "PUT" "/api/v1/backtesting/run" "$X_API_KEY" "405" "PUT on POST-only Endpoint"

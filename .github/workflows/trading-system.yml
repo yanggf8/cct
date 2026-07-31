@@ -1,7 +1,7 @@
-name: Enhanced Trading System Automated Analysis with Predictive Intelligence
+name: Trading System Automated Analysis
 
-# 5-Tier Intelligent Analysis System with Predictive Analytics Integration
-# FEATURES: Predictive signals, pattern recognition, market forecasting, automated alerts
+# 5-Tier Intelligent Analysis System
+# FEATURES: Scheduled analysis runs, Teams notifications, health monitoring
 # MIGRATION BENEFITS: Unlimited schedules, 100% FREE, better observability, AI-powered insights
 # SCHEDULES: All times in UTC to match original Cloudflare cron schedule
 
@@ -148,94 +148,12 @@ jobs:
             exit 1
           fi
 
-      - name: Execute Predictive Analytics
-        run: |
-          WORKER_URL="https://tft-trading-system.yanggf.workers.dev"
-          API_KEY="${{ secrets.X_API_KEY }}"
-          ANALYSIS_TYPE="${{ steps.analysis-type.outputs.analysis_type }}"
-
-          echo "🧠 Running Predictive Analytics Enhancement"
-          echo "Analysis Type: $ANALYSIS_TYPE"
-
-          # Run predictive signals analysis
-          echo "📈 Fetching predictive signals..."
-          signals_response=$(curl -s \
-            -H "X-API-KEY: $API_KEY" \
-            --connect-timeout 60 \
-            --max-time 120 \
-            "$WORKER_URL/api/v1/predictive/signals")
-
-          signals_success=$(echo "$signals_response" | jq -r '.success // "unknown"')
-          if [[ "$signals_success" == "true" ]]; then
-            echo "✅ Predictive signals generated successfully"
-
-            # Extract key predictive insights
-            outlook=$(echo "$signals_response" | jq -r '.data.short_term_outlook.direction // "N/A"')
-            confidence=$(echo "$signals_response" | jq -r '.data.short_term_outlook.confidence // 0')
-            time_horizon=$(echo "$signals_response" | jq -r '.data.short_term_outlook.time_horizon // "N/A"')
-
-            echo "🎯 Market Outlook: $outlook (Confidence: $confidence, Horizon: $time_horizon)"
-
-            # Store for enhanced notification
-            echo "market_outlook=$outlook" >> $GITHUB_ENV
-            echo "market_confidence=$confidence" >> $GITHUB_ENV
-            echo "time_horizon=$time_horizon" >> $GITHUB_ENV
-
-            # Log sector predictions if available
-            top_performers=$(echo "$signals_response" | jq -r '.data.sector_predictions.top_performers | length // 0')
-            if [[ "$top_performers" -gt 0 ]]; then
-              echo "📊 Top Sector Predictions: $top_performers sectors identified"
-              echo "$signals_response" | jq -r '.data.sector_predictions.top_performers[] | "  - \(.name): \(.predicted_return)% (confidence: \(.confidence))"' || true
-            fi
-
-            # Log risk indicators
-            tail_risk=$(echo "$signals_response" | jq -r '.data.risk_indicators.tail_risk_probability // 0')
-            volatility_outlook=$(echo "$signals_response" | jq -r '.data.risk_indicators.volatility_outlook // "N/A"')
-            echo "⚠️  Risk Assessment: Tail risk $tail_risk, Volatility $volatility_outlook"
-
-          else
-            echo "⚠️ Predictive signals failed (non-critical)"
-            echo "Response: $signals_response"
-            # Set default values for notification
-            echo "market_outlook=Unavailable" >> $GITHUB_ENV
-            echo "market_confidence=0" >> $GITHUB_ENV
-            echo "time_horizon=N/A" >> $GITHUB_ENV
-          fi
-
-          # Run comprehensive insights for weekly reviews
-          if [[ "$ANALYSIS_TYPE" == "weekly-review" ]]; then
-            echo "🔍 Running comprehensive predictive insights..."
-            insights_response=$(curl -s \
-              -H "X-API-KEY: $API_KEY" \
-              --connect-timeout 60 \
-              --max-time 120 \
-              "$WORKER_URL/api/v1/predictive/insights")
-
-            insights_success=$(echo "$insights_response" | jq -r '.success // "unknown"')
-            if [[ "$insights_success" == "true" ]]; then
-              echo "✅ Predictive insights generated successfully"
-
-              # Extract strategic insights
-              investment_thesis=$(echo "$insights_response" | jq -r '.data.overall_outlook.investment_thesis // "N/A"')
-              echo "💡 Investment Thesis: $investment_thesis"
-
-              # Log tactical recommendations
-              position_sizing=$(echo "$insights_response" | jq -r '.data.tactical_recommendations.position_sizing // "N/A"')
-              echo "📋 Position Sizing: $position_sizing"
-
-              # Store for enhanced notification
-              echo "investment_thesis=$investment_thesis" >> $GITHUB_ENV
-
-            else
-              echo "⚠️ Predictive insights failed (non-critical)"
-              echo "Response: $insights_response"
-              echo "investment_thesis=Unavailable" >> $GITHUB_ENV
-            fi
-          else
-            echo "investment_thesis=Weekly analysis only" >> $GITHUB_ENV
-          fi
-
-          echo "🧠 Predictive Analytics Complete"
+      # "Execute Predictive Analytics" was removed along with the predictive
+      # analytics feature. It called /api/v1/predictive/signals and
+      # /api/v1/predictive/insights, which answered 500 ("Failed to generate
+      # predictive signals") — the step caught that, printed
+      # "⚠️ Predictive signals failed (non-critical)" and set every value to
+      # Unavailable, which is what the Teams card had been reporting.
 
       - name: Log Analysis Summary
         run: |
@@ -257,25 +175,21 @@ jobs:
 
           echo "📢 Sending Teams success notification..."
 
-          # Build enhanced Teams message with predictive analytics
+          # Build the Teams message
           TEAMS_MESSAGE=$(cat <<EOF
           {
             "@type": "MessageCard",
             "@context": "http://schema.org/extensions",
             "themeColor": "00B294",
-            "summary": "Trading Analysis Complete with Predictive Intelligence",
+            "summary": "Trading Analysis Complete",
             "sections": [{
               "activityTitle": "🧠 Enhanced Trading Analysis Complete",
               "activitySubtitle": "$(date -u)",
-              "activityText": "Analysis completed successfully with predictive intelligence",
+              "activityText": "Analysis completed successfully",
               "facts": [
                 {"name": "Analysis Type", "value": "${{ steps.analysis-type.outputs.description }}"},
-                {"name": "Market Outlook", "value": "🎯 ${{ env.market_outlook }} (Confidence: ${{ env.market_confidence }})"},
-                {"name": "Time Horizon", "value": "${{ env.time_horizon }}"},
-                {"name": "Investment Thesis", "value": "${{ env.investment_thesis }}"},
                 {"name": "Primary Report", "value": "[View Results](${WORKER_URL}${ENDPOINT})"},
-                {"name": "Predictive Analytics", "value": "[View Signals](${WORKER_URL}/api/v1/predictive/signals)"},
-                {"name": "System Status", "value": "🟢 Operational with Intelligence"}
+                {"name": "System Status", "value": "🟢 Operational"}
               ],
               "markdown": true
             }],
@@ -284,11 +198,6 @@ jobs:
                 "@type": "OpenUri",
                 "name": "📊 View Primary Report",
                 "target": ["${WORKER_URL}${ENDPOINT}"]
-              },
-              {
-                "@type": "OpenUri",
-                "name": "🧠 View Predictive Signals",
-                "target": ["${WORKER_URL}/api/v1/predictive/signals"]
               },
               {
                 "@type": "OpenUri",
@@ -364,25 +273,19 @@ jobs:
           model_health_response=$(curl -s "$WORKER_URL/model-health")
           echo "Model Health: $model_health_response"
 
-          # Check predictive analytics health
-          predictive_health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$WORKER_URL/api/v1/predictive/health")
-          echo "Predictive Analytics Health: $predictive_health_response"
-
           # Check market intelligence health
           market_intel_response=$(curl -s -H "X-API-KEY: $API_KEY" "$WORKER_URL/api/v1/market-intelligence/dashboard" | head -c 500)
           echo "Market Intelligence Status: Available"
 
           # Log comprehensive health status
           system_status=$(echo "$health_response" | jq -r '.status // "unknown"')
-          predictive_status=$(echo "$predictive_health_response" | jq -r '.data.status // "unknown"')
 
           echo "🏥 Health Check Summary:"
           echo "  - Core System: $system_status"
-          echo "  - Predictive Analytics: $predictive_status"
           echo "  - Market Intelligence: Available"
           echo "  - Model Health: Checked"
 
-          if [[ "$system_status" == "healthy" && "$predictive_status" == "healthy" ]]; then
+          if [[ "$system_status" == "healthy" ]]; then
             echo "✅ All systems are healthy and operational"
           else
             echo "⚠️ Some systems require attention"
@@ -420,35 +323,29 @@ jobs:
             echo "$response" | jq -r '.data.checks[]? | "  \(.reportType): status=\(.latestStatus // "MISSING") trigger=\(.latestTriggerSource // "none") ga_run=\(.hasGitHubActionsRun)"'
           fi
 
-# Enhanced Workflow Configuration
-# ==============================
+# Workflow Configuration
+# ======================
 # CAPABILITIES:
-# - Predictive analytics integration (signals, patterns, insights, forecasting)
 # - Market intelligence automation (sector rotation, market drivers)
-# - Enhanced notifications with forward-looking insights
-# - Comprehensive health monitoring across all systems
+# - Teams notifications on success and failure
+# - Health monitoring for the core system
+#
+# The predictive-analytics capabilities that used to be listed here went with
+# the feature: those endpoints answered 500, and the dashboard that was meant
+# to consume them made no network calls at all.
 #
 # COST: 100% FREE - Unlimited GitHub Actions for public repositories
 # LIMITS:
-# - 3,000 minutes/month for free tier (sufficient for ~40 enhanced analyses/day)
+# - 3,000 minutes/month for free tier
 # - 20 concurrent jobs
 # - 2GB storage per workflow
 #
 # SECRETS REQUIRED:
-# - X_API_KEY: API key for trading system authentication (your value: yanggf)
+# - X_API_KEY: API key for trading system authentication
 # - TEAMS_WEBHOOK_URL: Microsoft Teams webhook URL for notifications (optional)
 #
 # NOTE: WORKER_URL is hardcoded as it's public information, not a secret
 #
 # MONITORING:
 # - All executions logged in GitHub Actions console
-# - Enhanced notifications with predictive insights
-# - Multi-system health monitoring (core + predictive + market intelligence)
 # - Performance tracking and trend analysis
-#
-# NEW FEATURES:
-# - Predictive signals generation with confidence scoring
-# - Market forecasting with multiple time horizons
-# - Pattern recognition (seasonal, technical, sentiment)
-# - Investment thesis generation with tactical recommendations
-# - Risk assessment with tail probability analysis

@@ -123,7 +123,6 @@ fi
 print_header "HTML entry points"
 check_html "/" "Root dashboard still served"
 check_html "/dashboard.html" "Dashboard HTML available"
-check_html "/predictive-analytics.html" "Predictive analytics page served"
 
 print_header "Static assets"
 check_static "/js/nav.js" "Left nav script served"

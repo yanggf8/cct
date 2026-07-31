@@ -28,7 +28,6 @@ Base path for APIs is `/api/v1`. Route groups are organized by domain:
 - Sector rotation: `/api/v1/sector-rotation/*` and `/api/v1/sectors/*`
 - Market intelligence: `/api/v1/market-intelligence/*`
 - Market drivers: `/api/v1/market-drivers/*`
-- Predictive analytics: `/api/v1/predictive/*`
 - Technical analysis: `/api/v1/technical/*`
 - Advanced analytics: `/api/v1/analytics/*`
 - Realtime: `/api/v1/realtime/*`

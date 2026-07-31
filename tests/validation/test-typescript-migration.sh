@@ -174,7 +174,6 @@ echo ""
 run_status_test "Daily Summary API" "$API_BASE/api/daily-summary" 200
 
 # Test 17: Predictive Analytics Dashboard
-run_status_test "Predictive Analytics Dashboard" "$API_BASE/predictive-analytics-dashboard" 200
 
 echo -e "${YELLOW}Testing Error Handling${NC}"
 echo ""

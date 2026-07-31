@@ -33,7 +33,6 @@ Each group is implemented in `src/routes/*.ts`:
 - Sectors: `/api/v1/sectors/*`
 - Market drivers: `/api/v1/market-drivers/*`
 - Market intelligence: `/api/v1/market-intelligence/*`
-- Predictive analytics: `/api/v1/predictive/*`
 - Technical analysis: `/api/v1/technical/*`
 - Advanced analytics: `/api/v1/analytics/*`
 - Realtime: `/api/v1/realtime/*`
