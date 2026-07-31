@@ -54,30 +54,26 @@ fi
 
 echo "🔍 actionlint: $("$ACTIONLINT" -version | head -1)"
 
-# Ratchet: two pre-existing findings are suppressed so this gate is green on
-# day one and fails on anything NEW. They are all the same class — a context
-# property that is read but never declared — and none of them stops GitHub
-# loading the file: trading-system.yml carries one and has three successful
-# runs. They are still real smells and should be fixed, at which point the
-# corresponding name comes off this list:
+# Ratchet: one pre-existing finding is suppressed so this gate is green on
+# day one and fails on anything NEW. It is a context property that is read but
+# never declared, which does not stop GitHub loading the file —
+# trading-system.yml carries it and has 99 successful runs. It is still a real
+# smell and should be fixed, at which point the name comes off this list:
 #
 #   trading-system.yml:392                 github.event.inputs.analysis_type,
 #                                          but workflow_dispatch declares no
 #                                          inputs — the value is always empty,
 #                                          and steps.analysis-type.outputs
 #                                          .analysis_type is probably meant
-#   release-hardened.yml:25                needs.build_hash.outputs.verification,
-#                                          a step id that does not exist, and
-#                                          every downstream phase gates on it
 #
 # `github.number` came off this list once the schema-validation comment step
 # stopped using it.
 #
-# Only these two names are exempt; an undefined property under any other name
+# Only this one name is exempt; an undefined property under any other name
 # still fails, as does every syntax error. Note the suppression is by NAME, not
-# by location — a new misuse of either name elsewhere would also be
-# hidden, which is the price of the ratchet and the reason to keep it short.
-KNOWN='property "(analysis_type|verification)" is not defined'
+# by location — a new misuse of that name elsewhere would also be hidden, which
+# is the price of the ratchet and the reason to keep it short.
+KNOWN='property "(analysis_type)" is not defined'
 
 # shellcheck and pyflakes integration are switched off on purpose.
 #

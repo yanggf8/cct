@@ -35,14 +35,10 @@ const DIR: &str = ".github/workflows";
 /// Keyed by `<workflow file>::<job id>::<step name>`. Deliberately that
 /// specific: renaming or moving the step invalidates the exemption and the gate
 /// speaks up again, which the grep version could not offer.
-const ALLOWLIST: &[(&str, &str)] = &[
-    (
-        "release-hardened.yml::sbom-and-signing::Upload SBOM and Provenance",
-        "Not a test artifact and not optional: the post-deployment-validation job \
-         downloads `sbom-and-provenance` to check the deployment against its provenance. \
-         Disabling this breaks the release pipeline.",
-    ),
-];
+/// Empty since release-hardened.yml was deleted — its SBOM upload was the only
+/// entry. An exemption naming a workflow that no longer exists is how a list
+/// like this stops describing the repository.
+const ALLOWLIST: &[(&str, &str)] = &[];
 
 struct Found {
     file: String,

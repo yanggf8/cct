@@ -68,7 +68,6 @@ tests/
 ### End-to-End Tests (`e2e/`)
 
 - `test-workflows.sh` - End-to-end user workflows
-- `test-release-workflow-dryrun.sh` - Release workflow dry run
 
 ### Regression Tests (`regression/`)
 
@@ -155,7 +154,6 @@ npm run test:workflows
 All test scripts are integrated with GitHub Actions workflows:
 - `.github/workflows/enhanced-cache-tests.yml` - Cache tests
 - `.github/workflows/mock-data-prevention.yml` - Mock prevention
-- `.github/workflows/release-hardened.yml` - Release validation
 
 ## Best Practices
 

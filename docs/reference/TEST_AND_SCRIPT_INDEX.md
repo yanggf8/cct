@@ -66,7 +66,6 @@ All 51 scripts have been organized into logical directories:
 ✅ All workflow files updated with new paths:
 - `.github/workflows/enhanced-cache-tests.yml`
 - `.github/workflows/mock-data-prevention.yml`
-- `.github/workflows/release-hardened.yml`
 
 ### npm Scripts
 ✅ All npm scripts updated in `package.json`:
