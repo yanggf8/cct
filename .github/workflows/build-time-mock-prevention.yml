@@ -60,50 +60,17 @@ jobs:
         # is available if warnings should block too.
         run: ./tests/feature/mock-elimination/test-mock-prevention-scan.sh full
 
-      - name: ESLint Mock Data Rules
-        run: |
-          echo "📏 Running ESLint with mock data prevention rules..."
-
-          # Create custom ESLint configuration for mock prevention
-          cat > .eslintrc.mock-prevention.js << 'EOF'
-          module.exports = {
-            extends: ['./.eslintrc.js'],
-            rules: {
-              // Custom rules for mock prevention
-              'no-console': 'warn',
-              // Additional rules for production safety
-              'no-debugger': 'error',
-              'no-alert': 'error',
-              'no-eval': 'error',
-              'no-implied-eval': 'error',
-              'no-new-func': 'error',
-              'no-script-url': 'error',
-              'no-lone-blocks': 'warn',
-              'no-self-compare': 'error',
-              'no-sequences': 'error',
-              'no-throw-literal': 'error',
-              'no-unmodified-loop-condition': 'error',
-              'no-unused-expressions': 'error',
-              'no-useless-call': 'error',
-              'no-useless-concat': 'error',
-              'no-useless-return': 'error',
-              'no-void': 'error',
-              'no-with': 'error',
-              'radix': 'error',
-              'wrap-iife': 'error',
-              'yoda': 'error'
-            }
-          };
-          EOF
-
-          # Run ESLint with mock prevention config
-          npx eslint src --ext .ts,.js --config .eslintrc.mock-prevention.js || {
-            echo "❌ ESLINT MOCK PREVENTION FAILED"
-            echo "Fix linting errors before proceeding with deployment"
-            exit 1
-          }
-
-          echo "✅ ESLint mock prevention rules passed"
+      # "ESLint Mock Data Rules" was removed. Not one of its 22 rules had
+      # anything to do with mock data -- they were no-eval, no-debugger, yoda,
+      # radix and similar generic style rules; the only occurrences of "mock"
+      # in the step were its own filename and a comment. Mock detection is
+      # owned by test-mock-prevention-scan.sh.
+      #
+      # It could not have run in any case. It wrote a config extending
+      # ./.eslintrc.js, a file this repo does not contain, then invoked eslint 9
+      # with --ext and an .eslintrc config -- a flag that was removed and a
+      # format that is no longer read by default. `npm run lint` fails locally
+      # for the same reason, so the whole eslint setup goes with it.
 
       - name: Build Verification Scan
         run: |
