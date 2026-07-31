@@ -116,20 +116,32 @@ jobs:
       run: |
         echo "🧹 Validating clean test environment..."
 
-        # Check for any leftover artifacts from this workflow run
-        ARTIFACTS=$(find . -maxdepth 1 -name "*test*" -o -name "*chaos*" -o -name "*slo*" -o -name "*validation*" | grep -E "\.(json|log|tmp|report)$" || true)
+        # Ask git, not find.
+        #
+        # This used to run
+        #   find . -maxdepth 1 -name "*test*" ... | grep -E "\.(json|log|tmp|report)$"
+        # and fail on any match, which includes test-summary.json and
+        # test-summary-schema.json — both tracked files that are supposed to be
+        # there. The step could therefore never pass, and it never ran anyway
+        # because the two steps before it failed first.
+        #
+        # "Did this run leave the checkout dirty" is the actual invariant, and
+        # git answers it exactly: tracked files do not count, anything new or
+        # modified does, and it needs no filename patterns.
+        DIRT=$(git status --porcelain --untracked-files=all)
 
-        if [[ -n "$ARTIFACTS" ]]; then
-          echo "❌ Found leftover artifacts:"
-          echo "$ARTIFACTS"
+        if [[ -n "$DIRT" ]]; then
+          echo "❌ The run left the working tree dirty:"
+          echo "$DIRT"
           echo ""
-          echo "This indicates scripts are not cleaning up properly"
+          echo "A test script wrote into the checkout instead of a run-scoped"
+          echo "temp directory. See tests/validation/validate-no-persistent-files.mjs"
           exit 1
-        else
-          echo "✅ Environment is clean - no leftover artifacts"
         fi
 
-        # Check for temporary directories
+        echo "✅ Working tree is clean"
+
+        # .ci-tmp should have been removed by each script's EXIT trap.
         TEMP_DIRS=$(find . -name ".ci-tmp" -type d 2>/dev/null || true)
         if [[ -n "$TEMP_DIRS" ]]; then
           echo "⚠️  Found temporary directories (should be cleaned by trap):"
