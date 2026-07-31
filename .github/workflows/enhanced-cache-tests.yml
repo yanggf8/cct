@@ -79,7 +79,7 @@ jobs:
       run: |
         echo "Checking API connectivity..."
         for i in {1..10}; do
-          if curl -s --max-time 10 "$API_URL/health" | grep -q "healthy"; then
+          if curl -s --max-time 10 "$API_URL/api/v1/data/health" | grep -q "healthy"; then
             echo "API is ready!"
             break
           fi
@@ -264,13 +264,18 @@ jobs:
       run: |
         echo "Validating enhanced cache features in production..."
 
-        # Test enhanced cache endpoints
+        # These were the bare /cache-* paths, which have returned 404 since the
+        # API moved under /api/v1. This job never ran to notice: the integration
+        # job ahead of it failed on every one of 100 runs and this one was
+        # skipped each time. The REST names come from the mapping in
+        # src/routes/api-v1.ts -- note promotion/status are renamed, not just
+        # re-prefixed.
         ENDPOINTS=(
-          "/cache-health"
-          "/cache-config"
-          "/cache-metrics"
-          "/cache-promotion"
-          "/cache-system-status"
+          "/api/v1/cache/health"
+          "/api/v1/cache/config"
+          "/api/v1/cache/metrics"
+          "/api/v1/cache/promote"
+          "/api/v1/cache/status"
         )
 
         for endpoint in "${ENDPOINTS[@]}"; do
@@ -297,11 +302,13 @@ jobs:
       run: |
         echo "Running performance validation..."
 
-        # Test cache warmup
+        # Test cache warmup. Informational: warmup is blocked in production
+        # unless ALLOW_CACHE_WARMUP is set, so a `success: false` here is the
+        # intended configuration rather than a fault.
         curl -s -X POST \
           -H "X-API-KEY: $API_KEY" \
           -H "Content-Type: application/json" \
-          "$API_URL/cache-warmup" | jq .
+          "$API_URL/api/v1/cache/warmup" | jq .
 
         # Run Playwright performance tests (if available)
         if [ -f "tests/performance/test-playwright-performance.sh" ] && [ -d "tests" ]; then
@@ -321,7 +328,7 @@ jobs:
 
           # Test cache health endpoint response time
           start_time=$(date +%s%3N)
-          health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$API_URL/cache-health")
+          health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$API_URL/api/v1/cache/health")
           end_time=$(date +%s%3N)
           response_time=$((end_time - start_time))
 
@@ -338,7 +345,7 @@ jobs:
       run: |
         echo "Validating system health..."
 
-        health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$API_URL/cache-health")
+        health_response=$(curl -s -H "X-API-KEY: $API_KEY" "$API_URL/api/v1/cache/health")
         status=$(echo "$health_response" | jq -r '.assessment.status // unknown')
         score=$(echo "$health_response" | jq -r '.assessment.overallScore // 0')
 

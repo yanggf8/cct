@@ -12,11 +12,17 @@ BASELINE_DIR="$SCRIPT_DIR/baselines"
 CURRENT_DATE=$(date +%Y%m%d)
 REPORT_DIR="$SCRIPT_DIR/../integration/dac/test-reports"
 CURRENT_REPORT="$REPORT_DIR/dac-regression-report-$CURRENT_DATE.html"
-API_URL="https://tft-trading-system.yanggf.workers.dev"
-# Use unified X_API_KEY; no insecure defaults
-API_KEY="${X_API_KEY:-}"
+API_URL="${API_URL:-https://tft-trading-system.yanggf.workers.dev}"
+
+# Use unified X_API_KEY; no insecure defaults. API_KEY is accepted too because
+# that is the name enhanced-cache-tests.yml exports, and the mismatch meant the
+# guard below fired on every CI run.
+API_KEY="${X_API_KEY:-${API_KEY:-}}"
 if [[ -z "$API_KEY" ]]; then
-  error "X_API_KEY environment variable is not set (required)"
+  # Plain echo, not error(): that function is defined at line 35, below this
+  # point, so calling it here died with "error: command not found" and exit
+  # 127 — a missing-variable check that reported itself as a missing command.
+  echo "❌ X_API_KEY environment variable is not set (required)" >&2
   exit 1
 fi
 

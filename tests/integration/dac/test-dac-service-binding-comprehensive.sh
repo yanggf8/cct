@@ -55,13 +55,13 @@ info() {
 success() {
     echo -e "${GREEN}✅ SUCCESS: $1${NC}"
     log "SUCCESS: $1"
-    ((PASSED_TESTS++))
+    PASSED_TESTS=$((PASSED_TESTS + 1))
 }
 
 fail() {
     echo -e "${RED}❌ FAIL: $1${NC}"
     log "FAIL: $1"
-    ((FAILED_TESTS++))
+    FAILED_TESTS=$((FAILED_TESTS + 1))
 }
 
 warning() {
@@ -72,7 +72,7 @@ warning() {
 skip() {
     echo -e "${PURPLE}SKIP: $1${NC}"
     log "SKIP: $1"
-    ((SKIPPED_TESTS++))
+    SKIPPED_TESTS=$((SKIPPED_TESTS + 1))
 }
 
 # Performance tracking
@@ -129,9 +129,11 @@ test_api_endpoint() {
     local expected_status="${3:-200}"
     local auth_header="${4:-}"
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
-    local headers=()
+    # Authenticate by default. No call site passes an auth header, yet the CCT
+    # endpoints require one, so every check here was measuring the 401 page.
+    local headers=(-H "X-API-Key: $API_KEY")
     if [[ -n "$auth_header" ]]; then
         headers+=(-H "$auth_header")
     fi
@@ -155,7 +157,12 @@ test_api_endpoint() {
         record_performance "$test_name" "$end_time" "FAIL"
         TEST_RESULTS+=("{\"name\":\"$test_name\",\"status\":\"FAIL\",\"duration_ms\":$end_time,\"http_status\":$status,\"error\":\"HTTP $status != $expected_status\"}")
         echo "  Response body: $body" | head -3
-        return 1
+        # Return 0 on a failed check. The failure is already recorded in
+        # FAILED_TESTS and TEST_RESULTS, and main() exits 1 when that counter
+        # is non-zero. Returning 1 here instead aborted the whole run under
+        # `set -e` at the FIRST failing check — no caller inspects the return
+        # value, so all it ever did was hide every test after the first one.
+        return 0
     fi
 }
 
@@ -164,13 +171,16 @@ test_json_response() {
     local test_name="$2"
     local json_path="$3"
     local expected_value="$4"
-    local auth_header="$5"
+    # `local auth_header="$5"` under `set -u`, while every one of the eleven
+    # call sites passes four arguments: an unbound-variable abort on the first
+    # JSON check, before any result was recorded.
+    local auth_header="${5:-}"
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
-    local headers=()
+    local headers=(-H "X-API-Key: $API_KEY" -H "Content-Type: application/json")
     if [[ -n "$auth_header" ]]; then
-        headers+=(-H "$auth_header" -H "Content-Type: application/json")
+        headers+=(-H "$auth_header")
     fi
 
     info "Testing: $test_name (JSON validation)"
@@ -199,7 +209,9 @@ test_json_response() {
         fail "$test_name - JSON path $json_path = '$actual_value', expected '$expected_value'"
         record_performance "$test_name" "$end_time" "FAIL"
         TEST_RESULTS+=("{\"name\":\"$test_name\",\"status\":\"FAIL\",\"duration_ms\":$end_time,\"json_path\":\"$json_path\",\"expected\":\"$expected_value\",\"actual\":\"$actual_value\"}")
-        return 1
+        # See the note in test_api_endpoint: returning non-zero here ends the
+        # run under `set -e` instead of recording a failure and continuing.
+        return 0
     fi
 }
 
@@ -216,8 +228,16 @@ test_system_connectivity() {
     # Test CCT cache system
     test_json_response "$CCT_URL/api/v1/cache/health" "CCT Cache Health" ".assessment.status" "healthy"
 
-    # Test DAC availability through service binding (indirect test)
-    test_api_endpoint "$CCT_URL/api/v1/sentiment/health" "Enhanced Sentiment Health" 200
+    # Test DAC availability through service binding (indirect test).
+    #
+    # Was /api/v1/sentiment/health, which does not exist and answers 405 to
+    # every method — the sentiment routes are analysis, symbols/:symbol, market
+    # and sectors. That single wrong path failed this suite before it recorded
+    # a single result, so the JSON report came out with "tests": [] and the
+    # regression runner above reported only "Failed to create baseline".
+    # /market is the sentiment route that exercises the DAC binding and returns
+    # 200 today.
+    test_api_endpoint "$CCT_URL/api/v1/sentiment/market" "Enhanced Sentiment (DAC binding)" 200
 }
 
 test_durable_objects_cache() {
@@ -226,10 +246,13 @@ test_durable_objects_cache() {
     # Test cache health and metrics
     test_json_response "$CCT_URL/api/v1/cache/health" "Cache Health Status" ".assessment.status" "healthy"
     test_json_response "$CCT_URL/api/v1/cache/health" "Cache Overall Score" ".assessment.overallScore" "100"
-    test_json_response "$CCT_URL/api/v1/cache/health" "L1 Cache Enabled" ".assessment.l1Metrics.enabled" "true"
+    # /cache/health's assessment object carries only status, overallScore and a
+    # nested assessment — there is no l1Metrics on it, so this asserted against
+    # a null forever. L1 state lives on /cache/status.
+    test_json_response "$CCT_URL/api/v1/cache/status" "L1 Cache Enabled" ".system.l1Cache.enabled" "true"
 
     # Test L1 cache hit rate (93%+ threshold)
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     info "Testing L1 cache hit rate (93%+ threshold)..."
 
     local hit_rate=$(curl -s "$CCT_URL/api/v1/cache/health" | jq -r '.assessment.l1Metrics.hitRate // 0')
@@ -265,7 +288,7 @@ test_durable_objects_cache() {
 
     local avg_time=$((total_time / 5))
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     if [[ $avg_time -lt 100 ]]; then
         success "Cache performance average: ${avg_time}ms (<100ms target)"
         record_performance "Cache Performance Average" "$avg_time" "PASS"
@@ -311,12 +334,12 @@ test_service_binding_latency() {
         if [[ "$http_code" == "200" ]]; then
             durations+=("$duration")
             total_time=$((total_time + duration))
-            ((successful_requests++))
+            successful_requests=$((successful_requests + 1))
         fi
     done
 
     if [[ $successful_requests -eq 0 ]]; then
-        ((TOTAL_TESTS++))
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
         fail "Service binding latency test failed - no successful requests"
         TEST_RESULTS+=("{\"name\":\"Service Binding Latency\",\"status\":\"FAIL\",\"error\":\"No successful requests\"}")
         return 1
@@ -332,7 +355,7 @@ test_service_binding_latency() {
     local p95_index=$(( (successful_requests * 95) / 100 ))
     local p95_latency=${sorted_durations[$p95_index]:-$avg_latency}
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     info "Service binding latency: p50=${avg_latency}ms, p95=${p95_latency}ms"
 
     if [[ $avg_latency -lt 100 ]]; then
@@ -358,7 +381,7 @@ test_enhanced_sentiment_pipeline() {
     # Test single symbol sentiment analysis
     local test_symbol="AAPL"
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     info "Testing enhanced sentiment analysis for $test_symbol"
 
     local start_time=$(start_timer)
@@ -390,7 +413,7 @@ test_enhanced_sentiment_pipeline() {
     fi
 
     # Test batch sentiment analysis
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     info "Testing batch sentiment analysis for 3 symbols"
 
     start_time=$(start_timer)
@@ -425,7 +448,7 @@ test_error_handling() {
     info "=== Error Handling Tests ==="
 
     # Test invalid API key
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     local response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -H "X-API-Key: invalid_key" \
@@ -446,7 +469,7 @@ test_error_handling() {
     fi
 
     # Test invalid symbol format
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
@@ -467,7 +490,7 @@ test_error_handling() {
     fi
 
     # Test missing required fields
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
@@ -517,7 +540,7 @@ test_performance_benchmarks() {
     local total_time=$(end_timer "$start_time")
     local avg_time=$((total_time / concurrent_requests))
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     if [[ $avg_time -lt 2000 ]]; then  # 2 second target per request
         success "Concurrent requests average: ${avg_time}ms (<2000ms target)"
         record_performance "Concurrent Requests" "$avg_time" "PASS"
@@ -549,7 +572,7 @@ test_performance_benchmarks() {
         "$CCT_URL/api/v1/sentiment/enhanced" >/dev/null 2>&1
     local second_duration=$(end_timer "$second_time")
 
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     if [[ $second_duration -lt $((first_duration / 2)) ]]; then
         success "Cache performance improvement: First ${first_duration}ms, Second ${second_duration}ms"
         record_performance "Cache Performance Test" "$second_duration" "PASS"
@@ -565,7 +588,7 @@ test_data_integrity() {
     info "=== Data Integrity Tests ==="
 
     # Test sentiment analysis returns required fields
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     local response=$(curl -s -X POST \
         -H "Content-Type: application/json" \
         -H "X-API-Key: $API_KEY" \
@@ -595,7 +618,7 @@ test_data_integrity() {
     fi
 
     # Test sentiment data types
-    ((TOTAL_TESTS++))
+    TOTAL_TESTS=$((TOTAL_TESTS + 1))
     if echo "$response" | jq . >/dev/null 2>&1; then
         local sentiment=$(echo "$response" | jq -r '.data.sentiment // null')
         local confidence=$(echo "$response" | jq -r '.data.confidence // null')
@@ -643,7 +666,7 @@ compare_with_baseline() {
         # Check for regression
         local success_rate_diff=$(echo "$current_success_rate - $baseline_success_rate" | bc -l)
 
-        ((TOTAL_TESTS++))
+        TOTAL_TESTS=$((TOTAL_TESTS + 1))
         if (( $(echo "$success_rate_diff >= -5" | bc -l) )); then
             success "No regression detected: Current $current_success_rate%, Baseline $baseline_success_rate%"
             TEST_RESULTS+=("{\"name\":\"Regression Test\",\"status\":\"PASS\",\"current_rate\":$current_success_rate,\"baseline_rate\":$baseline_success_rate,\"diff\":$success_rate_diff}")
