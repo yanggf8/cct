@@ -54,7 +54,7 @@ fi
 
 echo "🔍 actionlint: $("$ACTIONLINT" -version | head -1)"
 
-# Ratchet: four pre-existing findings are suppressed so this gate is green on
+# Ratchet: two pre-existing findings are suppressed so this gate is green on
 # day one and fails on anything NEW. They are all the same class — a context
 # property that is read but never declared — and none of them stops GitHub
 # loading the file: trading-system.yml carries one and has three successful
@@ -66,7 +66,6 @@ echo "🔍 actionlint: $("$ACTIONLINT" -version | head -1)"
 #                                          inputs — the value is always empty,
 #                                          and steps.analysis-type.outputs
 #                                          .analysis_type is probably meant
-#   cache-warming.yml:65                   warmup-strategy
 #   release-hardened.yml:25                needs.build_hash.outputs.verification,
 #                                          a step id that does not exist, and
 #                                          every downstream phase gates on it
@@ -74,11 +73,11 @@ echo "🔍 actionlint: $("$ACTIONLINT" -version | head -1)"
 # `github.number` came off this list once the schema-validation comment step
 # stopped using it.
 #
-# Only these three names are exempt; an undefined property under any other name
+# Only these two names are exempt; an undefined property under any other name
 # still fails, as does every syntax error. Note the suppression is by NAME, not
-# by location — a new misuse of one of these three names elsewhere would also be
+# by location — a new misuse of either name elsewhere would also be
 # hidden, which is the price of the ratchet and the reason to keep it short.
-KNOWN='property "(analysis_type|warmup-strategy|verification)" is not defined'
+KNOWN='property "(analysis_type|verification)" is not defined'
 
 # shellcheck and pyflakes integration are switched off on purpose.
 #

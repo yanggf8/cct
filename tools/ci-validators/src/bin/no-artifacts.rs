@@ -42,13 +42,6 @@ const ALLOWLIST: &[(&str, &str)] = &[
          downloads `sbom-and-provenance` to check the deployment against its provenance. \
          Disabling this breaks the release pipeline.",
     ),
-    (
-        "artifact-cleanup.yml::artifact-cleanup::Upload Cleanup Report",
-        "Operational output, not test data: the cleanup run's own report, kept 14 days. \
-         Worth noting separately — its `name:` is `artifact-cleanup-report-$(date …)`, \
-         and `$( )` in a `with:` value is not shell-substituted, so every run uploads \
-         under that literal name.",
-    ),
 ];
 
 struct Found {

@@ -180,11 +180,9 @@ npm run test:guards-smoke
 These scripts are used in GitHub Actions workflows:
 
 **Deployment Workflows**
-- `.github/workflows/cache-warmup-after-deployment.yml` - Cache warmup
 - Auto-deploys on push to main/master
 
 **Test Workflows**
-- `.github/workflows/dac-integration-regression.yml` - Uses test-runners
 - `.github/workflows/enhanced-cache-tests.yml` - Uses monitoring scripts
 
 ## Environment Variables

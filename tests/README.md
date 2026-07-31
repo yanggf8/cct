@@ -153,7 +153,6 @@ npm run test:workflows
 ## CI/CD Integration
 
 All test scripts are integrated with GitHub Actions workflows:
-- `.github/workflows/dac-integration-regression.yml` - DAC tests
 - `.github/workflows/enhanced-cache-tests.yml` - Cache tests
 - `.github/workflows/mock-data-prevention.yml` - Mock prevention
 - `.github/workflows/release-hardened.yml` - Release validation

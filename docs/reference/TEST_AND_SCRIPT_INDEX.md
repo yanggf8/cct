@@ -64,11 +64,9 @@ All 51 scripts have been organized into logical directories:
 
 ### GitHub Actions Workflows
 ✅ All workflow files updated with new paths:
-- `.github/workflows/dac-integration-regression.yml`
 - `.github/workflows/enhanced-cache-tests.yml`
 - `.github/workflows/mock-data-prevention.yml`
 - `.github/workflows/release-hardened.yml`
-- `.github/workflows/cache-warmup-after-deployment.yml`
 
 ### npm Scripts
 ✅ All npm scripts updated in `package.json`:
