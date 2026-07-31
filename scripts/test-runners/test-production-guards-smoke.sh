@@ -10,6 +10,67 @@ set -e
 API_KEY="${X_API_KEY:-test}"
 BASE_URL="https://tft-trading-system.yanggf.workers.dev"
 
+# Preflight: this gate parses JSON, so it needs a parser. Without one it used to
+# report every valid response as "Invalid JSON response" — a missing tool silently
+# became a test failure, which made `npm run verify` red for a reason that had
+# nothing to do with the code under test. Fail loudly instead, and fall back to
+# python3 so a machine without jq can still run the gate honestly.
+for _bin in curl; do
+    command -v "$_bin" >/dev/null 2>&1 || { echo "❌ Missing required tool: $_bin"; exit 2; }
+done
+
+if command -v jq >/dev/null 2>&1; then
+    JSON_ENGINE=jq
+elif command -v python3 >/dev/null 2>&1; then
+    JSON_ENGINE=python3
+else
+    echo "❌ Missing a JSON parser: install jq, or make python3 available."
+    exit 2
+fi
+echo "JSON parser: $JSON_ENGINE"
+
+# json_valid <file> -> 0 if the file holds parseable JSON
+json_valid() {
+    if [ "$JSON_ENGINE" = jq ]; then
+        jq empty "$1" 2>/dev/null
+    else
+        python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$1" 2>/dev/null
+    fi
+}
+
+# json_get <file> <key> -> value of .data.<key>, then .<key>, else "unknown"
+json_get() {
+    if [ "$JSON_ENGINE" = jq ]; then
+        jq -r ".data.$2 // .$2 // \"unknown\"" "$1" 2>/dev/null || echo "parse_error"
+    else
+        python3 -c '
+import json,sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    print("parse_error"); sys.exit(0)
+k = sys.argv[2]
+v = (d.get("data") or {}).get(k) if isinstance(d.get("data"), dict) else None
+if v is None:
+    v = d.get(k)
+print("unknown" if v is None else v)
+' "$1" "$2" 2>/dev/null || echo "parse_error"
+    fi
+}
+
+# json_has <file> <key> -> 0 if top-level key exists and is non-null
+json_has() {
+    if [ "$JSON_ENGINE" = jq ]; then
+        jq -e ".$2" "$1" >/dev/null 2>&1
+    else
+        python3 -c '
+import json,sys
+d = json.load(open(sys.argv[1]))
+sys.exit(0 if d.get(sys.argv[2]) is not None else 1)
+' "$1" "$2" >/dev/null 2>&1
+    fi
+}
+
 echo "🛡️ Production Guards Endpoints Smoke Test"
 echo "=========================================="
 echo "Base URL: $BASE_URL"
@@ -53,23 +114,23 @@ test_endpoint() {
         # Basic response validation
         if [ -f /tmp/guards_response.json ] && [ -s /tmp/guards_response.json ]; then
             # Check if response is valid JSON
-            if jq empty /tmp/guards_response.json 2>/dev/null; then
+            if json_valid /tmp/guards_response.json; then
                 echo "  ✅ Valid JSON response"
 
                 # Extract key fields for validation
                 if echo "$endpoint" | grep -q "status"; then
-                    status=$(jq -r '.data.status // .status // "unknown"' /tmp/guards_response.json 2>/dev/null || echo "parse_error")
+                    status=$(json_get /tmp/guards_response.json status)
                     echo "  📊 Status: $status"
                 elif echo "$endpoint" | grep -q "health"; then
-                    health_status=$(jq -r '.data.status // .status // "unknown"' /tmp/guards_response.json 2>/dev/null || echo "parse_error")
+                    health_status=$(json_get /tmp/guards_response.json status)
                     echo "  🏥 Health: $health_status"
                 elif echo "$endpoint" | grep -q "validate"; then
-                    overall=$(jq -r '.data.overall // .overall // "unknown"' /tmp/guards_response.json 2>/dev/null || echo "parse_error")
+                    overall=$(json_get /tmp/guards_response.json overall)
                     echo "  🔍 Validation: $overall"
                 fi
 
                 # Check for redacted fields (security)
-                if jq -e '.redactedFields' /tmp/guards_response.json >/dev/null 2>&1; then
+                if json_has /tmp/guards_response.json redactedFields; then
                     echo "  🔒 Security: Redacted fields present (good)"
                 fi
             else

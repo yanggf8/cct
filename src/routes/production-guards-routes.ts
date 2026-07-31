@@ -190,7 +190,15 @@ function testMockDetection(productionGuards: any): { passed: boolean; details: s
     return { passed: true, details: `Mock detection working - flags: ${verification.flags.join(', ')}` };
 
   } catch (error) {
-    return { passed: false, details: `Mock detection error: ${error}` };
+    // In production strict mode verifyApiResponse does not return a verdict — it throws
+    // (production-guards.ts:83-85) after correctly flagging the mock. That throw IS the
+    // detector working, so treating it as a failure made this self-test impossible to
+    // pass in production and kept /api/v1/guards/validate returning 400 permanently.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('Mock data detected')) {
+      return { passed: true, details: 'Mock detection working - strict mode rejected mock data' };
+    }
+    return { passed: false, details: `Mock detection error: ${message}` };
   }
 }
 
