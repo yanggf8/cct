@@ -1034,7 +1034,7 @@ async function generateIntradayCheckHTML(
             <div>The intraday job ran but no pre-market predictions were available for comparison.</div>
             <div style="margin-top: 10px; font-size: 0.9rem; color: #888;">
               This typically happens when the pre-market job didn't run or failed before the intraday check.
-              Check the <a href="/dashboard.html" style="color: #f0b90b;">Dashboard</a> for job history.
+              Check the <a href="/" style="color: #f0b90b;">Dashboard</a> for job history.
             </div>
           </div>
         ` : `

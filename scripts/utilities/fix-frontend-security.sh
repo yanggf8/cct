@@ -30,7 +30,7 @@ CRITICAL_FILES=(
     "public/js/web-notifications.js"
     "public/js/portfolio-optimization-client.js"
     "public/js/dashboard-charts.js"
-    "public/dashboard.html"
+    "public/index.html"
     "public/backtesting-dashboard.html"
     "public/risk-dashboard.html"
     "public/test-api.html"
@@ -154,7 +154,7 @@ fi
 
 # Fix 2: Dashboard HTML
 echo -e "${BLUE}Fix 2: Dashboard HTML${NC}"
-DASHBOARD_FILE="public/dashboard.html"
+DASHBOARD_FILE="public/index.html"
 
 if [[ -f "$DASHBOARD_FILE" ]]; then
     echo "  Removing hardcoded API key from dashboard configuration..."

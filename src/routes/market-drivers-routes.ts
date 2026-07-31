@@ -703,7 +703,7 @@ async function handleMarketDriversHistory(
   return new Response(
     JSON.stringify(
       ApiResponseFactory.error(
-        'Market drivers history is not implemented',
+        'Market drivers history is not implemented', // MOCK-EXEMPTION: a 501 saying so is the opposite of a stub that returns fake data
         'NOT_IMPLEMENTED',
         {
           status: 'TBD',

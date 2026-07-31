@@ -41,7 +41,7 @@
 
         <div class="nav-menu">
             <div class="nav-group">
-                <a href="/dashboard.html" class="nav-item" data-page="dashboard">
+                <a href="/" class="nav-item" data-page="dashboard">
                     <span class="nav-icon">\uD83D\uDCC8</span>
                     <span class="nav-text">Dashboard</span>
                 </a>
@@ -94,7 +94,13 @@
     </nav>`;
 
     function normalizePath(path) {
-        if (path === '/') return '/dashboard.html';
+        // The dashboard is now index.html, so it is served at '/' with no
+        // redirect. This used to map '/' onto '/dashboard.html' because that
+        // was where the dashboard lived; the mapping runs the other way now,
+        // and it still has to fold the two legacy URLs so an old bookmark
+        // highlights the right nav item.
+        if (path === '/dashboard' || path === '/dashboard.html') return '/';
+        if (path === '/') return '/';
         return path.replace(/\/$/, '');
     }
 

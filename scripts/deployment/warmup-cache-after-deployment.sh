@@ -20,7 +20,7 @@ for endpoint in \
     "/api/v1/data/health" \
     "/api/v1/cache/health" \
     "/api/v1/data/symbols" \
-    "/dashboard.html" \
+    "/" \
     "/pre-market-briefing"
 do
     curl -sf "$BASE_URL$endpoint" >/dev/null 2>&1 &

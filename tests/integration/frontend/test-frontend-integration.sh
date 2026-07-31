@@ -242,7 +242,7 @@ echo ""
 # Test 10: Chart.js updated version
 echo -e "${BLUE}Test 10: Chart.js Version Update${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s "$API_BASE/dashboard.html")
+RESPONSE=$(timeout $TIMEOUT curl -s "$API_BASE/")
 
 if echo "$RESPONSE" | grep -q "chart.js@4.4.0"; then
     test_passed "Chart.js updated to specific version 4.4.0"
@@ -277,7 +277,7 @@ echo ""
 # Test 12: Dashboard API client initialization
 echo -e "${BLUE}Test 12: Dashboard API Client Check${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s "$API_BASE/dashboard.html")
+RESPONSE=$(timeout $TIMEOUT curl -s "$API_BASE/")
 
 if echo "$RESPONSE" | grep -q "window.cctApi" || echo "$RESPONSE" | grep -q "CCTApiClient"; then
     test_passed "Dashboard includes API client initialization"
@@ -289,7 +289,7 @@ echo ""
 # Test 13: CSS files with cache-busting
 echo -e "${BLUE}Test 13: CSS Cache-Busting${NC}"
 
-RESPONSE=$(timeout $TIMEOUT curl -s "$API_BASE/dashboard.html")
+RESPONSE=$(timeout $TIMEOUT curl -s "$API_BASE/")
 
 if echo "$RESPONSE" | grep -q "\.css?v="; then
     test_passed "CSS files use cache-busting URLs"

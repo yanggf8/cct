@@ -1,0 +1,19 @@
+# Legacy dashboard URLs.
+#
+# The dashboard used to live at public/dashboard.html, and public/index.html
+# was a 455-byte page whose only job was `window.location.replace()`. Reaching
+# the dashboard therefore cost three round trips before any content:
+#
+#   GET /                 -> 455 bytes of HTML the browser had to parse and
+#                            execute before it could issue the next request
+#   GET /dashboard.html   -> 307 (Cloudflare's own .html -> extensionless
+#                            redirect, from the default html_handling)
+#   GET /dashboard        -> the actual 33 KB page
+#
+# The dashboard is now index.html, so '/' serves it directly and new traffic
+# pays nothing. These two lines keep old bookmarks working, which is the right
+# place for a redirect to cost something.
+#
+# 301 rather than 302 so browsers cache it and stop asking.
+/dashboard       /  301
+/dashboard.html  /  301
