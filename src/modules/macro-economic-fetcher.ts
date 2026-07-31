@@ -94,7 +94,12 @@ export class MacroEconomicFetcher {
     this.environment = options.environment;
     this.enableCaching = options.enableCaching !== false;
     this.cacheManager = options.cacheManager;
-    this.strictMode = options.strictMode || false;
+    // Production defaults to strict. Previously this defaulted to false
+    // everywhere, so a missing FRED key degraded silently to MockFredApiClient
+    // instead of failing — the same shape as ALLOW_CACHE_WARMUP and
+    // ALLOW_TEST_FIXTURES: production opts out explicitly, or not at all.
+    // An explicit `strictMode: false` from the caller is still honoured.
+    this.strictMode = options.strictMode ?? (options.environment?.ENVIRONMENT === 'production');
 
     // Production strict mode validation
     if (this.strictMode && this.environment) {
@@ -222,7 +227,8 @@ export class MacroEconomicFetcher {
         throw new Error(`Production strict mode: FRED API failure - ${errorMessage}. No fallback to mock data allowed.`);
       }
 
-      // Legacy behavior: fall back to mock data only if not using mock already
+      // MOCK-EXEMPTION: unreachable in production — strictMode defaults true there and
+      // the branch above throws first. This is the development convenience path.
       if (!this.useMockData) {
         logger.warn('Falling back to mock data due to API failure (strict mode disabled)');
         const mockClient = new MockFredApiClient();

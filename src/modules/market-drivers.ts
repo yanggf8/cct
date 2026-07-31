@@ -268,7 +268,15 @@ export class MarketDriversManager {
   }> {
     const basic = await this.getMarketDriversSnapshot();
     
-    const macroFetcher = initializeMacroEconomicFetcher({ environment: this.env });
+    // fredApiKey has to be passed explicitly — the fetcher reads only
+    // options.fredApiKey and never looks at environment.FRED_API_KEY. Omitting
+    // it made `!options.fredApiKey` always true, which selected
+    // MockFredApiClient: the secret was configured and the code was serving
+    // fabricated macro data anyway.
+    const macroFetcher = initializeMacroEconomicFetcher({
+      environment: this.env,
+      fredApiKey: this.env?.FRED_API_KEY,
+    });
     const structureFetcher = initializeMarketStructureFetcher({ environment: this.env });
     const regimeClassifier = await initializeMarketRegimeClassifier();
     
