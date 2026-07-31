@@ -43,9 +43,12 @@
     "test:html-structure": "./tests/integration/frontend/test-html-structure-validation.sh",
     "test:synthetic-monitoring": "./tests/validation/test-synthetic-monitoring-html.sh",
     "test:mock-prevention": "./tests/feature/mock-elimination/test-mock-prevention-scan.sh",
-    "verify": "npm run test:html-structure && npm run test:guards-smoke && npm run test:validate-environment && npm run test:synthetic-monitoring && npm run test:mock-prevention",
+    "test:d1-sql": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin d1-sql",
+    "verify": "npm run test:d1-sql && npm run test:no-artifacts && npm run test:no-persistent-files && npm run test:html-structure && npm run test:guards-smoke && npm run test:validate-environment && npm run test:synthetic-monitoring && npm run test:mock-prevention",
     "verify:staging": "npm run verify && npm run test:performance-all",
     "verify:prod": "npm run build:prod && npm run verify && npm run test:production-guards",
+    "test:no-artifacts": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin no-artifacts",
+    "test:no-persistent-files": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin no-persistent-files",
     "prepare": "husky install"
   },
   "keywords": [
@@ -64,10 +67,7 @@
     "type": "git",
     "url": "https://github.com/your-org/dual-ai-sentiment-analysis-system.git"
   },
-  "dependencies": {
-    "express": "^5.1.0",
-    "node-fetch": "^3.3.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250927.0",
     "@playwright/test": "^1.56.1",
@@ -77,7 +77,9 @@
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "express": "^5.1.0",
     "husky": "^9.1.7",
+    "node-fetch": "^3.3.2",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.9.2",

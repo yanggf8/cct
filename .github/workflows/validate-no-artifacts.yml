@@ -25,14 +25,21 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Cache cargo
+      uses: actions/cache@v4
       with:
-        node-version: '20.x'
-        cache: 'npm'
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          tools/ci-validators/target
+        key: ci-validators-${{ runner.os }}-${{ hashFiles('tools/ci-validators/Cargo.toml', 'tools/ci-validators/src/**') }}
+        restore-keys: ci-validators-${{ runner.os }}-
 
-    - name: Install dependencies
-      run: npm ci
+    - name: Build validators
+      # These gates are Rust; the repo is moving its tooling off JavaScript.
+      # rusqlite is built with bundled SQLite, so the first build compiles C —
+      # hence the cache above.
+      run: cargo build --release --manifest-path tools/ci-validators/Cargo.toml
 
     - name: Check Workflows for Artifact Uploads
       # Was an inline grep that could not do the job:
@@ -44,7 +51,7 @@ jobs:
       #     — matching nothing, which is why every file with an upload was
       #     reported as a violation and this workflow failed every run.
       # The replacement parses the YAML and inspects each step's own `if:`.
-      run: node tests/validation/validate-no-artifacts.mjs
+      run: ./tools/ci-validators/target/release/no-artifacts
 
     - name: Check Test Scripts for Persistent Files
       # Was an inline grep for `cat > *.json` on lines not mentioning TMPDIR,
@@ -57,7 +64,14 @@ jobs:
       # flagged 36 and then 18 of 51 scripts, nearly all on `>` inside quoted
       # strings. The replacement checks the contract the policy states instead:
       # a run-scoped temp directory removed on EXIT.
-      run: node tests/validation/validate-no-persistent-files.mjs
+      run: ./tools/ci-validators/target/release/no-persistent-files
+
+    - name: Validate D1 SQL against the schema
+      # Executes every INSERT/UPDATE in src/ against schema/current-schema.sql
+      # in an in-memory SQLite. Had no CI home before — it only ran through
+      # `npm run verify` locally, and the defect it exists for sat in the
+      # committed tree for six months.
+      run: ./tools/ci-validators/target/release/d1-sql
 
     - name: Test Script Execution - No Artifacts
       run: |

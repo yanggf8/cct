@@ -16,3 +16,6 @@ dist/
 # Secrets - never commit
 .secrets
 .dev.vars
+
+# Rust CI validators build output
+tools/ci-validators/target/

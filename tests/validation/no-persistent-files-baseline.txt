@@ -1,12 +1,16 @@
 # Test scripts that predate the no-persistent-files contract.
 #
-# Each of these lacks a run-scoped temp directory with an EXIT trap, so a run
-# can leave files in the checkout. They are recorded here so the check is green
-# today and fails on anything NEW — see validate-no-persistent-files.mjs.
+# Each lacks a run-scoped temp directory with an EXIT trap, so a run can leave
+# files in the checkout. Recorded here so the check is green today and fails on
+# anything NEW — see tools/ci-validators/src/bin/no-persistent-files.rs.
 #
 # This is debt to pay down. When a script gains the contract, delete its line;
 # the check reports paid-off entries so a stale baseline cannot silently stop
 # being a ratchet.
+#
+# Scope note: a few listed scripts never write anything and so do not really
+# need the contract. A contract check cannot tell those apart without parsing
+# shell, which is the wall the previous grep-based check hit.
 
 archive/obsolete-scripts/cache-tests/test-cache-metrics-fix.sh
 archive/obsolete-scripts/cache-tests/test-cache-metrics.sh
@@ -33,6 +37,7 @@ test-pre-market-multi-run.sh
 tests/e2e/test-workflows.sh
 tests/feature/ai-models/test-ai-model-stability.sh
 tests/feature/ai-models/test-ai-predictive-api.sh
+tests/feature/mock-elimination/mock-elimination-audit.sh
 tests/feature/mock-elimination/test-mock-prevention-scan.sh
 tests/feature/portfolio/test-backtesting-api.sh
 tests/feature/sector/test-sector-simple.sh
@@ -43,13 +48,19 @@ tests/integration/frontend/test-html-structure-validation.sh
 tests/integration/frontend/test-routing-regressions.sh
 tests/integration/test-comprehensive-optimization.sh
 tests/performance/test-playwright-performance.sh
+tests/regression/run-regression-tests.sh
 tests/regression/test-all-new-features.sh
 tests/regression/test-final-validation.sh
 tests/regression/test-simple-validation.sh
 tests/regression/test-weekly-pipeline.sh
+tests/security/run-all-security-tests.sh
 tests/security/test-api-security.sh
 tests/security/test-auth-security.sh
 tests/security/test-comprehensive-security-integration.sh
+tests/security/validate-complete-security-implementation.sh
+tests/validation/ci-schema-validation.sh
 tests/validation/test-reports-html-verification.sh
 tests/validation/test-synthetic-monitoring-html.sh
 tests/validation/test-typescript-migration.sh
+tests/validation/validate-environment-bindings.sh
+tests/validation/validate-workflow-actionlint.sh
