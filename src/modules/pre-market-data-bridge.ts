@@ -150,11 +150,13 @@ async function writeSymbolPredictionToD1(
       // Use enhanced INSERT with dual-model logging + articles_content
       await env.PREDICT_JOBS_DB.prepare(`
         INSERT OR REPLACE INTO symbol_predictions
+        -- D1 keeps the legacy names: gemma_* = primary model, distilbert_* = mate.
+        -- There are no primary_model/mate_model columns; model names live in config.ts.
         (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, articles_content, raw_response,
-         primary_status, primary_error, primary_confidence, primary_response_time_ms,
-         mate_status, mate_error, mate_confidence, mate_response_time_ms,
-         primary_model, mate_model, model_selection_reason, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+         distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+         model_selection_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(
         symbol,
         date,
@@ -176,8 +178,6 @@ async function writeSymbolPredictionToD1(
         dualModelData.mate_error || null,
         dualModelData.mate_confidence ?? null,
         dualModelData.mate_response_time_ms ?? null,
-        'GPT-OSS 120B',
-        'DeepSeek-R1 32B',
         dualModelData.model_selection_reason || null
       ).run();
     } else if (hasNewColumns) {
@@ -185,10 +185,10 @@ async function writeSymbolPredictionToD1(
       await env.PREDICT_JOBS_DB.prepare(`
         INSERT OR REPLACE INTO symbol_predictions
         (symbol, prediction_date, sentiment, confidence, direction, model, status, error_message, news_source, articles_count, raw_response,
-         primary_status, primary_error, primary_confidence, primary_response_time_ms,
-         mate_status, mate_error, mate_confidence, mate_response_time_ms,
-         primary_model, mate_model, model_selection_reason, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+         distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
+         model_selection_reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).bind(
         symbol,
         date,
@@ -209,8 +209,6 @@ async function writeSymbolPredictionToD1(
         dualModelData.mate_error || null,
         dualModelData.mate_confidence ?? null,
         dualModelData.mate_response_time_ms ?? null,
-        'GPT-OSS 120B',
-        'DeepSeek-R1 32B',
         dualModelData.model_selection_reason || null
       ).run();
     } else {
@@ -250,7 +248,10 @@ async function checkDualModelColumnsExist(env: CloudflareEnvironment): Promise<b
       "SELECT sql FROM sqlite_master WHERE type='table' AND name='symbol_predictions'"
     ).first<{ sql: string }>();
 
-    dualModelColumnsExist = result?.sql?.includes('primary_status') || false;
+    // Probe the real column name. This used to look for 'primary_status', which D1
+    // never had, so the enhanced INSERTs were permanently skipped in favour of the
+    // base-column fallback and no dual-model data was ever stored on this path.
+    dualModelColumnsExist = result?.sql?.includes('gemma_status') || false;
     return dualModelColumnsExist;
   } catch {
     dualModelColumnsExist = false;

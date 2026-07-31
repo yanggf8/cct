@@ -273,14 +273,14 @@ async function writeEndOfDayToD1(
       if (Object.keys(dualModelData).length > 0) {
         await env.PREDICT_JOBS_DB.prepare(`
           UPDATE symbol_predictions SET
-            primary_status = COALESCE(?, primary_status),
-            primary_error = COALESCE(?, primary_error),
-            primary_confidence = COALESCE(?, primary_confidence),
-            primary_response_time_ms = COALESCE(?, primary_response_time_ms),
-            mate_status = COALESCE(?, mate_status),
-            mate_error = COALESCE(?, mate_error),
-            mate_confidence = COALESCE(?, mate_confidence),
-            mate_response_time_ms = COALESCE(?, mate_response_time_ms),
+            gemma_status = COALESCE(?, gemma_status),
+            gemma_error = COALESCE(?, gemma_error),
+            gemma_confidence = COALESCE(?, gemma_confidence),
+            gemma_response_time_ms = COALESCE(?, gemma_response_time_ms),
+            distilbert_status = COALESCE(?, distilbert_status),
+            distilbert_error = COALESCE(?, distilbert_error),
+            distilbert_confidence = COALESCE(?, distilbert_confidence),
+            distilbert_response_time_ms = COALESCE(?, distilbert_response_time_ms),
             model_selection_reason = COALESCE(?, model_selection_reason)
           WHERE symbol = ? AND prediction_date = ?
         `).bind(

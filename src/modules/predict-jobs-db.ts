@@ -94,9 +94,10 @@ export class PredictJobsDB {
   async savePrediction(pred: Omit<SymbolPrediction, 'id' | 'created_at'>): Promise<void> {
     await this.db.prepare(`
       INSERT OR REPLACE INTO symbol_predictions
+      -- D1 keeps the legacy column names: gemma_* = primary model, distilbert_* = mate.
       (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals,
-       primary_status, primary_error, primary_confidence, primary_response_time_ms,
-       mate_status, mate_error, mate_confidence, mate_response_time_ms,
+       gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+       distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
        model_selection_reason)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -123,9 +124,10 @@ export class PredictJobsDB {
   async savePredictionsBatch(predictions: Omit<SymbolPrediction, 'id' | 'created_at'>[]): Promise<void> {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO symbol_predictions
+      -- D1 keeps the legacy column names: gemma_* = primary model, distilbert_* = mate.
       (symbol, prediction_date, sentiment, confidence, direction, model, analysis_type, trading_signals,
-       primary_status, primary_error, primary_confidence, primary_response_time_ms,
-       mate_status, mate_error, mate_confidence, mate_response_time_ms,
+       gemma_status, gemma_error, gemma_confidence, gemma_response_time_ms,
+       distilbert_status, distilbert_error, distilbert_confidence, distilbert_response_time_ms,
        model_selection_reason)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -177,7 +179,21 @@ export class PredictJobsDB {
   }
 
   private mapPredictionRow(row: any): SymbolPrediction {
-    return { ...row, trading_signals: JSON.parse(row.trading_signals || '{}') };
+    // D1 stores dual-model data under the legacy names; expose them as primary/mate
+    // so callers see the same shape they write. Without this the SELECT * returns
+    // gemma_*/distilbert_* and every primary_*/mate_* field reads as undefined.
+    return {
+      ...row,
+      trading_signals: JSON.parse(row.trading_signals || '{}'),
+      primary_status: row.primary_status ?? row.gemma_status,
+      primary_error: row.primary_error ?? row.gemma_error,
+      primary_confidence: row.primary_confidence ?? row.gemma_confidence,
+      primary_response_time_ms: row.primary_response_time_ms ?? row.gemma_response_time_ms,
+      mate_status: row.mate_status ?? row.distilbert_status,
+      mate_error: row.mate_error ?? row.distilbert_error,
+      mate_confidence: row.mate_confidence ?? row.distilbert_confidence,
+      mate_response_time_ms: row.mate_response_time_ms ?? row.distilbert_response_time_ms
+    };
   }
 
   private mapDailyRow(row: any): DailyAnalysisSummary {
