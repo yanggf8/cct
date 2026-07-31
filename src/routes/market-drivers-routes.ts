@@ -720,47 +720,40 @@ async function handleMarketDriversHistory(
         }
       }
     } catch (error: unknown) {
-      logger.warn('Failed to fetch historical data, using simulation', { error, requestId });
+      logger.warn('Failed to read cached market drivers history', { error, requestId });
     }
 
-    // If we don't have enough real data, supplement with realistic simulation
-    let currentVIX = 20 + Math.random() * 10;
-    let currentYieldSpread = -0.5 + Math.random() * 1;
-    let currentRiskScore = 0.2 + Math.random() * 0.4;
+    // A simulation block used to run here. Its comment said "if we don't have
+    // enough real data, supplement with realistic simulation", but there was no
+    // condition on it — the loop ran on every request, appending a fabricated
+    // point for every weekday in the range on top of whatever the cache had
+    // returned. Both kinds landed in the same array with nothing to tell them
+    // apart, so `average_vix` was a mean over real and invented values, and two
+    // calls a second apart reported VIX 23.43 then 25.72.
+    //
+    // VIX, the yield-curve spread and the geopolitical risk score are
+    // observations of the market. There is no honest way to fill a gap in them,
+    // so a gap is now reported as a gap.
+    if (historicalData.length === 0) {
+      logger.info('MarketDriversHistory: no cached snapshots in range', { days, requestId });
 
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      // Skip weekends for market data
-      if (d.getDay() === 0 || d.getDay() === 6) continue;
-
-      // Simulate daily changes
-      currentVIX += (Math.random() - 0.5) * 2;
-      currentYieldSpread += (Math.random() - 0.5) * 0.1;
-      currentRiskScore += (Math.random() - 0.5) * 0.05;
-
-      // Keep values in realistic ranges
-      currentVIX = Math.max(10, Math.min(50, currentVIX));
-      currentYieldSpread = Math.max(-2, Math.min(2, currentYieldSpread));
-      currentRiskScore = Math.max(0, Math.min(1, currentRiskScore));
-
-      const regimeType = determineRegimeType(currentVIX, currentYieldSpread, currentRiskScore);
-
-      historicalData.push({
-        date: d.toISOString().split('T')[0],
-        regime: {
-          currentRegime: regimeType,
-          confidence: 60 + Math.random() * 30,
-          riskLevel: determineRiskLevel(currentVIX, currentRiskScore),
-        },
-        indicators: {
-          vix: Math.round(currentVIX * 100) / 100,
-          yieldCurveSpread: Math.round(currentYieldSpread * 100) / 100,
-          riskScore: Math.round(currentRiskScore * 100) / 100,
-        },
-        signals: {
-          riskOnRiskOff: currentRiskScore < 0.3 ? 'risk_on' : currentRiskScore > 0.6 ? 'risk_off' : 'neutral',
-          marketHealth: currentVIX < 20 ? 'healthy' : currentVIX < 30 ? 'caution' : 'stress',
-        },
-      });
+      return new Response(
+        JSON.stringify(
+          ApiResponseFactory.success(
+            {
+              period: `${days} days`,
+              start_date: startDate.toISOString().split('T')[0],
+              end_date: endDate.toISOString().split('T')[0],
+              data_points: 0,
+              data: [],
+              summary: null,
+              note: 'No market drivers snapshots are cached for this range. Snapshots are written by the scheduled analysis run; history only covers dates it has already processed.',
+            },
+            { source: 'fresh', ttl: 300, requestId, processingTime: timer.finish() }
+          )
+        ),
+        { status: HttpStatus.OK, headers }
+      );
     }
 
     const response = {
@@ -915,21 +908,12 @@ async function handleMarketDriversHealth(
 }
 
 // Helper functions
-function determineRegimeType(vix: number, yieldSpread: number, riskScore: number): string {
-  if (vix > 30 || riskScore > 0.7) return 'bearish_contraction';
-  if (vix < 15 && yieldSpread > 0.5 && riskScore < 0.3) return 'bullish_expansion';
-  if (yieldSpread < -0.5) return 'risk_off';
-  if (vix < 20 && riskScore < 0.4) return 'risk_on';
-  if (yieldSpread > 0 && vix < 25) return 'goldilocks';
-  return 'uncertain';
-}
-
-function determineRiskLevel(vix: number, riskScore: number): string {
-  if (vix > 35 || riskScore > 0.8) return 'extreme';
-  if (vix > 25 || riskScore > 0.6) return 'high';
-  if (vix > 20 || riskScore > 0.4) return 'medium';
-  return 'low';
-}
+//
+// determineRegimeType() and determineRiskLevel() were removed with the
+// simulation block: the only caller either had was the fabricated history, and
+// their thresholds classified invented VIX values. The equivalent rules for
+// real snapshots live in market-regime-classifier.ts, which is what writes the
+// `regime` field this route reads back out of the cache.
 
 function getMostCommonRegime(data: any[]): string {
   const regimes = data.map(d => d.regime.currentRegime);
