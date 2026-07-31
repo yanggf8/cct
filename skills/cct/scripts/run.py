@@ -167,6 +167,24 @@ def format_pre_market(data: dict, today: date | None = None) -> str:
         )
     lines = [header, ""]
 
+    # A stale payload gets the date and nothing else.
+    #
+    # The header warning alone was not enough. On 2026-07-28 this report went
+    # out reading "⚠️ 資料已過期（50 天前）" and then, four lines down,
+    # "AAPL 看漲 🟢 95%". Both statements were true and the combination was
+    # misleading: 95% was the confidence the model had about 2026-06-08, and a
+    # reader scanning a morning report takes a percentage next to a ticker as a
+    # call on today. Restating those figures under a warning asks the reader to
+    # do the discounting, which is the one thing a report should do for them.
+    #
+    # So say when the analysis ran, and stop. Withholding numbers is not the
+    # same as going silent — the date is the useful part of a stale report.
+    if fresh.is_stale:
+        when = fresh.source_date or "日期不明"
+        lines.append(f"上次分析：{when}，訊號與信心數值屬於當日市況，不適用於今日，故不列出。")
+        lines.append("等待今日盤前分析完成。")
+        return "\n".join(lines)
+
     # Overall market sentiment from signal aggregation
     overall = data.get("overall_sentiment", {})
     sentiment = overall.get("sentiment", data.get("market_sentiment", ""))

@@ -226,6 +226,37 @@ class FormatPreMarket(unittest.TestCase):
         self.assertIn("過期", header)
         self.assertNotIn("天前", header)
 
+    def test_stale_report_withholds_high_confidence_signals(self):
+        """A 95% confidence figure was computed for a market day 50 days gone.
+
+        The header warning is not enough on its own: a reader who sees
+        "AAPL 看漲 95%" takes it as a call on today. The number was true of
+        2026-06-08 and says nothing about now, so the stale report states when
+        the analysis ran and withholds the figures rather than restating them
+        under a warning.
+        """
+        body = run.format_pre_market(stale_payload(), today=CAPTURE_DAY)
+        self.assertNotIn("高信心訊號", body)
+        self.assertNotIn("95%", body)
+        # …and says why, rather than going silent.
+        self.assertIn("2026-06-08", body)
+
+    def test_stale_report_carries_no_percentage_at_all(self):
+        """No figure, not merely no signal list.
+
+        Asserting on the word 信心 would be wrong — the replacement text is
+        allowed to explain that confidence values are being withheld. What must
+        not survive is a number a reader could act on, so this looks for the
+        percent sign anywhere in the body.
+        """
+        body = run.format_pre_market(stale_payload(), today=CAPTURE_DAY)
+        self.assertNotIn("%", body)
+
+    def test_fresh_report_still_shows_signals(self):
+        """The withholding must be conditional, not a removal of the feature."""
+        body = run.format_pre_market(fresh_payload(), today=CAPTURE_DAY)
+        self.assertIn("高信心訊號", body)
+
     def test_missing_date_renders_unknown(self):
         body = run.format_pre_market(
             stale_payload(date=None, is_stale=None), today=CAPTURE_DAY
@@ -234,11 +265,23 @@ class FormatPreMarket(unittest.TestCase):
         self.assertIn("日期不明", header)
         self.assertIn("過期", header)
 
-    def test_signals_still_render(self):
-        """The gate marks the report; it does not gut it."""
+    def test_stale_report_states_why_it_is_short(self):
+        """This reverses an earlier decision, deliberately.
+
+        The test that stood here asserted the opposite — that a stale report
+        still lists AAPL and the symbol count, on the reasoning that "the gate
+        marks the report; it does not gut it". Watching that ship on 2026-07-28
+        showed the reasoning was wrong: the report carried
+        "⚠️ 資料已過期（50 天前）" and "AAPL 看漲 🟢 95%" four lines apart, and
+        the second is what a reader acts on.
+
+        A stale report is now the date plus an explanation. It is short on
+        purpose, and it has to say so, or it reads as a failure to fetch."""
         body = run.format_pre_market(stale_payload(), today=CAPTURE_DAY)
-        self.assertIn("AAPL", body)
-        self.assertIn("分析標的：5 支", body)
+        self.assertNotIn("AAPL", body)
+        self.assertNotIn("分析標的", body)
+        self.assertIn("不列出", body)
+        self.assertIn("等待今日盤前分析", body)
 
 
 # ── end-of-day ────────────────────────────────────────────────────────────────
