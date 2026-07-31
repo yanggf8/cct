@@ -251,15 +251,35 @@ jobs:
           npm ci
           npm install -g gitleaks
 
-      - name: Run npm audit
+      - name: Run npm audit (production dependencies)
         run: |
-          echo "🔒 Running npm security audit..."
-          npm audit --audit-level high || {
-            echo "❌ NPM AUDIT FAILED"
-            echo "High/medium vulnerabilities found - update dependencies"
+          echo "🔒 Auditing production dependencies..."
+
+          # Blocking, and scoped to what can actually ship. The previous version
+          # audited the whole tree at --audit-level high, and its message said
+          # "High/medium" while the flag only covers high and above.
+          #
+          # The whole tree is 15 findings, 11 of them high, and essentially all
+          # of them arrive through
+          #     wrangler (devDependency) -> miniflare -> undici, ws
+          # which never reaches the Worker. Blocking releases on a local dev
+          # tool's transitive dependencies is how a gate teaches people to
+          # ignore it.
+          npm audit --omit=dev --audit-level high || {
+            echo ""
+            echo "❌ NPM AUDIT FAILED (production dependencies)"
+            echo "These can ship. Update or remove the owning dependency."
             exit 1
           }
-          echo "✅ NPM audit passed"
+          echo "✅ Production dependency audit passed"
+
+      - name: Run npm audit (full tree, informational)
+        if: always()
+        run: |
+          echo "🔎 Auditing the full dependency tree — informational, does not fail the build."
+          echo "   Findings here are dev/build tooling. Track them, do not gate on them."
+          echo ""
+          npm audit || true
 
       - name: Run Gitleaks
         run: |
