@@ -100,8 +100,14 @@ export function authenticateRequest(request: Request, env: CloudflareEnvironment
   const configuredKeys = env.X_API_KEY ? env.X_API_KEY.split(',').map(k => k.trim()).filter(Boolean) : [];
 
   if (configuredKeys.length === 0) {
-    // No keys configured - allow all (development mode)
-    return { authenticated: true, reason: 'no_keys_configured' };
+    // Fail closed in production. This branch used to authenticate every request whenever
+    // X_API_KEY was empty, with no environment check at all — so losing or clearing the
+    // secret would silently open every authenticated endpoint instead of failing loudly.
+    if (env.ENVIRONMENT === 'production') {
+      return { authenticated: false, reason: 'no_keys_configured' };
+    }
+    // Non-production only: allow local/dev runs without a key.
+    return { authenticated: true, reason: 'no_keys_configured_dev' };
   }
 
   if (!apiKey) {

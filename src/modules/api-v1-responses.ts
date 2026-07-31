@@ -141,9 +141,11 @@ export function validateApiKey(request: Request, env?: { X_API_KEY?: string }): 
     return { valid: validKeys.includes(apiKey || ''), key: apiKey };
   }
 
-  // Fallback for backward compatibility - should not be used in production
-  const validKeys = ['demo', 'test'];
-  return { valid: validKeys.includes(apiKey || ''), key: apiKey };
+  // No configured keys: fail closed. This used to accept the hardcoded literals
+  // 'demo' and 'test', which meant anyone sending `X-API-Key: demo` was treated as
+  // authenticated by every caller of this helper (e.g. briefing-handlers.ts, which
+  // uses it to decide whether to expose detailed error internals).
+  return { valid: false, key: apiKey };
 }
 
 // Processing Time Tracker
