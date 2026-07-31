@@ -34,8 +34,19 @@ npm run build:frontend:only
 npm run test:playwright
 npm run test:performance   # single suite
 
-# Verify (pre-deploy gates: html, guards, env bindings, monitoring, mock prevention)
+# Verify (pre-deploy gates: d1 sql, artifacts, persistent files, html, guards,
+#         env bindings, monitoring, mock prevention)
 npm run verify
+
+# Individual static gates (fast, no network). These are Rust — see
+# tools/ci-validators/. The npm scripts are thin wrappers so `npm run verify`
+# keeps working; there is no JavaScript left in them.
+npm run test:d1-sql              # runs every INSERT/UPDATE in src/ against schema/current-schema.sql
+npm run test:no-artifacts        # parses each workflow, checks each upload step's own `if:`
+npm run test:no-persistent-files # test scripts must scope writes to a run temp dir
+
+# Workflow linting is actionlint, not a hand-written parser
+./tests/validation/validate-workflow-actionlint.sh
 
 # Staging deploy
 npm run deploy:staging
@@ -277,6 +288,17 @@ curl -X POST "https://tft-trading-system.yanggf.workers.dev/api/v1/jobs/trigger"
 
 **Column name aliasing**: D1 has legacy column names (`gemma_*`, `distilbert_*`) for dual model data. Code aliases these to `primary_*`/`mate_*` via `extractDualModelData()` in `src/modules/data.ts`.
 
+> **⚠️ SQL must use the D1 names, not the aliased ones.** `primary_*`/`mate_*` are TypeScript-side
+> names only. Writing them into a SQL statement produces `no such column: primary_status`, which D1
+> raises at runtime — `tsc` cannot see inside a SQL string. This bug shipped and went unnoticed for
+> ~6 months (2026-02-03 → 2026-07-29): `savePredictionsBatch` used the aliased names, every INSERT
+> failed, the error was swallowed into a `{success:false}` return that no caller checked, and the job
+> still reported success while `symbol_predictions` took zero rows. Reports were unaffected because
+> they are stored separately in `scheduled_job_results`. Fixed in `f35380d`, which corrected six
+> statements across four modules. `npm run test:d1-sql` executes every statement against the schema
+> dump and fails on this class of defect — locally, and in CI since 2026-07-31. It had no CI home
+> before that, which is how the defect stayed in the committed tree for six months.
+
 ### Market Close Data Cache
 
 EOD jobs cache Yahoo Finance data in `market_close_data` on first fetch. Reruns use cached data to ensure consistent accuracy calculations.
@@ -342,6 +364,16 @@ DELETE FROM job_executions; DELETE FROM market_close_data;
 - `public/js/cct-api.js` - Frontend API client
 - `schema/current-schema.sql` - D1 schema dump (tables + indexes)
 - `schema/migrations/` - Applied D1 migrations
+- `tools/ci-validators/` - Rust CI gates: `d1-sql`, `no-artifacts`, `no-persistent-files`.
+  The repo's tooling is deliberately not JavaScript; these replaced four `.mjs` scripts
+  on 2026-07-31. Each was diffed against its predecessor on identical input before the
+  JS was deleted.
+- `tests/validation/validate-workflow-actionlint.sh` - actionlint gate. Neither a strict
+  YAML loader nor the SchemaStore workflow schema validates expression syntax, and that
+  is the class that kept a workflow rejected for 30 runs.
+- `tests/validation/no-persistent-files-baseline.txt` - existing debt for the temp-dir
+  contract. Delete a line when a script earns it; the gate fails on stale entries too,
+  so the baseline cannot rot into an exemption list.
 
 ---
 
@@ -384,6 +416,57 @@ wrangler secret put FEATURE_FLAG_DO_CACHE  # Enter: false
 ---
 
 ## Known Issues & TODOs
+
+### Open
+
+- **`symbol_predictions` has no rows for 2026-02-03 → 2026-07-29.** Caused by the SQL column-name bug
+  above; the code is fixed but the lost per-symbol history cannot be recovered. Anything reading that
+  table over a range spanning those dates (calibration, `per_symbol_accuracy`, the sensorium) sees a gap.
+- **Scheduled jobs finish well after their cron.** Measured D1 write time vs nominal cron over ~30 runs:
+  pre-market 21/56/86 min (min/median/max), intraday 29/58/132, eod 22/37/72. Any external consumer
+  polling on a fixed offset will intermittently read a stale or absent report — this is what makes the
+  downstream `cct` skill report `degraded` on a healthy pipeline. Partly mitigated 2026-07-30: the
+  nullclaw `cct` crons moved from a 65-minute offset to 3h05m (`35 15` / `5 19` / `10 23` / `5 17 * * 0`
+  UTC), which fixed pre-market and intraday. Not a fix on this side.
+- **Two CI gates are red on real findings.** `Build-Time Mock Prevention` reports 5 critical pattern
+  classes and `Mock Data Prevention` reports 23 — both only became visible on 2026-07-30, when a
+  `((VAR++))` under `bash -e` was fixed in three separate scanners. Post-increment evaluates to the
+  pre-increment value, so the first hit returned 1 and killed the step; each scan had been reporting
+  exactly one violation and stopping. The findings need triage, not another mechanism fix.
+
+### Resolved 2026-07-30/31
+
+- **`/api/v1/guards/validate` could never pass in production.** Its `mockDetectionTest` fed a synthetic
+  payload to `verifyApiResponse`, which in strict mode *throws* after correctly flagging the mock — and
+  the catch treated that throw as a failure, so the self-test failed itself and the endpoint returned
+  400 permanently. A throw carrying "Mock data detected" now counts as a pass (`bbbe465`). Verified live:
+  HTTP 200, all four sub-tests pass.
+- **`enhanced-cache-tests.yml` failed on push with zero jobs and no logs** — 30 runs in a row. Two
+  causes, in sequence. First, arithmetic in a GitHub expression (`PASSED * 100 / TOTAL`): that grammar
+  has no `*` or `/`. Then the comment written to explain that fix contained a literal empty `${{ }}`,
+  and a `#` inside a `run:` block is a *shell* comment, not a YAML one — GitHub expands expressions
+  across the whole block first, so the file stayed rejected. `retention-days: 0` was never the cause,
+  and is not invalid either; `actions/upload-artifact` documents 0 as "use the default retention".
+  Only actionlint catches this class — a strict YAML loader and the SchemaStore schema both pass it,
+  which is why `validate-workflow-actionlint.sh` now gates every workflow.
+- **Six D1 statements wrote columns that do not exist** (`f35380d`) — see the SQL naming warning above.
+- **Backtesting fixtures were served from production** for guessable ids (`test_1`, `test_12345`, …),
+  with no environment gate at all. Now behind `ALLOW_TEST_FIXTURES`, mirroring `isWarmupAllowed`.
+- **Auth failed open when `X_API_KEY` was empty**, and `validateApiKey` accepted the literals `demo`
+  and `test`. Both now fail closed in production (`525fac3`).
+
+### GitHub Actions auto-disable (recurring risk)
+
+GitHub disables scheduled workflows after **60 days of repository inactivity**. This happened on
+2026-06-08 18:46 UTC and killed the entire pipeline for 50 days until the workflow was manually
+re-enabled (`gh workflow enable 194601719`) on 2026-07-28. A push does **not** re-enable it. Three
+sibling workflows were also disabled; `artifact-cleanup` has since returned to `active`, leaving
+`cache-warming` and `dac-integration-regression` in state `disabled_inactivity` as of 2026-07-31.
+Nothing polls for this, so check it by hand:
+
+```bash
+gh api repos/{owner}/{repo}/actions/workflows --jq '.workflows[] | "\(.state)\t\(.updated_at)\t\(.path)"'
+```
 
 ### Workers Subrequest Limit (50/invocation)
 
