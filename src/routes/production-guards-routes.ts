@@ -175,12 +175,12 @@ function testConfiguration(productionGuards: any): { passed: boolean; details: s
  */
 function testMockDetection(productionGuards: any): { passed: boolean; details: string } {
   try {
-    // Test with obvious mock data
-    const mockData = { message: 'coming soon', mock: true };
+    // Test with obvious mock data  // MOCK-EXEMPTION: this IS the detector's self-test; it must construct mock data to prove detection works
+    const mockData = { message: 'coming soon', mock: true };  // MOCK-EXEMPTION: deliberate mock payload fed to verifyApiResponse by the self-test
     const verification = productionGuards.verifyApiResponse(mockData, 'validation-test');
 
     if (verification.isReal) {
-      return { passed: false, details: 'Mock detection failed - accepted mock data' };
+      return { passed: false, details: 'Mock detection failed - accepted mock data' };  // MOCK-EXEMPTION: failure message of the detector self-test, not a data path
     }
 
     if (!verification.flags || verification.flags.length === 0) {

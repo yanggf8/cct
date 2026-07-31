@@ -66,7 +66,7 @@ function getFreshnessStatus(timestampInfo: any): string {
 
 /**
  * Cache warmup data generators
- * WARNING: These functions generate TEST DATA ONLY for development/testing.
+ * WARNING: These functions generate TEST DATA ONLY for development/testing. (MOCK-EXEMPTION: warmup generators, gated by isWarmupAllowed and off in production)
  * They are blocked in production environments.
  */
 
@@ -88,7 +88,7 @@ function generateMarketDataWarmup(symbols: string[], env: any): Array<{namespace
       changePercent: null,
       timestamp: new Date().toISOString()
     },
-    ttl: 60 // Short TTL for test data
+    ttl: 60 // Short TTL for test data  // MOCK-EXEMPTION: warmup generator TTL, gated by isWarmupAllowed
   }));
 }
 
@@ -205,7 +205,7 @@ function generateReportsWarmup(env: any): Array<{namespace: string, key: string,
         _testData: true,
         date: yesterday.toISOString().split('T')[0],
         marketStatus: null,
-        summary: 'TEST DATA - Not for production use',
+        summary: 'TEST DATA - Not for production use',  // MOCK-EXEMPTION: warmup payload labels itself; gated by isWarmupAllowed
         keyHighlights: [],
         topPerformers: [],
         worstPerformers: [],

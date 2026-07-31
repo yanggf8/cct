@@ -541,7 +541,7 @@ export class EnhancedRequestHandler {
     const testData = {
       test_id: testKey,
       timestamp: new Date().toISOString(),
-      data: 'Performance test data for enhanced DAL validation'
+      data: 'Performance test data for enhanced DAL validation'  // MOCK-EXEMPTION: payload written by handlePerformanceTest to time DAL writes, never served
     };
 
     // Test write performance

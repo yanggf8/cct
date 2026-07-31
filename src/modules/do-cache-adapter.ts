@@ -284,7 +284,7 @@ export class DOCacheAdapter {
     return this.doCache?.getTimestampInfo(namespace,  key) || null;
   }
 
-  // Deduplication (not implemented in DO cache yet)
+  // Deduplication (not implemented in DO cache yet)  // MOCK-EXEMPTION: honest note about a missing optimisation; nothing is stubbed or faked
   getDeduplicationStats(): any {
     return this.doCache?.getDeduplicationStats() || { enabled: false };
   }

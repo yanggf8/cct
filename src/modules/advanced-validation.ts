@@ -122,7 +122,7 @@ export class WalkForwardOptimizer {
     // Optimize parameters on training data
     const optimalParameters = await this.optimizeParameters(trainStartIndex, trainEndIndex);
 
-    // Evaluate performance on test data
+    // Evaluate performance on test data  // MOCK-EXEMPTION: ML train/test split terminology, unrelated to fabricated data
     const testPerformance = await this.evaluateParameters(
       optimalParameters,
       testStartIndex,
