@@ -403,8 +403,9 @@ async function getHistoricalData(symbol: string, days: number): Promise<any[]> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // This would use your existing fetchFromAPI method from sector-data-fetcher.ts
-    // For now, return mock data structure
+    // Not implemented: this should use fetchFromAPI from sector-data-fetcher.ts.
+    // Returns an empty series, not fabricated data — the old comment said "mock
+    // data structure", which read as though numbers were being invented here.
     return [];
   } catch (error: unknown) {
     logger.error(`Error fetching historical data for ${symbol}:`, { error: error instanceof Error ? error.message : String(error) });

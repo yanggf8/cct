@@ -199,8 +199,11 @@ export class MarketStructureFetcher {
     } catch (error: unknown) {
       logger.error('Failed to fetch market structure indicators:', { error: error instanceof Error ? error.message : String(error) });
 
-      // Fall back to mock data
-      logger.warn('Using mock data for market structure indicators');
+      // No fallback exists. getMockMarketStructure() is typed `never` and throws
+      // (see below) — mock market structure was deliberately removed. The old
+      // wording here claimed a graceful degradation that does not happen, so a
+      // caller reading the log would expect data and get an exception instead.
+      logger.warn('No fallback available for market structure indicators - rethrowing');
       return this.getMockMarketStructure();
     }
   }

@@ -146,15 +146,13 @@ export class MarketDriversManager {
     this.cache = new DOMarketDriversCacheAdapter(env);
     this.productionDrivers = new ProductionMarketDrivers(env);
 
-    // Legacy mode for staging/development if needed
-    this.legacyMode = false; // Always production mode in Workers
+    // Hardcoded false — Workers always run production mode. Everything guarded
+    // by `this.legacyMode` below is therefore unreachable, including
+    // getLegacySnapshot(). Kept rather than deleted so the shape of the removed
+    // fallback stays visible, but do not read it as a live code path.
+    this.legacyMode = false;
 
-    if (this.legacyMode) {
-      logger.warn('⚠️ LEGACY MODE ENABLED - Using mock data fallbacks');
-      logger.warn('Set USE_LEGACY_MARKET_DRIVERS=false and NODE_ENV=production for real data');
-    } else {
-      logger.info('🚀 PRODUCTION MODE - Real data integration only');
-    }
+    logger.info('🚀 PRODUCTION MODE - Real data integration only');
 
     // Validate production configuration
     this.validateProductionConfiguration();
@@ -242,7 +240,8 @@ export class MarketDriversManager {
         throw new Error(`Unable to fetch real market drivers: ${error instanceof Error ? error.message : String(error)}`);
       }
 
-      // In legacy mode, fall back to mock data with warning
+      // Unreachable: legacyMode is hardcoded false in the constructor, so the
+      // throw above always fires first.
       logger.warn('Falling back to legacy market drivers due to error');
       return await this.getLegacySnapshot();
     }

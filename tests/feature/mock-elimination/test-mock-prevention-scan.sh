@@ -92,12 +92,35 @@ scan_patterns() {
         local pattern_desc="${patterns_ref[$pattern]}"
         local matches_found=false
 
-        # Use ripgrep if available, otherwise grep
-        if command -v rg >/dev/null 2>&1; then
-            MATCHES=$(rg -n "$pattern" $SOURCE_FILES --type-add 'web:*.{ts,js,html,json}' -t web 2>/dev/null || true)
+        # Word-bounded. Without \b, "backtest data" matches "test data" and
+        # "Delete backtest data (for cleanup)" is reported as a violation.
+        # Patterns already containing regex metacharacters are left alone.
+        if [[ "$pattern" =~ [\\*\[] ]]; then
+            bounded="$pattern"
         else
-            MATCHES=$(grep -rnE "$pattern" $SOURCE_FILES 2>/dev/null || true)
+            bounded="\\b${pattern}\\b"
         fi
+
+        if command -v rg >/dev/null 2>&1; then
+            MATCHES=$(rg -n "$bounded" $SOURCE_FILES --type-add 'web:*.{ts,js,html,json}' -t web 2>/dev/null || true)
+        else
+            MATCHES=$(grep -rnE "$bounded" $SOURCE_FILES 2>/dev/null || true)
+        fi
+
+        # Drop lines that say the opposite of what the pattern is looking for.
+        #
+        # Most of this codebase's hits are the anti-mock machinery describing
+        # itself: `throw new Error('Legacy mock data has been removed')`,
+        # `* Eliminates all mock data`, `No fallback to mock data allowed`.
+        # Measured on the full scan, 23 of 45 critical hits were removal-prose
+        # of that kind. A bare substring search cannot tell "uses mock data"
+        # from "forbids mock data".
+        #
+        # This is a heuristic and it has a blind spot: a line that both removes
+        # and uses ("we removed the old mock but still return mock data here")
+        # is excused. Accepted — the alternative is 23 permanent false positives
+        # that train people to ignore the gate.
+        MATCHES=$(echo "$MATCHES" | grep -viE '\b(removed|remove|forbidden|prevent[a-z]*|never|eliminat[a-z]*|reject[a-z]*|block[a-z]*|disallow[a-z]*|no fallback|not allowed|no mock|without mock|strict mode|replaces|replacement)\b' || true)
 
         if [[ -n "$MATCHES" ]]; then
             matches_found=true
