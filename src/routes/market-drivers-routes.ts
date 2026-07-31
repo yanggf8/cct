@@ -666,148 +666,54 @@ async function handleGeopoliticalRisk(
 /**
  * Handle market drivers history endpoint
  * GET /api/v1/market-drivers/history?days=30
+ *
+ * Not implemented. Returns 501.
+ *
+ * The previous implementation answered this by scanning the request cache: for
+ * each weekday in the range it read `market_drivers_snapshot_<date>` and
+ * collected whatever was there. That is a category error — a history endpoint
+ * asking a cache for history. The cache exists to serve inbound requests; it is
+ * not where facts live, and the entries it does hold expire in ten minutes
+ * against a thirty-day question.
+ *
+ * Underneath that sat an unconditional simulation loop appending
+ * `20 + Math.random() * 10` as VIX for every weekday, into the same array as any
+ * cached points, with no field telling them apart. Two calls a second apart
+ * returned VIX 23.43 and then 25.72.
+ *
+ * The cached branch was broken too, so removing the simulation would not have
+ * left a working endpoint: `snapshot.marketStructure.vix` is a DataSourceResult
+ * object rather than a number, so `average_vix` summed objects into NaN, and
+ * `snapshot.riskOnRiskOff` / `snapshot.marketHealth` are not fields of
+ * MarketDriversSnapshot at all. `dal.read()` was called without a type argument,
+ * so none of that reached the type checker.
+ *
+ * There is no historical source to reimplement this against: D1 has no
+ * market-drivers table, the FRED integration requests only the latest
+ * observation, the Yahoo integration takes no date range, and geopolitical risk
+ * is a hardcoded 0.3 placeholder. Restoring the endpoint means giving it a
+ * durable store first — a decision separate from the cache.
  */
 async function handleMarketDriversHistory(
-  request: Request,
-  env: CloudflareEnvironment,
+  _request: Request,
+  _env: CloudflareEnvironment,
   headers: Record<string, string>,
   requestId: string
 ): Promise<Response> {
-  const timer = new ProcessingTimer();
-  const url = new URL(request.url);
-
-  try {
-    // Parse query parameters
-    const days = Math.min(parseInt(url.searchParams.get('days') || '30'), 90); // Max 90 days
-    const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
-
-    // Fetch historical data using real API integration
-    const dal = createSimplifiedEnhancedDAL(env);
-    const historicalData = [];
-
-    // Try to get real historical data from cache or API
-    try {
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        // Skip weekends for market data
-        if (d.getDay() === 0 || d.getDay() === 6) continue;
-
-        const dateStr = d.toISOString().split('T')[0];
-        const cacheKey = KVKeyFactory.generateMarketDriversKey('snapshot', dateStr);
-
-        // Try to get cached snapshot for this date
-        const cached = await dal.read(cacheKey);
-
-        if (cached.success && cached.data) {
-          const snapshot = cached.data;
-          historicalData.push({
-            date: dateStr,
-            regime: {
-              currentRegime: snapshot.regime.currentRegime,
-              confidence: snapshot.regime.confidence,
-              riskLevel: snapshot.regime.riskLevel,
-            },
-            indicators: {
-              vix: snapshot.marketStructure.vix,
-              yieldCurveSpread: snapshot.macro.yieldCurveSpread,
-              riskScore: snapshot.geopolitical.overallRiskScore,
-            },
-            signals: {
-              riskOnRiskOff: snapshot.riskOnRiskOff,
-              marketHealth: snapshot.marketHealth,
-            },
-          });
-        }
-      }
-    } catch (error: unknown) {
-      logger.warn('Failed to read cached market drivers history', { error, requestId });
-    }
-
-    // A simulation block used to run here. Its comment said "if we don't have
-    // enough real data, supplement with realistic simulation", but there was no
-    // condition on it — the loop ran on every request, appending a fabricated
-    // point for every weekday in the range on top of whatever the cache had
-    // returned. Both kinds landed in the same array with nothing to tell them
-    // apart, so `average_vix` was a mean over real and invented values, and two
-    // calls a second apart reported VIX 23.43 then 25.72.
-    //
-    // VIX, the yield-curve spread and the geopolitical risk score are
-    // observations of the market. There is no honest way to fill a gap in them,
-    // so a gap is now reported as a gap.
-    if (historicalData.length === 0) {
-      logger.info('MarketDriversHistory: no cached snapshots in range', { days, requestId });
-
-      return new Response(
-        JSON.stringify(
-          ApiResponseFactory.success(
-            {
-              period: `${days} days`,
-              start_date: startDate.toISOString().split('T')[0],
-              end_date: endDate.toISOString().split('T')[0],
-              data_points: 0,
-              data: [],
-              summary: null,
-              note: 'No market drivers snapshots are cached for this range. Snapshots are written by the scheduled analysis run; history only covers dates it has already processed.',
-            },
-            { source: 'fresh', ttl: 300, requestId, processingTime: timer.finish() }
-          )
-        ),
-        { status: HttpStatus.OK, headers }
-      );
-    }
-
-    const response = {
-      period: `${days} days`,
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
-      data_points: historicalData.length,
-      data: historicalData,
-      summary: {
-        most_common_regime: getMostCommonRegime(historicalData),
-        average_vix: Math.round(historicalData.reduce((sum: any, d: any) => sum + d.indicators.vix, 0) / historicalData.length * 100) / 100,
-        average_risk_score: Math.round(historicalData.reduce((sum: any, d: any) => sum + d.indicators.riskScore, 0) / historicalData.length * 100) / 100,
-        regime_changes: countRegimeChanges(historicalData),
-      },
-    };
-
-    logger.info('MarketDriversHistory: Data generated', {
-      days,
-      dataPoints: historicalData.length,
-      processingTime: timer.getElapsedMs(),
-      requestId
-    });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.success(response, {
-          source: 'fresh',
-          ttl: 1800, // 30 minutes
+  return new Response(
+    JSON.stringify(
+      ApiResponseFactory.error(
+        'Market drivers history is not implemented',
+        'NOT_IMPLEMENTED',
+        {
+          status: 'TBD',
+          reason: 'No durable store of daily market-drivers snapshots exists. This endpoint previously returned fabricated values.',
           requestId,
-          processingTime: timer.finish(),
-        })
-      ),
-      { status: HttpStatus.OK, headers }
-    );
-  } catch (error: unknown) {
-    logger.error('MarketDriversHistory Error', { error, requestId });
-
-    return new Response(
-      JSON.stringify(
-        ApiResponseFactory.error(
-          'Failed to retrieve market drivers history',
-          'DATA_ERROR',
-          {
-            requestId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        )
-      ),
-      {
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        headers,
-      }
-    );
-  }
+        }
+      )
+    ),
+    { status: HttpStatus.NOT_IMPLEMENTED, headers }
+  );
 }
 
 /**
@@ -915,22 +821,7 @@ async function handleMarketDriversHealth(
 // real snapshots live in market-regime-classifier.ts, which is what writes the
 // `regime` field this route reads back out of the cache.
 
-function getMostCommonRegime(data: any[]): string {
-  const regimes = data.map(d => d.regime.currentRegime);
-  const counts: Record<string, number> = {};
-  regimes.forEach(regime => counts[regime] = (counts[regime] || 0) + 1);
-  return Object.entries(counts).reduce((a: any, b: any) => a[1] > b[1] ? a : b)[0];
-}
 
-function countRegimeChanges(data: any[]): number {
-  let changes = 0;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i].regime.currentRegime !== data[i-1].regime.currentRegime) {
-      changes++;
-    }
-  }
-  return changes;
-}
 
 async function testMacroHealth(env: CloudflareEnvironment): Promise<{ status: string; details?: any }> {
   try {
