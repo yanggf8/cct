@@ -47,56 +47,17 @@ jobs:
       run: node tests/validation/validate-no-artifacts.mjs
 
     - name: Check Test Scripts for Persistent Files
-      run: |
-        echo "🔍 Checking test scripts for persistent file creation..."
-
-        # Find all test scripts
-        TEST_SCRIPTS=$(find . -name "test-*.sh" -type f)
-
-        VIOLATIONS=0
-
-        for script in $TEST_SCRIPTS; do
-          echo "Checking $script..."
-
-          # Check for proper temp directory usage
-          if grep -q "RUN_TMPDIR\|TMPDIR" "$script"; then
-            echo "  ✅ Uses temporary directory pattern"
-          else
-            echo "  ⚠️  May not use temporary directory pattern"
-          fi
-
-          # Check for trap cleanup
-          if grep -q "trap.*cleanup\|trap.*EXIT" "$script"; then
-            echo "  ✅ Has cleanup trap"
-          else
-            echo "  ⚠️  May not have cleanup trap"
-          fi
-
-          # Look for suspicious file creation patterns
-          if grep -E "cat >.*\.json|echo >.*\.log|touch.*\.tmp" "$script" | grep -v "RUN_TMPDIR\|TMPDIR\|\$TMPDIR" > /dev/null; then
-            echo "  ❌ Found potential persistent file creation:"
-            grep -n -E "cat >.*\.json|echo >.*\.log|touch.*\.tmp" "$script" | grep -v "RUN_TMPDIR\|TMPDIR\|\$TMPDIR"
-            VIOLATIONS=$((VIOLATIONS + 1))
-          fi
-        done
-
-        echo ""
-        echo "📊 Script Validation Results:"
-        echo "  Scripts checked: $(echo $TEST_SCRIPTS | wc -w)"
-        echo "  Violations found: $VIOLATIONS"
-
-        if [[ $VIOLATIONS -gt 0 ]]; then
-          echo ""
-          echo "❌ VALIDATION FAILED: Found scripts creating persistent files"
-          echo ""
-          echo "To fix violations:"
-          echo "1. Use RUN_TMPDIR or TMPDIR for all temporary files"
-          echo "2. Add trap cleanup to remove temp directories on EXIT"
-          echo "3. Ensure all file operations use temp directory variables"
-          exit 1
-        else
-          echo "✅ All scripts comply with 'no persistent files' policy"
-        fi
+      # Was an inline grep for `cat > *.json` on lines not mentioning TMPDIR,
+      # which got it wrong both ways: it flagged scripts that DO scope their
+      # writes (the working directory is what makes them safe, not the text of
+      # the line) and it missed `cat > "$REPORT_FILE"` entirely, so three
+      # scripts writing reports into the checkout were never reported.
+      #
+      # Detecting writes textually needs a shell parser — two regex attempts
+      # flagged 36 and then 18 of 51 scripts, nearly all on `>` inside quoted
+      # strings. The replacement checks the contract the policy states instead:
+      # a run-scoped temp directory removed on EXIT.
+      run: node tests/validation/validate-no-persistent-files.mjs
 
     - name: Test Script Execution - No Artifacts
       run: |
