@@ -59,7 +59,6 @@ tests/
 │   ├── sector/
 │   │   └── test-sector-simple.sh
 │   └── mock-elimination/
-│       ├── mock-elimination-audit.sh
 │       ├── test-mock-elimination-validation.sh
 │       └── test-mock-prevention-scan.sh
 │

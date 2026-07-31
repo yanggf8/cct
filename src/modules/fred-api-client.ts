@@ -693,7 +693,7 @@ export function initializeFredApiClient(options: FredApiClientOptions): FredApiC
  */
 export class MockFredApiClient extends FredApiClient {
   constructor() {
-    super({ apiKey: 'demo-key' });
+    super({ apiKey: 'demo-key' }); // MOCK-EXEMPTION: this class never calls FRED, so the key is inert filler for the base constructor
   }
 
   async getMacroEconomicSnapshot(): Promise<MacroEconomicSnapshot> {

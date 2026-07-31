@@ -505,7 +505,7 @@ export function getEnvConfig(env: CloudflareEnvironment): SystemConfig {
     },
     MARKET_DATA: {
       ...CONFIG.MARKET_DATA,
-      FRED_API_KEY: env.FRED_API_KEY || env.FRED_API_KEYS?.split(',')[0]?.trim() || (mode === 'development' ? 'demo-key' : undefined),
+      FRED_API_KEY: env.FRED_API_KEY || env.FRED_API_KEYS?.split(',')[0]?.trim() || (mode === 'development' ? 'demo-key' : undefined), // MOCK-EXEMPTION: development mode only; production resolves to undefined so the real-data check fails loudly
       FRED_RATE_LIMIT_DELAY_MS: parseInt(env.FRED_RATE_LIMIT_DELAY_MS || '') || CONFIG.MARKET_DATA.FRED_RATE_LIMIT_DELAY_MS,
       FRED_MAX_RETRIES: parseInt(env.FRED_MAX_RETRIES || '') || CONFIG.MARKET_DATA.FRED_MAX_RETRIES,
       FRED_CACHE_ENABLED: env.FRED_CACHE_ENABLED !== 'false',

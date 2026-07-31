@@ -37,7 +37,6 @@ test-pre-market-multi-run.sh
 tests/e2e/test-workflows.sh
 tests/feature/ai-models/test-ai-model-stability.sh
 tests/feature/ai-models/test-ai-predictive-api.sh
-tests/feature/mock-elimination/mock-elimination-audit.sh
 tests/feature/mock-elimination/test-mock-prevention-scan.sh
 tests/feature/portfolio/test-backtesting-api.sh
 tests/feature/sector/test-sector-simple.sh

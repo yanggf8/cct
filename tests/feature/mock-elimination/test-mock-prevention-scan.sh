@@ -42,6 +42,18 @@ declare -A CRITICAL_PATTERNS=(
     ["not implemented"]="Unimplemented feature markers"
     ["NOT IMPLEMENTED"]="Uppercase unimplemented"
     ["\[\s*TODO\s*\]"]="TODO blocks (should have ticket references)"
+
+    # Absorbed from mock-elimination-audit.sh, which this scanner replaces.
+    # That script scanned for these but could not tell a hardcoded mock key
+    # from the guard clause that rejects one, because it had no word bounds,
+    # no negation filter and no exemption mechanism. Its patterns are worth
+    # keeping; its matching was not.
+    ["getMock[A-Za-z]*"]="Mock data factory functions"
+    ["generateMock[A-Za-z]*"]="Mock data generator functions"
+    ["mock-key"]="Hardcoded mock API key literal"
+    ["demo-key"]="Hardcoded demo API key literal"
+    ["test-key"]="Hardcoded test API key literal"
+    ["dummy data"]="Dummy data references"
 )
 
 declare -A WARNING_PATTERNS=(
@@ -142,6 +154,18 @@ scan_patterns() {
         # Without these, "not implemented" flagged five lines that were all
         # honest, and the only way to pass was to annotate correct code.
         MATCHES=$(echo "$MATCHES" | grep -viE '@ts-ignore|\bthrow\b' || true)
+
+        # The deny-list idiom: a negation written as code rather than prose.
+        #
+        #   !['demo-key', 'mock-key', 'test-key'].includes(env.FRED_API_KEY)
+        #
+        # is the check that a key is NOT one of the mock values -- the same
+        # meaning as "rejects mock keys", which the word filter above already
+        # excuses. It only reads as a violation because the forbidden values
+        # have to be spelled out in order to be forbidden. Three lines in
+        # config.ts and market-drivers-routes.ts are this exact shape, and
+        # every one of them is the defence, not the defect.
+        MATCHES=$(echo "$MATCHES" | grep -vE '!\s*\[[^]]*\]\.includes\(' || true)
 
         if [[ -n "$MATCHES" ]]; then
             matches_found=true

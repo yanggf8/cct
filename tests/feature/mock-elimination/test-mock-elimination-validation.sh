@@ -207,8 +207,11 @@ if [[ -f ".github/workflows/mock-data-prevention.yml" ]]; then
         log_test "PR trigger in mock prevention" "FAIL" "PR trigger not configured"
     fi
 
-    # Validate audit script execution
-    if grep -q "mock-elimination-audit.sh" ".github/workflows/mock-data-prevention.yml"; then
+    # Validate audit script execution. mock-elimination-audit.sh was deleted and
+    # its patterns merged into test-mock-prevention-scan.sh; this asserts the
+    # workflow calls whichever scanner is current, not a specific filename that
+    # a rename would silently break.
+    if grep -q "test-mock-prevention-scan.sh" ".github/workflows/mock-data-prevention.yml"; then
         log_test "Audit script execution in CI" "PASS"
     else
         log_test "Audit script execution in CI" "FAIL" "Audit script not called"
@@ -293,14 +296,24 @@ echo "======================================"
 
 echo "Running comprehensive mock elimination audit..."
 
-if timeout 120 ./mock-elimination-audit.sh > "$RUN_TMPDIR/audit-output.txt" 2>&1; then
+# Two things were wrong here before mock-elimination-audit.sh was deleted:
+#
+#   - the path was `./mock-elimination-audit.sh`, relative to the scanner's own
+#     directory, while every other check in this file is relative to the repo
+#     root. Run the way CI runs it, this step could only ever report FAIL.
+#   - `grep -q "COMPLIANT"` also matches "NON-COMPLIANT", so the compliance
+#     check passed on exactly the output it was meant to catch.
+#
+# The replacement scanner reports "SCAN PASSED" / "SCAN FAILED", which do not
+# share a substring, and exits non-zero on critical violations.
+if timeout 120 ./tests/feature/mock-elimination/test-mock-prevention-scan.sh full \
+        > "$RUN_TMPDIR/audit-output.txt" 2>&1; then
     log_test "Mock elimination audit" "PASS"
 
-    # Check audit results
-    if grep -q "COMPLIANT" "$RUN_TMPDIR/audit-output.txt"; then
+    if grep -q "SCAN PASSED" "$RUN_TMPDIR/audit-output.txt"; then
         log_test "Audit compliance status" "PASS"
     else
-        log_test "Audit compliance status" "FAIL" "Audit shows non-compliance"
+        log_test "Audit compliance status" "FAIL" "Scanner exited 0 without reporting SCAN PASSED"
     fi
 else
     log_test "Mock elimination audit" "FAIL" "Audit script failed"

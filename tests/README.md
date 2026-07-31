@@ -89,7 +89,6 @@ tests/
 - `test-sector-simple.sh` - Simple sector analysis tests
 
 **Mock Elimination (`feature/mock-elimination/`)**
-- `mock-elimination-audit.sh` - Audit for mock data usage
 - `test-mock-elimination-validation.sh` - Validate mock data removal
 - `test-mock-prevention-scan.sh` - Prevent new mock data introduction
 

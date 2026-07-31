@@ -204,7 +204,7 @@ export class MarketStructureFetcher {
       // wording here claimed a graceful degradation that does not happen, so a
       // caller reading the log would expect data and get an exception instead.
       logger.warn('No fallback available for market structure indicators - rethrowing');
-      return this.getMockMarketStructure();
+      return this.getMockMarketStructure(); // MOCK-EXEMPTION: returns `never` and throws; the name predates the removal of the mock path
     }
   }
 
