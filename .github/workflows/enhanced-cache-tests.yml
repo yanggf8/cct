@@ -41,7 +41,10 @@ on:
 
 env:
   API_URL: 'https://tft-trading-system.yanggf.workers.dev'
-  API_KEY: 'yanggf'
+  # Was the literal key. This repo is public, and the X_API_KEY secret it
+  # should have been reading has existed since 2025-10-02 — three other
+  # workflows already use it.
+  API_KEY: ${{ secrets.X_API_KEY }}
 
 jobs:
   test-enhanced-cache:
@@ -87,18 +90,33 @@ jobs:
     - name: Run integration tests
       run: |
         echo "Running enhanced cache integration tests..."
-        ./scripts/utilities/validate-enhanced-cache.sh
+        # The parse step below reads a log the script never wrote, which is half
+        # of why this job failed 100 times. Capture it here, and keep the
+        # script's exit status rather than tee's with pipefail.
+        set -o pipefail
+        ./scripts/utilities/validate-enhanced-cache.sh 2>&1 \
+          | tee "test-results-${GITHUB_RUN_ID}.log"
 
     - name: Parse test results
       if: always()
       run: |
-        if [ -f test-results-*.log ]; then
+        # `[ -f test-results-*.log ]` was wrong in both directions: with no
+        # match the glob stays literal and the test is false, and with more
+        # than one match `[ -f a b ]` is a syntax error. The run id makes the
+        # name exact, so no globbing is needed.
+        LOG="test-results-${GITHUB_RUN_ID}.log"
+        if [ -f "$LOG" ]; then
           echo "=== Test Results ==="
-          cat test-results-*.log
+          cat "$LOG"
 
-          # Extract metrics for GitHub Actions
-          PASSED=$(grep -c "✅ PASS:" test-results-*.log || echo "0")
-          FAILED=$(grep -c "❌ FAIL:" test-results-*.log || echo "0")
+          # `grep -c` prints 0 AND exits 1 when nothing matches, so
+          # `$(grep -c … || echo "0")` yields the two-line string "0\n0" and
+          # the arithmetic below dies with "syntax error in expression". The
+          # `|| true` only needs to stop `set -e` aborting; grep has already
+          # printed the count. Note this broke on the happy path: zero failures
+          # is exactly the case that produced the bad value.
+          PASSED=$(grep -c "✅ PASS:" "$LOG" || true)
+          FAILED=$(grep -c "❌ FAIL:" "$LOG" || true)
           TOTAL=$((PASSED + FAILED))
 
           echo "PASSED=$PASSED" >> $GITHUB_ENV
@@ -147,7 +165,10 @@ jobs:
         if [ "${{ env.ALL_TESTS_PASSED }}" = "false" ]; then
           echo "### Failed Tests Details" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          grep "❌ FAIL:" test-results-*.log || echo "No failed tests found" >> $GITHUB_STEP_SUMMARY
+          # The redirect used to bind only to the `echo`, so on the branch that
+          # matters -- there ARE failures -- grep's output went to stdout and
+          # the summary got nothing. Group both sides so either lands in it.
+          { grep "❌ FAIL:" "test-results-${GITHUB_RUN_ID}.log" || echo "No failed tests found"; } >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
         fi
 

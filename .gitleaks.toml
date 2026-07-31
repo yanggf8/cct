@@ -9,6 +9,22 @@
 [extend]
 useDefault = true
 
+# The default rules are entropy-based, and this repo's own X_API_KEY is six
+# lowercase letters -- well under the threshold. It sat in plaintext in
+# enhanced-cache-tests.yml and validate-enhanced-cache.sh while the scan
+# reported a clean tree, and was only found by reading the files.
+#
+# So match the SHAPE, not the value: an API-key variable assigned a bare
+# literal. Anything starting with `$` or `{` is an env or expression reference
+# and is skipped, which is what the fix looks like. The key's value is
+# deliberately not written here -- a deny-list naming the secret would publish
+# it a second time, which is the mistake two audit docs already made.
+[[rules]]
+id = "hardcoded-api-key-assignment"
+description = "API key assigned a literal instead of an env or secret reference"
+regex = '''(?i)\b[a-z_]*api[_-]?key[a-z_]*\s*[:=]\s*['"]([^'"${\n][^'"\n]{2,})['"]'''
+secretGroup = 1
+
 [allowlist]
 description = "Documentation placeholders and non-credential identifiers"
 
@@ -18,7 +34,7 @@ regexes = [
   # Placeholder API keys in docs, examples and negative-path tests.
   '''(?i)^your[_-].*''',
   '''(?i)^invalid[_-]key.*''',
-  '''(?i)^(dev|staging|production)[_-](api[_-])?key$''',
+  '''(?i)^(dev|staging|production|demo|mock)[_-](api[_-])?key$''',
   '''(?i)^YOUR_(PAGE|CHANNEL)_TOKEN$''',
   '''(?i)^(example|placeholder|dummy|changeme|xxx+)$''',
 
@@ -29,4 +45,28 @@ regexes = [
 
   # TypeScript identifiers picked up by the generic-api-key rule.
   '''^handle[A-Za-z0-9]+$''',
+
+  # Test and negative-path values in security suites.
+  '''^test$''',
+  '''^test[_-](api[_-])?key([_-]for[_-]validation)?$''',
+]
+
+# X_API_KEY is public by construction, not by accident: public/js/config.js
+# assigns it to window.CCT_API_KEY and the worker serves that file to every
+# browser that loads a dashboard. Rotating it would republish the new value the
+# same way on the next deploy.
+#
+# So these paths are not leaks to be closed -- they are the design. Flagging
+# them would make the gate permanently red over a value anyone can read with
+# View Source. What the gate still catches everywhere else is a genuinely
+# server-side credential being pasted into the tree.
+#
+# If the API ever needs real protection, the fix is an auth model the browser
+# can hold (a session, not a shared static key), and these entries come out.
+paths = [
+  '''^public/js/config\.js$''',
+  '''^dist/''',
+  '''^frontend-security-backup-[0-9-]+/''',
+  '''^docs/archive/''',
+  '''^archive/''',
 ]

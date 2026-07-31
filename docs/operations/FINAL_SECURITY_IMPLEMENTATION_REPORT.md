@@ -46,7 +46,7 @@ All P0/P1 security vulnerabilities have been successfully resolved across the en
 ### **2. Test Suite Security** ✅ COMPLETE
 
 #### **Critical Issues Resolved**
-- ❌ **Before**: 15+ test scripts with hardcoded API keys (`X_API_KEY="yanggf"`)
+- ❌ **Before**: 15+ test scripts with the API key written in as a literal rather than read from the environment
 - ✅ **After**: All test scripts use environment variables (`X_API_KEY="${X_API_KEY:-}"`)
 
 #### **Files Fixed (20 Total)**
