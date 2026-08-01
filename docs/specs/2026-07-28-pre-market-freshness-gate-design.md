@@ -1,3 +1,9 @@
+> **Moved 2026-08-01.** The cct skill now lives in `~/a/claw-skills/cct` and
+> runs a Rust binary (`crates/cct`). It had reached back into claw-skills for
+> its shared Python lib, which ran the dependency the wrong way — a Cloudflare
+> Worker repo importing an agent-skill library. The paths below refer to its
+> former location.
+
 # CCT pre-market freshness gate
 
 Date: 2026-07-28
