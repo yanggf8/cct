@@ -191,7 +191,7 @@ async function handleDailyReport(
     const cacheKey = `daily_report_${date}`;
     const cached = await (dal as any).get('REPORTS', cacheKey);
 
-    if (cached) {
+    if (cached?.data) {
       logger.info('DailyReport: Cache hit', { date, requestId });
 
       return new Response(
@@ -384,7 +384,7 @@ async function handleWeeklyReport(
     const cacheKey = `weekly_report_${week}`;
     const cached = await (dal as any).get('REPORTS', cacheKey);
 
-    if (cached) {
+    if (cached?.data) {
       logger.info('WeeklyReport: Cache hit', { week, requestId });
 
       return new Response(
@@ -653,7 +653,7 @@ export async function handlePreMarketReport(
       }
 
       // If cached data is invalid, log and continue to D1 fallback
-      if (cached) {
+      if (cached?.data) {
         logger.warn('PreMarketReport: Invalid cached data detected, skipping', {
           requestId,
           hasError: !!cached.error,

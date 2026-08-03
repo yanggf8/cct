@@ -337,7 +337,7 @@ async function handleSymbolHistory(
     const cacheKey = `symbol_history_${symbol}_${days}days`;
     const cached = await (dal as any).get('CACHE', cacheKey);
 
-    if (cached) {
+    if (cached?.data) {
       logger.info('SymbolHistory: Cache hit', { symbol, days, requestId });
 
       return new Response(
