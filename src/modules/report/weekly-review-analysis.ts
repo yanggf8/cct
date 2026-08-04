@@ -1,12 +1,15 @@
 /**
  * Weekly Review Analysis Module
  * Comprehensive pattern analysis and weekly performance review
- * 
- * MIGRATED: Uses DO Cache via CacheAbstraction
+ *
+ * Reads the week's runs from D1 (`scheduled_job_results`), which is where the
+ * pipeline stores them. It read the DO cache until 2026-08-04; the keys it
+ * looked for there had no writer, so every weekly review found zero trading
+ * days and finished `partial`.
  */
 
 import { createLogger } from '../logging.js';
-import { createCache } from '../cache-abstraction.js';
+import { readD1ReportSnapshot } from '../d1-job-storage.js';
 import { getLastTradingDays } from '../handlers/date-utils.js';
 import type { CloudflareEnvironment as BaseEnv } from '../../types.js';
 
@@ -81,7 +84,13 @@ export type WeeklyMomentum = 'bullish' | 'bearish' | 'neutral';
  */
 export interface DailyResult {
   date: string;
-  accuracy: number;
+  /**
+   * Realised accuracy for the day, from its end-of-day run. `null` while that
+   * run has not happened yet — the day's signals are real but nothing has
+   * settled, and an invented figure here would flow straight into the weekly
+   * average.
+   */
+  accuracy: number | null;
   signals: number;
   topSymbol: string | null;
   marketBias: MarketBias;
@@ -125,7 +134,8 @@ export interface PatternAnalysis {
  */
 export interface DailyVariation {
   day: string;
-  accuracy: number;
+  /** `null` for a day that has not been scored yet — see DailyResult.accuracy. */
+  accuracy: number | null;
   signals: number;
   bias: MarketBias;
 }
@@ -134,10 +144,16 @@ export interface DailyVariation {
  * Accuracy metrics for the week
  */
 export interface AccuracyMetrics {
-  weeklyAverage: number;
-  bestDay: number;
-  worstDay: number;
-  consistency: number;
+  /**
+   * Accuracy is `null` until at least one day of the week has closed and been
+   * scored. These fields used to fall back to invented figures — 68% average,
+   * 78% best, 25 signals — which is how a pipeline that had produced nothing
+   * for weeks still rendered a healthy-looking review.
+   */
+  weeklyAverage: number | null;
+  bestDay: number | null;
+  worstDay: number | null;
+  consistency: number | null;
   totalSignals: number;
   avgDailySignals: number;
   trend: TrendDirection;
@@ -375,19 +391,23 @@ export async function getWeeklyDualModelStats(
   try {
     const current = typeof currentTime === 'string' || typeof currentTime === 'number' ? new Date(currentTime) : currentTime;
     const endDate = current.toISOString().split('T')[0];
+    // symbol_predictions keeps the legacy column names: gemma_* is the primary
+    // model, distilbert_* the mate. This query named primary_*/mate_* until
+    // 2026-08-04 — columns that do not exist — so it threw on every run and the
+    // weekly review reported "No dual-model stats available from D1" forever.
     const result = await env.PREDICT_JOBS_DB.prepare(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN primary_status = 'success' THEN 1 ELSE 0 END) as primary_success,
-        SUM(CASE WHEN primary_status = 'failed' OR primary_status = 'timeout' THEN 1 ELSE 0 END) as primary_failed,
-        AVG(CASE WHEN primary_confidence IS NOT NULL THEN primary_confidence END) as primary_avg_confidence,
-        SUM(CASE WHEN mate_status = 'success' THEN 1 ELSE 0 END) as mate_success,
-        SUM(CASE WHEN mate_status = 'failed' OR mate_status = 'timeout' THEN 1 ELSE 0 END) as mate_failed,
-        AVG(CASE WHEN mate_confidence IS NOT NULL THEN mate_confidence END) as mate_avg_confidence,
-        SUM(CASE WHEN model_selection_reason LIKE '%agree%' OR (primary_status = 'success' AND mate_status = 'success') THEN 1 ELSE 0 END) as agreements
+        SUM(CASE WHEN gemma_status = 'success' THEN 1 ELSE 0 END) as primary_success,
+        SUM(CASE WHEN gemma_status = 'failed' OR gemma_status = 'timeout' THEN 1 ELSE 0 END) as primary_failed,
+        AVG(CASE WHEN gemma_confidence IS NOT NULL THEN gemma_confidence END) as primary_avg_confidence,
+        SUM(CASE WHEN distilbert_status = 'success' THEN 1 ELSE 0 END) as mate_success,
+        SUM(CASE WHEN distilbert_status = 'failed' OR distilbert_status = 'timeout' THEN 1 ELSE 0 END) as mate_failed,
+        AVG(CASE WHEN distilbert_confidence IS NOT NULL THEN distilbert_confidence END) as mate_avg_confidence,
+        SUM(CASE WHEN model_selection_reason LIKE '%agree%' OR (gemma_status = 'success' AND distilbert_status = 'success') THEN 1 ELSE 0 END) as agreements
       FROM symbol_predictions
       WHERE prediction_date >= date(?, '-7 days') AND prediction_date <= date(?)
-        AND (primary_status IS NOT NULL OR mate_status IS NOT NULL)
+        AND (gemma_status IS NOT NULL OR distilbert_status IS NOT NULL)
     `).bind(endDate, endDate).first();
 
     if (!result || (result as any).total === 0) return undefined;
@@ -420,51 +440,103 @@ export async function getWeeklyDualModelStats(
 }
 
 /**
- * Get weekly performance data from KV storage
+ * Get weekly performance data from D1.
+ *
+ * This used to read `analysis_<date>` out of the DO cache. No writer for that
+ * key exists anywhere in the codebase — the pipeline stores its runs in D1's
+ * `scheduled_job_results` — so every day missed, `tradingDaysFound` was always
+ * 0, and the Sunday weekly job could only ever finish `partial`.
+ *
+ * Two snapshots per day carry what this needs: the `pre-market` run holds the
+ * signals the models produced, and the `end-of-day` run holds how those calls
+ * actually turned out.
  */
 async function getWeeklyPerformanceData(
   env: CloudflareEnvironment,
   currentTime: number | string | Date
 ): Promise<WeeklyPerformanceData> {
   const weeklyData: WeeklyPerformanceData = {
-    tradingDays: 5,
+    tradingDays: 0,
     totalSignals: 0,
     dailyResults: [],
     topPerformers: [],
     underperformers: []
   };
 
-  // Get last 5 trading days data from cache
   const dates = getLastTradingDays(currentTime, 5);
-  const cache = createCache(env);
+
+  // ticker -> that ticker's daily percentage moves across the week
+  const moves = new Map<string, number[]>();
 
   for (const date of dates) {
+    const dateStr = date.toISOString().split('T')[0];
     try {
-      const dateStr = date.toISOString().split('T')[0];
-      const dailyData = await cache.get(`analysis_${dateStr}`);
+      const preMarket = await readD1ReportSnapshot(env, dateStr, 'pre-market');
+      const parsed = preMarket?.data as AnalysisData | undefined;
+      if (!parsed?.trading_signals) continue;
 
-      if (dailyData) {
-        const parsed: AnalysisData = typeof dailyData === 'string' ? JSON.parse(dailyData) : dailyData;
-        weeklyData.totalSignals += parsed.symbols_analyzed?.length || 0;
-        weeklyData.dailyResults.push({
-          date: dateStr,
-          accuracy: parsed.pre_market_analysis?.confidence || 65,
-          signals: parsed.symbols_analyzed?.length || 0,
-          topSymbol: getTopPerformingSymbol(parsed),
-          marketBias: parsed.pre_market_analysis?.bias || 'neutral'
-        });
+      const signals = Object.values(parsed.trading_signals);
+      weeklyData.totalSignals += signals.length;
+
+      const endOfDay = (await readD1ReportSnapshot(env, dateStr, 'end-of-day'))?.data;
+
+      // Accuracy is a settled fact, so it comes from the end-of-day run or not
+      // at all. The old fallback of 65 invented a number for days that had no
+      // outcome yet.
+      const accuracy = typeof endOfDay?.overallAccuracy === 'number'
+        ? endOfDay.overallAccuracy
+        : null;
+
+      // From `signalBreakdown`, which lists every analysed symbol.
+      // topWinners/topLosers hold only the ±1% movers, so a week summed from
+      // those drops each symbol's quiet days.
+      for (const row of endOfDay?.signalBreakdown ?? []) {
+        if (!row?.ticker || typeof row.actual !== 'string') continue;
+        const magnitude = parseFloat(row.actual.replace(/[^0-9.]/g, ''));
+        if (Number.isNaN(magnitude)) continue; // 'Pending'
+        const pct = row.actualDirection === 'down' ? -magnitude : magnitude;
+        moves.set(row.ticker, [...(moves.get(row.ticker) ?? []), pct]);
       }
+
+      weeklyData.dailyResults.push({
+        date: dateStr,
+        accuracy,
+        signals: signals.length,
+        topSymbol: getTopPerformingSymbol(parsed),
+        marketBias: deriveMarketBias(signals)
+      });
     } catch (error: unknown) {
-      logger.warn(`Failed to get data for ${date.toISOString().split('T')[0]}`, {
+      logger.warn(`Failed to get data for ${dateStr}`, {
         error: (error as Error).message
       });
     }
   }
 
+  weeklyData.tradingDays = weeklyData.dailyResults.length;
+
   // Aggregate performance data
-  aggregateWeeklyPerformance(weeklyData);
+  aggregateWeeklyPerformance(weeklyData, moves);
 
   return weeklyData;
+}
+
+/**
+ * The day's bias, taken from the signals themselves.
+ *
+ * The snapshot has no summary field for this; reading `pre_market_analysis.bias`
+ * always came back undefined and every day was reported neutral.
+ */
+function deriveMarketBias(signals: TradingSignal[]): MarketBias {
+  let bullish = 0;
+  let bearish = 0;
+  for (const signal of signals) {
+    const sentiment = (signal.sentiment_layers?.[0]?.sentiment || '').toLowerCase();
+    if (sentiment === 'bullish') bullish++;
+    else if (sentiment === 'bearish') bearish++;
+  }
+  if (bullish > bearish) return 'bullish';
+  if (bearish > bullish) return 'bearish';
+  return 'neutral';
 }
 
 /**
@@ -485,7 +557,7 @@ function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalys
   }
 
   // Calculate daily variations
-  weeklyData.dailyResults.forEach((day: any, index: any) => {
+  weeklyData.dailyResults.forEach((day, index) => {
     const dayName = getDayName(index);
     patterns.dailyVariations.push({
       day: dayName,
@@ -494,7 +566,9 @@ function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalys
       bias: day.marketBias
     });
 
-    // Categorize strong vs weak days
+    // Categorize strong vs weak days. A day with no end-of-day run yet is
+    // neither — it has no realised accuracy to judge.
+    if (day.accuracy === null) return;
     if (day.accuracy > 70) {
       patterns.strongDays.push(dayName);
     } else if (day.accuracy < 60) {
@@ -502,10 +576,12 @@ function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalys
     }
   });
 
-  // Calculate consistency score
-  const accuracies = weeklyData.dailyResults.map(d => d.accuracy);
-  const avgAccuracy = accuracies.reduce((a: any, b: any) => a + b, 0) / accuracies.length;
-  const variance = accuracies.reduce((sum: any, acc: any) => sum + Math.pow(acc - avgAccuracy, 2), 0) / accuracies.length;
+  // Calculate consistency score over the days that have settled
+  const accuracies = settledAccuracies(weeklyData);
+  if (accuracies.length === 0) return patterns;
+
+  const avgAccuracy = accuracies.reduce((a, b) => a + b, 0) / accuracies.length;
+  const variance = accuracies.reduce((sum, acc) => sum + Math.pow(acc - avgAccuracy, 2), 0) / accuracies.length;
   patterns.consistencyScore = Math.max(0, 100 - Math.sqrt(variance));
 
   // Determine overall performance
@@ -518,6 +594,15 @@ function analyzeWeeklyPatterns(weeklyData: WeeklyPerformanceData): PatternAnalys
 }
 
 /**
+ * The accuracies of the days that actually have an outcome.
+ */
+function settledAccuracies(weeklyData: WeeklyPerformanceData): number[] {
+  return weeklyData.dailyResults
+    .map(d => d.accuracy)
+    .filter((a): a is number => a !== null);
+}
+
+/**
  * Calculate weekly accuracy metrics
  */
 function calculateWeeklyAccuracy(weeklyData: WeeklyPerformanceData): AccuracyMetrics {
@@ -525,16 +610,24 @@ function calculateWeeklyAccuracy(weeklyData: WeeklyPerformanceData): AccuracyMet
     return getDefaultAccuracyMetrics();
   }
 
-  const accuracies = weeklyData.dailyResults.map(d => d.accuracy);
+  const accuracies = settledAccuracies(weeklyData);
   const signals = weeklyData.dailyResults.map(d => d.signals);
+  const totalSignals = signals.reduce((a, b) => a + b, 0);
+
+  // Signal counts are known as soon as the pre-market run lands; accuracy is
+  // only known once the day has closed. Report the counts either way rather
+  // than letting an unsettled day turn the whole block into NaN.
+  if (accuracies.length === 0) {
+    return { ...getDefaultAccuracyMetrics(), totalSignals, avgDailySignals: Math.round(totalSignals / signals.length) };
+  }
 
   return {
-    weeklyAverage: Math.round(accuracies.reduce((a: any, b: any) => a + b, 0) / accuracies.length),
+    weeklyAverage: Math.round(accuracies.reduce((a, b) => a + b, 0) / accuracies.length),
     bestDay: Math.max(...accuracies),
     worstDay: Math.min(...accuracies),
     consistency: Math.round(100 - (Math.max(...accuracies) - Math.min(...accuracies))),
-    totalSignals: signals.reduce((a: any, b: any) => a + b, 0),
-    avgDailySignals: Math.round(signals.reduce((a: any, b: any) => a + b, 0) / signals.length),
+    totalSignals,
+    avgDailySignals: Math.round(totalSignals / signals.length),
     trend: calculateAccuracyTrend(accuracies)
   };
 }
@@ -554,7 +647,7 @@ function identifyWeeklyTrends(weeklyData: WeeklyPerformanceData, patternAnalysis
   }
 
   return {
-    accuracyTrend: calculateAccuracyTrend(weeklyData.dailyResults.map(d => d.accuracy)),
+    accuracyTrend: calculateAccuracyTrend(settledAccuracies(weeklyData)),
     volumeTrend: calculateVolumeTrend(weeklyData.dailyResults.map(d => d.signals)),
     biasTrend: calculateBiasTrend(weeklyData.dailyResults.map(d => d.marketBias)),
     consistencyTrend: patternAnalysis.consistencyScore > 80 ? 'improving' : 'variable',
@@ -573,7 +666,7 @@ function generateWeeklyInsights(
   const insights: WeeklyInsight[] = [];
 
   // Performance insights
-  if (accuracyMetrics.weeklyAverage > 70) {
+  if (accuracyMetrics.weeklyAverage !== null && accuracyMetrics.weeklyAverage > 70) {
     insights.push({
       type: 'performance',
       level: 'positive',
@@ -701,20 +794,39 @@ function getTopPerformingSymbol(analysisData: AnalysisData): string | null {
 /**
  * Aggregate weekly performance data
  */
-function aggregateWeeklyPerformance(weeklyData: WeeklyPerformanceData): void {
+function aggregateWeeklyPerformance(
+  weeklyData: WeeklyPerformanceData,
+  moves: Map<string, number[]>
+): void {
   if (weeklyData.dailyResults.length === 0) return;
 
-  // Aggregate top performers and underperformers (simplified)
-  weeklyData.topPerformers = [
-    { symbol: 'AAPL', weeklyGain: '+4.2%', consistency: 'high' },
-    { symbol: 'MSFT', weeklyGain: '+3.1%', consistency: 'high' },
-    { symbol: 'GOOGL', weeklyGain: '+2.8%', consistency: 'medium' }
-  ];
+  // This block used to be a hardcoded list — AAPL +4.2%, MSFT +3.1%, TSLA
+  // -2.1% — returned identically every week whatever the market did. The real
+  // daily moves are in each day's end-of-day snapshot.
+  const totals = Array.from(moves.entries()).map(([symbol, daily]) => {
+    const total = daily.reduce((a, b) => a + b, 0);
+    // Consistency is how often the symbol moved the same way it did overall.
+    // One observation is not a track record, so it can never read as 'high'.
+    const agreeing = daily.filter(d => (d >= 0) === (total >= 0)).length;
+    const share = agreeing / daily.length;
+    const consistency: ConsistencyLevel =
+      daily.length >= 3 && share === 1 ? 'high' : share >= 0.6 ? 'medium' : 'low';
+    return { symbol, total, consistency };
+  });
 
-  weeklyData.underperformers = [
-    { symbol: 'TSLA', weeklyLoss: '-2.1%', consistency: 'low' },
-    { symbol: 'NVDA', weeklyLoss: '-1.5%', consistency: 'medium' }
-  ];
+  const fmt = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
+
+  weeklyData.topPerformers = totals
+    .filter(t => t.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 3)
+    .map(t => ({ symbol: t.symbol, weeklyGain: fmt(t.total), consistency: t.consistency }));
+
+  weeklyData.underperformers = totals
+    .filter(t => t.total < 0)
+    .sort((a, b) => a.total - b.total)
+    .slice(0, 3)
+    .map(t => ({ symbol: t.symbol, weeklyLoss: fmt(t.total), consistency: t.consistency }));
 }
 
 /**
@@ -759,8 +871,13 @@ function calculateBiasTrend(biases: MarketBias[]): TrendDirection {
 function determineWeeklyMomentum(dailyResults: DailyResult[]): WeeklyMomentum {
   if (dailyResults.length < 2) return 'neutral';
 
-  const recentDays = dailyResults.slice(-2);
-  const avgAccuracy = recentDays.reduce((sum: any, day: any) => sum + day.accuracy, 0) / recentDays.length;
+  const recent = dailyResults
+    .slice(-2)
+    .map(d => d.accuracy)
+    .filter((a): a is number => a !== null);
+  if (recent.length === 0) return 'neutral';
+
+  const avgAccuracy = recent.reduce((sum, a) => sum + a, 0) / recent.length;
 
   if (avgAccuracy > 70) return 'bullish';
   if (avgAccuracy < 55) return 'bearish';
@@ -785,12 +902,12 @@ function generateRecommendedApproach(confidence: ConfidenceLevel, bias: MarketBi
  */
 function getDefaultAccuracyMetrics(): AccuracyMetrics {
   return {
-    weeklyAverage: 68,
-    bestDay: 78,
-    worstDay: 58,
-    consistency: 75,
-    totalSignals: 25,
-    avgDailySignals: 5,
+    weeklyAverage: null,
+    bestDay: null,
+    worstDay: null,
+    consistency: null,
+    totalSignals: 0,
+    avgDailySignals: 0,
     trend: 'stable'
   };
 }
@@ -801,79 +918,48 @@ function getDefaultAccuracyMetrics(): AccuracyMetrics {
 function getDefaultWeeklyReviewData(): WeeklyReviewAnalysis {
   return {
     weeklyOverview: {
-      totalTradingDays: 5,
-      totalSignals: 25,
-      weeklyPerformance: 'strong',
-      modelConsistency: 78
+      totalTradingDays: 0,
+      totalSignals: 0,
+      weeklyPerformance: 'needs-improvement',
+      modelConsistency: 0
     },
-    accuracyMetrics: {
-      weeklyAverage: 68,
-      bestDay: 78,
-      worstDay: 58,
-      consistency: 75,
-      totalSignals: 25,
-      avgDailySignals: 5,
-      trend: 'stable'
-    },
+    accuracyMetrics: getDefaultAccuracyMetrics(),
     patternAnalysis: {
-      overallPerformance: 'strong',
-      consistencyScore: 78,
-      dailyVariations: [
-        { day: 'Monday', accuracy: 65, signals: 5, bias: 'bullish' },
-        { day: 'Tuesday', accuracy: 72, signals: 5, bias: 'neutral' },
-        { day: 'Wednesday', accuracy: 68, signals: 5, bias: 'bearish' },
-        { day: 'Thursday', accuracy: 70, signals: 5, bias: 'bullish' },
-        { day: 'Friday', accuracy: 75, signals: 5, bias: 'neutral' }
-      ],
-      strongDays: ['Tuesday', 'Thursday', 'Friday'],
-      weakDays: ['Monday'],
-      patternStrength: 'high'
+      overallPerformance: 'needs-improvement',
+      consistencyScore: 0,
+      dailyVariations: [],
+      strongDays: [],
+      weakDays: [],
+      patternStrength: 'low'
     },
     trends: {
-      accuracyTrend: 'improving',
+      accuracyTrend: 'stable',
       volumeTrend: 'stable',
       biasTrend: 'neutral',
-      consistencyTrend: 'improving',
-      weeklyMomentum: 'bullish'
+      consistencyTrend: 'variable',
+      weeklyMomentum: 'neutral'
     },
     insights: [
       {
         type: 'performance',
-        level: 'positive',
-        message: 'Strong weekly performance with 68% average accuracy'
-      },
-      {
-        type: 'consistency',
-        level: 'positive',
-        message: 'High model consistency (78%) indicates stable predictions'
-      },
-      {
-        type: 'trend',
-        level: 'positive',
-        message: 'Model accuracy showing improving trend throughout the week'
+        level: 'negative',
+        message: 'Weekly review could not be generated — no analysis to report'
       }
     ],
-    topPerformers: [
-      { symbol: 'AAPL', weeklyGain: '+4.2%', consistency: 'high' },
-      { symbol: 'MSFT', weeklyGain: '+3.1%', consistency: 'high' },
-      { symbol: 'GOOGL', weeklyGain: '+2.8%', consistency: 'medium' }
-    ],
-    underperformers: [
-      { symbol: 'TSLA', weeklyLoss: '-2.1%', consistency: 'low' },
-      { symbol: 'NVDA', weeklyLoss: '-1.5%', consistency: 'medium' }
-    ],
+    topPerformers: [],
+    underperformers: [],
     sectorRotation: {
-      dominantSectors: ['Technology', 'Healthcare'],
-      rotatingSectors: ['Energy', 'Financials'],
-      rotationStrength: 'moderate',
-      nextWeekPotential: ['Consumer Discretionary', 'Materials']
+      dominantSectors: [],
+      rotatingSectors: [],
+      rotationStrength: 'weak',
+      nextWeekPotential: []
     },
     nextWeekOutlook: {
-      marketBias: 'neutral-bullish',
-      confidenceLevel: 'medium',
-      keyFocus: 'Earnings Season',
+      marketBias: 'neutral',
+      confidenceLevel: 'low',
+      keyFocus: 'Unavailable',
       expectedVolatility: 'moderate',
-      recommendedApproach: 'Balanced approach with selective signal execution'
+      recommendedApproach: 'No recommendation — the week produced no analysable data'
     },
     modelStats: undefined
   };

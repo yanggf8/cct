@@ -154,6 +154,28 @@ export async function handleReportRoutes(
 }
 
 /**
+ * A day's realised per-symbol moves, from its end-of-day snapshot.
+ *
+ * Read from `signalBreakdown`, which lists every analysed symbol.
+ * topWinners/topLosers are only the ±1% movers, so summing those across a week
+ * silently drops each symbol's quiet days and understates the total.
+ *
+ * The snapshot stores the move for display — `actual: "↓ 1.4%"` with the sign
+ * carried separately in `actualDirection`, and the literal string 'Pending'
+ * when the market data never arrived.
+ */
+function dayMoves(endOfDay: any): Array<[string, number]> {
+  const moves: Array<[string, number]> = [];
+  for (const row of endOfDay?.signalBreakdown ?? []) {
+    if (!row?.ticker || typeof row.actual !== 'string') continue;
+    const magnitude = parseFloat(row.actual.replace(/[^0-9.]/g, ''));
+    if (Number.isNaN(magnitude)) continue; // 'Pending'
+    moves.push([row.ticker, row.actualDirection === 'down' ? -magnitude : magnitude]);
+  }
+  return moves;
+}
+
+/**
  * Handle daily report
  * GET /api/v1/reports/daily/:date
  */
@@ -187,16 +209,26 @@ async function handleDailyReport(
       );
     }
 
-    // Check cache first
+    // Check cache first.
+    //
+    // `read` is the DAL's public generic get. This used to call the private
+    // `get('REPORTS', cacheKey)` through an `as any` cast, and the real
+    // signature is `get(key, ttl?)` — so the lookup key was the literal string
+    // "REPORTS" and the key we wanted was passed as the TTL. It could only
+    // ever miss.
+    // `?nocache=true` regenerates and overwrites — same reason as the weekly
+    // route.
     const cacheKey = `daily_report_${date}`;
-    const cached = await (dal as any).get('REPORTS', cacheKey);
+    const bypassCache = url.searchParams.get('bypass') === 'true'
+      || url.searchParams.get('nocache') === 'true';
+    const cached = bypassCache ? null : await dal.read(cacheKey);
 
     if (cached?.data) {
       logger.info('DailyReport: Cache hit', { date, requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 86400, // 24 hours
             requestId,
@@ -207,9 +239,12 @@ async function handleDailyReport(
       );
     }
 
-    // Get analysis data for the date
-    const analysisKey = `analysis_${date}`;
-    const analysisData = await (dal as any).get(analysisKey, 'ANALYSIS');
+    // Get analysis data for the date from D1 — the only store the pipeline
+    // writes. The `analysis_<date>` DO-cache key this used to read has no
+    // writer anywhere in the codebase, a leftover from before the D1
+    // migration, so every date answered NO_DATA however good the run was.
+    const snapshot = await readD1ReportSnapshot(env, date, 'pre-market');
+    const analysisData = snapshot?.data;
 
     if (!analysisData || !(analysisData as any).trading_signals) {
       return new Response(
@@ -255,7 +290,12 @@ async function handleDailyReport(
           return {
             symbol: (signal as any).symbol || 'UNKNOWN',
             sentiment: primary.sentiment.toLowerCase(),
-            signal: signal.recommendation || 'HOLD',
+            // D1 nests the call under `trading_signals`; the flat field is the
+            // older shape. Falling straight through to 'HOLD' would report the
+            // opposite of a CONSIDER/BUY the models actually made.
+            signal: signal.recommendation
+              || (signal as any).trading_signals?.recommendation
+              || 'HOLD',
             confidence: primary.confidence,
             reasoning: primary.reasoning,
           };
@@ -380,16 +420,26 @@ async function handleWeeklyReport(
     const startDate = getWeekStartDate(year, weekNum);
     const endDate = new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000);
 
-    // Check cache first
+    // Check cache first. See handleDailyReport for why this is `read` and not
+    // the private `get('REPORTS', key)` it used to call.
+    //
+    // `?nocache=true` regenerates and overwrites, matching the pre-market
+    // route. It is the way out of a poisoned entry: while the cache read was
+    // broken this handler still *wrote*, so weeks generated before the fix are
+    // cached as seven zero-signal days and would otherwise be served for the
+    // full 7-day TTL.
     const cacheKey = `weekly_report_${week}`;
-    const cached = await (dal as any).get('REPORTS', cacheKey);
+    const url = new URL(request.url);
+    const bypassCache = url.searchParams.get('bypass') === 'true'
+      || url.searchParams.get('nocache') === 'true';
+    const cached = bypassCache ? null : await dal.read(cacheKey);
 
     if (cached?.data) {
       logger.info('WeeklyReport: Cache hit', { week, requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 604800, // 7 days
             requestId,
@@ -400,14 +450,22 @@ async function handleWeeklyReport(
       );
     }
 
-    // Collect daily data for the week
-    const dailyReports = [];
+    // Collect the week from D1 — the store the pipeline writes. The
+    // `daily_report_<date>` DO-cache key read here before has no writer
+    // anywhere, and the DAL returns a truthy `{success:false}` object on a
+    // miss, so every calendar day was pushed as a report with no signals in
+    // it: seven neutral zero-signal days, weekends included, while D1 held a
+    // full set of signals for each trading day.
+    //
+    // Each day needs both runs: pre-market holds the signals, end-of-day holds
+    // how they turned out — the realised moves and the scored accuracy.
+    const dailyReports: Array<{ date: string; data: any; outcome: any }> = [];
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      const dailyKey = `daily_report_${dateStr}`;
-      const dailyData = await (dal as any).get('REPORTS', dailyKey);
-      if (dailyData) {
-        dailyReports.push({ date: dateStr, data: dailyData });
+      const snapshot = await readD1ReportSnapshot(env, dateStr, 'pre-market');
+      if (snapshot?.data?.trading_signals) {
+        const outcome = (await readD1ReportSnapshot(env, dateStr, 'end-of-day'))?.data ?? null;
+        dailyReports.push({ date: dateStr, data: snapshot.data, outcome });
       }
     }
 
@@ -429,27 +487,43 @@ async function handleWeeklyReport(
 
     // Calculate weekly metrics from actual daily report data
     const weeklyReturns: number[] = [];
+    const dayConfidences: number[] = [];
+    const dayAccuracies: number[] = [];
+    // symbol -> that symbol's realised daily moves across the week
+    const symbolMoves = new Map<string, number[]>();
     let totalSignalCount = 0;
     const dailyBreakdown: Array<{ date: string; sentiment: string; signal_count: number }> = [];
 
     for (const report of dailyReports) {
-      const signals = (report as any).data?.signals || [];
+      const signals = Object.values(report.data.trading_signals ?? {}) as ReportSignal[];
       const daySignalCount = signals.length;
       totalSignalCount += daySignalCount;
 
-      // Derive daily return from actual symbol returns in the report
-      const dayReturns = signals
-        .filter((s: any) => s.daily_return !== undefined)
-        .map((s: any) => s.daily_return as number);
-      const dayAvgReturn = dayReturns.length > 0
-        ? dayReturns.reduce((a: number, b: number) => a + b, 0) / dayReturns.length
-        : 0;
-      weeklyReturns.push(dayAvgReturn);
+      // Realised moves come from the end-of-day run. The pre-market signals
+      // have no `daily_return` field, so the old filter matched nothing and
+      // every week reported a flat +0.00% return and 0.00% volatility — a
+      // claim about the market, not a missing value.
+      const moves = dayMoves(report.outcome);
+      for (const [symbol, pct] of moves) {
+        symbolMoves.set(symbol, [...(symbolMoves.get(symbol) ?? []), pct]);
+      }
+      const pcts = moves.map(([, pct]) => pct);
+      if (pcts.length > 0) {
+        weeklyReturns.push(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+      }
+      if (typeof report.outcome?.overallAccuracy === 'number') {
+        dayAccuracies.push(report.outcome.overallAccuracy);
+      }
 
-      // Derive sentiment from daily data
-      const daySentiment = (report as any).data?.sentiment
-        || (report as any).sentiment
-        || 'neutral';
+      // Derive the day's sentiment from the signals themselves. The snapshot
+      // carries no summary field, and defaulting to 'neutral' reported every
+      // day as neutral regardless of what the models said.
+      const perSignal = signals.map(s => getPrimarySentiment(s.sentiment_layers));
+      const bullish = perSignal.filter(s => s.sentiment.toLowerCase() === 'bullish').length;
+      const bearish = perSignal.filter(s => s.sentiment.toLowerCase() === 'bearish').length;
+      const daySentiment = bullish > bearish ? 'bullish' : bearish > bullish ? 'bearish' : 'neutral';
+      dayConfidences.push(...perSignal.map(s => s.confidence).filter(c => typeof c === 'number'));
+
       dailyBreakdown.push({ date: report.date, sentiment: daySentiment, signal_count: daySignalCount });
     }
 
@@ -464,7 +538,11 @@ async function handleWeeklyReport(
     const bullishDays = dailyBreakdown.filter(d => d.sentiment === 'bullish').length;
     const bearishDays = dailyBreakdown.filter(d => d.sentiment === 'bearish').length;
     const sentimentTrend = bullishDays > bearishDays ? 'bullish' : bearishDays > bullishDays ? 'bearish' : 'neutral';
-    const avgConfidence = totalSignalCount > 0 ? totalSignalCount / dailyReports.length : 0;
+    // The real mean model confidence. This used to be signals-per-day, which
+    // is a density, not a confidence — it read as "average_confidence: 5".
+    const avgConfidence = dayConfidences.length > 0
+      ? dayConfidences.reduce((a, b) => a + b, 0) / dayConfidences.length
+      : 0;
 
     const response: WeeklyReportResponse = {
       week_start: week,
@@ -481,7 +559,12 @@ async function handleWeeklyReport(
         daily_breakdown: dailyBreakdown,
         performance_summary: {
           total_signals: totalSignalCount,
-          accuracy_rate: 0, // Requires outcome tracking
+          // The end-of-day runs score each day's calls; average the days that
+          // have closed. 0 when none have — not a claim of zero accuracy, but
+          // the only honest number before any outcome exists.
+          accuracy_rate: dayAccuracies.length > 0
+            ? dayAccuracies.reduce((a, b) => a + b, 0) / dayAccuracies.length / 100
+            : 0,
           best_performing_sectors: [],
           worst_performing_sectors: [],
         },
@@ -499,7 +582,7 @@ async function handleWeeklyReport(
           const symbolMap = new Map<string, { returns: number[]; signals: number }>();
           
           for (const report of dailyReports) {
-            const signals = (report as any).data?.signals || [];
+            const signals = Object.values(report.data.trading_signals ?? {}) as any[];
             for (const signal of signals) {
               const sym = signal.symbol || 'UNKNOWN';
               if (!symbolMap.has(sym)) {
@@ -507,17 +590,22 @@ async function handleWeeklyReport(
               }
               const entry = symbolMap.get(sym)!;
               entry.signals++;
-              if (signal.daily_return !== undefined) {
-                entry.returns.push(signal.daily_return);
-              }
             }
           }
-          
+
+          // Returns come from the end-of-day snapshots, collected above —
+          // `signal.daily_return` does not exist on a pre-market signal, so
+          // every symbol reported a flat 0.
+          for (const [symbol, moves] of symbolMoves) {
+            if (!symbolMap.has(symbol)) symbolMap.set(symbol, { returns: [], signals: 0 });
+            symbolMap.get(symbol)!.returns.push(...moves);
+          }
+
           return Array.from(symbolMap.entries()).slice(0, 5).map(([symbol, data]) => ({
             symbol,
-            weekly_return: data.returns.length > 0 
-              ? data.returns.reduce((a, b) => a + b, 0) / data.returns.length 
-              : 0,
+            // Summed, not averaged: these are successive daily moves, and the
+            // week's return is what they compound to, not their mean.
+            weekly_return: data.returns.reduce((a, b) => a + b, 0),
             sentiment_accuracy: 0, // Requires historical tracking to calculate
             signals_generated: data.signals,
             success_rate: 0, // Requires outcome tracking to calculate
@@ -531,7 +619,7 @@ async function handleWeeklyReport(
         },
         outlook: {
           next_week_sentiment: sentimentTrend,
-          confidence: totalSignalCount > 0 ? Math.min(totalSignalCount / (dailyReports.length * 5), 1) : 0,
+          confidence: avgConfidence,
           key_factors: [
             `Sentiment trend: ${sentimentTrend}`,
             `Signal density: ${(totalSignalCount / dailyReports.length).toFixed(1)} signals/day`,
@@ -641,7 +729,7 @@ export async function handlePreMarketReport(
 
         return new Response(
           JSON.stringify(
-            ApiResponseFactory.cached(cached, 'hit', {
+            ApiResponseFactory.cached(cached.data, 'hit', {
               source: 'do_cache',
               ttl: 3600,
               requestId,

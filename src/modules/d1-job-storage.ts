@@ -415,22 +415,23 @@ export async function getD1Predictions(
   }
 
   try {
-    // Alias D1 column names (gemma_*/distilbert_*) to TypeScript interface names (primary_*/mate_*)
+    // Alias D1 column names (gemma_*/distilbert_*) to TypeScript interface names
+    // (primary_*/mate_*). The aliases were missing until 2026-08-04 and the
+    // list also named primary_model/mate_model, which the table has never had:
+    // the whole query errored, so this fallback returned null every time.
     const result = await db.prepare(`
       SELECT
         id, symbol, prediction_date, sentiment, confidence, direction, model, analysis_type,
         trading_signals, created_at, status, error_message, raw_response, error_summary,
         articles_count, articles_content, news_source,
-        primary_status,
-        primary_error,
-        primary_confidence,
-        primary_response_time_ms,
-        mate_status,
-        mate_error,
-        mate_confidence,
-        mate_response_time_ms,
-        primary_model,
-        mate_model,
+        gemma_status AS primary_status,
+        gemma_error AS primary_error,
+        gemma_confidence AS primary_confidence,
+        gemma_response_time_ms AS primary_response_time_ms,
+        distilbert_status AS mate_status,
+        distilbert_error AS mate_error,
+        distilbert_confidence AS mate_confidence,
+        distilbert_response_time_ms AS mate_response_time_ms,
         model_selection_reason
       FROM symbol_predictions
       WHERE prediction_date = ?

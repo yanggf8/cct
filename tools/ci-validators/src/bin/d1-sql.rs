@@ -1,4 +1,5 @@
-//! Guard: every INSERT/UPDATE in src/ must actually execute against the real schema.
+//! Guard: every SELECT/INSERT/UPDATE/DELETE in src/ must actually compile and
+//! run against the real schema.
 //!
 //! Ported from tests/validation/validate-d1-sql.mjs — the repo is moving its
 //! tooling off JavaScript. Behaviour is unchanged; `node:sqlite` becomes
@@ -19,6 +20,12 @@
 //! tsc cannot see inside a SQL string, and the failure only appeared at runtime
 //! against remote D1 inside a catch block. This turns it into a local,
 //! deterministic failure.
+//!
+//! Reads were added on 2026-08-04, after the same mistake turned up on the
+//! other side: getD1Predictions and getWeeklyDualModelStats both SELECTed
+//! `primary_*`/`mate_*`, so both threw on every call and returned
+//! null/undefined into a caller that read that as "no data". Checking only
+//! writes left exactly half the class uncovered.
 
 use regex::Regex;
 use rusqlite::Connection;
@@ -72,7 +79,11 @@ fn main() -> ExitCode {
 
     // Whole template literals only; a partial match produces bogus syntax errors.
     let literal = Regex::new(r"(?s)`([^`]*)`").unwrap();
-    let verb = Regex::new(r"(?i)\b(INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE)\s+(\w+)").unwrap();
+    let write_verb = Regex::new(r"(?i)\b(INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+(\w+)").unwrap();
+    // For a read, the first FROM names the driving table. Subquery tables are
+    // not extracted, but the whole statement is still prepared, so a bad column
+    // anywhere in it fails.
+    let read_from = Regex::new(r"(?is)^\s*SELECT\b.*?\bFROM\s+(\w+)").unwrap();
     let check_failed = Regex::new(r"(?i)CHECK constraint failed").unwrap();
 
     let mut failures: Vec<Failure> = Vec::new();
@@ -97,8 +108,13 @@ fn main() -> ExitCode {
             let whole = m.get(0).unwrap();
             let sql = m.get(1).unwrap().as_str();
 
-            let Some(v) = verb.captures(sql) else { continue };
-            let table = v.get(2).unwrap().as_str().to_string();
+            let (is_read, table) = match write_verb.captures(sql) {
+                Some(v) => (false, v.get(2).unwrap().as_str().to_string()),
+                None => match read_from.captures(sql) {
+                    Some(r) => (true, r.get(1).unwrap().as_str().to_string()),
+                    None => continue,
+                },
+            };
             if !tables.contains(&table) {
                 continue; // table not in the dumped schema
             }
@@ -123,6 +139,13 @@ fn main() -> ExitCode {
                     continue;
                 }
             };
+
+            // A read is fully checked by prepare: unknown table, unknown column
+            // and syntax all fail there. Running it would only prove the empty
+            // schema returns no rows.
+            if is_read {
+                continue;
+            }
 
             // Dummy binds inside a transaction that is always rolled back. 'x'
             // satisfies NOT NULL and SQLite is dynamically typed, so one value

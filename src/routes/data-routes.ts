@@ -333,16 +333,18 @@ async function handleSymbolHistory(
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
 
-    // Check cache first
+    // Check cache first. `read` is the DAL's public generic get; the private
+    // `get('CACHE', cacheKey)` this used to call takes (key, ttl?), so it
+    // looked up a cache entry literally named "CACHE" and never hit.
     const cacheKey = `symbol_history_${symbol}_${days}days`;
-    const cached = await (dal as any).get('CACHE', cacheKey);
+    const cached = await dal.read(cacheKey);
 
     if (cached?.data) {
       logger.info('SymbolHistory: Cache hit', { symbol, days, requestId });
 
       return new Response(
         JSON.stringify(
-          ApiResponseFactory.cached(cached, 'hit', {
+          ApiResponseFactory.cached(cached.data, 'hit', {
             source: 'cache',
             ttl: 1800, // 30 minutes
             requestId,
