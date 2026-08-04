@@ -47,7 +47,8 @@
     "verify:prod": "npm run build:prod && npm run verify && npm run test:production-guards",
     "test:no-artifacts": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin no-artifacts",
     "test:no-persistent-files": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin no-persistent-files",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "test:do-cache-flag": "node --experimental-transform-types --import ./tests/validation/register-ts.mjs tests/validation/test-do-cache-flag.mjs"
   },
   "keywords": [
     "sentiment-analysis",

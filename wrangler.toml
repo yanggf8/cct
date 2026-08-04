@@ -28,6 +28,29 @@ binding = "PREDICT_JOBS_DB"
 database_name = "cct-predict-jobs-staging"
 database_id = "6e50380f-4b98-4ed9-a766-446d0bcedee4"
 
+# Wrangler does not give a named environment the top-level [vars], so staging
+# ran with every one of them undefined. That was survivable while the code read
+# them as optional; it stopped being survivable once FEATURE_FLAG_DO_CACHE
+# became a real gate, because an undefined flag now means "no DO cache".
+# Mirrors [vars] below, except ENVIRONMENT.
+[env.staging.vars]
+ENVIRONMENT = "staging"
+WORKER_VERSION = "2.0-enhanced"
+LOG_LEVEL = "info"
+GPT_MAX_TOKENS = "2000"
+GPT_TEMPERATURE = "0.1"
+MIN_NEWS_ARTICLES = "5"
+MAX_NEWS_ARTICLES = "20"
+CONFIDENCE_THRESHOLD = "0.6"
+SIGNAL_CONFIDENCE_THRESHOLD = "0.7"
+KV_ANALYSIS_TTL = "604800"
+KV_GRANULAR_TTL = "7776000"
+MARKET_DATA_CACHE_TTL = "300"
+YAHOO_FINANCE_RATE_LIMIT = "20"
+RATE_LIMIT_WINDOW = "60000"
+FEATURE_FLAG_DO_CACHE = "true"
+FRED_ALLOW_DEGRADATION = "true"
+
 # KV bindings - Market Analysis & Operations Cache (stores analysis results, market data, job status)
 [[kv_namespaces]]
 binding = "MARKET_ANALYSIS_CACHE"

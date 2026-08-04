@@ -2,7 +2,9 @@
 // Eliminates ALL KV operations for cache (zero reads, zero writes)
 // Provides persistent L1 cache that survives worker restarts
 
-import { CacheDurableObject } from './cache-durable-object.js';
+// `CacheDurableObject` used to be imported here and was never referenced.
+// Dead, and not harmlessly so: it made the module unloadable outside the
+// bundler, which is what the flag test needs.
 import { createLogger } from './logging.js';
 
 const logger = createLogger('cache-do');
@@ -328,14 +330,28 @@ export function isDOCacheEnabled(env: any): boolean {
 
 /**
  * Factory function to create cache instances
- * Returns DO cache if available, null otherwise
+ * Returns DO cache if available and enabled, null otherwise
+ *
+ * Every DO cache in the worker is built here — the DAL, the sentiment and
+ * data routes, the request handler, batch operations — which makes this the
+ * one place the kill switch can be honoured for all of them at once.
+ *
+ * It tested `env.CACHE_DO` alone until 2026-08-04, so FEATURE_FLAG_DO_CACHE
+ * decided nothing outside `CacheAbstraction` and setting it to "false" left
+ * every report and data route still caching. That mattered on the same day:
+ * a broken cache read had written a week of zero-signal days into the DO
+ * cache, and there was no way to turn the cache off without a deploy.
  */
 export function createCacheInstance(env: any, useDO: boolean = true): CacheDO<any> | null {
-  if (useDO && env?.CACHE_DO) {
+  if (useDO && isDOCacheEnabled(env)) {
     logger.info(`CACHE_FACTORY: Using Durable Objects cache`);
     return new CacheDO(env.CACHE_DO);
   }
 
-  logger.info(`CACHE_FACTORY: No cache (DO binding not available)`);
+  logger.info(
+    env?.CACHE_DO === undefined
+      ? `CACHE_FACTORY: No cache (DO binding not available)`
+      : `CACHE_FACTORY: No cache (disabled by FEATURE_FLAG_DO_CACHE)`
+  );
   return null;
 }
