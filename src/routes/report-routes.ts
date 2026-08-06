@@ -721,15 +721,28 @@ export async function handlePreMarketReport(
     // 1. Check DO cache first (unless bypass)
     if (!bypassCache) {
       const cachedResult = await dal.read(cacheKey);
+      // Already unwrapped: `cached` IS the stored briefing, flat, with `type`
+      // at the top level and no business `.data` inside it. Every writer of
+      // this key stores that shape — the bridge, the scheduler, and the D1
+      // write-back below.
       const cached = cachedResult.success ? cachedResult.data : null;
 
-      // Validate cached data is actually valid pre-market data (not an old error response)
-      if (cached && cached.type === 'pre_market_briefing' && !cached.error) {
+      // Validate cached data is actually valid pre-market data (not an old
+      // error response). `all_signals` is the structural check: a truncated or
+      // poisoned entry that still carries the right `type` must not be served
+      // for the full hour, and falling through to D1 re-warms it anyway.
+      if (cached && cached.type === 'pre_market_briefing' && !cached.error
+          && Array.isArray(cached.all_signals)) {
         logger.info('PreMarketReport: DO cache hit', { requestId });
 
         return new Response(
           JSON.stringify(
-            ApiResponseFactory.cached(cached.data, 'hit', {
+            // `cached`, NOT `cached.data`. 387f62a applied `.data` to every
+            // cache-hit site at once; the others hold the raw CacheAwareResult
+            // and needed it, this one does not. The extra hop was `undefined`,
+            // JSON.stringify drops undefined fields, and the route answered
+            // 200 `success:true` with no `data` key for a full TTL — 2026-08-06.
+            ApiResponseFactory.cached(cached, 'hit', {
               source: 'do_cache',
               ttl: 3600,
               requestId,
@@ -740,12 +753,20 @@ export async function handlePreMarketReport(
         );
       }
 
-      // If cached data is invalid, log and continue to D1 fallback
-      if (cached?.data) {
+      // If cached data is invalid, log and continue to D1 fallback. Testing
+      // `cached?.data` here never fired: the stored briefing has no `.data`,
+      // so every rejected entry was skipped in silence. A plain cache MISS
+      // returns `{success:false}` with no `data`, so `cached` is null and this
+      // stays quiet — it speaks only for an entry that failed the gate above.
+      if (cached) {
         logger.warn('PreMarketReport: Invalid cached data detected, skipping', {
           requestId,
           hasError: !!cached.error,
-          type: cached.type
+          type: cached.type,
+          // Which of the three conditions rejected it. Without this the log
+          // says an entry was skipped but not why, and `all_signals` is the
+          // one a reader cannot infer from the other two fields.
+          hasSignals: Array.isArray(cached.all_signals)
         });
       }
     }
