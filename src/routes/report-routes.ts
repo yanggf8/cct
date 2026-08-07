@@ -78,6 +78,31 @@ function marketToday(): string {
 }
 
 /**
+ * The two provenance fields every report envelope carries.
+ *
+ * `business_date` is the identity of the content — the ET trading day it is
+ * about — and `has_content` says whether anything was found for that day. They
+ * travel as a pair because either alone is ambiguous. A date with no content
+ * reads as a report about that day, which is how a dead pipeline looked healthy
+ * for 50 days; content with no date leaves every consumer to re-derive the day,
+ * which is how readers and writers came to disagree about which day a snapshot
+ * belonged to.
+ *
+ * `businessDate` must come from the row that supplied the content. Passing
+ * today's date on a hit would relabel a stale snapshot as current — the precise
+ * failure this field exists to remove. On a miss today's date is correct: it is
+ * the day that was looked for, and `hasContent: false` says so out loud.
+ *
+ * These go in `metadata` rather than at the top level because the envelope is
+ * built by `ApiResponseFactory`, shared by every route in the worker; `metadata`
+ * is already a per-call-site object carrying provenance, so no shared signature
+ * changes to serve five routes.
+ */
+function businessDateMeta(businessDate: string, hasContent: boolean): { business_date: string; has_content: boolean } {
+  return { business_date: businessDate, has_content: hasContent };
+}
+
+/**
  * Extract date parameter from URL
  */
 function extractDateParam(url: URL, paramName: string): string | null {
@@ -1300,6 +1325,7 @@ export async function handleEndOfDayReport(
         return new Response(
           JSON.stringify(
             ApiResponseFactory.success(runSnapshot.data, {
+              ...businessDateMeta(runSnapshot.scheduledDate, true),
               source: 'd1_run_id',
               run_id: runId,
               scheduled_date: runSnapshot.scheduledDate,
@@ -1322,6 +1348,7 @@ export async function handleEndOfDayReport(
       return new Response(
         JSON.stringify(
           ApiResponseFactory.success(d1Result.data, {
+            ...businessDateMeta(d1Result.sourceDate, true),
             source: 'd1_snapshot',
             scheduled_date: today,
             is_stale: d1Result.isStale,
@@ -1359,6 +1386,7 @@ export async function handleEndOfDayReport(
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
+          ...businessDateMeta(today, false),
           source: 'fresh',
           ttl: 86400, // 24 hours
           requestId,
