@@ -1,7 +1,8 @@
 # Business date on the report envelope
 
 Date: 2026-08-07
-Status: approved in principle; **scope grew during review — see "Prerequisites"**
+Status: approved in principle. **Both prerequisites have shipped** (1d3ed29, 87cda45);
+the envelope field itself is not yet implemented.
 Target: `src/routes/report-routes.ts`, `src/routes/jobs-routes.ts`,
 `src/modules/trading-calendar.ts`, and the consumer at
 `~/a/claw-skills/crates/cct`
@@ -88,11 +89,12 @@ stops the current bleed and nothing more.
 
 ## Prerequisites
 
-Two defects found while reviewing this design must be fixed **before**
-`business_date` means anything. Neither is caused by this design; both make it
-undeliverable.
+Two defects found while reviewing this design had to be fixed **before**
+`business_date` could mean anything. Neither was caused by this design; both
+made it undeliverable. **Both have now shipped**, each as its own change with
+its own test, and each test fails against the code it replaced.
 
-### P1 — The weekly window does not contain its own day on Mondays and Tuesdays
+### P1 — The weekly window did not contain its own day on Mondays and Tuesdays — *shipped, 1d3ed29*
 
 `getWeekString` and `getWeekStartDate` (`report-routes.ts:1533`, `:1539`) are not
 inverses. `getWeekString` counts days from Jan 1 and divides by seven;
@@ -110,10 +112,12 @@ week's daily rows. A `business_date` on that response would faithfully describe
 the wrong window. The `T12:00:00Z` anchor in the working tree fixes only the
 UTC-versus-ET boundary and does nothing here.
 
-Fix: derive the week from ISO-8601 week rules, with `getWeekString` and
-`getWeekStartDate` proven inverse over a full year of dates.
+Fixed in 1d3ed29: both directions now derive from the same Monday, under
+ISO-8601 numbering, and the pair moved to `trading-calendar` beside
+`isTradingDay`. `npm run test:week-round-trip` states the property over every
+date from 2025-12-01 to 2027-01-31.
 
-### P2 — The API write path keys the business day in UTC
+### P2 — The API write path keyed the business day in UTC — *shipped, 87cda45*
 
 The cron writer uses ET (`getESTDateString`, `scheduler.ts:60`). The
 manually-triggered job path does not:
@@ -131,9 +135,15 @@ misses it. Same pattern at `:1133`, `:1409` and in
 `modules/pre-market-data-bridge.ts:476,865,887,903`.
 
 Revision 2 put these in "out of scope" behind the words *"addressed if and when
-one is shown to key a business day."* They have now been shown to. Writer and
-reader must agree on the same business date or the envelope field records the
+one is shown to key a business day."* They were then shown to. Writer and reader
+must agree on the same business date, or the envelope field records the
 disagreement instead of removing it.
+
+Fixed in 87cda45: ten sites across `jobs-routes.ts` and
+`pre-market-data-bridge.ts` now take the date from `getCurrentDateET`.
+`npm run test:business-date-sources` freezes the clock at 2026-08-07T02:00:00Z
+and pins the answer, then bans the UTC idiom in the three files where every
+"today" keys a business day.
 
 ## Design
 
@@ -265,12 +275,8 @@ Modelled on `tests/validation/test-cache-hit-contract.mjs`, which exists for the
 same class of defect and states its invariant over every site rather than the one
 that broke.
 
-1. **Week-number round trip (P1).** For every date in a full year,
-   `getWeekStartDate(getWeekString(d))` yields a window containing `d`. Fails
-   today on Mondays and Tuesdays.
-2. **Writer/reader agreement (P2).** A job triggered at `2026-08-07T02:00:00Z`
-   writes `scheduled_date = 2026-08-06`, and the report route reading the ET
-   business date finds it. Fails today.
+1. ~~Week-number round trip (P1)~~ — shipped as `test:week-round-trip`.
+2. ~~Writer/reader agreement (P2)~~ — shipped as `test:business-date-sources`.
 3. **Envelope contract, end to end.** Real dispatchers against a stubbed Durable
    Object and D1, asserting on the serialized wire response: every report route
    returns `metadata.business_date`; it matches `YYYY-MM-DD`; with
@@ -301,8 +307,8 @@ Wired into `npm run verify`. `npm run typecheck` must stay clean.
 3. **All four reports, no exceptions.**
 4. **`business_date`**, not `trading_date` or `session_date`.
 5. **`metadata`, not top level** — §2.
-6. **P1 and P2 ship first**, as their own changes with their own tests. They are
-   independently correct fixes and do not depend on the envelope work.
+6. **P1 and P2 shipped first**, as their own changes with their own tests. They
+   are independently correct fixes and did not depend on the envelope work.
 
 ## Out of scope
 
