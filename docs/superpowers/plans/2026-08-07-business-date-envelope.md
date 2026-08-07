@@ -715,34 +715,27 @@ Add `import { readFileSync } from 'node:fs';` to the imports at the top of the f
 Run: `npm run test:business-date-envelope`
 Expected: FAIL — `handleReportsStatus` at `:1397` has response sites that no task tagged, so the counts differ.
 
-- [ ] **Step 3: Decide and record the one exclusion**
+- [ ] **Step 3: Cover the blind spot the count cannot see**
 
-`/api/v1/reports/status` is navigation metadata: it returns a row per trading day, each already carrying its own date, so a single business date for the response is meaningless. Exclude it explicitly rather than by omission — an unexplained gap is what this check exists to prevent.
+**Corrected during execution.** This step planned to carve `handleReportsStatus` out of the count. No carve-out is needed: that handler makes **zero** `ApiResponseFactory` calls — it returns a bare `JSON.stringify(response)` with no envelope at all, so there is no `success`, no `metadata`, and nothing for the field to sit in. The rule holds with no exceptions, which is a stronger statement than the plan expected to be able to make.
 
-Replace the counting block with one that ignores that handler's body:
+What the count genuinely cannot see is a handler that builds its `Response` by hand, since it looks for factory calls. Pin the set instead of leaving it open:
 
 ```js
-{
-  const src = readFileSync(repo + 'src/routes/report-routes.ts', 'utf8');
-  // /api/v1/reports/status returns one row per trading day, each carrying its
-  // own date, so a single business date for the whole response would be
-  // meaningless. It is the one deliberate exclusion; everything else is in.
-  const statusStart = src.indexOf('async function handleReportsStatus(');
-  assert.ok(statusStart > 0, 'handleReportsStatus moved — revisit this exclusion');
-  const inScope = src.slice(0, statusStart);
-  const responseSites = (inScope.match(/ApiResponseFactory\.(success|cached)\(/g) ?? []).length;
-  const tagged = (inScope.match(/businessDateMeta\(/g) ?? []).length - 1; // minus the definition
-
-  await check('every report response site carries the business date', async () => {
-    assert.equal(
-      tagged,
-      responseSites,
-      `${responseSites} success/cached sites but ${tagged} call businessDateMeta — ` +
-        'a report response without a business date is exactly the gap this field closes'
-    );
-  });
-}
+await check('only the two handlers that have no envelope may skip it', async () => {
+  const bodies = [...ROUTES_SRC.matchAll(/(?:export )?async function (handle\w+)/g)];
+  const bypassing = bodies
+    .filter((_, i) => {
+      const from = bodies[i].index;
+      const to = i + 1 < bodies.length ? bodies[i + 1].index : ROUTES_SRC.length;
+      return !/ApiResponseFactory\.(?:success|cached)\(/.test(ROUTES_SRC.slice(from, to));
+    })
+    .map(([, name]) => name);
+  assert.deepEqual(bypassing, ['handleReportRoutes', 'handleReportsStatus']);
+});
 ```
+
+`handleReportRoutes` is the dispatcher and only ever emits errors; `handleReportsStatus` has no envelope. A third entry would be a real route escaping the contract through the blind spot.
 
 - [ ] **Step 4: Run tests**
 

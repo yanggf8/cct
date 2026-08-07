@@ -20,6 +20,7 @@
 // Run: npm run test:business-date-envelope
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -274,6 +275,46 @@ await check('daily: a date with no report is an error, and errors are outside th
   const body = await reports('/api/v1/reports/daily/2026-08-05', null, '', d1With());
   assert.equal(body.success, false, 'no snapshot is a 404, not an empty report');
   assert.equal(body.metadata?.business_date, undefined, 'an unanswerable request has no business date');
+});
+
+
+// ── the inventory ────────────────────────────────────────────────────────────
+//
+// Every check above covers a route someone remembered to write a case for. That
+// is exactly how three competing spellings of the same day accumulated inside
+// `data`: each was reasonable where it was written, and nothing stated the rule
+// over all of them at once. This counts the source instead, so an untagged
+// response site fails before any behavioural test would have exercised it.
+
+const ROUTES_SRC = readFileSync(repo + 'src/routes/report-routes.ts', 'utf8');
+
+await check('every report response site carries the business date', async () => {
+  const sites = (ROUTES_SRC.match(/ApiResponseFactory\.(?:success|cached)\(/g) ?? []).length;
+  const tagged = (ROUTES_SRC.match(/businessDateMeta\(/g) ?? []).length - 1; // minus the definition
+  assert.equal(
+    tagged,
+    sites,
+    `${sites} success/cached sites but ${tagged} call businessDateMeta — a report ` +
+      'response without a business date is the gap this field closes'
+  );
+});
+
+await check('only the two handlers that have no envelope may skip it', async () => {
+  // The count above sees factory calls, so a handler that builds its Response by
+  // hand is invisible to it. Two do so today and neither is a gap:
+  // `handleReportRoutes` is the dispatcher and only ever emits errors, and
+  // `handleReportsStatus` returns a bare JSON.stringify with no envelope at all —
+  // no `success`, no `metadata` — so there is nothing for the field to sit in.
+  // A third would be a real route escaping the contract through the blind spot.
+  const bodies = [...ROUTES_SRC.matchAll(/(?:export )?async function (handle\w+)/g)];
+  const bypassing = bodies
+    .filter(([, name], i) => {
+      const from = bodies[i].index;
+      const to = i + 1 < bodies.length ? bodies[i + 1].index : ROUTES_SRC.length;
+      return !/ApiResponseFactory\.(?:success|cached)\(/.test(ROUTES_SRC.slice(from, to));
+    })
+    .map(([, name]) => name);
+  assert.deepEqual(bypassing, ['handleReportRoutes', 'handleReportsStatus']);
 });
 
 
