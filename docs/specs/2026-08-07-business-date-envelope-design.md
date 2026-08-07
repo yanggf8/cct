@@ -1,8 +1,10 @@
 # Business date on the report envelope
 
 Date: 2026-08-07
-Status: approved in principle. **Both prerequisites have shipped** (1d3ed29, 87cda45);
-the envelope field itself is not yet implemented.
+Status: **implemented** on the worker side (a3e3a73 … 957bfe6), after both
+prerequisites (1d3ed29, 87cda45). The consumer in `~/a/claw-skills/crates/cct`
+has not been changed yet and cannot read the field until it is — see
+"Consumer change" below.
 Target: `src/routes/report-routes.ts`, `src/routes/jobs-routes.ts`,
 `src/modules/trading-calendar.ts`, and the consumer at
 `~/a/claw-skills/crates/cct`

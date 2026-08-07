@@ -69,8 +69,16 @@ Design records for changes that needed one, newest first:
 
 | Document | Description |
 |----------|-------------|
-| `specs/2026-08-07-business-date-envelope-design.md` | `metadata.business_date` on every report response, so no reader re-derives the trading day. Both prerequisites shipped; the field itself is not yet implemented |
+| `specs/2026-08-07-business-date-envelope-design.md` | `metadata.business_date` on every report response, so no reader re-derives the trading day. Implemented on the worker; the consumer skill has not been changed yet |
 | `specs/2026-07-28-pre-market-freshness-gate-design.md` | Pre-market skill reports `degraded` on stale D1-fallback snapshots |
+
+## Plans (`docs/superpowers/plans/`)
+Task-by-task implementation plans. Each records where execution corrected it,
+because a plan that quietly diverges from what shipped is worse than none:
+
+| Document | Description |
+|----------|-------------|
+| `superpowers/plans/2026-08-07-business-date-envelope.md` | Six tasks putting `metadata.business_date` on every report route. Corrected three times during execution — the intraday content predicate, the weekly clamp, and a timezone-dependent `isTradingDay` |
 
 ## Archive (`docs/archive/`)
 Archived documents are retained for historical context:
