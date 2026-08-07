@@ -81,7 +81,7 @@ characters of whichever it finds. `timestamp` is an ISO **UTC** instant, so
 truncating it launders a UTC date into a business date, and `now` is the skill's
 own UTC day. The chain exists only because no field states the answer.
 
-A stop-the-bleeding change is in the working tree: `marketToday()`
+A stop-the-bleeding change shipped as c139b76: `marketToday()`
 (`report-routes.ts:74`) delegates to `getCurrentDateET()`, and the UTC
 derivations at `:107`, `:723`, `:1102`, `:1315` and the weekly anchor at `:123`
 use it. `getD1FallbackData` no longer round-trips through a locale string. It
@@ -109,8 +109,8 @@ TZ=UTC:
 
 So `GET /api/v1/reports/weekly` on a Monday or Tuesday reads the *previous*
 week's daily rows. A `business_date` on that response would faithfully describe
-the wrong window. The `T12:00:00Z` anchor in the working tree fixes only the
-UTC-versus-ET boundary and does nothing here.
+the wrong window. The `T12:00:00Z` anchor added in c139b76 fixes only the
+UTC-versus-ET boundary and did nothing here.
 
 Fixed in 1d3ed29: both directions now derive from the same Monday, under
 ISO-8601 numbering, and the pair moved to `trading-calendar` beside
