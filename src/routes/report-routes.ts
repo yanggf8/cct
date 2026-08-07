@@ -1149,6 +1149,7 @@ export async function handleIntradayReport(
         return new Response(
           JSON.stringify(
             ApiResponseFactory.success(runSnapshot.data, {
+              ...businessDateMeta(runSnapshot.scheduledDate, true),
               source: 'd1_run_id',
               run_id: runId,
               scheduled_date: runSnapshot.scheduledDate,
@@ -1191,6 +1192,7 @@ export async function handleIntradayReport(
     };
 
     let response;
+    let hasContent = false;
     let source: string = snapshot ? 'd1' : 'empty';
     
     if (snapshot && snapshot.report_content) {
@@ -1200,6 +1202,7 @@ export async function handleIntradayReport(
         : snapshot.report_content;
       
       response = content;
+      hasContent = true;
       
       logger.info('IntradayReport: Returning D1 data', {
         symbols_count: content.symbols_analyzed || 0,
@@ -1276,6 +1279,7 @@ export async function handleIntradayReport(
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
+          ...businessDateMeta(scheduledDate, hasContent),
           source,
           ttl: 300, // 5 minutes
           scheduled_date: scheduledDate,

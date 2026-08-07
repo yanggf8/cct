@@ -344,17 +344,52 @@ answer is stale, which is when mislabelling would do the most damage."
 
 Append before `process.exit`:
 
+This route **refuses without a D1 binding** — it answers a 500 "Database not available" before reaching any report branch — so the harness needs a D1 stub before these cases test anything. Extend `envWith(stored)` to `envWith(stored, db)` and add:
+
+```js
+function d1With(rows = {}) {
+  const answer = (sql) => {
+    for (const [needle, row] of Object.entries(rows)) if (sql.includes(needle)) return row;
+    return null;
+  };
+  return {
+    prepare: (sql) => ({
+      bind: () => ({ first: async () => answer(sql), all: async () => ({ results: [] }), run: async () => ({ success: true }) }),
+      first: async () => answer(sql),
+      all: async () => ({ results: [] }),
+    }),
+  };
+}
+```
+
+Then the three cases — and the first is the one that catches the wrong predicate, so its fixture deliberately omits `total_symbols`:
+
 ```js
 // ── intraday ─────────────────────────────────────────────────────────────────
 
+await check('intraday: real content is content, whatever fields it happens to carry', async () => {
+  const content = {
+    type: 'intraday_check',
+    scheduled_date: '2026-08-06',
+    symbols: [{ symbol: 'AAPL', status: 'on_track' }],
+    symbols_analyzed: 1,
+    overall_accuracy: 0.8,
+  };
+  const body = await reports('/api/v1/reports/intraday', null, '?date=2026-08-06', d1With({
+    scheduled_job_results: { report_content: JSON.stringify(content), created_at: '2026-08-06T16:00:00Z' },
+  }));
+  assert.equal(body.metadata.business_date, '2026-08-06');
+  assert.equal(body.metadata.has_content, true, 'a stored snapshot is content');
+});
+
 await check('intraday: a miss states the scheduled day and finds nothing', async () => {
-  const body = await reports('/api/v1/reports/intraday');
+  const body = await reports('/api/v1/reports/intraday', null, '', d1With());
   assert.match(body.metadata.business_date, DATE);
   assert.equal(body.metadata.has_content, false);
 });
 
 await check('intraday: an explicit ?date is the day reported on', async () => {
-  const body = await reports('/api/v1/reports/intraday', null, '?date=2026-08-04');
+  const body = await reports('/api/v1/reports/intraday', null, '?date=2026-08-04', d1With());
   assert.equal(body.metadata.business_date, '2026-08-04');
   assert.equal(body.metadata.has_content, false);
 });
@@ -373,13 +408,28 @@ At `:1122` — `ApiResponseFactory.success(runSnapshot.data, { … })` — add a
               ...businessDateMeta(runSnapshot.scheduledDate, true),
 ```
 
-At `:1249` — the single exit shared by the content and no-content branches — add as the first metadata entry:
+At the single exit shared by the content and no-content branches, add as the first metadata entry:
 
 ```ts
-          ...businessDateMeta(scheduledDate, (response as any).total_symbols > 0),
+          ...businessDateMeta(scheduledDate, hasContent),
 ```
 
-`scheduledDate` is `dateParam ?? today` from `:1102`, so an explicit `?date` is honoured. The no-content branch sets `total_symbols: 0` and `symbols: []`, so the predicate separates the two branches without a second variable to keep in sync.
+declaring `hasContent` beside `response` and setting it where the content is assigned:
+
+```ts
+    let response;
+    let hasContent = false;
+    let source: string = snapshot ? 'd1' : 'empty';
+```
+
+```ts
+      response = content;
+      hasContent = true;
+```
+
+**Corrected during execution.** This step first read `(response as any).total_symbols > 0`. The content branch assigns `response = content` — the stored snapshot verbatim — so the payload's field names are the pipeline's, not this route's, and `total_symbols` is set by the *empty* shape while a real one need not carry it. That predicate would have marked genuine intraday reports as `has_content: false`, which is the failure this field exists to remove, arriving through the field itself. Deriving the flag from the branch that assigns the content cannot drift, because it is set in exactly one place.
+
+`scheduledDate` is `dateParam ?? today`, so an explicit `?date` is honoured.
 
 - [ ] **Step 4: Run tests**
 

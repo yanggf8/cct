@@ -42,7 +42,7 @@ function bundled(relSource) {
 const { handleReportRoutes } = await bundled('src/routes/report-routes.ts');
 
 /** A DO namespace stub that serves `stored` for every get and swallows writes. */
-function envWith(stored) {
+function envWith(stored, db = null) {
   const stub = {
     fetch: async (url) => {
       const action = new URL(url).pathname.slice(1);
@@ -53,12 +53,41 @@ function envWith(stored) {
     ENVIRONMENT: 'test',
     FEATURE_FLAG_DO_CACHE: 'true',
     CACHE_DO: { idFromName: () => 'id', get: () => stub },
+    ...(db ? { PREDICT_JOBS_DB: db } : {}),
   };
 }
 
-async function reports(path, stored = null, query = '') {
+/**
+ * A D1 stub that answers `.first()` from `rows`, keyed by a substring of the SQL.
+ *
+ * Routes that read D1 refuse outright without the binding — intraday answers a
+ * 500 "Database not available" — so a test that omits it exercises the error
+ * path while looking like it tested the report. The binding has to be present
+ * and empty to reach a genuine miss.
+ */
+function d1With(rows = {}) {
+  const answer = (sql) => {
+    for (const [needle, row] of Object.entries(rows)) {
+      if (sql.includes(needle)) return row;
+    }
+    return null;
+  };
+  return {
+    prepare: (sql) => ({
+      bind: () => ({
+        first: async () => answer(sql),
+        all: async () => ({ results: [] }),
+        run: async () => ({ success: true }),
+      }),
+      first: async () => answer(sql),
+      all: async () => ({ results: [] }),
+    }),
+  };
+}
+
+async function reports(path, stored = null, query = '', db = null) {
   const request = new Request(`https://do${path}${query}`);
-  const res = await handleReportRoutes(request, envWith(stored), path, {});
+  const res = await handleReportRoutes(request, envWith(stored, db), path, {});
   return JSON.parse(await res.text());
 }
 
@@ -128,6 +157,45 @@ await check('pre-market: a cache hit reports the day the content is about', asyn
 await check('pre-market: a miss states the day it looked for and finds nothing', async () => {
   const body = await reports('/api/v1/reports/pre-market', null);
   assert.match(body.metadata.business_date, DATE);
+  assert.equal(body.metadata.has_content, false);
+});
+
+
+// ── intraday ─────────────────────────────────────────────────────────────────
+//
+// This route refuses without a D1 binding, so every case here supplies one —
+// empty for a miss, populated for a hit. Reaching the 500 instead would have
+// looked like a passing miss test while exercising nothing.
+
+await check('intraday: real content is content, whatever fields it happens to carry', async () => {
+  // The stored snapshot is returned verbatim, so the payload's field names are
+  // the pipeline's, not this route's. An early draft of this task derived
+  // has_content from `total_symbols`, which the empty shape sets and a real one
+  // need not — that would have marked genuine reports as empty. The fixture
+  // deliberately omits it.
+  const content = {
+    type: 'intraday_check',
+    scheduled_date: '2026-08-06',
+    symbols: [{ symbol: 'AAPL', status: 'on_track' }],
+    symbols_analyzed: 1,
+    overall_accuracy: 0.8,
+  };
+  const body = await reports('/api/v1/reports/intraday', null, '?date=2026-08-06', d1With({
+    scheduled_job_results: { report_content: JSON.stringify(content), created_at: '2026-08-06T16:00:00Z' },
+  }));
+  assert.equal(body.metadata.business_date, '2026-08-06');
+  assert.equal(body.metadata.has_content, true, 'a stored snapshot is content');
+});
+
+await check('intraday: a miss states the scheduled day and finds nothing', async () => {
+  const body = await reports('/api/v1/reports/intraday', null, '', d1With());
+  assert.match(body.metadata.business_date, DATE);
+  assert.equal(body.metadata.has_content, false);
+});
+
+await check('intraday: an explicit ?date is the day reported on', async () => {
+  const body = await reports('/api/v1/reports/intraday', null, '?date=2026-08-04', d1With());
+  assert.equal(body.metadata.business_date, '2026-08-04');
   assert.equal(body.metadata.has_content, false);
 });
 
