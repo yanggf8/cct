@@ -6,6 +6,7 @@
 
 import { createSimplifiedEnhancedDAL } from './simplified-enhanced-dal.js';
 import { createLogger } from './logging.js';
+import { getCurrentDateET } from './trading-calendar.js';
 import { batchDualAIAnalysis, performDualAIComparison } from './dual-ai-analysis.js';
 import { extractDualModelData } from './data.js';
 import { getFreeStockNews } from './free_sentiment_pipeline.js';
@@ -473,7 +474,7 @@ export class PreMarketDataBridge {
    * @param runId - Optional run_id for system_state injection
    */
   async generatePreMarketAnalysis(symbols: string[] = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'], targetDate?: string, runId?: string): Promise<AnalysisData> {
-    const today = targetDate || new Date().toISOString().split('T')[0];
+    const today = targetDate || getCurrentDateET();
     logger.info('PreMarketDataBridge: Generating pre-market analysis', { symbols, targetDate: today, isRerun: !!targetDate });
 
     try {
@@ -712,7 +713,7 @@ export class PreMarketDataBridge {
   private async getSymbolSentimentData(symbol: string, scheduledDate?: string, runId?: string): Promise<ModernSentimentData | null> {
     try {
       // Try to get from cache first (always use today for live data)
-      const actualToday = new Date().toISOString().split('T')[0];
+      const actualToday = getCurrentDateET();
       const cacheKey = `sentiment_symbol_${symbol}_${actualToday}`;
       const cached = await (this.dal as any).get(cacheKey);
 
@@ -862,7 +863,7 @@ export class PreMarketDataBridge {
    * @param targetDate - Optional target date (YYYY-MM-DD) for reruns, defaults to today
    */
   async refreshPreMarketAnalysis(symbols?: string[], targetDate?: string, runId?: string): Promise<AnalysisData> {
-    const today = targetDate || new Date().toISOString().split('T')[0];
+    const today = targetDate || getCurrentDateET();
     logger.info('Force refreshing pre-market analysis', { symbols, targetDate: today, isRerun: !!targetDate });
 
     // Clear existing cache
@@ -884,7 +885,7 @@ export class PreMarketDataBridge {
    */
   async hasPreMarketAnalysis(): Promise<boolean> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getCurrentDateET();
       const analysisKey = `analysis_${today}`;
       const analysisData = await (this.dal as any).get(analysisKey);
 
@@ -900,7 +901,7 @@ export class PreMarketDataBridge {
    */
   async getCurrentPreMarketAnalysis(): Promise<AnalysisData | null> {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getCurrentDateET();
       const analysisKey = `analysis_${today}`;
       return await (this.dal as any).get(analysisKey, 1 as any) as any;
     } catch (error: unknown) {

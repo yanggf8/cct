@@ -6,6 +6,7 @@
 import { ApiResponseFactory, ProcessingTimer, HttpStatus } from '../modules/api-v1-responses.js';
 import { validateApiKey, generateRequestId } from './api-v1.js';
 import { createLogger } from '../modules/logging.js';
+import { getCurrentDateET } from '../modules/trading-calendar.js';
 import { handleScheduledEvent } from '../modules/scheduler.js';
 import {
   getD1Predictions,
@@ -658,7 +659,7 @@ async function handleJobsLatest(
   }
 
   // Fallback to predictions if no snapshot
-  const today = new Date().toISOString().split('T')[0];
+  const today = getCurrentDateET();
   const predictions = await getD1Predictions(env, today);
   
   return new Response(
@@ -831,7 +832,7 @@ async function handlePreMarketJob(
   const dataBridge = createPreMarketDataBridge(env);
 
   // Declare scheduledDate outside try block so it's accessible in catch
-  let scheduledDate = new Date().toISOString().split('T')[0];
+  let scheduledDate = getCurrentDateET();
   let runId: string | null = null;
   let runTrackingEnabled = false;
   let symbols: string[];
@@ -942,7 +943,7 @@ async function handlePreMarketJob(
     // Write to D1 with scheduled_date as primary key
     // - scheduled_date: the market date this report is FOR (primary key with report_type)
     // - created_at: when the report was generated (auto-set)
-    const actualToday = new Date().toISOString().split('T')[0];
+    const actualToday = getCurrentDateET();
 
     // Warn if user provided a date but migration hasn't been applied
     if (targetDate && scheduledDate !== actualToday) {
@@ -1130,7 +1131,7 @@ async function handleIntradayJob(
   requestId: string,
   timer: ProcessingTimer
 	): Promise<Response> {
-	  const today = new Date().toISOString().split('T')[0];
+	  const today = getCurrentDateET();
 	  const triggerSource = detectTriggerSource(request);
 	  const navTriggerSource = mapTriggerSource(triggerSource);
 	  let runId: string | null = null;
@@ -1406,7 +1407,7 @@ async function handleScheduleCheck(
     );
   }
 
-  const dateStr = url.searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const dateStr = url.searchParams.get('date') || getCurrentDateET();
 
   // Weekday check: skip weekends (no scheduled runs expected)
   const dayOfWeek = new Date(dateStr + 'T00:00:00Z').getUTCDay();
