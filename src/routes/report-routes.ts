@@ -287,6 +287,7 @@ async function handleDailyReport(
       return new Response(
         JSON.stringify(
           ApiResponseFactory.cached(cached.data, 'hit', {
+            ...businessDateMeta(date, true),
             source: 'cache',
             ttl: 86400, // 24 hours
             requestId,
@@ -408,6 +409,7 @@ async function handleDailyReport(
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
+          ...businessDateMeta(date, true),
           source: 'fresh',
           ttl: 86400,
           requestId,

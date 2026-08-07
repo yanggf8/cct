@@ -229,4 +229,52 @@ await check('weekly: a holiday Friday hands the week to Thursday', async () => {
 });
 
 
+// ── daily ────────────────────────────────────────────────────────────────────
+//
+// Daily has no placeholder: a date with no snapshot answers 404, which is
+// outside the contract by design — a request that cannot be answered has no
+// business date. So both remaining sites carry content, and the third case
+// below pins the boundary rather than leaving it to be inferred.
+
+/** A pre-market snapshot row in the shape `readD1ReportSnapshot` parses. */
+function snapshotRow(date, content) {
+  return {
+    report_content: JSON.stringify(content),
+    metadata: null,
+    created_at: `${date}T12:00:00Z`,
+    scheduled_date: date,
+    run_id: null,
+  };
+}
+
+await check('daily: a cache hit states the day in the path', async () => {
+  const body = await reports('/api/v1/reports/daily/2026-08-06', {
+    marker: 'daily-report',
+    date: '2026-08-06',
+    signals: [{ symbol: 'AAPL' }],
+  });
+  assert.equal(body.metadata.business_date, '2026-08-06');
+  assert.equal(body.metadata.has_content, true);
+});
+
+await check('daily: a freshly built report states the day it was built for', async () => {
+  // Cache misses, D1 answers. This is the site the cache-hit case never reaches.
+  const body = await reports('/api/v1/reports/daily/2026-08-05', null, '', d1With({
+    scheduled_job_results: snapshotRow('2026-08-05', {
+      trading_signals: {
+        AAPL: { symbol: 'AAPL', sentiment_layers: [{ sentiment: 'BULLISH', confidence: 0.8 }] },
+      },
+    }),
+  }));
+  assert.equal(body.metadata.business_date, '2026-08-05');
+  assert.equal(body.metadata.has_content, true);
+});
+
+await check('daily: a date with no report is an error, and errors are outside the contract', async () => {
+  const body = await reports('/api/v1/reports/daily/2026-08-05', null, '', d1With());
+  assert.equal(body.success, false, 'no snapshot is a 404, not an empty report');
+  assert.equal(body.metadata?.business_date, undefined, 'an unanswerable request has no business date');
+});
+
+
 process.exit(failed === 0 ? 0 : 1);
