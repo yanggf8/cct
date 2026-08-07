@@ -178,3 +178,65 @@ export function getCurrentDateET(): string {
   const day = String(et.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+// --- ISO-8601 week arithmetic ------------------------------------------------
+//
+// `YYYY-W##` is ISO week notation, so the numbering here is ISO's: weeks run
+// Monday to Sunday, week 1 is the one containing the first Thursday (equivalently
+// the one containing Jan 4), and the year in the key is the ISO week-year, which
+// differs from the calendar year at the boundary — 2027-01-01 is a Friday and
+// belongs to 2026-W53.
+//
+// These replace a pair in report-routes.ts that were not inverses. The forward
+// direction counted days from Jan 1 and divided by seven; the reverse undid that
+// and then snapped to Monday, a step with no counterpart going forward. On
+// Mondays and Tuesdays the window therefore landed a week early — 2026-08-03
+// produced 2026-W31, whose window was 2026-07-27..2026-08-02 and did not contain
+// it — so `GET /api/v1/reports/weekly` read the previous week's rows and labelled
+// them as the current week. Defining both directions in terms of the same Monday
+// makes them inverses by construction rather than by arithmetic coincidence.
+
+const DAY_MS = 86400000;
+
+/** Monday = 0 … Sunday = 6. JavaScript's own numbering starts at Sunday. */
+function isoDayOfWeek(date: Date): number {
+  return (date.getUTCDay() + 6) % 7;
+}
+
+/** The Monday opening the ISO week that contains `date`, at UTC midnight. */
+function isoWeekMonday(date: Date): Date {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() - isoDayOfWeek(d));
+  return d;
+}
+
+/** The Monday opening week 1 of `isoYear`, i.e. the Monday of the week holding Jan 4. */
+function isoWeek1Monday(isoYear: number): Date {
+  return isoWeekMonday(new Date(Date.UTC(isoYear, 0, 4)));
+}
+
+/**
+ * The ISO-8601 week containing `date`, as `YYYY-W##`.
+ *
+ * `date` is read with UTC accessors, so callers pass an instant that already
+ * represents the business date they mean — `new Date(`${businessDate}T12:00:00Z`)`
+ * is the idiom used elsewhere in this repo.
+ */
+export function getWeekString(date: Date): string {
+  const monday = isoWeekMonday(date);
+  // The ISO year is the year of that week's Thursday, by definition.
+  const isoYear = new Date(monday.getTime() + 3 * DAY_MS).getUTCFullYear();
+  const week = 1 + Math.round((monday.getTime() - isoWeek1Monday(isoYear).getTime()) / (7 * DAY_MS));
+  return `${isoYear}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * The Monday opening `week` of `isoYear`, at UTC midnight.
+ *
+ * Exactly inverse to `getWeekString`: the week key produced for any date resolves
+ * to a window containing that date. Callers format the result with
+ * `toISOString()`, so the returned instant is UTC, not local.
+ */
+export function getWeekStartDate(isoYear: number, week: number): Date {
+  return new Date(isoWeek1Monday(isoYear).getTime() + (week - 1) * 7 * DAY_MS);
+}

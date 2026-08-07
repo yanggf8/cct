@@ -39,6 +39,8 @@ import {
   formatDateForNav,
   getStatusForMissingRow,
   getCurrentDateET,
+  getWeekString,
+  getWeekStartDate,
   isMarketHours,
   NAV_CUTOVER_DATE
 } from '../modules/trading-calendar.js';
@@ -116,10 +118,10 @@ export async function handleReportRoutes(
 
     // GET /api/v1/reports/weekly - Latest weekly report
     if (path === '/api/v1/reports/weekly' && method === 'GET') {
-      // getWeekString reads the Date with local-time getters, which on a Worker
-      // means UTC. Anchor it at noon UTC of the ET business date so the week is
-      // the one the market is in — the same T12:00:00Z anchoring the dashboard
-      // handlers use (modules/handlers/date-utils.ts).
+      // `getWeekString` reads its argument with UTC accessors, so anchor the ET
+      // business date at noon UTC — the same T12:00:00Z idiom the dashboard
+      // handlers use (modules/handlers/date-utils.ts). Noon rather than midnight
+      // leaves room on both sides for any offset arithmetic downstream.
       const week = getWeekString(new Date(`${marketToday()}T12:00:00Z`));
       return await handleWeeklyReport(week, request, env, headers, requestId);
     }
@@ -1532,22 +1534,6 @@ interface JobStatusEntry {
 }
 
 // Helper functions
-function getWeekString(date: Date): string {
-  const year = date.getFullYear();
-  const week = Math.ceil((((date.getTime() - new Date(year, 0, 1).getTime()) / 86400000) + 1) / 7);
-  return `${year}-W${week.toString().padStart(2, '0')}`;
-}
-
-function getWeekStartDate(year: number, week: number): Date {
-  const firstDayOfYear = new Date(year, 0, 1);
-  const daysOffset = (week - 1) * 7;
-  const startDate = new Date(firstDayOfYear.getTime() + daysOffset * 24 * 60 * 60 * 1000);
-
-  // Adjust to Monday
-  const dayOfWeek = startDate.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  return new Date(startDate.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
-}
 
 function isMarketOpen(): boolean {
   const now = new Date();

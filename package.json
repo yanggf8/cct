@@ -42,14 +42,15 @@
     "test:synthetic-monitoring": "./tests/validation/test-synthetic-monitoring-html.sh",
     "test:mock-prevention": "./tests/feature/mock-elimination/test-mock-prevention-scan.sh",
     "test:d1-sql": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin d1-sql",
-    "verify": "npm run test:d1-sql && npm run test:no-artifacts && npm run test:no-persistent-files && npm run test:cache-hit-contract && npm run test:html-structure && npm run test:guards-smoke && npm run test:validate-environment && npm run test:synthetic-monitoring && npm run test:mock-prevention",
+    "verify": "npm run test:d1-sql && npm run test:no-artifacts && npm run test:no-persistent-files && npm run test:cache-hit-contract && npm run test:week-round-trip && npm run test:html-structure && npm run test:guards-smoke && npm run test:validate-environment && npm run test:synthetic-monitoring && npm run test:mock-prevention",
     "verify:staging": "npm run verify && npm run test:performance-all",
     "verify:prod": "npm run build:prod && npm run verify && npm run test:production-guards",
     "test:no-artifacts": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin no-artifacts",
     "test:no-persistent-files": "cargo run --quiet --release --manifest-path tools/ci-validators/Cargo.toml --bin no-persistent-files",
     "prepare": "husky install",
     "test:do-cache-flag": "node --experimental-transform-types --import ./tests/validation/register-ts.mjs tests/validation/test-do-cache-flag.mjs",
-    "test:cache-hit-contract": "node tests/validation/test-cache-hit-contract.mjs"
+    "test:cache-hit-contract": "node tests/validation/test-cache-hit-contract.mjs",
+    "test:week-round-trip": "node --experimental-transform-types --import ./tests/validation/register-ts.mjs tests/validation/test-week-round-trip.mjs"
   },
   "keywords": [
     "sentiment-analysis",
