@@ -69,6 +69,7 @@ Design records for changes that needed one, newest first:
 
 | Document | Description |
 |----------|-------------|
+| `specs/2026-08-07-business-date-envelope-design.md` | `metadata.business_date` on every report response, so no reader re-derives the trading day. Both prerequisites shipped; the field itself is not yet implemented |
 | `specs/2026-07-28-pre-market-freshness-gate-design.md` | Pre-market skill reports `degraded` on stale D1-fallback snapshots |
 
 ## Archive (`docs/archive/`)
