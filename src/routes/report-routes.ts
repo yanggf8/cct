@@ -41,6 +41,7 @@ import {
   getCurrentDateET,
   getWeekString,
   getWeekStartDate,
+  lastTradingDayOfWeek,
   isMarketHours,
   NAV_CUTOVER_DATE
 } from '../modules/trading-calendar.js';
@@ -474,6 +475,15 @@ async function handleWeeklyReport(
 
     // Parse week to get date range
     const [year, weekNum] = week.split('-W').map(Number);
+
+    // The day this week is *about*: its last NYSE session. Prefer one that has
+    // already happened, so a week in progress does not name a Friday that has
+    // not arrived; fall back to the week's own last session when the whole week
+    // is still ahead, since that is still the day it describes. The final
+    // `?? week` is unreachable — the route has already rejected anything that is
+    // not `YYYY-W##`, and every such week holds at least one weekday — and
+    // exists only because the helper's type admits null.
+    const weekBusinessDate = lastTradingDayOfWeek(week, marketToday()) ?? lastTradingDayOfWeek(week) ?? week;
     const startDate = getWeekStartDate(year, weekNum);
     const endDate = new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000);
 
@@ -497,6 +507,7 @@ async function handleWeeklyReport(
       return new Response(
         JSON.stringify(
           ApiResponseFactory.cached(cached.data, 'hit', {
+            ...businessDateMeta(weekBusinessDate, true),
             source: 'cache',
             ttl: 604800, // 7 days
             requestId,
@@ -698,6 +709,7 @@ async function handleWeeklyReport(
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(response, {
+          ...businessDateMeta(weekBusinessDate, dailyReports.length > 0),
           source: 'fresh',
           ttl: 604800,
           requestId,

@@ -568,19 +568,22 @@ Expected: six checks pass, the weekly check FAILs on `undefined`.
 
 Add the import in `report-routes.ts` — extend the existing `trading-calendar.js` import block with `lastTradingDayOfWeek,`.
 
-At `:474` — `ApiResponseFactory.cached(cached.data, 'hit', { … })` — add as the first metadata entry:
+Declare the value once, just after the week is parsed, and spread it at both sites:
 
 ```ts
-            ...businessDateMeta(lastTradingDayOfWeek(week, marketToday()) ?? week, true),
+    const weekBusinessDate = lastTradingDayOfWeek(week, marketToday()) ?? lastTradingDayOfWeek(week) ?? week;
 ```
-
-At `:675` — `ApiResponseFactory.success(response, { … })` — add as the first metadata entry:
 
 ```ts
-          ...businessDateMeta(lastTradingDayOfWeek(week, marketToday()) ?? week, dailyReports.length > 0),
+            ...businessDateMeta(weekBusinessDate, true),                          // cached site
+          ...businessDateMeta(weekBusinessDate, dailyReports.length > 0),         // success site
 ```
 
-`dailyReports` is the array built at `:463`; empty means the window held no snapshots. Falling back to the week key when a week holds no session at all keeps the field present rather than absent, which the inventory check in Task 6 requires.
+**Corrected during execution.** The single clamped call this step first specified was wrong twice. A week still in progress clamps to whatever session has happened so far, so pinning the *current* week in a test makes the assertion change its own answer daily — the fixtures use a finished week (2026-W31 → 2026-07-31) for that reason. And a week entirely in the future clamps to `null`, so the `?? week` fallback would have written `"2026-W52"` into a field the spec says is `YYYY-MM-DD`. Preferring a session that has already happened, then falling back to the week's own last session, covers both. The final `?? week` is unreachable — the route rejects anything that is not `YYYY-W##`, and every such week holds at least one weekday — and exists only because the helper's type admits null.
+
+**Also corrected: `isTradingDay` was timezone-dependent.** It parsed at a fixed `-05:00` and read `getDay()`, the *host's* weekday. Correct on Workers, which run TZ=UTC; one day out anywhere east of it — on the UTC+8 development machine it called Sunday a trading day, and `lastTradingDayOfWeek` duly returned 2026-08-09. The fixed offset was EST in a repo whose sessions are half the year in EDT. It now anchors at noon UTC and reads `getUTCDay()`. Production behaviour is unchanged; the tests become meaningful off-Workers, which is where they run.
+
+`dailyReports` is the array of daily snapshots inside the window; empty means the window held none.
 
 - [ ] **Step 8: Run tests**
 

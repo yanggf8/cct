@@ -53,8 +53,15 @@ const NYSE_HOLIDAYS = new Set([...NYSE_HOLIDAYS_2025, ...NYSE_HOLIDAYS_2026, ...
  * Check if a date string (YYYY-MM-DD) is a NYSE trading day
  */
 export function isTradingDay(date: string): boolean {
-  const d = new Date(date + 'T12:00:00-05:00'); // Noon ET to avoid DST issues
-  const dayOfWeek = d.getDay();
+  // Read in UTC, not local time. This parsed the date at a fixed -05:00 and then
+  // called `getDay()`, which is the *host's* weekday: correct on Workers because
+  // they run TZ=UTC, and wrong by one day anywhere east of it — on a UTC+8
+  // machine it called Sunday a trading day. The fixed offset was also EST in a
+  // repo whose sessions are half the year in EDT. A date-only string has no
+  // instant in it to convert, so anchoring at noon UTC and reading UTC accessors
+  // is both correct and independent of where the code runs.
+  const d = new Date(date + 'T12:00:00Z');
+  const dayOfWeek = d.getUTCDay();
 
   // Weekend check (0 = Sunday, 6 = Saturday)
   if (dayOfWeek === 0 || dayOfWeek === 6) return false;
@@ -239,4 +246,32 @@ export function getWeekString(date: Date): string {
  */
 export function getWeekStartDate(isoYear: number, week: number): Date {
   return new Date(isoWeek1Monday(isoYear).getTime() + (week - 1) * 7 * DAY_MS);
+}
+
+/**
+ * The last NYSE session within an ISO week, or `null` if the week holds none.
+ *
+ * A weekly review covers a week, but an envelope states a day, so the day has to
+ * be the last session the week actually held. Two obvious answers are both
+ * wrong. `week_end` is `week_start + 6`, which is a Sunday every single time.
+ * "The Friday" is wrong whenever the Friday is a holiday — 2026-12-25 is
+ * Christmas Day and a Friday, and that week's last session is Thursday the
+ * 24th, which only the calendar can tell you.
+ *
+ * `notAfter` (YYYY-MM-DD) clamps the search, so a week still in progress reports
+ * the last session that has already happened rather than naming one in the
+ * future.
+ */
+export function lastTradingDayOfWeek(weekKey: string, notAfter?: string): string | null {
+  const [isoYear, week] = weekKey.split('-W').map(Number);
+  const monday = getWeekStartDate(isoYear, week);
+  for (let offset = 6; offset >= 0; offset--) {
+    // Whole-day arithmetic on a UTC-midnight Monday: no clock is being read and
+    // no timezone conversion happens, so `toISOString` here is date arithmetic
+    // on an already-chosen day, not a business date derived from an instant.
+    const day = new Date(monday.getTime() + offset * DAY_MS).toISOString().split('T')[0];
+    if (notAfter && day > notAfter) continue;
+    if (isTradingDay(day)) return day;
+  }
+  return null;
 }

@@ -21,7 +21,7 @@
 // Run: npm run test:week-round-trip
 
 import assert from 'node:assert/strict';
-import { getWeekString, getWeekStartDate } from '../../src/modules/trading-calendar.ts';
+import { getWeekString, getWeekStartDate, lastTradingDayOfWeek, isTradingDay } from '../../src/modules/trading-calendar.ts';
 
 const iso = (d) => d.toISOString().split('T')[0];
 const DAY = 86400000;
@@ -122,5 +122,51 @@ function windowOf(weekKey) {
     );
   }
 }
+
+// --- the last trading day a week actually contains -----------------------------
+//
+// A weekly review is about a week, but an envelope states a day, so the day has
+// to be the last session the week actually held. Three traps: the week's last
+// calendar day is a Sunday and never a session; a holiday Friday moves the
+// answer to Thursday; and a week still in progress has no sessions yet for the
+// days that have not happened.
+
+{
+  // Weekday classification must not depend on where the test runs. This read
+  // `getDay()` off a Date parsed at a fixed -05:00, which is the host's weekday:
+  // right on Workers (TZ=UTC), and one day out on a UTC+8 machine, where it
+  // called Sunday a session.
+  assert.equal(isTradingDay('2026-08-09'), false, 'Sunday is not a session');
+  assert.equal(isTradingDay('2026-08-08'), false, 'Saturday is not a session');
+  assert.equal(isTradingDay('2026-08-07'), true, 'an ordinary Friday is');
+  assert.equal(isTradingDay('2026-12-25'), false, 'Christmas Day is a holiday');
+
+  // 2026-W32 is 08-03..08-09. Friday the 7th is a normal session.
+  assert.equal(lastTradingDayOfWeek('2026-W32'), '2026-08-07');
+
+  // Never a weekend, for any week of the year. `week_end` — the obvious wrong
+  // answer — is a Sunday every single time.
+  for (let w = 1; w <= 52; w++) {
+    const key = `2026-W${String(w).padStart(2, '0')}`;
+    const day = lastTradingDayOfWeek(key);
+    assert.ok(day, `${key} resolved to no session at all`);
+    const dow = new Date(`${day}T12:00:00Z`).getUTCDay();
+    assert.ok(dow >= 1 && dow <= 5, `${key} resolved to weekday ${dow} (${day})`);
+  }
+
+  // A week in progress stops at the last session that has already happened,
+  // rather than naming a Friday that has not arrived.
+  assert.equal(lastTradingDayOfWeek('2026-W32', '2026-08-05'), '2026-08-05');
+  assert.equal(lastTradingDayOfWeek('2026-W32', '2026-08-06'), '2026-08-06');
+
+  // A clamp before the week opens leaves no session in range.
+  assert.equal(lastTradingDayOfWeek('2026-W32', '2026-07-30'), null);
+
+  // A holiday Friday hands the week to Thursday. 2026-12-25 is Christmas Day,
+  // a Friday, and is in NYSE_HOLIDAYS_2026 — so "just take the Friday" is wrong
+  // in a way only the calendar can tell you.
+  assert.equal(lastTradingDayOfWeek(getWeekString(new Date('2026-12-25T12:00:00Z'))), '2026-12-24');
+}
+
 
 console.log('week round trip: OK');

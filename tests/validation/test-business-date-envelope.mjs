@@ -200,4 +200,33 @@ await check('intraday: an explicit ?date is the day reported on', async () => {
 });
 
 
+// ── weekly ───────────────────────────────────────────────────────────────────
+
+await check('weekly: the day stated is the last session of the week, not its Sunday', async () => {
+  // `week_end` is week_start + 6, so it is a Sunday every time — the obvious
+  // wrong answer, and one that reads plausibly right up until a consumer keys
+  // anything on it. A finished week is used deliberately: the current week
+  // clamps to whichever session has happened so far, which would make this
+  // assertion change its own answer every day it runs.
+  const body = await reports('/api/v1/reports/weekly/2026-W31', {
+    marker: 'weekly-report',
+    week: '2026-W31',
+    weekly_overview: { sentiment_trend: 'bullish' },
+  });
+  assert.equal(body.metadata.business_date, '2026-07-31');
+  assert.equal(body.metadata.has_content, true);
+});
+
+await check('weekly: a holiday Friday hands the week to Thursday', async () => {
+  // 2026-12-25 is Christmas Day and a Friday. "Take the Friday" is wrong here in
+  // a way only the NYSE calendar knows.
+  const body = await reports('/api/v1/reports/weekly/2026-W52', {
+    marker: 'weekly-report',
+    week: '2026-W52',
+    weekly_overview: { sentiment_trend: 'neutral' },
+  });
+  assert.equal(body.metadata.business_date, '2026-12-24');
+});
+
+
 process.exit(failed === 0 ? 0 : 1);
