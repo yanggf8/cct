@@ -95,4 +95,41 @@ await check('end-of-day: the placeholder does not claim content by carrying a da
   assert.equal(body.metadata.has_content, false, 'and the envelope must say the day is empty');
 });
 
+// ── pre-market ───────────────────────────────────────────────────────────────
+
+/** A briefing in the shape all three writers of `pre_market_report_<date>` store. */
+function briefing(overrides = {}) {
+  return {
+    type: 'pre_market_briefing',
+    timestamp: '2026-08-05T12:00:00.000Z',
+    market_status: 'pre_market',
+    date: '2026-08-05',
+    is_stale: false,
+    key_insights: ['Pre-market analysis complete'],
+    high_confidence_signals: [{ symbol: 'MSFT', sentiment: 'bullish', confidence: 0.95 }],
+    all_signals: [{ symbol: 'MSFT', sentiment: 'bullish', confidence: 0.95 }],
+    data_source: 'd1_snapshot',
+    symbols_analyzed: 4,
+    ...overrides,
+  };
+}
+
+await check('pre-market: a cache hit reports the day the content is about', async () => {
+  // The trap this task exists for. The cache key is built from today, but the
+  // briefing inside it describes 2026-08-05. Labelling the envelope with today
+  // would tell a consumer that a day-old briefing is current — the precise
+  // relabelling the field was added to prevent, and a mistake no test that
+  // merely asserts `business_date` exists would ever catch.
+  const body = await reports('/api/v1/reports/pre-market', briefing());
+  assert.equal(body.metadata.business_date, '2026-08-05');
+  assert.equal(body.metadata.has_content, true);
+});
+
+await check('pre-market: a miss states the day it looked for and finds nothing', async () => {
+  const body = await reports('/api/v1/reports/pre-market', null);
+  assert.match(body.metadata.business_date, DATE);
+  assert.equal(body.metadata.has_content, false);
+});
+
+
 process.exit(failed === 0 ? 0 : 1);

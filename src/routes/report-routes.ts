@@ -759,6 +759,7 @@ export async function handlePreMarketReport(
         return new Response(
           JSON.stringify(
             ApiResponseFactory.success(runSnapshot.data, {
+              ...businessDateMeta(runSnapshot.scheduledDate, true),
               source: 'd1_run_id',
               run_id: runId,
               scheduled_date: runSnapshot.scheduledDate,
@@ -800,6 +801,7 @@ export async function handlePreMarketReport(
             // JSON.stringify drops undefined fields, and the route answered
             // 200 `success:true` with no `data` key for a full TTL — 2026-08-06.
             ApiResponseFactory.cached(cached, 'hit', {
+              ...businessDateMeta((cached as any)?.date ?? today, true),
               source: 'do_cache',
               ttl: 3600,
               requestId,
@@ -1053,6 +1055,7 @@ export async function handlePreMarketReport(
       return new Response(
         JSON.stringify(
           ApiResponseFactory.success(response, {
+            ...businessDateMeta(sourceDate, true),
             source: 'd1_fallback',
             ttl: 3600,
             requestId,
@@ -1081,6 +1084,7 @@ export async function handlePreMarketReport(
     return new Response(
       JSON.stringify(
         ApiResponseFactory.success(emptyResponse, {
+          ...businessDateMeta(today, false),
           source: 'empty',
           requestId,
           processingTime: timer.getElapsedMs(),
