@@ -3,7 +3,7 @@
 ## Overview
 This index points to active documentation in `docs/` and highlights archived material. For system-level policies and assistant guidance, see `AGENTS.md` and `CLAUDE.md` at repo root.
 
-**Last Updated**: 2026-07-28
+**Last Updated**: 2026-08-07
 
 ## Quick Start
 | Document | Purpose |
