@@ -606,10 +606,27 @@ export async function getD1FallbackData(
 ): Promise<{ data: any; source: string; sourceDate: string; isStale: boolean; createdAt?: string | null; runId?: string | null } | null> {
   const usePredictionsShape = reportType === 'intraday' || reportType === 'end-of-day' || reportType === 'predictions';
 
-  // Determine if querying "today" in ET
-  const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  const todayET = nowET.toISOString().split('T')[0];
+  // The ET business date and the ET wall clock, both formatted in the zone from
+  // one instant.
+  //
+  // This used to be `new Date(new Date().toLocaleString('en-US', {timeZone}))`,
+  // read back with `toISOString()` for the date and `getHours()/getMinutes()`
+  // for the clock. Both only agreed with ET because Workers run with TZ=UTC —
+  // the intermediate Date was parsed as UTC, so the locale round trip cancelled
+  // out. That is a property of the runtime, not of the code. Reading one
+  // instant also removes the midnight race two separate `new Date()` calls
+  // would leave.
+  const nowInstant = new Date();
+  const todayET = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(nowInstant);
   const isQueryingToday = dateStr === todayET;
+  const etClockParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    hourCycle: 'h23'
+  }).formatToParts(nowInstant);
+  const etClock = (type: string): number =>
+    parseInt(etClockParts.find(p => p.type === type)?.value ?? '0', 10);
 
   // Schedule times in ET (hour)
   const scheduleHoursET: Record<string, number> = {
@@ -626,8 +643,8 @@ export async function getD1FallbackData(
   };
   const scheduleHour = scheduleHoursET[reportType] ?? 8;
   const scheduleMinute = scheduleMinutesET[reportType] ?? 0;
-  const currentHourET = nowET.getHours();
-  const currentMinuteET = nowET.getMinutes();
+  const currentHourET = etClock('hour');
+  const currentMinuteET = etClock('minute');
   const isBeforeSchedule = currentHourET < scheduleHour || (currentHourET === scheduleHour && currentMinuteET < scheduleMinute);
 
   // Allow stale for today defaults to false for all reports - never show wrong scheduled_date

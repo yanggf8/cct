@@ -38,6 +38,7 @@ import {
   getLastNTradingDays,
   formatDateForNav,
   getStatusForMissingRow,
+  getCurrentDateET,
   isMarketHours,
   NAV_CUTOVER_DATE
 } from '../modules/trading-calendar.js';
@@ -47,6 +48,32 @@ import { getPrimarySentiment } from '../types.js';
 import { fetchRealSectorData, calculateDataQualityScore } from '../modules/real-analytics-data.js';
 
 const logger = createLogger('report-routes');
+
+/**
+ * Today's *market business date*, in ET.
+ *
+ * ET is the market's own time, so the trading day IS the ET date — it is never
+ * derived from UTC and never round-tripped through it. For the 4-5 hours after
+ * 00:00 UTC the UTC calendar day is already tomorrow while the ET session is
+ * still today, and every one of those hours is when end-of-day work lands.
+ *
+ * These routes used to answer `new Date().toISOString().split('T')[0]`, which is
+ * a UTC date. The jobs write their snapshots under the ET business date
+ * (`getESTDateString`, modules/scheduler.ts:60), so in that window the reader
+ * asked D1 for a day the writer had never used, found nothing, and synthesised
+ * the "analysis not yet available" placeholder over data that existed. The same
+ * date is echoed back in the payload, so the reader was shown the wrong day too.
+ *
+ * Delegates to `trading-calendar`, which owns the market's calendar — trading
+ * days, NYSE holidays, market hours. Date resolution splits in two, and the two
+ * must not be confused: `trading-calendar` answers *what day is the market on*,
+ * while `handlers/date-utils.resolveQueryDate` answers *what day did this
+ * request ask for* (?date, ?tz, the saved DO preference). The API serves the
+ * market's day, so it belongs on this side of that line.
+ */
+function marketToday(): string {
+  return getCurrentDateET();
+}
 
 /**
  * Extract date parameter from URL
@@ -77,8 +104,7 @@ export async function handleReportRoutes(
 
     // GET /api/v1/reports/daily - Latest daily report
     if (path === '/api/v1/reports/daily' && method === 'GET') {
-      const today = new Date().toISOString().split('T')[0];
-      return await handleDailyReport(today, request, env, headers, requestId);
+      return await handleDailyReport(marketToday(), request, env, headers, requestId);
     }
 
     // GET /api/v1/reports/weekly/:week - Weekly report
@@ -90,7 +116,11 @@ export async function handleReportRoutes(
 
     // GET /api/v1/reports/weekly - Latest weekly report
     if (path === '/api/v1/reports/weekly' && method === 'GET') {
-      const week = getWeekString(new Date());
+      // getWeekString reads the Date with local-time getters, which on a Worker
+      // means UTC. Anchor it at noon UTC of the ET business date so the week is
+      // the one the market is in — the same T12:00:00Z anchoring the dashboard
+      // handlers use (modules/handlers/date-utils.ts).
+      const week = getWeekString(new Date(`${marketToday()}T12:00:00Z`));
       return await handleWeeklyReport(week, request, env, headers, requestId);
     }
 
@@ -690,7 +720,7 @@ export async function handlePreMarketReport(
   const runId = url.searchParams.get('run_id');
 
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = marketToday();
     const cacheKey = `pre_market_report_${today}`;
 
     // If run_id specified, load that specific run
@@ -1069,7 +1099,7 @@ export async function handleIntradayReport(
 
   try {
     const dateParam = url.searchParams.get('date');
-    const today = new Date().toISOString().split('T')[0];
+    const today = marketToday();
     const scheduledDate = dateParam ?? today;
 
     if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
@@ -1282,7 +1312,7 @@ export async function handleEndOfDayReport(
     }
 
     // Fetch from D1 snapshot (no KV cache)
-    const today = new Date().toISOString().split('T')[0];
+    const today = marketToday();
     const d1Result = await getD1FallbackData(env, today, 'end-of-day');
 
     if (d1Result?.data) {
