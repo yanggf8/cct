@@ -167,12 +167,19 @@ env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="rate_lim
 env -u CLOUDFLARE_API_TOKEN npx wrangler tail --format=pretty --search="cache" --since=24h
 ```
 
-## 🕒 Scheduled Jobs (GitHub Actions)
-Active schedules (.github/workflows/trading-system.yml):
-- 12:30 UTC Mon-Fri → Pre-Market Briefing
-- 16:00 UTC Mon-Fri → Intraday Check
-- 20:05 UTC Mon-Fri → End-of-Day Summary
-- 14:00 UTC Sun → Weekly Review
+## 🕒 Scheduled Jobs
+The four analysis schedules fire from the box's nullclaw cron
+(`yanggf8/claw-skills` → `tools/trigger-cct-job.py`), **not** from GitHub
+Actions: `schedule:` was measured +10.1 h late in 2026-08 and the crons moved
+on 2026-09-02 (`yanggf8/cct#1`). Verify the live rows with
+`SELECT id, expression, command FROM cron_jobs WHERE command LIKE '%trigger-cct-job%'`:
+- 12:30 UTC Mon-Fri → Pre-Market Briefing  (`job-6e97b576`)
+- 16:00 UTC Mon-Fri → Intraday Check      (`job-c46b1ed4`)
+- 20:05 UTC Mon-Fri → End-of-Day Summary  (`job-d44da309`)
+- 14:00 UTC Sun → Weekly Review           (`job-6236fec4`)
+Generator drift is watched by `job-e05f83c8` (`tools/check-cct-generator.py`,
+`5 0 * * *` UTC) — non-zero exit alerts the operator before the consumer does.
+
 
 Not scheduled:
 - `sector_rotation_refresh` exists in `src/modules/scheduler.ts` but is disabled in Wrangler and GitHub Actions. Run manually via `POST /api/v1/jobs/trigger` with `{"triggerMode": "sector_rotation_refresh"}` if needed.

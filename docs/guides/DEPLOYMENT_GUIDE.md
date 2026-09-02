@@ -465,46 +465,48 @@ jobs:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 ```
 
-### **🔄 GitHub Actions Scheduling System**
+### **🔄 Scheduling**
 
 #### **Current Architecture**
-All prediction scheduling jobs run via GitHub Actions, **NOT** Cloudflare cron:
+The four analysis schedules fire from the nullclaw cron on the box that also
+reads the reports (`yanggf8/claw-skills` -> `tools/trigger-cct-job.py`, shell
+jobs, option B of `yanggf8/cct#1`). They moved OFF GitHub Actions `schedule:`
+on 2026-09-02: the Actions trigger was measured +0.6..+1.1 h late normally and
+**+10.1 h** on 2026-08-28, which degraded the cct consumer on four consecutive
+trading mornings. `schedule:` is best effort and has no bound on its start
+time; the box cron shares the consumer's clock.
 
-**Primary Workflow**: `.github/workflows/trading-system.yml`
-- **🌅 Pre-Market**: Mon-Fri 8:30 AM ET (12:30 UTC) - Morning predictions
-- **🔄 Intraday**: Mon-Fri 12:00 PM ET (16:00 UTC) - Performance validation  
-- **🌆 End-of-Day**: Mon-Fri 4:05 PM ET (20:05 UTC) - Market close analysis
-- **📊 Weekly**: Sunday 10:00 AM ET (14:00 UTC) - Pattern analysis
+The four times are unchanged:
+- **Pre-Market**: Mon-Fri 8:30 AM ET (12:30 UTC) - Morning predictions
+- **Intraday**: Mon-Fri 12:00 PM ET (16:00 UTC) - Performance validation
+- **End-of-Day**: Mon-Fri 4:05 PM ET (20:05 UTC) - Market close analysis
+- **Weekly**: Sunday 10:00 AM ET (14:00 UTC) - Pattern analysis
 
-#### **Workflow Configuration**
-```yaml
-# Key secrets required:
-# - X_API_KEY: API key for trading system authentication
-# - TEAMS_WEBHOOK_URL: Microsoft Teams notification webhook (optional)
+**Trigger jobs** (nullclaw shell jobs, `--tz +00:00 --verify exit_only`):
+- `job-6e97b576` -> `tools/trigger-cct-job.py pre-market`
+- `job-c46b1ed4` -> `tools/trigger-cct-job.py intraday`
+- `job-d44da309` -> `tools/trigger-cct-job.py eod`
+- `job-6236fec4` -> `tools/trigger-cct-job.py weekly`
 
-# Manual triggers supported:
-# - workflow_dispatch: On-demand analysis execution
-```
+The trigger POST carries the public routing key `X-API-KEY: yanggf` and
+`X-Trigger-Source: nullclaw-cron`.
 
-#### **Migration Benefits**
-- ✅ **Unlimited Schedules**: No 3-cron restriction (Cloudflare free tier)
-- ✅ **100% Free**: Uses 175/2000 monthly GitHub Actions minutes
-- ✅ **Enhanced Monitoring**: Full execution logging + Teams notifications
-- ✅ **No Timeout**: Unlimited execution time vs 30-second Cloudflare limit
-- ✅ **Cost Elimination**: Removed $0.20/month Durable Object requirement
+#### **Workflow status**
+`.github/workflows/trading-system.yml` now exposes **only `workflow_dispatch`**
+(manual analysis, Teams notifications, health check). Do NOT re-add its
+`schedule:` block while the box triggers are on: a day would get two trigger
+rows (`job_run_results.run_id` embeds a uuid4 and `job_date_results` rewinds
+the day to `running` on the second writer).
 
-#### **Cloudflare Cron Status: DISABLED**
-- **wrangler.toml**: Lines 68-69 commented out (scheduled triggers disabled)
-- **Legacy Code**: `scheduler.ts` maintained for reference only
-- **All Scheduling**: Managed exclusively through GitHub Actions
+#### **Migration history**
+- 2025: Cloudflare cron -> GitHub Actions (the "3-schedule limit" assumption).
+- 2026-09-02: GitHub Actions `schedule:` -> box nullclaw cron (measured drift;
+  see `yanggf8/cct#1`).
 
-#### **Monitoring & Alerts**
-- **GitHub Actions Console**: Full execution logs and debugging
-- **Teams Notifications**: Success/failure alerts with analysis details
-- **Health Checks**: Multi-system monitoring (core + predictive + market intelligence)
-- **Performance Tracking**: Execution time and success rate metrics
-
-**Note**: Deployment and scheduling are now decoupled - deploy via Wrangler, schedule via GitHub Actions.
+#### **Fallback**
+If the box ever misses its minutes, Cloudflare cron triggers are config-only
+(`src/modules/scheduler.ts` already dispatches on UTC time) and the free tier
+allows 5 cron triggers per account.
 
 ## 🔐 Security Best Practices
 
