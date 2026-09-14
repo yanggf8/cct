@@ -96,13 +96,23 @@ new_sqlite_classes = ["RateLimiterDO"]
 tag = "v3"
 new_sqlite_classes = ["PortfolioDO"]
 
-# Scheduled events (DISABLED - Migrated to GitHub Actions)
-# All prediction scheduling now handled by .github/workflows/trading-system.yml
-# Migration Benefits: Unlimited schedules, 100% free, better observability
-# Cloudflare cron had 3-schedule limit and $0.20/month DO cost
-# Empty crons array explicitly removes any existing Cloudflare cron triggers
+# Scheduled events — the worker's own Cloudflare cron triggers since
+# 2026-09-14. History: GitHub Actions `schedule:` (best-effort, drifted
+# +8..+10h, retired 2026-09-02) → the reader box's nullclaw cron (lost
+# 2026-09-11 to a 29.4h box outage that also silenced the box-side watchdog;
+# yanggf8/claw-skills HISTORY.md) → here. The box now keeps only the readers,
+# the watchdog, and tools/trigger-cct-job.py as the manual fallback.
+# scheduler.ts matches (UTC hour, minute, weekday) tuples exactly and answers
+# 400 to anything else, so every entry below must keep its twin there. To
+# move the schedule elsewhere later: empty this array FIRST — two writers
+# give one day two trigger rows and rewind job_date_results to running.
 [triggers]
-crons = []
+crons = [
+  "30 12 * * 1-5", # morning_prediction_alerts (pre-market)
+  "0 16 * * 1-5",  # midday_validation_prediction (intraday)
+  "5 20 * * 1-5",  # next_day_market_prediction (end-of-day)
+  "0 14 * * SUN",  # weekly_review_analysis (Sunday) — CF's parser wants the name, not 0
+]
 
 # Variables
 [vars]

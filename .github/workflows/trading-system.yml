@@ -2,18 +2,19 @@ name: Trading System Automated Analysis
 
 # 5-Tier Intelligent Analysis System
 # FEATURES: Manual analysis runs, Teams notifications, health monitoring
-# SCHEDULES: moved OFF GitHub Actions `schedule:` on 2026-09-02.
-#
-# Actions `schedule:` is best-effort and its start time is unbounded -- measured
-# +10.1 h late on 2026-08-28, which degraded the cct consumer on four mornings
-# running (yanggf8/claw-skills HISTORY.md, 2026-09-02). The four jobs now fire
-# from the nullclaw cron on the box that reads the reports, via
-# tools/trigger-cct-job.py (yanggf8/claw-skills, option B of yanggf8/cct#1), so
-# the producer and the consumer share one clock and one reliability domain.
+# SCHEDULES: the worker's own Cloudflare cron triggers since 2026-09-14
+# (wrangler.toml [triggers]). History: GitHub Actions `schedule:` was retired
+# 2026-09-02 -- best-effort, measured +10.1 h late on 2026-08-28 -- and the
+# box's nullclaw cron carried the four slots for two weeks, until a 29.4 h box
+# outage (2026-09-11) missed every slot and the recovery drain wrote
+# Saturday-dated content (yanggf8/claw-skills HISTORY.md, 2026-09-14). The
+# worker now schedules itself; the box keeps only the readers, the watchdog,
+# and tools/trigger-cct-job.py as the manual fallback.
 # This workflow stays for manual dispatch plus the Teams notifications and the
 # health check -- run it with `workflow_dispatch`.
-# To re-integrate the schedule later, restore the four crons HERE and turn the
-# box triggers OFF first; leaving both on gives one day two trigger rows.
+# To move the schedule anywhere else later, turn the CF crons OFF first
+# (wrangler.toml [triggers] crons = []); two writers give one day two trigger
+# rows and rewind job_date_results to running.
 
 on:
   # Manual trigger for testing and on-demand analysis
