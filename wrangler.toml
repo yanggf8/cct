@@ -107,10 +107,14 @@ new_sqlite_classes = ["PortfolioDO"]
 # move the schedule elsewhere later: empty this array FIRST — two writers
 # give one day two trigger rows and rewind job_date_results to running.
 [triggers]
+# Day-of-week must be an explicit list, never a range: CF registers `1-5`
+# verbatim but only ever fires Mon-Thu, so every Friday since the 2026-09-14
+# cutover went dark (09-18, 09-25, 10-02, 10-09 — job_date_results zero rows,
+# worker otherwise healthy). Explicit names and lists behave (`SUN`); ranges do not.
 crons = [
-  "30 12 * * 1-5", # morning_prediction_alerts (pre-market)
-  "0 16 * * 1-5",  # midday_validation_prediction (intraday)
-  "5 20 * * 1-5",  # next_day_market_prediction (end-of-day)
+  "30 12 * * MON,TUE,WED,THU,FRI", # morning_prediction_alerts (pre-market)
+  "0 16 * * MON,TUE,WED,THU,FRI",  # midday_validation_prediction (intraday)
+  "5 20 * * MON,TUE,WED,THU,FRI",  # next_day_market_prediction (end-of-day)
   "0 14 * * SUN",  # weekly_review_analysis (Sunday) — CF's parser wants the name, not 0
 ]
 
