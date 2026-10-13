@@ -103,7 +103,9 @@ new_sqlite_classes = ["PortfolioDO"]
 # yanggf8/claw-skills HISTORY.md) → here. The box now keeps only the readers,
 # the watchdog, and tools/trigger-cct-job.py as the manual fallback.
 # scheduler.ts matches (UTC hour, minute, weekday) tuples exactly and answers
-# 400 to anything else, so every entry below must keep its twin there. To
+# 400 to anything else — so every scheduler branch must find its tuple covered
+# by the expressions below, and a multiplexed expression's bycatch is answered
+# 400 by design. To
 # move the schedule elsewhere later: empty this array FIRST — two writers
 # give one day two trigger rows and rewind job_date_results to running.
 [triggers]
@@ -111,10 +113,16 @@ new_sqlite_classes = ["PortfolioDO"]
 # verbatim but only ever fires Mon-Thu, so every Friday since the 2026-09-14
 # cutover went dark (09-18, 09-25, 10-02, 10-09 — job_date_results zero rows,
 # worker otherwise healthy). Explicit names and lists behave (`SUN`); ranges do not.
+#
+# The weekday slots share ONE expression on purpose: cron triggers are capped
+# per account (5 on Free, 250 on Paid), but dispatch happens in scheduler.ts
+# by exact (UTC hour, minute, weekday) tuple — one expression can carry any
+# number of slots. `0,5,30 x 12,16,20` fires 9x per weekday; the 3 real tuples
+# run their jobs and the other 6 get the side-effect-free 400. To add a slot,
+# extend scheduler.ts and the lists here — do not add a new expression unless
+# one is truly needed.
 crons = [
-  "30 12 * * MON,TUE,WED,THU,FRI", # morning_prediction_alerts (pre-market)
-  "0 16 * * MON,TUE,WED,THU,FRI",  # midday_validation_prediction (intraday)
-  "5 20 * * MON,TUE,WED,THU,FRI",  # next_day_market_prediction (end-of-day)
+  "0,5,30 12,16,20 * * MON,TUE,WED,THU,FRI", # pre-market 12:30 + intraday 16:00 + eod 20:05; bycatch → 400
   "0 14 * * SUN",  # weekly_review_analysis (Sunday) — CF's parser wants the name, not 0
 ]
 

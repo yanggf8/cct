@@ -377,13 +377,15 @@ DELETE FROM job_executions; DELETE FROM market_close_data;
 
 ---
 
-## GitHub Actions Scheduling
+## Scheduling
 
-- **Exclusive scheduler**: GitHub Actions only (Cloudflare cron disabled via `crons = []` in wrangler.toml)
-- Cron triggers: pre-market (12:30 UTC), intraday (16:00 UTC), end-of-day (20:05 UTC), weekly (14:00 UTC Sun)
-- Detection uses `github.event.schedule` cron matching (not time-window)
+- **The worker schedules itself**: Cloudflare cron triggers in `wrangler.toml [triggers]` since 2026-09-14. GitHub Actions `schedule:` is retired — `trading-system.yml` is `workflow_dispatch` only (manual health check).
+- Expressions. Day-of-week is an **explicit list, never a range** — CF registers a range like `1-5` but only fires Mon–Thu (every Friday 2026-09-18…10-09 went dark that way):
+  - `0,5,30 12,16,20 * * MON,TUE,WED,THU,FRI` — **one expression, three slots**: pre-market (12:30 UTC), intraday (16:00 UTC), end-of-day (20:05 UTC). scheduler.ts dispatches on exact (hour, minute, weekday) tuples; the other six firings each weekday are answered 400, side-effect-free. Cron triggers are capped per account (5 Free / 250 Paid), so slots multiplex onto expressions instead of costing one each.
+  - `0 14 * * SUN` — weekly (14:00 UTC Sun). CF's parser wants the name, not `0`.
+- Manual trigger: `POST /api/v1/jobs/trigger` with `{"triggerMode": ...}` — all five modes, including `sector_rotation_refresh`, which deliberately has no cron expression.
 - Schedule compliance: `GET /api/v1/jobs/schedule-check?date=YYYY-MM-DD` (requires API key)
-- Workflow file: `.github/workflows/trading-system.yml`
+- To move the schedule anywhere else: turn the CF crons off first (`crons = []`) — two writers give one day two trigger rows and rewind `job_date_results` to `running`.
 
 ---
 
